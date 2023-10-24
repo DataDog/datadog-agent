@@ -51,17 +51,13 @@ func extractTraceContext(event events.SQSMessage) *convertedTraceContext {
 	var rawTrace *rawTraceContext
 
 	if awsAttribute, ok := event.Attributes[awsTraceHeader]; ok {
-		log.Debugf("[lifecycle] about to extractTraceContextfromAWSTraceHeader")
 		rawTrace = extractTraceContextfromAWSTraceHeader(awsAttribute)
 	}
 
 	if rawTrace == nil {
-		log.Debugf("[lifecycle] continue extract trace context")
 		if ddMessageAttribute, ok := event.MessageAttributes[datadogHeader]; ok {
-			log.Debugf("[lifecycle] continue to extractTraceContextFromPureSqsEvent")
 			rawTrace = extractTraceContextFromPureSqsEvent(ddMessageAttribute)
 		} else {
-			log.Debugf("[lifecycle] continue to extractTraceContextFromSNSSQSEvent")
 			rawTrace = extractTraceContextFromSNSSQSEvent(event)
 		}
 	}
@@ -115,7 +111,6 @@ func extractTraceContextFromPureSqsEvent(ddPayloadValue events.SQSMessageAttribu
 	}
 
 	if ddPayloadValue.DataType == "Binary" {
-		log.Debug("ddPayloadValue.DataType == Binary")
 		err := json.Unmarshal(ddPayloadValue.BinaryValue, &traceData) // No need to decode base64 because already decoded
 		if err != nil {
 			log.Debug("Error unmarshaling the decoded binary: ", err)

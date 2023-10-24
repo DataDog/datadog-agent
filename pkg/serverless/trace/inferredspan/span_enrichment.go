@@ -221,16 +221,11 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithS3Event(eventPayload eve
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from an SQS event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload events.SQSEvent) {
-	log.Debugf("[lifecycle] EnrichInferredSpanWithSQSEvent started")
 	eventRecord := eventPayload.Records[0]
-	log.Debugf("[lifecycle] selected eventRecord MessageId: %v", eventRecord.MessageId)
 	splitArn := strings.Split(eventRecord.EventSourceARN, ":")
 	parsedQueueName := splitArn[len(splitArn)-1]
-	log.Debugf("[lifecycle] parsedQueueName: %v", parsedQueueName)
 	startTime := calculateStartTime(convertStringTimestamp(eventRecord.Attributes[sentTimestamp]))
-	log.Debugf("[lifecycle] startTime: %v", startTime)
 	serviceName := DetermineServiceName(serviceMapping, parsedQueueName, "lambda_sqs", "sqs")
-	log.Debugf("[lifecycle] serviceName: %v", serviceName)
 
 	inferredSpan.IsAsync = true
 	inferredSpan.Span.Name = "aws.sqs"
@@ -246,7 +241,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 		receiptHandle:  eventRecord.ReceiptHandle,
 		senderID:       eventRecord.Attributes["SenderId"],
 	}
-	log.Debugf("[lifecycle] about to extractTraceContext")
 
 	traceContext := extractTraceContext(eventRecord)
 	if traceContext == nil {

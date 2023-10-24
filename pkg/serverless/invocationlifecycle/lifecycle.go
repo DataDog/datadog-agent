@@ -92,22 +92,19 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	if err != nil {
 		log.Debugf("[lifecycle] Failed to parse event payload: %v", err)
 	}
-	log.Debugf("[lifecycle] lowercaseEventPayload got : %v", lowercaseEventPayload)
+
 	eventType := trigger.GetEventType(lowercaseEventPayload)
-	log.Debugf("[lifecycle] Inferred Event Type : %v", eventType)
 	if eventType == trigger.Unknown {
 		log.Debugf("[lifecycle] Failed to extract event type")
 	}
 
 	// Initialize basic values in the request handler
 	lp.newRequest(startDetails.InvokeEventRawPayload, startDetails.StartTime)
-	log.Debugf("[lifecycle] lp.newRequest done")
 
 	region, account, resource, arnParseErr := trigger.ParseArn(startDetails.InvokedFunctionARN)
 	if arnParseErr != nil {
 		log.Debugf("[lifecycle] Error parsing ARN: %v", err)
 	}
-	log.Debugf("[lifecycle] init based on eventType")
 
 	switch eventType {
 	case trigger.APIGatewayEvent:
