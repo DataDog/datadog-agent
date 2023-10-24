@@ -1,0 +1,140 @@
+# Inventory Agent Payload
+
+This package populates some of the agent-related fields in the `inventories` product in DataDog. More specifically the
+`datadog-agent` table.
+
+This is enabled by default but can be turned off using `inventories_enabled` config.
+
+The payload is sent every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
+update every 5 minutes (see `inventories_min_interval`).
+
+# Content
+
+The `Set` method from the component allow the rest of the codebase to add any information to the payload.
+
+## Agent Configuration
+
+`full_configuration` and `provided_configuration` are scrubbed from any sensitive information (same logic than for the
+flare).
+
+Sending Agent configuration can be disabled using `inventories_configuration_enabled`.
+
+# Format
+
+The payload is a JSON dict with the following fields
+
+- `hostname` - **string**: the hostname of the agent as shown on the status page.
+- `timestamp` - **int**: the timestamp when the payload was created.
+- `agent_metadata` - **dict of string to JSON type**:
+  - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname/providers.go:GetWithProvider).
+  - `agent_version` - **string**: the version of the Agent.
+  - `flavor` - **string**: the flavor of the Agent. The Agent can be build under different flavor such as standalone
+    dogstatsd, iot, serverless ... (see `pkg/util/flavor` package).
+  - `config_apm_dd_url` - **string**: the configuration value `apm_config.dd_url` (scrubbed)
+  - `config_dd_url` - **string**: the configuration value `dd_url` (scrubbed)
+  - `config_site` - **string**: the configuration value `site` (scrubbed)
+  - `config_logs_dd_url` - **string**: the configuration value `logs_config.logs_dd_url` (scrubbed)
+  - `config_logs_socks5_proxy_address` - **string**: the configuration value `logs_config.socks5_proxy_address` (scrubbed)
+  - `config_no_proxy` - **array of strings**: the configuration value `proxy.no_proxy` (scrubbed)
+  - `config_process_dd_url` - **string**: the configuration value `process_config.process_dd_url` (scrubbed)
+  - `config_proxy_http` - **string**: the configuration value `proxy.http` (scrubbed)
+  - `config_proxy_https` - **string**: the configuration value `proxy.https` (scrubbed)
+  - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
+  - `install_method_tool_version` - **string**: the tool version used to install the agent (ie: Chef version, Ansible
+    version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
+    build, ...).
+  - `install_method_installer_version` - **string**:  The version of Datadog module (ex: the Chef Datadog package, the Datadog Ansible playbook, ...).
+  - `logs_transport` - **string**:  The transport used to send logs to Datadog. Value is either `"HTTP"` or `"TCP"` when logs collection is
+    enabled, otherwise the field is omitted.
+  - `feature_fips_enabled` - **bool**: True if the Datadog Agent is in FIPS mode (see: `fips.enabled` config option).
+  - `feature_cws_enabled` - **bool**: True if the Cloud Workload Security is enabled (see: `runtime_security_config.enabled`
+    config option).
+  - `feature_process_enabled` - **bool**: True if the Process Agent has process collection enabled
+     (see: `process_config.process_collection.enabled` config option).
+  - `feature_process_language_detection_enabled` - **bool**: True if process language detection is enabled
+     (see: `language_detection,enabled` config option).
+  - `feature_processes_container_enabled` - **bool**: True if the Process Agent has container collection enabled
+     (see: `process_config.container_collection.enabled`)
+  - `feature_networks_enabled` - **bool**: True if the Network Performance Monitoring is enabled (see:
+    `network_config.enabled` config option in `system-probe.yaml`).
+  - `feature_oom_kill_enabled` - **bool**: True if the OOM Kill check is enabled for System Probe (see: `system_probe_config.enable_oom_kill` config option in `system-probe.yaml`).
+  - `feature_tcp_queue_length_enabled` - **bool**: True if TCP Queue Length check is enabled in System Probe (see: `system_probe_config.enable_tcp_queue_length` config option in `system-probe.yaml`).
+  - `system_probe_telemetry_enabled` - **bool**: True if Telemetry is enabled in the System Probe (see: `system_probe_config.telemetry_enabled` config option in `system-probe.yaml`).
+  - `system_probe_core_enabled` - **bool**: True if CO-RE is enabled in the System Probe (see: `system_probe_config.enable_co_re` config option in `system-probe.yaml`).
+  - `system_probe_runtime_compilation_enabled` - **bool**: True if Runtime Compilation is enabled in the System Probe (see: `system_probe_config.enable_runtime_compiler` config option in `system-probe.yaml`).
+  - `system_probe_kernel_headers_download_enabled` - **bool**: True if Kernel header downloading is enabled in the System Probe (see: `system_probe_config.enable_kernel_header_download` config option in `system-probe.yaml`).
+  - `system_probe_prebuilt_fallback_enabled` - **bool**: True if the System Probe will fallback to prebuilt when other options fail (see: `system_probe_config.allow_precompiled_fallback` config option in `system-probe.yaml`).
+  - `system_probe_max_connections_per_message` - **int**: The maximum number of connections per message (see: `system_probe_config.max_conns_per_message` config option in `system-probe.yaml`).
+  - `system_probe_track_tcp_4_connections` - **bool**: True if tracking TCPv4 connections is enabled in the System Probe (see: `network_config.collect_tcp_v4` config option in `system-probe.yaml`).
+  - `system_probe_track_tcp_6_connections` - **bool**: True if tracking TCPv6 connections is enabled in the System Probe (see: `network_config.collect_tcp_v6` config option in `system-probe.yaml`).
+  - `system_probe_track_udp_4_connections` - **bool**: True if tracking UDPv4 connections is enabled in the System Probe (see: `network_config.collect_udp_v4` config option in `system-probe.yaml`).
+  - `system_probe_track_udp_6_connections` - **bool**: True if tracking UDPv6 connections is enabled in the System Probe (see: `network_config.collect_udp_v6` config option in `system-probe.yaml`).
+  - `system_probe_protocol_classification_enabled` - **bool**: True if protocol classification is enabled in the System Probe (see: `network_config.enable_protocol_classification` config option in `system-probe.yaml`).
+  - `system_probe_gateway_lookup_enabled` - **bool**: True if gateway lookup is enable in the System Probe (see: `network_config.enable_gateway_lookup` config option in `system-probe.yaml`).
+  - `system_probe_root_namespace_enabled` - **bool**: True if the System Probe will run in the root namespace of the host (see: `network_config.enable_root_netns` config option in `system-probe.yaml`).
+  - `feature_networks_http_enabled` - **bool**: True if HTTP monitoring is enabled for Network Performance Monitoring (see: `network_config.enable_http_monitoring` config option in `system-probe.yaml`).
+  - `feature_networks_https_enabled` - **bool**: True if HTTPS monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.tls.native.enabled` config option in `system-probe.yaml`).
+  - `feature_remote_configuration_enabled` - **bool**: True if Remote Configuration is enabled (see: `remote_configuration.enabled` config option).
+  - `feature_usm_enabled` - **bool**: True if Universal Service Monitoring is enabled (see: `service_monitoring_config.enabled` config option in `system-probe.yaml`)
+  - `feature_usm_http2_enabled` - **bool**: True if HTTP2 monitoring is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_http2_monitoring` config option in `system-probe.yaml`).
+  - `feature_usm_kafka_enabled` - **bool**: True if Kafka monitoring is enabled for Universal Service Monitoring (see: `data_streams_config.enabled` config option in `system-probe.yaml`)
+  - `feature_usm_java_tls_enabled` - **bool**: True if HTTPS monitoring through java TLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_java_tls_support` config option in `system-probe.yaml`).
+  - `feature_usm_go_tls_enabled` - **bool**: True if HTTPS monitoring through GoTLS is enabled for Universal Service Monitoring (see: `service_monitoring_config.enable_go_tls_support` config option in `system-probe.yaml`).
+  - `feature_dynamic_instrumentation_enabled` - **bool**: True if dynamic instrumentation module is enabled.
+  - `feature_enable_http_stats_by_status_code` - **bool**: True if HTTP stats aggregation should be by status code rather than status code family (see: `service_monitoring_config.enable_http_stats_by_status_code` config option in `system-probe.yaml`).
+  - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
+  - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
+    `compliance_config.enabled` config option).
+  - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
+  - `feature_otlp_enabled` - **bool**: True if the OTLP pipeline is enabled.
+  - `feature_imdsv2_enabled` - **bool**: True if the IMDSv2 is enabled (see: `ec2_prefer_imdsv2` config option).
+  - `full_configuration` - **string**: the current Agent configuration scrubbed, including all the defaults, as a YAML
+    string.
+  - `provided_configuration` - **string**: the current Agent configuration (scrubbed), without the defaults, as a YAML
+    string. This includes the settings configured by the user (throuh the configuration file, the environment or CLI),
+    as well as any settings explicitly set by the agent (for example the number of workers is dynamically set by the
+    agent itself based on the load).
+
+("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
+
+## Example Payload
+
+Here an example of an inventory payload:
+
+```
+{
+    "agent_metadata": {
+        "agent_version": "7.37.0-devel+git.198.68a5b69",
+        "cloud_provider": "AWS",
+        "config_apm_dd_url": "",
+        "config_dd_url": "",
+        "config_logs_dd_url": "",
+        "config_logs_socks5_proxy_address": "",
+        "config_no_proxy": [
+            "http://some-no-proxy"
+        ],
+        "config_process_dd_url": "",
+        "config_proxy_http": "",
+        "config_proxy_https": "http://localhost:9999",
+        "config_site": "",
+        "feature_imdsv2_enabled": false,
+        "feature_apm_enabled": true,
+        "feature_cspm_enabled": false,
+        "feature_cws_enabled": false,
+        "feature_logs_enabled": true,
+        "feature_networks_enabled": false,
+        "feature_process_enabled": false,
+        "feature_remote_configuration_enabled": false,
+        "flavor": "agent",
+        "hostname_source": "os",
+        "install_method_installer_version": "",
+        "install_method_tool": "undefined",
+        "install_method_tool_version": "",
+        "logs_transport": "HTTP",
+        "full_configuration": "<entire yaml configuration for the agent>",
+        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false"
+    }
+    "hostname": "my-host",
+    "timestamp": 1631281754507358895
+}
+```

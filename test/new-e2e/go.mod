@@ -21,7 +21,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/eks v1.29.7
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.36.4
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/fatih/color v1.13.0
+	github.com/fatih/color v1.15.0
 	github.com/pulumi/pulumi-command/sdk v0.9.0 // indirect
 	github.com/pulumi/pulumi/sdk/v3 v3.83.0
 	github.com/samber/lo v1.38.1
@@ -35,6 +35,7 @@ require (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.73
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.1
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.15.0
 	github.com/docker/cli v24.0.4+incompatible
@@ -70,7 +71,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.43 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.37 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.42 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.29.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.29.6
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.35 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.14.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.16.0 // indirect
@@ -132,7 +133,7 @@ require (
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-colorable v0.1.12 // indirect
+	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.15 // indirect

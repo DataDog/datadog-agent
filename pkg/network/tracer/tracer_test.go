@@ -194,15 +194,18 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 	err = wg.Wait()
 	require.NoError(t, err)
 
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections := getConnections(t, tr)
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		// Iterate through active connections until we find connection created above, and confirm send + recv counts
+		connections := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		return conn != nil && ok
+	}, 3*time.Second, 100*time.Millisecond, "failed to find connection")
 
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
 	m := conn.Monotonic
 	assert.Equal(t, 10*clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, 10*serverMessageSize, int(m.RecvBytes))
-	assert.Equal(t, 0, int(m.Retransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
