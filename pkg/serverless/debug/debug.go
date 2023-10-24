@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package debug
 
 import (
 	"fmt"
@@ -17,7 +17,8 @@ import (
 
 const ddPrefix = "DD_"
 
-func outputDatadogEnvVariablesForDebugging() {
+// OutputDatadogEnvVariablesForDebugging outputs the Datadog environment variables for debugging purposes
+func OutputDatadogEnvVariablesForDebugging() {
 	log.Debug(buildDebugString())
 }
 

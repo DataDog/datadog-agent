@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	"github.com/DataDog/datadog-agent/pkg/serverless/debug"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -111,7 +112,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		}
 	}
 
-	outputDatadogEnvVariablesForDebugging()
+	debug.OutputDatadogEnvVariablesForDebugging()
 
 	if !apikey.HasApiKey() {
 		log.Errorf("Can't start the Datadog extension as no API Key has been detected, or API Key could not be decrypted. Data will not be sent to Datadog.")
