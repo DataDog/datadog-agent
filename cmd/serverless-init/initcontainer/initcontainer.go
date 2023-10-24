@@ -78,10 +78,6 @@ func execute(logConfig *serverlessLog.Config, args []string) error {
 	return err
 }
 
-func calculateShouldBuffer(commandName string) bool {
-	return commandName == "dotnet"
-}
-
 func buildCommandParam(cmdArg []string) (string, []string) {
 	fields := cmdArg
 	if len(cmdArg) == 1 {
