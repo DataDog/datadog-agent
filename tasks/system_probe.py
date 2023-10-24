@@ -1594,15 +1594,19 @@ def print_failed_tests(_, output_dir):
 
 
 @task
-def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
+def save_test_dockers(ctx, output_dir, arch, windows=is_windows, use_crane=False):
     if windows:
         return
 
     images = _test_docker_image_list()
     for image in images:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
-        ctx.run(f"docker pull --platform linux/{arch} {image}")
-        ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
+        output_file = f"{os.path.join(output_dir, output_path)}.tar"
+        if use_crane:
+            ctx.run(f"crane pull --platform linux/{arch} {image} {output_file}")
+        else:
+            ctx.run(f"docker pull --platform linux/{arch} {image}")
+            ctx.run(f"docker save {image} > {output_file}")
 
 
 @task
