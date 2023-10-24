@@ -3,7 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+<<<<<<< HEAD
 // Package propagation manages propagation of trace context headers.
+=======
+>>>>>>> a4f45507ed (Add copyright headers to new files.)
 package propagation
 
 import (
