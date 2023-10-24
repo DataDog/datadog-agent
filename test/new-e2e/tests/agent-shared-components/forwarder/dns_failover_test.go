@@ -111,9 +111,9 @@ func (v *multiFakeIntakeSuite) SetupTest() {
 	v.NoError(v.Env().Fakeintake2.FlushServerAndResetAggregators())
 }
 
-// TestDNSFailover tests that the agent correctly picks-up a change in the DNS entry of the intake.
+// TestNSSFailover tests that the agent correctly picks-up an NSS change of the intake.
 //
-// The test uses two fakeintakes to represent two backends, and the /etc/hosts file as a DNS,
+// The test uses two fakeintakes to represent two backends, and the /etc/hosts file for the NSS source,
 // setting-up an entry for the intake, pointing to the first fakeintake, then changing that entry
 // to point to the second fakeintake without restarting the agent.
 //
@@ -121,8 +121,8 @@ func (v *multiFakeIntakeSuite) SetupTest() {
 // the failover, and by the second one after.
 //
 // TODO: handle APM traces
-func (v *multiFakeIntakeSuite) TestDNSFailover() {
-	// setup local version of DNS entry for intake
+func (v *multiFakeIntakeSuite) TestNSSFailover() {
+	// setup NSS entry for intake
 	fakeintake1IP, err := hostIPFromURL(v.Env().Fakeintake1.URL())
 	v.NoError(err)
 	setHostEntry(v.T(), v.Env().VM, intakeName, fakeintake1IP)
@@ -147,7 +147,7 @@ func (v *multiFakeIntakeSuite) TestDNSFailover() {
 	// check that fakeintake2 doesn't receive metrics
 	assertIntakeNotUsed(v.T(), v.Env().VM, v.Env().Fakeintake2, v.Env().Agent)
 
-	// perform local version of DNS failover
+	// perform NSS change
 	fakeintake2IP, err := hostIPFromURL(v.Env().Fakeintake2.URL())
 	v.NoError(err)
 	setHostEntry(v.T(), v.Env().VM, intakeName, fakeintake2IP)
