@@ -626,7 +626,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
                 },
                 .flags = syscall->exec.file.flags
             },
-            .exec_timestamp = bpf_ktime_get_ns(),
+            .exec_timestamp = now,
         },
         .container = {},
     };
