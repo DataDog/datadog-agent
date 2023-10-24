@@ -580,10 +580,10 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 
 func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, error) {
 	if scan.Region == "" {
-		return nil, fmt.Errorf("ebs-scan: missing region")
+		return nil, fmt.Errorf("lambda-scan: missing region")
 	}
 	if scan.FunctionName == "" {
-		return nil, fmt.Errorf("ebs-scan: missing function name")
+		return nil, fmt.Errorf("lambda-scan: missing function name")
 	}
 
 	sess, err := session.NewSession(&aws.Config{
