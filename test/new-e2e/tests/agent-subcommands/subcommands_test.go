@@ -66,6 +66,26 @@ type expectedSection struct {
 	shouldNotContain []string
 }
 
+// verifySectionContent verifies that a specific status section behaves as expected (is correctly present or not, contains specific strings or not)
+func verifySectionContent(t *testing.T, statusOutput string, section expectedSection) {
+
+	sectionContent, err := getStatusComponentContent(statusOutput, section.name)
+
+	if section.shouldBePresent {
+		if assert.NoError(t, err, "Section %v was expected in the status output, but was not found", section.name) {
+			for _, expectedContent := range section.shouldContain {
+				assert.Contains(t, sectionContent.content, expectedContent)
+			}
+
+			for _, unexpectedContent := range section.shouldNotContain {
+				assert.NotContains(t, sectionContent.content, unexpectedContent)
+			}
+		}
+	} else {
+		assert.Error(t, err, "Section %v should not be present in the status output, but was found with the following content: %v", section.name, sectionContent)
+	}
+}
+
 func (v *subcommandSuite) TestDefaultInstallStatus() {
 	metadata := client.NewEC2Metadata(v.Env().VM)
 	resourceID := metadata.Get("instance-id")
@@ -191,26 +211,6 @@ func (v *subcommandSuite) TestFIPSProxyStatus() {
 	}
 	status := v.Env().Agent.Status()
 	verifySectionContent(v.T(), status.Content, expectedSection)
-}
-
-// verifySectionContent verifies that a specific status section behaves as expected (is correctly present or not, contains specific strings or not)
-func verifySectionContent(t *testing.T, statusOutput string, section expectedSection) {
-
-	sectionContent, err := getStatusComponentContent(statusOutput, section.name)
-
-	if section.shouldBePresent {
-		if assert.NoError(t, err, "Section %v was expected in the status output, but was not found", section.name) {
-			for _, expectedContent := range section.shouldContain {
-				assert.Contains(t, sectionContent.content, expectedContent)
-			}
-
-			for _, unexpectedContent := range section.shouldNotContain {
-				assert.NotContains(t, sectionContent.content, unexpectedContent)
-			}
-		}
-	} else {
-		assert.Error(t, err, "Section %v should not be present in the status output, but was found with the following content: %v", section.name, sectionContent)
-	}
 }
 
 func (v *subcommandSuite) TestDefaultInstallHealthy() {
