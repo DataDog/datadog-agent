@@ -188,10 +188,11 @@ if [ $# == 1 ]; then
             all_functions=("${appsec_functions[@]}")
         ;;
         *)
-            echo "Unknown test suite: $1 (valid names are: metric, log, trace, appsec)"
+            echo "Unknown test suite: '$1' (valid names are: metric, log, trace, appsec)"
             exit 1
         ;;
     esac
+    echo "Selected test suite '$1' contains ${#all_functions[@]} functions..."
 else
     all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}")
 fi
