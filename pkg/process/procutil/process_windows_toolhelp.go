@@ -76,7 +76,7 @@ func NewWindowsToolhelpProbe() Probe {
 
 func (p *windowsToolhelpProbe) Close() {}
 
-func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) {
+func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, error) { //nolint:revive // TODO fix revive unused-parameter
 	procs, err := p.ProcessesByPID(now, true)
 	if err != nil {
 		return nil, err
@@ -89,11 +89,11 @@ func (p *windowsToolhelpProbe) StatsForPIDs(pids []int32, now time.Time) (map[in
 }
 
 // StatsWithPermByPID is currently not implemented in non-linux environments
-func (p *windowsToolhelpProbe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) {
+func (p *windowsToolhelpProbe) StatsWithPermByPID(pids []int32) (map[int32]*StatsWithPerm, error) { //nolint:revive // TODO fix revive unused-parameter
 	return nil, fmt.Errorf("windowsToolhelpProbe: StatsWithPermByPID is not implemented")
 }
 
-func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) {
+func (p *windowsToolhelpProbe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Process, error) { //nolint:revive // TODO fix revive unused-parameter
 	// make sure we get the consistent snapshot by using the same OS thread
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()

@@ -1184,9 +1184,11 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *utils.FilledProc
 
 	p.insertEntry(entry, p.entryCache[pid], model.ProcessCacheEntryFromSnapshot)
 
+	bootTime := p.timeResolver.GetBootTime()
+
 	// insert new entry in kernel maps
 	procCacheEntryB := make([]byte, 224)
-	_, err := entry.Process.MarshalProcCache(procCacheEntryB)
+	_, err := entry.Process.MarshalProcCache(procCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
 	} else {
@@ -1195,7 +1197,7 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *utils.FilledProc
 		}
 	}
 	pidCacheEntryB := make([]byte, 72)
-	_, err = entry.Process.MarshalPidCache(pidCacheEntryB)
+	_, err = entry.Process.MarshalPidCache(pidCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal pid_cache entry: %s", err)
 	} else {

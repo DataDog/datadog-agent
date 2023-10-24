@@ -9,14 +9,10 @@
 package ebpfcheck
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
-	"os"
-	"strconv"
 	"strings"
 	"time"
 	"unsafe"
@@ -26,7 +22,6 @@ import (
 	"github.com/cilium/ebpf/link"
 	"github.com/cilium/ebpf/rlimit"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
@@ -318,14 +313,11 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 
 		switch info.Type {
 		case ebpf.PerfEventArray:
-			mapStats := model.EBPFPerfBufferStats{EBPFMapStats: baseMapStats}
-			err := perfBufferMemoryUsage(&mapStats, info, k)
+			err := perfBufferMemoryUsage(&baseMapStats, info, k)
 			if err != nil {
 				log.Debug(err.Error())
 				continue
 			}
-			stats.PerfBuffers = append(stats.PerfBuffers, mapStats)
-			continue
 		case ebpf.RingBuf:
 			err := ringBufferMemoryUsage(&baseMapStats, info, k)
 			if err != nil {
@@ -357,9 +349,6 @@ func (k *Probe) getMapStats(stats *model.EBPFStats) error {
 	log.Tracef("found %d maps", mapCount)
 	deduplicateMapNames(stats)
 	for _, mp := range stats.Maps {
-		log.Tracef("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
-	}
-	for _, mp := range stats.PerfBuffers {
 		log.Tracef("name=%s map_id=%d max=%d rss=%d type=%s", mp.Name, mp.ID, mp.MaxSize, mp.RSS, mp.Type)
 	}
 
@@ -468,12 +457,13 @@ func trieMemoryUsage(info *ebpf.MapInfo, _ uint64) (max uint64, rss uint64) {
 	return size, size
 }
 
-func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapInfo, k *Probe) error {
+func perfBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *Probe) error {
 	mapStats.MaxSize, mapStats.RSS = arrayMemoryUsage(info, uint64(k.nrcpus))
 
 	mapid, _ := info.ID()
 	key := perfBufferKey{Id: uint32(mapid)}
 	var region mmapRegion
+	numCPUs := uint32(0)
 	for i := uint32(0); i < k.nrcpus; i++ {
 		key.Cpu = i
 		if err := k.perfBufferMap.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&region)); err != nil {
@@ -487,41 +477,12 @@ func perfBufferMemoryUsage(mapStats *model.EBPFPerfBufferStats, info *ebpf.MapIn
 		}
 		log.Tracef("map_id=%d cpu=%d len=%d addr=%x", mapid, i, region.Len, region.Addr)
 		mapStats.MaxSize += region.Len
-		mapStats.CPUBuffers = append(mapStats.CPUBuffers, model.EBPFCPUPerfBufferStats{
-			CPU: i,
-			EBPFMmapStats: model.EBPFMmapStats{
-				Size: region.Len,
-				Addr: uintptr(region.Addr),
-			},
-		})
+		numCPUs++
 	}
 
-	log.Tracef("map_id=%d num_cpus=%d", mapid, len(mapStats.CPUBuffers))
-	addrs := make([]uintptr, 0, len(mapStats.CPUBuffers))
-	for _, b := range mapStats.CPUBuffers {
-		addrs = append(addrs, b.Addr)
-	}
-	rssMap, err := k.getMmapRSS(uint32(mapid), addrs)
-	if err != nil {
-		log.Debugf("error getting mmap data map_id=%d: %s", mapid, err)
-		// default RSS to MaxSize in case of error
-		mapStats.RSS = mapStats.MaxSize
-		for i := range mapStats.CPUBuffers {
-			cpub := &mapStats.CPUBuffers[i]
-			cpub.RSS = cpub.Size
-		}
-	} else {
-		for i := range mapStats.CPUBuffers {
-			cpub := &mapStats.CPUBuffers[i]
-			if rss, ok := rssMap[cpub.Addr]; ok {
-				cpub.RSS = rss
-				mapStats.RSS += rss
-				log.Tracef("perf buffer map_id=%d cpu=%d rss=%d", mapid, cpub.CPU, cpub.RSS)
-			} else {
-				log.Debugf("unable to find RSS data map_id=%d cpu=%d addr=%x", mapid, cpub.CPU, cpub.Addr)
-			}
-		}
-	}
+	log.Tracef("map_id=%d num_cpus=%d", mapid, numCPUs)
+	mapStats.RSS = mapStats.MaxSize
+	mapStats.NumCPUs = numCPUs
 	return nil
 }
 
@@ -551,86 +512,6 @@ func ringBufferMemoryUsage(mapStats *model.EBPFMapStats, info *ebpf.MapInfo, k *
 	}
 	log.Tracef("map_id=%d data_len=%d data_addr=%x cons_len=%d cons_addr=%x", mapid, ringInfo.Data.Len, ringInfo.Data.Addr, ringInfo.Consumer.Len, ringInfo.Consumer.Addr)
 	mapStats.MaxSize += ringInfo.Consumer.Len + ringInfo.Data.Len
-
-	addrs := []uintptr{uintptr(ringInfo.Consumer.Addr), uintptr(ringInfo.Data.Addr)}
-	rss, err := k.getMmapRSS(uint32(mapid), addrs)
-	if err != nil {
-		log.Debugf("error getting mmap data map_id=%d: %s", mapid, err)
-		// default RSS to MaxSize in case of error
-		mapStats.RSS = mapStats.MaxSize
-	} else {
-		for addr, size := range rss {
-			log.Tracef("ring buffer map_id=%d addr=%x rss=%d", mapid, addr, size)
-			mapStats.RSS += size
-		}
-	}
+	mapStats.RSS = mapStats.MaxSize
 	return nil
-}
-
-func (k *Probe) getMmapRSS(mapid uint32, addrs []uintptr) (map[uintptr]uint64, error) {
-	var pid uint32
-	if err := k.pidMap.Lookup(unsafe.Pointer(&mapid), unsafe.Pointer(&pid)); err != nil {
-		return nil, fmt.Errorf("pid map lookup: %s", err)
-	}
-
-	log.Tracef("map pid=%d map_id=%d", pid, mapid)
-	return matchProcessRSS(int(pid), addrs)
-}
-
-func matchProcessRSS(pid int, addrs []uintptr) (map[uintptr]uint64, error) {
-	smaps, err := os.Open(kernel.HostProc(strconv.Itoa(pid), "smaps"))
-	if err != nil {
-		return nil, fmt.Errorf("smaps open: %s", err)
-	}
-	defer smaps.Close()
-
-	return matchRSS(smaps, addrs)
-}
-
-func matchRSS(smaps io.Reader, addrs []uintptr) (map[uintptr]uint64, error) {
-	matchaddrs := slices.Clone(addrs)
-	rss := make(map[uintptr]uint64, len(addrs))
-	var matchAddr uintptr
-	scanner := bufio.NewScanner(bufio.NewReader(smaps))
-	for scanner.Scan() {
-		key, val, found := bytes.Cut(bytes.TrimSpace(scanner.Bytes()), []byte{' '})
-		if !found {
-			continue
-		}
-		if !bytes.HasSuffix(key, []byte(":")) {
-			if matchAddr != uintptr(0) {
-				return nil, fmt.Errorf("no RSS for matching address %x", matchAddr)
-			}
-			s, _, ok := bytes.Cut(key, []byte("-"))
-			if !ok {
-				return nil, fmt.Errorf("invalid smaps address format: %s", string(key))
-			}
-			start, err := strconv.ParseUint(string(s), 16, 64)
-			if err != nil {
-				return nil, fmt.Errorf("invalid smaps address format: %s", string(key))
-			}
-			for i, addr := range matchaddrs {
-				if uintptr(start) == addr {
-					matchAddr = addr
-					deleteAtNoOrder(matchaddrs, i)
-					break
-				}
-			}
-		} else {
-			// if we have already parsed Rss, just keep skipping
-			if matchAddr == uintptr(0) {
-				continue
-			}
-			if string(key) == "Rss:" {
-				v := string(bytes.TrimSpace(bytes.TrimSuffix(val, []byte(" kB"))))
-				t, err := strconv.ParseUint(v, 10, 64)
-				if err != nil {
-					return nil, fmt.Errorf("parse rss: %s", err)
-				}
-				rss[matchAddr] = t * 1024
-				matchAddr = uintptr(0)
-			}
-		}
-	}
-	return rss, nil
 }

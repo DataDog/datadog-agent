@@ -36,6 +36,15 @@ type resources struct {
 type dependencies struct {
 	fx.In
 
+	// Resources is enabled by default for most binaries. But even for binaries where we don't want to send the
+	// 'resources' paylod, like dogstatsd, we still need the resources Component. This is because the resources data
+	// is embedded in other metadata payload like 'host'. This means that even if resources is disabled it might be
+	// required in the build in order for the `Get` method to be available.
+	//
+	// This is why we have a Params struct for resources. It's `optional` so most of the binaries don't have to
+	// supply a Params struct but only need to import the metadata.Bundle.
+	Params *Params `optional:"true"`
+
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
@@ -76,12 +85,14 @@ func newResourcesProvider(deps dependencies) provides {
 		serializer:      deps.Serializer,
 	}
 	res := provides{
-		Comp:     r,
+		Comp:     &r,
 		Provider: runner.NewEmptyProvider(),
 	}
 
-	if !enabled {
-		deps.Log.Infof("resources metadata provider is disabled")
+	if deps.Params != nil && deps.Params.Disabled {
+		deps.Log.Infof("resources metadata provider is not available for this binary")
+	} else if !enabled {
+		deps.Log.Infof("resources metadata provider is disabled from the configuration")
 	} else if collectInterval == 0 {
 		deps.Log.Infof("Collection interval for 'resources' metadata provider is set to 0: disabling it")
 	} else {
@@ -104,15 +115,16 @@ func gohaiResourcesCollect() (interface{}, error) {
 	return processes, err
 }
 
-func (r *resources) collect(_ context.Context) time.Duration {
+// Get returns the resources payload to be used in other metadata providers.
+func (r *resources) Get() map[string]interface{} {
 	proc, err := collectResources()
 	if err != nil {
 		r.log.Warnf("Failed to retrieve processes metadata from gohai: %s", err)
-		return r.collectInterval
+		return nil
 	}
 
 	// The format dates back from Agent V5
-	payload := map[string]interface{}{
+	return map[string]interface{}{
 		"resources": map[string]interface{}{
 			"processes": map[string]interface{}{
 				"snaps": []interface{}{proc},
@@ -122,9 +134,15 @@ func (r *resources) collect(_ context.Context) time.Duration {
 			},
 		},
 	}
+}
 
-	if err := r.serializer.SendProcessesMetadata(payload); err != nil {
-		r.log.Errorf("unable to serialize processes metadata payload, %s", err)
+func (r *resources) collect(_ context.Context) time.Duration {
+	payload := r.Get()
+
+	if payload != nil {
+		if err := r.serializer.SendProcessesMetadata(payload); err != nil {
+			r.log.Errorf("unable to serialize processes metadata payload, %s", err)
+		}
 	}
 	return r.collectInterval
 }

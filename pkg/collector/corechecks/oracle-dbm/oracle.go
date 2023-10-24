@@ -76,6 +76,7 @@ type Check struct {
 	driver                                  string
 	metricLastRun                           time.Time
 	statementsLastRun                       time.Time
+	dbInstanceLastRun                       time.Time
 	filePath                                string
 	sqlTraceRunsCount                       int
 	connectedToPdb                          bool
@@ -147,6 +148,15 @@ func (c *Check) Run() error {
 		c.connection = conn
 	}
 
+	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
+
+	if dbInstanceIntervalExpired {
+		err := sendDbInstanceMetadata(c)
+		if err != nil {
+			return fmt.Errorf("%s failed to send db instance metadata %w", c.logPrompt, err)
+		}
+	}
+
 	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
 
 	if metricIntervalExpired {
@@ -179,7 +189,7 @@ func (c *Check) Run() error {
 				return fmt.Errorf("%s %w", c.logPrompt, err)
 			}
 		}
-		if c.config.ProcessMemory.Enabled {
+		if c.config.ProcessMemory.Enabled || c.config.InactiveSessions.Enabled {
 			err := c.ProcessMemory()
 			if err != nil {
 				return fmt.Errorf("%s %w", c.logPrompt, err)

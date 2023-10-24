@@ -10,7 +10,7 @@ import "github.com/DataDog/datadog-agent/pkg/config"
 // GetConfiguredTags returns list of tags from a configuration, based on
 // `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
 // if includeDogdstatsd is true.
-func GetConfiguredTags(c config.ConfigReader, includeDogstatsd bool) []string {
+func GetConfiguredTags(c config.Reader, includeDogstatsd bool) []string {
 	tags := c.GetStringSlice("tags")
 	extraTags := c.GetStringSlice("extra_tags")
 

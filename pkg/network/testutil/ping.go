@@ -65,6 +65,11 @@ func PingUDP(tb require.TestingT, ip net.IP, port int) net.Conn {
 		return nil
 	}
 
+	bs := make([]byte, 10)
+	n, err := conn.Read(bs)
+	assert.NoError(tb, err)
+	assert.Equal(tb, []byte("pong"), bs[:n])
+
 	return conn
 }
 

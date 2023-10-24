@@ -648,7 +648,7 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 	), factory
 }
 
-func (f *fixtureV1) run(t *testing.T) *ControllerV1 {
+func (f *fixtureV1) run(_ *testing.T) *ControllerV1 {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 
