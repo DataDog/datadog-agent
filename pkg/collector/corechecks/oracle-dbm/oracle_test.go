@@ -112,7 +112,6 @@ func getTemporaryLobs(db *sqlx.DB) (int, error) {
 }
 
 func TestChkRun(t *testing.T) {
-	initAndStartAgentDemultiplexer(t)
 	chk.dbmEnabled = true
 	chk.config.InstanceConfig.InstantClient = false
 
