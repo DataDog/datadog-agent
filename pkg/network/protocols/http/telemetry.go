@@ -65,11 +65,11 @@ func NewTelemetry(protocol string) *Telemetry {
 		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
-		totalHitsPlain:         metricGroup.NewCounter("total_hits", "encrypted:false", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
-		totalHitsGnuTLS:        metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:gnutls", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
-		totalHitsOpenSLL:       metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:openssl", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
-		totalHitsJavaTLS:       metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:java", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
-		totalHitsGoTLS:         metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:go", libtelemetry.OptStatsd, libtelemetry.OptPayloadTelemetry),
+		totalHitsPlain:         metricGroup.NewCounter("total_hits", "encrypted:false", libtelemetry.OptStatsd),
+		totalHitsGnuTLS:        metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:gnutls", libtelemetry.OptStatsd),
+		totalHitsOpenSLL:       metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:openssl", libtelemetry.OptStatsd),
+		totalHitsJavaTLS:       metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:java", libtelemetry.OptStatsd),
+		totalHitsGoTLS:         metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:go", libtelemetry.OptStatsd),
 		dropped:                metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
 		rejected:               metricGroup.NewCounter("rejected", libtelemetry.OptStatsd),
 		emptyPath:              metricGroup.NewCounter("malformed", "type:empty-path", libtelemetry.OptStatsd),
