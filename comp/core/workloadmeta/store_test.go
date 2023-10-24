@@ -6,7 +6,6 @@
 package workloadmeta
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
@@ -32,7 +31,6 @@ func TestHandleEvents(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
-		fx.Supply(context.Background()),
 		fx.Supply(NewParams()),
 	))
 
@@ -594,7 +592,6 @@ func TestSubscribe(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				log.MockModule,
 				config.MockModule,
-				fx.Supply(context.Background()),
 				fx.Supply(NewParams()),
 			))
 
@@ -637,7 +634,6 @@ func TestGetKubernetesDeployment(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
-		fx.Supply(context.Background()),
 		fx.Supply(NewParams()),
 	))
 
@@ -681,7 +677,6 @@ func TestGetProcess(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
-		fx.Supply(context.Background()),
 		fx.Supply(NewParams()),
 	))
 
@@ -761,7 +756,6 @@ func TestListContainers(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				log.MockModule,
 				config.MockModule,
-				fx.Supply(context.Background()),
 				fx.Supply(NewParams()),
 			))
 
@@ -800,7 +794,6 @@ func TestListContainersWithFilter(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
-		fx.Supply(context.Background()),
 		fx.Supply(NewParams()),
 	))
 
@@ -860,7 +853,6 @@ func TestListProcesses(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				log.MockModule,
 				config.MockModule,
-				fx.Supply(context.Background()),
 				fx.Supply(NewParams()),
 			))
 
@@ -899,7 +891,6 @@ func TestListProcessesWithFilter(t *testing.T) {
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
-		fx.Supply(context.Background()),
 		fx.Supply(NewParams()),
 	))
 
@@ -1014,9 +1005,16 @@ func TestGetKubernetesPodByName(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			testStore := newTestStore()
+			deps := fxutil.Test[dependencies](t, fx.Options(
+				log.MockModule,
+				config.MockModule,
+				fx.Supply(NewParams()),
+			))
+
+			s := newWorkloadMeta(deps).(*workloadmeta)
+
 			for _, pod := range []*KubernetesPod{pod1, pod2, pod3} {
-				testStore.handleEvents([]CollectorEvent{
+				s.handleEvents([]CollectorEvent{
 					{
 						Type:   EventTypeSet,
 						Source: fooSource,
@@ -1025,9 +1023,9 @@ func TestGetKubernetesPodByName(t *testing.T) {
 				})
 			}
 
-			pod, err := testStore.GetKubernetesPodByName(test.args.podName, test.args.podNamespace)
+			pod, err := s.GetKubernetesPodByName(test.args.podName, test.args.podNamespace)
 
-			assert.Equal(t, test.want.pod, pod)
+			tassert.Equal(t, test.want.pod, pod)
 			if test.want.err != nil {
 				assert.Error(t, err, test.want.err.Error())
 			}
@@ -1071,7 +1069,6 @@ func TestListImages(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				log.MockModule,
 				config.MockModule,
-				fx.Supply(context.Background()),
 				fx.Supply(NewParams()),
 			))
 
@@ -1125,7 +1122,6 @@ func TestGetImage(t *testing.T) {
 				log.MockModule,
 				config.MockModule,
 				fx.Supply(NewParams()),
-				fx.Supply(context.Background()),
 			))
 
 			s := newWorkloadMeta(deps).(*workloadmeta)
@@ -1220,7 +1216,6 @@ func TestResetProcesses(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				log.MockModule,
 				config.MockModule,
-				fx.Supply(context.Background()),
 				fx.Supply(NewParams()),
 			))
 
@@ -1419,7 +1414,6 @@ func TestReset(t *testing.T) {
 			deps := fxutil.Test[dependencies](t, fx.Options(
 				log.MockModule,
 				config.MockModule,
-				fx.Supply(context.Background()),
 				fx.Supply(NewParams()),
 			))
 
@@ -1467,7 +1461,6 @@ func TestNoDataRace(t *testing.T) { //nolint:revive // TODO fix revive unused-pa
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		log.MockModule,
 		config.MockModule,
-		fx.Supply(context.Background()),
 		fx.Supply(NewParams()),
 	))
 

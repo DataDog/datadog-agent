@@ -229,8 +229,8 @@ func (w *workloadmeta) GetKubernetesPod(id string) (*KubernetesPod, error) {
 }
 
 // GetKubernetesPodByName implements Store#GetKubernetesPodByName
-func (s *store) GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error) {
-	entities := s.listEntitiesByKind(KindKubernetesPod)
+func (w *workloadmeta) GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error) {
+	entities := w.listEntitiesByKind(KindKubernetesPod)
 
 	// TODO race condition with statefulsets
 	// If a statefulset pod is recreated, the pod name and namespace would be identical, but the pod UID would be

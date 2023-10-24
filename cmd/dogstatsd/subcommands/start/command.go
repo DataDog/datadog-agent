@@ -16,11 +16,13 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -38,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -108,6 +111,22 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		dogstatsd.Bundle,
 		forwarder.Bundle,
 		fx.Provide(defaultforwarder.NewParams),
+		// workloadmeta setup
+		collectors.GetCatalog(),
+		fx.Provide(func(config config.Component) workloadmeta.Params {
+			var catalog workloadmeta.AgentType
+			if flavor.GetFlavor() == flavor.ClusterAgent {
+				catalog = workloadmeta.ClusterAgent
+			} else {
+				catalog = workloadmeta.NodeAgent
+			}
+
+			return workloadmeta.Params{
+				AgentType:  catalog,
+				InitHelper: common.GetWorkloadmetaInit(),
+			}
+		}),
+		workloadmeta.Module,
 		demultiplexer.Module,
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.

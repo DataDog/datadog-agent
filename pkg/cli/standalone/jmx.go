@@ -27,7 +27,7 @@ import (
 // reports with the ConsoleReporter to the agent's `log.Info`.
 // The common utils, including AutoConfig, must have already been initialized.
 func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, wmeta workloadmeta.Component, senderManager sender.DiagnoseSenderManager) error {
-	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel, configs, senderManager)
+	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel, configs, wmeta, senderManager)
 }
 
 // ExecJmxListWithMetricsJSON runs the JMX command with "with-metrics", reporting
@@ -58,7 +58,7 @@ func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, co
 // The common utils, including AutoConfig, must have already been initialized.
 func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.JMXReporter, output func(...interface{}), logLevel string, configs []integration.Config, wmeta workloadmeta.Component, senderManager sender.DiagnoseSenderManager) error {
 	// start the cmd HTTP server
-	if err := api.StartServer(nil, nil, nil, nil, nil, wmeta, optional.NewNoneOptional[logsAgent.Component](), senderManager, nil); err != nil {
+	if err := api.StartServer(nil, nil, nil, nil, nil, wmeta, optional.NewNoneOptional[logsAgent.Component](), senderManager, nil, nil); err != nil {
 		return fmt.Errorf("Error while starting api server, exiting: %v", err)
 	}
 

@@ -161,6 +161,21 @@ func (w *workloadmetamock) GetKubernetesPodForContainer(containerID string) (*Ku
 	return pod.(*KubernetesPod), nil
 }
 
+// GetKubernetesPodByName implements Store#GetKubernetesPodByName
+func (w *workloadmetamock) GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error) {
+	entities := w.listEntitiesByKind(KindKubernetesPod)
+
+	// Not very efficient
+	for k := range entities {
+		entity := entities[k].(*KubernetesPod)
+		if entity.Name == podName && entity.Namespace == podNamespace {
+			return entity, nil
+		}
+	}
+
+	return nil, errors.NewNotFound(podName)
+}
+
 // GetKubernetesNode returns metadata about a Kubernetes node.
 func (w *workloadmetamock) GetKubernetesNode(id string) (*KubernetesNode, error) {
 	entity, err := w.getEntityByKind(KindKubernetesPod, id)
