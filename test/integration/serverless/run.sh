@@ -4,9 +4,16 @@
 # NOTE: Use aws-vault clear before running tests to ensure credentials do not expire during a test run
 
 # Run tests:
-#   aws-vault clear && aws-vault exec serverless-sandbox-account-admin -- ./run.sh
+#   aws-vault clear && aws-vault exec serverless-sandbox-account-admin -- ./run.sh [suite]
 # Regenerate snapshots:
-#   aws-vault clear && UPDATE_SNAPSHOTS=true aws-vault exec serverless-sandbox-account-admin -- ./run.sh
+#   aws-vault clear && UPDATE_SNAPSHOTS=true aws-vault exec serverless-sandbox-account-admin -- ./run.sh [suite]
+
+# Optionally specify a [suite] to limit tests executed to a specific group (all tests are run if none is provided).
+# Valid values are:
+#   - metric
+#   - log
+#   - trace
+#   - appsec
 
 # Optional environment variables:
 
@@ -182,6 +189,7 @@ if [ $# == 1 ]; then
         ;;
         *)
             echo "Unknown test suite: $1 (valid names are: metric, log, trace, appsec)"
+            exit 1
         ;;
     esac
 else
