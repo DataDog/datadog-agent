@@ -20,11 +20,11 @@ import (
 )
 
 type subcommandSuite struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
+	e2e.Suite[e2e.AgentEnv]
 }
 
 func TestSubcommandSuite(t *testing.T) {
-	e2e.Run(t, &subcommandSuite{}, e2e.FakeIntakeStackDef())
+	e2e.Run(t, &subcommandSuite{}, e2e.AgentStackDef())
 }
 
 // section contains the content status of a specific section (e.g. Forwarder)
@@ -183,7 +183,7 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 
 func (v *subcommandSuite) TestFIPSProxyStatus() {
 
-	v.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("fips.enabled: true"))))
+	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("fips.enabled: true"))))
 	expectedSection := expectedSection{
 		name:            `Agent \(.*\)`,
 		shouldBePresent: true,
