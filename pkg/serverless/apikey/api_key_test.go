@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package apikey holds logic around api keys in the Lambda Extension
 package apikey
 
 import (
@@ -105,27 +106,27 @@ func TestExtractRegionFromMalformedPrefixSecretsManagerArnPrefix(t *testing.T) {
 
 func TestDDApiKey(t *testing.T) {
 	t.Setenv("DD_API_KEY", "abc")
-	assert.True(t, HasApiKey())
+	assert.True(t, HasAPIKey())
 }
 
 func TestHasDDApiKeySecretArn(t *testing.T) {
 	t.Setenv("DD_API_KEY_SECRET_ARN", "abc")
-	assert.True(t, HasApiKey())
+	assert.True(t, HasAPIKey())
 }
 
 func TestHasDDKmsApiKey(t *testing.T) {
 	t.Setenv("DD_API_KEY_KMS_ENCRYPTED", "abc")
-	assert.True(t, HasApiKey())
+	assert.True(t, HasAPIKey())
 }
 
 func TestHasKKKmsDeprecatedApiKey(t *testing.T) {
 	t.Setenv("DD_KMS_API_KEY", "abc")
-	assert.True(t, HasApiKey())
+	assert.True(t, HasAPIKey())
 }
 
-func TestHasApiKey(t *testing.T) {
+func TestHasAPIKey(t *testing.T) {
 	t.Setenv("DD_API_KEY", "abc")
-	assert.True(t, HasApiKey())
+	assert.True(t, HasAPIKey())
 }
 
 func TestHasNoKeys(t *testing.T) {
@@ -133,5 +134,5 @@ func TestHasNoKeys(t *testing.T) {
 	t.Setenv("DD_API_KEY_SECRET_ARN", "")
 	t.Setenv("DD_KMS_API_KEY", "")
 	t.Setenv("DD_API_KEY", "")
-	assert.False(t, HasApiKey())
+	assert.False(t, HasAPIKey())
 }

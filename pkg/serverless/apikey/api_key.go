@@ -136,11 +136,11 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 		return secretString, nil
 	} else if output.SecretBinary != nil {
 		decodedBinarySecretBytes := make([]byte, base64.StdEncoding.DecodedLen(len(output.SecretBinary)))
-		len, err := base64.StdEncoding.Decode(decodedBinarySecretBytes, output.SecretBinary)
+		secretLen, err := base64.StdEncoding.Decode(decodedBinarySecretBytes, output.SecretBinary)
 		if err != nil {
 			return "", fmt.Errorf("Can't base64 decode Secrets Manager secret: %s", err)
 		}
-		return string(decodedBinarySecretBytes[:len]), nil
+		return string(decodedBinarySecretBytes[:secretLen]), nil
 	}
 	// should not happen but let's handle this gracefully
 	log.Warn("Secrets Manager returned something but there seems to be no data available")
@@ -164,7 +164,7 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 }
 
 // HasAPIKey returns true if an API key has been set in any of the supported ways.
-func HasApiKey() bool {
+func HasAPIKey() bool {
 	return config.Datadog.IsSet("api_key") ||
 		len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 ||
 		len(os.Getenv(apiKeyKmsEnvVar)) > 0 || // TODO: this is deprecated
@@ -172,8 +172,8 @@ func HasApiKey() bool {
 		len(os.Getenv(apiKeyEnvVar)) > 0
 }
 
-// CheckForSingleApiKey checks if an API key has been set in multiple places and logs a warning if so.
-func CheckForSingleApiKey() {
+// CheckForSingleAPIKey checks if an API key has been set in multiple places and logs a warning if so.
+func CheckForSingleAPIKey() {
 	var apikeySetIn = []string{}
 	if len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 {
 		apikeySetIn = append(apikeySetIn, "KMS")
