@@ -3,14 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package inventories
+package inventoryagent
 
 import (
 	"fmt"
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -31,18 +30,18 @@ func marshalAndScrub(conf map[string]interface{}) (string, error) {
 	return string(scrubbed), nil
 }
 
-func getProvidedAgentConfiguration() (string, error) {
-	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+func (ia *inventoryagent) getProvidedAgentConfiguration() (string, error) {
+	if !ia.conf.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
 
-	return marshalAndScrub(config.Datadog.AllSettingsWithoutDefault())
+	return marshalAndScrub(ia.conf.AllSettingsWithoutDefault())
 }
 
-func getFullAgentConfiguration() (string, error) {
-	if !config.Datadog.GetBool("inventories_configuration_enabled") {
+func (ia *inventoryagent) getFullAgentConfiguration() (string, error) {
+	if !ia.conf.GetBool("inventories_configuration_enabled") {
 		return "", fmt.Errorf("inventories_configuration_enabled is disabled")
 	}
 
-	return marshalAndScrub(config.Datadog.AllSettings())
+	return marshalAndScrub(ia.conf.AllSettings())
 }

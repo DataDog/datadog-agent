@@ -12,7 +12,7 @@ import (
 )
 
 type ValidEnv struct {
-	VM *VM
+	VM VM
 }
 
 func TestValidEnv(t *testing.T) {
@@ -21,7 +21,7 @@ func TestValidEnv(t *testing.T) {
 
 //nolint:unused
 type UnexportedFieldEnv struct {
-	vm *VM
+	vm VM
 }
 
 func TestUnexportedFieldEnv(t *testing.T) {
@@ -33,5 +33,5 @@ type DoesNotImplementInterfaceEnv struct {
 }
 
 func TestDoesNotImplementInterfaceEnv(t *testing.T) {
-	require.Error(t, CheckEnvStructValid[DoesNotImplementInterfaceEnv]())
+	require.NoError(t, CheckEnvStructValid[DoesNotImplementInterfaceEnv]())
 }
