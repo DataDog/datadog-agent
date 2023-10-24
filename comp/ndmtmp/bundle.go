@@ -9,7 +9,7 @@
 package ndmtmp
 
 import (
-	forwarderimpl "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/impl"
+	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

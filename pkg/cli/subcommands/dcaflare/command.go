@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
-	diagnosesendermanagerimpl "github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/impl"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"

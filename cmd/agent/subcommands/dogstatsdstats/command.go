@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	serverdebugimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug/impl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

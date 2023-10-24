@@ -21,10 +21,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostnameimpl "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	forwarderimpl "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/impl"
+	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 

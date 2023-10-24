@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
-	resourcesimpl "github.com/DataDog/datadog-agent/comp/metadata/resources/impl"
+	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

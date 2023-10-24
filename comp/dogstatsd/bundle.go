@@ -8,7 +8,7 @@ package dogstatsd
 import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	serverdebugimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug/impl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

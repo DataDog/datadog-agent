@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug"
-	serverdebugimpl "github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug/impl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"

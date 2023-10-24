@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"

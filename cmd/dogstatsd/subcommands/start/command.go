@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	resourcesimpl "github.com/DataDog/datadog-agent/comp/metadata/resources/impl"
+	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"

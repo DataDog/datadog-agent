@@ -16,7 +16,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
-	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"

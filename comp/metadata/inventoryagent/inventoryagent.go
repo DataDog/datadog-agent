@@ -17,7 +17,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
