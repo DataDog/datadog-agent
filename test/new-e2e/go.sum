@@ -6,6 +6,8 @@ github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1/go.mod h1:xomTg6
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/DataDog/agent-payload/v5 v5.0.73 h1:fnCnAR+nWY+q//fBZSab4cDFFng0scPEfmLdl9ngmQY=
 github.com/DataDog/agent-payload/v5 v5.0.73/go.mod h1:oQZi1VZp1e3QvlSUX4iphZCpJaFepUxWq0hNXxihKBM=
+github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.1 h1:xFZ6rpOv00L/20e7Y8rGVOW4wr4y+rHlBydOH9rdKeI=
+github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.1/go.mod h1:eTXti9mx7qhkoi+Qg3mMmvVY5McghUUgsf4Hrk9zY8k=
 github.com/DataDog/datadog-api-client-go v1.16.0 h1:5jOZv1m98criCvYTa3qpW8Hzv301nbZX3K9yJtwGyWY=
 github.com/DataDog/datadog-api-client-go v1.16.0/go.mod h1:PgrP2ABuJWL3Auw2iEkemAJ/r72ghG4DQQmb5sgnKW4=
 github.com/DataDog/datadog-api-client-go/v2 v2.15.0 h1:5UVON1xs6Lul4d6R5TmLDqqSJxOkunkm/UdM/fjm+zc=

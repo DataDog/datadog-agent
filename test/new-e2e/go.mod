@@ -35,6 +35,7 @@ require (
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.73
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.1
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.15.0
 	github.com/docker/cli v24.0.4+incompatible
@@ -70,7 +71,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.43 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.37 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.42 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.29.6 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.29.6
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.35 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.14.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.16.0 // indirect
