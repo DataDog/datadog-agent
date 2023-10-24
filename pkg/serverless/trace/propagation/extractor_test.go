@@ -127,7 +127,7 @@ var (
 		e := events.SQSMessage{}
 		if sqsHdrs != "" {
 			e.MessageAttributes = map[string]events.SQSMessageAttribute{
-				"_datadog": events.SQSMessageAttribute{
+				"_datadog": {
 					DataType:    "String",
 					StringValue: aws.String(sqsHdrs),
 				},
