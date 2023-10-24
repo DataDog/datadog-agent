@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -38,12 +37,9 @@ import (
 )
 
 var (
-	kmsAPIKeyEnvVar            = "DD_KMS_API_KEY"
-	secretsManagerAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
-	apiKeyEnvVar               = "DD_API_KEY"
-	logLevelEnvVar             = "DD_LOG_LEVEL"
-	flushStrategyEnvVar        = "DD_SERVERLESS_FLUSH_STRATEGY"
-	logsLogsTypeSubscribed     = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+	logLevelEnvVar         = "DD_LOG_LEVEL"
+	flushStrategyEnvVar    = "DD_SERVERLESS_FLUSH_STRATEGY"
+	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
@@ -52,8 +48,6 @@ var (
 
 const (
 	loggerName config.LoggerName = "DD_EXTENSION"
-
-	runtimeAPIEnvVar = "AWS_LAMBDA_RUNTIME_API"
 
 	extensionRegistrationRoute   = "/2020-01-01/extension/register"
 	extensionRegistrationTimeout = 5 * time.Second
@@ -165,22 +159,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// KMS > Secrets Manager > Plaintext API key
 	// If one is set but failing, the next will be tried
 
-	// some useful warnings first
-
-	var apikeySetIn = []string{}
-	if os.Getenv(kmsAPIKeyEnvVar) != "" {
-		apikeySetIn = append(apikeySetIn, "KMS")
-	}
-	if os.Getenv(secretsManagerAPIKeyEnvVar) != "" {
-		apikeySetIn = append(apikeySetIn, "SSM")
-	}
-	if os.Getenv(apiKeyEnvVar) != "" {
-		apikeySetIn = append(apikeySetIn, "environment variable")
-	}
-
-	if len(apikeySetIn) > 1 {
-		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
-	}
+	checkForSingleApiKey()
 
 	config.LoadProxyFromEnv(config.Datadog)
 

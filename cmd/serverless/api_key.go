@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	datadogHttp "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -29,6 +30,11 @@ const encryptionContextKey = "LambdaFunctionName"
 
 // functionNameEnvVar is the environment variable that stores the function name.
 const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+
+// one of those env variable must be set
+const apiKeyEnvVar = "DD_API_KEY"
+const apiKeySecretManagerEnvVar = "DD_API_KEY_SECRET_ARN"
+const apiKeyKmsEncryptedEnvVar = "DD_API_KEY_KMS_ENCRYPTED"
 
 // kmsKeySuffix is the suffix of all environment variables which should be decrypted by KMS
 const kmsKeySuffix = "_KMS_ENCRYPTED"
@@ -158,6 +164,24 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 
 func hasApiKey() bool {
 	return config.Datadog.IsSet("api_key") ||
-		len(os.Getenv(kmsAPIKeyEnvVar)) > 0 ||
-		len(os.Getenv(secretsManagerAPIKeyEnvVar)) > 0
+		len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 ||
+		len(os.Getenv(apiKeySecretManagerEnvVar)) > 0 ||
+		len(os.Getenv(apiKeyEnvVar)) > 0
+}
+
+func checkForSingleApiKey() {
+	var apikeySetIn = []string{}
+	if os.Getenv(apiKeyKmsEncryptedEnvVar) != "" {
+		apikeySetIn = append(apikeySetIn, "KMS")
+	}
+	if os.Getenv(apiKeySecretManagerEnvVar) != "" {
+		apikeySetIn = append(apikeySetIn, "SSM")
+	}
+	if os.Getenv(apiKeyEnvVar) != "" {
+		apikeySetIn = append(apikeySetIn, "environment variable")
+	}
+
+	if len(apikeySetIn) > 1 {
+		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
+	}
 }
