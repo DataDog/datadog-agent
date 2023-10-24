@@ -62,6 +62,7 @@ tests_deb-x64-py2:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
 
+# mergequeue
 tests_deb-x64-py3:
   extends:
     - .rtloader_tests
@@ -73,6 +74,7 @@ tests_deb-x64-py3:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
+# mergequeue
 lint_linux-x64:
   extends:
     - .linux_lint
@@ -92,6 +94,7 @@ tests_flavor_iot_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavors iot'
 
+# mergequeue
 lint_flavor_iot_linux-x64:
   extends:
     - .linux_lint
@@ -113,6 +116,7 @@ tests_flavor_dogstatsd_deb-x64:
     CONDA_ENV: ddpy3
     FLAVORS: '--flavors dogstatsd'
 
+# mergequeue
 lint_flavor_dogstatsd_linux-x64:
   extends:
     - .linux_lint
@@ -158,6 +162,7 @@ tests_rpm-x64-py2:
     CONDA_ENV: ddpy2
     EXTRA_OPTS: '--build-exclude=systemd'
 
+# mergequeue
 tests_rpm-x64-py3:
   extends:
     - .rtloader_tests
@@ -182,6 +187,7 @@ tests_deb-arm64-py2:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
 
+# mergequeue
 tests_deb-arm64-py3:
   extends:
     - .rtloader_tests
@@ -193,6 +199,7 @@ tests_deb-arm64-py3:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
+# mergequeue
 lint_linux-arm64:
   extends:
     - .linux_lint
@@ -211,6 +218,7 @@ tests_rpm-arm64-py2:
     PYTHON_RUNTIMES: '2'
     CONDA_ENV: ddpy2
 
+# mergequeue
 tests_rpm-arm64-py3:
   extends:
     - .rtloader_tests
@@ -223,6 +231,7 @@ tests_rpm-arm64-py3:
     CONDA_ENV: ddpy3
 
 # Check consistency of go.mod file with project imports
+# mergequeue
 go_mod_tidy_check:
   stage: source_test
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

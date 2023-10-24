@@ -53,6 +53,7 @@
     paths:
       - $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files
 
+# mergequeue
 tests_ebpf_x64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -61,6 +62,7 @@ tests_ebpf_x64:
     ARCH: amd64
     TASK_ARCH: x64
 
+# mergequeue
 tests_ebpf_arm64:
   extends: .tests_linux_ebpf
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
