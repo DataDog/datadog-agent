@@ -114,12 +114,12 @@ func TestHasDDApiKeySecretArn(t *testing.T) {
 	assert.True(t, HasAPIKey())
 }
 
-func TestHasDDKmsApiKey(t *testing.T) {
+func TestHasDDKmsApiKeyEncrypted(t *testing.T) {
 	t.Setenv("DD_API_KEY_KMS_ENCRYPTED", "abc")
 	assert.True(t, HasAPIKey())
 }
 
-func TestHasKKKmsDeprecatedApiKey(t *testing.T) {
+func TestHasDDKmspiKey(t *testing.T) {
 	t.Setenv("DD_KMS_API_KEY", "abc")
 	assert.True(t, HasAPIKey())
 }

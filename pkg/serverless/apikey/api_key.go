@@ -34,7 +34,7 @@ const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 // one of those env variable must be set
 const apiKeyEnvVar = "DD_API_KEY"
 const apiKeySecretManagerEnvVar = "DD_API_KEY_SECRET_ARN"
-const apiKeyKmsEnvVar = "DD_KMS_API_KEY" // TODO: this is deprecated
+const apiKeyKmsEnvVar = "DD_KMS_API_KEY"
 const apiKeyKmsEncryptedEnvVar = "DD_API_KEY_KMS_ENCRYPTED"
 
 // kmsKeySuffix is the suffix of all environment variables which should be decrypted by KMS
@@ -167,7 +167,7 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 func HasAPIKey() bool {
 	return config.Datadog.IsSet("api_key") ||
 		len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 ||
-		len(os.Getenv(apiKeyKmsEnvVar)) > 0 || // TODO: this is deprecated
+		len(os.Getenv(apiKeyKmsEnvVar)) > 0 ||
 		len(os.Getenv(apiKeySecretManagerEnvVar)) > 0 ||
 		len(os.Getenv(apiKeyEnvVar)) > 0
 }
@@ -176,11 +176,10 @@ func HasAPIKey() bool {
 func CheckForSingleAPIKey() {
 	var apikeySetIn = []string{}
 	if len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 {
-		apikeySetIn = append(apikeySetIn, "KMS")
+		apikeySetIn = append(apikeySetIn, "KMS_ENCRYPTED")
 	}
 	if len(os.Getenv(apiKeyKmsEnvVar)) > 0 {
-		log.Warn("DD_KMS_API_KEY is deprecated, please use DD_API_KEY_KMS_ENCRYPTED instead")
-		apikeySetIn = append(apikeySetIn, "KMS (deprecated)")
+		apikeySetIn = append(apikeySetIn, "KMS")
 	}
 	if len(os.Getenv(apiKeySecretManagerEnvVar)) > 0 {
 		apikeySetIn = append(apikeySetIn, "SSM")
