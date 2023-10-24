@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package runner
+// Package impl implements a component to generate metadata payload at the right interval.
+package impl
 
 import (
 	"context"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
@@ -47,7 +49,7 @@ func TestRunnerCreation(t *testing.T) {
 	}
 
 	lc := fxtest.NewLifecycle(t)
-	fxutil.Test[Component](
+	fxutil.Test[runner.Component](
 		t,
 		fx.Supply(lc),
 		log.MockModule,

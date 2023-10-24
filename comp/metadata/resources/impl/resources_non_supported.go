@@ -5,7 +5,7 @@
 
 //go:build windows || freebsd || netbsd || openbsd || solaris || dragonfly
 
-package resources
+package impl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"

@@ -5,18 +5,26 @@
 
 //go:build test
 
-package resources
+package impl
 
 import (
 	"testing"
 
+	resources "github.com/DataDog/datadog-agent/comp/metadata/resources"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
+)
+
+// MockModule defines the fx options for the mock component.
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+	fx.Supply(resources.MockParams{}),
 )
 
 type mockDependencies struct {
 	fx.In
 
-	Params MockParams
+	Params resources.MockParams
 }
 
 type mock struct {
@@ -27,7 +35,7 @@ func (m *mock) Get() map[string]interface{} {
 	return m.data
 }
 
-func newMock(deps mockDependencies, t testing.TB) Component { //nolint:revive // TODO fix revive unused-parameter
+func newMock(deps mockDependencies, t testing.TB) resources.Component { //nolint:revive // TODO fix revive unused-parameter
 	return &mock{
 		data: deps.Params.Data,
 	}

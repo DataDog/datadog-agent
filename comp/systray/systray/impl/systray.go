@@ -4,7 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
-package systray
+// Package impl provides a component for the system tray application
+package impl
 
 //#include "uac.h"
 import "C"
@@ -21,6 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/systray"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -29,6 +32,11 @@ import (
 	"github.com/lxn/win"
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
+)
+
+// Module for ddtray
+var Module = fxutil.Component(
+	fx.Provide(newSystray),
 )
 
 type dependencies struct {
@@ -40,17 +48,17 @@ type dependencies struct {
 	Log    log.Component
 	Config config.Component
 	Flare  flare.Component
-	Params Params
+	Params systray.Params
 }
 
-type systray struct {
+type systrayImpl struct {
 	// For triggering Shutdown
 	shutdowner fx.Shutdowner
 
 	log    log.Component
 	config config.Component
 	flare  flare.Component
-	params Params
+	params systray.Params
 
 	// allocated in start, destroyed in stop
 	singletonEventHandle windows.Handle
@@ -87,7 +95,7 @@ const (
 )
 
 var (
-	cmds = map[string]func(*systray){
+	cmds = map[string]func(*systrayImpl){
 		cmdTextStartService:   onStart,
 		cmdTextStopService:    onStop,
 		cmdTextRestartService: onRestart,
@@ -97,7 +105,7 @@ var (
 
 // newSystray creates a new systray component, which will start and stop based on
 // the fx Lifecycle
-func newSystray(deps dependencies) (Component, error) {
+func newSystray(deps dependencies) (systray.Component, error) {
 	// init vars
 	isAdmin, err := winutil.IsUserAnAdmin()
 	if err != nil {
@@ -108,7 +116,7 @@ func newSystray(deps dependencies) (Component, error) {
 	}
 
 	// fx init
-	s := &systray{
+	s := &systrayImpl{
 		log:        deps.Log,
 		config:     deps.Config,
 		flare:      deps.Flare,
@@ -123,7 +131,7 @@ func newSystray(deps dependencies) (Component, error) {
 }
 
 // start hook has a fx enforced timeout, so don't do long running things
-func (s *systray) start(ctx context.Context) error {
+func (s *systrayImpl) start(ctx context.Context) error {
 	var err error
 
 	s.log.Debugf("launch-gui is %v, launch-elev is %v, launch-cmd is %v", s.params.LaunchGuiFlag, s.params.LaunchElevatedFlag, s.params.LaunchCommand)
@@ -150,7 +158,7 @@ func (s *systray) start(ctx context.Context) error {
 	return nil
 }
 
-func (s *systray) stop(ctx context.Context) error {
+func (s *systrayImpl) stop(ctx context.Context) error {
 	if s.notifyWindowToStop != nil {
 		// Send stop message to window (stops windowRoutine goroutine)
 		s.notifyWindowToStop()
@@ -171,7 +179,7 @@ func (s *systray) stop(ctx context.Context) error {
 // https://github.com/lxn/walk/issues/601
 // Use the notifyWindowToStop function to stop the message loop
 // Use routineWaitGroup to wait until the routine exits
-func windowRoutine(s *systray) {
+func windowRoutine(s *systrayImpl) {
 	// Following https://github.com/lxn/win/commit/d9566253ae00d0a7dc7e4c9bda651dcfee029001
 	// it's up to the caller to lock OS threads
 	runtime.LockOSThread()
@@ -287,7 +295,7 @@ func loadIconFromResource(log log.Component, iconID int) (*walk.Icon, error) {
 
 // this function must be called from and the NotifyIcon used from a single thread locked goroutine
 // https://github.com/lxn/walk/issues/601
-func createNotifyIcon(s *systray, mw *walk.MainWindow) (ni *walk.NotifyIcon, err error) {
+func createNotifyIcon(s *systrayImpl, mw *walk.MainWindow) (ni *walk.NotifyIcon, err error) {
 	// Create the notify icon (must be cleaned up)
 	ni, err = walk.NewNotifyIcon(mw)
 	if err != nil {
@@ -367,25 +375,25 @@ func showCustomMessage(notifyIcon *walk.NotifyIcon, message string) {
 	}
 }
 
-func stopSystray(s *systray) {
+func stopSystray(s *systrayImpl) {
 	// TODO: This will shutdown the entire fx app, how do we stop just this component?
 	//       Stopping just this componenent is not strictly needed at the moment because
 	//       it is only used in the standalone ddtray.exe executable.
 	triggerShutdown(s)
 }
 
-func triggerShutdown(s *systray) {
+func triggerShutdown(s *systrayImpl) {
 	if s != nil {
 		// Tell fx to begin shutdown process
 		_ = s.shutdowner.Shutdown()
 	}
 }
 
-func onExit(s *systray) {
+func onExit(s *systrayImpl) {
 	triggerShutdown(s)
 }
 
-func createMenuItems(s *systray, notifyIcon *walk.NotifyIcon) []menuItem {
+func createMenuItems(s *systrayImpl, notifyIcon *walk.NotifyIcon) []menuItem {
 	av, _ := version.Agent()
 	verstring := av.GetNumberAndPre()
 
@@ -423,7 +431,7 @@ func open(url string) error {
 }
 
 // execCmdOrElevate carries out a command
-func execCmd(s *systray, cmd string) {
+func execCmd(s *systrayImpl, cmd string) {
 	if cmds[cmd] != nil {
 		cmds[cmd](s)
 	}

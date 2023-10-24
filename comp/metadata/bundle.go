@@ -9,8 +9,8 @@ package metadata
 
 import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	resourcesimpl "github.com/DataDog/datadog-agent/comp/metadata/resources/impl"
+	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -18,8 +18,8 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
-	runner.Module,
-	resources.Module,
+	runnerimpl.Module,
+	resourcesimpl.Module,
 	host.Module,
 )
 

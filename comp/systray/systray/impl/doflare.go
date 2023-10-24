@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
-package systray
+package impl
 
 import (
 	"bytes"
@@ -128,7 +128,7 @@ func dialogProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (result uintp
 	}
 	return uintptr(0)
 }
-func onFlare(s *systray) {
+func onFlare(s *systrayImpl) {
 	// Create a dialog box to prompt for ticket number and email, then create and submit the flare
 	// library will allow multiple calls (multi-threaded window proc?)
 	// however, we're using a single instance of the info structure to
@@ -167,7 +167,7 @@ func onFlare(s *systray) {
 
 }
 
-func requestFlare(s *systray, caseID, customerEmail string) (response string, e error) {
+func requestFlare(s *systrayImpl, caseID, customerEmail string) (response string, e error) {
 	// For first try, ask the agent to build the flare
 	s.log.Debug("Asking the agent to build the flare archive.")
 

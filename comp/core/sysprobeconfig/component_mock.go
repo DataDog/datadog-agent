@@ -15,20 +15,9 @@
 // It also overwrites the pkg/config.SystemProbe for the duration of the test.
 package sysprobeconfig
 
-import (
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/config"
-)
-
 // team: ebpf-platform
 
-// Component is the component type.
-type Component interface {
-	config.Reader
-
-	// Warnings returns config warnings collected during setup.
-	Warnings() *config.Warnings
-
-	// SysProbeObject returns the wrapper sysconfig
-	SysProbeObject() *sysconfig.Config
+// Mock implements mock-specific methods.
+type Mock interface {
+	Component
 }

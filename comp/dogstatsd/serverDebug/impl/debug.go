@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverDebug
+// Package impl implements a component to run the dogstatsd server debug
+package impl
 
 import (
 	"bytes"
@@ -22,10 +23,17 @@ import (
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newServerDebug),
 )
 
 type dependencies struct {
@@ -44,7 +52,7 @@ type metricStat struct {
 	Tags     string    `json:"tags"`
 }
 
-type serverDebug struct {
+type serverDebugImpl struct {
 	sync.Mutex
 	log     logComponent.Component
 	enabled *atomic.Bool
@@ -62,18 +70,18 @@ type serverDebug struct {
 	dogstatsdDebugLogger slog.LoggerInterface
 }
 
-// TODO: (components) - remove once serverless is an FX app
-func NewServerlessServerDebug() Component {
+// NewServerlessServerDebug creates a new instance of serverDebug.Component
+func NewServerlessServerDebug() serverdebug.Component {
 	return newServerDebugCompat(logComponent.NewTemporaryLoggerWithoutInit(), config.Datadog)
 }
 
 // newServerDebug creates a new instance of a ServerDebug
-func newServerDebug(deps dependencies) Component {
+func newServerDebug(deps dependencies) serverdebug.Component {
 	return newServerDebugCompat(deps.Log, deps.Config)
 }
 
-func newServerDebugCompat(log logComponent.Component, cfg config.Reader) Component {
-	sd := &serverDebug{
+func newServerDebugCompat(log logComponent.Component, cfg config.Reader) serverdebug.Component {
+	sd := &serverDebugImpl{
 		log:     log,
 		enabled: atomic.NewBool(false),
 		Stats:   make(map[ckey.ContextKey]metricStat),
@@ -141,7 +149,7 @@ func FormatDebugStats(stats []byte) (string, error) {
 // storeMetricStats stores stats on the given metric sample.
 //
 // It can help troubleshooting clients with bad behaviors.
-func (d *serverDebug) StoreMetricStats(sample metrics.MetricSample) {
+func (d *serverDebugImpl) StoreMetricStats(sample metrics.MetricSample) {
 	if !d.enabled.Load() {
 		return
 	}
@@ -176,7 +184,7 @@ func (d *serverDebug) StoreMetricStats(sample metrics.MetricSample) {
 }
 
 // SetMetricStatsEnabled enables or disables metric stats
-func (d *serverDebug) SetMetricStatsEnabled(enable bool) {
+func (d *serverDebugImpl) SetMetricStatsEnabled(enable bool) {
 	d.Lock()
 	defer d.Unlock()
 
@@ -189,7 +197,7 @@ func (d *serverDebug) SetMetricStatsEnabled(enable bool) {
 
 // enableMetricsStats enables the debug mode of the DogStatsD server and start
 // the debug mainloop collecting the amount of metrics received.
-func (d *serverDebug) enableMetricsStats() {
+func (d *serverDebugImpl) enableMetricsStats() {
 	// already enabled?
 	if d.enabled.Load() {
 		return
@@ -230,7 +238,7 @@ func (d *serverDebug) enableMetricsStats() {
 	}()
 }
 
-func (d *serverDebug) hasSpike() bool {
+func (d *serverDebugImpl) hasSpike() bool {
 	// compare this one to the sum of all others
 	// if the difference is higher than all others sum, consider this
 	// as an anomaly.
@@ -244,20 +252,20 @@ func (d *serverDebug) hasSpike() bool {
 }
 
 // GetJSONDebugStats returns jsonified debug statistics.
-func (d *serverDebug) GetJSONDebugStats() ([]byte, error) {
+func (d *serverDebugImpl) GetJSONDebugStats() ([]byte, error) {
 	d.Lock()
 	defer d.Unlock()
 	return json.Marshal(d.Stats)
 }
 
-func (d *serverDebug) IsDebugEnabled() bool {
+func (d *serverDebugImpl) IsDebugEnabled() bool {
 	return d.enabled.Load()
 }
 
 // disableMetricsStats disables the debug mode of the DogStatsD server and
 // stops the debug mainloop.
 
-func (d *serverDebug) disableMetricsStats() {
+func (d *serverDebugImpl) disableMetricsStats() {
 	if d.enabled.Load() {
 		d.enabled.Store(false)
 		d.metricsCounts.closeChan <- struct{}{}
@@ -267,7 +275,7 @@ func (d *serverDebug) disableMetricsStats() {
 }
 
 // build a local dogstatsd logger and bubbling up any errors
-func (d *serverDebug) getDogstatsdDebug(cfg config.Reader) slog.LoggerInterface {
+func (d *serverDebugImpl) getDogstatsdDebug(cfg config.Reader) slog.LoggerInterface {
 
 	var dogstatsdLogger slog.LoggerInterface
 

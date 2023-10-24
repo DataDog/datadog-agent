@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package resources
+package impl
 
 import (
 	"bytes"

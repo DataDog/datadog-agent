@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-2021 Datadog, Inc.
 
-package serverDebug
+package impl
 
 import (
 	"encoding/json"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -22,8 +23,8 @@ import (
 	"go.uber.org/fx"
 )
 
-func fulfillDeps(t testing.TB, overrides map[string]interface{}) Component {
-	return fxutil.Test[Component](t, fx.Options(
+func fulfillDeps(t testing.TB, overrides map[string]interface{}) serverdebug.Component {
+	return fxutil.Test[serverdebug.Component](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(core.BundleParams{}),
 		fx.Replace(configComponent.MockParams{Overrides: overrides}),
@@ -35,7 +36,7 @@ func TestDebugStatsSpike(t *testing.T) {
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_logging_enabled"] = false
 	debug := fulfillDeps(t, cfg)
-	d := debug.(*serverDebug)
+	d := debug.(*serverDebugImpl)
 
 	assert := assert.New(t)
 
@@ -94,7 +95,7 @@ func TestDebugStats(t *testing.T) {
 	cfg := make(map[string]interface{})
 	cfg["dogstatsd_logging_enabled"] = false
 	debug := fulfillDeps(t, cfg)
-	d := debug.(*serverDebug)
+	d := debug.(*serverDebugImpl)
 
 	clk := clock.NewMock()
 	d.clock = clk

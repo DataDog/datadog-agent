@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
-package systray
+package impl
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
-func onConfigure(s *systray) {
+func onConfigure(s *systrayImpl) {
 	// seems like a waste.  However, the handler function doesn't expect an error code.
 	// this just eats the error code.
 	err := doConfigure(s)
@@ -24,7 +24,7 @@ func onConfigure(s *systray) {
 	}
 }
 
-func doConfigure(s *systray) error {
+func doConfigure(s *systrayImpl) error {
 
 	guiPort := s.config.GetString("GUI_port")
 	if guiPort == "-1" {

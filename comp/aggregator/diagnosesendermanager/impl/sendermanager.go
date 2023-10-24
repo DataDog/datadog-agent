@@ -3,19 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package diagnosesendermanager
+// Package impl defines the sender manager for the local diagnose check
+package impl
 
 import (
 	"context"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/fx"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newDiagnoseSenderManager),
 )
 
 type dependencies struct {
@@ -29,7 +37,7 @@ type diagnoseSenderManager struct {
 	deps          dependencies
 }
 
-func newDiagnoseSenderManager(deps dependencies) Component {
+func newDiagnoseSenderManager(deps dependencies) diagnosesendermanager.Component {
 	return &diagnoseSenderManager{deps: deps}
 }
 

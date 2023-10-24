@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package sysprobeconfig
+package impl
 
 // Params defines the parameters for the sysprobeconfig component.
 type Params struct {
@@ -21,6 +21,7 @@ func NewParams(options ...func(*Params)) Params {
 	return params
 }
 
+// WithSysProbeConfFilePath specifies the path to the system probe config
 func WithSysProbeConfFilePath(confFilePath string) func(*Params) {
 	return func(b *Params) {
 		b.sysProbeConfFilePath = confFilePath

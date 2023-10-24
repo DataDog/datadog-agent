@@ -3,63 +3,27 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package sysprobeconfig
+//go:build test
+
+package impl
 
 import (
 	"os"
 	"strings"
 	"testing"
 
-	"go.uber.org/fx"
-
-	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
-// cfg implements the Component.
-type cfg struct {
-	// this component is currently implementing a thin wrapper around pkg/config,
-	// and uses globals in that package.
-	config.Config
+// MockModule defines the fx options for the mock component.
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+)
 
-	syscfg *sysconfig.Config
-
-	// warnings are the warnings generated during setup
-	warnings *config.Warnings
-}
-
-type dependencies struct {
-	fx.In
-
-	Params Params
-}
-
-func setupConfig(deps dependencies) (*sysconfig.Config, error) {
-	return sysconfig.New(deps.Params.sysProbeConfFilePath)
-}
-
-func newConfig(deps dependencies) (Component, error) {
-	syscfg, err := setupConfig(deps)
-	if err != nil {
-		return nil, err
-	}
-
-	return &cfg{Config: config.SystemProbe, syscfg: syscfg}, nil
-}
-
-func (c *cfg) Warnings() *config.Warnings {
-	return c.warnings
-}
-
-func (c *cfg) Object() config.Reader {
-	return c
-}
-
-func (c *cfg) SysProbeObject() *sysconfig.Config {
-	return c.syscfg
-}
-
-func newMock(deps dependencies, t testing.TB) Component {
+func newMock(deps dependencies, t testing.TB) sysprobeconfig.Component {
 	old := config.SystemProbe
 	config.SystemProbe = config.NewConfig("mock", "XXXX", strings.NewReplacer())
 	c := &cfg{

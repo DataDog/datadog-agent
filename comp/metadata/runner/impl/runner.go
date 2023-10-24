@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package runner
+package impl
 
 import (
 	"context"
@@ -12,13 +12,21 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
 
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newRunner),
+)
+
+// MetadataProvider is the provider for metadata
 type MetadataProvider func(context.Context) time.Duration
 
-type runner struct {
+type runnerImpl struct {
 	log    log.Component
 	config config.Component
 
@@ -62,8 +70,8 @@ func NewProvider(callback MetadataProvider) Provider {
 }
 
 // createRunner instantiates a runner object
-func createRunner(deps dependencies) *runner {
-	return &runner{
+func createRunner(deps dependencies) *runnerImpl {
+	return &runnerImpl{
 		log:       deps.Log,
 		config:    deps.Config,
 		providers: deps.Providers,
@@ -71,7 +79,7 @@ func createRunner(deps dependencies) *runner {
 	}
 }
 
-func newRunner(lc fx.Lifecycle, deps dependencies) Component {
+func newRunner(lc fx.Lifecycle, deps dependencies) runner.Component {
 	r := createRunner(deps)
 
 	if deps.Config.GetBool("enable_metadata_collection") {
@@ -91,7 +99,7 @@ func newRunner(lc fx.Lifecycle, deps dependencies) Component {
 }
 
 // handleProvider runs a provider at regular interval until the runner is stopped
-func (r *runner) handleProvider(p MetadataProvider) {
+func (r *runnerImpl) handleProvider(p MetadataProvider) {
 	r.log.Debugf("Starting runner for MetadataProvider %#v", p)
 	r.wg.Add(1)
 
@@ -127,7 +135,7 @@ func (r *runner) handleProvider(p MetadataProvider) {
 
 // start is called by FX when the application starts. Lifecycle hooks are blocking and called sequencially. We should
 // not block here.
-func (r *runner) start() error {
+func (r *runnerImpl) start() error {
 	r.log.Debugf("Starting metadata runner with %d providers", len(r.providers))
 	for _, optionaP := range r.providers {
 		if p, isSet := optionaP.Get(); isSet {
@@ -139,7 +147,7 @@ func (r *runner) start() error {
 
 // stop is called by FX when the application stops. Lifecycle hooks are blocking and called sequencially. We should
 // not block here.
-func (r *runner) stop() error {
+func (r *runnerImpl) stop() error {
 	r.log.Debugf("Stopping metadata runner")
 	close(r.stopChan)
 	r.wg.Wait()

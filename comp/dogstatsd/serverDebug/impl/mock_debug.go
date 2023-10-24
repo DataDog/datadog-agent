@@ -3,13 +3,24 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package serverDebug
+//go:build test
+
+package impl
 
 import (
 	"sync"
 
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
 	"go.uber.org/atomic"
+	"go.uber.org/fx"
+)
+
+// MockModule defines the fx options for the mock component.
+var MockModule = fxutil.Component(
+	fx.Provide(newMockServerDebug),
 )
 
 type mockServerDebug struct {
@@ -17,11 +28,11 @@ type mockServerDebug struct {
 	enabled *atomic.Bool
 }
 
-func newMockServerDebug(deps dependencies) Component {
+func newMockServerDebug() serverdebug.Component {
 	return &mockServerDebug{enabled: atomic.NewBool(false)}
 }
 
-func (d *mockServerDebug) StoreMetricStats(sample metrics.MetricSample) {
+func (d *mockServerDebug) StoreMetricStats(_ metrics.MetricSample) {
 }
 
 func (d *mockServerDebug) SetMetricStatsEnabled(enable bool) {

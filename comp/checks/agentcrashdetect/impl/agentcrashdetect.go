@@ -5,8 +5,8 @@
 
 //go:build windows
 
-// Package agentcrashdetect detects agent crashes and reports them
-package agentcrashdetect
+// Package impl detects agent crashes and reports them
+package impl
 
 import (
 	"context"
@@ -27,6 +27,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/crashreport"
 	"golang.org/x/sys/windows/registry"
@@ -55,6 +56,11 @@ var (
 	// the unit tests.
 	hive    = registry.LOCAL_MACHINE
 	baseKey = `SOFTWARE\Datadog\Datadog Agent\agent_crash_reporting`
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newAgentCrashComponent),
 )
 
 // WinCrashConfig is the configuration options for this check

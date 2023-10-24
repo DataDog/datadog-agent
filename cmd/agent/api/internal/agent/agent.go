@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -57,7 +57,7 @@ func SetupHandlers(
 	r *mux.Router,
 	flareComp flare.Component,
 	server dogstatsdServer.Component,
-	serverDebug dogstatsdDebug.Component,
+	serverDebug dogstatsddebug.Component,
 	logsAgent util.Optional[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
@@ -286,7 +286,7 @@ func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceive
 	}
 }
 
-func getDogstatsdStats(w http.ResponseWriter, r *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) {
+func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsddebug.Component) {
 	log.Info("Got a request for the Dogstatsd stats.")
 
 	if !config.Datadog.GetBool("use_dogstatsd") {

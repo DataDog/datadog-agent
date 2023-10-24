@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package dogstatsd
 
 import (
@@ -12,11 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: agent-metrics-logs
-
-// Bundle defines the fx options for this bundle.
-var Bundle = fxutil.Bundle(
-	serverdebugimpl.Module,
+// MockBundle defines the mock fx options for this bundle.
+var MockBundle = fxutil.Bundle(
+	serverdebugimpl.MockModule,
+	server.MockModule,
 	replay.Module,
-	server.Module,
 )

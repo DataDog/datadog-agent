@@ -5,25 +5,25 @@
 
 //go:build windows
 
-package systray
+package impl
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/windows/controlsvc"
 )
 
-func onRestart(s *systray) {
+func onRestart(s *systrayImpl) {
 	if err := controlsvc.RestartService(); err != nil {
 		s.log.Warnf("Failed to restart datadog service %v", err)
 	}
 }
 
-func onStart(s *systray) {
+func onStart(s *systrayImpl) {
 	if err := controlsvc.StartService(); err != nil {
 		s.log.Warnf("Failed to start datadog service %v", err)
 	}
 }
 
-func onStop(s *systray) {
+func onStop(s *systrayImpl) {
 	if err := controlsvc.StopService(); err != nil {
 		s.log.Warnf("Failed to stop datadog service %v", err)
 	}

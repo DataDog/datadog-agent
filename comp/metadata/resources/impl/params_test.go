@@ -3,10 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package runner implements a component to generate metadata payload at the right interval.
-package runner
+// Package resources collects the resources payload
+package impl
 
-// team: agent-shared-components
+import (
+	"testing"
 
-// Component is the component type.
-type Component interface{}
+	"github.com/stretchr/testify/assert"
+)
+
+func Test(t *testing.T) {
+	assert.True(t, Disabled().Disabled)
+}

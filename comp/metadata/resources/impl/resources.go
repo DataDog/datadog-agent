@@ -5,7 +5,7 @@
 
 //go:build linux || darwin
 
-package resources
+package impl
 
 import (
 	"context"
@@ -14,18 +14,25 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	"github.com/DataDog/datadog-agent/comp/metadata/resources"
+	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/fx"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newResourcesProvider),
 )
 
 const defaultCollectInterval = 300 * time.Second
 const providerName = "resources"
 
-type resources struct {
+type resourcesImpl struct {
 	log log.Component
 
 	hostname        string
@@ -53,8 +60,8 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp     Component
-	Provider runner.Provider
+	Comp     resources.Component
+	Provider runnerimpl.Provider
 }
 
 func newResourcesProvider(deps dependencies) provides {
@@ -78,7 +85,7 @@ func newResourcesProvider(deps dependencies) provides {
 	}
 
 	hname, _ := hostname.Get(context.Background())
-	r := resources{
+	r := resourcesImpl{
 		log:             deps.Log,
 		hostname:        hname,
 		collectInterval: collectInterval,
@@ -86,7 +93,7 @@ func newResourcesProvider(deps dependencies) provides {
 	}
 	res := provides{
 		Comp:     &r,
-		Provider: runner.NewEmptyProvider(),
+		Provider: runnerimpl.NewEmptyProvider(),
 	}
 
 	if deps.Params != nil && deps.Params.Disabled {
@@ -97,7 +104,7 @@ func newResourcesProvider(deps dependencies) provides {
 		deps.Log.Infof("Collection interval for 'resources' metadata provider is set to 0: disabling it")
 	} else {
 		deps.Log.Debugf("Collection interval for 'resources' metadata provider is set to %s", collectInterval)
-		res.Provider = runner.NewProvider(r.collect)
+		res.Provider = runnerimpl.NewProvider(r.collect)
 	}
 
 	return res
@@ -116,7 +123,7 @@ func gohaiResourcesCollect() (interface{}, error) {
 }
 
 // Get returns the resources payload to be used in other metadata providers.
-func (r *resources) Get() map[string]interface{} {
+func (r *resourcesImpl) Get() map[string]interface{} {
 	proc, err := collectResources()
 	if err != nil {
 		r.log.Warnf("Failed to retrieve processes metadata from gohai: %s", err)
@@ -136,7 +143,7 @@ func (r *resources) Get() map[string]interface{} {
 	}
 }
 
-func (r *resources) collect(_ context.Context) time.Duration {
+func (r *resourcesImpl) collect(_ context.Context) time.Duration {
 	payload := r.Get()
 
 	if payload != nil {

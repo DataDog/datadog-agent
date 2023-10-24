@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
-	"github.com/DataDog/datadog-agent/comp/metadata/resources"
+	resourcesimpl "github.com/DataDog/datadog-agent/comp/metadata/resources/impl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -120,7 +120,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 			return demultiplexer.Params{Options: opts, ContinueOnMissingHostname: true}
 		}),
-		fx.Supply(resources.Disabled()),
+		fx.Supply(resourcesimpl.Disabled()),
 		metadata.Bundle,
 	)
 }

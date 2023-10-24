@@ -7,18 +7,12 @@
 package forwarder
 
 import (
-	"testing"
-
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/golang/mock/gomock"
 )
 
-func getForwarder(agg demultiplexer.Component) (Component, error) {
-	return agg.GetEventPlatformForwarder()
-}
-
-func getMockForwarder(t testing.TB) MockComponent {
-	ctrl := gomock.NewController(t)
-	return epforwarder.NewMockEventPlatformForwarder(ctrl)
+// MockComponent is the type for mock components.
+// It is a gomock-generated mock of EventPlatformForwarder.
+type MockComponent interface {
+	Component
+	EXPECT() *epforwarder.MockEventPlatformForwarderMockRecorder
 }

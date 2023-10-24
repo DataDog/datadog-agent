@@ -3,15 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package resources collects the resources payload
-package resources
+// Package serverdebug implements a component to run the dogstatsd server debug
 
-import (
-	"testing"
+//go:build test
 
-	"github.com/stretchr/testify/assert"
-)
+package serverdebug
 
-func Test(t *testing.T) {
-	assert.True(t, Disabled().Disabled)
+// Mock implements mock-specific methods.
+type Mock interface {
+	Component
 }
