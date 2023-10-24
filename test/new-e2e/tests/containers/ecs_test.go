@@ -72,8 +72,6 @@ func (suite *ecsSuite) TearDownSuite() {
 		suite.startTime.UnixMilli(),
 		suite.endTime.UnixMilli(),
 	))
-
-	infra.GetStackManager().DeleteStack(context.Background(), "ecs-cluster")
 }
 
 // Once pulumi has finished to create a stack, it can still take some time for the images to be pulled,

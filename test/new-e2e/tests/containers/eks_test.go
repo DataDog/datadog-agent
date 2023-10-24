@@ -56,7 +56,9 @@ func (suite *eksSuite) SetupSuite() {
 		stackName, err := infra.GetStackManager().GetPulumiStackName("eks-cluster")
 		suite.Require().NoError(err)
 		suite.T().Log(dumpEKSClusterState(ctx, stackName))
-		infra.GetStackManager().DeleteStack(ctx, "eks-cluster")
+		if !runner.GetProfile().AllowDevMode() || !*keepStacks {
+			infra.GetStackManager().DeleteStack(ctx, "eks-cluster")
+		}
 		suite.T().FailNow()
 	}
 
@@ -78,12 +80,6 @@ func (suite *eksSuite) SetupSuite() {
 	suite.K8sClient = kubernetes.NewForConfigOrDie(suite.K8sConfig)
 
 	suite.k8sSuite.SetupSuite()
-}
-
-func (suite *eksSuite) TearDownSuite() {
-	suite.k8sSuite.TearDownSuite()
-
-	infra.GetStackManager().DeleteStack(context.Background(), "eks-cluster")
 }
 
 // dumpEKSClusterState re-implements in GO the following two lines of shell script:

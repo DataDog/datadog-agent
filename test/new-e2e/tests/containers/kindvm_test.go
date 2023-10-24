@@ -61,9 +61,3 @@ func (suite *kindSuite) SetupSuite() {
 
 	suite.k8sSuite.SetupSuite()
 }
-
-func (suite *kindSuite) TearDownSuite() {
-	suite.k8sSuite.TearDownSuite()
-
-	infra.GetStackManager().DeleteStack(context.Background(), "kind-cluster")
-}
