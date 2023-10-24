@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
 package customfields
 
 import (
@@ -190,7 +195,8 @@ func Test_DecodeUNumberWithEndianness(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out uint64
-			DecodeUNumberWithEndianness(tt.bytes, &out, tt.endianness)
+			err := decodeUNumberWithEndianness(tt.bytes, &out, tt.endianness)
+			assert.NoError(t, err)
 			assert.Equal(t, tt.expected, out)
 		})
 	}

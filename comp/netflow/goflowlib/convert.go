@@ -134,11 +134,11 @@ func applyCustomField(flow *common.Flow, destination string, fieldValue any) boo
 	return true
 }
 
-type FlowFieldsTypes interface {
+type flowFieldsTypes interface {
 	uint64 | uint32 | []byte
 }
 
-func setValue[T FlowFieldsTypes](field *T, value any) {
+func setValue[T flowFieldsTypes](field *T, value any) {
 	if v, ok := value.(T); ok {
 		*field = v
 	}
