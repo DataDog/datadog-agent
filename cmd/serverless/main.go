@@ -19,6 +19,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
+	"github.com/DataDog/datadog-agent/pkg/serverless/apikey"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
@@ -112,7 +113,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	outputDatadogEnvVariablesForDebugging()
 
-	if !hasApiKey() {
+	if !apikey.HasApiKey() {
 		log.Errorf("Can't start the Datadog extension as no API Key has been detected, or API Key could not be decrypted. Data will not be sent to Datadog.")
 		// we still need to register the extension but let's return after (no-op)
 		id, _, registrationError := registration.RegisterExtension(extensionRegistrationRoute, extensionRegistrationTimeout)
@@ -159,13 +160,13 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// KMS > Secrets Manager > Plaintext API key
 	// If one is set but failing, the next will be tried
 
-	checkForSingleApiKey()
+	apikey.CheckForSingleApiKey()
 
 	config.LoadProxyFromEnv(config.Datadog)
 
 	// Set secrets from the environment that are suffixed with
 	// KMS_ENCRYPTED or SECRET_ARN
-	setSecretsFromEnv(os.Environ())
+	apikey.SetSecretsFromEnv(os.Environ())
 
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {

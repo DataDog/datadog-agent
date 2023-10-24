@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package apikey
 
 import (
 	"encoding/base64"
@@ -162,14 +162,16 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 	return arnObject.Region, nil
 }
 
-func hasApiKey() bool {
+// HasAPIKey returns true if an API key has been set in any of the supported ways.
+func HasApiKey() bool {
 	return config.Datadog.IsSet("api_key") ||
 		len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 ||
 		len(os.Getenv(apiKeySecretManagerEnvVar)) > 0 ||
 		len(os.Getenv(apiKeyEnvVar)) > 0
 }
 
-func checkForSingleApiKey() {
+// CheckForSingleApiKey checks if an API key has been set in multiple places and logs a warning if so.
+func CheckForSingleApiKey() {
 	var apikeySetIn = []string{}
 	if os.Getenv(apiKeyKmsEncryptedEnvVar) != "" {
 		apikeySetIn = append(apikeySetIn, "KMS")

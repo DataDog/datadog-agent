@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package main
+package apikey
 
 import (
 	"os"
@@ -48,7 +48,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 	return decryptedEnvVars
 }
 
-// The agent is going to get any environment variables ending with _KMS_ENCRYPTED and _SECRET_ARN,
+// SetSecretsFromEnv - The agent is going to get any environment variables ending with _KMS_ENCRYPTED and _SECRET_ARN,
 // get the contents of the environment variable, and query SM/KMS to retrieve the value. This allows us
 // to read arbitrarily encrypted environment variables and use the decrypted version in the extension.
 // Right now, this feature is used for dual shipping, since customers need to set DD_LOGS_CONFIGURATION
@@ -56,7 +56,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 // or DD_LOGS_CONFIGURATION_KMS_ENCRYPTED, which will get converted in the extension to a plaintext
 // DD_LOGS_CONFIGURATION, and will have dual shipping enabled without exposing
 // their API key in plaintext through environment variables.
-func setSecretsFromEnv(envVars []string) {
+func SetSecretsFromEnv(envVars []string) {
 	for envKey, envVal := range getSecretEnvVars(envVars, readAPIKeyFromKMS, readAPIKeyFromSecretsManager) {
 		os.Setenv(envKey, envVal)
 	}
