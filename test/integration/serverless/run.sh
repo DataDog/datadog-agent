@@ -320,6 +320,10 @@ for function_name in "${all_functions[@]}"; do
             echo
             echo "$diff_output"
             echo
+            echo "Raw output:"
+            echo
+            echo "$raw_logs"
+            echo
         else
             printf "${GREEN} PASS ${END_COLOR} $function_name\n"
         fi
