@@ -66,7 +66,7 @@
             "disks": [
                 {
                     "mount_point": "/mnt/docker",
-                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker-amd64.qcow2-test-only",
+                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker-amd64.qcow2",
                     "target": "/home/kernel-version-testing/docker-amd64.qcow2",
                     "type": "default"
                 }
@@ -124,7 +124,7 @@
             "disks": [
                 {
                     "mount_point": "/mnt/docker",
-                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker-arm64.qcow2-test-only",
+                    "source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker-arm64.qcow2",
                     "target": "/home/kernel-version-testing/docker-arm64.qcow2",
                     "type": "default"
                 }
