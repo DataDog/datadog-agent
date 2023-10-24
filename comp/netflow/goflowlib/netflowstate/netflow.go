@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package netflowstate provides a Netflow state manager
+// on top of goflow default producer, to allow additional fields collection.
 package netflowstate
 
 import (

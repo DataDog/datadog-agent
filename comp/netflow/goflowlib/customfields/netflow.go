@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package customfields provides a producer collecting
+// additional fields from Netflow/IPFIX packets.
 package customfields
 
 import (
@@ -18,9 +20,8 @@ import (
 func decodeUNumberWithEndianness(b []byte, out *uint64, endianness common.EndianType) error {
 	if endianness == common.LittleEndian {
 		return producer.DecodeUNumberLE(b, out)
-	} else {
-		return producer.DecodeUNumber(b, out)
 	}
+	return producer.DecodeUNumber(b, out)
 }
 
 func mapCustomField(additionalFields common.AdditionalFields, v []byte, cfg config.Mapping) {
