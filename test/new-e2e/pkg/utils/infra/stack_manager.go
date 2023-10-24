@@ -260,3 +260,19 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 		return f(ctx)
 	}
 }
+
+// GetPulumiStackName returns the Pulumi stack name
+// The internal Pulumi stack name should normally remain hidden as all the Pulumi interactions
+// should be done via the StackManager.
+// The only use case for getting the internal Pulumi stack name is to interact directly with Pulumi for debug purposes.
+func (sm *StackManager) GetPulumiStackName(name string) (string, error) {
+	sm.lock.Lock()
+	defer sm.lock.Unlock()
+
+	stack, ok := sm.stacks[name]
+	if !ok {
+		return "", fmt.Errorf("stack %s not present", name)
+	}
+
+	return stack.Name(), nil
+}

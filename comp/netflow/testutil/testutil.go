@@ -155,7 +155,7 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponen
 		err = json.Unmarshal(event, &p)
 		assert.NoError(t, err)
 		payloadBytes, _ := json.Marshal(p)
-		m := &message.Message{Content: payloadBytes}
+		m := message.NewMessage(payloadBytes, nil, "", 0)
 
 		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil)
 	}

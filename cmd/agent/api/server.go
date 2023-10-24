@@ -37,6 +37,7 @@ import (
 	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -57,8 +58,9 @@ func StartServer(
 	capture replay.Component,
 	serverDebug dogstatsdDebug.Component,
 	logsAgent pkgUtil.Optional[logsAgent.Component],
-	senderManager sender.SenderManager,
+	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
+	invAgent inventoryagent.Component,
 ) error {
 	initializeTLS()
 
@@ -134,7 +136,9 @@ func StartServer(
 				serverDebug,
 				logsAgent,
 				senderManager,
-				hostMetadata)))
+				hostMetadata,
+				invAgent,
+			)))
 	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	mux.Handle("/", gwmux)
 

@@ -8,7 +8,9 @@ package ndmtmp
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	ddagg "github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -16,9 +18,11 @@ import (
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle,
-		fx.Provide(func() *ddagg.AgentDemultiplexer {
-			return &ddagg.AgentDemultiplexer{}
-		}),
+		demultiplexer.Module,
+		defaultforwarder.Module,
+		fx.Supply(demultiplexer.Params{}),
+		fx.Supply(defaultforwarder.Params{}),
+		core.MockBundle,
 	)
 }
 

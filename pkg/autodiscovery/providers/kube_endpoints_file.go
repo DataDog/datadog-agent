@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -75,11 +76,13 @@ func NewKubeEndpointsFileConfigProvider(*config.ConfigurationProviders) (ConfigP
 
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
+		telemetry.Errors.Inc(names.KubeEndpointsFile)
 		return nil, fmt.Errorf("cannot connect to apiserver: %s", err)
 	}
 
 	epInformer := ac.InformerFactory.Core().V1().Endpoints()
 	if epInformer == nil {
+		telemetry.Errors.Inc(names.KubeEndpointsFile)
 		return nil, fmt.Errorf("cannot get endpoint informer: %s", err)
 	}
 
@@ -89,6 +92,7 @@ func NewKubeEndpointsFileConfigProvider(*config.ConfigurationProviders) (ConfigP
 		UpdateFunc: provider.updateHandler,
 		DeleteFunc: provider.deleteHandler,
 	}); err != nil {
+		telemetry.Errors.Inc(names.KubeEndpointsFile)
 		return nil, fmt.Errorf("cannot add event handler to endpoint informer: %s", err)
 	}
 
@@ -131,6 +135,7 @@ func (p *KubeEndpointsFileConfigProvider) setUpToDate(v bool) {
 func (p *KubeEndpointsFileConfigProvider) addHandler(obj interface{}) {
 	ep, ok := obj.(*v1.Endpoints)
 	if !ok {
+		telemetry.Errors.Inc(names.KubeEndpointsFile)
 		log.Errorf("Expected an Endpoints type, got: %T", obj)
 		return
 	}
@@ -144,6 +149,7 @@ func (p *KubeEndpointsFileConfigProvider) addHandler(obj interface{}) {
 func (p *KubeEndpointsFileConfigProvider) updateHandler(old, new interface{}) {
 	newEp, ok := new.(*v1.Endpoints)
 	if !ok {
+		telemetry.Errors.Inc(names.KubeEndpointsFile)
 		log.Errorf("Expected an Endpoints type, got: %T", new)
 		return
 	}
@@ -154,6 +160,7 @@ func (p *KubeEndpointsFileConfigProvider) updateHandler(old, new interface{}) {
 
 	oldEp, ok := old.(*v1.Endpoints)
 	if !ok {
+		telemetry.Errors.Inc(names.KubeEndpointsFile)
 		log.Errorf("Expected a Endpoints type, got: %T", old)
 		return
 	}
@@ -173,6 +180,7 @@ func (p *KubeEndpointsFileConfigProvider) updateHandler(old, new interface{}) {
 func (p *KubeEndpointsFileConfigProvider) deleteHandler(obj interface{}) {
 	ep, ok := obj.(*v1.Endpoints)
 	if !ok {
+		telemetry.Errors.Inc(names.KubeEndpointsFile)
 		log.Errorf("Expected an Endpoints type, got: %T", obj)
 		return
 	}

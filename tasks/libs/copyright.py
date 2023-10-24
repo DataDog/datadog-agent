@@ -26,6 +26,7 @@ COPYRIGHT_REGEX = [
 # These path patterns are excluded from checks
 PATH_EXCLUSION_REGEX = [
     # These are auto-generated files but without headers to indicate it
+    '/vendor/',
     '/pkg/clusteragent/custommetrics/api/generated/',
     '/pkg/process/events/model/.*_gen.go',
     '/pkg/proto/msgpgo/.*_gen(_test){,1}.go',
@@ -63,6 +64,7 @@ HEADER_EXCLUSION_REGEX = [
     '^// Copyright 2017 Kinvolk',
     '^// Copyright 2021 The Vitess Authors.',
     '^// This file is licensed under the MIT License.',
+    '^// Copyright \\(C\\) 2017 ScyllaDB',
 ]
 
 

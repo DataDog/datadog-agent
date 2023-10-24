@@ -174,3 +174,5 @@ kitchen_debian_process_agent-a7:
   extends:
     - .kitchen_scenario_debian_a7_x64
     - .kitchen_test_process_agent
+
+

@@ -14,9 +14,11 @@
 
 # Config files for various CI systems / tasks
 /.*                                     @DataDog/agent-platform
+/.go-version                            @DataDog/agent-shared-components @DataDog/agent-platform
 
 /CHANGELOG.rst                          @DataDog/agent-platform
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations
+/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-platform
 
 /*.md                                   @DataDog/agent-platform @DataDog/documentation
 /NOTICE                                 @DataDog/agent-platform @DataDog/documentation
@@ -26,10 +28,12 @@
 # Todo: is this file still needed?
 /Makefile.trace                         @DataDog/agent-platform
 
-/release.json                           @DataDog/agent-platform @DataDog/agent-shared-components
+/release.json                           @DataDog/agent-platform @DataDog/agent-shared-components @DataDog/agent-metrics-logs @DataDog/windows-kernel-integrations
 /requirements.txt                       @DataDog/agent-platform
 /pyproject.toml                         @DataDog/agent-platform
 /setup.cfg                              @DataDog/agent-platform
+/repository.datadog.yml                 @DataDog/agent-platform
+/generate_tools.go                      @DataDog/agent-platform
 
 /.circleci/                             @DataDog/agent-platform
 
@@ -38,7 +42,9 @@
 /.github/dependabot.yaml                            @DataDog/agent-platform
 /.github/workflows/serverless-binary-size.yml       @DataDog/serverless
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
+/.github/workflows/windows-*.yml                    @DataDog/windows-agent
 /.github/workflows/cws-btfhub-sync.yml              @DataDog/agent-security
+/.github/workflows/gohai.yml                        @DataDog/agent-shared-components
 
 # Gitlab files
 # Files containing job contents are owned by teams in charge of the jobs + agent-platform
@@ -231,6 +237,7 @@
 /pkg/metrics/                           @DataDog/agent-metrics-logs
 /pkg/serializer/                        @DataDog/agent-metrics-logs
 /pkg/serverless/                        @DataDog/serverless
+/pkg/serverless/appsec/                 @DataDog/asm-go
 /pkg/status/                            @DataDog/agent-shared-components
 /pkg/status/templates/trace-agent.tmpl  @DataDog/agent-apm
 /pkg/status/templates/process-agent.tmpl    @DataDog/processes
@@ -285,8 +292,9 @@
 /pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
-/pkg/config/environment*.go             @DataDog/container-integrations @DataDog/container-app
-/pkg/config/log*.go                     @Datadog/agent-platform
+/pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
+/pkg/config/logs                        @Datadog/agent-shared-components @Datadog/agent-platform
+/pkg/config/logs/internal/seelog/seelog_config.go          @Datadog/agent-shared-components
 /pkg/config/process*.go                 @DataDog/processes
 /pkg/config/system_probe.go               @DataDog/ebpf-platform
 /pkg/config/system_probe_cws.go           @DataDog/agent-security
@@ -425,6 +433,8 @@
 /tasks/systray.py                       @DataDog/windows-agent
 /tasks/winbuildscripts/                 @DataDog/windows-agent
 /tasks/windows_resources.py             @DataDog/windows-agent
+/tasks/components.py                    @DataDog/agent-shared-components
+/tasks/components_templates/bundle_test.go.tmpl @DataDog/agent-shared-components
 /test/                                  @DataDog/agent-platform
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
@@ -481,3 +491,4 @@
 /internal/tools/                        @DataDog/agent-platform
 /internal/third_party/client-go         @DataDog/container-integrations
 /internal/third_party/kubernetes        @DataDog/container-integrations
+/internal/third_party/golang/           @DataDog/container-integrations

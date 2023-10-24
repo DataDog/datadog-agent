@@ -13,10 +13,10 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgdiagnose "github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -79,6 +79,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
 					LogParams:    log.ForOneShot("CORE", "off", true)}),
 				core.Bundle,
+				diagnosesendermanager.Module,
 			)
 		},
 	}
@@ -155,15 +156,31 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 			)
 		},
 	}
+
+	payloadInventoriesAgentCmd := &cobra.Command{
+		Use:   "inventory-agent",
+		Short: "Print the Inventory agent metadata payload.",
+		Long: `
+This command print the inventory-agent metadata payload. This payload is used by the 'inventories/sql' product.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliParams.payloadName = "inventory-agent"
+			return fxutil.OneShot(printPayload,
+				fx.Supply(cliParams),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle,
+			)
+		},
+	}
 	showPayloadCommand.AddCommand(payloadV5Cmd)
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}
 }
 
-func cmdDiagnose(log log.Component, config config.Component, cliParams *cliParams) error {
+func cmdDiagnose(cliParams *cliParams, senderManager diagnosesendermanager.Component) error {
 	diagCfg := diagnosis.Config{
 		Verbose:  cliParams.verbose,
 		RunLocal: cliParams.runLocal,
@@ -178,7 +195,7 @@ func cmdDiagnose(log log.Component, config config.Component, cliParams *cliParam
 	}
 
 	// Run command
-	return pkgdiagnose.RunStdOut(color.Output, diagCfg, aggregator.GetSenderManager())
+	return pkgdiagnose.RunStdOut(color.Output, diagCfg, senderManager)
 }
 
 // NOTE: This and related will be moved to separate "agent telemetry" command in future

@@ -17,6 +17,7 @@ import (
 	"net"
 	nethttp "net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -41,9 +43,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func TestMain(m *testing.M) {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
+	os.Exit(m.Run())
+}
 
 const (
 	kb = 1024
@@ -56,7 +67,14 @@ const (
 
 var (
 	emptyBody = []byte(nil)
+	kv        = kernel.MustHostVersion()
 )
+
+func skipIfUSMNotSupported(t *testing.T) {
+	if kv < http.MinimumKernelVersion {
+		t.Skipf("USM is not supported on %v", kv)
+	}
+}
 
 func TestMonitorProtocolFail(t *testing.T) {
 	failingStartupMock := func(_ *manager.Manager) error {
@@ -94,6 +112,7 @@ type HTTPTestSuite struct {
 }
 
 func TestHTTP(t *testing.T) {
+	skipIfUSMNotSupported(t)
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
@@ -509,8 +528,6 @@ type captureRange struct {
 }
 
 func TestHTTP2(t *testing.T) {
-	t.Skip("tests are broken after upgrading go-grpc to 1.58")
-
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < usmhttp2.MinimumKernelVersion {
@@ -533,12 +550,11 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		name              string
 		runClients        func(t *testing.T, clientsCount int)
 		expectedEndpoints map[http.Key]captureRange
-		skip              bool
 	}{
 		{
 			name: " / path",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{})
+				clients := getClientsArray(t, clientsCount)
 
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -560,7 +576,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		{
 			name: " /index.html path",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{})
+				clients := getClientsArray(t, clientsCount)
 
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -584,10 +600,6 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				if tt.skip {
-					t.Skip("Skipping test due to known issue")
-				}
-
 				monitor, err := NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
@@ -639,7 +651,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	}
 }
 
-func getClientsArray(t *testing.T, size int, options grpc.Options) []*nethttp.Client { //nolint:revive // TODO fix revive unused-parameter
+func getClientsArray(t *testing.T, size int) []*nethttp.Client {
 	t.Helper()
 
 	res := make([]*nethttp.Client, size)

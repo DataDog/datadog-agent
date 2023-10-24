@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
 using Datadog.CustomActions.Interfaces;
+// ReSharper disable InconsistentNaming
 
 namespace Datadog.CustomActions.Native
 {
@@ -274,7 +275,7 @@ namespace Datadog.CustomActions.Native
         {
             if (level == 0)
             {
-               level = int.Parse(System.Text.RegularExpressions.Regex.Replace(typeof(T).Name, @"[^\d]", ""));
+                level = int.Parse(System.Text.RegularExpressions.Regex.Replace(typeof(T).Name, @"[^\d]", ""));
             }
             var ptr = IntPtr.Zero;
             try
@@ -386,11 +387,11 @@ namespace Datadog.CustomActions.Native
         [DllImport("advapi32.dll")]
         private static extern long LsaNtStatusToWinError(long status);
 
-        [DllImport("kernel32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         private static extern bool GetComputerNameEx(COMPUTER_NAME_FORMAT NameType,
                            [Out] StringBuilder lpBuffer, ref uint lpnSize);
 
-        [DllImport("advapi32.dll", SetLastError=true, CharSet=CharSet.Auto)]
+        [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         public static extern bool ChangeServiceConfig(SafeHandle hService, uint dwServiceType,
         int dwStartType, int dwErrorControl, string lpBinaryPathName, string lpLoadOrderGroup,
         string lpdwTagId, string lpDependencies, string lpServiceStartName, string lpPassword,

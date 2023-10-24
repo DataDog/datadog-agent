@@ -1595,10 +1595,24 @@ def print_failed_tests(_, output_dir):
 
 @task
 def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
-    import yaml
-
     if windows:
         return
+
+    images = _test_docker_image_list()
+    for image in images:
+        output_path = image.translate(str.maketrans('', '', string.punctuation))
+        ctx.run(f"docker pull --platform linux/{arch} {image}")
+        ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
+
+
+@task
+def test_docker_image_list(_):
+    images = _test_docker_image_list()
+    print('\n'.join(images))
+
+
+def _test_docker_image_list():
+    import yaml
 
     docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     # Add relative docker-compose paths
@@ -1619,10 +1633,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
     # Special use-case in javatls
     images.remove("${IMAGE_VERSION}")
-    for image in images:
-        output_path = image.translate(str.maketrans('', '', string.punctuation))
-        ctx.run(f"docker pull --platform linux/{arch} {image}")
-        ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
+    return images
 
 
 @task
@@ -1641,6 +1652,7 @@ def start_microvms(
     stack_name="kernel-matrix-testing-system",
     vmconfig=None,
     local=False,
+    provision=False,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -1655,6 +1667,7 @@ def start_microvms(
         f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
         f"--name {stack_name}",
         f"--vmconfig {vmconfig}" if vmconfig else "",
+        "--run-provision" if provision else "",
         "--local" if local else "",
     ]
 

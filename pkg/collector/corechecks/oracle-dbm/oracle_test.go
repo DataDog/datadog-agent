@@ -14,16 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/jmoiron/sqlx"
 	go_ora "github.com/sijms/go-ora/v2"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	_ "github.com/godror/godror"
 )
 
@@ -82,14 +78,6 @@ func connectToDB(driver string) (*sqlx.DB, error) {
 		sqlx.BindDriver("oracle", sqlx.NAMED)
 	}
 	return db, nil
-}
-
-func initAndStartAgentDemultiplexer(t *testing.T) {
-	deps := fxutil.Test[aggregator.AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	opts := aggregator.DefaultAgentDemultiplexerOptions()
-	opts.DontStartForwarders = true
-
-	_ = aggregator.InitAndStartAgentDemultiplexerForTest(deps, opts, "hostname")
 }
 
 func getUsedPGA(db *sqlx.DB) (float64, error) {

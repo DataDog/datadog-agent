@@ -49,12 +49,9 @@ func deduplicateProgramNames(stats *model.EBPFStats) {
 
 // deduplicateMapNames disambiguates ebpf maps by adding a numeric ID if necessary
 func deduplicateMapNames(stats *model.EBPFStats) {
-	allMaps := make([]*model.EBPFMapStats, 0, len(stats.Maps)+len(stats.PerfBuffers))
+	allMaps := make([]*model.EBPFMapStats, 0, len(stats.Maps))
 	for i := range stats.Maps {
 		allMaps = append(allMaps, &stats.Maps[i])
-	}
-	for i := range stats.PerfBuffers {
-		allMaps = append(allMaps, &stats.PerfBuffers[i].EBPFMapStats)
 	}
 
 	cmpFunc := func(a, b *model.EBPFMapStats) int {
