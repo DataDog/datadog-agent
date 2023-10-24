@@ -55,7 +55,7 @@ func (v *agentSuite) TestWithAgentConfig() {
 			agentParams = append(agentParams, agentparams.WithAgentConfig(param.config))
 		}
 		v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentParams...)))
-		config, _ := v.Env().Agent.Config()
+		config := v.Env().Agent.Config()
 		re := regexp.MustCompile(`.*log_level:(.*)\n`)
 		matches := re.FindStringSubmatch(config)
 		require.NotEmpty(v.T(), matches)
