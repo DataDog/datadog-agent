@@ -64,13 +64,14 @@ layers:
 functions:
   appsec-node:
     runtime: nodejs18.x
-    handler: src/metric.appSecHandler
+    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
     layers:
       - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
       - { Ref: RecorderExtensionLambdaLayer }
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_LAMBDA_HANDLER: src/metric.appSecHandler
       DD_SERVERLESS_APPSEC_ENABLED: true
 
   appsec-python:
