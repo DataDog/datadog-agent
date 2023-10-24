@@ -29,6 +29,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -76,6 +77,7 @@ func StartServers(
 	demux demultiplexer.Component,
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
+	invChecks inventorychecks.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -106,11 +108,23 @@ func StartServers(
 
 	// start the CMD server
 	if err := startCMDServer(
-		apiAddr, tlsConfig, tlsCertPool,
-		configService, flare, dogstatsdServer,
-		capture, serverDebug, wmeta, logsAgent,
-		senderManager, hostMetadata, invAgent,
-		demux, invHost, secretResolver,
+		apiAddr,
+		tlsConfig,
+		tlsCertPool,
+		configService,
+		flare,
+		dogstatsdServer,
+		capture,
+		serverDebug,
+		wmeta,
+		logsAgent,
+		senderManager,
+		hostMetadata,
+		invAgent,
+		demux,
+		invHost,
+		secretResolver,
+		invChecks,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

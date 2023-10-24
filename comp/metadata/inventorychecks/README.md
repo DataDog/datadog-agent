@@ -1,6 +1,6 @@
-# Inventory Payload
+# Inventory Checks Payload
 
-This package populates some of the agent-related fields in the `inventories` product in DataDog.
+This package populates some of the checks-related fields in the `inventories` product in DataDog.
 
 This is enabled by default but can be turned off using `inventories_enabled` config.
 
@@ -9,21 +9,11 @@ update every 1 minute (see `inventories_min_interval`).
 
 # Content
 
-The current payload contains 1 section: `check_metadata`.
-
-If the final serialized payload is too big, each section is sent in a different payload with `hostname` and `timestamp`
-always present. This is why some fields are duplicated between section, like `agent_version`.
-
-The package offers a method to the Agent codebase to add data to the payload about checks: `SetCheckMetadata`.
-
-## Check metadata
-
-`SetCheckMetadata` registers data per check instance. Metadata can include the check version, the version of the
-monitored software, ... It depends on each check.
+The `Set` method from the component allow the rest of the codebase to add any Metadata to a check running in the collector.
+Metadata can include the check version, the version of the monitored software, ... It depends on each check.
 
 For every running check, no matter if it registered extra metadata or not, we send: name, ID, configuration,
 configuration provider. Sending checks configuration can be disabled using `inventories_checks_configuration_enabled`.
-
 
 # Format
 
