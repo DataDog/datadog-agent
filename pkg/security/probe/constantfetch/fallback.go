@@ -676,6 +676,8 @@ func getNetDeviceIfindexOffset(kv *kernel.Version) uint64 {
 		offset = 256
 	case kv.IsInRangeCloseOpen(kernel.Kernel5_12, kernel.Kernel5_17):
 		offset = 208
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_5, kernel.Kernel6_6):
+		offset = 224
 	case kv.Code >= kernel.Kernel5_17:
 		offset = 216
 	}
@@ -918,7 +920,7 @@ func getVMAreaStructFlagsOffset(kv *kernel.Version) uint64 {
 	switch {
 	case kv.IsAmazonLinux2023Kernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_1, kernel.Kernel6_2):
 		return 32
-	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_2, kernel.Kernel6_3):
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_2, kernel.Kernel6_6):
 		return 32
 	}
 	return 80
