@@ -24,11 +24,20 @@ import (
 	"github.com/fatih/color"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
+type ecsSuite struct {
+	baseSuite
+
+	ecsClusterName string
+}
+
 func TestECSSuite(t *testing.T) {
+	suite.Run(t, &ecsSuite{})
+}
+
+func (suite *ecsSuite) SetupSuite() {
 	ctx := context.Background()
 
 	// Creating the stack
@@ -42,40 +51,29 @@ func TestECSSuite(t *testing.T) {
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "ecs-cluster", stackConfig, ecs.Run, false)
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		infra.GetStackManager().DeleteStack(ctx, "ecs-cluster")
-	})
+	suite.Require().NoError(err)
 
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
+	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
+	suite.ecsClusterName = stackOutput.Outputs["ecs-cluster-name"].Value.(string)
 
-	startTime := time.Now()
+	suite.baseSuite.SetupSuite()
+}
 
-	suite.Run(t, &ecsSuite{
-		baseSuite: baseSuite{
-			Fakeintake: fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost)),
-		},
-		ecsClusterName: stackOutput.Outputs["ecs-cluster-name"].Value.(string),
-	})
-
-	endTime := time.Now()
+func (suite *ecsSuite) TearDownSuite() {
+	suite.baseSuite.TearDownSuite()
 
 	color.NoColor = false
 	c := color.New(color.Bold).SprintfFunc()
-	t.Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
+	suite.T().Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
 	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
-	t.Log(c("https://dddev.datadoghq.com/dashboard/mnw-tdr-jd8/e2e-tests-containers-ecs?refresh_mode=paused&tpl_var_ecs_cluster_name%%5B0%%5D=%s&from_ts=%d&to_ts=%d&live=false",
-		stackOutput.Outputs["ecs-cluster-name"].Value.(string),
-		startTime.UnixMilli(),
-		endTime.UnixMilli(),
+	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/mnw-tdr-jd8/e2e-tests-containers-ecs?refresh_mode=paused&tpl_var_ecs_cluster_name%%5B0%%5D=%s&from_ts=%d&to_ts=%d&live=false",
+		suite.ecsClusterName,
+		suite.startTime.UnixMilli(),
+		suite.endTime.UnixMilli(),
 	))
-}
 
-type ecsSuite struct {
-	baseSuite
-
-	ecsClusterName string
+	infra.GetStackManager().DeleteStack(context.Background(), "ecs-cluster")
 }
 
 // Once pulumi has finished to create a stack, it can still take some time for the images to be pulled,

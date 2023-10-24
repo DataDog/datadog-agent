@@ -13,6 +13,10 @@ import (
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+
+	"github.com/fatih/color"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
@@ -22,9 +26,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/remotecommand"
-
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 var GitCommit string
@@ -32,11 +33,30 @@ var GitCommit string
 type k8sSuite struct {
 	baseSuite
 
+	KubeClusterName             string
 	AgentLinuxHelmInstallName   string
 	AgentWindowsHelmInstallName string
 
 	K8sConfig *restclient.Config
 	K8sClient *kubernetes.Clientset
+}
+
+func (suite *k8sSuite) SetupSuite() {
+	suite.baseSuite.SetupSuite()
+}
+
+func (suite *k8sSuite) TearDownSuite() {
+	suite.baseSuite.TearDownSuite()
+
+	color.NoColor = false
+	c := color.New(color.Bold).SprintfFunc()
+	suite.T().Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
+	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
+	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/qcp-brm-ysc/e2e-tests-containers-k8s?refresh_mode=paused&tpl_var_kube_cluster_name%%5B0%%5D=%s&from_ts=%d&to_ts=%d&live=false",
+		suite.KubeClusterName,
+		suite.startTime.UnixMilli(),
+		suite.endTime.UnixMilli(),
+	))
 }
 
 // Once pulumi has finished to create a stack, it can still take some time for the images to be pulled,

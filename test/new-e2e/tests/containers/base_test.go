@@ -21,7 +21,17 @@ import (
 type baseSuite struct {
 	suite.Suite
 
+	startTime  time.Time
+	endTime    time.Time
 	Fakeintake *fakeintake.Client
+}
+
+func (suite *baseSuite) SetupSuite() {
+	suite.startTime = time.Now()
+}
+
+func (suite *baseSuite) TearDownSuite() {
+	suite.endTime = time.Now()
 }
 
 func (suite *baseSuite) testMetric(metricName string, filterTags []string, expectedTags []*regexp.Regexp) {
