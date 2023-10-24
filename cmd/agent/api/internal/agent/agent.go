@@ -37,6 +37,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
@@ -47,7 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -73,6 +73,7 @@ func SetupHandlers(
 	demux demultiplexer.Component,
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
+	invChecks inventorychecks.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -97,7 +98,11 @@ func SetupHandlers(
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
 	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
-	r.HandleFunc("/metadata/{payload}", func(w http.ResponseWriter, r *http.Request) { metadataPayload(w, r, hostMetadata, invAgent, invHost) }).Methods("GET")
+	r.HandleFunc("/metadata/gohai", metadataPayloadGohai).Methods("GET")
+	r.HandleFunc("/metadata/v5", func(w http.ResponseWriter, r *http.Request) { metadataPayloadV5(w, r, hostMetadata) }).Methods("GET")
+	r.HandleFunc("/metadata/inventory-checks", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvChecks(w, r, invChecks) }).Methods("GET")
+	r.HandleFunc("/metadata/inventory-agent", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvAgent(w, r, invAgent) }).Methods("GET")
+	r.HandleFunc("/metadata/inventory-host", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvHost(w, r, invHost) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager) }).Methods("POST")
 
 	r.HandleFunc("/dogstatsd-contexts-dump", func(w http.ResponseWriter, r *http.Request) { dumpDogstatsdContexts(w, r, demux) }).Methods("POST")
@@ -439,65 +444,64 @@ func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.C
 	secretResolver.GetDebugInfo(w)
 }
 
-func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp host.Component, invAgent inventoryagent.Component, invHost inventoryhost.Component) {
-	vars := mux.Vars(r)
-	payloadType := vars["payload"]
-
-	var scrubbed []byte
-	var err error
-
-	switch payloadType {
-	case "v5":
-		jsonPayload, err := hostMetadataComp.GetPayloadAsJSON(context.Background())
-		if err != nil {
-			setJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
-			return
-		}
-
-		scrubbed, err = scrubber.ScrubBytes(jsonPayload)
-		if err != nil {
-			setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
-			return
-		}
-	case "gohai":
-		payload := gohai.GetPayloadWithProcesses(config.IsContainerized())
-		jsonPayload, err := json.MarshalIndent(payload, "", "  ")
-		if err != nil {
-			setJSONError(w, log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
-			return
-		}
-
-		scrubbed, err = scrubber.ScrubBytes(jsonPayload)
-		if err != nil {
-			setJSONError(w, log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
-			return
-		}
-	case "inventory":
-		// GetLastPayload already return scrubbed data
-		scrubbed, err = inventories.GetLastPayload()
-		if err != nil {
-			setJSONError(w, err, 500)
-			return
-		}
-	case "inventory-agent":
-		// GetLastPayload already return scrubbed data
-		scrubbed, err = invAgent.GetAsJSON()
-		if err != nil {
-			setJSONError(w, err, 500)
-			return
-		}
-	case "inventory-host":
-		// GetLastPayload already return scrubbed data
-		scrubbed, err = invHost.GetAsJSON()
-		if err != nil {
-			setJSONError(w, err, 500)
-			return
-		}
-	default:
-		setJSONError(w, log.Errorf("Unknown metadata payload requested: %s", payloadType), 500)
+func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {
+	jsonPayload, err := hostMetadataComp.GetPayloadAsJSON(context.Background())
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
 		return
 	}
 
+	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
+func metadataPayloadGohai(w http.ResponseWriter, _ *http.Request) {
+	payload := gohai.GetPayloadWithProcesses(config.IsContainerized())
+	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
+		return
+	}
+
+	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
+func metadataPayloadInvChecks(w http.ResponseWriter, _ *http.Request, invChecks inventorychecks.Component) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := invChecks.GetAsJSON()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
+func metadataPayloadInvAgent(w http.ResponseWriter, _ *http.Request, invAgent inventoryagent.Component) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := invAgent.GetAsJSON()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
+func metadataPayloadInvHost(w http.ResponseWriter, _ *http.Request, invHost inventoryhost.Component) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := invHost.GetAsJSON()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
 	w.Write(scrubbed)
 }
 

@@ -23,6 +23,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -59,6 +60,7 @@ func (mock *mockAPIServer) StartServer(
 	_ demultiplexer.Component,
 	_ inventoryhost.Component,
 	_ secrets.Component,
+	_ inventorychecks.Component,
 ) error {
 	return nil
 }
