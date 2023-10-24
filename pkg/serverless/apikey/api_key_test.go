@@ -118,6 +118,11 @@ func TestHasDDKmsApiKey(t *testing.T) {
 	assert.True(t, HasApiKey())
 }
 
+func TestHasKKKmsDeprecatedApiKey(t *testing.T) {
+	t.Setenv("DD_KMS_API_KEY", "abc")
+	assert.True(t, HasApiKey())
+}
+
 func TestHasApiKey(t *testing.T) {
 	t.Setenv("DD_API_KEY", "abc")
 	assert.True(t, HasApiKey())
@@ -126,6 +131,7 @@ func TestHasApiKey(t *testing.T) {
 func TestHasNoKeys(t *testing.T) {
 	t.Setenv("DD_API_KEY_KMS_ENCRYPTED", "")
 	t.Setenv("DD_API_KEY_SECRET_ARN", "")
+	t.Setenv("DD_KMS_API_KEY", "")
 	t.Setenv("DD_API_KEY", "")
 	assert.False(t, HasApiKey())
 }

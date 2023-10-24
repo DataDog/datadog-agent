@@ -23,12 +23,14 @@ func TestGetSecretEnvVars(t *testing.T) {
 		"TEST_SM_SECRET_ARN=123",
 		"",
 		"MALFORMED=ENV=VAR",
+		"DD_KMS_API_KEY=123",
 	}
 
 	decryptedEnvVars := getSecretEnvVars(testEnvVars, getFunc, getFunc)
 
 	assert.Equal(t, map[string]string{
-		"TEST_KMS": "DECRYPTED_VAL",
-		"TEST_SM":  "DECRYPTED_VAL",
+		"TEST_KMS":   "DECRYPTED_VAL",
+		"TEST_SM":    "DECRYPTED_VAL",
+		"DD_API_KEY": "DECRYPTED_VAL",
 	}, decryptedEnvVars)
 }

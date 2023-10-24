@@ -35,6 +35,16 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 			}
 			decryptedEnvVars[strings.TrimSuffix(envKey, kmsKeySuffix)] = secretVal
 		}
+		// this block is deprecated, but we still need to support it for backwards compatibility
+		if envKey == apiKeyKmsEnvVar {
+			log.Debugf("[DEPRECATED] Decrypting %v", envVar)
+			secretVal, err := kmsFunc(envVal)
+			if err != nil {
+				log.Debugf("Couldn't read API key from KMS: %v", err)
+				continue
+			}
+			decryptedEnvVars[apiKeyEnvVar] = secretVal
+		}
 		if strings.HasSuffix(envKey, secretArnSuffix) {
 			log.Debugf("Retrieving %v from secrets manager", envVar)
 			secretVal, err := smFunc(envVal)
