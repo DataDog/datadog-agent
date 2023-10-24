@@ -91,10 +91,10 @@ func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 	}
 	startDetails := &InvocationStartDetails{
 		StartTime:          timeNow(),
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 	lp.startExecutionSpan(nil, []byte(""), startDetails)
-	assert.Equal(t, currentExecutionInfo.startTime, currentExecutionInfo.startTime)
+	assert.Equal(t, startDetails.StartTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(0), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.SpanID)
 	assert.Equal(t, sampler.PriorityNone, currentExecutionInfo.SamplingPriority)
@@ -111,7 +111,7 @@ func TestStartExecutionSpanWithPayload(t *testing.T) {
 	}
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 	lp.startExecutionSpan(nil, []byte(testString), startDetails)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
@@ -129,12 +129,11 @@ func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 		},
 	}
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
-	lambdaInvokeContext := LambdaInvokeEventHeaders{
-		TraceID:          "5736943178450432258",
-		ParentID:         "1480558859903409531",
-		SamplingPriority: "1",
-	}
 
+	lambdaInvokeContext := http.Header{}
+	lambdaInvokeContext.Set(TraceIDHeader, "5736943178450432258")
+	lambdaInvokeContext.Set(ParentIDHeader, "1480558859903409531")
+	lambdaInvokeContext.Set(SamplingPriorityHeader, "1")
 	startTime := timeNow()
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
@@ -159,7 +158,7 @@ func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 	startTime := timeNow()
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 	lp.startExecutionSpan(nil, []byte(invalidTestString), startDetails)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
@@ -176,7 +175,7 @@ func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 	startTime := timeNow()
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 	inferredSpan := &inferredspan.InferredSpan{}
 	inferredSpan.Span = &pb.Span{
@@ -218,7 +217,7 @@ func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
 	}
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 
 	lp.startExecutionSpan(nil, []byte("[]"), startDetails)
@@ -273,7 +272,7 @@ func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
 	}
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 
 	lp.startExecutionSpan(nil, nil, startDetails)
@@ -330,7 +329,7 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 	lp.startExecutionSpan(nil, []byte(testString), startDetails)
 
@@ -393,7 +392,7 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 	lp.startExecutionSpan(nil, []byte(testString), startDetails)
 
@@ -454,7 +453,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	}
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 	lp.startExecutionSpan(nil, []byte(testString), startDetails)
 
@@ -500,7 +499,7 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 	startTime := time.Now()
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 	lp.startExecutionSpan(nil, []byte(testString), startDetails)
 
@@ -560,7 +559,7 @@ func TestLanguageTag(t *testing.T) {
 		startTime := time.Now()
 		startDetails := &InvocationStartDetails{
 			StartTime:          startTime,
-			InvokeEventHeaders: LambdaInvokeEventHeaders{},
+			InvokeEventHeaders: http.Header{},
 		}
 		lp.startExecutionSpan(nil, []byte(testString), startDetails)
 

@@ -51,30 +51,20 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 	executionContext.requestPayload = rawPayload
 	executionContext.startTime = startDetails.StartTime
 
-	if tc, err := lp.Extractor.Extract(event, rawPayload); err == nil {
-		executionContext.TraceID = tc.TraceID
-		executionContext.parentID = tc.ParentID
-		executionContext.SamplingPriority = tc.SamplingPriority
+	traceContext, err := lp.Extractor.Extract(event, rawPayload)
+	if err != nil {
+		traceContext = lp.Extractor.ExtractFromLayer(startDetails.InvokeEventHeaders).TraceContext
+	}
+
+	if traceContext != nil {
+		executionContext.TraceID = traceContext.TraceID
+		executionContext.parentID = traceContext.ParentID
+		executionContext.SamplingPriority = traceContext.SamplingPriority
 		if lp.InferredSpansEnabled {
 			inferredSpan := lp.GetInferredSpan()
-			inferredSpan.Span.TraceID = tc.TraceID
-			inferredSpan.Span.ParentID = tc.ParentID
+			inferredSpan.Span.TraceID = traceContext.TraceID
+			inferredSpan.Span.ParentID = traceContext.ParentID
 		}
-	} else if startDetails.InvokeEventHeaders.TraceID != "" { // trace context from a direct invocation
-		traceID, err := strconv.ParseUint(startDetails.InvokeEventHeaders.TraceID, 0, 64)
-		if err != nil {
-			log.Debug("Unable to parse traceID from invokeEventHeaders")
-		} else {
-			executionContext.TraceID = traceID
-		}
-
-		parentID, err := strconv.ParseUint(startDetails.InvokeEventHeaders.ParentID, 0, 64)
-		if err != nil {
-			log.Debug("Unable to parse parentID from invokeEventHeaders")
-		} else {
-			executionContext.parentID = parentID
-		}
-		executionContext.SamplingPriority = getSamplingPriority(startDetails.InvokeEventHeaders.SamplingPriority)
 	} else {
 		executionContext.TraceID = 0
 		executionContext.parentID = 0
