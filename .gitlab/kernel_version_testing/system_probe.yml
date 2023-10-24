@@ -303,9 +303,9 @@ kernel_matrix_testing_setup_env:
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
     - mkdir -p $CI_PROJECT_DIR/libvirt/log/x86_64 $CI_PROJECT_DIR/libvirt/log/arm64
-    - X64_INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep x86_64-instance-ip | cut -d ' ' -f 2)
+    - X64_INSTANCE_IP=$(grep x86_64-instance-ip $CI_PROJECT_DIR/stack.outputs | cut -d ' ' -f 2)
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$X64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/x86_64/
-    - ARM64_INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep arm64-instance-ip | cut -d ' ' -f 2)
+    - ARM64_INSTANCE_IP=$(grep arm64-instance-ip $CI_PROJECT_DIR/stack.outputs | cut -d ' ' -f 2)
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$ARM64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/arm64/
   artifacts:
     when: always
