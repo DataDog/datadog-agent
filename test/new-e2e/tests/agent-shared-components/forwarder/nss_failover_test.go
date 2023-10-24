@@ -120,8 +120,15 @@ func (v *multiFakeIntakeSuite) SetupTest() {
 // The test checks that metrics, logs, and flares are properly received by the first intake before
 // the failover, and by the second one after.
 //
+// Note: although the man page of `nsswitch.conf` states that each process using it should only read
+// it once (ie. no reload), glibc and Go reload it periodically
+// cf. https://go-review.googlesource.com/c/go/+/448075
+//
 // TODO: handle APM traces
 func (v *multiFakeIntakeSuite) TestNSSFailover() {
+	// ensure host uses files for NSS
+	enforceNSSwitchFiles(v.T(), v.Env().VM)
+
 	// setup NSS entry for intake
 	fakeintake1IP, err := hostIPFromURL(v.Env().Fakeintake1.URL())
 	v.NoError(err)
@@ -229,6 +236,41 @@ func setHostEntry(t *testing.T, vm *client.VM, hostname string, hostIP string) {
 	} else {
 		t.Logf("append new host entry for %s (%s)", hostname, hostIP)
 		vm.Execute(fmt.Sprintf("echo '%s' | sudo tee -a /etc/hosts", entry))
+	}
+}
+
+// enforceNSSwitchFiles ensures /etc/nsswitch.conf uses `files` first for the `hosts` entry
+// so that an NSS query uses /etc/hosts before DNS
+func enforceNSSwitchFiles(t *testing.T, vm *client.VM) {
+	// for the specifics of the nsswitch.conf file format, see its man page
+	//
+	// in short, the hosts line starts with "hosts:", then a whitespace separated list of "services"
+	// each service can be followed by actions in the format [STATUS=ACTION] or [!STATUS=ACTION]
+	// we want to have the "files" service first without any action after
+
+	t.Logf("enforce using files first in NSS")
+
+	nsswitchfile := vm.Execute("sudo cat /etc/nsswitch.conf")
+	fmt.Println(nsswitchfile)
+
+	// enable multi-line mode in the Go regex
+	regex, err := regexp.Compile(`(?m:^hosts:\s+(.*)$)`)
+	require.NoError(t, err)
+
+	if regex.MatchString(nsswitchfile) {
+		matches := regex.FindStringSubmatch(nsswitchfile)
+		require.NotNil(t, matches)
+
+		services := strings.Fields(matches[1])
+		fmt.Println(services)
+		if len(services) == 0 || services[0] != "files" || (len(services) >= 2 && services[1][0] == '[') {
+			t.Logf("replace existing hosts entry in /etc/nsswitch.conf")
+			// add `files` before previous services
+			vm.Execute(`sudo sed -E -i 's/^hosts:(\s+)(.*)$/hosts:\1files \2/g' /etc/nsswitch.conf`)
+		}
+	} else {
+		t.Logf("add hosts entry in /etc/nsswitch.conf")
+		vm.Execute("echo 'hosts: files' | sudo tee -a /etc/nsswitch.conf")
 	}
 }
 
