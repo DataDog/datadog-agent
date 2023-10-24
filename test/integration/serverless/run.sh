@@ -261,9 +261,17 @@ for function_name in "${all_functions[@]}"; do
         fetch_logs_exit_code=$?
         if [ $fetch_logs_exit_code -eq 1 ]; then
             printf "\e[A\e[K" # erase previous log line
-            echo "Retrying fetch logs for $function_name... (retry #$retry_counter)"
+            echo "Retrying fetch logs for $function_name in 10 seconds... (retry #$retry_counter)"
             retry_counter=$(($retry_counter + 1))
             sleep 10
+            continue
+        fi
+        count=$(echo $raw_logs | grep -o 'REPORT RequestId' | wc -l)
+        if [ $count -lt 2 ]; then
+            echo "Logs not done flushing yet ($count Lambda reports seen, at least 2 expected)..."
+            echo "Retrying fetch logs for $function_name in 60 seconds... (retry #$retry_counter)"
+            retry_counter=$(($retry_counter + 1))
+            sleep 60
             continue
         fi
         break
