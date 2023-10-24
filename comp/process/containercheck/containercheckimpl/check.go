@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements a component to handle Process data collection in the Process Agent.
-package impl
+// Package containercheckimpl implements a component to handle Container data collection in the Process Agent.
+package containercheckimpl
 
 import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck"
+	"github.com/DataDog/datadog-agent/comp/process/containercheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,7 +24,7 @@ var Module = fxutil.Component(
 var _ types.CheckComponent = (*check)(nil)
 
 type check struct {
-	processCheck *checks.ProcessCheck
+	containerCheck *checks.ContainerCheck
 }
 
 type dependencies struct {
@@ -37,12 +37,12 @@ type result struct {
 	fx.Out
 
 	Check     types.ProvidesCheck
-	Component processcheck.Component
+	Component containercheck.Component
 }
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		processCheck: checks.NewProcessCheck(deps.Config),
+		containerCheck: checks.NewContainerCheck(deps.Config),
 	}
 	return result{
 		Check: types.ProvidesCheck{
@@ -53,5 +53,5 @@ func newCheck(deps dependencies) result {
 }
 
 func (c *check) Object() checks.Check {
-	return c.processCheck
+	return c.containerCheck
 }

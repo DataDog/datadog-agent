@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements a component to handle Container data collection in the Process Agent.
-package impl
+// Package rtcontainercheckimpl implements a component to handle realtime Container data collection in the Process Agent.
+package rtcontainercheckimpl
 
 import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/process/containercheck"
+	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,7 +24,7 @@ var Module = fxutil.Component(
 var _ types.CheckComponent = (*check)(nil)
 
 type check struct {
-	containerCheck *checks.ContainerCheck
+	rtContainerCheck *checks.RTContainerCheck
 }
 
 type dependencies struct {
@@ -37,12 +37,12 @@ type result struct {
 	fx.Out
 
 	Check     types.ProvidesCheck
-	Component containercheck.Component
+	Component rtcontainercheck.Component
 }
 
 func newCheck(deps dependencies) result {
 	c := &check{
-		containerCheck: checks.NewContainerCheck(deps.Config),
+		rtContainerCheck: checks.NewRTContainerCheck(deps.Config),
 	}
 	return result{
 		Check: types.ProvidesCheck{
@@ -53,5 +53,5 @@ func newCheck(deps dependencies) result {
 }
 
 func (c *check) Object() checks.Check {
-	return c.containerCheck
+	return c.rtContainerCheck
 }

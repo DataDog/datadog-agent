@@ -5,26 +5,21 @@
 
 //go:build test
 
-package impl
+package hostinfoimpl
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
-	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
-	"github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
+	hostinfoComp "github.com/DataDog/datadog-agent/comp/process/hostinfo"
+	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(
-	fx.Provide(newMock),
+	fx.Provide(newMockHostInfo),
 )
 
-func newMock(t testing.TB) submitterComp.Component {
-	s := mocks.NewSubmitter(t)
-	s.On("Submit", mock.Anything, mock.Anything, mock.Anything).Maybe()
-	return s
+func newMockHostInfo() hostinfoComp.Component {
+	return &hostinfo{hostinfo: &checks.HostInfo{}}
 }

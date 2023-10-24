@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements a component to handle Kubernetes data collection in the Process Agent.
-package impl
+// Package processdiscoverycheckimpl implements a component to handle Process Discovery data collection in the Process Agent for customers who do not pay for live processes.
+package processdiscoverycheckimpl
 
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/process/podcheck"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -23,19 +24,25 @@ var Module = fxutil.Component(
 var _ types.CheckComponent = (*check)(nil)
 
 type check struct {
-	podCheck *checks.PodCheck
+	processDiscoveryCheck *checks.ProcessDiscoveryCheck
+}
+
+type dependencies struct {
+	fx.In
+
+	Config config.Component
 }
 
 type result struct {
 	fx.Out
 
 	Check     types.ProvidesCheck
-	Component podcheck.Component
+	Component processdiscoverycheck.Component
 }
 
-func newCheck() result {
+func newCheck(deps dependencies) result {
 	c := &check{
-		podCheck: checks.NewPodCheck(),
+		processDiscoveryCheck: checks.NewProcessDiscoveryCheck(deps.Config),
 	}
 	return result{
 		Check: types.ProvidesCheck{
@@ -46,5 +53,5 @@ func newCheck() result {
 }
 
 func (c *check) Object() checks.Check {
-	return c.podCheck
+	return c.processDiscoveryCheck
 }

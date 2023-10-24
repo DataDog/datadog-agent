@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements a component to handle Process Events data collection in the Process Agent.
-package impl
+// Package processeventscheckimpl implements a component to handle Process Events data collection in the Process Agent.
+package processeventscheckimpl
 
 import (
 	"go.uber.org/fx"

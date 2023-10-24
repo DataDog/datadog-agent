@@ -3,25 +3,28 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package impl
+//go:build test
+
+package submitterimpl
 
 import (
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders"
-	hostinfo "github.com/DataDog/datadog-agent/comp/process/hostinfo/impl"
 	submitterComp "github.com/DataDog/datadog-agent/comp/process/submitter"
+	"github.com/DataDog/datadog-agent/pkg/process/runner/mocks"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestSubmitterLifecycle(t *testing.T) {
-	_ = fxutil.Test[submitterComp.Component](t, fx.Options(
-		hostinfo.MockModule,
-		core.MockBundle,
-		forwarders.MockModule,
-		Module,
-	))
+// MockModule defines the fx options for the mock component.
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+)
+
+func newMock(t testing.TB) submitterComp.Component {
+	s := mocks.NewSubmitter(t)
+	s.On("Submit", mock.Anything, mock.Anything, mock.Anything).Maybe()
+	return s
 }

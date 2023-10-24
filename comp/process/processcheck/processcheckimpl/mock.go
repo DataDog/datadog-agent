@@ -5,7 +5,7 @@
 
 //go:build test
 
-package impl
+package processcheckimpl
 
 import (
 	"testing"

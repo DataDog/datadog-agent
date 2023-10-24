@@ -14,19 +14,19 @@ package process
 import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
-	connectionscheck "github.com/DataDog/datadog-agent/comp/process/connectionscheck/impl"
-	containercheck "github.com/DataDog/datadog-agent/comp/process/containercheck/impl"
-	expvars "github.com/DataDog/datadog-agent/comp/process/expvars/impl"
+	"github.com/DataDog/datadog-agent/comp/process/connectionscheck/connectionscheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/expvars/expvarsimpl"
 	"github.com/DataDog/datadog-agent/comp/process/forwarders"
-	hostinfo "github.com/DataDog/datadog-agent/comp/process/hostinfo/impl"
-	podcheck "github.com/DataDog/datadog-agent/comp/process/podcheck/impl"
-	processcheck "github.com/DataDog/datadog-agent/comp/process/processcheck/impl"
-	processdiscoverycheck "github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/impl"
-	processeventscheck "github.com/DataDog/datadog-agent/comp/process/processeventscheck/impl"
-	profiler "github.com/DataDog/datadog-agent/comp/process/profiler/impl"
-	rtcontainercheck "github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/impl"
-	runner "github.com/DataDog/datadog-agent/comp/process/runner/impl"
-	submitter "github.com/DataDog/datadog-agent/comp/process/submitter/impl"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
+	"github.com/DataDog/datadog-agent/comp/process/podcheck/podcheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/processdiscoverycheck/processdiscoverycheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/processeventscheck/processeventscheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/profiler/profilerimpl"
+	"github.com/DataDog/datadog-agent/comp/process/rtcontainercheck/rtcontainercheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/runner/runnerimpl"
+	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -34,21 +34,21 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
-	runner.Module,
-	submitter.Module,
-	profiler.Module,
+	runnerimpl.Module,
+	submitterimpl.Module,
+	profilerimpl.Module,
 
 	// Checks
-	connectionscheck.Module,
-	containercheck.Module,
-	podcheck.Module,
-	processcheck.Module,
-	processeventscheck.Module,
-	rtcontainercheck.Module,
-	processdiscoverycheck.Module,
+	connectionscheckimpl.Module,
+	containercheckimpl.Module,
+	podcheckimpl.Module,
+	processcheckimpl.Module,
+	processeventscheckimpl.Module,
+	rtcontainercheckimpl.Module,
+	processdiscoverycheckimpl.Module,
 
-	hostinfo.Module,
-	expvars.Module,
+	hostinfoimpl.Module,
+	expvarsimpl.Module,
 	apiserver.Module,
 	forwarders.Module,
 

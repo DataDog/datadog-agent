@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl implements a component to submit collected data in the Process Agent to
+// Package submitterimpl implements a component to submit collected data in the Process Agent to
 // supported Datadog intakes.
-package impl
+package submitterimpl
 
 import (
 	"context"
@@ -29,7 +29,7 @@ var Module = fxutil.Component(
 )
 
 // submitter implements the Component.
-type submitter struct {
+type submitterImpl struct {
 	s *processRunner.CheckSubmitter
 }
 
@@ -66,21 +66,21 @@ func newSubmitter(deps dependencies) (result, error) {
 		},
 	})
 	return result{
-		Submitter: &submitter{
+		Submitter: &submitterImpl{
 			s: s,
 		},
 		RTResponseNotifier: s.GetRTNotifierChan(),
 	}, nil
 }
 
-func (s *submitter) Submit(start time.Time, checkName string, payload *types.Payload) {
+func (s *submitterImpl) Submit(start time.Time, checkName string, payload *types.Payload) {
 	s.s.Submit(start, checkName, payload)
 }
 
-func (s *submitter) Start() error {
+func (s *submitterImpl) Start() error {
 	return s.s.Start()
 }
 
-func (s *submitter) Stop() {
+func (s *submitterImpl) Stop() {
 	s.s.Stop()
 }

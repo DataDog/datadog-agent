@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package impl initializes the expvar server of the process agent.
-package impl
+// Package expvarsimpl initializes the expvar server of the process agent.
+package expvarsimpl
 
 import (
 	"context"
