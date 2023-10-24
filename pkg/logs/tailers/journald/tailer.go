@@ -60,7 +60,7 @@ func NewTailer(source *sources.LogSource, outputChan chan *message.Message, jour
 		log.Warn("The processing will soon apply on the message content instead of the structured log (e.g. XML or JSON).")
 		log.Warn("A flag will make possible to use the original behavior but will have to set through configuration.")
 		log.Warn("Please reach Datadog support if you have more questions.")
-		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, float64(len(source.Config.ProcessingRules)), []string{"tailer:journald"})
+		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, 1, []string{"tailer:journald"})
 	}
 
 	return &Tailer{
