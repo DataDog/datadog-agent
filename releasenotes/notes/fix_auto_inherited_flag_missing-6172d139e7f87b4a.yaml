@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    On Windows the SE_DACL_AUTO_INHERITED flag reset `%PROJECTLOCATION%` on upgrade.
+    On Windows the SE_DACL_AUTO_INHERITED flag is reset `%PROJECTLOCATION%` on upgrade.
