@@ -5,6 +5,11 @@
 
 package impl
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
+)
+
 // Params defines the parameters for the metadata resources component.
 type Params struct {
 	// Disabled determines if the resources payload will be sent. When disabled, the Get method is still available.
@@ -17,3 +22,8 @@ func Disabled() *Params {
 		Disabled: true,
 	}
 }
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newResourcesProvider),
+)

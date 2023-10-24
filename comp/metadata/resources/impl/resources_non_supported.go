@@ -10,25 +10,26 @@ package impl
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"go.uber.org/fx"
 )
 
-type resources struct{}
+type resourcesImpl struct{}
 
 type provides struct {
 	fx.Out
 
-	Comp Component
+	Comp resources.Component
 }
 
 func newResourcesProvider(log log.Component, config config.Component) provides { //nolint:revive // TODO fix revive unused-parameter
 	return provides{
 		// We return a dummy Component
-		Comp: &resources{},
+		Comp: &resourcesImpl{},
 	}
 }
 
 // Get returns nil payload on unsuported platforms
-func (r *resources) Get() map[string]interface{} {
+func (r *resourcesImpl) Get() map[string]interface{} {
 	return nil
 }

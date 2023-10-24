@@ -22,6 +22,7 @@ import (
 	// checks implemented as components
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
+	agentcrashdetectimpl "github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/impl"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -125,7 +127,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			// no config file path specification in this situation
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParamsWithSecrets(""),
-				SysprobeConfigParams: sysprobeconfig.NewParams(),
+				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
@@ -148,7 +150,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		agentcrashdetect.Module,
+		agentcrashdetectimpl.Module,
 		comptraceconfig.Module,
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,

@@ -17,7 +17,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	runnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/impl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -78,7 +78,7 @@ type provides struct {
 	fx.Out
 
 	Comp          Component
-	Provider      runner.Provider
+	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
 }
 

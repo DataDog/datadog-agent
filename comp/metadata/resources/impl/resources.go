@@ -19,14 +19,8 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/gohai/processes"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"go.uber.org/fx"
-)
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newResourcesProvider),
 )
 
 const defaultCollectInterval = 300 * time.Second

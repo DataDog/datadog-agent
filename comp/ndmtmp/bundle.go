@@ -21,8 +21,3 @@ import (
 var Bundle = fxutil.Bundle(
 	forwarderimpl.Module,
 )
-
-// MockBundle defines the fx options for mock versions of everything in this bundle.
-var MockBundle = fxutil.Bundle(
-	forwarderimpl.MockModule,
-)

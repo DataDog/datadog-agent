@@ -22,6 +22,7 @@ import (
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe"
 
+	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	compsysconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
@@ -170,7 +171,7 @@ func (wcd *AgentCrashDetect) Run() error {
 	return nil
 }
 
-func newAgentCrashComponent(deps dependencies) Component {
+func newAgentCrashComponent(deps dependencies) agentcrashdetect.Component {
 	instance := &agentCrashComponent{}
 	instance.tconfig = deps.TConfig.Object()
 	deps.Lifecycle.Append(fx.Hook{
