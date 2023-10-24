@@ -1,6 +1,7 @@
 import argparse
 import json
 import re
+import traceback
 
 
 def normalize_metrics(stage):
@@ -126,7 +127,10 @@ def normalize_appsec(stage):
                 data = meta.get("_dd.appsec.json")
                 if data is None:
                     continue
-                entries.append(json.loads(data, strict=False))
+                parsed = json.loads(data, strict=False)
+                # The triggers may appear in any order, so we sort them by rule ID
+                parsed["triggers"] = sorted(parsed["triggers"], key=lambda x: x["rule"]["id"])
+                entries.append(parsed)
 
         return entries
 
@@ -134,8 +138,8 @@ def normalize_appsec(stage):
         require(r'BEGINTRACE.*ENDTRACE'),
         exclude(r'BEGINTRACE'),
         exclude(r'ENDTRACE'),
-        replace(stage, 'XXXXXX'),
         flat_map(select__dd_appsec_json),
+        replace(stage, 'XXXXXX'),
     ]
 
 #####################
@@ -186,7 +190,7 @@ def foreach(fn):
         logs = json.loads(log, strict=False)
         for log_item in logs:
             fn(log_item)
-        return json.dumps(logs)
+        return json.dumps(logs, sort_keys=True)
 
     return _foreach
 
@@ -203,7 +207,7 @@ def flat_map(fn):
         for log_item in logs:
             mapped.extend(fn(log_item))
 
-        return json.dumps(mapped)
+        return json.dumps(mapped, sort_keys=True)
 
     return _flat_map
 
@@ -285,8 +289,8 @@ if __name__ == '__main__':
                 args.logs = f.read()
 
         print(normalize(args.logs, args.type, args.stage))
-    except Exception:
-        err = {"error": "normalization raised exception"}
+    except Exception as e:
+        err = {"error": "normalization raised exception", "message": str(e), "backtrace": traceback.format_exception(type(e), e, e.__traceback__)}
         err_json = json.dumps(err, indent=2)
         print(err_json)
         exit(1)

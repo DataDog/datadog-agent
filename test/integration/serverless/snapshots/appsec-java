@@ -18,14 +18,14 @@
             "parameters": [
               {
                 "address": "server.request.query",
+                "highlight": [
+                  "UEnkn"
+                ],
                 "key_path": [
                   "sql",
                   "0"
                 ],
-                "value": "UNION SELECT password FROM users",
-                "highlight": [
-                  "UEnkn"
-                ]
+                "value": "UNION SELECT password FROM users"
               }
             ]
           }
@@ -49,14 +49,14 @@
             "parameters": [
               {
                 "address": "server.request.headers.no_cookies",
+                "highlight": [
+                  "Arachni/v"
+                ],
                 "key_path": [
                   "user-agent",
                   "0"
                 ],
-                "value": "Arachni/v1",
-                "highlight": [
-                  "Arachni/v"
-                ]
+                "value": "Arachni/v1"
               }
             ]
           }
@@ -83,14 +83,14 @@
             "parameters": [
               {
                 "address": "server.request.query",
+                "highlight": [
+                  "UEnkn"
+                ],
                 "key_path": [
                   "sql",
                   "0"
                 ],
-                "value": "UNION SELECT password FROM users",
-                "highlight": [
-                  "UEnkn"
-                ]
+                "value": "UNION SELECT password FROM users"
               }
             ]
           }
@@ -114,14 +114,14 @@
             "parameters": [
               {
                 "address": "server.request.headers.no_cookies",
+                "highlight": [
+                  "Arachni/v"
+                ],
                 "key_path": [
                   "user-agent",
                   "0"
                 ],
-                "value": "Arachni/v1",
-                "highlight": [
-                  "Arachni/v"
-                ]
+                "value": "Arachni/v1"
               }
             ]
           }
