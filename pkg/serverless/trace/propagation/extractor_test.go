@@ -83,7 +83,7 @@ var (
 		"x-datadog-sampling-priority":      dd.priority.asStr,
 		"x-datadog-tags":                   "_dd.p.dm=-0",
 		"x-datadog-span-id":                "1234",
-		"x-datadog-invocation-error":       "1",
+		"x-datadog-invocation-error":       "true",
 		"x-datadog-invocation-error-msg":   "oops",
 		"x-datadog-invocation-error-type":  "RuntimeError",
 		"x-datadog-invocation-error-stack": "pancakes",
@@ -96,7 +96,7 @@ var (
 		"x-datadog-sampling-priority":      dd.priority.asStr,
 		"x-datadog-tags":                   "_dd.p.dm=-0",
 		"x-datadog-span-id":                "1234",
-		"x-datadog-invocation-error":       "1",
+		"x-datadog-invocation-error":       "true",
 		"x-datadog-invocation-error-msg":   "oops",
 		"x-datadog-invocation-error-type":  "RuntimeError",
 		"x-datadog-invocation-error-stack": "pancakes",
@@ -484,6 +484,16 @@ func TestExtractorExtractFromLayer(t *testing.T) {
 		}
 		return hdr
 	}
+	allHeadersExcept := func(except string) http.Header {
+		hdr := http.Header{}
+		for k, v := range headersMapAll {
+			if k == except {
+				continue
+			}
+			hdr.Set(k, v)
+		}
+		return hdr
+	}
 
 	testcases := []struct {
 		name     string
@@ -495,10 +505,60 @@ func TestExtractorExtractFromLayer(t *testing.T) {
 			name:     "empty-headers",
 			propType: "datadog",
 			hdr:      convertMapToHeader(headersMapEmpty),
+			expCtx:   new(TraceContextExtended),
+		},
+		{
+			name:     "missing-trace-id",
+			propType: "datadog",
+			hdr:      allHeadersExcept(ddTraceIDHeader),
 			expCtx: &TraceContextExtended{
-				TraceContext: TraceContext{
-					SamplingPriority: defaultPriority,
+				TraceContext:    nil,
+				SpanID:          1234,
+				InvocationError: true,
+			},
+		},
+		{
+			name:     "missing-parent-id",
+			propType: "datadog",
+			hdr:      allHeadersExcept(ddParentIDHeader),
+			expCtx: &TraceContextExtended{
+				TraceContext:    nil,
+				SpanID:          1234,
+				InvocationError: true,
+			},
+		},
+		{
+			name:     "missing-sampling-priority",
+			propType: "datadog",
+			hdr:      allHeadersExcept(ddSamplingPriorityHeader),
+			expCtx: &TraceContextExtended{
+				TraceContext: &TraceContext{
+					TraceID:          dd.trace.asUint,
+					ParentID:         dd.span.asUint,
+					SamplingPriority: sampler.PriorityNone,
 				},
+				SpanID:          1234,
+				InvocationError: true,
+			},
+		},
+		{
+			name:     "missing-span-id",
+			propType: "datadog",
+			hdr:      allHeadersExcept(ddSpanIDHeader),
+			expCtx: &TraceContextExtended{
+				TraceContext:    ddTraceContext,
+				SpanID:          0,
+				InvocationError: true,
+			},
+		},
+		{
+			name:     "missing-invocation-error",
+			propType: "datadog",
+			hdr:      allHeadersExcept(ddInvocationErrorHeader),
+			expCtx: &TraceContextExtended{
+				TraceContext:    ddTraceContext,
+				SpanID:          1234,
+				InvocationError: false,
 			},
 		},
 		{
@@ -506,29 +566,25 @@ func TestExtractorExtractFromLayer(t *testing.T) {
 			propType: "datadog",
 			hdr:      convertMapToHeader(headersMapDD),
 			expCtx: &TraceContextExtended{
-				TraceContext:    *ddTraceContext,
+				TraceContext:    ddTraceContext,
 				SpanID:          1234,
-				InvocationError: false,
+				InvocationError: true,
 			},
 		},
 		{
 			name:     "w3c-hdrs-datadog-style",
 			propType: "datadog",
 			hdr:      convertMapToHeader(headersMapW3C),
-			expCtx: &TraceContextExtended{
-				TraceContext: TraceContext{
-					SamplingPriority: defaultPriority,
-				},
-			},
+			expCtx:   new(TraceContextExtended),
 		},
 		{
 			name:     "all-hdrs-datadog-style",
 			propType: "datadog",
 			hdr:      convertMapToHeader(headersMapAll),
 			expCtx: &TraceContextExtended{
-				TraceContext:    *ddTraceContext,
+				TraceContext:    ddTraceContext,
 				SpanID:          1234,
-				InvocationError: false,
+				InvocationError: true,
 			},
 		},
 		{
@@ -536,29 +592,25 @@ func TestExtractorExtractFromLayer(t *testing.T) {
 			propType: "tracecontext",
 			hdr:      convertMapToHeader(headersMapDD),
 			expCtx: &TraceContextExtended{
-				TraceContext:    *ddTraceContext,
+				TraceContext:    ddTraceContext,
 				SpanID:          1234,
-				InvocationError: false,
+				InvocationError: true,
 			},
 		},
 		{
 			name:     "w3c-hdrs-tracecontext-style",
 			propType: "tracecontext",
 			hdr:      convertMapToHeader(headersMapW3C),
-			expCtx: &TraceContextExtended{
-				TraceContext: TraceContext{
-					SamplingPriority: defaultPriority,
-				},
-			},
+			expCtx:   new(TraceContextExtended),
 		},
 		{
 			name:     "all-hdrs-tracecontext-style",
 			propType: "tracecontext",
 			hdr:      convertMapToHeader(headersMapAll),
 			expCtx: &TraceContextExtended{
-				TraceContext:    *ddTraceContext,
+				TraceContext:    ddTraceContext,
 				SpanID:          1234,
-				InvocationError: false,
+				InvocationError: true,
 			},
 		},
 	}

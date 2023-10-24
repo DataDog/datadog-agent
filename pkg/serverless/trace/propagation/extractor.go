@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultPriority sampler.SamplingPriority = sampler.PriorityNone
+	defaultSamplingPriority sampler.SamplingPriority = sampler.PriorityNone
 
 	ddTraceIDHeader          = "x-datadog-trace-id"
 	ddParentIDHeader         = "x-datadog-parent-id"
@@ -32,6 +32,8 @@ var (
 	errorUnsupportedExtractionType = errors.New("Unsupported event type for trace context extraction")
 	errorNoContextFound            = errors.New("No trace context found")
 	errorNoSQSRecordFound          = errors.New("No sqs message records found for trace context extraction")
+	errorNoTraceIDFound            = errors.New("No trace ID found")
+	errorNoParentIDFound           = errors.New("No parent ID found")
 )
 
 // Extractor inserts trace context into and extracts trace context out of
@@ -50,7 +52,7 @@ type TraceContext struct {
 // TraceContextExtended stores the propagated trace context values plus other
 // non-standard header values.
 type TraceContextExtended struct {
-	TraceContext
+	*TraceContext
 	SpanID          uint64
 	InvocationError bool
 }
@@ -124,33 +126,59 @@ func (e Extractor) extract(event interface{}) (*TraceContext, error) {
 
 // ExtractFromLayer is used for extracting context from the request headers
 // sent from a tracing layer. Currently, only datadog style headers are
-// extracted.
+// extracted. If a trace id or parent id are not found, then the embedded
+// *TraceContext will be nil.
 func (e Extractor) ExtractFromLayer(hdr http.Header) *TraceContextExtended {
-	tc := new(TraceContextExtended)
-
-	if value, err := convertStrToUint64(hdr.Get(ddTraceIDHeader)); err == nil {
-		log.Debugf("injecting traceID = %v", value)
-		tc.TraceID = value
+	tc, err := e.extractTraceContextFromLayer(hdr)
+	if err != nil {
+		log.Debugf("unable to find trace context in request headers: %s", err)
 	}
 
-	if value, err := convertStrToUint64(hdr.Get(ddParentIDHeader)); err == nil {
-		log.Debugf("injecting parentId = %v", value)
-		tc.ParentID = value
-	}
-
+	var spanID uint64
 	if value, err := convertStrToUint64(hdr.Get(ddSpanIDHeader)); err == nil {
 		log.Debugf("injecting spanId = %v", value)
-		tc.SpanID = value
+		spanID = value
 	}
 
-	tc.SamplingPriority = sampler.PriorityNone
+	invocationError := hdr.Get(ddInvocationErrorHeader) == "true"
+
+	return &TraceContextExtended{
+		TraceContext:    tc,
+		SpanID:          spanID,
+		InvocationError: invocationError,
+	}
+}
+
+func (e Extractor) extractTraceContextFromLayer(hdr http.Header) (*TraceContext, error) {
+	var traceID uint64
+	if value, err := convertStrToUint64(hdr.Get(ddTraceIDHeader)); err == nil {
+		log.Debugf("injecting traceID = %v", value)
+		traceID = value
+	}
+	if traceID == 0 {
+		return nil, errorNoTraceIDFound
+	}
+
+	var parentID uint64
+	if value, err := convertStrToUint64(hdr.Get(ddParentIDHeader)); err == nil {
+		log.Debugf("injecting parentId = %v", value)
+		parentID = value
+	}
+	if parentID == 0 {
+		return nil, errorNoParentIDFound
+	}
+
+	samplingPriority := defaultSamplingPriority
 	if value, err := strconv.ParseInt(hdr.Get(ddSamplingPriorityHeader), 10, 8); err == nil {
 		log.Debugf("injecting samplingPriority = %v", value)
-		tc.SamplingPriority = sampler.SamplingPriority(value)
+		samplingPriority = sampler.SamplingPriority(value)
 	}
 
-	tc.InvocationError = hdr.Get(ddInvocationErrorHeader) == "true"
-	return tc
+	return &TraceContext{
+		TraceID:          traceID,
+		ParentID:         parentID,
+		SamplingPriority: samplingPriority,
+	}, nil
 }
 
 // InjectToLayer is used for injecting context into the response headers sent
@@ -166,7 +194,7 @@ func (e Extractor) InjectToLayer(tc *TraceContext, hdr http.Header) {
 // priority. Note that not all versions of ddtrace export the SamplingPriority
 // method, therefore the interface check is required.
 func getSamplingPriority(sc ddtrace.SpanContext) (priority sampler.SamplingPriority) {
-	priority = defaultPriority
+	priority = defaultSamplingPriority
 	if pc, ok := sc.(interface{ SamplingPriority() (int, bool) }); ok && pc != nil {
 		if p, ok := pc.SamplingPriority(); ok {
 			priority = sampler.SamplingPriority(p)
