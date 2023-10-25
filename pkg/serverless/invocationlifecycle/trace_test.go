@@ -40,14 +40,6 @@ func TestConvertStrToUnit64Success(t *testing.T) {
 	assert.Equal(t, uint64(1234), value)
 }
 
-func TestGetSamplingPriority(t *testing.T) {
-	assert.Equal(t, sampler.PriorityNone, getSamplingPriority("yyy"))
-	assert.Equal(t, sampler.PriorityUserDrop, getSamplingPriority("-1"))
-	assert.Equal(t, sampler.PriorityAutoDrop, getSamplingPriority("0"))
-	assert.Equal(t, sampler.PriorityAutoKeep, getSamplingPriority("1"))
-	assert.Equal(t, sampler.PriorityUserKeep, getSamplingPriority("2"))
-}
-
 func TestInjectContextNoContext(t *testing.T) {
 	currentExecutionInfo := newExecutionContextWithTime()
 	InjectContext(currentExecutionInfo, nil)

@@ -40,10 +40,6 @@ type ExecutionStartInfo struct {
 	SamplingPriority sampler.SamplingPriority
 }
 
-type invocationPayload struct {
-	Headers map[string]string `json:"headers"`
-}
-
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
 func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload []byte, startDetails *InvocationStartDetails) {
@@ -199,14 +195,6 @@ func convertStrToUnit64(s string) (uint64, error) {
 		log.Debugf("Error while converting %s, failing with : %s", s, err)
 	}
 	return num, err
-}
-
-func getSamplingPriority(directInvokeHeader string) sampler.SamplingPriority {
-	samplingPriority := sampler.PriorityNone
-	if v, err := strconv.ParseInt(directInvokeHeader, 10, 8); err == nil {
-		samplingPriority = sampler.SamplingPriority(v)
-	}
-	return samplingPriority
 }
 
 // InjectContext injects the context
