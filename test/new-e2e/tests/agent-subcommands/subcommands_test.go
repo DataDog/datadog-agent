@@ -23,8 +23,13 @@ type subcommandSuite struct {
 	e2e.Suite[e2e.AgentEnv]
 }
 
+type subcommandWithFakeIntakeSuite struct {
+	e2e.Suite[e2e.FakeIntakeEnv]
+}
+
 func TestSubcommandSuite(t *testing.T) {
 	e2e.Run(t, &subcommandSuite{}, e2e.AgentStackDef())
+	e2e.Run(t, &subcommandWithFakeIntakeSuite{}, e2e.FakeIntakeStackDef())
 }
 
 // section contains the content status of a specific section (e.g. Forwarder)
@@ -213,7 +218,7 @@ func (v *subcommandSuite) TestFIPSProxyStatus() {
 	verifySectionContent(v.T(), status.Content, expectedSection)
 }
 
-func (v *subcommandSuite) TestDefaultInstallHealthy() {
+func (v *subcommandWithFakeIntakeSuite) TestDefaultInstallHealthy() {
 	interval := 1 * time.Second
 
 	var output string
