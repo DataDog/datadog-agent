@@ -71,7 +71,7 @@ type client struct {
 
 	// There is a race between the process check and the kubelet. If the process check detects a language
 	// before the kubelet pulls pods, the client should retry after waiting that workloadmeta pulled metadata
-	//  from the kubelet
+	// from the kubelet
 	processesWithoutPod          []workloadmeta.Event
 	retryProcessWithoutPodPeriod time.Duration
 
