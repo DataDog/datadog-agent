@@ -57,6 +57,15 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
     }
 }
 
+static __always_inline void mark_protocol_direction(conn_tuple_t *pre_norm_tuple, conn_tuple_t *norm_tuple, protocol_stack_t *protocol_stack) {
+    if (pre_norm_tuple->sport == norm_tuple->sport) {
+        set_protocol_flag(protocol_stack, FLAG_CLIENT_SIDE);
+        return;
+    }
+
+    set_protocol_flag(protocol_stack, FLAG_SERVER_SIDE);
+}
+
 static __always_inline void update_protocol_classification_information(conn_tuple_t *t, conn_stats_ts_t *stats) {
     if (is_fully_classified(&stats->protocol_stack)) {
         return;
@@ -71,6 +80,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
 
     protocol_stack_t *protocol_stack = __get_protocol_stack(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
+    mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
@@ -81,6 +91,7 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     conn_tuple_copy = *cached_skb_conn_tup_ptr;
     protocol_stack = __get_protocol_stack(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
+    mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 }
 
