@@ -299,7 +299,7 @@ variables:
 
 # Rule to trigger jobs only when a branch matches the mergequeue pattern.
 .if_mergequeue: &if_mergequeue
-  if: $PIPELINE_TYPE == "mergequeue"
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
 
 #
 # Workflow rules
@@ -330,9 +330,6 @@ workflow:
       variables:
         USE_CACHING_PROXY_PYTHON: "false"
         USE_CACHING_PROXY_RUBY: "false"
-    - if: '$CI_COMMIT_BRANCH =~ /^mq-working-branch-/'
-      variables:
-        PIPELINE_TYPE: 'mergequeue'
 
 #
 # List of rule blocks used in the pipeline
