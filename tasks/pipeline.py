@@ -861,7 +861,11 @@ def update_gitlab_config(file_path, image_tag, test_version):
         file_content = gl.readlines()
     gitlab_ci = yaml.safe_load("".join(file_content))
     # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
-    suffixes = [name for name in gitlab_ci["variables"].keys() if name.endswith("SUFFIX") and not name.startswith("TEST_INFRA_DEFINITION")]
+    suffixes = [
+        name
+        for name in gitlab_ci["variables"]
+        if name.endswith("SUFFIX") and not name.startswith("TEST_INFRA_DEFINITION")
+    ]
     images = [name.replace("_SUFFIX", "") for name in suffixes]
     with open(file_path, "w") as gl:
         for line in file_content:
@@ -908,6 +912,6 @@ def trigger_build(ctx, branch_name=None, create_branch=False):
         ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
         ctx.run("git commit -m 'Update buildimages version'")
         ctx.run(f"git push origin {branch_name}")
-        # Let Gitlab create the first events before triggering a new pipeline
-        time.sleep(30)
+        print("Wait 10s to let Gitlab create the first events before triggering a new pipeline")
+        time.sleep(10)
         run(ctx, here=True)
