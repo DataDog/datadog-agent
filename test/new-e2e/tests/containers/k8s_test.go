@@ -209,57 +209,70 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 func (suite *k8sSuite) TestNginx() {
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
-	suite.testMetric("nginx.net.request_per_s",
-		[]string{},
-		[]*regexp.Regexp{
-			regexp.MustCompile(`^container_id:`),
-			regexp.MustCompile(`^container_name:nginx$`),
-			regexp.MustCompile(`^display_container_name:nginx`),
-			regexp.MustCompile(`^git\.commit\.sha:`),                                                       // org.opencontainers.image.revision docker image label
-			regexp.MustCompile(`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`), // org.opencontainers.image.source   docker image label
-			regexp.MustCompile(`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`),
-			regexp.MustCompile(`^image_name:ghcr\.io/datadog/apps-nginx-server$`),
-			regexp.MustCompile(`^image_tag:main$`),
-			regexp.MustCompile(`^kube_container_name:nginx$`),
-			regexp.MustCompile(`^kube_deployment:nginx$`),
-			regexp.MustCompile(`^kube_namespace:workload-nginx$`),
-			regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
-			regexp.MustCompile(`^kube_ownerref_name:nginx-[[:alnum:]]+$`),
-			regexp.MustCompile(`^kube_qos:Burstable$`),
-			regexp.MustCompile(`^kube_replica_set:nginx-[[:alnum:]]+$`),
-			regexp.MustCompile(`^kube_service:nginx$`),
-			regexp.MustCompile(`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`),
-			regexp.MustCompile(`^pod_phase:running$`),
-			regexp.MustCompile(`^short_image:apps-nginx-server$`),
+	suite.testMetric(&testMetricArgs{
+		filter: testMetricFilterArgs{
+			name: "nginx.net.request_per_s",
 		},
-	)
+		expect: testMetricExpectArgs{
+			tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^display_container_name:nginx`,
+				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
+				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
+				`^image_tag:main$`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx$`,
+				`^kube_namespace:workload-nginx$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:nginx-[[:alnum:]]+$`,
+				`^kube_service:nginx$`,
+				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:apps-nginx-server$`,
+			},
+		},
+	})
 
 	// `http_check` is configured via AD annotation on service
 	// Test it is properly scheduled
-	suite.testMetric("network.http.response_time",
-		[]string{},
-		[]*regexp.Regexp{
-			regexp.MustCompile(`^cluster_name:`),
-			regexp.MustCompile(`^instance:My_Nginx$`),
-			regexp.MustCompile(`^kube_cluster_name:`),
-			regexp.MustCompile(`^kube_namespace:workload-nginx$`),
-			regexp.MustCompile(`^kube_service:nginx$`),
-			regexp.MustCompile(`^url:http://`),
+	suite.testMetric(&testMetricArgs{
+		filter: testMetricFilterArgs{
+			name: "network.http.response_time",
 		},
-	)
+		expect: testMetricExpectArgs{
+			tags: &[]string{
+				`^cluster_name:`,
+				`^instance:My_Nginx$`,
+				`^kube_cluster_name:`,
+				`^kube_namespace:workload-nginx$`,
+				`^kube_service:nginx$`,
+				`^url:http://`,
+			},
+		},
+	})
 
 	// Test KSM metrics for the nginx deployment
-	suite.testMetric("kubernetes_state.deployment.replicas_available",
-		[]string{
-			"kube_deployment:nginx",
-			"kube_namespace:workload-nginx",
+	suite.testMetric(&testMetricArgs{
+		filter: testMetricFilterArgs{
+			name: "kubernetes_state.deployment.replicas_available",
+			tags: []string{
+				"kube_deployment:nginx",
+				"kube_namespace:workload-nginx",
+			},
 		},
-		[]*regexp.Regexp{
-			regexp.MustCompile(`^kube_cluster_name:`),
-			regexp.MustCompile(`^kube_deployment:nginx$`),
-			regexp.MustCompile(`^kube_namespace:workload-nginx$`),
+		expect: testMetricExpectArgs{
+			tags: &[]string{
+				`^kube_cluster_name:`,
+				`^kube_deployment:nginx$`,
+				`^kube_namespace:workload-nginx$`,
+			},
 		},
-	)
+	})
 
 	// Check HPA is properly scaling up and down
 	// This indirectly tests the cluster-agent external metrics server
@@ -269,44 +282,53 @@ func (suite *k8sSuite) TestNginx() {
 func (suite *k8sSuite) TestRedis() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
-	suite.testMetric("redis.net.instantaneous_ops_per_sec",
-		[]string{},
-		[]*regexp.Regexp{
-			regexp.MustCompile(`^container_id:`),
-			regexp.MustCompile(`^container_name:redis$`),
-			regexp.MustCompile(`^display_container_name:redis`),
-			regexp.MustCompile(`^image_id:docker.io/library/redis@sha256:`),
-			regexp.MustCompile(`^image_name:redis$`),
-			regexp.MustCompile(`^image_tag:latest$`),
-			regexp.MustCompile(`^kube_container_name:redis$`),
-			regexp.MustCompile(`^kube_deployment:redis$`),
-			regexp.MustCompile(`^kube_namespace:workload-redis$`),
-			regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
-			regexp.MustCompile(`^kube_ownerref_name:redis-[[:alnum:]]+$`),
-			regexp.MustCompile(`^kube_qos:Burstable$`),
-			regexp.MustCompile(`^kube_replica_set:redis-[[:alnum:]]+$`),
-			regexp.MustCompile(`^kube_service:redis$`),
-			regexp.MustCompile(`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`),
-			regexp.MustCompile(`^pod_phase:running$`),
-			regexp.MustCompile(`^redis_host:`),
-			regexp.MustCompile(`^redis_port:6379$`),
-			regexp.MustCompile(`^redis_role:master$`),
-			regexp.MustCompile(`^short_image:redis$`),
+	suite.testMetric(&testMetricArgs{
+		filter: testMetricFilterArgs{
+			name: "redis.net.instantaneous_ops_per_sec",
 		},
-	)
+		expect: testMetricExpectArgs{
+			tags: &[]string{
+				`^container_id:`,
+				`^container_name:redis$`,
+				`^display_container_name:redis`,
+				`^image_id:docker.io/library/redis@sha256:`,
+				`^image_name:redis$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:redis$`,
+				`^kube_deployment:redis$`,
+				`^kube_namespace:workload-redis$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:redis-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:redis-[[:alnum:]]+$`,
+				`^kube_service:redis$`,
+				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^redis_host:`,
+				`^redis_port:6379$`,
+				`^redis_role:master$`,
+				`^short_image:redis$`,
+			},
+		},
+	})
 
 	// Test KSM metrics for the redis deployment
-	suite.testMetric("kubernetes_state.deployment.replicas_available",
-		[]string{
-			"kube_deployment:redis",
-			"kube_namespace:workload-redis",
+	suite.testMetric(&testMetricArgs{
+		filter: testMetricFilterArgs{
+			name: "kubernetes_state.deployment.replicas_available",
+			tags: []string{
+				"kube_deployment:redis",
+				"kube_namespace:workload-redis",
+			},
 		},
-		[]*regexp.Regexp{
-			regexp.MustCompile(`^kube_cluster_name:`),
-			regexp.MustCompile(`^kube_deployment:redis$`),
-			regexp.MustCompile(`^kube_namespace:workload-redis$`),
+		expect: testMetricExpectArgs{
+			tags: &[]string{
+				`^kube_cluster_name:`,
+				`^kube_deployment:redis$`,
+				`^kube_namespace:workload-redis$`,
+			},
 		},
-	)
+	})
 
 	// Check HPA is properly scaling up and down
 	// This indirectly tests the cluster-agent external metrics server
@@ -315,84 +337,99 @@ func (suite *k8sSuite) TestRedis() {
 
 func (suite *k8sSuite) TestDogstatsd() {
 	// Test dogstatsd origin detection with UDS
-	suite.testMetric("custom.metric",
-		[]string{
-			"kube_deployment:dogstatsd-uds",
-			"kube_namespace:workload-dogstatsd",
+	suite.testMetric(&testMetricArgs{
+		filter: testMetricFilterArgs{
+			name: "custom.metric",
+			tags: []string{
+				"kube_deployment:dogstatsd-uds",
+				"kube_namespace:workload-dogstatsd",
+			},
 		},
-		[]*regexp.Regexp{
-			regexp.MustCompile(`^container_id:`),
-			regexp.MustCompile(`^container_name:dogstatsd$`),
-			regexp.MustCompile(`^display_container_name:dogstatsd`),
-			regexp.MustCompile(`^git.commit.sha:`),                                                       // org.opencontainers.image.revision docker image label
-			regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`), // org.opencontainers.image.source   docker image label
-			regexp.MustCompile(`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`),
-			regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-dogstatsd$`),
-			regexp.MustCompile(`^image_tag:main$`),
-			regexp.MustCompile(`^kube_container_name:dogstatsd$`),
-			regexp.MustCompile(`^kube_deployment:dogstatsd-uds$`),
-			regexp.MustCompile(`^kube_namespace:workload-dogstatsd$`),
-			regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
-			regexp.MustCompile(`^kube_ownerref_name:dogstatsd-uds-[[:alnum:]]+$`),
-			regexp.MustCompile(`^kube_qos:Burstable$`),
-			regexp.MustCompile(`^kube_replica_set:dogstatsd-uds-[[:alnum:]]+$`),
-			regexp.MustCompile(`^pod_name:dogstatsd-uds-[[:alnum:]]+-[[:alnum:]]+$`),
-			regexp.MustCompile(`^pod_phase:running$`),
-			regexp.MustCompile(`^series:`),
-			regexp.MustCompile(`^short_image:apps-dogstatsd$`),
+		expect: testMetricExpectArgs{
+			tags: &[]string{
+				`^container_id:`,
+				`^container_name:dogstatsd$`,
+				`^display_container_name:dogstatsd`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr.io/datadog/apps-dogstatsd@sha256:`,
+				`^image_name:ghcr.io/datadog/apps-dogstatsd$`,
+				`^image_tag:main$`,
+				`^kube_container_name:dogstatsd$`,
+				`^kube_deployment:dogstatsd-uds$`,
+				`^kube_namespace:workload-dogstatsd$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:dogstatsd-uds-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:dogstatsd-uds-[[:alnum:]]+$`,
+				`^pod_name:dogstatsd-uds-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^series:`,
+				`^short_image:apps-dogstatsd$`,
+			},
 		},
-	)
+	})
 
 	// Test dogstatsd origin detection with UDP
-	suite.testMetric("custom.metric",
-		[]string{
-			"kube_deployment:dogstatsd-udp",
-			"kube_namespace:workload-dogstatsd",
+	suite.testMetric(&testMetricArgs{
+		filter: testMetricFilterArgs{
+			name: "custom.metric",
+			tags: []string{
+				"kube_deployment:dogstatsd-udp",
+				"kube_namespace:workload-dogstatsd",
+			},
 		},
-		[]*regexp.Regexp{
-			regexp.MustCompile(`^kube_deployment:dogstatsd-udp$`),
-			regexp.MustCompile(`^kube_namespace:workload-dogstatsd$`),
-			regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
-			regexp.MustCompile(`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`),
-			regexp.MustCompile(`^kube_qos:Burstable$`),
-			regexp.MustCompile(`^kube_replica_set:dogstatsd-udp-[[:alnum:]]+$`),
-			regexp.MustCompile(`^pod_name:dogstatsd-udp-[[:alnum:]]+-[[:alnum:]]+$`),
-			regexp.MustCompile(`^pod_phase:running$`),
-			regexp.MustCompile(`^series:`),
+		expect: testMetricExpectArgs{
+			tags: &[]string{
+				`^kube_deployment:dogstatsd-udp$`,
+				`^kube_namespace:workload-dogstatsd$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:dogstatsd-udp-[[:alnum:]]+$`,
+				`^pod_name:dogstatsd-udp-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^series:`,
+			},
 		},
-	)
+	})
 }
 
 func (suite *k8sSuite) TestPrometheus() {
 	// Test Prometheus check
-	suite.testMetric("prom_gauge",
-		[]string{
-			"kube_deployment:prometheus",
-			"kube_namespace:workload-prometheus",
+	suite.testMetric(&testMetricArgs{
+		filter: testMetricFilterArgs{
+			name: "prom_gauge",
+			tags: []string{
+				"kube_deployment:prometheus",
+				"kube_namespace:workload-prometheus",
+			},
 		},
-		[]*regexp.Regexp{
-			regexp.MustCompile(`^container_id:`),
-			regexp.MustCompile(`^container_name:prometheus$`),
-			regexp.MustCompile(`^display_container_name:prometheus`),
-			regexp.MustCompile(`^endpoint:http://.*:8080/metrics$`),
-			regexp.MustCompile(`^git.commit.sha:`),                                                       // org.opencontainers.image.revision docker image label
-			regexp.MustCompile(`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`), // org.opencontainers.image.source   docker image label
-			regexp.MustCompile(`^image_id:ghcr.io/datadog/apps-prometheus@sha256:`),
-			regexp.MustCompile(`^image_name:ghcr.io/datadog/apps-prometheus$`),
-			regexp.MustCompile(`^image_tag:main$`),
-			regexp.MustCompile(`^kube_container_name:prometheus$`),
-			regexp.MustCompile(`^kube_deployment:prometheus$`),
-			regexp.MustCompile(`^kube_namespace:workload-prometheus$`),
-			regexp.MustCompile(`^kube_ownerref_kind:replicaset$`),
-			regexp.MustCompile(`^kube_ownerref_name:prometheus-[[:alnum:]]+$`),
-			regexp.MustCompile(`^kube_qos:Burstable$`),
-			regexp.MustCompile(`^kube_replica_set:prometheus-[[:alnum:]]+$`),
-			regexp.MustCompile(`^pod_name:prometheus-[[:alnum:]]+-[[:alnum:]]+$`),
-			regexp.MustCompile(`^pod_phase:running$`),
-			regexp.MustCompile(`^series:`),
-			regexp.MustCompile(`^short_image:apps-prometheus$`),
+		expect: testMetricExpectArgs{
+			tags: &[]string{
+				`^container_id:`,
+				`^container_name:prometheus$`,
+				`^display_container_name:prometheus`,
+				`^endpoint:http://.*:8080/metrics$`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr.io/datadog/apps-prometheus@sha256:`,
+				`^image_name:ghcr.io/datadog/apps-prometheus$`,
+				`^image_tag:main$`,
+				`^kube_container_name:prometheus$`,
+				`^kube_deployment:prometheus$`,
+				`^kube_namespace:workload-prometheus$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:prometheus-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:prometheus-[[:alnum:]]+$`,
+				`^pod_name:prometheus-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^series:`,
+				`^short_image:apps-prometheus$`,
+			},
 		},
-	)
+	})
 }
 
 func (suite *k8sSuite) testHPA(namespace, deployment string) {
