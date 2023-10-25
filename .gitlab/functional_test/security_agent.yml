@@ -141,6 +141,9 @@ kitchen_test_security_agent_x64_ec2:
       - KITCHEN_PLATFORM: "centos"
         KITCHEN_OSVERS: "rocky-92"
         KITCHEN_CWS_PLATFORM: [host]
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-23-10"
+        KITCHEN_CWS_PLATFORM: [host, docker]
 
 kitchen_test_security_agent_amazonlinux_x64_fentry:
   extends:
