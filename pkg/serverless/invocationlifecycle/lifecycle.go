@@ -94,7 +94,6 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	}
 
 	eventType := trigger.GetEventType(lowercaseEventPayload)
-	log.Debugf("[lifecycle] Inferred Event Type : %v", eventType)
 	if eventType == trigger.Unknown {
 		log.Debugf("[lifecycle] Failed to extract event type")
 	}
