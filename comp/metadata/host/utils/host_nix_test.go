@@ -26,7 +26,20 @@ func TestGetHostInfo(t *testing.T) {
 	info := GetInformation()
 	expected, err := host.Info()
 	require.NoError(t, err)
-	assert.Equal(t, expected, info)
+	assert.Equal(t, expected.BootTime, info.BootTime)
+	assert.Equal(t, expected.HostID, info.HostID)
+	assert.Equal(t, expected.Hostname, info.Hostname)
+	assert.Equal(t, expected.KernelArch, info.KernelArch)
+	assert.Equal(t, expected.KernelVersion, info.KernelVersion)
+	assert.Equal(t, expected.OS, info.OS)
+	assert.Equal(t, expected.Platform, info.Platform)
+	assert.Equal(t, expected.PlatformFamily, info.PlatformFamily)
+	assert.Equal(t, expected.PlatformVersion, info.PlatformVersion)
+	// can't use assert.Equal since the fields Uptime and Procs can change
+	assert.NotZero(t, info.Procs)
+	assert.NotNil(t, info.Uptime)
+	assert.Equal(t, expected.VirtualizationRole, info.VirtualizationRole)
+	assert.Equal(t, expected.VirtualizationSystem, info.VirtualizationSystem)
 }
 
 func TestGetHostInfoCache(t *testing.T) {
