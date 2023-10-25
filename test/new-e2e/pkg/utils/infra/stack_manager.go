@@ -71,8 +71,8 @@ func (s *safeStackMap) Set(key string, value *auto.Stack) {
 }
 
 func (s *safeStackMap) Range(f func(string, *auto.Stack)) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
+	s.lock.RLock()
+	defer s.lock.RUnlock()
 
 	for key, value := range s.stacks {
 		f(key, value)
@@ -148,11 +148,10 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 // It DOES NOT perform any cleanup of the resources created by the stack. Call `DeleteStack` for correct cleanup.
 func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name string) error {
 
-	storedStack, ok := sm.stacks.Get(name)
+	stack, ok := sm.stacks.Get(name)
 	if !ok {
 		return fmt.Errorf("unable to remove stack %s: stack not present", name)
 	}
-	stack := storedStack
 
 	deleteContext, cancel := context.WithTimeout(ctx, stackDeleteTimeout)
 	defer cancel()
