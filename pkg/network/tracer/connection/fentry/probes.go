@@ -31,7 +31,8 @@ const (
 	udpSendPageReturn = "udp_sendpage_exit"
 
 	// TCPRecvMsgReturn traces the return value for the tcp_recvmsg() system call
-	TCPRecvMsgReturn        = "tcp_recvmsg_exit"
+	TCPRecvMsgReturn = "tcp_recvmsg_exit"
+	// TCPRecvMsgPre5190Return traces the return value for the tcp_recvmsg() system call
 	TCPRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
