@@ -198,6 +198,12 @@ func GetDCAStatus(verbose bool) (map[string]interface{}, error) {
 		}
 	}
 
+	stats["adEnabledFeatures"] = config.GetDetectedFeatures()
+	if common.AC != nil {
+		stats["adConfigErrors"] = common.AC.GetAutodiscoveryErrors()
+	}
+	stats["filterErrors"] = containers.GetFilterErrors()
+
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		if apiErr != nil {
 			stats["orchestrator"] = map[string]string{"Error": apiErr.Error()}

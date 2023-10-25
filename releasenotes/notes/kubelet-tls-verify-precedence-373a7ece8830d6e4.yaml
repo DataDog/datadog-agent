@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    [kubelet] The Kubelet client no longer fails to initialize when the parameter ``kubelet_tls_verify`` is set to ``false`` with a misconfigured root certificate authority.

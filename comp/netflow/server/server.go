@@ -44,8 +44,9 @@ type NetflowServerStatus struct {
 
 // NetflowListenerStatus handles logic related to pulling config information and associating it to an error.
 type NetflowListenerStatus struct {
-	Config nfconfig.ListenerConfig
-	Error  string
+	Config    nfconfig.ListenerConfig
+	Error     string
+	FlowCount int64
 }
 
 // TODO: (components)
@@ -188,7 +189,8 @@ func GetStatus() NetflowServerStatus {
 			})
 		} else {
 			workingListeners = append(workingListeners, NetflowListenerStatus{
-				Config: listener.config,
+				Config:    listener.config,
+				FlowCount: listener.flowCount.Load(),
 			})
 		}
 	}

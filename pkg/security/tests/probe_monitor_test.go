@@ -68,6 +68,38 @@ func TestRulesetLoaded(t *testing.T) {
 	})
 }
 
+func TestHeartbeatSent(t *testing.T) {
+	rule := &rules.RuleDefinition{
+		ID:         "path_test",
+		Expression: `open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaa" && open.flags & O_CREAT != 0`,
+	}
+
+	probeMonitorOpts := testOpts{}
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	test.cws.SendStats()
+
+	t.Run("heartbeat", func(t *testing.T) {
+
+		err = test.GetCustomEventSent(t, func() error {
+			// force a reload
+			return syscall.Kill(syscall.Getpid(), syscall.SIGHUP)
+		}, func(rule *rules.Rule, customEvent *events.CustomEvent) bool {
+
+			isHeartbeatEvent := events.HeartbeatRuleID == rule.ID
+
+			return validateHeartbeatSchema(t, customEvent) && isHeartbeatEvent
+		}, 80*time.Second, model.CustomHeartbeatEventType)
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
 func truncatedParents(t *testing.T, opts testOpts) {
 	var truncatedParents string
 	for i := 0; i < model.MaxPathDepth; i++ {

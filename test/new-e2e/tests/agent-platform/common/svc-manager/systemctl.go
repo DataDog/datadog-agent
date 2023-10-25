@@ -9,16 +9,16 @@ package svcmanager
 import (
 	"fmt"
 
-	e2eClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
 // SystemCtlSvcManager struct for the Systemctl service manager
 type SystemCtlSvcManager struct {
-	vmClient *e2eClient.VMClient
+	vmClient client.VM
 }
 
 // NewSystemctlSvcManager return systemctl service manager
-func NewSystemctlSvcManager(vmClient *e2eClient.VMClient) *SystemCtlSvcManager {
+func NewSystemctlSvcManager(vmClient client.VM) *SystemCtlSvcManager {
 	return &SystemCtlSvcManager{vmClient}
 }
 

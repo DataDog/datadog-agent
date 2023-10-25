@@ -117,6 +117,8 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  internal_monitoring:
+    enabled: true
   remote_configuration:
     enabled: false
   socket: /tmp/test-runtime-security.sock
@@ -1170,11 +1172,11 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	if probe == nil {
 		return ""
 	}
-	monitor := probe.GetMonitor()
-	if monitor == nil {
+	monitors := probe.GetMonitors()
+	if monitors == nil {
 		return ""
 	}
-	eventStreamMonitor := monitor.GetEventStreamMonitor()
+	eventStreamMonitor := monitors.GetEventStreamMonitor()
 	if eventStreamMonitor == nil {
 		return ""
 	}
