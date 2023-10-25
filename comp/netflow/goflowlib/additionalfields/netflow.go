@@ -74,7 +74,7 @@ func searchNetFlowDataSetsRecords(dataRecords []netflow.DataRecord, fieldsConfig
 }
 
 func searchNetFlowDataSets(dataFlowSet []netflow.DataFlowSet, fieldsConfig map[uint16]config.Mapping) []common.AdditionalFields {
-	var flowsAdditonalFields []map[string]any
+	var flowsAdditonalFields []common.AdditionalFields
 	for _, dataFlowSetItem := range dataFlowSet {
 		setsAdditionalFields := searchNetFlowDataSetsRecords(dataFlowSetItem.Records, fieldsConfig)
 		if setsAdditionalFields != nil {
@@ -90,7 +90,7 @@ func ProcessMessageNetFlowAdditionalFields(msgDec interface{}, fieldsConfig map[
 		return nil, nil
 	}
 
-	var flowsAdditonalFields []map[string]any
+	var flowsAdditonalFields []common.AdditionalFields
 
 	switch msgDecConv := msgDec.(type) {
 	case netflow.NFv9Packet:
