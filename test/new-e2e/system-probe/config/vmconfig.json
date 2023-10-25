@@ -4,6 +4,7 @@
             "name": "distro_x86_64",
             "recipe": "distro-x86_64",
             "arch": "x86_64",
+            "console_type": "file",
             "kernels": [
                 {
                     "dir": "bionic-server-cloudimg-amd64.qcow2",
@@ -67,6 +68,7 @@
             "name": "distro_arm64",
             "recipe": "distro-arm64",
             "arch": "arm64",
+            "console_type": "file",
             "kernels": [
                 {
                     "dir": "focal-server-cloudimg-arm64.qcow2",
