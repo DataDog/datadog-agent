@@ -6,7 +6,7 @@
 /*
 Package languagedetection provides util type definitions and helper methods for the language detection client and handler
 */
-package languagedetection
+package util
 
 const (
 

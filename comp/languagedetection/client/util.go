@@ -7,7 +7,7 @@
 package client
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -21,8 +21,8 @@ func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadm
 	}
 	b[podName] = &podInfo{
 		namespace:         podnamespace,
-		containerInfo:     languagedetection.NewContainersLanguages(),
-		initContainerInfo: languagedetection.NewContainersLanguages(),
+		containerInfo:     util.NewContainersLanguages(),
+		initContainerInfo: util.NewContainersLanguages(),
 		ownerRef:          ownerRef,
 	}
 	return b[podName]
@@ -30,8 +30,8 @@ func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadm
 
 type podInfo struct {
 	namespace         string
-	containerInfo     languagedetection.ContainersLanguages
-	initContainerInfo languagedetection.ContainersLanguages
+	containerInfo     util.ContainersLanguages
+	initContainerInfo util.ContainersLanguages
 	ownerRef          *workloadmeta.KubernetesPodOwner
 }
 
@@ -49,7 +49,7 @@ func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
 	}
 }
 
-func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bool) languagedetection.LanguageSet {
+func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bool) util.LanguageSet {
 	cInfo := p.containerInfo
 	if isInitContainer {
 		cInfo = p.initContainerInfo
@@ -58,7 +58,7 @@ func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bo
 	if languageSet, ok := cInfo[containerName]; ok {
 		return languageSet
 	}
-	cInfo[containerName] = languagedetection.NewLanguageSet()
+	cInfo[containerName] = util.NewLanguageSet()
 	return cInfo[containerName]
 }
 

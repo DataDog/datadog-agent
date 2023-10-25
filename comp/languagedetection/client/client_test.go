@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 )
 
 type MockDCAClient struct {
@@ -96,13 +96,13 @@ func TestClientEnabled(t *testing.T) {
 
 func TestClientSend(t *testing.T) {
 	client, mockDCAClient, doneCh := newTestClient(t, nil)
-	container := languagedetection.ContainersLanguages{
+	container := langUtil.ContainersLanguages{
 		"java-cont": {
 			"java": {},
 		},
 	}
 
-	initContainer := languagedetection.ContainersLanguages{
+	initContainer := langUtil.ContainersLanguages{
 		"go-cont": {
 			"go": {},
 		},
@@ -148,13 +148,13 @@ func TestClientSend(t *testing.T) {
 
 func TestClientSendFreshPods(t *testing.T) {
 	client, _, _ := newTestClient(t, nil)
-	container := languagedetection.ContainersLanguages{
+	container := langUtil.ContainersLanguages{
 		"java-cont": {
 			"java": {},
 		},
 	}
 
-	initContainer := languagedetection.ContainersLanguages{
+	initContainer := langUtil.ContainersLanguages{
 		"go-cont": {
 			"go": {},
 		},
@@ -336,12 +336,12 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 		batch{
 			"nginx-pod-name": {
 				namespace: "nginx-pod-namespace",
-				containerInfo: languagedetection.ContainersLanguages{
+				containerInfo: langUtil.ContainersLanguages{
 					"nginx-cont-name": {
 						"java": {},
 					},
 				},
-				initContainerInfo: languagedetection.ContainersLanguages{
+				initContainerInfo: langUtil.ContainersLanguages{
 					"nginx-cont-name": {
 						"go": {},
 					},
@@ -522,12 +522,12 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 		batch{
 			"nginx-pod-name": {
 				namespace: "nginx-pod-namespace",
-				containerInfo: languagedetection.ContainersLanguages{
+				containerInfo: langUtil.ContainersLanguages{
 					"nginx-cont-name": {
 						"java": {},
 					},
 				},
-				initContainerInfo: languagedetection.ContainersLanguages{
+				initContainerInfo: langUtil.ContainersLanguages{
 					"nginx-cont-name": {
 						"go": {},
 					},
@@ -849,7 +849,7 @@ func TestRun(t *testing.T) {
 		batch{
 			"nginx-pod-name1": {
 				namespace: "nginx-pod-namespace1",
-				containerInfo: languagedetection.ContainersLanguages{
+				containerInfo: langUtil.ContainersLanguages{
 					"nginx-cont-name1": {
 						"java": {},
 					},
@@ -887,7 +887,7 @@ func TestRun(t *testing.T) {
 	b := batch{
 		"nginx-pod-name2": {
 			namespace: "nginx-pod-namespace2",
-			containerInfo: languagedetection.ContainersLanguages{
+			containerInfo: langUtil.ContainersLanguages{
 				"nginx-cont-name2": {
 					"go": {},
 				},
@@ -900,7 +900,7 @@ func TestRun(t *testing.T) {
 		},
 		"nginx-pod-name1": {
 			namespace: "nginx-pod-namespace1",
-			containerInfo: languagedetection.ContainersLanguages{
+			containerInfo: langUtil.ContainersLanguages{
 				"nginx-cont-name1": {
 					"java": {},
 				},
@@ -917,7 +917,7 @@ func TestRun(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		<-doneCh
 		a := protoToBatch(mockDCAClient.payload[len(mockDCAClient.payload)-1])
-		return a.Equals(b)
+		return a.equals(b)
 	},
 		5*time.Second,
 		100*time.Millisecond,
@@ -937,7 +937,7 @@ func TestRun(t *testing.T) {
 	b = batch{
 		"nginx-pod-name1": {
 			namespace: "nginx-pod-namespace1",
-			containerInfo: languagedetection.ContainersLanguages{
+			containerInfo: langUtil.ContainersLanguages{
 				"nginx-cont-name1": {
 					"java": {},
 				},
@@ -953,7 +953,7 @@ func TestRun(t *testing.T) {
 	assert.Eventually(t, func() bool {
 		<-doneCh
 		a := protoToBatch(mockDCAClient.payload[len(mockDCAClient.payload)-1])
-		return a.Equals(b)
+		return a.equals(b)
 	},
 		5*time.Second,
 		100*time.Millisecond,
@@ -966,20 +966,20 @@ func protoToBatch(protoMessage *process.ParentLanguageAnnotationRequest) batch {
 	res := make(batch)
 
 	for _, podDetail := range protoMessage.PodDetails {
-		cInfo := languagedetection.NewContainersLanguages()
+		cInfo := langUtil.NewContainersLanguages()
 
 		for _, container := range podDetail.ContainerDetails {
-			languageSet := languagedetection.NewLanguageSet()
+			languageSet := langUtil.NewLanguageSet()
 			for _, lang := range container.Languages {
 				languageSet.Add(lang.Name)
 			}
 			cInfo[container.ContainerName] = languageSet
 		}
 
-		initContainerInfo := languagedetection.NewContainersLanguages()
+		initContainerInfo := langUtil.NewContainersLanguages()
 
 		for _, container := range podDetail.InitContainerDetails {
-			languageSet := languagedetection.NewLanguageSet()
+			languageSet := langUtil.NewLanguageSet()
 			for _, lang := range container.Languages {
 				languageSet.Add(lang.Name)
 			}
@@ -1003,7 +1003,7 @@ func protoToBatch(protoMessage *process.ParentLanguageAnnotationRequest) batch {
 	return res
 }
 
-func (b batch) Equals(other batch) bool {
+func (b batch) equals(other batch) bool {
 	if len(b) != len(other) {
 		return false
 	}
@@ -1012,14 +1012,14 @@ func (b batch) Equals(other batch) bool {
 		if !ok {
 			return false
 		}
-		if !podInfo.Equals(otherPodInfo) {
+		if !podInfo.equals(otherPodInfo) {
 			return false
 		}
 	}
 	return true
 }
 
-func (p *podInfo) Equals(other *podInfo) bool {
+func (p *podInfo) equals(other *podInfo) bool {
 	if p == other {
 		return true
 	}
