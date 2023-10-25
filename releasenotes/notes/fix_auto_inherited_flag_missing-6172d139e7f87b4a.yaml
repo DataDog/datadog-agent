@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    On Windows the SE_DACL_AUTO_INHERITED flag is reset on `%PROJECTLOCATION%` on upgrade.
+    On Windows the SE_DACL_AUTO_INHERITED flag is reset on `%PROJECTLOCATION%` on upgrade and uninstall.
