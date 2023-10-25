@@ -6,7 +6,7 @@
     },
     "nightly": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "master",
+        "OMNIBUS_SOFTWARE_VERSION": "chouquette/fix_curl_deps_rpath",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.48.0",
         "JMXFETCH_HASH": "f18df184a13dfb3de40caaab640725cabcd8304163b9ab5b4e6fa1ee6c7a6fd2",
@@ -26,7 +26,7 @@
     },
     "nightly-a7": {
         "INTEGRATIONS_CORE_VERSION": "master",
-        "OMNIBUS_SOFTWARE_VERSION": "master",
+        "OMNIBUS_SOFTWARE_VERSION": "chouquette/fix_curl_deps_rpath",
         "OMNIBUS_RUBY_VERSION": "datadog-5.5.0",
         "JMXFETCH_VERSION": "0.48.0",
         "JMXFETCH_HASH": "f18df184a13dfb3de40caaab640725cabcd8304163b9ab5b4e6fa1ee6c7a6fd2",
