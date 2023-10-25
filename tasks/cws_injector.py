@@ -60,22 +60,17 @@ def build(
     build_tags.append("netgo")
     build_tags.append("osusergo")
 
-    # TODO static option
-    cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
-    cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags} -s -w" {REPO_PATH}/cmd/cws-injector'
+    race_opt = "-race" if race else ""
+    build_type = "" if incremental_build else "-a"
+    go_build_tags = " ".join(build_tags)
+    agent_bin = BIN_PATH
 
-    args = {
-        "go_mod": go_mod,
-        "race_opt": "-race" if race else "",
-        "build_type": "" if incremental_build else "-a",
-        "go_build_tags": " ".join(build_tags),
-        "agent_bin": BIN_PATH,
-        "gcflags": gcflags,
-        "ldflags": ldflags,
-        "REPO_PATH": REPO_PATH,
-    }
+    cmd = (
+        f'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
+        f'-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags} -s -w" {REPO_PATH}/cmd/cws-injector'
+    )
 
-    ctx.run(cmd.format(**args), env=env)
+    ctx.run(cmd, env=env)
 
 
 @task
