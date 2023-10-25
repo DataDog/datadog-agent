@@ -76,6 +76,9 @@ var Spec = &protocols.ProtocolSpec{
 		{
 			Name: "http2_ctx_heap",
 		},
+		{
+			Name: "http2_tls_states",
+		},
 	},
 	TailCalls: []manager.TailCallRoute{
 		{
