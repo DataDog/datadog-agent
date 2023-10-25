@@ -333,9 +333,7 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     if (current_frame->type == kRSTStreamFrame) {
         __u32 rst_error_code = 0;
         bpf_skb_load_bytes(skb, skb_info->data_off, &rst_error_code, sizeof(rst_error_code));
-        if (rst_error_code == HTTP2_RST_NO_ERROR) {
-            is_rst_rst_with_no_error_code = true;
-        }
+        is_rst_rst_with_no_error_code = rst_error_code == HTTP2_RST_NO_ERROR;
     }
 
     if (is_rst_rst_with_no_error_code || ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM)) {
