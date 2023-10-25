@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package main
+package apikey
 
 import (
 	"encoding/base64"
@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	datadogHttp "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -29,6 +30,12 @@ const encryptionContextKey = "LambdaFunctionName"
 
 // functionNameEnvVar is the environment variable that stores the function name.
 const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
+
+// one of those env variable must be set
+const apiKeyEnvVar = "DD_API_KEY"
+const apiKeySecretManagerEnvVar = "DD_API_KEY_SECRET_ARN"
+const apiKeyKmsEnvVar = "DD_KMS_API_KEY"
+const apiKeyKmsEncryptedEnvVar = "DD_API_KEY_KMS_ENCRYPTED"
 
 // kmsKeySuffix is the suffix of all environment variables which should be decrypted by KMS
 const kmsKeySuffix = "_KMS_ENCRYPTED"
@@ -129,11 +136,11 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 		return secretString, nil
 	} else if output.SecretBinary != nil {
 		decodedBinarySecretBytes := make([]byte, base64.StdEncoding.DecodedLen(len(output.SecretBinary)))
-		len, err := base64.StdEncoding.Decode(decodedBinarySecretBytes, output.SecretBinary)
+		secretLen, err := base64.StdEncoding.Decode(decodedBinarySecretBytes, output.SecretBinary)
 		if err != nil {
 			return "", fmt.Errorf("Can't base64 decode Secrets Manager secret: %s", err)
 		}
-		return string(decodedBinarySecretBytes[:len]), nil
+		return string(decodedBinarySecretBytes[:secretLen]), nil
 	}
 	// should not happen but let's handle this gracefully
 	log.Warn("Secrets Manager returned something but there seems to be no data available")
@@ -156,8 +163,32 @@ func extractRegionFromSecretsManagerArn(secretsManagerArn string) (string, error
 	return arnObject.Region, nil
 }
 
-func hasApiKey() bool {
+// HasAPIKey returns true if an API key has been set in any of the supported ways.
+func HasAPIKey() bool {
 	return config.Datadog.IsSet("api_key") ||
-		len(os.Getenv(kmsAPIKeyEnvVar)) > 0 ||
-		len(os.Getenv(secretsManagerAPIKeyEnvVar)) > 0
+		len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 ||
+		len(os.Getenv(apiKeyKmsEnvVar)) > 0 ||
+		len(os.Getenv(apiKeySecretManagerEnvVar)) > 0 ||
+		len(os.Getenv(apiKeyEnvVar)) > 0
+}
+
+// CheckForSingleAPIKey checks if an API key has been set in multiple places and logs a warning if so.
+func CheckForSingleAPIKey() {
+	var apikeySetIn = []string{}
+	if len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 {
+		apikeySetIn = append(apikeySetIn, "KMS_ENCRYPTED")
+	}
+	if len(os.Getenv(apiKeyKmsEnvVar)) > 0 {
+		apikeySetIn = append(apikeySetIn, "KMS")
+	}
+	if len(os.Getenv(apiKeySecretManagerEnvVar)) > 0 {
+		apikeySetIn = append(apikeySetIn, "SSM")
+	}
+	if len(os.Getenv(apiKeyEnvVar)) > 0 {
+		apikeySetIn = append(apikeySetIn, "environment variable")
+	}
+
+	if len(apikeySetIn) > 1 {
+		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
+	}
 }
