@@ -81,7 +81,7 @@ Package server implements a component to run the dogstatsd server
 
 ### [comp/dogstatsd/serverDebug](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/serverDebug)
 
-Package serverDebug implements a component to run the dogstatsd server debug
+Package serverdebug implements a component to run the dogstatsd server debug
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder) (Component Bundle)
 
