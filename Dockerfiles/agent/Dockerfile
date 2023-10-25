@@ -133,6 +133,13 @@ RUN apt full-upgrade -y \
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
   && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser
 
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | tee /etc/apt/trusted.gpg.d/microsoft.asc
+
+RUN curl https://packages.microsoft.com/config/ubuntu/${BASE_IMAGE_UBUNTU_VERSION}/prod.list | tee /etc/apt/sources.list.d/mssql-release.list
+
+RUN apt update \
+  && ACCEPT_EULA=Y apt install -y msodbcsql18
+
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
   && mkdir -p /usr/share/man/man1 \
