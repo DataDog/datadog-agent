@@ -1,0 +1,20 @@
+module github.com/DataDog/datadog-agent/pkg/util/winutil/module
+
+go 1.20
+
+replace github.com/DataDog/datadog-agent/pkg/util/log => ../../log/
+
+require (
+	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
+	github.com/stretchr/testify v1.8.4
+	golang.org/x/sys v0.13.0
+)
+
+require (
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.2 // indirect
+	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
+	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)

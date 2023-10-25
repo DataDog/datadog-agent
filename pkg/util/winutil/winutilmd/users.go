@@ -4,7 +4,7 @@
 // Copyright 2018-present Datadog, Inc.
 //go:build windows
 
-package winutil
+package winutilmd
 
 import (
 	"fmt"

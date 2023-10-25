@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package winutil
+package winutilmd
 
 import (
 	"testing"
