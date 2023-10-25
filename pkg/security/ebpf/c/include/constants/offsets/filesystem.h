@@ -252,6 +252,20 @@ int __attribute__((always_inline)) get_ovl_lower_ino_new(struct dentry *dentry) 
     return get_dentry_ino(lower);
 }
 
+int __attribute__((always_inline)) get_ovl_lower_ino_new_2(struct dentry *dentry) {
+    struct inode *d_inode;
+    bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
+
+    void *oe;
+    bpf_probe_read(&oe, sizeof(oe), (char *)d_inode + get_sizeof_inode() + 8);
+
+    struct dentry *lower;
+    // 4 for the __num_lower field + 4 of padding + 8 for the layer ptr in ovl_path
+    bpf_probe_read(&lower, sizeof(lower), (char *)oe + 4 + 4 + 8);
+
+    return get_dentry_ino(lower);
+}
+
 int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
