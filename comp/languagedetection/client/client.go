@@ -16,8 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"go.uber.org/fx"
 )
@@ -160,15 +162,20 @@ func (c *client) run() {
 
 	go c.startStreaming()
 
+	health := health.RegisterLiveness("process-language-detection-client")
+
 	for {
 		select {
+		case <-health.C:
 		case eventBundle := <-eventCh:
 			c.processEvent(eventBundle)
 		case <-retryProcessWithoutPodTicker.C:
 			c.retryProcessEventsWithoutPod()
-		case <-metricTicker.C:
-			c.telemetry.Running.Set(1)
 		case <-c.ctx.Done():
+			err := health.Deregister()
+			if err != nil {
+				c.logger.Warnf("error de-registering health check: %s", err)
+			}
 			return
 		}
 	}
@@ -199,8 +206,11 @@ func (c *client) startStreaming() {
 	periodicFlushTimer := time.NewTicker(c.periodicalFlushPeriod)
 	defer periodicFlushTimer.Stop()
 
+	health := health.RegisterLiveness("process-language-detection-client-sender")
+
 	for {
 		select {
+		case <-health.C:
 		// frequently send only fresh updates
 		case <-freshUpdateTimer.C:
 			data := c.getFreshBatchProto()
@@ -210,6 +220,10 @@ func (c *client) startStreaming() {
 			data := c.getCurrentBatchProto()
 			c.send(data)
 		case <-c.ctx.Done():
+			err := health.Deregister()
+			if err != nil {
+				log.Warnf("error de-registering health check: %s", err)
+			}
 			return
 		}
 	}

@@ -10,7 +10,6 @@ import "github.com/DataDog/datadog-agent/comp/core/telemetry"
 const subsystem = "language_detection_dca_client"
 
 type componentTelemetry struct {
-	Running           telemetry.SimpleGauge
 	ProcessedEvents   telemetry.Counter
 	ProcessWithoutPod telemetry.Counter
 	Latency           telemetry.Histogram
@@ -28,14 +27,6 @@ var (
 
 func newComponentTelemetry(telemetry telemetry.Component) *componentTelemetry {
 	return &componentTelemetry{
-		// Running tracks if the language detection client is running.
-		Running: telemetry.NewSimpleGaugeWithOpts(
-			subsystem,
-			"running",
-			"Tracks if the language detection client is running",
-			commonOpts,
-		),
-
 		// ProcessedEvents tracks the number of events processed for the given pod, container and language.
 		ProcessedEvents: telemetry.NewCounterWithOpts(
 			subsystem,
