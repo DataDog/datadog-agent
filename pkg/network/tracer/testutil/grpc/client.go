@@ -12,6 +12,7 @@ import (
 	"io"
 	"math/rand"
 	"net"
+	"os"
 	"time"
 
 	pbStream "github.com/pahanini/go-grpc-bidirectional-streaming-example/src/proto"
@@ -150,7 +151,7 @@ func NewClient(addr string, options Options, withTLS bool) (Client, error) {
 
 	creds := grpc.WithTransportCredentials(insecure.NewCredentials())
 	if withTLS {
-		creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{ServerName: "", InsecureSkipVerify: true}))
+		creds = grpc.WithTransportCredentials(credentials.NewTLS(&tls.Config{ServerName: "", InsecureSkipVerify: true, KeyLogWriter: os.Stdout}))
 	}
 	gRPCOptions = append(gRPCOptions, creds)
 

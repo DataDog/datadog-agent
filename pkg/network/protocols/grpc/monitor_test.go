@@ -11,9 +11,11 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -28,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -41,7 +44,17 @@ func randStringRunes(n int) []rune {
 	for i := range b {
 		b[i] = letterRunes[rand.Intn(len(letterRunes))]
 	}
+
 	return b
+}
+
+func TestMain(m *testing.M) {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
+	os.Exit(m.Run())
 }
 
 type USMgRPCSuite struct {
@@ -95,6 +108,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	t := s.T()
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableGoTLSSupport = true
+	cfg.BPFDebug = true
 
 	s.fixtures.StartServer(t)
 	defaultCtx := context.Background()
@@ -107,6 +122,21 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 		expectedEndpoints map[http.Key]int
 		expectedError     bool
 	}{
+		{
+			name: "simple unary - single request",
+			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
+				clients := getClientsArray(t, 1, withTLS)
+				client := clients[0]
+
+				require.NoError(t, client.HandleUnary(defaultCtx, "first"))
+			},
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Method: http.MethodPost,
+				}: 1,
+			},
+		},
 		{
 			name: "simple unary - multiple requests",
 			clientsSetupFn: func(t *testing.T, clientsCount int, withTLS bool) {
@@ -352,6 +382,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 	t := s.T()
 	cfg := config.New()
 	cfg.EnableHTTP2Monitoring = true
+	cfg.EnableGoTLSSupport = true
 	cfg.BPFDebug = true
 
 	s.fixtures.StartServer(t)
