@@ -31,7 +31,7 @@ if linux?
   # add nfsiostat script
   dependency 'unixodbc'
   dependency 'freetds'  # needed for SQL Server integration
-  depencency 'msodbcsql'
+  dependency 'msodbcsql'
   dependency 'nfsiostat'
   # add libkrb5 for all integrations supporting kerberos auth with `requests-kerberos`
   dependency 'libkrb5'
