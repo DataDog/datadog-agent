@@ -45,14 +45,14 @@ type Helper interface {
 	GetBinaryPath() string
 }
 
-func getServiceManager(vmClient *e2eClient.VMClient) ServiceManager {
+func getServiceManager(vmClient e2eClient.VM) ServiceManager {
 	if _, err := vmClient.ExecuteWithError("command -v systemctl"); err == nil {
 		return svcmanager.NewSystemctlSvcManager(vmClient)
 	}
 	return nil
 }
 
-func getPackageManager(vmClient *e2eClient.VMClient) PackageManager {
+func getPackageManager(vmClient e2eClient.VM) PackageManager {
 	if _, err := vmClient.ExecuteWithError("command -v apt"); err == nil {
 		return pkgmanager.NewAptPackageManager(vmClient)
 	}
@@ -61,8 +61,8 @@ func getPackageManager(vmClient *e2eClient.VMClient) PackageManager {
 
 // TestClient contain the Agent Env and SvcManager and PkgManager for tests
 type TestClient struct {
-	VMClient    *e2eClient.VMClient
-	AgentClient *e2eClient.AgentCommandRunner
+	VMClient    e2eClient.VM
+	AgentClient e2eClient.Agent
 	Helper      Helper
 	FileManager FileManager
 	SvcManager  ServiceManager
@@ -70,7 +70,7 @@ type TestClient struct {
 }
 
 // NewTestClient create a an ExtendedClient from VMClient and AgentCommandRunner, includes svcManager and pkgManager to write agent-platform tests
-func NewTestClient(vmClient *e2eClient.VMClient, agentClient *e2eClient.AgentCommandRunner, fileManager FileManager, helper Helper) *TestClient {
+func NewTestClient(vmClient e2eClient.VM, agentClient e2eClient.Agent, fileManager FileManager, helper Helper) *TestClient {
 	svcManager := getServiceManager(vmClient)
 	pkgManager := getPackageManager(vmClient)
 	return &TestClient{

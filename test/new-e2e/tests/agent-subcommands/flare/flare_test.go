@@ -30,9 +30,9 @@ func TestFlareSuite(t *testing.T) {
 
 func requestAgentFlareAndFetchFromFakeIntake(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
 	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
-	v.EventuallyWithT(func(c *assert.CollectT) {
+	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		assert.NoError(c, v.Env().Fakeintake.Client.GetServerHealth())
-	}, 5*time.Minute, 20*time.Second)
+	}, 5*time.Minute, 20*time.Second, "expected fakeintake server to be ready; not ready in 5min")
 
 	_ = v.Env().Agent.Flare(flareArgs...)
 

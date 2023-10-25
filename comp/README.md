@@ -114,6 +114,10 @@ by the Agent.
 
 Package host implements a component to generate the 'host' metadata payload (also known as "v5").
 
+### [comp/metadata/inventoryagent](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/inventoryagent)
+
+Package inventoryagent implements a component to generate the 'datadog_agent' metadata payload for inventory.
+
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/resources)
 
 Package resources implements a component to generate the 'resources' metadata payload.

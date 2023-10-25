@@ -44,6 +44,19 @@ HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, ar
     return trace__sys_execveat(ctx, argv, env);
 }
 
+int __attribute__((always_inline)) handle_execve_exit() {
+    pop_syscall(EVENT_EXEC);
+    return 0;
+}
+
+HOOK_SYSCALL_EXIT(execve) {
+    return handle_execve_exit();
+}
+
+HOOK_SYSCALL_EXIT(execveat) {
+    return handle_execve_exit();
+}
+
 int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *interpreter_inode;
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
@@ -626,7 +639,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
                 },
                 .flags = syscall->exec.file.flags
             },
-            .exec_timestamp = bpf_ktime_get_ns(),
+            .exec_timestamp = now,
         },
         .container = {},
     };

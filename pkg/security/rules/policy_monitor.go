@@ -146,6 +146,16 @@ func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientIn
 	sender.SendEvent(rule, event, nil, "")
 }
 
+// ReportHeartbeatEvent periodically reports to Datadog that
+func ReportHeartbeatEvent(sender events.EventSender, policies map[string]Policy) {
+	log.Infof("send heartbeat")
+
+	rule, events := NewHeartbeatEvents(policies)
+	for _, event := range events {
+		sender.SendEvent(rule, event, nil, "")
+	}
+}
+
 // RuleState defines a loaded rule
 // easyjson:json
 type RuleState struct {
@@ -171,6 +181,13 @@ type PolicyState struct {
 type RulesetLoadedEvent struct {
 	events.CustomEventCommonFields
 	Policies []*PolicyState `json:"policies"`
+}
+
+// HeartbeatEvent is used to report the policies that has been loaded
+// easyjson:json
+type HeartbeatEvent struct {
+	events.CustomEventCommonFields
+	Policy *PolicyState `json:"policy"`
 }
 
 // PolicyStateFromRuleDefinition returns a policy state based on the rule definition
@@ -243,4 +260,28 @@ func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.E
 
 	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
 		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
+}
+
+// NewHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
+func NewHeartbeatEvents(policies map[string]Policy) (*rules.Rule, []*events.CustomEvent) {
+
+	var evts []*events.CustomEvent
+
+	for _, policy := range policies {
+		var policyState = PolicyState{
+			Name:    policy.Name,
+			Version: policy.Version,
+			Source:  policy.Source,
+			Rules:   nil, // The rules that have been loaded at startup are not reported in the heartbeat event
+		}
+
+		evt := HeartbeatEvent{
+			Policy: &policyState,
+		}
+		evt.FillCustomEventCommonFields()
+		evts = append(evts, events.NewCustomEvent(model.CustomHeartbeatEventType, evt))
+	}
+
+	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc),
+		evts
 }

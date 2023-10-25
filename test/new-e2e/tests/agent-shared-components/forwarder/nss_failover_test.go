@@ -31,8 +31,8 @@ import (
 )
 
 type multiFakeIntakeEnv struct {
-	VM          *client.VM
-	Agent       *client.Agent
+	VM          client.VM
+	Agent       client.Agent
 	Fakeintake1 *client.Fakeintake
 	Fakeintake2 *client.Fakeintake
 }
@@ -78,8 +78,8 @@ func multiFakeintakeStackDef(agentOptions ...agentparams.Option) *e2e.StackDefin
 		}
 
 		return &multiFakeIntakeEnv{
-			VM:          client.NewVM(vm),
-			Agent:       client.NewAgent(agentInstaller),
+			VM:          client.NewPulumiStackVM(vm),
+			Agent:       client.NewPulumiStackAgent(agentInstaller),
 			Fakeintake1: client.NewFakeintake(fiExporter1),
 			Fakeintake2: client.NewFakeintake(fiExporter2),
 		}, nil
@@ -170,7 +170,7 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 }
 
 // assertIntakeIsUsed asserts the the given intakes receives metrics, logs, and flares
-func assertIntakeIsUsed(vm *client.VM, intake *client.Fakeintake, agent *client.Agent) func(*assert.CollectT) {
+func assertIntakeIsUsed(vm client.VM, intake *client.Fakeintake, agent client.Agent) func(*assert.CollectT) {
 	return func(t *assert.CollectT) {
 		// check metrics
 		metricNames, err := intake.GetMetricNames()
@@ -194,7 +194,7 @@ func assertIntakeIsUsed(vm *client.VM, intake *client.Fakeintake, agent *client.
 }
 
 // assertIntakeNotUsed asserts that the given intake doesn't receive metrics, logs, and flares
-func assertIntakeNotUsed(t *testing.T, vm *client.VM, intake *client.Fakeintake, agent *client.Agent) {
+func assertIntakeNotUsed(t *testing.T, vm client.VM, intake *client.Fakeintake, agent client.Agent) {
 	// check metrics
 	metricNames, err := intake.GetMetricNames()
 	require.NoError(t, err)
@@ -214,7 +214,7 @@ func assertIntakeNotUsed(t *testing.T, vm *client.VM, intake *client.Fakeintake,
 
 // setHostEntry adds an entry in /etc/hosts for the given hostname and hostIP
 // if there is already an entry for that hostname, it is replaced
-func setHostEntry(t *testing.T, vm *client.VM, hostname string, hostIP string) {
+func setHostEntry(t *testing.T, vm client.VM, hostname string, hostIP string) {
 	// we could remove the line and then add the new one,
 	// but it's better to avoid not having the line in the file between the two operations
 
@@ -241,7 +241,7 @@ func setHostEntry(t *testing.T, vm *client.VM, hostname string, hostIP string) {
 
 // enforceNSSwitchFiles ensures /etc/nsswitch.conf uses `files` first for the `hosts` entry
 // so that an NSS query uses /etc/hosts before DNS
-func enforceNSSwitchFiles(t *testing.T, vm *client.VM) {
+func enforceNSSwitchFiles(t *testing.T, vm client.VM) {
 	// for the specifics of the nsswitch.conf file format, see its man page
 	//
 	// in short, the hosts line starts with "hosts:", then a whitespace separated list of "services"
