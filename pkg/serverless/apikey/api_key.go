@@ -6,6 +6,7 @@
 package apikey
 
 import (
+	"context"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -15,12 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	datadogHttp "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/arn"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kms"
-	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/kms"
+	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -43,9 +42,13 @@ const kmsKeySuffix = "_KMS_ENCRYPTED"
 // secretArnSuffix is the suffix of all environment variables which should be decrypted by secrets manager
 const secretArnSuffix = "_SECRET_ARN"
 
+type kmsAPI interface {
+	Decrypt(context.Context, *kms.DecryptInput, ...func(*kms.Options)) (*kms.DecryptOutput, error)
+}
+
 // decryptKMS decodes and deciphers the base64-encoded ciphertext given as a parameter using KMS.
 // For this to work properly, the Lambda function must have the appropriate IAM permissions.
-func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
+func decryptKMS(kmsClient kmsAPI, ciphertext string) (string, error) {
 	decodedBytes, err := base64.StdEncoding.DecodeString(ciphertext)
 	if err != nil {
 		return "", fmt.Errorf("Failed to decode ciphertext from base64: %v", err)
@@ -60,18 +63,18 @@ func decryptKMS(kmsClient kmsiface.KMSAPI, ciphertext string) (string, error) {
 	params := &kms.DecryptInput{
 		CiphertextBlob: decodedBytes,
 	}
-	response, err := kmsClient.Decrypt(params)
+	response, err := kmsClient.Decrypt(context.TODO(), params)
 
 	if err != nil {
 		log.Debug("Failed to decrypt ciphertext without encryption context, retrying with encryption context")
 		// Try with encryption context, in case API key was encrypted using the AWS Console
 		params = &kms.DecryptInput{
 			CiphertextBlob: decodedBytes,
-			EncryptionContext: map[string]*string{
-				encryptionContextKey: &functionName,
+			EncryptionContext: map[string]string{
+				encryptionContextKey: functionName,
 			},
 		}
-		response, err = kmsClient.Decrypt(params)
+		response, err = kmsClient.Decrypt(context.TODO(), params)
 		if err != nil {
 			return "", fmt.Errorf("Failed to decrypt ciphertext with kms: %v", err)
 		}
@@ -87,13 +90,18 @@ func readAPIKeyFromKMS(cipherText string) (string, error) {
 	if cipherText == "" {
 		return "", nil
 	}
-	sess, err := session.NewSession(aws.NewConfig().WithHTTPClient(&http.Client{
-		Transport: datadogHttp.CreateHTTPTransport(),
-	}))
+
+	cfg, err := awsconfig.LoadDefaultConfig(
+		context.TODO(),
+		awsconfig.WithHTTPClient(&http.Client{
+			Transport: datadogHttp.CreateHTTPTransport(),
+		}),
+	)
 	if err != nil {
 		return "", err
 	}
-	kmsClient := kms.New(sess)
+
+	kmsClient := kms.NewFromConfig(cfg)
 	plaintext, err := decryptKMS(kmsClient, cipherText)
 	if err != nil {
 		return "", fmt.Errorf("decryptKMS error: %s", err)
@@ -114,19 +122,23 @@ func readAPIKeyFromSecretsManager(arn string) (string, error) {
 		return "", err
 	}
 
-	sess, err := session.NewSession(aws.NewConfig().WithHTTPClient(&http.Client{
-		Transport: datadogHttp.CreateHTTPTransport(),
-	}))
+	cfg, err := awsconfig.LoadDefaultConfig(context.TODO(),
+		awsconfig.WithHTTPClient(&http.Client{
+			Transport: datadogHttp.CreateHTTPTransport(),
+		}),
+		awsconfig.WithRegion(region),
+	)
 	if err != nil {
 		return "", err
 	}
 
-	secretsManagerClient := secretsmanager.New(sess, aws.NewConfig().WithRegion(region))
+	secretsManagerClient := secretsmanager.NewFromConfig(cfg)
 
-	secret := &secretsmanager.GetSecretValueInput{}
-	secret.SetSecretId(arn)
+	secret := &secretsmanager.GetSecretValueInput{
+		SecretId: &arn,
+	}
 
-	output, err := secretsManagerClient.GetSecretValue(secret)
+	output, err := secretsManagerClient.GetSecretValue(context.TODO(), secret)
 	if err != nil {
 		return "", fmt.Errorf("Secrets Manager read error: %s", err)
 	}
