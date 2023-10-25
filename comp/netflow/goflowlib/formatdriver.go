@@ -50,7 +50,7 @@ func (d *AggregatorFormatDriver) Format(data interface{}) ([]byte, []byte, error
 		d.listenerFlowCount.Add(1)
 		d.flowAggIn <- ConvertFlowWithCustomFields(flow, d.namespace)
 	default:
-		return nil, nil, fmt.Errorf("message is not flowpb.FlowMessage")
+		return nil, nil, fmt.Errorf("message is not flowpb.FlowMessage or common.FlowMessageWithAdditionalFields")
 	}
 
 	return nil, nil, nil
