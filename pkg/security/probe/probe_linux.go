@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -456,8 +455,8 @@ func (p *Probe) GetMonitors() *Monitors {
 }
 
 // EventMarshallerCtor returns the event marshaller ctor
-func (p *Probe) EventMarshallerCtor(event *model.Event) func() easyjson.Marshaler {
-	return func() easyjson.Marshaler {
+func (p *Probe) EventMarshallerCtor(event *model.Event) func() events.EventMarshaler {
+	return func() events.EventMarshaler {
 		return serializers.NewEventSerializer(event, p.resolvers)
 	}
 }
