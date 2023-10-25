@@ -342,6 +342,8 @@ workflow:
 
 .on_a6:
   - <<: *if_version_6
+  - <<: *if_mergequeue
+    when: never
 
 .on_a6_manual:
   - <<: *if_version_6
