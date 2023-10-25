@@ -82,7 +82,7 @@ func TestExtractContextFromSQSEvent_NoDatadogTraceContext(t *testing.T) {
 		DataType:    "String",
 	}
 
-	rawTraceContext := extractTraceContextfromDatadogHeader(mockSQSMessage)
+	rawTraceContext := extractTraceContextFromDatadogHeader(mockSQSMessage)
 	assert.Nil(t, rawTraceContext)
 }
 
@@ -127,7 +127,7 @@ func TestExtractContextFromPureSqsEvent_ValidStringTraceData(t *testing.T) {
 		StringValue: &str,
 	}
 
-	rawTraceContext := extractTraceContextfromDatadogHeader(mockSQSMessageAttribute)
+	rawTraceContext := extractTraceContextFromDatadogHeader(mockSQSMessageAttribute)
 
 	assert.NotNil(t, rawTraceContext)
 	assert.Equal(t, "3754030949214830614", rawTraceContext.TraceID)
@@ -142,7 +142,7 @@ func TestExtractContextFromPureSqsEvent_ValidBinaryTraceData(t *testing.T) {
 		BinaryValue: []byte(str),
 	}
 
-	rawTraceContext := extractTraceContextfromDatadogHeader(mockSQSMessageAttribute)
+	rawTraceContext := extractTraceContextFromDatadogHeader(mockSQSMessageAttribute)
 
 	assert.NotNil(t, rawTraceContext)
 	assert.Equal(t, "3754030949214830614", rawTraceContext.TraceID)
@@ -156,7 +156,7 @@ func TestExtractContextFromPureSqsEvent_InvalidStringTraceData(t *testing.T) {
 		StringValue: aws.String(`invalid string data`),
 	}
 
-	rawTraceContext := extractTraceContextfromDatadogHeader(mockSQSMessageAttribute)
+	rawTraceContext := extractTraceContextFromDatadogHeader(mockSQSMessageAttribute)
 
 	assert.Nil(t, rawTraceContext)
 }
@@ -169,7 +169,7 @@ func TestExtractContextFromPureSqsEvent_InvalidBinaryTraceData(t *testing.T) {
 		BinaryValue: []byte(str),
 	}
 
-	rawTraceContext := extractTraceContextfromDatadogHeader(mockSQSMessageAttribute)
+	rawTraceContext := extractTraceContextFromDatadogHeader(mockSQSMessageAttribute)
 
 	assert.Nil(t, rawTraceContext)
 }
@@ -180,7 +180,7 @@ func TestExtractContextFromPureSqsEvent_InvalidJson(t *testing.T) {
 		StringValue: aws.String(`invalid json`),
 	}
 
-	rawTraceContext := extractTraceContextfromDatadogHeader(mockSQSMessageAttribute)
+	rawTraceContext := extractTraceContextFromDatadogHeader(mockSQSMessageAttribute)
 	assert.Nil(t, rawTraceContext)
 }
 
@@ -194,7 +194,7 @@ func TestExtractContextFromPureSqsEvent_UnsupportedDataType(t *testing.T) {
         }`),
 	}
 
-	rawTraceContext := extractTraceContextfromDatadogHeader(mockSQSMessageAttribute)
+	rawTraceContext := extractTraceContextFromDatadogHeader(mockSQSMessageAttribute)
 	assert.Nil(t, rawTraceContext)
 }
 func TestConvertRawTraceContext_ValidInput(t *testing.T) {

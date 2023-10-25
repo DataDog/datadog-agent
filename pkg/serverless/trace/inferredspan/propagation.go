@@ -56,7 +56,7 @@ func extractTraceContext(event events.SQSMessage) *convertedTraceContext {
 
 	if rawTrace == nil {
 		if ddMessageAttribute, ok := event.MessageAttributes[datadogHeader]; ok {
-			rawTrace = extractTraceContextfromDatadogHeader(ddMessageAttribute)
+			rawTrace = extractTraceContextFromDatadogHeader(ddMessageAttribute)
 		} else {
 			rawTrace = extractTraceContextFromSNSSQSEvent(event)
 		}
@@ -99,7 +99,7 @@ func extractTraceContextFromSNSSQSEvent(firstRecord events.SQSMessage) *rawTrace
 	return &traceData
 }
 
-func extractTraceContextfromDatadogHeader(ddPayloadValue events.SQSMessageAttribute) *rawTraceContext {
+func extractTraceContextFromDatadogHeader(ddPayloadValue events.SQSMessageAttribute) *rawTraceContext {
 	var traceData rawTraceContext
 	if ddPayloadValue.DataType == "String" {
 		err := json.Unmarshal([]byte(*ddPayloadValue.StringValue), &traceData)
