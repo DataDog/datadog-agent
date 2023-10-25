@@ -455,6 +455,7 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 		sqllexer.WithCollectComments(opts.CollectComments),
 		sqllexer.WithCollectCommands(opts.CollectCommands),
 		sqllexer.WithCollectTables(opts.TableNames),
+		sqllexer.WithCollectProcedures(opts.CollectProcedures),
 		sqllexer.WithKeepSQLAlias(opts.KeepSQLAlias),
 	)
 	out, statementMetadata, err := sqllexer.ObfuscateAndNormalize(
@@ -469,10 +470,11 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 	oq := &ObfuscatedQuery{
 		Query: out,
 		Metadata: SQLMetadata{
-			Size:      int64(statementMetadata.Size),
-			TablesCSV: strings.Join(statementMetadata.Tables, ","),
-			Commands:  statementMetadata.Commands,
-			Comments:  statementMetadata.Comments,
+			Size:       int64(statementMetadata.Size),
+			TablesCSV:  strings.Join(statementMetadata.Tables, ","),
+			Commands:   statementMetadata.Commands,
+			Comments:   statementMetadata.Comments,
+			Procedures: statementMetadata.Procedures,
 		},
 	}
 

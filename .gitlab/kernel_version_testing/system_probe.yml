@@ -1,17 +1,17 @@
 .pull_test_dockers:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: []
-  tags: ["runner:docker"]
+  tags: ["arch:amd64"]
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | crane auth login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Pull base images
     - mkdir $KITCHEN_DOCKERS
-    - inv -e system-probe.save-test-dockers --output-dir $KITCHEN_DOCKERS --arch $ARCH
+    - inv -e system-probe.save-test-dockers --use-crane --output-dir $KITCHEN_DOCKERS --arch $ARCH
   artifacts:
     expire_in: 1 day
     paths:
@@ -358,7 +358,7 @@ kernel_matrix_testing_run_tests_x64:
     ARCH: "x86_64"
   parallel:
     matrix:
-      - TAG: ["bionic", "focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_35", "fedora_36", "fedora_37", "fedora_38"]
+      - TAG: ["ubuntu_18.04", "ubuntu_20.04", "ubuntu_22.04", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38", "debian_10", "debian_11"]
 
 kernel_matrix_testing_run_tests_arm64:
   extends:
@@ -371,7 +371,7 @@ kernel_matrix_testing_run_tests_arm64:
     ARCH: "arm64"
   parallel:
     matrix:
-      - TAG: ["focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_35", "fedora_36", "fedora_37", "fedora_38"]
+      - TAG: ["ubuntu_20.04", "ubuntu_22.04", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38"]
 
 kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing

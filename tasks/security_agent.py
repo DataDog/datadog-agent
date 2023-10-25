@@ -364,7 +364,7 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        results = run_golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags, arch=arch)
         for result in results:
             # golangci exits with status 1 when it finds an issue
             if result.exited != 0:
@@ -625,12 +625,7 @@ def cws_go_generate(ctx):
             ctx.run("GOOS=linux go generate ./...")
         ctx.run("go generate ./...")
 
-    if sys.platform == "win32":
-        shutil.copy(
-            "./pkg/security/serializers/serializers_windows_easyjson.mock",
-            "./pkg/security/serializers/serializers_windows_easyjson.go",
-        )
-    else:
+    if sys.platform == "linux":
         shutil.copy(
             "./pkg/security/serializers/serializers_linux_easyjson.mock",
             "./pkg/security/serializers/serializers_linux_easyjson.go",

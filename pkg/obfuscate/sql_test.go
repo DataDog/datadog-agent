@@ -2123,13 +2123,14 @@ func TestSQLLexerObfuscation(t *testing.T) {
 
 func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 	tests := []struct {
-		name             string
-		query            string
-		expected         string
-		replaceDigits    bool
-		dollarQuotedFunc bool
-		keepSQLAlias     bool
-		metadata         SQLMetadata
+		name              string
+		query             string
+		expected          string
+		replaceDigits     bool
+		dollarQuotedFunc  bool
+		keepSQLAlias      bool
+		collectProcedures bool
+		metadata          SQLMetadata
 	}{
 		{
 			name:     "simple query obfuscation and normalization",
@@ -2141,7 +2142,8 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Commands: []string{
 					"SELECT",
 				},
-				Comments: []string{},
+				Comments:   []string{},
+				Procedures: []string{},
 			},
 		},
 		{
@@ -2155,7 +2157,8 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Commands: []string{
 					"SELECT",
 				},
-				Comments: []string{},
+				Comments:   []string{},
+				Procedures: []string{},
 			},
 		},
 		{
@@ -2177,6 +2180,7 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 					"-- comment",
 					"/* comment */",
 				},
+				Procedures: []string{},
 			},
 		},
 		{
@@ -2190,7 +2194,8 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Commands: []string{
 					"SELECT",
 				},
-				Comments: []string{},
+				Comments:   []string{},
+				Procedures: []string{},
 			},
 		},
 		{
@@ -2204,7 +2209,8 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Commands: []string{
 					"SELECT",
 				},
-				Comments: []string{},
+				Comments:   []string{},
+				Procedures: []string{},
 			},
 		},
 		{
@@ -2219,7 +2225,44 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Commands: []string{
 					"SELECT",
 				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:              "normalization with stored procedure enabled",
+			query:             "CREATE PROCEDURE TestProc AS BEGIN SELECT * FROM users WHERE id = 1 END",
+			expected:          "CREATE PROCEDURE TestProc AS BEGIN SELECT * FROM users WHERE id = ? END",
+			collectProcedures: true,
+			metadata: SQLMetadata{
+				Size:      30,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
+					"BEGIN",
+					"SELECT",
+				},
 				Comments: []string{},
+				Procedures: []string{
+					"TestProc",
+				},
+			},
+		},
+		{
+			name:              "normalization with stored procedure disabled",
+			query:             "CREATE PROCEDURE TestProc AS BEGIN UPDATE users SET name = 'test' WHERE id = 1 END",
+			expected:          "CREATE PROCEDURE TestProc AS BEGIN UPDATE users SET name = ? WHERE id = ? END",
+			collectProcedures: false,
+			metadata: SQLMetadata{
+				Size:      22,
+				TablesCSV: "users",
+				Commands: []string{
+					"CREATE",
+					"BEGIN",
+					"UPDATE",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
 			},
 		},
 	}
@@ -2228,13 +2271,14 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
-					ObfuscationMode:  "obfuscate_and_normalize",
-					ReplaceDigits:    tt.replaceDigits,
-					DollarQuotedFunc: tt.dollarQuotedFunc,
-					KeepSQLAlias:     tt.keepSQLAlias,
-					TableNames:       true,
-					CollectCommands:  true,
-					CollectComments:  true,
+					ObfuscationMode:   "obfuscate_and_normalize",
+					ReplaceDigits:     tt.replaceDigits,
+					DollarQuotedFunc:  tt.dollarQuotedFunc,
+					KeepSQLAlias:      tt.keepSQLAlias,
+					TableNames:        true,
+					CollectCommands:   true,
+					CollectComments:   true,
+					CollectProcedures: tt.collectProcedures,
 				},
 			}).ObfuscateSQLString(tt.query)
 			require.NoError(t, err)

@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -146,6 +147,16 @@ func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientIn
 	sender.SendEvent(rule, event, nil, "")
 }
 
+// ReportHeartbeatEvent periodically reports to Datadog that
+func ReportHeartbeatEvent(sender events.EventSender, policies map[string]Policy) {
+	log.Infof("send heartbeat")
+
+	rule, events := NewHeartbeatEvents(policies)
+	for _, event := range events {
+		sender.SendEvent(rule, event, nil, "")
+	}
+}
+
 // RuleState defines a loaded rule
 // easyjson:json
 type RuleState struct {
@@ -171,6 +182,23 @@ type PolicyState struct {
 type RulesetLoadedEvent struct {
 	events.CustomEventCommonFields
 	Policies []*PolicyState `json:"policies"`
+}
+
+// ToJSON marshal using json format
+func (e RulesetLoadedEvent) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
+// HeartbeatEvent is used to report the policies that has been loaded
+// easyjson:json
+type HeartbeatEvent struct {
+	events.CustomEventCommonFields
+	Policy *PolicyState `json:"policy"`
+}
+
+// ToJSON marshal using json format
+func (e HeartbeatEvent) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
 }
 
 // PolicyStateFromRuleDefinition returns a policy state based on the rule definition
@@ -243,4 +271,28 @@ func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.E
 
 	return events.NewCustomRule(events.RulesetLoadedRuleID, events.RulesetLoadedRuleDesc),
 		events.NewCustomEvent(model.CustomRulesetLoadedEventType, evt)
+}
+
+// NewHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
+func NewHeartbeatEvents(policies map[string]Policy) (*rules.Rule, []*events.CustomEvent) {
+
+	var evts []*events.CustomEvent
+
+	for _, policy := range policies {
+		var policyState = PolicyState{
+			Name:    policy.Name,
+			Version: policy.Version,
+			Source:  policy.Source,
+			Rules:   nil, // The rules that have been loaded at startup are not reported in the heartbeat event
+		}
+
+		evt := HeartbeatEvent{
+			Policy: &policyState,
+		}
+		evt.FillCustomEventCommonFields()
+		evts = append(evts, events.NewCustomEvent(model.CustomHeartbeatEventType, evt))
+	}
+
+	return events.NewCustomRule(events.HeartbeatRuleID, events.HeartbeatRuleDesc),
+		evts
 }
