@@ -372,7 +372,6 @@ func LoadNfConntrackKernelModule(ns netns.NsHandle) error {
 	}
 	_, _, err = sock.ReceiveAndDiscard()
 	if err != nil {
-		log.Errorf("ADAMK SOMETHING BROKE")
 		return fmt.Errorf("error while trying to load dummy entry from netlink: %w", err)
 	}
 	return nil
