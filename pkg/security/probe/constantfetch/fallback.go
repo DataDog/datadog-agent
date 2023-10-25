@@ -129,6 +129,8 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getLinuxBinPrmEnvcOffset(f.kernelVersion)
 	case OffsetNameVMAreaStructFlags:
 		value = getVMAreaStructFlagsOffset(f.kernelVersion)
+	case OffsetNameKernelCloneArgsExitSignal:
+		value = getKernelCloneArgsExitSignalOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -942,4 +944,13 @@ func getPIDLinkPIDOffset(kv *kernel.Version) uint64 {
 		offset = uint64(16)
 	}
 	return offset
+}
+
+func getKernelCloneArgsExitSignalOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_5, kernel.Kernel6_6):
+		return 40
+	default:
+		return 32
+	}
 }
