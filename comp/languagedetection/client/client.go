@@ -193,18 +193,6 @@ func (c *client) startStreaming() {
 	periodicFlushTimer := time.NewTicker(c.periodicalFlushPeriod)
 	defer periodicFlushTimer.Stop()
 
-	if c.langDetectionCl == nil {
-		// TODO(components): The ClusterAgentClient should most likely be a component. Moreover it should provide a retry mechanism or at least, the duration before the next try.
-		// Since currently we never retry `GetClusterAgentClient` in other parts of the code, we choose to follow the same pattern.
-		dcaClient, err := clusteragent.GetClusterAgentClient()
-		if err != nil {
-			c.logger.Errorf("failed to get dca client %s, stopping language exporter", err)
-			c.cancel()
-			return
-		}
-		c.langDetectionCl = dcaClient
-	}
-
 	for {
 		select {
 		// frequently send only fresh updates
@@ -227,8 +215,20 @@ func (c *client) send(data *process.ParentLanguageAnnotationRequest) {
 	if data == nil {
 		return
 	}
+	var client clusteragent.LanguageDetectionClient
+	// For unit tests
+	if c.langDetectionCl != nil {
+		client = c.langDetectionCl
+	} else {
+		dcaClient, err := clusteragent.GetClusterAgentClient()
+		if err != nil {
+			c.logger.Debugf("failed to get dca client %s, not sending batch", err)
+			return
+		}
+		client = dcaClient
+	}
 	t := time.Now()
-	err := c.langDetectionCl.PostLanguageMetadata(c.ctx, data)
+	err := client.PostLanguageMetadata(c.ctx, data)
 	if err != nil {
 		c.logger.Errorf("failed to post language metadata %v", err)
 		c.telemetry.Requests.Inc(statusError)

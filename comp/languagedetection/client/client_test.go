@@ -242,14 +242,14 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 		},
 		Containers: []workloadmeta.OrchestratorContainer{
 			{
-				ID:   "nginx-cont-id",
-				Name: "nginx-cont-name",
+				ID:   container.ID,
+				Name: container.Name,
 			},
 		},
 		InitContainers: []workloadmeta.OrchestratorContainer{
 			{
-				ID:   "init-nginx-cont-id",
-				Name: "nginx-cont-name",
+				ID:   initContainer.ID,
+				Name: initContainer.Name,
 			},
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{
@@ -269,18 +269,18 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 		Language: &languagemodels.Language{
 			Name: "java",
 		},
-		ContainerID: "nginx-cont-id",
+		ContainerID: container.ID,
 	}
 
 	initProcess := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
-			ID:   "123",
+			ID:   "1234",
 		},
 		Language: &languagemodels.Language{
 			Name: "go",
 		},
-		ContainerID: "init-nginx-cont-id",
+		ContainerID: initContainer.ID,
 	}
 
 	eventBundle := workloadmeta.EventBundle{
@@ -414,14 +414,14 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 		},
 		Containers: []workloadmeta.OrchestratorContainer{
 			{
-				ID:   "nginx-cont-id",
-				Name: "nginx-cont-name",
+				ID:   container.ID,
+				Name: container.Name,
 			},
 		},
 		InitContainers: []workloadmeta.OrchestratorContainer{
 			{
-				ID:   "init-nginx-cont-id",
-				Name: "nginx-cont-name",
+				ID:   initContainer.ID,
+				Name: initContainer.Name,
 			},
 		},
 		Owners: []workloadmeta.KubernetesPodOwner{
