@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/systray/systray"
+	"github.com/DataDog/datadog-agent/comp/systray/systray/systrayimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
 )
@@ -100,7 +101,7 @@ func MakeCommand() *cobra.Command {
 				diagnosesendermanagerimpl.Module,
 				// systray
 				fx.Supply(systrayParams),
-				systray.Module,
+				systrayimpl.Module,
 				// require the systray component, causing it to start
 				fx.Invoke(func(_ systray.Component) {}),
 			)

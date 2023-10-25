@@ -71,7 +71,7 @@ func TestConfInterval(t *testing.T) {
 		),
 	)
 
-	assert.Equal(t, 21*time.Second, ret.Comp.(*resources).collectInterval)
+	assert.Equal(t, 21*time.Second, ret.Comp.(*resourcesImpl).collectInterval)
 }
 
 func TestCollect(t *testing.T) {
@@ -88,7 +88,7 @@ func TestCollect(t *testing.T) {
 			jsonPayload, err := json.Marshal(payload)
 			require.NoError(t, err)
 			assert.Equal(t, expectedPayload, string(jsonPayload))
-			return bytes.Compare(jsonPayload, []byte(expectedPayload)) == 0
+			return bytes.Equal(jsonPayload, []byte(expectedPayload))
 		}),
 	).Return(nil)
 
@@ -101,7 +101,7 @@ func TestCollect(t *testing.T) {
 		),
 	)
 
-	r := ret.Comp.(*resources)
+	r := ret.Comp.(*resourcesImpl)
 	r.hostname = "resources-test-hostname"
 
 	interval := r.collect(context.Background())
@@ -125,7 +125,7 @@ func TestCollectError(t *testing.T) {
 		),
 	)
 
-	r := ret.Comp.(*resources)
+	r := ret.Comp.(*resourcesImpl)
 	interval := r.collect(context.Background())
 	assert.Equal(t, defaultCollectInterval, interval)
 	s.AssertExpectations(t)

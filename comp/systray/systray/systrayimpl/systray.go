@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/systray"
+	"github.com/DataDog/datadog-agent/comp/systray/systray"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -131,7 +131,7 @@ func newSystray(deps dependencies) (systray.Component, error) {
 }
 
 // start hook has a fx enforced timeout, so don't do long running things
-func (s *systrayImpl) start(ctx context.Context) error {
+func (s *systrayImpl) start(_ context.Context) error {
 	var err error
 
 	s.log.Debugf("launch-gui is %v, launch-elev is %v, launch-cmd is %v", s.params.LaunchGuiFlag, s.params.LaunchElevatedFlag, s.params.LaunchCommand)
@@ -158,7 +158,7 @@ func (s *systrayImpl) start(ctx context.Context) error {
 	return nil
 }
 
-func (s *systrayImpl) stop(ctx context.Context) error {
+func (s *systrayImpl) stop(_ context.Context) error {
 	if s.notifyWindowToStop != nil {
 		// Send stop message to window (stops windowRoutine goroutine)
 		s.notifyWindowToStop()
@@ -289,7 +289,7 @@ func loadIconFromResource(log log.Component, iconID int) (*walk.Icon, error) {
 		return nil, fmt.Errorf("Failed to load fallback icon: %x (%d)", gle, gle)
 	}
 
-	icon, err = walk.NewIconFromHICON(win.HICON(hIcon))
+	icon, err = walk.NewIconFromHICONForDPI(win.HICON(hIcon), 96)
 	return icon, err
 }
 
@@ -393,7 +393,7 @@ func onExit(s *systrayImpl) {
 	triggerShutdown(s)
 }
 
-func createMenuItems(s *systrayImpl, notifyIcon *walk.NotifyIcon) []menuItem {
+func createMenuItems(s *systrayImpl, _ *walk.NotifyIcon) []menuItem {
 	av, _ := version.Agent()
 	verstring := av.GetNumberAndPre()
 

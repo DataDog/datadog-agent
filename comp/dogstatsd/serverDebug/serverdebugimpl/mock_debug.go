@@ -10,7 +10,7 @@ package serverdebugimpl
 import (
 	"sync"
 
-	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 

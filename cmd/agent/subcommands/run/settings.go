@@ -7,7 +7,7 @@ package run
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverdebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 

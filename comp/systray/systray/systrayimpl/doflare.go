@@ -60,7 +60,7 @@ func calcPos(outer win.RECT, inner win.RECT) (x, y, w, h int32) {
 	h = innerHeight
 	return
 }
-func dialogProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) (result uintptr) {
+func dialogProc(hwnd win.HWND, msg uint32, wParam, _ uintptr) (result uintptr) {
 	switch msg {
 	case win.WM_INITDIALOG:
 		var wndrect win.RECT
