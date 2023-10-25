@@ -1713,6 +1713,7 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 
 					r := bufio.NewReader(c)
 					for {
+						// The server reads up to a marker, in our case `$`.
 						input, err := r.ReadBytes(byte('$'))
 						if err != nil {
 							return
