@@ -23,6 +23,7 @@ var (
 	entityIDIgnoreValue  = "none"
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
 	jmxTagPrefix         = "jmx_domain:"
+	jmxCheckNamePrefix   = "jmx_check_name:"
 )
 
 // enrichConfig contains static parameters used in various enrichment
@@ -81,6 +82,8 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 			cardinality = tag[len(CardinalityTagPrefix):]
 		} else if strings.HasPrefix(tag, jmxTagPrefix) {
 			metricSource = metrics.MetricSourceJmxCustom
+		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
+			// checkName := tag[len(jmxCheckNamePrefix):]
 		} else {
 			tags[n] = tag
 			n++
