@@ -32,7 +32,7 @@ const (
 	runningMetricPeriod = 15 * time.Minute
 
 	// periodicalFlushPeriod parametrizes when the current batch needs to be entirely sent
-	periodicalFlushPeriod = 10 * time.Minute
+	periodicalFlushPeriod = 100 * time.Minute
 )
 
 type dependencies struct {
