@@ -10,12 +10,11 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	e2eClient "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
 // SystemCtlSvcManager struct for the Systemctl service manager
 type SystemCtlSvcManager struct {
-	vmClient e2eClient.VM
+	vmClient client.VM
 }
 
 // NewSystemctlSvcManager return systemctl service manager

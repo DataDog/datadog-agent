@@ -11,15 +11,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDeploymentParser_Parse(t *testing.T) {
@@ -54,7 +53,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 				},
 			},
 			deployment: &appsv1.Deployment{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
 					Namespace: "test-namespace",
 					Labels: map[string]string{
@@ -84,7 +83,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 				ContainerLanguages:     map[string][]languagemodels.Language{},
 			},
 			deployment: &appsv1.Deployment{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
 					Namespace: "test-namespace",
 					Labels: map[string]string{
@@ -119,7 +118,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 				},
 			},
 			deployment: &appsv1.Deployment{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
 					Namespace: "test-namespace",
 					Labels: map[string]string{

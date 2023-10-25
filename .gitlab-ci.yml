@@ -92,6 +92,7 @@ stages:
   - functional_test_cleanup
   - functional_test_junit_upload
   - internal_kubernetes_deploy
+  - check_merge
   - notify
 
 variables:
