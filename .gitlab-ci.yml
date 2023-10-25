@@ -337,10 +337,6 @@ workflow:
 #
 
 .manual:
-  - when: manual
-    allow_failure: true
-
-.manual_but_not_mq:
   - <<: *if_mergequeue
     when: never
   - when: manual

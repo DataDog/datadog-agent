@@ -166,7 +166,7 @@ kitchen_stress_security_agent:
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
   rules:
-    !reference [.manual_but_not_mq]
+    !reference [.manual]
   stage: functional_test
   needs: ["tests_ebpf_x64", "prepare_ebpf_functional_tests_x64"]
   variables:
