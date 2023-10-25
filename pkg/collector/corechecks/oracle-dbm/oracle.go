@@ -87,6 +87,7 @@ type Check struct {
 	logPrompt                               string
 	initialized                             bool
 	multitenant                             bool
+	lastOracleRows                          []OracleRow // added for tests
 }
 
 func handleServiceCheck(c *Check, err error) {

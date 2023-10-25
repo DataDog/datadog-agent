@@ -403,7 +403,6 @@ func (c *Check) StatementMetrics() (int, error) {
 		var diff OracleRowMonotonicCount
 		planErrors = 0
 		for _, statementMetricRow := range statementMetricsAll {
-
 			var trace bool
 			for _, t := range c.config.QueryMetrics.Trackers {
 				if len(t.ContainsText) > 0 {
@@ -420,16 +419,15 @@ func (c *Check) StatementMetrics() (int, error) {
 					}
 				}
 			}
-
 			if trace {
-				log.Infof("%s queried: %+v", c.logPrompt, statementMetricRow)
+				log.Errorf("%s qm_tracker queried: %+v", c.logPrompt, statementMetricRow)
 			}
 
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
 			if exists {
 				if trace {
-					log.Infof("%s previous: %+v %+v", c.logPrompt, statementMetricRow.StatementMetricsKeyDB, previousMonotonic)
+					log.Errorf("%s qm_tracker previous: %+v %+v", c.logPrompt, statementMetricRow.StatementMetricsKeyDB, previousMonotonic)
 				}
 				diff = OracleRowMonotonicCount{}
 				if diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls; diff.ParseCalls < 0 {
@@ -571,7 +569,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			oracleRows = append(oracleRows, oracleRow)
 			if trace {
-				log.Infof("%s payload: %+v", c.logPrompt, oracleRow)
+				log.Errorf("%s qm_tracker payload: %+v", c.logPrompt, oracleRow)
 			}
 
 			if c.fqtEmitted == nil {
@@ -805,6 +803,8 @@ func (c *Check) StatementMetrics() (int, error) {
 		OracleRows:            oracleRows,
 		OracleVersion:         c.dbVersion,
 	}
+
+	c.lastOracleRows = oracleRows
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {

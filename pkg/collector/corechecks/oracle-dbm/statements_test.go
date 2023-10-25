@@ -13,17 +13,69 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
 	"github.com/jmoiron/sqlx"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestQueryMetrics(t *testing.T) {
-	chk.dbmEnabled = true
-	chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
-	count, err := chk.StatementMetrics()
+func runStatementMetrics(c Check, t *testing.T) {
+	c.statementsLastRun = time.Now().Add(-48 * time.Hour)
+	count, err := c.StatementMetrics()
 	assert.NoError(t, err, "failed to run query metrics")
 	assert.NotEmpty(t, count, "No statements processed in query metrics")
+}
+
+func initCheckReal(t *testing.T) Check {
+	chk = Check{}
+
+	rawInstanceConfig := []byte(fmt.Sprintf(`
+server: %s
+port: %d
+username: %s
+password: %s
+service_name: %s
+dbm: true
+query_metrics:
+  trackers:
+    - contains_text:
+      - dual
+`, HOST, PORT, USER, PASSWORD, SERVICE_NAME))
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	require.NoError(t, err)
+
+	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)
+	assert.Equal(t, chk.config.InstanceConfig.Port, PORT)
+	assert.Equal(t, chk.config.InstanceConfig.Username, USER)
+	assert.Equal(t, chk.config.InstanceConfig.Password, PASSWORD)
+	assert.Equal(t, chk.config.InstanceConfig.ServiceName, SERVICE_NAME)
+
+	return chk
+}
+
+func TestQueryMetrics(t *testing.T) {
+	chk := initCheckReal(t)
+	//chk.dbmEnabled = true
+
+	var err error
+	var r int
+	err = chk.Run()
+	assert.NoError(t, err, "statement check run")
+
+	testQuery := "select count(*) from dual"
+
+	err = getWrapper(&chk, &r, testQuery)
+	assert.NoError(t, err, "failed to execute test query")
+	runStatementMetrics(chk, t)
+
+	err = getWrapper(&chk, &r, testQuery)
+	assert.NoError(t, err, "failed to execute test query")
+	runStatementMetrics(chk, t)
+
+	assert.Contains(t, chk.lastOracleRows, "dual")
 }
 
 func TestUInt64Binding(t *testing.T) {
