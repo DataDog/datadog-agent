@@ -341,10 +341,10 @@ workflow:
     allow_failure: true
 
 .manual_but_not_mq:
-  - when: manual
-    allow_failure: true
   - <<: *if_mergequeue
     when: never
+  - when: manual
+    allow_failure: true
 
 .on_a6:
   - <<: *if_version_6
