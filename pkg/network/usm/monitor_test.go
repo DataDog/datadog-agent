@@ -67,7 +67,14 @@ const (
 
 var (
 	emptyBody = []byte(nil)
+	kv        = kernel.MustHostVersion()
 )
+
+func skipIfUSMNotSupported(t *testing.T) {
+	if kv < http.MinimumKernelVersion {
+		t.Skipf("USM is not supported on %v", kv)
+	}
+}
 
 func TestMonitorProtocolFail(t *testing.T) {
 	failingStartupMock := func(_ *manager.Manager) error {
@@ -105,6 +112,7 @@ type HTTPTestSuite struct {
 }
 
 func TestHTTP(t *testing.T) {
+	skipIfUSMNotSupported(t)
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
@@ -520,8 +528,6 @@ type captureRange struct {
 }
 
 func TestHTTP2(t *testing.T) {
-	t.Skip("tests are broken after upgrading go-grpc to 1.58")
-
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < usmhttp2.MinimumKernelVersion {

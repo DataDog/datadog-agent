@@ -39,7 +39,21 @@ type k8sSuite struct {
 	K8sClient *kubernetes.Clientset
 }
 
-func (suite *k8sSuite) TestAgent() {
+// Once pulumi has finished to create a stack, it can still take some time for the images to be pulled,
+// for the containers to be started, for the agent collectors to collect workload information
+// and to feed workload meta and the tagger.
+//
+// We could increase the timeout of all tests to cope with the agent tagger warmup time.
+// But in case of a single bug making a single tag missing from every metric,
+// all the tests would time out and that would be a waste of time.
+//
+// It’s better to have the first test having a long timeout to wait for the agent to warmup,
+// and to have the following tests with a smaller timeout.
+//
+// Inside a testify test suite, tests are executed in alphabetical order.
+// The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready
+// is run first.
+func (suite *k8sSuite) Test00UpAndRunning() {
 	ctx := context.Background()
 
 	suite.Run("agent pods are ready and not restarting", func() {
@@ -118,7 +132,7 @@ func (suite *k8sSuite) TestAgent() {
 					}
 				}
 			}
-		}, 2*time.Minute, 10*time.Second, "Not all agents eventually became ready in time.")
+		}, 5*time.Minute, 10*time.Second, "Not all agents eventually became ready in time.")
 	})
 
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)

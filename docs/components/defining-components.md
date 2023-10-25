@@ -1,24 +1,24 @@
 # Defining Components
 
 A component is defined in a dedicated package named `comp/<bundleName>/<component>`, where `<bundleName>` names the bundle that contains the component.
-The package must have the following defined in `component.go`:
+The package must have the following defined in:
+  * `component.go`
+    * Extensive package-level documentation.
+      This should define, as precisely as possible, the behavior of the component, acting as a contract on which users of the component may depend.
+      See the "Documentation" section below for details.
 
- * Extensive package-level documentation.
-   This should define, as precisely as possible, the behavior of the component, acting as a contract on which users of the component may depend.
-   See the "Documentation" section below for details.
+    * A team-name comment of the form `// team: <teamname>`.
+      This is used to generate CODEOWNERS information.
 
- * A team-name comment of the form `// team: <teamname>`.
-   This is used to generate CODEOWNERS information.
-
- * `Component` -- the interface type implemented by the component.
-   This is the type by which other components will require this one via `fx`.
-   It can be an empty interface, if there is no need for any methods.
-   It should have a formulaic doc string like `// Component is the component type.`, deferring documentation to the package docs.
-   All interface methods should be exported and thoroughly documented.
-
- * `Module` -- an `fx.Option` that can be included in the bundle's `Module` or an `fx.App` to make this component available.
-   To assist with debugging, use `fxutil.Component(options...)`.
-   This item should have a formulaic doc string like `// Module defines the fx options for this component.`
+    * `Component` -- the interface type implemented by the component.
+      This is the type by which other components will require this one via `fx`.
+      It can be an empty interface, if there is no need for any methods.
+      It should have a formulaic doc string like `// Component is the component type.`, deferring documentation to the package docs.
+      All interface methods should be exported and thoroughly documented.
+  * `impl/your_filename.go`      
+    * `Module` -- an `fx.Option` that can be included in the bundle's `Module` or an `fx.App` to make this component available. The `Module` is defined in a separate package from the component. This allows a package using only the component interface to not have to import the dependencies of the implementation of this component.
+      To assist with debugging, use `fxutil.Component(options...)`.
+      This item should have a formulaic doc string like `// Module defines the fx options for this component.`
 
 Components should not be nested; that is, no component's Go path should be a prefix of another component's Go path.
 
@@ -37,6 +37,11 @@ type Component interface {
 	// Foo is ... (detailed doc comment)
 	Foo(key string) string
 }
+```
+
+The completed `impl/your_filename.go` looks like this:
+```go
+package config
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
@@ -44,10 +49,15 @@ var Module = fxutil.Component(
 )
 ```
 
-The Component interface is implemented in another file by an unexported type with a sensible name such as `launcher` or `provider` or the classic `foo`.
+The Component interface is implemented in the same file as the module definition by an unexported type with a sensible name such as `launcher` or `provider` or the classic `foo`.
 
 ```go
 package config
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+    fx.Provide(newFoo),
+)
 
 type foo {
     foos []string
@@ -115,14 +125,20 @@ Documentation should include:
 
 ## Testing Support
 
-To support testing, components can optionally provide a mock implementation, with the following in `component.go`.
 
- * `Mock` -- the type implemented by the mock version of the component.
-   This should embed `pkg.Component`, and provide additional exported methods for manipulating the mock for use by other packages.
+To support testing, components can optionally provide a mock implementation, with the following in:
+  * `component_mock.go`
+    * `Mock` -- the type implemented by the mock version of the component.
+    This should embed `pkg.Component`, and provide additional exported methods for manipulating the mock for use by other packages.
+  * `impl/your_filename_mock.go`      
+    * `MockModule` -- an `fx.Option` that can be included in a test `App` to get the component's mock implementation.
 
- * `MockModule` -- an `fx.Option` that can be included in a test `App` to get the component's mock implementation.
-
+The `component_mock.go` looks like this:
 ```go
+//go:build test
+
+package foo
+
 // Mock implements mock-specific methods.
 type Mock interface {
     // Component methods are included in Mock.
@@ -131,6 +147,13 @@ type Mock interface {
     // AddedFoos returns the foos added by AddFoo calls on the mock implementation.
     AddedFoos() []Foo
 }
+```
+
+The `impl/your_filename_mock.go` looks like this:
+```go
+//go:build test
+
+package foo
 
 // MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(

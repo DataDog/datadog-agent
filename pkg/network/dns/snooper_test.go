@@ -8,7 +8,6 @@
 package dns
 
 import (
-	"math/rand"
 	"net"
 	"strconv"
 	"syscall"
@@ -143,14 +142,11 @@ func sendDNSQueriesOnPort(t *testing.T, domains []string, serverIP string, port 
 	msg.RecursionDesired = true
 	queryIP := getOutboundIP(t, serverIP).String()
 
-	rand.Seed(time.Now().UnixNano())
-	queryPort := rand.Intn(20000) + 10000
-
 	var dnsClientAddr net.Addr
 	if protocol == "tcp" {
-		dnsClientAddr = &net.TCPAddr{IP: net.ParseIP(queryIP), Port: queryPort}
+		dnsClientAddr = &net.TCPAddr{IP: net.ParseIP(queryIP)}
 	} else {
-		dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(queryIP), Port: queryPort}
+		dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(queryIP)}
 	}
 
 	localAddrDialer := &net.Dialer{
@@ -160,23 +156,23 @@ func sendDNSQueriesOnPort(t *testing.T, domains []string, serverIP string, port 
 
 	dnsClient := mdns.Client{Net: protocol, Dialer: localAddrDialer}
 	dnsHost := net.JoinHostPort(serverIP, port)
-	var reps []*mdns.Msg
+	conn, err := dnsClient.Dial(dnsHost)
+	require.NoError(t, err)
 
+	var reps []*mdns.Msg
+	var queryPort int
 	if protocol == "tcp" {
-		conn, err := dnsClient.Dial(dnsHost)
-		require.NoError(t, err)
-		for _, domain := range domains {
-			msg.SetQuestion(mdns.Fqdn(domain), mdns.TypeA)
-			rep, _, _ := dnsClient.ExchangeWithConn(msg, conn)
-			reps = append(reps, rep)
-		}
+		queryPort = conn.Conn.(*net.TCPConn).LocalAddr().(*net.TCPAddr).Port
 	} else { // UDP
-		for _, domain := range domains {
-			msg.SetQuestion(mdns.Fqdn(domain), mdns.TypeA)
-			rep, _, _ := dnsClient.Exchange(msg, dnsHost)
-			reps = append(reps, rep)
-		}
+		queryPort = conn.Conn.(*net.UDPConn).LocalAddr().(*net.UDPAddr).Port
 	}
+
+	for _, domain := range domains {
+		msg.SetQuestion(mdns.Fqdn(domain), mdns.TypeA)
+		rep, _, _ := dnsClient.ExchangeWithConn(msg, conn)
+		reps = append(reps, rep)
+	}
+
 	return queryIP, queryPort, reps
 }
 
