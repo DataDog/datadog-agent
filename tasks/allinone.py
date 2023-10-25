@@ -47,13 +47,14 @@ def build(
     exclude_rtloader=False,
     go_mod="mod",
     windows_sysprobe=False,
+    exclude=(),
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
     the values from `invoke.yaml` will be used.
 
     Example invokation:
-        inv agent.build --build-exclude=systemd
+        inv allinone.build --exclude=trace-agent
     """
     flavor = AgentFlavor[flavor]
 
@@ -84,14 +85,18 @@ def build(
         all_tags.add("ebpf_bindata")
 
     for build in ALLINONE_AGENTS:
-        include = (
+        if build in exclude:
+            all_tags.add("no_"+build.replace("-", "_"))
+            continue
+
+        include_tags = (
             get_default_build_tags(build=build, arch=arch, flavor=flavor)
             if build_include is None
             else filter_incompatible_tags(build_include.split(","), arch=arch)
         )
 
-        exclude = [] if build_exclude is None else build_exclude.split(",")
-        build_tags = get_build_tags(include, exclude)
+        exclude_tags = [] if build_exclude is None else build_exclude.split(",")
+        build_tags = get_build_tags(include_tags, exclude_tags)
 
         all_tags |= set(build_tags)
     build_tags = list(all_tags)
