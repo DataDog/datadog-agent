@@ -23,6 +23,9 @@ import (
 
 type handleToContext map[string][]secretContext
 
+// SecretBackendTimeoutDefault is the default value of the secret_backend_timeout config.
+const SecretBackendTimeoutDefault = 30
+
 var (
 	// testing purpose
 	secretFetcher       = fetchSecret
@@ -34,7 +37,7 @@ var (
 
 	secretBackendCommand               string
 	secretBackendArguments             []string
-	secretBackendTimeout               = 5
+	secretBackendTimeout               = SecretBackendTimeoutDefault
 	secretBackendCommandAllowGroupExec bool
 	removeTrailingLinebreak            bool
 
