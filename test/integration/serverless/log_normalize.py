@@ -269,7 +269,7 @@ def get_normalizers(typ, stage):
 def format_json(log):
     try:
         return json.dumps(json.loads(log, strict=False), indent=2)
-    except Exception:
+    except json.JSONDecodeError:
         return log
 
 
