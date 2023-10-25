@@ -90,53 +90,53 @@ func TestAggregator(t *testing.T) {
 	// language=json
 	event := []byte(`
 {
-  "flush_timestamp": 1550505606000,
-  "type": "netflow9",
-  "sampling_rate": 0,
-  "direction": "ingress",
-  "start": 1234568,
-  "end": 1234569,
   "bytes": 20,
-  "packets": 4,
-  "ether_type": "IPv4",
-  "ip_protocol": "TCP",
-  "device": {
-    "namespace": "my-ns"
-  },
-  "exporter": {
-    "ip": "127.0.0.1"
-  },
-  "source": {
-    "ip": "10.10.10.10",
-    "port": "2000",
-    "mac": "00:00:00:00:00:00",
-    "mask": "0.0.0.0/0"
-  },
   "destination": {
     "ip": "10.10.10.20",
     "port": "80",
     "mac": "00:00:00:00:00:00",
     "mask": "0.0.0.0/0"
   },
-  "ingress": {
-    "interface": {
-      "index": 0
-    }
+  "device": {
+    "namespace": "my-ns"
   },
+  "direction": "ingress",
   "egress": {
     "interface": {
       "index": 0
     }
   },
+  "end": 1234569,
+  "ether_type": "IPv4",
+  "exporter": {
+    "ip": "127.0.0.1"
+  },
+  "flush_timestamp": 1550505606000,
   "host": "my-hostname",
+  "ingress": {
+    "interface": {
+      "index": 0
+    }
+  },
+  "ip_protocol": "TCP",
+  "next_hop": {
+    "ip": ""
+  },
+  "packets": 4,
+  "sampling_rate": 0,
+  "source": {
+    "ip": "10.10.10.10",
+    "port": "2000",
+    "mac": "00:00:00:00:00:00",
+    "mask": "0.0.0.0/0"
+  },
+  "start": 1234568,
   "tcp_flags": [
     "FIN",
     "SYN",
     "ACK"
   ],
-  "next_hop": {
-    "ip": ""
-  }
+  "type": "netflow9"
 }
 `)
 	compactEvent := new(bytes.Buffer)
