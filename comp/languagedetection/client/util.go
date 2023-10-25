@@ -7,43 +7,13 @@
 package client
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
+
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-type languageSet map[string]struct{}
-type containerInfo map[string]languageSet
 type batch map[string]*podInfo
-
-func (c containerInfo) toProto() []*pbgo.ContainerLanguageDetails {
-	res := make([]*pbgo.ContainerLanguageDetails, 0, len(c))
-	for containerName, languageSet := range c {
-		res = append(res, &pbgo.ContainerLanguageDetails{
-			ContainerName: containerName,
-			Languages:     languageSet.toProto(),
-		})
-	}
-	return res
-}
-
-// add returns if a language was added
-func (l languageSet) add(language string) bool {
-	if _, ok := l[language]; ok {
-		return false
-	}
-	l[language] = struct{}{}
-	return true
-}
-
-func (l languageSet) toProto() []*pbgo.Language {
-	res := make([]*pbgo.Language, 0, len(l))
-	for lang := range l {
-		res = append(res, &pbgo.Language{
-			Name: lang,
-		})
-	}
-	return res
-}
 
 func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadmeta.KubernetesPodOwner) *podInfo {
 	if podInfo, ok := b[podName]; ok {
@@ -51,8 +21,8 @@ func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadm
 	}
 	b[podName] = &podInfo{
 		namespace:         podnamespace,
-		containerInfo:     make(containerInfo),
-		initContainerInfo: make(containerInfo),
+		containerInfo:     languagedetection.NewContainersLanguages(),
+		initContainerInfo: languagedetection.NewContainersLanguages(),
 		ownerRef:          ownerRef,
 	}
 	return b[podName]
@@ -60,8 +30,8 @@ func (b batch) getOrAddPodInfo(podName, podnamespace string, ownerRef *workloadm
 
 type podInfo struct {
 	namespace         string
-	containerInfo     containerInfo
-	initContainerInfo containerInfo
+	containerInfo     languagedetection.ContainersLanguages
+	initContainerInfo languagedetection.ContainersLanguages
 	ownerRef          *workloadmeta.KubernetesPodOwner
 }
 
@@ -74,12 +44,12 @@ func (p *podInfo) toProto(podName string) *pbgo.PodLanguageDetails {
 			Name: p.ownerRef.Name,
 			Kind: p.ownerRef.Kind,
 		},
-		ContainerDetails:     p.containerInfo.toProto(),
-		InitContainerDetails: p.initContainerInfo.toProto(),
+		ContainerDetails:     p.containerInfo.ToProto(),
+		InitContainerDetails: p.initContainerInfo.ToProto(),
 	}
 }
 
-func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bool) languageSet {
+func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bool) languagedetection.LanguageSet {
 	cInfo := p.containerInfo
 	if isInitContainer {
 		cInfo = p.initContainerInfo
@@ -88,14 +58,14 @@ func (p *podInfo) getOrAddContainerInfo(containerName string, isInitContainer bo
 	if languageSet, ok := cInfo[containerName]; ok {
 		return languageSet
 	}
-	cInfo[containerName] = make(languageSet)
+	cInfo[containerName] = languagedetection.NewLanguageSet()
 	return cInfo[containerName]
 }
 
 func (b batch) toProto() *pbgo.ParentLanguageAnnotationRequest {
 	res := &pbgo.ParentLanguageAnnotationRequest{}
-	for podName, language := range b {
-		res.PodDetails = append(res.PodDetails, language.toProto(podName))
+	for podName, podInfo := range b {
+		res.PodDetails = append(res.PodDetails, podInfo.toProto(podName))
 	}
 	return res
 }

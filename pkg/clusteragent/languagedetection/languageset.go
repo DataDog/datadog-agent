@@ -8,6 +8,8 @@ package languagedetection
 import (
 	"sort"
 	"strings"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 // LanguageSet is a set of languages
@@ -18,9 +20,13 @@ func NewLanguageSet() LanguageSet {
 	return make(LanguageSet)
 }
 
-// Add adds a new language to the language set
-func (langSet LanguageSet) Add(languageName string) {
+// Add adds a new language to the language set, returning if something was added
+func (langSet LanguageSet) Add(languageName string) bool {
+	if _, ok := langSet[languageName]; ok {
+		return false
+	}
 	langSet[languageName] = struct{}{}
+	return true
 }
 
 // Parse parses a comma-separated languages string and adds the languages to the language set
@@ -47,4 +53,28 @@ func (langSet LanguageSet) String() string {
 	}
 	sort.Strings(langNames)
 	return strings.Join(langNames, ",")
+}
+
+// ToProto returns a proto message Language
+func (langSet LanguageSet) ToProto() []*pbgo.Language {
+	res := make([]*pbgo.Language, 0, len(langSet))
+	for lang := range langSet {
+		res = append(res, &pbgo.Language{
+			Name: lang,
+		})
+	}
+	return res
+}
+
+// Equals returns if the LanguageSet is equal to another LanguageSet
+func (langSet LanguageSet) Equals(other LanguageSet) bool {
+	if len(langSet) != len(other) {
+		return false
+	}
+	for key := range langSet {
+		if _, ok := other[key]; !ok {
+			return false
+		}
+	}
+	return true
 }

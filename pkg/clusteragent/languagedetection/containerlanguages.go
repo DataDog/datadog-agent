@@ -8,6 +8,8 @@ package languagedetection
 import (
 	"fmt"
 	"regexp"
+
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
 var re = regexp.MustCompile(`apm\.datadoghq\.com\/(init)?\.?(.+?)\.languages`)
@@ -74,4 +76,29 @@ func (containerslanguages ContainersLanguages) ToAnnotations() map[string]string
 	}
 
 	return annotations
+}
+
+// ToProto returns a proto message ContainerLanguageDetails
+func (containerslanguages ContainersLanguages) ToProto() []*pbgo.ContainerLanguageDetails {
+	res := make([]*pbgo.ContainerLanguageDetails, 0, len(containerslanguages))
+	for containerName, languageSet := range containerslanguages {
+		res = append(res, &pbgo.ContainerLanguageDetails{
+			ContainerName: containerName,
+			Languages:     languageSet.ToProto(),
+		})
+	}
+	return res
+}
+
+// Equals returns if the ContainersLanguages is equal to another ContainersLanguages
+func (containerslanguages ContainersLanguages) Equals(other ContainersLanguages) bool {
+	if len(containerslanguages) != len(other) {
+		return false
+	}
+	for key, val := range containerslanguages {
+		if otherVal, ok := other[key]; !ok || !val.Equals(otherVal) {
+			return false
+		}
+	}
+	return true
 }

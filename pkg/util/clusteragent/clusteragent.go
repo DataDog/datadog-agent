@@ -47,14 +47,8 @@ var globalClusterAgentClient *DCAClient
 
 type metadataNames []string
 
-// LanguageDetectionClient defines the method to send a message to the Cluster-Agent
-type LanguageDetectionClient interface {
-	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
-}
-
 // DCAClientInterface  is required to query the API of Datadog cluster agent
 type DCAClientInterface interface {
-	LanguageDetectionClient
 	Version() version.Version
 	ClusterAgentAPIEndpoint() string
 
@@ -70,6 +64,8 @@ type DCAClientInterface interface {
 	GetClusterCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error)
 	GetKubernetesClusterID() (string, error)
+
+	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
 }
 
 // DCAClient is required to query the API of Datadog cluster agent

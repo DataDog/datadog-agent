@@ -15,6 +15,7 @@ import (
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
@@ -44,6 +45,11 @@ type dependencies struct {
 	// TODO(components): Workloadmeta workloadmeta.Component
 }
 
+// languageDetectionClient defines the method to send a message to the Cluster-Agent
+type languageDetectionClient interface {
+	PostLanguageMetadata(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error
+}
+
 // client sends language information to the Cluster-Agent
 type client struct {
 	ctx    context.Context
@@ -55,7 +61,7 @@ type client struct {
 	mutex sync.Mutex
 
 	// DCA Client
-	langDetectionCl clusteragent.LanguageDetectionClient
+	langDetectionCl languageDetectionClient
 
 	// telemetry
 	telemetry *componentTelemetry
@@ -215,7 +221,7 @@ func (c *client) send(data *process.ParentLanguageAnnotationRequest) {
 	if data == nil {
 		return
 	}
-	var client clusteragent.LanguageDetectionClient
+	var client languageDetectionClient
 	// For unit tests
 	if c.langDetectionCl != nil {
 		client = c.langDetectionCl
@@ -281,7 +287,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	}
 	podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
-	added := containerInfo.add(string(process.Language.Name))
+	added := containerInfo.Add(string(process.Language.Name))
 	if added {
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
 	}
