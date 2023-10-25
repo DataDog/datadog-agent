@@ -278,7 +278,18 @@ int __attribute__((always_inline)) get_ovl_upper_ino(struct dentry *dentry) {
 }
 
 void __always_inline set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *flags) {
-    u64 lower_inode = get_ovl_path_in_inode() ? get_ovl_lower_ino_new(dentry) : get_ovl_lower_ino_old(dentry);
+    u64 lower_inode = 0;
+    switch (get_ovl_path_in_inode()) {
+    case 2:
+        lower_inode = get_ovl_lower_ino_new_2(dentry);
+        break;
+    case 1:
+        lower_inode = get_ovl_lower_ino_new(dentry);
+        break;
+    default:
+        lower_inode = get_ovl_lower_ino_old(dentry);
+        break;
+    }
     u64 upper_inode = get_ovl_upper_ino(dentry);
 
     if (upper_inode) {

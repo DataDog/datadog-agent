@@ -1752,6 +1752,11 @@ func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 }
 
 func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
+	// https://github.com/torvalds/linux/commit/0af950f57fefabab628f1963af881e6b9bfe7f38
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_5 {
+		return 2
+	}
+
 	// https://github.com/torvalds/linux/commit/ffa5723c6d259b3191f851a50a98d0352b345b39
 	// changes a bit how the lower dentry/inode is stored in `ovl_inode`. To check if we
 	// are in this configuration we first probe the kernel version, then we check for the
