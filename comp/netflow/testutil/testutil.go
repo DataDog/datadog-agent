@@ -168,51 +168,49 @@ func ExpectPayloadWithCustomFields(t *testing.T, mockEpForwarder forwarder.MockC
 	events := [][]byte{
 		[]byte(`
 {
-  "flush_timestamp": 1550505606000,
-  "type": "netflow9",
-  "sampling_rate": 0,
-  "direction": "ingress",
-  "start": 1675736722,
-  "end": 1675258375,
-  "bytes": 1139872000,
-  "packets": 35006208,
-  "ether_type": "IPv4",
-  "ip_protocol": "WB-MON",
+  "bytes": 114702,
+  "destination": {
+    "ip": "53.0.97.192",
+    "port": "5915",
+    "mac": "00:00:00:00:00:00",
+    "mask": "0.0.0.0/0"
+  },
   "device": {
     "namespace": "default"
   },
+  "direction": "ingress",
+  "egress": {
+    "interface": {
+      "index": 4352
+    }
+  },
+  "end": 1675541179,
+  "ether_type": "IPv4",
   "exporter": {
     "ip": "127.0.0.1"
   },
-  "source": {
-    "ip": "1.76.41.19",
-    "port": "35824",
-    "mac": "00:00:00:00:00:00",
-    "mask": "0.0.0.0/0"
-  },
-  "destination": {
-    "ip": "31.27.0.0",
-    "port": "78",
-    "mac": "00:00:00:00:00:00",
-    "mask": "0.0.0.0/0"
-  },
+  "flush_timestamp": 1550505606000,
+  "host": "my-hostname",
+  "icmp_type": "1200",
   "ingress": {
     "interface": {
-      "index": 13568
+      "index": 27505
     }
   },
-  "egress": {
-    "interface": {
-      "index": 48576
-    }
-  },
-  "host": "my-hostname",
+  "ip_protocol": "ICMP",
   "next_hop": {
     "ip": ""
   },
-  "additional_fields": {
-    "icmp_type": "0000"
-  }
+  "packets": 840155153,
+  "sampling_rate": 0,
+  "source": {
+    "ip": "2.10.65.0",
+    "port": "0",
+    "mac": "00:00:00:00:00:00",
+    "mask": "0.0.0.0/0"
+  },
+  "start": 1675307019,
+  "type": "netflow9"
 }
 `),
 	}

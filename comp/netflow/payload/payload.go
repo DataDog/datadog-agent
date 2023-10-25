@@ -6,6 +6,8 @@
 // Package payload defines the JSON payload we send to the events platform.
 package payload
 
+import "encoding/json"
+
 // Device contains device details (device sending NetFlow flows)
 type Device struct {
 	Namespace string `json:"namespace"`
@@ -64,4 +66,48 @@ type FlowPayload struct {
 	TCPFlags         []string         `json:"tcp_flags,omitempty"`
 	NextHop          NextHop          `json:"next_hop,omitempty"`
 	AdditionalFields AdditionalFields `json:"additional_fields,omitempty"`
+}
+
+// MarshalJSON Custom marshaller that moves AdditionalFields to the root of the payload
+func (p FlowPayload) MarshalJSON() ([]byte, error) {
+	fields := map[string]any{
+		"flush_timestamp": p.FlushTimestamp,
+		"type":            p.FlowType,
+		"sampling_rate":   p.SamplingRate,
+		"direction":       p.Direction,
+		"start":           p.Start,
+		"end":             p.End,
+		"bytes":           p.Bytes,
+		"packets":         p.Packets,
+		"ip_protocol":     p.IPProtocol,
+		"device":          p.Device,
+		"exporter":        p.Exporter,
+		"source":          p.Source,
+		"destination":     p.Destination,
+		"ingress":         p.Ingress,
+		"egress":          p.Egress,
+		"host":            p.Host,
+		"next_hop":        p.NextHop,
+	}
+
+	// omit empty
+	if p.EtherType != "" {
+		fields["ether_type"] = p.EtherType
+	}
+
+	// omit empty
+	if p.TCPFlags != nil {
+		fields["tcp_flags"] = p.TCPFlags
+	}
+
+	// Adding additional fields
+	for k, v := range p.AdditionalFields {
+		if _, ok := fields[k]; ok {
+			// Do not override, override is handled in goflowlib/convert.go
+			continue
+		}
+		fields[k] = v
+	}
+
+	return json.Marshal(fields)
 }
