@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
@@ -211,9 +210,6 @@ func init() {
 	// Configuration defaults
 	InitConfig(Datadog)
 	InitSystemProbeConfig(SystemProbe)
-
-	logs.InitConfig(Datadog)
-	logs.InitConfig(SystemProbe)
 }
 
 // InitConfig initializes the config defaults on a config
@@ -237,6 +233,18 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("confd_path", defaultConfdPath)
 	config.BindEnvAndSetDefault("additional_checksd", defaultAdditionalChecksPath)
 	config.BindEnvAndSetDefault("jmx_log_file", "")
+	// If enabling log_payloads, ensure the log level is set to at least DEBUG to be able to see the logs
+	config.BindEnvAndSetDefault("log_payloads", false)
+	config.BindEnvAndSetDefault("log_file", "")
+	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
+	config.BindEnvAndSetDefault("log_file_max_rolls", 1)
+	config.BindEnvAndSetDefault("log_level", "info")
+	config.BindEnvAndSetDefault("log_to_syslog", false)
+	config.BindEnvAndSetDefault("log_to_console", true)
+	config.BindEnvAndSetDefault("log_format_rfc3339", false)
+	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
+	config.BindEnvAndSetDefault("logging_frequency", int64(500))
+	config.BindEnvAndSetDefault("disable_file_logging", false)
 	config.BindEnvAndSetDefault("syslog_uri", "")
 	config.BindEnvAndSetDefault("syslog_rfc", false)
 	config.BindEnvAndSetDefault("syslog_pem", "")
@@ -360,6 +368,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
+
+	// Use to output logs in JSON format
+	config.BindEnvAndSetDefault("log_format_json", false)
 
 	// IPC API server timeout
 	config.BindEnvAndSetDefault("server_timeout", 30)
