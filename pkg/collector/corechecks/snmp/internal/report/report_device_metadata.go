@@ -196,26 +196,32 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		vendor = config.ProfileDef.Device.Vendor
 	}
 
+	var profileVersion uint
+	if config.ProfileDef != nil {
+		profileVersion = config.ProfileDef.Version
+	}
+
 	return devicemetadata.DeviceMetadata{
-		ID:           deviceID,
-		IDTags:       idTags,
-		Name:         sysName,
-		Description:  sysDescr,
-		IPAddress:    config.IPAddress,
-		SysObjectID:  sysObjectID,
-		Location:     location,
-		Profile:      config.Profile,
-		Vendor:       vendor,
-		Tags:         tags,
-		Subnet:       config.ResolvedSubnetName,
-		Status:       deviceStatus,
-		SerialNumber: serialNumber,
-		Version:      version,
-		ProductName:  productName,
-		Model:        model,
-		OsName:       osName,
-		OsVersion:    osVersion,
-		OsHostname:   osHostname,
+		ID:             deviceID,
+		IDTags:         idTags,
+		Name:           sysName,
+		Description:    sysDescr,
+		IPAddress:      config.IPAddress,
+		SysObjectID:    sysObjectID,
+		Location:       location,
+		Profile:        config.Profile,
+		ProfileVersion: profileVersion,
+		Vendor:         vendor,
+		Tags:           tags,
+		Subnet:         config.ResolvedSubnetName,
+		Status:         deviceStatus,
+		SerialNumber:   serialNumber,
+		Version:        version,
+		ProductName:    productName,
+		Model:          model,
+		OsName:         osName,
+		OsVersion:      osVersion,
+		OsHostname:     osHostname,
 	}
 }
 

@@ -62,6 +62,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
+		Profile:            "my-profile",
+		ProfileDef: &profiledefinition.ProfileDefinition{
+			Name:    "my-profile",
+			Version: 10,
+		},
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
 				Fields: map[string]profiledefinition.MetadataField{
@@ -143,6 +148,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "name": "my-sys-name",
             "description": "my-sys-descr",
             "location": "my-sys-location",
+            "profile": "my-profile",
+            "profile_version": 10,
             "subnet": "127.0.0.0/29"
         }
     ],
