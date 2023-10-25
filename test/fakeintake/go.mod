@@ -8,7 +8,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/kr/pretty v0.3.1
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.4
 )
 
 require (
