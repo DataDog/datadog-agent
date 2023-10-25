@@ -86,6 +86,7 @@ tests_flavor_iot_deb-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
+  rules: !reference [.except_mergequeue]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
@@ -108,6 +109,7 @@ tests_flavor_dogstatsd_deb-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
+  rules: !reference [.except_mergequeue]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
@@ -130,6 +132,7 @@ tests_flavor_heroku_deb-x64:
   extends:
     - .rtloader_tests
     - .linux_tests
+  rules: !reference [.except_mergequeue]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
@@ -141,6 +144,7 @@ tests_flavor_heroku_deb-x64:
 lint_flavor_heroku_linux-x64:
   extends:
     - .linux_lint
+  rules: !reference [.except_mergequeue]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["go_deps", "go_tools_deps"]
