@@ -462,6 +462,10 @@ func deleteEBSSnapshot(ctx context.Context, svc *ec2.EC2, snapshotID string) err
 	return err
 }
 
+func tagNotFound(s []string) []string {
+	return append(s, fmt.Sprint("status:notfound"))
+}
+
 func tagFailure(s []string) []string {
 	return append(s, fmt.Sprint("status:failure"))
 }
@@ -502,6 +506,12 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 		log.Debugf("starting volume snapshotting %q", scan.VolumeID)
 		snapshotID, err = createEBSSnapshot(ctx, svc, scan)
 		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				if aerr.Code() == "InvalidVolume.NotFound" {
+					statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagNotFound(tags), 1.0)
+					return nil, err
+				}
+			}
 			statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(tags), 1.0)
 			return nil, err
 		}
