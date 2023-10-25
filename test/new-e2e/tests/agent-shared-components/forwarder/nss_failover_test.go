@@ -136,8 +136,9 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 
 	// configure agent to use the custom intake, set connection_reset_interval, use logs, and processes
 	agentOptions := []agentparams.Option{
-		agentparams.WithAgentConfig(getAgentConfig(intakeName, connectionResetInterval)),
+		agentparams.WithAgentConfig(getAgentConfig(connectionResetInterval)),
 		agentparams.WithLogs(),
+		agentparams.WithIntakeHostname(intakeName),
 		agentparams.WithIntegration("custom_logs.d", customLogsConfig),
 	}
 	v.UpdateEnv(multiFakeintakeStackDef(agentOptions...))
@@ -251,7 +252,6 @@ func enforceNSSwitchFiles(t *testing.T, vm client.VM) {
 	t.Logf("enforce using files first in NSS")
 
 	nsswitchfile := vm.Execute("sudo cat /etc/nsswitch.conf")
-	fmt.Println(nsswitchfile)
 
 	// enable multi-line mode in the Go regex
 	regex, err := regexp.Compile(`(?m:^hosts:\s+(.*)$)`)
@@ -262,7 +262,6 @@ func enforceNSSwitchFiles(t *testing.T, vm client.VM) {
 		require.NotNil(t, matches)
 
 		services := strings.Fields(matches[1])
-		fmt.Println(services)
 		if len(services) == 0 || services[0] != "files" || (len(services) >= 2 && services[1][0] == '[') {
 			t.Logf("replace existing hosts entry in /etc/nsswitch.conf")
 			// add `files` before previous services
@@ -296,24 +295,8 @@ func hostIPFromURL(fakeintakeURL string) (string, error) {
 	return ips[0].String(), nil
 }
 
-func getAgentConfig(intake string, interval int) string {
-	return strings.Join([]string{
-		getDDUrlConf(intake),
-		getConnectionResetConf(interval),
-	}, "\n")
-}
-
-func getDDUrlConf(intake string) string {
-	// config from components/datadog/agentparams/params.go::WithFakeintake
-	return fmt.Sprintf(`dd_url: http://%s:80
-logs_config.logs_dd_url: %s:80
-logs_config.logs_no_ssl: true
-logs_config.force_use_http: true
-process_config.process_dd_url: http://%s:80`, intake, intake, intake)
-}
-
-func getConnectionResetConf(interval int) string {
-	return fmt.Sprintf(`forwarder_connection_reset_interval: %d
-apm_config.connection_reset_interval: %d
-logs_config.connection_reset_interval: %d`, interval, interval, interval)
+func getAgentConfig(interval int) string {
+	return fmt.Sprintf(`forwarder_connection_reset_interval: %[1]d
+apm_config.connection_reset_interval: %[1]d
+logs_config.connection_reset_interval: %[1]d`, interval)
 }
