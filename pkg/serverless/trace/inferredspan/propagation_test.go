@@ -135,6 +135,7 @@ func TestExtractContextFromPureSqsEvent_ValidStringTraceData(t *testing.T) {
 }
 
 func TestExtractContextFromPureSqsEvent_ValidBinaryTraceData(t *testing.T) {
+    // SNS => SQS => Lambda with SQS's subscription to SNS has enabled RAW MESSAGE DELIVERY option
 	str := `{"x-datadog-trace-id": "3754030949214830614", "x-datadog-parent-id": "9807017789787771839", "x-datadog-sampling-priority": "1", "x-datadog-tags": "_dd.p.dm=-0", "traceparent": "00-00000000000000003418ff4233c5c016-881986b8523c93bf-01", "tracestate": "dd=s:1;t.dm:-0"}`
 	mockSQSMessageAttribute := events.SQSMessageAttribute{
 		DataType:    "Binary",
@@ -161,6 +162,7 @@ func TestExtractContextFromPureSqsEvent_InvalidStringTraceData(t *testing.T) {
 }
 
 func TestExtractContextFromPureSqsEvent_InvalidBinaryTraceData(t *testing.T) {
+	// This is a failure case because we expect base64 decoding already done at this point
 	str := "eyJ0cmFjZXBhcmVudCI6IjAwLTAwMDAwMDAwMDAwMDAwMDA1ZmExMmM3MDQ3Y2Y3OWQ3LTM2ZTg2OGRkODgwZjY5OTEtMDEiLCJ0cmFjZXN0YXRlIjoiZGQ9czoxO3QuZG06LTAiLCJ4LWRhdGFkb2ctdHJhY2UtaWQiOiI2ODkwODM3NzY1NjA2MzA4MzExIiwieC1kYXRhZG9nLXBhcmVudC1pZCI6IjM5NTY1Mjc1NzMzMjQ3NTMyOTciLCJ4LWRhdGFkb2ctc2FtcGxpbmctcHJpb3JpdHkiOiIxIiwieC1kYXRhZG9nLXRhZ3MiOiJfZGQucC5kbT0tMCJ9"
 	mockSQSMessageAttribute := events.SQSMessageAttribute{
 		DataType:    "Binary",
