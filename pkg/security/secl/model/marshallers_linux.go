@@ -69,7 +69,7 @@ func (e *FileFields) MarshalBinary(data []byte) (int, error) {
 }
 
 // MarshalProcCache marshals a binary representation of itself
-func (e *Process) MarshalProcCache(data []byte) (int, error) {
+func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error) {
 	// Marshal proc_cache_t
 	if len(data) < ContainerIDLen {
 		return 0, ErrNotEnoughSpace
@@ -87,7 +87,7 @@ func (e *Process) MarshalProcCache(data []byte) (int, error) {
 		return 0, ErrNotEnoughSpace
 	}
 
-	marshalTime(data[written:written+8], e.ExecTime)
+	marshalTime(data[written:written+8], e.ExecTime.Sub(bootTime))
 	written += 8
 
 	copy(data[written:written+64], e.TTYName)
@@ -98,8 +98,8 @@ func (e *Process) MarshalProcCache(data []byte) (int, error) {
 	return written, nil
 }
 
-func marshalTime(data []byte, t time.Time) {
-	ByteOrder.PutUint64(data, uint64(t.UnixNano()))
+func marshalTime(data []byte, t time.Duration) {
+	ByteOrder.PutUint64(data, uint64(t.Nanoseconds()))
 }
 
 // MarshalBinary marshalls a binary representation of itself
@@ -120,7 +120,7 @@ func (e *Credentials) MarshalBinary(data []byte) (int, error) {
 }
 
 // MarshalPidCache marshals a binary representation of itself
-func (e *Process) MarshalPidCache(data []byte) (int, error) {
+func (e *Process) MarshalPidCache(data []byte, bootTime time.Time) (int, error) {
 	// Marshal pid_cache_t
 	if len(data) < 24 {
 		return 0, ErrNotEnoughSpace
@@ -130,8 +130,8 @@ func (e *Process) MarshalPidCache(data []byte) (int, error) {
 
 	// padding
 
-	marshalTime(data[16:24], e.ForkTime)
-	marshalTime(data[24:32], e.ExitTime)
+	marshalTime(data[16:24], e.ForkTime.Sub(bootTime))
+	marshalTime(data[24:32], e.ExitTime.Sub(bootTime))
 	written := 32
 
 	n, err := MarshalBinary(data[written:], &e.Credentials)

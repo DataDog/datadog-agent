@@ -364,7 +364,7 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        results = run_golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags, arch=arch)
         for result in results:
             # golangci exits with status 1 when it finds an issue
             if result.exited != 0:
@@ -616,21 +616,16 @@ def generate_cws_documentation(ctx, go_generate=False):
 def cws_go_generate(ctx):
     ctx.run("go install golang.org/x/tools/cmd/stringer")
     ctx.run("go install github.com/mailru/easyjson/easyjson")
-    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors@v0.49.0-rc.2")
-    ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/operators@v0.49.0-rc.2")
     with ctx.cd("./pkg/security/secl"):
+        ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors")
+        ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/operators")
         if sys.platform == "linux":
             ctx.run("GOOS=windows go generate ./...")
         elif sys.platform == "win32":
             ctx.run("GOOS=linux go generate ./...")
         ctx.run("go generate ./...")
 
-    if sys.platform == "win32":
-        shutil.copy(
-            "./pkg/security/serializers/serializers_windows_easyjson.mock",
-            "./pkg/security/serializers/serializers_windows_easyjson.go",
-        )
-    else:
+    if sys.platform == "linux":
         shutil.copy(
             "./pkg/security/serializers/serializers_linux_easyjson.mock",
             "./pkg/security/serializers/serializers_linux_easyjson.go",

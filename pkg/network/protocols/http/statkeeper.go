@@ -19,11 +19,14 @@ import (
 
 type StatKeeper struct {
 	mux                         sync.Mutex
+	cfg                         *config.Config
 	stats                       map[Key]*RequestStats
 	incomplete                  *incompleteBuffer
 	maxEntries                  int
+	quantizer                   *URLQuantizer
 	telemetry                   *Telemetry
 	enableStatusCodeAggregation bool
+	enableQuantization          bool
 
 	// replace rules for HTTP path
 	replaceRules []*config.ReplaceRule
@@ -35,12 +38,18 @@ type StatKeeper struct {
 }
 
 func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
+	// For now we're only enabling path quantization for HTTP/1 traffic
+	enableQuantization := c.EnableUSMQuantization && telemetry.protocol == "http"
+
 	return &StatKeeper{
+		cfg:                         c,
 		stats:                       make(map[Key]*RequestStats),
 		incomplete:                  newIncompleteBuffer(c, telemetry),
 		maxEntries:                  c.MaxHTTPStatsBuffered,
+		quantizer:                   NewURLQuantizer(),
 		replaceRules:                c.HTTPReplaceRules,
 		enableStatusCodeAggregation: c.EnableHTTPStatsByStatusCode,
+		enableQuantization:          enableQuantization,
 		buffer:                      make([]byte, getPathBufferSize(c)),
 		telemetry:                   telemetry,
 		oversizedLogLimit:           util.NewLogLimit(10, time.Minute*10),
@@ -82,6 +91,13 @@ func (h *StatKeeper) add(tx Transaction) {
 		h.telemetry.emptyPath.Add(1)
 		return
 	}
+
+	// Quantize HTTP path
+	// (eg. this turns /orders/123/view` into `/orders/*/view`)
+	if h.enableQuantization {
+		rawPath = h.quantizer.Quantize(rawPath)
+	}
+
 	path, rejected := h.processHTTPPath(tx, rawPath)
 	if rejected {
 		return

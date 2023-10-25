@@ -9,11 +9,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
@@ -99,9 +101,20 @@ func sshCommunicator(args *args, sshKey []byte) (*sshtools.Communicator, error) 
 }
 
 func main() {
+	code := 0
 	if err := run(); err != nil {
-		log.Fatal(err)
+		log.Print(err)
+
+		code = 1
+		var ee *exec.ExitError
+		if errors.As(err, &ee) {
+			code = ee.ExitCode()
+			if code < 0 {
+				code = 1
+			}
+		}
 	}
+	os.Exit(code)
 }
 
 func run() (err error) {
@@ -149,6 +162,12 @@ func run() (err error) {
 	}
 
 	if err := cmd.Wait(); err != nil {
+		var ee *exec.ExitError
+		// commands that exit, even with a non-zero exit code are considered success from an SSH PoV
+		if errors.As(err, &ee) && ee.Exited() {
+			return fmt.Errorf("wait: %s", err)
+		}
+
 		failType = failWait
 		return fmt.Errorf("wait: %s", err)
 	}

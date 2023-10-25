@@ -196,6 +196,8 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	// Serving stale data is better than serving no data at all.
 	demultiplexer.AddAgentStartupTelemetry(fmt.Sprintf("%s - Datadog Cluster Agent", version.AgentVersion))
 
+	// Create the Leader election engine and initialize it
+	leaderelection.CreateGlobalLeaderEngine(mainCtx)
 	le, err := leaderelection.GetLeaderEngine()
 	if err != nil {
 		return err

@@ -1,5 +1,5 @@
 do-not-merge:
-  stage: .pre
+  stage: check_merge
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   rules: # this should only run on dev branches
@@ -9,6 +9,7 @@ do-not-merge:
     when: never
   - !reference [.except_main_or_release_branch]
   - when: always
+  needs: []
   script:
       - |
           if [ ! -z "$DATADOG_AGENT_BUILDIMAGES_SUFFIX" ] ||
@@ -23,4 +24,8 @@ do-not-merge:
             echo "This workflow fails so that the pull request cannot be merged"
             exit 1
           fi
+      - test "$(inv -e release.get-release-json-value --key=nightly::OMNIBUS_RUBY_VERSION)" = "datadog-5.5.0" || exit 1
+      - test "$(inv -e release.get-release-json-value --key=nightly::OMNIBUS_SOFTWARE_VERSION)" = "master" || exit 1
+      - test "$(inv -e release.get-release-json-value --key=nightly-a7::OMNIBUS_RUBY_VERSION)" = "datadog-5.5.0" || exit 1
+      - test "$(inv -e release.get-release-json-value --key=nightly-a7::OMNIBUS_SOFTWARE_VERSION)" = "master" || exit 1
       - exit 0
