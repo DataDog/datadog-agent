@@ -313,7 +313,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
 }
 
 static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_ctx_t *http2_ctx, struct http2_frame *current_frame) {
-    bool is_rst_rst_with_no_error_code = false;
+    bool is_rst = false;
     http2_ctx->http2_stream_key.stream_id = current_frame->stream_id;
     http2_stream_t *current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
     if (current_stream == NULL) {
@@ -330,13 +330,9 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     // When we accept an RST with NO ERROR, it means that the current stream was terminated with no error.
     // According to https://datatracker.ietf.org/doc/html/rfc7540#section-6.4, the frame includes a 32-bit
     // error code integer.
-    if (current_frame->type == kRSTStreamFrame) {
-        __u32 rst_error_code = 0;
-        bpf_skb_load_bytes(skb, skb_info->data_off, &rst_error_code, sizeof(rst_error_code));
-        is_rst_rst_with_no_error_code = rst_error_code == HTTP2_RST_NO_ERROR;
-    }
+    is_rst = current_frame->type == kRSTStreamFrame;
 
-    if (is_rst_rst_with_no_error_code || ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM)) {
+    if (is_rst || ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM)) {
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
     }
 

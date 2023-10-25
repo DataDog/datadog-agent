@@ -27,9 +27,6 @@
 // The flag which will be sent in the data/header frame that indicates end of stream.
 #define HTTP2_END_OF_STREAM 0x1
 
-// The RST error code, which indicates that there is no error.
-#define HTTP2_RST_NO_ERROR 0x0
-
 // Http2 max batch size.
 #define HTTP2_BATCH_SIZE 17
 
