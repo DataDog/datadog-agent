@@ -127,6 +127,9 @@ type SQLConfig struct {
 	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
 	CollectComments bool `json:"collect_comments" yaml:"collect_comments"`
 
+	// CollectProcedures specifies whether the obfuscator should extract and return procedure names as SQL metadata when obfuscating.
+	CollectProcedures bool `json:"collect_procedures" yaml:"collect_procedures"`
+
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits" yaml:"replace_digits"`
 
@@ -161,6 +164,8 @@ type SQLMetadata struct {
 	Commands []string `json:"commands"`
 	// Comments holds comments in an SQL statement.
 	Comments []string `json:"comments"`
+	// Procedures holds procedure names in an SQL statement.
+	Procedures []string `json:"procedures"`
 }
 
 // HTTPConfig holds the configuration settings for HTTP obfuscation.
