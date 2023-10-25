@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/config/logs"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -939,4 +941,19 @@ func TestPeerTagsEnv(t *testing.T) {
 	t.Setenv("DD_APM_PEER_TAGS", `["aws.s3.bucket","db.instance","db.system"]`)
 	testConfig = SetupConfFromYAML("")
 	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
+}
+
+func TestLogDefaults(t *testing.T) {
+
+	c := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	require.Equal(t, 0, c.GetInt("log_file_max_rolls"))
+	logs.InitConfig(c)
+
+	require.Equal(t, 1, c.GetInt("log_file_max_rolls"))
+
+	testConfig := SetupConf()
+	require.Equal(t, 1, testConfig.GetInt("log_file_max_rolls"))
+
+	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
+
 }

@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/logs"
 )
 
 var (
@@ -27,6 +28,7 @@ var (
 func SetupConf() Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	InitConfig(conf)
+	logs.InitConfig(conf)
 	return conf
 }
 
