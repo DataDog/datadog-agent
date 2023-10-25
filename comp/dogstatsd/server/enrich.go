@@ -6,6 +6,7 @@
 package server
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -83,7 +84,8 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 		} else if strings.HasPrefix(tag, jmxTagPrefix) {
 			metricSource = metrics.MetricSourceJmxCustom
 		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
-			// checkName := tag[len(jmxCheckNamePrefix):]
+			checkName := tag[len(jmxCheckNamePrefix):]
+			fmt.Println("jmx_check_name:", checkName)
 		} else {
 			tags[n] = tag
 			n++
