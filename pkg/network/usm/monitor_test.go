@@ -568,7 +568,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					Path:   http.Path{Content: http.Interner.GetString("/")},
 					Method: http.MethodPost,
 				}: {
-					lower: 999,
+					lower: 1000,
 					upper: 1000,
 				},
 			},
@@ -590,7 +590,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					Path:   http.Path{Content: http.Interner.GetString("/index.html")},
 					Method: http.MethodPost,
 				}: {
-					lower: 999,
+					lower: 1000,
 					upper: 1000,
 				},
 			},
@@ -608,7 +608,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 				tt.runClients(t, clientCount)
 
 				res := make(map[http.Key]int)
-				require.Eventually(t, func() bool {
+				assert.Eventually(t, func() bool {
 					stats := monitor.GetProtocolStats()
 					http2Stats, ok := stats[protocols.HTTP2]
 					if !ok {
@@ -641,6 +641,15 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 						}
 						if count < valRange.lower || count > valRange.upper {
 							return false
+						}
+					}
+
+					if t.Failed() {
+						o, err := monitor.DumpMaps("http2_in_flight")
+						if err != nil {
+							t.Logf("failed dumping http2_in_flight: %s", err)
+						} else {
+							t.Log(o)
 						}
 					}
 

@@ -326,6 +326,15 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
         skb_info->data_off += current_frame->length;
     }
 
+    // When we accept an RST with NO ERROR, it means that the current stream was terminated with no error.
+    if (current_frame->type == kRSTStreamFrame) {
+        __u32 rst_error_code = 0;
+        bpf_skb_load_bytes(skb, skb_info->data_off, &rst_error_code, HTTP2_RST_ERROR_SIZE);
+        if (rst_error_code == HTTP2_RST_NO_ERROR) {
+            handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
+        }
+    }
+
     if ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
     }
@@ -403,7 +412,7 @@ static __always_inline void reset_frame(struct http2_frame *out) {
 }
 
 static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, frame_header_remainder_t *frame_state) {
-    bool is_headers_frame, is_data_end_of_stream;
+    bool is_headers_frame, is_data_end_of_stream, is_rst;
     __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
 
@@ -490,7 +499,8 @@ valid_frame:
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
         is_headers_frame = current_frame.type == kHeadersFrame;
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-        if (is_headers_frame || is_data_end_of_stream) {
+        is_rst = current_frame.type == kRSTStreamFrame;
+        if (is_headers_frame || is_data_end_of_stream || is_rst) {
             frames_array[interesting_frame_index].frame = current_frame;
             frames_array[interesting_frame_index].offset = skb_info->data_off;
             interesting_frame_index++;

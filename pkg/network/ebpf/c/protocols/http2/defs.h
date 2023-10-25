@@ -14,6 +14,9 @@
 #define HTTP2_FRAME_HEADER_SIZE 9
 #define HTTP2_SETTINGS_SIZE 6
 
+// According to https://datatracker.ietf.org/doc/html/rfc7540#section-6.4, the frame includes a 32-bit error code integer.
+#define HTTP2_RST_ERROR_SIZE 32
+
 // All types of http2 frames exist in the protocol.
 // Checkout https://datatracker.ietf.org/doc/html/rfc7540 under "Frame Type Registry" section.
 typedef enum {
