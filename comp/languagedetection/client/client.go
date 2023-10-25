@@ -177,9 +177,9 @@ func (c *client) processEvent(evBundle workloadmeta.EventBundle) {
 	for _, event := range evBundle.Events {
 		switch event.Entity.GetID().Kind {
 		case workloadmeta.KindProcess:
-			c.processProcessEvent(event, false)
+			c.handleProcessEvent(event, false)
 		case workloadmeta.KindKubernetesPod:
-			c.processPodEvent(event)
+			c.handlePodEvent(event)
 		}
 
 	}
@@ -245,13 +245,13 @@ func (c *client) retryProcessEventsWithoutPod() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	for _, event := range c.processesWithoutPod {
-		c.processProcessEvent(event, true)
+		c.handleProcessEvent(event, true)
 	}
 	c.processesWithoutPod = make([]workloadmeta.Event, 0)
 }
 
-// processProcessEvents updates the current batch and the freshlyUpdatedPods
-func (c *client) processProcessEvent(processEvent workloadmeta.Event, isRetry bool) {
+// handleProcessEvent updates the current batch and the freshlyUpdatedPods
+func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry bool) {
 	if processEvent.Type != workloadmeta.EventTypeSet {
 		return
 	}
@@ -288,8 +288,8 @@ func (c *client) processProcessEvent(processEvent workloadmeta.Event, isRetry bo
 	c.telemetry.ProcessedEvents.Inc(pod.Name, containerName, string(process.Language.Name))
 }
 
-// processPodEvent removes delete pods from the current batch
-func (c *client) processPodEvent(podEvent workloadmeta.Event) {
+// handlePodEvent removes delete pods from the current batch
+func (c *client) handlePodEvent(podEvent workloadmeta.Event) {
 	if podEvent.Type == workloadmeta.EventTypeUnset {
 		pod := podEvent.Entity.(*workloadmeta.KubernetesPod)
 		delete(c.currentBatch, pod.Name)
