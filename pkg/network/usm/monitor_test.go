@@ -644,17 +644,16 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 						}
 					}
 
-					if t.Failed() {
-						o, err := monitor.DumpMaps("http2_in_flight")
-						if err != nil {
-							t.Logf("failed dumping http2_in_flight: %s", err)
-						} else {
-							t.Log(o)
-						}
-					}
-
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+				if t.Failed() {
+					o, err := monitor.DumpMaps("http2_in_flight")
+					if err != nil {
+						t.Logf("failed dumping http2_in_flight: %s", err)
+					} else {
+						t.Log(o)
+					}
+				}
 			})
 		}
 	}
