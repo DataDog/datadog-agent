@@ -892,6 +892,8 @@ workflow:
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
     allow_failure: true
+  - <<: *if_mergequeue
+    when: never
   - changes:
       paths:
         - pkg/ebpf/**/*
@@ -910,6 +912,8 @@ workflow:
 
 .on_system_probe_changes_or_manual:
   - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
   - changes:
       paths:
         - pkg/collector/corechecks/ebpf/**/*
