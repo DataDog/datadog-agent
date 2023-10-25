@@ -244,7 +244,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 	customState.TemplateSystem = templateSystem
 
 	flowData, err := testutil.GetNetFlow9Packet()
-	require.NoError(b, err, "error getting cflow flow data")
+	require.NoError(b, err, "error getting netflow9 packet data")
 
 	flowPacket := utils.BaseMessage{
 		Src:      net.ParseIP("127.0.0.1"),
