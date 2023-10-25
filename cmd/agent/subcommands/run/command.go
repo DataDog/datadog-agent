@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 
 	// checks implemented as components
 
@@ -55,6 +56,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
@@ -84,6 +86,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -173,9 +176,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // run starts the main loop.
 //
 // This is exported because it also used from the deprecated `agent start` command.
-//
-// run now has different parameters on Linux & Windows
-func commonRun(log log.Component,
+func run(log log.Component,
 	config config.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
@@ -192,6 +193,8 @@ func commonRun(log log.Component,
 	logsAgent util.Optional[logsAgent.Component],
 	otelcollector otelcollector.Component,
 	hostMetadata host.Component,
+	invAgent inventoryagent.Component,
+	_ netflowServer.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer)
@@ -233,7 +236,7 @@ func commonRun(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata); err != nil {
+	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata, invAgent); err != nil {
 		return err
 	}
 
@@ -319,6 +322,7 @@ func startAgent(
 	otelcollector otelcollector.Component,
 	demultiplexer demultiplexer.Component,
 	hostMetadata host.Component,
+	invAgent inventoryagent.Component,
 ) error {
 
 	var err error
@@ -457,7 +461,17 @@ func startAgent(
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(configService, flare, server, capture, serverDebug, logsAgent, demultiplexer, hostMetadata); err != nil {
+	if err = api.StartServer(
+		configService,
+		flare,
+		server,
+		capture,
+		serverDebug,
+		logsAgent,
+		demultiplexer,
+		hostMetadata,
+		invAgent,
+	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
@@ -469,6 +483,11 @@ func startAgent(
 		}); err != nil {
 			return log.Errorf("Error while starting clc runner api server, exiting: %v", err)
 		}
+	}
+
+	// Create the Leader election engine without initializing it
+	if pkgconfig.Datadog.GetBool("leader_election") {
+		leaderelection.CreateGlobalLeaderEngine(common.MainCtx)
 	}
 
 	// start the GUI server
