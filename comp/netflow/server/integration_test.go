@@ -142,7 +142,7 @@ func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	assertFlowEventsCount(t, port, srv, packetData, 7)
 }
 
-func TestNetFlow_IntegrationTest_CustomFields(t *testing.T) {
+func TestNetFlow_IntegrationTest_AdditionalFields(t *testing.T) {
 	port, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
@@ -184,13 +184,13 @@ func TestNetFlow_IntegrationTest_CustomFields(t *testing.T) {
 	require.NoError(t, err, "error getting packet")
 
 	// Set expectations
-	testutil.ExpectPayloadWithCustomFields(t, epForwarder)
+	testutil.ExpectPayloadWithAdditionalFields(t, epForwarder)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
 
 	assertFlowEventsCount(t, port, srv, flowData, 29)
 }
 
-func BenchmarkNetflowCustomFields(b *testing.B) {
+func BenchmarkNetflowAdditionalFields(b *testing.B) {
 	flowChan := make(chan *common.Flow, 10)
 	listenerFlowCount := atomic.NewInt64(0)
 

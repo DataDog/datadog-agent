@@ -12,7 +12,7 @@ import (
 	"context"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/customfields"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
 	"github.com/netsampler/goflow2/utils"
 	"sync"
 	"time"
@@ -193,7 +193,7 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 			s.Logger.Errorf("failed to process netflow packet %s", err)
 		}
 
-		additionalFields, err = customfields.ProcessMessageNetFlowCustomFields(msgDecConv, s.mappedFieldsConfig)
+		additionalFields, err = additionalfields.ProcessMessageNetFlowAdditionalFields(msgDecConv, s.mappedFieldsConfig)
 		if err != nil {
 			s.Logger.Errorf("failed to process additional fields %s", err)
 		}
@@ -306,7 +306,7 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 			s.Logger.Errorf("failed to process netflow packet %s", err)
 		}
 
-		additionalFields, err = customfields.ProcessMessageNetFlowCustomFields(msgDecConv, s.mappedFieldsConfig)
+		additionalFields, err = additionalfields.ProcessMessageNetFlowAdditionalFields(msgDecConv, s.mappedFieldsConfig)
 		if err != nil {
 			s.Logger.Errorf("failed to process additional fields %s", err)
 		}

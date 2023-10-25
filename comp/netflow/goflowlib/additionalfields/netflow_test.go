@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package customfields
+package additionalfields
 
 import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
@@ -38,7 +38,7 @@ func makeSampleNetflowPacket(fields []netflow.DataField) netflow.NFv9Packet {
 	}
 }
 
-func Test_ProcessMessageNetFlowCustomFields(t *testing.T) {
+func Test_ProcessMessageNetFlowAdditionalFields(t *testing.T) {
 	tests := []struct {
 		name                    string
 		fields                  []netflow.DataField
@@ -159,7 +159,7 @@ func Test_ProcessMessageNetFlowCustomFields(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			packet := makeSampleNetflowPacket(tt.fields)
-			expectedFields, err := ProcessMessageNetFlowCustomFields(packet, tt.config)
+			expectedFields, err := ProcessMessageNetFlowAdditionalFields(packet, tt.config)
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectedCollectedFields, expectedFields)
 		})

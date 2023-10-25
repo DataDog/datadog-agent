@@ -44,10 +44,10 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 	}
 }
 
-// ConvertFlowWithCustomFields convert goflow flow structure and additional fields to internal flow structure
-func ConvertFlowWithCustomFields(srcFlow *common.FlowMessageWithAdditionalFields, namespace string) *common.Flow {
+// ConvertFlowWithAdditionalFields convert goflow flow structure and additional fields to internal flow structure
+func ConvertFlowWithAdditionalFields(srcFlow *common.FlowMessageWithAdditionalFields, namespace string) *common.Flow {
 	flow := ConvertFlow(srcFlow.FlowMessage, namespace)
-	applyCustomFields(flow, srcFlow.AdditionalFields)
+	applyAdditionalFields(flow, srcFlow.AdditionalFields)
 	return flow
 }
 
@@ -68,9 +68,9 @@ func convertFlowType(flowType flowpb.FlowMessage_FlowType) common.FlowType {
 	return flowTypeStr
 }
 
-func applyCustomFields(flow *common.Flow, additionalFields common.AdditionalFields) {
+func applyAdditionalFields(flow *common.Flow, additionalFields common.AdditionalFields) {
 	for destination, fieldValue := range additionalFields {
-		applied := applyCustomField(flow, destination, fieldValue)
+		applied := applyAdditionalField(flow, destination, fieldValue)
 		if applied {
 			// We replaced a field of common.Flow with an additional field, no need to keep it in the map
 			delete(additionalFields, destination)
@@ -79,7 +79,7 @@ func applyCustomFields(flow *common.Flow, additionalFields common.AdditionalFiel
 	flow.AdditionalFields = additionalFields
 }
 
-func applyCustomField(flow *common.Flow, destination string, fieldValue any) bool {
+func applyAdditionalField(flow *common.Flow, destination string, fieldValue any) bool {
 	// Make sure FlowFieldsTypes includes the type of the following fields
 	switch destination {
 	case "direction":

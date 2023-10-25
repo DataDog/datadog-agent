@@ -104,7 +104,7 @@ func TestConvertFlow(t *testing.T) {
 	assert.Equal(t, expectedFlow, *actualFlow)
 }
 
-func TestConvertFlowWithCustomFields(t *testing.T) {
+func TestConvertFlowWithAdditionalFields(t *testing.T) {
 	srcFlow := common.FlowMessageWithAdditionalFields{FlowMessage: &flowpb.FlowMessage{
 		Type:           flowpb.FlowMessage_NETFLOW_V9,
 		TimeReceived:   1234567,
@@ -163,6 +163,6 @@ func TestConvertFlowWithCustomFields(t *testing.T) {
 		NextHop:          []byte{10, 10, 10, 30},
 		AdditionalFields: map[string]any{"custom_field": "test"},
 	}
-	actualFlow := ConvertFlowWithCustomFields(&srcFlow, "my-ns")
+	actualFlow := ConvertFlowWithAdditionalFields(&srcFlow, "my-ns")
 	assert.Equal(t, expectedFlow, *actualFlow)
 }

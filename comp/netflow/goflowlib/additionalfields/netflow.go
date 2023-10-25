@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package customfields provides a producer collecting
+// Package additionalfields provides a producer collecting
 // additional fields from Netflow/IPFIX packets.
-package customfields
+package additionalfields
 
 import (
 	"bytes"
@@ -24,7 +24,7 @@ func decodeUNumberWithEndianness(b []byte, out *uint64, endianness common.Endian
 	return producer.DecodeUNumber(b, out)
 }
 
-func mapCustomField(additionalFields common.AdditionalFields, v []byte, cfg config.Mapping) {
+func mapAdditionalField(additionalFields common.AdditionalFields, v []byte, cfg config.Mapping) {
 	// TODO : Add more types (IP address, timestamp, ...)
 	if cfg.Type == common.Varint {
 		var dstVar uint64
@@ -56,7 +56,7 @@ func convertNetFlowDataSet(record []netflow.DataField, fieldsConfig map[uint16]c
 			continue
 		}
 
-		mapCustomField(additionalFields, v, mappingConfig)
+		mapAdditionalField(additionalFields, v, mappingConfig)
 	}
 
 	return additionalFields
@@ -84,8 +84,8 @@ func searchNetFlowDataSets(dataFlowSet []netflow.DataFlowSet, fieldsConfig map[u
 	return flowsAdditonalFields
 }
 
-// ProcessMessageNetFlowCustomFields collects additional fields from netflow packet using the given config
-func ProcessMessageNetFlowCustomFields(msgDec interface{}, fieldsConfig map[uint16]config.Mapping) ([]common.AdditionalFields, error) {
+// ProcessMessageNetFlowAdditionalFields collects additional fields from netflow packet using the given config
+func ProcessMessageNetFlowAdditionalFields(msgDec interface{}, fieldsConfig map[uint16]config.Mapping) ([]common.AdditionalFields, error) {
 	if len(fieldsConfig) == 0 {
 		return nil, nil
 	}

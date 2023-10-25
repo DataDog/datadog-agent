@@ -162,9 +162,9 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponen
 	}
 }
 
-// ExpectPayloadWithCustomFields expects the payloads that should result from our
+// ExpectPayloadWithAdditionalFields expects the payloads that should result from our
 // recorded Netflow9 pcap file with inverted source and destination ports and icmp_type custom field.
-func ExpectPayloadWithCustomFields(t *testing.T, mockEpForwarder forwarder.MockComponent) {
+func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwarder.MockComponent) {
 	events := [][]byte{
 		[]byte(`
 {
