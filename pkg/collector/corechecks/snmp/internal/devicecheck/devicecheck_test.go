@@ -24,14 +24,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 )
 
 func TestProfileWithSysObjectIdDetection(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -162,7 +164,7 @@ profiles:
 }
 
 func TestProfileDetectionPreservesGlobals(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateFakeSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -331,30 +333,29 @@ collect_topology: false
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
 			MetricTags: []profiledefinition.MetricTagConfig{
-				{Tag: "interface", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+				{Tag: "interface", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
 	}
 
 	expectedMetricTags := []profiledefinition.MetricTagConfig{
-		{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		{Tag: "snmp_host2", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 		{
-			OID:   "1.3.6.1.2.1.1.5.0",
-			Name:  "sysName",
-			Match: "(\\w)(\\w+)",
+			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+			Match:  "(\\w)(\\w+)",
 			Tags: map[string]string{
 				"prefix":   "\\1",
 				"suffix":   "\\2",
 				"some_tag": "some_tag_value",
 			},
 		},
-		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+		{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
-	checkconfig.ValidateEnrichMetrics(expectedMetrics)
-	checkconfig.ValidateEnrichMetricTags(expectedMetricTags)
+	configvalidation.ValidateEnrichMetrics(expectedMetrics)
+	configvalidation.ValidateEnrichMetricTags(expectedMetricTags)
 
 	assert.ElementsMatch(t, deviceCk.config.Metrics, expectedMetrics)
 
@@ -444,7 +445,7 @@ profiles:
 }
 
 func TestDeviceCheck_Hostname(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -475,7 +476,7 @@ community_string: public
 }
 
 func TestDeviceCheck_GetHostname(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	// language=yaml
 	rawInstanceConfig := []byte(`
 ip_address: 1.2.3.4
@@ -532,7 +533,7 @@ community_string: public
 }
 
 func TestDynamicTagsAreSaved(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -825,7 +826,7 @@ profiles:
 }
 
 func TestRun_sessionCloseError(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sess.CloseErr = fmt.Errorf("close error")
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -873,7 +874,7 @@ profiles:
 }
 
 func TestDeviceCheck_detectAvailableMetrics(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -928,9 +929,9 @@ community_string: public
 				{OID: "1.3.6.1.2.1.2.2.1.13", Name: "ifInDiscards"},
 			},
 			MetricTags: []profiledefinition.MetricTagConfig{
-				{Tag: "interface", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
-				{Tag: "interface_alias", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
-				{Tag: "mac_address", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
+				{Tag: "interface", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.1", Name: "ifName"}},
+				{Tag: "interface_alias", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.31.1.1.1.18", Name: "ifAlias"}},
+				{Tag: "mac_address", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.2.2.1.6", Name: "ifPhysAddress", Format: "mac_address"}},
 			},
 			StaticTags: []string{"table_static_tag:val"},
 		},
@@ -939,20 +940,19 @@ community_string: public
 
 	expectedMetricsTagConfigs := []profiledefinition.MetricTagConfig{
 		{
-			OID:   "1.3.6.1.2.1.1.5.0",
-			Name:  "sysName",
-			Match: "(\\w)(\\w+)",
+			Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+			Match:  "(\\w)(\\w+)",
 			Tags: map[string]string{
 				"some_tag": "some_tag_value",
 				"prefix":   "\\1",
 				"suffix":   "\\2",
 			},
 		},
-		{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
-		{Tag: "snmp_host2", Column: profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
+		{Tag: "snmp_host2", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 	}
 
-	checkconfig.ValidateEnrichMetricTags(expectedMetricsTagConfigs)
+	configvalidation.ValidateEnrichMetricTags(expectedMetricsTagConfigs)
 
 	assert.ElementsMatch(t, expectedMetricsTagConfigs, metricTagConfigs)
 }

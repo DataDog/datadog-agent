@@ -145,15 +145,15 @@ func (suite *TailerTestSuite) TestTailFromBeginning() {
 	suite.Nil(err)
 
 	msg = <-suite.outputChan
-	suite.Equal("hello world", string(msg.Content))
+	suite.Equal("hello world", string(msg.GetContent()))
 	suite.Equal(len(lines[0]), toInt(msg.Origin.Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.Content))
+	suite.Equal("hello again", string(msg.GetContent()))
 	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Origin.Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("good bye", string(msg.Content))
+	suite.Equal("good bye", string(msg.GetContent()))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
@@ -178,11 +178,11 @@ func (suite *TailerTestSuite) TestTailFromEnd() {
 	suite.Nil(err)
 
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.Content))
+	suite.Equal("hello again", string(msg.GetContent()))
 	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Origin.Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("good bye", string(msg.Content))
+	suite.Equal("good bye", string(msg.GetContent()))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
@@ -209,11 +209,11 @@ func (suite *TailerTestSuite) TestRecoverTailing() {
 	suite.Nil(err)
 
 	msg = <-suite.outputChan
-	suite.Equal("hello again", string(msg.Content))
+	suite.Equal("hello again", string(msg.GetContent()))
 	suite.Equal(len(lines[0])+len(lines[1]), toInt(msg.Origin.Offset))
 
 	msg = <-suite.outputChan
-	suite.Equal("good bye", string(msg.Content))
+	suite.Equal("good bye", string(msg.GetContent()))
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), toInt(msg.Origin.Offset))
 
 	suite.Equal(len(lines[0])+len(lines[1])+len(lines[2]), int(suite.tailer.decodedOffset.Load()))
@@ -236,13 +236,13 @@ func (suite *TailerTestSuite) TestWithBlanklines() {
 	suite.tailer.Start(0, io.SeekStart)
 
 	msg = <-suite.outputChan
-	suite.Equal("message 1", string(msg.Content))
+	suite.Equal("message 1", string(msg.GetContent()))
 
 	msg = <-suite.outputChan
-	suite.Equal("message 2", string(msg.Content))
+	suite.Equal("message 2", string(msg.GetContent()))
 
 	msg = <-suite.outputChan
-	suite.Equal("message 3", string(msg.Content))
+	suite.Equal("message 3", string(msg.GetContent()))
 
 	suite.Equal(len(lines), int(suite.tailer.decodedOffset.Load()))
 }

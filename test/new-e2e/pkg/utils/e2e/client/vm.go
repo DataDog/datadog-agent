@@ -3,50 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package client contains clients used to communicate with the remote service
 package client
 
 import (
-	"os"
-	"testing"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	commonvm "github.com/DataDog/test-infra-definitions/components/vm"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/executeparams"
 )
 
-var _ clientService[commonvm.ClientData] = (*VM)(nil)
+// VM is an interface that provides methods to run commands on a virtual machine.
+type VM interface {
+	// ExecuteWithError executes a command and returns an error if any.
+	ExecuteWithError(command string, options ...executeparams.Option) (string, error)
 
-// VM is a client VM that is connected to a VM defined in test-infra-definition.
-type VM struct {
-	*UpResultDeserializer[commonvm.ClientData]
-	*vmClient
-}
+	// Execute executes a command and returns its output.
+	Execute(command string, options ...executeparams.Option) string
 
-// NewVM creates a new instance of VM
-func NewVM(infraVM commonvm.VM) *VM {
-	vm := &VM{}
-	vm.UpResultDeserializer = NewUpResultDeserializer[commonvm.ClientData](infraVM, vm)
-	return vm
-}
+	// CopyFile copy file to the remote host
+	CopyFile(src string, dst string)
 
-//lint:ignore U1000 Ignore unused function as this function is call using reflection
-func (vm *VM) initService(t *testing.T, data *commonvm.ClientData) error {
-	var err error
-	var privateSSHKey []byte
-
-	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
-	if err != nil {
-		return err
-	}
-
-	if privateKeyPath != "" {
-		privateSSHKey, err = os.ReadFile(privateKeyPath)
-		if err != nil {
-			return err
-		}
-	}
-
-	vm.vmClient, err = newVMClient(t, privateSSHKey, &data.Connection)
-	return err
+	// CopyFolder copy a folder to the remote host
+	CopyFolder(srcFolder string, dstFolder string)
 }

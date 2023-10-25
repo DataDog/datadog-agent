@@ -16,6 +16,8 @@ dependency "yaml-cpp" if windows?
 
 dependency "openscap" if linux? and !arm7l? and !heroku? # Security-agent dependency, not needed for Heroku
 
+dependency 'datadog-agent-dependencies'
+
 source path: '..'
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -129,13 +131,20 @@ build do
     end
   end
 
+  # Process agent
   if windows?
     platform = windows_arch_i386? ? "x86" : "x64"
     # Build the process-agent with the correct go version for windows
     command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
     copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+  else
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
+    copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
+  end
 
+  # System-probe
+  if windows?
     unless windows_arch_i386?
       if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
         ## don't bother with system probe build on x86.
@@ -143,9 +152,9 @@ build do
         copy 'bin/system-probe/system-probe.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
       end
     end
-  else
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
-    copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
+  elsif linux?
+    command "invoke -e system-probe.build-sysprobe-binary"
+    copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
   end
 
   # Add SELinux policy for system-probe
@@ -155,12 +164,26 @@ build do
   end
 
   # Security agent
-  unless windows? || heroku?
-    command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
-    copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
-    move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
+  unless heroku?
+    if not windows? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?)
+      command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
+      if windows?
+        copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+      else 
+        copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
+      end
+      move 'bin/agent/dist/security-agent.yaml', "#{conf_dir}/security-agent.yaml.example"
+    end
   end
 
+  # APM Injection agent
+  if windows?
+    if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+      command "inv generate-config --build-type apm-injection --output-file ./bin/agent/dist/apm-inject.yaml", :env => env
+     #move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
+      move 'bin/agent/dist/apm-inject.yaml', "#{conf_dir}/apm-inject.yaml.example"
+    end
+  end
   if linux?
     if debian?
       erb source: "upstart_debian.conf.erb",

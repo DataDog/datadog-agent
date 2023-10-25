@@ -16,7 +16,7 @@ import (
 
 func parseEvent(t *testing.T, rawEvent []byte) (dogstatsdEvent, error) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	parser := newParser(cfg, newFloat64ListPool())
+	parser := newParser(cfg, newFloat64ListPool(), 1)
 	return parser.parseEvent(rawEvent)
 }
 

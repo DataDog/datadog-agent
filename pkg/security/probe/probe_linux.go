@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -89,7 +88,7 @@ type PlatformProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	monitor         *Monitor
+	monitors        *Monitors
 	profileManagers *SecurityProfileManagers
 
 	// Ring
@@ -125,16 +124,26 @@ func (p *Probe) detectKernelVersion() error {
 }
 
 // GetKernelVersion computes and returns the running kernel version
-func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
-	if err := p.detectKernelVersion(); err != nil {
-		return nil, err
-	}
-	return p.kernelVersion, nil
+func (p *Probe) GetKernelVersion() *kernel.Version {
+	return p.kernelVersion
 }
 
 // UseRingBuffers returns true if eBPF ring buffers are supported and used
 func (p *Probe) UseRingBuffers() bool {
-	return p.kernelVersion.HaveRingBuffers() && p.Config.Probe.EventStreamUseRingBuffer
+	return p.Config.Probe.EventStreamUseRingBuffer && p.kernelVersion.HaveRingBuffers()
+}
+
+func (p *Probe) selectFentryMode() {
+	if !p.Config.Probe.EventStreamUseFentry {
+		p.useFentry = false
+		return
+	}
+
+	supported := p.kernelVersion.HaveFentrySupport()
+	if !supported {
+		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+	}
+	p.useFentry = supported
 }
 
 func (p *Probe) sanityChecks() error {
@@ -258,7 +267,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	err = p.monitor.Init()
+	err = p.monitors.Init()
 	if err != nil {
 		return err
 	}
@@ -269,7 +278,7 @@ func (p *Probe) Init() error {
 	}
 	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
-	p.eventStream.SetMonitor(p.monitor.eventStreamMonitor)
+	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
 
 	return nil
 }
@@ -382,7 +391,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 			p.profileManagers.activityDumpManager.ProcessEvent(event)
 		}
 	}
-	p.monitor.ProcessEvent(event)
+	p.monitors.ProcessEvent(event)
 }
 
 func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
@@ -404,17 +413,14 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 		return eventJSON, event.GetEventType(), err
 	})
 
-	// send specific event
-	if p.Config.RuntimeSecurity.CustomEventEnabled {
-		// send wildcard first
-		for _, handler := range p.customEventHandlers[model.UnknownEventType] {
-			handler.HandleCustomEvent(rule, event)
-		}
+	// send wildcard first
+	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
+		handler.HandleCustomEvent(rule, event)
+	}
 
-		// send specific event
-		for _, handler := range p.customEventHandlers[event.GetEventType()] {
-			handler.HandleCustomEvent(rule, event)
-		}
+	// send specific event
+	for _, handler := range p.customEventHandlers[event.GetEventType()] {
+		handler.HandleCustomEvent(rule, event)
 	}
 }
 
@@ -440,17 +446,17 @@ func (p *Probe) SendStats() error {
 		return err
 	}
 
-	return p.monitor.SendStats()
+	return p.monitors.SendStats()
 }
 
-// GetMonitor returns the monitor of the probe
-func (p *Probe) GetMonitor() *Monitor {
-	return p.monitor
+// GetMonitors returns the monitor of the probe
+func (p *Probe) GetMonitors() *Monitors {
+	return p.monitors
 }
 
 // EventMarshallerCtor returns the event marshaller ctor
-func (p *Probe) EventMarshallerCtor(event *model.Event) func() easyjson.Marshaler {
-	return func() easyjson.Marshaler {
+func (p *Probe) EventMarshallerCtor(event *model.Event) func() events.EventMarshaler {
+	return func() events.EventMarshaler {
 		return serializers.NewEventSerializer(event, p.resolvers)
 	}
 }
@@ -483,9 +489,11 @@ func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, e
 }
 
 func (p *Probe) onEventLost(perfMapName string, perEvent map[string]uint64) {
-	p.DispatchCustomEvent(
-		NewEventLostWriteEvent(perfMapName, perEvent),
-	)
+	if p.Config.RuntimeSecurity.InternalMonitoringEnabled {
+		p.DispatchCustomEvent(
+			NewEventLostWriteEvent(perfMapName, perEvent),
+		)
+	}
 
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
@@ -544,7 +552,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		return
 	}
 
-	p.monitor.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
+	p.monitors.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
 
 	// no need to dispatch events
 	switch eventType {
@@ -1234,6 +1242,11 @@ func (p *Probe) FlushDiscarders() error {
 	return bumpDiscardersRevision(p.Erpc)
 }
 
+// RefreshUserCache refreshes the user cache
+func (p *Probe) RefreshUserCache(containerID string) error {
+	return p.GetResolvers().UserGroupResolver.RefreshCache(containerID)
+}
+
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
@@ -1375,6 +1388,12 @@ func (p *Probe) applyDefaultFilterPolicies() {
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	if p.Opts.SyscallsMonitorEnabled {
+		if err := p.monitors.syscallsMonitor.Disable(); err != nil {
+			return nil, err
+		}
+	}
+
 	ars, err := kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
 	if err != nil {
 		return nil, err
@@ -1391,6 +1410,15 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 
 	if err := p.updateProbes(rs.GetEventTypes(), false); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
+	}
+
+	if p.Opts.SyscallsMonitorEnabled {
+		if err := p.monitors.syscallsMonitor.Flush(); err != nil {
+			return nil, err
+		}
+		if err := p.monitors.syscallsMonitor.Enable(); err != nil {
+			return nil, err
+		}
 	}
 
 	return ars, nil
@@ -1420,7 +1448,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Erpc:               nerpc,
 			erpcRequest:        &erpc.Request{},
 			isRuntimeDiscarded: !opts.DontDiscardRuntime,
-			useFentry:          config.Probe.EventStreamUseFentry,
 		},
 	}
 
@@ -1441,6 +1468,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		seclog.Warnf("the current environment may be misconfigured: %v", err)
 	}
 
+	p.selectFentryMode()
+
 	useRingBuffers := p.UseRingBuffers()
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
@@ -1448,7 +1477,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.ensureConfigDefaults()
 
-	p.monitor = NewMonitor(p)
+	p.monitors = NewMonitors(p)
 
 	numCPU, err := utils.NumCPU()
 	if err != nil {
@@ -1774,22 +1803,14 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 // GetOffsetConstants returns the offsets and struct sizes constants
 func (p *Probe) GetOffsetConstants() (map[string]uint64, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
-	kv, err := p.GetKernelVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
-	}
-	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetResults()
 }
 
 // GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
 func (p *Probe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
-	kv, err := p.GetKernelVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
-	}
-	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetStatus()
 }
 

@@ -10,13 +10,13 @@ go 1.20
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/proto v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/log v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.0
 	github.com/DataDog/sketches-go v1.4.2
@@ -42,6 +42,7 @@ require (
 )
 
 require (
+	github.com/DataDog/go-sqllexer v0.0.7 // indirect
 	github.com/DataDog/go-tuf v1.0.2-0.5.2 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/containerd/cgroups/v3 v3.0.2 // indirect

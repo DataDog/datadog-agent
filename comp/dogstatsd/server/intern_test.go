@@ -13,7 +13,7 @@ import (
 
 func TestInternLoadOrStoreValue(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := newStringInterner(3)
+	sInterner := newStringInterner(3, 1)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -34,7 +34,7 @@ func TestInternLoadOrStoreValue(t *testing.T) {
 
 func TestInternLoadOrStorePointer(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := newStringInterner(4)
+	sInterner := newStringInterner(4, 1)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -59,7 +59,7 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 
 func TestInternLoadOrStoreReset(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := newStringInterner(4)
+	sInterner := newStringInterner(4, 1)
 
 	// first test that the good value is returned.
 	sInterner.LoadOrStore([]byte("foo"))

@@ -9,9 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"google.golang.org/protobuf/proto"
-
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/proto"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -43,14 +42,14 @@ func TestNoTagNoTouch(t *testing.T) {
 	}
 
 	pt := &traceutil.ProcessedTrace{TraceChunk: original}
-	applied, sampled := ApplySpanSampling(pt)
-	assert.False(t, applied)
-	assert.True(t, proto.Equal(sampled.TraceChunk, original))
+	modified := SingleSpanSampling(pt)
+	assert.False(t, modified)
+	assert.True(t, proto.Equal(pt.TraceChunk, original))
 }
 
 // TestTagCausesInPlaceFilterAndKeep verifies that the presence of a span
-// sampling tag in any of the spans passed to ApplySpanSampling causes the
-// argument of ApplySpanSampling to be modified in the following ways:
+// sampling tag in any of the spans passed to GetSingleSpanSampledSpans causes the
+// argument of GetSingleSpanSampledSpans to be modified in the following ways:
 //   - The chunk is filtered to contain only those spans that have the span
 //     sampling tag.
 //   - The chunk's sampling priority is PriorityUserKeep.
@@ -111,14 +110,15 @@ func TestTagCausesInPlaceFilterAndKeep(t *testing.T) {
 		},
 	}
 
-	pt := &traceutil.ProcessedTrace{TraceChunk: original}
-	applied, sampled := ApplySpanSampling(pt)
-	assert.True(t, applied)
-	assert.False(t, sampled.TraceChunk.DroppedTrace)
-	assert.Equal(t, int32(PriorityUserKeep), sampled.TraceChunk.Priority)
-	assert.Len(t, sampled.TraceChunk.Spans, 2)
+	ptChunk := proto.Clone(original).(*pb.TraceChunk)
+	pt := &traceutil.ProcessedTrace{TraceChunk: ptChunk}
+	modified := SingleSpanSampling(pt)
+	assert.True(t, modified)
+	assert.False(t, pt.TraceChunk.DroppedTrace)
+	assert.Equal(t, int32(PriorityUserKeep), pt.TraceChunk.Priority)
+	assert.Len(t, pt.TraceChunk.Spans, 2)
 	// child
-	assert.Equal(t, original.Spans[1], sampled.TraceChunk.Spans[0])
+	assert.Equal(t, original.Spans[1], pt.TraceChunk.Spans[0])
 	// great-grandchild
-	assert.Equal(t, original.Spans[3], sampled.TraceChunk.Spans[1])
+	assert.Equal(t, original.Spans[3], pt.TraceChunk.Spans[1])
 }

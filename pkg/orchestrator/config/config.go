@@ -17,10 +17,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/redact"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,6 +37,7 @@ const (
 type OrchestratorConfig struct {
 	CollectorDiscoveryEnabled      bool
 	OrchestrationCollectionEnabled bool
+	CoreCheck                      bool
 	KubeClusterName                string
 	IsScrubbingEnabled             bool
 	Scrubber                       *redact.DataScrubber
@@ -84,7 +83,7 @@ func (oc *OrchestratorConfig) Load() error {
 	oc.OrchestratorEndpoints[0].Endpoint = URL
 
 	if key := "api_key"; config.Datadog.IsSet(key) {
-		oc.OrchestratorEndpoints[0].APIKey = configUtils.SanitizeAPIKey(config.Datadog.GetString(key))
+		oc.OrchestratorEndpoints[0].APIKey = utils.SanitizeAPIKey(config.Datadog.GetString(key))
 	}
 
 	if err := extractOrchestratorAdditionalEndpoints(URL, &oc.OrchestratorEndpoints); err != nil {
@@ -108,7 +107,7 @@ func (oc *OrchestratorConfig) Load() error {
 	}
 
 	// Orchestrator Explorer
-	oc.OrchestrationCollectionEnabled, oc.KubeClusterName = IsOrchestratorEnabled()
+	oc.OrchestrationCollectionEnabled, oc.CoreCheck, oc.KubeClusterName = IsOrchestratorEnabled()
 
 	oc.CollectorDiscoveryEnabled = config.Datadog.GetBool(key(orchestratorNS, "collector_discovery.enabled"))
 	oc.IsScrubbingEnabled = config.Datadog.GetBool(key(orchestratorNS, "container_scrubbing.enabled"))
@@ -141,7 +140,7 @@ func extractEndpoints(URL *url.URL, k string, endpoints *[]apicfg.Endpoint) erro
 		}
 		for _, k := range apiKeys {
 			*endpoints = append(*endpoints, apicfg.Endpoint{
-				APIKey:   configUtils.SanitizeAPIKey(k),
+				APIKey:   utils.SanitizeAPIKey(k),
 				Endpoint: u,
 			})
 		}
@@ -164,9 +163,6 @@ func extractOrchestratorDDUrl() (*url.URL, error) {
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
 func NewOrchestratorForwarder(log log.Component) forwarder.Forwarder {
 	if !config.Datadog.GetBool(key(orchestratorNS, "enabled")) {
-		return nil
-	}
-	if flavor.GetFlavor() == flavor.DefaultAgent && !config.IsCLCRunner() {
 		return nil
 	}
 	orchestratorCfg := NewDefaultOrchestratorConfig()
@@ -199,8 +195,8 @@ func setBoundedConfigIntValue(configKey string, upperBound int, setter func(v in
 	setter(val)
 }
 
-// IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean and the cluster name
-func IsOrchestratorEnabled() (bool, string) {
+// IsOrchestratorEnabled checks if orchestrator explorer features are enabled, it returns the boolean, the coreCheck flag and the cluster name
+func IsOrchestratorEnabled() (bool, bool, string) {
 	enabled := config.Datadog.GetBool(key(orchestratorNS, "enabled"))
 	var clusterName string
 	if enabled {
@@ -208,5 +204,6 @@ func IsOrchestratorEnabled() (bool, string) {
 		hname, _ := hostname.Get(context.TODO())
 		clusterName = clustername.GetRFC1123CompliantClusterName(context.TODO(), hname)
 	}
-	return enabled, clusterName
+	coreCheck := config.Datadog.GetBool(key(orchestratorNS, "run_on_node_agent"))
+	return enabled, coreCheck, clusterName
 }

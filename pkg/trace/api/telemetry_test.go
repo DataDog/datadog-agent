@@ -74,7 +74,7 @@ func TestTelemetryBasicProxyRequest(t *testing.T) {
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
 		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
-		assert.Equal("AWS Lambda", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("AWSLambda", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
 		assert.Equal("/path", req.URL.Path)
 		assert.Equal("", req.Header.Get("User-Agent"))
@@ -101,7 +101,7 @@ func TestGoogleCloudRun(t *testing.T) {
 
 	srv := assertingServer(t, func(req *http.Request, body []byte) error {
 		assert.Equal("GCP", req.Header.Get("DD-Cloud-Provider"))
-		assert.Equal("GCP Cloud Run", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("GCPCloudRun", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_service", req.Header.Get("DD-Cloud-Resource-Identifier"))
 
 		endpointCalled.Inc()
@@ -125,7 +125,7 @@ func TestAzureAppService(t *testing.T) {
 
 	srv := assertingServer(t, func(req *http.Request, body []byte) error {
 		assert.Equal("Azure", req.Header.Get("DD-Cloud-Provider"))
-		assert.Equal("Azure App Service", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("AzureAppService", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_app", req.Header.Get("DD-Cloud-Resource-Identifier"))
 		assert.Equal("/path", req.URL.Path)
 		assert.Equal("", req.Header.Get("User-Agent"))
@@ -152,7 +152,7 @@ func TestAzureContainerApp(t *testing.T) {
 
 	srv := assertingServer(t, func(req *http.Request, body []byte) error {
 		assert.Equal("Azure", req.Header.Get("DD-Cloud-Provider"))
-		assert.Equal("Azure Container App", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("AzureContainerApp", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_app", req.Header.Get("DD-Cloud-Resource-Identifier"))
 		assert.Equal("/path", req.URL.Path)
 		assert.Equal("", req.Header.Get("User-Agent"))
@@ -190,7 +190,7 @@ func TestAWSFargate(t *testing.T) {
 
 	srv := assertingServer(t, func(req *http.Request, body []byte) error {
 		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
-		assert.Equal("AWS Fargate", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("AWSFargate", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
 
 		endpointCalled.Inc()
@@ -222,7 +222,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
 		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
-		assert.Equal("AWS Lambda", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("AWSLambda", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
 
 		endpointCalled.Add(2)
@@ -236,7 +236,7 @@ func TestTelemetryProxyMultipleEndpoints(t *testing.T) {
 		assert.Equal("test_hostname", req.Header.Get("DD-Agent-Hostname"))
 		assert.Equal("test_env", req.Header.Get("DD-Agent-Env"))
 		assert.Equal("AWS", req.Header.Get("DD-Cloud-Provider"))
-		assert.Equal("AWS Lambda", req.Header.Get("DD-Cloud-Resource-Type"))
+		assert.Equal("AWSLambda", req.Header.Get("DD-Cloud-Resource-Type"))
 		assert.Equal("test_ARN", req.Header.Get("DD-Cloud-Resource-Identifier"))
 
 		endpointCalled.Add(3)

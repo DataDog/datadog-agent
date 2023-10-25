@@ -296,7 +296,7 @@ func (l *loader) loadKeyFileMeta(name string) *K8sKeyFileMeta {
 
 // https://github.com/kubernetes/kubernetes/blob/ad18954259eae3db51bac2274ed4ca7304b923c4/cmd/kubeadm/test/kubeconfig/util.go#L77-L87
 func (l *loader) loadCertFileMeta(name string) *K8sCertFileMeta {
-	name, info, certData, ok := l.loadMeta(name, true)
+	fullpath, info, certData, ok := l.loadMeta(name, true)
 	if !ok {
 		return nil
 	}
@@ -308,7 +308,7 @@ func (l *loader) loadCertFileMeta(name string) *K8sCertFileMeta {
 	meta.User = utils.GetFileUser(info)
 	meta.Group = utils.GetFileGroup(info)
 	meta.Mode = uint32(info.Mode())
-	dir := filepath.Dir(name)
+	dir := filepath.Dir(fullpath)
 	if dirInfo, err := os.Stat(dir); err == nil {
 		meta.DirMode = uint32(dirInfo.Mode())
 		meta.DirUser = utils.GetFileUser(dirInfo)

@@ -11,14 +11,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNodeParser_Parse(t *testing.T) {
@@ -34,7 +33,7 @@ func TestNodeParser_Parse(t *testing.T) {
 		},
 	}
 	node := &corev1.Node{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:   expected.ID,
 			Labels: expected.Labels,
 		},
@@ -55,20 +54,18 @@ func Test_NodesFakeKubernetesClient(t *testing.T) {
 		_, err := cl.CoreV1().Nodes().Create(context.TODO(), &corev1.Node{ObjectMeta: objectMeta}, metav1.CreateOptions{})
 		return err
 	}
-	expected := []workloadmeta.EventBundle{
-		{
-			Events: []workloadmeta.Event{
-				{
-					Type: workloadmeta.EventTypeSet,
-					Entity: &workloadmeta.KubernetesNode{
-						EntityID: workloadmeta.EntityID{
-							ID:   objectMeta.Name,
-							Kind: workloadmeta.KindKubernetesNode,
-						},
-						EntityMeta: workloadmeta.EntityMeta{
-							Name:   objectMeta.Name,
-							Labels: objectMeta.Labels,
-						},
+	expected := workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{
+			{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesNode{
+					EntityID: workloadmeta.EntityID{
+						ID:   objectMeta.Name,
+						Kind: workloadmeta.KindKubernetesNode,
+					},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:   objectMeta.Name,
+						Labels: objectMeta.Labels,
 					},
 				},
 			},

@@ -18,6 +18,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
+	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
@@ -59,7 +60,7 @@ func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command 
 		return core.BundleParams{
 			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 			SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-			LogParams:            log.LogForOneShot(command.LoggerName, "info", true),
+			LogParams:            log.ForOneShot(command.LoggerName, "info", true),
 		}
 	})
 }
@@ -83,7 +84,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 
 			bundleParams := bundleParamsFactory()
 			if checkArgs.verbose {
-				bundleParams.LogParams = log.LogForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
+				bundleParams.LogParams = log.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
 			}
 
 			return fxutil.OneShot(RunCheck,
@@ -263,14 +264,14 @@ func reportComplianceEvents(log log.Component, config config.Component, events [
 	return nil
 }
 
-func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, error) {
+func complianceKubernetesProvider(_ctx context.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
 	ctx, cancel := context.WithTimeout(_ctx, 2*time.Second)
 	defer cancel()
 	apiCl, err := apiserver.WaitForAPIClient(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return apiCl.DynamicCl, nil
+	return apiCl.DynamicCl, apiCl.DiscoveryCl, nil
 }
 
 type fakeResolver struct {

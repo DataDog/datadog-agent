@@ -50,7 +50,7 @@ type Collector struct {
 
 // CleanCache cleans the cache
 func (c *Collector) CleanCache() error {
-	return c.trivyCollector.CleanCache()
+	return nil
 }
 
 // Init initialize the host collector

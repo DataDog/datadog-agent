@@ -68,7 +68,7 @@ func (a *agent) SetupPipeline(
 }
 
 // buildEndpoints builds endpoints for the logs agent
-func buildEndpoints(coreConfig pkgConfig.ConfigReader) (*config.Endpoints, error) {
+func buildEndpoints(coreConfig pkgConfig.Reader) (*config.Endpoints, error) {
 	httpConnectivity := config.HTTPConnectivityFailure
 	if endpoints, err := config.BuildHTTPEndpointsWithVectorOverride(coreConfig, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin); err == nil {
 		httpConnectivity = http.CheckConnectivity(endpoints.Main)
