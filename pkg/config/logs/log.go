@@ -570,3 +570,21 @@ func init() {
 	seelog.RegisterCustomFormatter("ExtraTextContext", createExtraTextContext)        //nolint:errcheck
 	seelog.RegisterReceiver("syslog", &SyslogReceiver{})                              //nolint:errcheck
 }
+
+// InitConfig is used to configure logs for Datadog Agent config.
+func InitConfig(config pkgconfigmodel.Config) {
+	// If enabling log_payloads, ensure the log level is set to at least DEBUG to be able to see the logs
+	config.BindEnvAndSetDefault("log_payloads", false)
+	config.BindEnvAndSetDefault("log_file", "")
+	config.BindEnvAndSetDefault("log_file_max_size", "10Mb")
+	config.BindEnvAndSetDefault("log_file_max_rolls", 1)
+	config.BindEnvAndSetDefault("log_level", "info")
+	config.BindEnvAndSetDefault("log_to_syslog", false)
+	config.BindEnvAndSetDefault("log_to_console", true)
+	config.BindEnvAndSetDefault("log_format_rfc3339", false)
+	config.BindEnvAndSetDefault("log_all_goroutines_when_unhealthy", false)
+	config.BindEnvAndSetDefault("logging_frequency", int64(500))
+	config.BindEnvAndSetDefault("disable_file_logging", false)
+	// Use to output logs in JSON format
+	config.BindEnvAndSetDefault("log_format_json", false)
+}
