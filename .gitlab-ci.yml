@@ -340,6 +340,12 @@ workflow:
   - when: manual
     allow_failure: true
 
+.manual_but_not_mq:
+  - when: manual
+    allow_failure: true
+  - <<: *if_mergequeue
+    when: never
+
 .on_a6:
   - <<: *if_version_6
   - <<: *if_mergequeue
@@ -899,6 +905,8 @@ workflow:
     when: on_success
   - when: manual
     allow_failure: true
+  - <<: *if_mergequeue
+    when: never
 
 .on_system_probe_changes_or_manual:
   - <<: *if_main_branch
