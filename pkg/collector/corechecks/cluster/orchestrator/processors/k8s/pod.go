@@ -62,6 +62,9 @@ func (h *PodHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resourc
 	}
 
 	m.Tags = append(m.Tags, taggerTags...)
+	for _, tag := range taggerTags {
+		log.Infof("BeforeCacheCheck: add tag ", tag)
+	}
 
 	// additional tags
 	m.Tags = append(m.Tags, fmt.Sprintf("pod_status:%s", strings.ToLower(m.Status)))
