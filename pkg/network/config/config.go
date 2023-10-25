@@ -244,8 +244,14 @@ type Config struct {
 	// HTTPMapCleanerInterval is the interval to run the cleaner function.
 	HTTPMapCleanerInterval time.Duration
 
+	// HTTP2MapCleanerInterval is the interval to run the cleaner function.
+	HTTP2MapCleanerInterval time.Duration
+
 	// HTTPIdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
 	HTTPIdleConnectionTTL time.Duration
+
+	// HTTP2IdleConnectionTTL is the time an idle connection counted as "inactive" and should be deleted.
+	HTTP2IdleConnectionTTL time.Duration
 
 	// ProtocolClassificationEnabled specifies whether the tracer should enhance connection data with protocols names by
 	// classifying the L7 protocols being used.
@@ -339,8 +345,10 @@ func New() *Config {
 
 		EnableRootNetNs: cfg.GetBool(join(netNS, "enable_root_netns")),
 
-		HTTPMapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
-		HTTPIdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+		HTTPMapCleanerInterval:  time.Duration(cfg.GetInt(join(smNS, "http_map_cleaner_interval_in_s"))) * time.Second,
+		HTTPIdleConnectionTTL:   time.Duration(cfg.GetInt(join(smNS, "http_idle_connection_ttl_in_s"))) * time.Second,
+		HTTP2MapCleanerInterval: time.Duration(cfg.GetInt(join(smNS, "http2_map_cleaner_interval_in_s"))) * time.Second,
+		HTTP2IdleConnectionTTL:  time.Duration(cfg.GetInt(join(smNS, "http2_idle_connection_ttl_in_s"))) * time.Second,
 
 		// Service Monitoring
 		EnableJavaTLSSupport:        cfg.GetBool(join(smjtNS, "enabled")),
