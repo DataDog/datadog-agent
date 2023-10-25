@@ -15,6 +15,8 @@ import (
 )
 
 func TestFlagsToString(t *testing.T) {
+	initConstants()
+
 	str := OpenFlags(syscall.O_EXCL | syscall.O_TRUNC).String()
 	if str != "O_RDONLY | O_EXCL | O_TRUNC" {
 		t.Errorf("expected flags not found, got: %s", str)
