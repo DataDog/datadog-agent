@@ -302,7 +302,7 @@ func InitConfig(config Config) {
 	// Remote config products
 	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.enabled", false)
-	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", []string{})
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})
 
 	// Auto exit configuration
@@ -2038,10 +2038,6 @@ func IsRemoteConfigEnabled(cfg Reader) bool {
 // with remote-config
 func GetRemoteConfigurationAllowedIntegrations(cfg Reader) map[string]bool {
 	allowList := cfg.GetStringSlice("remote_configuration.agent_integrations.allow_list")
-	if len(allowList) == 0 {
-		allowList = defaultAllowedRCIntegrations
-	}
-
 	allowMap := map[string]bool{}
 	for _, integration := range allowList {
 		allowMap[strings.ToLower(integration)] = true
