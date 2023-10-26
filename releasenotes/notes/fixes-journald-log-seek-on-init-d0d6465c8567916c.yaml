@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix journald log seek on initialization to beginning or end.
+    Fixes journald log's Seek function to be set at the beginning or end upon initialization.
