@@ -53,7 +53,7 @@ type DeviceMetadata struct {
 	SysObjectID    string       `json:"sys_object_id,omitempty"`
 	Location       string       `json:"location,omitempty"`
 	Profile        string       `json:"profile,omitempty"`
-	ProfileVersion uint         `json:"profile_version,omitempty"`
+	ProfileVersion uint64       `json:"profile_version,omitempty"`
 	Vendor         string       `json:"vendor,omitempty"`
 	Subnet         string       `json:"subnet,omitempty"`
 	SerialNumber   string       `json:"serial_number,omitempty"`
