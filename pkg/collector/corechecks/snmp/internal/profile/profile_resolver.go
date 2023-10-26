@@ -7,10 +7,10 @@ package profile
 
 import (
 	"fmt"
-	"github.com/mohae/deepcopy"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
