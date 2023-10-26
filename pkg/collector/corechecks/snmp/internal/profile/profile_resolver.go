@@ -6,6 +6,7 @@
 package profile
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -19,26 +20,27 @@ import (
 
 func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
-
-	userExpandedProfiles, err := loadResolveProfiles(rawProfiles, defaultProfiles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load profiles: %s", err)
-	}
-	profiles := ProfileConfigMap{}
-
-	for key, val := range userExpandedProfiles {
+	filteredRawProfiles := ProfileConfigMap{}
+	for key, val := range rawProfiles {
+		// TODO: TESTME
 		if strings.HasPrefix(key, "_") {
 			continue
 		}
-		profiles[key] = val
+		filteredRawProfiles[key] = val
 	}
-	return profiles, nil
+
+	userExpandedProfiles, err := loadResolveProfiles(filteredRawProfiles, defaultProfiles)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load profiles: %s", err)
+	}
+	return userExpandedProfiles, nil
 }
 
 func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	profiles := make(ProfileConfigMap, len(pConfig))
 
 	for name, profConfig := range pConfig {
+		log.Warnf("[PROFILE DEBUG] name: %s", name)
 		err := recursivelyExpandBaseProfiles(name, &profConfig.Definition, profConfig.Definition.Extends, []string{}, pConfig, defaultProfiles)
 		if err != nil {
 			log.Warnf("failed to expand profile `%s`: %s", name, err)
@@ -52,6 +54,7 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 			log.Warnf("validation errors: %s", strings.Join(errors, "\n"))
 			continue
 		}
+		log.Warnf("[PROFILE DEBUG] name: %s, profConfig: %s", name, marshall(profConfig))
 		profiles[name] = profConfig
 	}
 
@@ -87,6 +90,8 @@ func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefin
 			}
 		}
 
+		log.Warnf("[PROFILE DEBUG] extendEntry: %s", extendEntry)
+		log.Warnf("[PROFILE DEBUG] extend baseDefinition: %s", marshall(baseDefinition))
 		mergeProfileDefinition(definition, baseDefinition)
 
 		newExtendsHistory := append(common.CopyStrings(extendsHistory), extendEntry)
@@ -96,6 +101,11 @@ func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefin
 		}
 	}
 	return nil
+}
+
+func marshall(baseDefinition interface{}) string {
+	marshal, _ := json.Marshal(baseDefinition)
+	return string(marshal)
 }
 
 func mergeProfileDefinition(targetDefinition *profiledefinition.ProfileDefinition, baseDefinition *profiledefinition.ProfileDefinition) {

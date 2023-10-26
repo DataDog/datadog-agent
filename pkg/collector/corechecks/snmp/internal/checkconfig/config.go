@@ -203,6 +203,7 @@ func (c *CheckConfig) SetProfile(profile string) error {
 	log.Debugf("Refreshing with profile `%s`", profile)
 	tags := []string{"snmp_profile:" + profile}
 	definition := c.Profiles[profile].Definition
+	log.Tracef("Profile content `%s`: %+v", profile, definition)
 	c.ProfileDef = &definition
 	c.Profile = profile
 
