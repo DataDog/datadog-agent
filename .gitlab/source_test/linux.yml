@@ -72,6 +72,10 @@ tests_deb-x64-py3:
   variables:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
+  cache:
+    - key: deb-x64-py3-gotest-poc
+      paths:
+        - ~/.cache/go-build
 
 lint_linux-x64:
   extends:
