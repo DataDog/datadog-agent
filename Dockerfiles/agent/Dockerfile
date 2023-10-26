@@ -134,9 +134,9 @@ RUN apt full-upgrade -y \
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
   && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser curl gnupg
 
-RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
+RUN curl -v https://packages.microsoft.com/keys/microsoft.asc | tee /etc/apt/trusted.gpg.d/microsoft.asc
 
-RUN curl https://packages.microsoft.com/config/ubuntu/${BASE_IMAGE_UBUNTU_VERSION}/prod.list | tee /etc/apt/sources.list.d/mssql-release.list
+RUN curl -v https://packages.microsoft.com/config/ubuntu/${BASE_IMAGE_UBUNTU_VERSION}/prod.list | tee /etc/apt/sources.list.d/mssql-release.list
 
 RUN apt update \
   && ACCEPT_EULA=Y apt install -y msodbcsql18
