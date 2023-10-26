@@ -75,7 +75,7 @@ tests_deb-x64-py3:
   cache:
     - key: deb-x64-py3-gotest-poc
       paths:
-        - ~/.cache/go-build
+        - .cache/go-build
 
 lint_linux-x64:
   extends:
