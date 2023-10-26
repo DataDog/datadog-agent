@@ -313,7 +313,6 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
 }
 
 static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_ctx_t *http2_ctx, struct http2_frame *current_frame) {
-    bool is_rst = false;
     http2_ctx->http2_stream_key.stream_id = current_frame->stream_id;
     http2_stream_t *current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
     if (current_stream == NULL) {
@@ -327,14 +326,18 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
         skb_info->data_off += current_frame->length;
     }
 
-    // When we accept an RST with NO ERROR, it means that the current stream was terminated with no error.
+   // When we accept an RST, it means that the current stream is terminated.
     // According to https://datatracker.ietf.org/doc/html/rfc7540#section-6.4, the frame includes a 32-bit
     // error code integer.
-    is_rst = current_frame->type == kRSTStreamFrame;
-
-    if (is_rst || ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM)) {
-        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
+    bool is_rst = current_frame->type == kRSTStreamFrame;
+       // If rst, and stream is empty (no status code, or no response) then delete from inflight
+    if (is_rst && (current_stream->response_status_code == 0 || current_stream->request_started == 0)) {
+        bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+        return;
     }
+    if (is_rst || ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM)) {
+             handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
+     }
 
     return;
 }
@@ -494,10 +497,9 @@ valid_frame:
         // END_STREAM can appear only in Headers and Data frames.
         // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
-        is_headers_frame = current_frame.type == kHeadersFrame;
+        is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-        is_rst = current_frame.type == kRSTStreamFrame;
-        if (is_headers_frame || is_data_end_of_stream || is_rst) {
+        if (is_headers_or_rst_frame || is_data_end_of_stream) {
             frames_array[interesting_frame_index].frame = current_frame;
             frames_array[interesting_frame_index].offset = skb_info->data_off;
             interesting_frame_index++;
