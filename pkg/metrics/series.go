@@ -107,7 +107,7 @@ func (serie *Serie) PopulateDeviceField() {
 		return
 	}
 	// make a copy of the tags array. Otherwise the underlying array won't have
-	// the device tag for the Nth iteration (N>1), and the deice field will
+	// the device tag for the Nth iteration (N>1), and the device field will
 	// be lost
 	filteredTags := make([]string, 0, serie.Tags.Len())
 

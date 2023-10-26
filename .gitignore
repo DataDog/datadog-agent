@@ -208,3 +208,4 @@ test/fakeintake/build/*
 !test/workload-checks/**
 
 kmt-deps/
+pkg/serverless/tags/testGetRuntimeRetries/13/environ
