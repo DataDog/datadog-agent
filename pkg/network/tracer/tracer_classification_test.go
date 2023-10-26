@@ -1740,9 +1740,10 @@ func testEdgeCasesProtocolClassification(t *testing.T, tr *Tracer, clientHost, t
 
 					// This is an echo server, we expect to get the same buffer as we sent, so the output buffer
 					// has the same length of the input.
-					input = input[:0]
-					_, err = c.Read(input)
+					output := make([]byte, len(input))
+					_, err = c.Read(output)
 					require.NoError(t, err)
+					require.Equal(t, input, output)
 				}
 			},
 			teardown:   teardown,
