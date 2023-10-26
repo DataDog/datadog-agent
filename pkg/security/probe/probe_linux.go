@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -89,7 +88,7 @@ type PlatformProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	monitor         *Monitor
+	monitors        *Monitors
 	profileManagers *SecurityProfileManagers
 
 	// Ring
@@ -268,7 +267,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	err = p.monitor.Init()
+	err = p.monitors.Init()
 	if err != nil {
 		return err
 	}
@@ -279,7 +278,7 @@ func (p *Probe) Init() error {
 	}
 	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
-	p.eventStream.SetMonitor(p.monitor.eventStreamMonitor)
+	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
 
 	return nil
 }
@@ -392,7 +391,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 			p.profileManagers.activityDumpManager.ProcessEvent(event)
 		}
 	}
-	p.monitor.ProcessEvent(event)
+	p.monitors.ProcessEvent(event)
 }
 
 func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
@@ -447,17 +446,17 @@ func (p *Probe) SendStats() error {
 		return err
 	}
 
-	return p.monitor.SendStats()
+	return p.monitors.SendStats()
 }
 
-// GetMonitor returns the monitor of the probe
-func (p *Probe) GetMonitor() *Monitor {
-	return p.monitor
+// GetMonitors returns the monitor of the probe
+func (p *Probe) GetMonitors() *Monitors {
+	return p.monitors
 }
 
 // EventMarshallerCtor returns the event marshaller ctor
-func (p *Probe) EventMarshallerCtor(event *model.Event) func() easyjson.Marshaler {
-	return func() easyjson.Marshaler {
+func (p *Probe) EventMarshallerCtor(event *model.Event) func() events.EventMarshaler {
+	return func() events.EventMarshaler {
 		return serializers.NewEventSerializer(event, p.resolvers)
 	}
 }
@@ -553,7 +552,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		return
 	}
 
-	p.monitor.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
+	p.monitors.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
 
 	// no need to dispatch events
 	switch eventType {
@@ -1389,6 +1388,12 @@ func (p *Probe) applyDefaultFilterPolicies() {
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	if p.Opts.SyscallsMonitorEnabled {
+		if err := p.monitors.syscallsMonitor.Disable(); err != nil {
+			return nil, err
+		}
+	}
+
 	ars, err := kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
 	if err != nil {
 		return nil, err
@@ -1405,6 +1410,15 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 
 	if err := p.updateProbes(rs.GetEventTypes(), false); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
+	}
+
+	if p.Opts.SyscallsMonitorEnabled {
+		if err := p.monitors.syscallsMonitor.Flush(); err != nil {
+			return nil, err
+		}
+		if err := p.monitors.syscallsMonitor.Enable(); err != nil {
+			return nil, err
+		}
 	}
 
 	return ars, nil
@@ -1463,7 +1477,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.ensureConfigDefaults()
 
-	p.monitor = NewMonitor(p)
+	p.monitors = NewMonitors(p)
 
 	numCPU, err := utils.NumCPU()
 	if err != nil {

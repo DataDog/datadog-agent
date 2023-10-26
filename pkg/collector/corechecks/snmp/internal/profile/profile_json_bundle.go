@@ -24,11 +24,20 @@ func loadBundleJSONProfiles() (ProfileConfigMap, error) {
 		return nil, err
 	}
 
-	profiles, err := unmarshallProfilesBundleJSON(jsonStr)
+	userProfiles, err := unmarshallProfilesBundleJSON(jsonStr)
 	if err != nil {
 		return nil, err
 	}
-	return profiles, nil
+	// TODO (separate PR): Use default profiles from json Bundle in priority once it's implemented.
+	//       We fallback on Yaml Default Profiles if default profiles are not present in json Bundle.
+	defaultProfiles := getYamlDefaultProfiles()
+
+	resolvedProfiles, err := resolveProfiles(userProfiles, defaultProfiles)
+	if err != nil {
+		return nil, err
+	}
+
+	return resolvedProfiles, nil
 }
 
 func unmarshallProfilesBundleJSON(jsonStr []byte) (ProfileConfigMap, error) {

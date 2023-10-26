@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -20,9 +19,11 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
+	"github.com/DataDog/datadog-agent/pkg/serverless/apikey"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	"github.com/DataDog/datadog-agent/pkg/serverless/debug"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	serverlessLogs "github.com/DataDog/datadog-agent/pkg/serverless/logs"
@@ -38,12 +39,9 @@ import (
 )
 
 var (
-	kmsAPIKeyEnvVar            = "DD_KMS_API_KEY"
-	secretsManagerAPIKeyEnvVar = "DD_API_KEY_SECRET_ARN"
-	apiKeyEnvVar               = "DD_API_KEY"
-	logLevelEnvVar             = "DD_LOG_LEVEL"
-	flushStrategyEnvVar        = "DD_SERVERLESS_FLUSH_STRATEGY"
-	logsLogsTypeSubscribed     = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
+	logLevelEnvVar         = "DD_LOG_LEVEL"
+	flushStrategyEnvVar    = "DD_SERVERLESS_FLUSH_STRATEGY"
+	logsLogsTypeSubscribed = "DD_LOGS_CONFIG_LAMBDA_LOGS_TYPE"
 
 	// AWS Lambda is writing the Lambda function files in /var/task, we want the
 	// configuration file to be at the root of this directory.
@@ -52,8 +50,6 @@ var (
 
 const (
 	loggerName config.LoggerName = "DD_EXTENSION"
-
-	runtimeAPIEnvVar = "AWS_LAMBDA_RUNTIME_API"
 
 	extensionRegistrationRoute   = "/2020-01-01/extension/register"
 	extensionRegistrationTimeout = 5 * time.Second
@@ -116,9 +112,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		}
 	}
 
-	outputDatadogEnvVariablesForDebugging()
+	debug.OutputDatadogEnvVariablesForDebugging()
 
-	if !hasApiKey() {
+	if !apikey.HasAPIKey() {
 		log.Errorf("Can't start the Datadog extension as no API Key has been detected, or API Key could not be decrypted. Data will not be sent to Datadog.")
 		// we still need to register the extension but let's return after (no-op)
 		id, _, registrationError := registration.RegisterExtension(extensionRegistrationRoute, extensionRegistrationTimeout)
@@ -165,28 +161,13 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// KMS > Secrets Manager > Plaintext API key
 	// If one is set but failing, the next will be tried
 
-	// some useful warnings first
-
-	var apikeySetIn = []string{}
-	if os.Getenv(kmsAPIKeyEnvVar) != "" {
-		apikeySetIn = append(apikeySetIn, "KMS")
-	}
-	if os.Getenv(secretsManagerAPIKeyEnvVar) != "" {
-		apikeySetIn = append(apikeySetIn, "SSM")
-	}
-	if os.Getenv(apiKeyEnvVar) != "" {
-		apikeySetIn = append(apikeySetIn, "environment variable")
-	}
-
-	if len(apikeySetIn) > 1 {
-		log.Warn("An API Key has been set in multiple places:", strings.Join(apikeySetIn, ", "))
-	}
+	apikey.CheckForSingleAPIKey()
 
 	config.LoadProxyFromEnv(config.Datadog)
 
 	// Set secrets from the environment that are suffixed with
 	// KMS_ENCRYPTED or SECRET_ARN
-	setSecretsFromEnv(os.Environ())
+	apikey.SetSecretsFromEnv(os.Environ())
 
 	// adaptive flush configuration
 	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
