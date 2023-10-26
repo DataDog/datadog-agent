@@ -168,10 +168,6 @@ func (c *client) run() {
 		case <-retryProcessWithoutPodTicker.C:
 			c.retryProcessEventsWithoutPod()
 		case <-c.ctx.Done():
-			err := health.Deregister()
-			if err != nil {
-				c.logger.Warnf("error de-registering health check: %s", err)
-			}
 			return
 		}
 	}
@@ -204,12 +200,19 @@ func (c *client) startStreaming() {
 
 	health := health.RegisterLiveness("process-language-detection-client-sender")
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(c.ctx)
+	defer cancel()
 	for {
 		select {
+		case <-c.ctx.Done():
+			err := health.Deregister()
+			if err != nil {
+				log.Warnf("error de-registering health check: %s", err)
+			}
+			return
 		case healthDeadline := <-health.C:
 			cancel()
-			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
+			ctx, cancel = context.WithDeadline(c.ctx, healthDeadline)
 		// frequently send only fresh updates
 		case <-freshUpdateTimer.C:
 			data := c.getFreshBatchProto()
@@ -218,13 +221,6 @@ func (c *client) startStreaming() {
 		case <-periodicFlushTimer.C:
 			data := c.getCurrentBatchProto()
 			c.send(ctx, data)
-		case <-c.ctx.Done():
-			cancel()
-			err := health.Deregister()
-			if err != nil {
-				log.Warnf("error de-registering health check: %s", err)
-			}
-			return
 		}
 	}
 }
