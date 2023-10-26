@@ -18,6 +18,6 @@ func (c *collector) startSBOMCollection(context.Context) error {
 }
 
 // updateSBOMMetadata does nothing
-func updateSBOMMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []string) *workloadmeta.SBOM {
+func updateSBOMMetadata(sbom *workloadmeta.SBOM, _ []string, _ []string) *workloadmeta.SBOM {
 	return sbom
 }
