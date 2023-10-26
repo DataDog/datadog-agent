@@ -169,8 +169,13 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
+<<<<<<< HEAD
   TEST_INFRA_DEFINITIONS_BUILDIMAGES: d08836e5ac08
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
+=======
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 8c21df39ead8
+  DATADOG_AGENT_BUILDERS: v21429255-6b46caa
+>>>>>>> 9245403203204a38d9cffdbf72ee7833c348bee6
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
