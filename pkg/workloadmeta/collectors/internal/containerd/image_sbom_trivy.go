@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 )
 
 func sbomCollectionIsEnabled() bool {
@@ -136,4 +137,58 @@ func (c *collector) extractSBOMWithTrivy(ctx context.Context, storedImage *workl
 	}
 
 	return nil
+}
+
+// updateSBOMMetadata updates entered SBOM with new metadata properties if the initial SBOM status was successful
+// and there are new repoTags and repoDigests missing in the sbom. It returns the updated SBOM.
+func updateSBOMMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []string) *workloadmeta.SBOM {
+	if sbom.Status != workloadmeta.Success || sbom.CycloneDXBOM.Metadata.Component.Properties == nil {
+		return sbom
+	}
+
+	properties := *sbom.CycloneDXBOM.Metadata.Component.Properties
+	propertySet := buildPropertySet(properties)
+
+	properties = appendMissingProperties(properties, propertySet, repoTags, trivydx.PropertyRepoTag)
+	properties = appendMissingProperties(properties, propertySet, repoDigests, trivydx.PropertyRepoDigest)
+
+	sbom.CycloneDXBOM.Metadata.Component.Properties = &properties
+
+	return sbom
+}
+
+// buildPropertySet generates a set of properties.
+func buildPropertySet(properties []cyclonedx.Property) map[cyclonedx.Property]struct{} {
+	propertySet := make(map[cyclonedx.Property]struct{})
+	for _, property := range properties {
+		propertySet[property] = struct{}{}
+	}
+	return propertySet
+}
+
+// containsProperty function checks if a specified property is present in the property set.
+func containsProperty(propertySet map[cyclonedx.Property]struct{}, property cyclonedx.Property) bool {
+	_, ok := propertySet[property]
+	return ok
+}
+
+// appendMissingProperties function updates the list of properties along with the property set,
+// if the given repoValues are not already present in the set.
+func appendMissingProperties(properties []cyclonedx.Property, propertySet map[cyclonedx.Property]struct{}, repoValues []string, propertyKeyType string) []cyclonedx.Property {
+	for _, repoValue := range repoValues {
+		prop := cdxProperty(propertyKeyType, repoValue)
+		if !containsProperty(propertySet, prop) {
+			properties = append(properties, prop)
+			propertySet[prop] = struct{}{}
+		}
+	}
+	return properties
+}
+
+// cdxProperty function generates a trivy-specific cycloneDX Property .
+func cdxProperty(key, value string) cyclonedx.Property {
+	return cyclonedx.Property{
+		Name:  trivydx.Namespace + key,
+		Value: value,
+	}
 }
