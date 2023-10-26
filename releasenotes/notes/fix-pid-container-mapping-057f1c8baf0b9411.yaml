@@ -1,3 +1,3 @@
 fixes:
   - |
-    Fix an issue that prevented process id (PID) to be associated with containers in Live Container View when the Agent is deployed in AWS Fargate.
+    Fix an issue that prevented process ID (PID) from being associated with containers in Live Container View when the Agent is deployed in AWS Fargate.
