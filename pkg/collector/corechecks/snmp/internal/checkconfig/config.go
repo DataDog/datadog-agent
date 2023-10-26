@@ -7,6 +7,7 @@ package checkconfig
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -205,6 +207,11 @@ func (c *CheckConfig) SetProfile(profile string) error {
 	definition := c.Profiles[profile].Definition
 	c.ProfileDef = &definition
 	c.Profile = profile
+
+	if log.ShouldLog(seelog.TraceLvl) {
+		profileDefJSON, _ := json.Marshal(definition)
+		log.Tracef("Profile content `%s`: %+v", profile, profileDefJSON)
+	}
 
 	if definition.Device.Vendor != "" {
 		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
