@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -231,7 +230,7 @@ func (c *client) startStreaming() {
 
 // send sends the data to the cluster-agent. It doesn't implement a retry mechanism because if the dca is available
 // then the data will eventually be transmitted by the periodic flush mechanism.
-func (c *client) send(data *process.ParentLanguageAnnotationRequest) {
+func (c *client) send(data *pbgo.ParentLanguageAnnotationRequest) {
 	if data == nil {
 		return
 	}
@@ -317,7 +316,7 @@ func (c *client) handlePodEvent(podEvent workloadmeta.Event) {
 	}
 }
 
-func (c *client) getCurrentBatchProto() *process.ParentLanguageAnnotationRequest {
+func (c *client) getCurrentBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if len(c.currentBatch) == 0 {
@@ -327,7 +326,7 @@ func (c *client) getCurrentBatchProto() *process.ParentLanguageAnnotationRequest
 }
 
 // getFreshBatch returns a batch with only freshly updated pods
-func (c *client) getFreshBatchProto() *process.ParentLanguageAnnotationRequest {
+func (c *client) getFreshBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	batch := make(batch)
