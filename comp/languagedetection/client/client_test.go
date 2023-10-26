@@ -120,7 +120,7 @@ func TestClientSend(t *testing.T) {
 	podName := "nginx"
 	client.currentBatch[podName] = podInfo
 
-	client.send(client.currentBatch.toProto())
+	client.send(context.Background(), client.currentBatch.toProto())
 
 	// wait that the mock dca client processes the message
 	<-doneCh
