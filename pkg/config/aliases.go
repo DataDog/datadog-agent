@@ -6,7 +6,10 @@
 package config
 
 import (
+	slog "github.com/cihub/seelog"
+
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -81,3 +84,32 @@ var (
 	AddOverrideFunc    = model.AddOverrideFunc
 	applyOverrideFuncs = model.ApplyOverrideFuncs
 )
+
+// LoggerName Alias
+type LoggerName = logs.LoggerName
+
+// Aliases for  logs
+var (
+	NewLogWriter   = logs.NewLogWriter
+	ChangeLogLevel = logs.ChangeLogLevel
+)
+
+// SetupLogger Alias using Datadog config
+func SetupLogger(loggerName LoggerName, logLevel, logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+	return logs.SetupLogger(loggerName, logLevel, logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog)
+}
+
+// SetupJMXLogger Alias using Datadog config
+func SetupJMXLogger(logFile, syslogURI string, syslogRFC, logToConsole, jsonFormat bool) error {
+	return logs.SetupJMXLogger(logFile, syslogURI, syslogRFC, logToConsole, jsonFormat, Datadog)
+}
+
+// GetSyslogURI Alias using Datadog config
+func GetSyslogURI() string {
+	return logs.GetSyslogURI(Datadog)
+}
+
+// SetupDogstatsdLogger Alias using Datadog config
+func SetupDogstatsdLogger(logFile string) (slog.LoggerInterface, error) {
+	return logs.SetupDogstatsdLogger(logFile, Datadog)
+}

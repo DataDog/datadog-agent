@@ -193,7 +193,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	var read int
 
 	// Unmarshal pid_cache_t
-	cookie := ByteOrder.Uint64(data[0:8])
+	cookie := ByteOrder.Uint64(data[0:SizeOfCookie])
 	if cookie > 0 {
 		e.Cookie = cookie
 	}

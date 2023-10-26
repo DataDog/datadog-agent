@@ -81,7 +81,7 @@ Package server implements a component to run the dogstatsd server
 
 ### [comp/dogstatsd/serverDebug](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/serverDebug)
 
-Package serverDebug implements a component to run the dogstatsd server debug
+Package serverdebug implements a component to run the dogstatsd server debug
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder) (Component Bundle)
 
@@ -113,6 +113,10 @@ by the Agent.
 ### [comp/metadata/host](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/host)
 
 Package host implements a component to generate the 'host' metadata payload (also known as "v5").
+
+### [comp/metadata/inventoryagent](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/inventoryagent)
+
+Package inventoryagent implements a component to generate the 'datadog_agent' metadata payload for inventory.
 
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/resources)
 

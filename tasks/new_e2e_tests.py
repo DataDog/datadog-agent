@@ -175,13 +175,17 @@ def _clean_locks():
 
     for entry in os.listdir(Path(lock_dir)):
         subdir = os.path.join(lock_dir, entry)
-        for filename in os.listdir(Path(subdir)):
-            path = os.path.join(subdir, filename)
-            if os.path.isfile(path) and filename.endswith(".json"):
-                os.remove(path)
-                print(f"🗑️ Deleted lock: {path}")
-            elif os.path.isdir(path):
-                shutil.rmtree(path)
+        if os.path.isdir(subdir):
+            for filename in os.listdir(Path(subdir)):
+                path = os.path.join(subdir, filename)
+                if os.path.isfile(path) and filename.endswith(".json"):
+                    os.remove(path)
+                    print(f"🗑️ Deleted lock: {path}")
+                elif os.path.isdir(path):
+                    shutil.rmtree(path)
+        elif os.path.isfile(subdir) and entry.endswith(".json"):
+            os.remove(subdir)
+            print(f"🗑️ Deleted lock: {subdir}")
 
 
 def _clean_stacks(ctx: Context):

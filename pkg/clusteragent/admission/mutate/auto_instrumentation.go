@@ -22,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
-	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/client-go/dynamic"
@@ -107,7 +106,7 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 
 	if isApmInstrumentationEnabled(pod.Namespace) {
 		// if Single Step Instrumentation is enabled, pods can still opt out using the label
-		if pod.GetLabels()[admCommon.EnabledLabelKey] == "false" {
+		if pod.GetLabels()[common.EnabledLabelKey] == "false" {
 			log.Debugf("Skipping single step instrumentation of pod %q due to label", podString(pod))
 			return nil
 		}
