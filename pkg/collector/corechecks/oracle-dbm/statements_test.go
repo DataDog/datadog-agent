@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func runStatementMetrics(c Check, t *testing.T) {
+func runStatementMetrics(c *Check, t *testing.T) {
 	c.statementsLastRun = time.Now().Add(-48 * time.Hour)
 	count, err := c.StatementMetrics()
 	assert.NoError(t, err, "failed to run query metrics")
@@ -29,7 +29,7 @@ func runStatementMetrics(c Check, t *testing.T) {
 }
 
 func initCheckReal(t *testing.T) Check {
-	chk = Check{}
+	c := Check{}
 
 	rawInstanceConfig := []byte(fmt.Sprintf(`
 server: %s
@@ -41,41 +41,46 @@ dbm: true
 query_metrics:
   trackers:
     - contains_text:
-      - dual
+      - begin null;
 `, HOST, PORT, USER, PASSWORD, SERVICE_NAME))
 	senderManager := mocksender.CreateDefaultDemultiplexer()
-	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	err := c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
 	require.NoError(t, err)
 
-	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)
-	assert.Equal(t, chk.config.InstanceConfig.Port, PORT)
-	assert.Equal(t, chk.config.InstanceConfig.Username, USER)
-	assert.Equal(t, chk.config.InstanceConfig.Password, PASSWORD)
-	assert.Equal(t, chk.config.InstanceConfig.ServiceName, SERVICE_NAME)
+	assert.Equal(t, c.config.InstanceConfig.Server, HOST)
+	assert.Equal(t, c.config.InstanceConfig.Port, PORT)
+	assert.Equal(t, c.config.InstanceConfig.Username, USER)
+	assert.Equal(t, c.config.InstanceConfig.Password, PASSWORD)
+	assert.Equal(t, c.config.InstanceConfig.ServiceName, SERVICE_NAME)
 
-	return chk
+	return c
 }
 
 func TestQueryMetrics(t *testing.T) {
-	chk := initCheckReal(t)
-	//chk.dbmEnabled = true
+	c := initCheckReal(t)
 
 	var err error
-	var r int
-	err = chk.Run()
+	err = c.Run()
 	assert.NoError(t, err, "statement check run")
 
-	testQuery := "select count(*) from dual"
+	testStatement := "begin null; end;"
+	for i := 1; i <= 2; i++ {
+		_, err = c.db.Exec(testStatement)
+		assert.NoError(t, err, "failed to execute test statement")
+		runStatementMetrics(&c, t)
+	}
 
-	err = getWrapper(&chk, &r, testQuery)
-	assert.NoError(t, err, "failed to execute test query")
-	runStatementMetrics(chk, t)
+	var executions float64
+	for _, r := range c.lastOracleRows {
+		if r.SQLText == testStatement {
+			executions = r.Executions
+			break
+		}
+	}
 
-	err = getWrapper(&chk, &r, testQuery)
-	assert.NoError(t, err, "failed to execute test query")
-	runStatementMetrics(chk, t)
+	assert.Equal(t, executions, 1)
 
-	assert.Contains(t, chk.lastOracleRows, "dual")
+	//assert.Contains(t, c.lastOracleRows, "begin")
 }
 
 func TestUInt64Binding(t *testing.T) {

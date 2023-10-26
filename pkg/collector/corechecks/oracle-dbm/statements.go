@@ -420,14 +420,14 @@ func (c *Check) StatementMetrics() (int, error) {
 				}
 			}
 			if trace {
-				log.Errorf("%s qm_tracker queried: %+v", c.logPrompt, statementMetricRow)
+				log.Infof("%s qm_tracker queried: %+v", c.logPrompt, statementMetricRow)
 			}
 
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
 			if exists {
 				if trace {
-					log.Errorf("%s qm_tracker previous: %+v %+v", c.logPrompt, statementMetricRow.StatementMetricsKeyDB, previousMonotonic)
+					log.Infof("%s qm_tracker previous: %+v %+v", c.logPrompt, statementMetricRow.StatementMetricsKeyDB, previousMonotonic)
 				}
 				diff = OracleRowMonotonicCount{}
 				if diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls; diff.ParseCalls < 0 {
@@ -569,7 +569,8 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			oracleRows = append(oracleRows, oracleRow)
 			if trace {
-				log.Errorf("%s qm_tracker payload: %+v", c.logPrompt, oracleRow)
+				log.Infof("%s qm_tracker payload: %+v", c.logPrompt, oracleRow)
+				fmt.Printf("%s qm_tracker payload: %+v \n\n", c.logPrompt, oracleRow)
 			}
 
 			if c.fqtEmitted == nil {
@@ -778,7 +779,6 @@ func (c *Check) StatementMetrics() (int, error) {
 				}
 			}
 		}
-
 		c.copyToPreviousMap(newCache)
 	} else {
 		heartbeatStatement := "__other__"
@@ -794,6 +794,10 @@ func (c *Check) StatementMetrics() (int, error) {
 		}
 		oracleRows = append(oracleRows, oracleRow)
 	}
+
+	c.lastOracleRows = make([]OracleRow, len(oracleRows))
+	copy(c.lastOracleRows, oracleRows)
+
 	payload := MetricsPayload{
 		Host:                  c.dbHostname,
 		Timestamp:             float64(time.Now().UnixMilli()),
@@ -803,8 +807,6 @@ func (c *Check) StatementMetrics() (int, error) {
 		OracleRows:            oracleRows,
 		OracleVersion:         c.dbVersion,
 	}
-
-	c.lastOracleRows = oracleRows
 
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
@@ -824,5 +826,6 @@ func (c *Check) StatementMetrics() (int, error) {
 	if planErrors > 0 {
 		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan errors: %d", SQLCount, planErrors)
 	}
+
 	return SQLCount, nil
 }
