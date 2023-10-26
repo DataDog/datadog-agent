@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mohae/deepcopy"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -590,58 +591,8 @@ func (c *CheckConfig) IsIPIgnored(ip net.IP) bool {
 
 // Copy makes a copy of CheckConfig
 func (c *CheckConfig) Copy() *CheckConfig {
-	newConfig := CheckConfig{}
-	newConfig.IPAddress = c.IPAddress
-	newConfig.Network = c.Network
-	newConfig.Port = c.Port
-	newConfig.CommunityString = c.CommunityString
-	newConfig.SnmpVersion = c.SnmpVersion
-	newConfig.Timeout = c.Timeout
-	newConfig.Retries = c.Retries
-	newConfig.User = c.User
-	newConfig.AuthProtocol = c.AuthProtocol
-	newConfig.AuthKey = c.AuthKey
-	newConfig.PrivProtocol = c.PrivProtocol
-	newConfig.PrivKey = c.PrivKey
-	newConfig.ContextName = c.ContextName
-	newConfig.ContextName = c.ContextName
-	newConfig.OidConfig = c.OidConfig
-	newConfig.RequestedMetrics = make([]profiledefinition.MetricsConfig, len(c.RequestedMetrics))
-	copy(newConfig.RequestedMetrics, c.RequestedMetrics)
-	newConfig.Metrics = make([]profiledefinition.MetricsConfig, len(c.Metrics))
-	copy(newConfig.Metrics, c.Metrics)
-
-	// Metadata: shallow copy is enough since metadata is not modified.
-	// However, it might be fully replaced, see CheckConfig.SetProfile
-	newConfig.Metadata = c.Metadata
-
-	newConfig.RequestedMetricTags = make([]profiledefinition.MetricTagConfig, len(c.RequestedMetricTags))
-	copy(newConfig.RequestedMetricTags, c.RequestedMetricTags)
-	newConfig.MetricTags = make([]profiledefinition.MetricTagConfig, len(c.MetricTags))
-	copy(newConfig.MetricTags, c.MetricTags)
-	newConfig.OidBatchSize = c.OidBatchSize
-	newConfig.BulkMaxRepetitions = c.BulkMaxRepetitions
-	newConfig.Profiles = c.Profiles
-	newConfig.ProfileTags = common.CopyStrings(c.ProfileTags)
-	newConfig.Profile = c.Profile
-	newConfig.ProfileDef = c.ProfileDef
-	newConfig.ExtraTags = common.CopyStrings(c.ExtraTags)
-	newConfig.InstanceTags = common.CopyStrings(c.InstanceTags)
-	newConfig.CollectDeviceMetadata = c.CollectDeviceMetadata
-	newConfig.CollectTopology = c.CollectTopology
-	newConfig.UseDeviceIDAsHostname = c.UseDeviceIDAsHostname
-	newConfig.DeviceID = c.DeviceID
-
-	newConfig.DeviceIDTags = common.CopyStrings(c.DeviceIDTags)
-	newConfig.ResolvedSubnetName = c.ResolvedSubnetName
-	newConfig.Namespace = c.Namespace
-	newConfig.AutodetectProfile = c.AutodetectProfile
-	newConfig.DetectMetricsEnabled = c.DetectMetricsEnabled
-	newConfig.DetectMetricsRefreshInterval = c.DetectMetricsRefreshInterval
-	newConfig.MinCollectionInterval = c.MinCollectionInterval
-	newConfig.InterfaceConfigs = c.InterfaceConfigs
-
-	return &newConfig
+	newCheckConfig := deepcopy.Copy(*c).(CheckConfig)
+	return &newCheckConfig
 }
 
 // CopyWithNewIP makes a copy of CheckConfig with new IP
