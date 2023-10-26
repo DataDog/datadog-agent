@@ -2219,6 +2219,7 @@ func TestCheckConfig_Copy(t *testing.T) {
 	assert.NotSame(t, config.ProfileTags, configCopy.ProfileTags)
 	assert.NotSame(t, config.ExtraTags, configCopy.ExtraTags)
 	assert.NotSame(t, config.InstanceTags, configCopy.InstanceTags)
+	assert.NotSame(t, config.DeviceIDTags, configCopy.DeviceIDTags)
 	assert.NotSame(t, config.Profiles, configCopy.Profiles)
 
 	// Test if configCopy is modified, the original config is not changed
