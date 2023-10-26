@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 from subprocess import check_output
 
+import requests
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -1607,8 +1608,12 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows, use_crane=False
     if windows:
         return
 
+    # only download images not present in preprepared vm disk
+    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker.ls')
+    docker_ls = {line for line in resp.text.split('\n') if line.strip()}
+
     images = _test_docker_image_list()
-    for image in images:
+    for image in images - docker_ls:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
         output_file = f"{os.path.join(output_dir, output_path)}.tar"
         if use_crane:

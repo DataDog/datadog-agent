@@ -91,6 +91,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("log_to_syslog", false)
 	cfg.BindEnvAndSetDefault("log_to_console", true)
 	cfg.BindEnvAndSetDefault("log_format_json", false)
+	cfg.BindEnvAndSetDefault("log_file_max_size", "10Mb")
+	cfg.BindEnvAndSetDefault("log_file_max_rolls", 1)
 
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")

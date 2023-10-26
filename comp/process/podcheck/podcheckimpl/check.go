@@ -3,40 +3,39 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package connectionscheck
+// Package podcheckimpl implements a component to handle Kubernetes data collection in the Process Agent.
+package podcheckimpl
 
 import (
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/process/podcheck"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newCheck),
 )
 
 var _ types.CheckComponent = (*check)(nil)
 
 type check struct {
-	connectionsCheck *checks.ConnectionsCheck
-}
-
-type dependencies struct {
-	fx.In
-
-	Sysconfig sysprobeconfig.Component
-	Config    config.Component
+	podCheck *checks.PodCheck
 }
 
 type result struct {
 	fx.Out
 
 	Check     types.ProvidesCheck
-	Component Component
+	Component podcheck.Component
 }
 
-func newCheck(deps dependencies) result {
+func newCheck() result {
 	c := &check{
-		connectionsCheck: checks.NewConnectionsCheck(deps.Config, deps.Sysconfig, deps.Sysconfig.SysProbeObject()),
+		podCheck: checks.NewPodCheck(),
 	}
 	return result{
 		Check: types.ProvidesCheck{
@@ -47,5 +46,5 @@ func newCheck(deps dependencies) result {
 }
 
 func (c *check) Object() checks.Check {
-	return c.connectionsCheck
+	return c.podCheck
 }

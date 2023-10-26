@@ -89,7 +89,7 @@ func Test_loadYamlProfiles_withUserProfiles(t *testing.T) {
 	defaultProfiles, err := loadYamlProfiles()
 	assert.Nil(t, err)
 
-	assert.Len(t, defaultProfiles, 4)
+	assert.Len(t, defaultProfiles, 6)
 	assert.NotNil(t, defaultProfiles)
 
 	p1 := defaultProfiles["p1"].Definition // user p1 overrides datadog p1
