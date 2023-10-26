@@ -210,7 +210,7 @@ func (c *CheckConfig) SetProfile(profile string) error {
 
 	if log.ShouldLog(seelog.DebugLvl) {
 		profileDefJSON, _ := json.Marshal(definition)
-		log.Debugf("Profile content `%s`: %+v", profile, profileDefJSON)
+		log.Debugf("Profile content `%s`: %s", profile, string(profileDefJSON))
 	}
 
 	if definition.Device.Vendor != "" {
