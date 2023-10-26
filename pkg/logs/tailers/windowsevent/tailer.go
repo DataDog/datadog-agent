@@ -124,8 +124,8 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 
 	if len(source.Config.ProcessingRules) > 0 {
 		log.Warn("Log processing rules with the Windows Events collection will change in a future version of the Agent:")
-		log.Warn("The processing will soon apply on the message content instead of the structured log (e.g. XML or JSON).")
-		log.Warn("A flag will make possible to use the original behavior but will have to set through configuration.")
+		log.Warn("The processing will soon apply on the message content only instead of on the structured log (e.g. on the internal JSON).")
+		log.Warn("In order to immediately switch to this new behaviour, set 'process_raw_message' to 'false' in your logs integration config.")
 		log.Warn("Please reach Datadog support if you have more questions.")
 		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, 1, []string{"tailer:windowsevent"})
 	}
