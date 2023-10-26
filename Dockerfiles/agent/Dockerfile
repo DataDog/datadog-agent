@@ -110,6 +110,7 @@ LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG BASE_IMAGE_UBUNTU_VERSION
+ARG TARGETARCH
 ARG MSODBCSQL_VERSION=18.3.2.1-1
 ENV DOCKER_DD_AGENT=true \
     DD_PYTHON_VERSION=$PYTHON_VERSION \
@@ -135,7 +136,7 @@ RUN apt full-upgrade -y \
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
   && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser wget
 
-RUN wget -q -O msodbcsql18.deb https://packages.microsoft.com/ubuntu/${BASE_IMAGE_UBUNTU_VERSION}/prod/pool/main/m/msodbcsql18/msodbcsql18_${MSODBCSQL_VERSION}_${TARGETARCH}.deb
+RUN wget -q -O msodbcsql18.deb https://packages.microsoft.com/ubuntu/23.04/prod/pool/main/m/msodbcsql18/msodbcsql18_${MSODBCSQL_VERSION}_${TARGETARCH}.deb
 
 RUN ACCEPT_EULA=Y apt install -y ./msodbcsql18.deb
 
