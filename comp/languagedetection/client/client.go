@@ -232,6 +232,8 @@ func (c *client) send(ctx context.Context, data *pbgo.ParentLanguageAnnotationRe
 		return
 	}
 	if c.langDetectionCl == nil {
+		// TODO: modify GetClusterAgentClient to accept a context with a deadline. If this
+		// functions hangs forever, the component will be unhealthy and crash.
 		dcaClient, err := clusteragent.GetClusterAgentClient()
 		if err != nil {
 			c.logger.Debugf("failed to get dca client %s, not sending batch", err)
