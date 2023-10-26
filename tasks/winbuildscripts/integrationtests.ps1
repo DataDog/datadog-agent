@@ -13,8 +13,6 @@ if ($Env:TARGET_ARCH -eq "x64") {
 $UT_BUILD_ROOT=(Get-Location).Path
 $Env:PATH="$UT_BUILD_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3_ROOT_DIR\Scripts;$Env:PATH"
 
-& $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
-
 $archflag = "x64"
 if ($Env:TARGET_ARCH -eq "x86") {
     $archflag = "x86"
