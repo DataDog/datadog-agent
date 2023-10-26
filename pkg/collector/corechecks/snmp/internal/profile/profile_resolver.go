@@ -6,7 +6,6 @@
 package profile
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/mohae/deepcopy"
 	"strings"
@@ -21,15 +20,6 @@ import (
 
 func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
-	//filteredRawProfiles := ProfileConfigMap{}
-	//for key, val := range rawProfiles {
-	//	// No need to resolve abstract profile
-	//	if strings.HasPrefix(key, "_") {
-	//		continue
-	//	}
-	//	filteredRawProfiles[key] = val
-	//}
-
 	userExpandedProfiles, err := loadResolveProfiles(rawProfiles, defaultProfiles)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load profiles: %s", err)
@@ -104,11 +94,6 @@ func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefin
 		}
 	}
 	return nil
-}
-
-func marshall(baseDefinition interface{}) string {
-	marshal, _ := json.Marshal(baseDefinition)
-	return string(marshal)
 }
 
 func mergeProfileDefinition(targetDefinition *profiledefinition.ProfileDefinition, baseDefinition *profiledefinition.ProfileDefinition) {
