@@ -19,7 +19,6 @@
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
   script:
-    - export GOCACHE="$CI_PROJECT_DIR/.cache"
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
     - inv -e invoke-unit-tests
@@ -27,6 +26,9 @@
     - inv -e kitchen.invoke-unit-tests
     - popd
     - inv -e test $FLAVORS --skip-linters --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz"
+    - echo $GOCACHE
+    - go env
+    - cd ls -lah $GOCACHE
   artifacts:
     expire_in: 2 weeks
     when: always
