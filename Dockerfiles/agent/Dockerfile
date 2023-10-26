@@ -110,6 +110,7 @@ LABEL maintainer "Datadog <package@datadoghq.com>"
 ARG WITH_JMX
 ARG PYTHON_VERSION
 ARG BASE_IMAGE_UBUNTU_VERSION
+ARG MSODBCSQL_VERSION=18.3.2.1-1
 ENV DOCKER_DD_AGENT=true \
     DD_PYTHON_VERSION=$PYTHON_VERSION \
     PATH=/opt/datadog-agent/bin/agent/:/opt/datadog-agent/embedded/bin/:$PATH \
@@ -132,14 +133,11 @@ RUN apt full-upgrade -y \
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser curl gnupg
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser wget
 
-RUN curl -v https://packages.microsoft.com/keys/microsoft.asc | tee /etc/apt/trusted.gpg.d/microsoft.asc
+RUN wget -q -O --ca-certificate=${CURL_CA_BUNDLE} msodbcsql18.deb https://packages.microsoft.com/ubuntu/${BASE_IMAGE_UBUNTU_VERSION}/prod/pool/main/m/msodbcsql18/msodbcsql18_${MSODBCSQL_VERSION}_${TARGETARCH}.deb
 
-RUN curl -v https://packages.microsoft.com/config/ubuntu/${BASE_IMAGE_UBUNTU_VERSION}/prod.list | tee /etc/apt/sources.list.d/mssql-release.list
-
-RUN apt update \
-  && ACCEPT_EULA=Y apt install -y msodbcsql18
+RUN ACCEPT_EULA=Y apt install -y ./msodbcsql18.deb
 
 # Install openjdk-11-jre-headless on jmx flavor
 RUN if [ -n "$WITH_JMX" ]; then echo "Pulling openjdk-11 from testing" \
