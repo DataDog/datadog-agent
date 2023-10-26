@@ -161,11 +161,8 @@ func (c *client) run() {
 
 	go c.startStreaming()
 
-	health := health.RegisterLiveness("process-language-detection-client")
-
 	for {
 		select {
-		case <-health.C:
 		case eventBundle := <-eventCh:
 			c.processEvent(eventBundle)
 		case <-retryProcessWithoutPodTicker.C:
@@ -207,18 +204,22 @@ func (c *client) startStreaming() {
 
 	health := health.RegisterLiveness("process-language-detection-client-sender")
 
+	ctx, cancel := context.WithCancel(context.Background())
 	for {
 		select {
-		case <-health.C:
+		case healthDeadline := <-health.C:
+			cancel()
+			ctx, cancel = context.WithDeadline(context.Background(), healthDeadline)
 		// frequently send only fresh updates
 		case <-freshUpdateTimer.C:
 			data := c.getFreshBatchProto()
-			c.send(data)
+			c.send(ctx, data)
 		// less frequently, send the entire batch
 		case <-periodicFlushTimer.C:
 			data := c.getCurrentBatchProto()
-			c.send(data)
+			c.send(ctx, data)
 		case <-c.ctx.Done():
+			cancel()
 			err := health.Deregister()
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
@@ -230,24 +231,20 @@ func (c *client) startStreaming() {
 
 // send sends the data to the cluster-agent. It doesn't implement a retry mechanism because if the dca is available
 // then the data will eventually be transmitted by the periodic flush mechanism.
-func (c *client) send(data *pbgo.ParentLanguageAnnotationRequest) {
+func (c *client) send(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) {
 	if data == nil {
 		return
 	}
-	var client languageDetectionClient
-	// For unit tests
-	if c.langDetectionCl != nil {
-		client = c.langDetectionCl
-	} else {
+	if c.langDetectionCl == nil {
 		dcaClient, err := clusteragent.GetClusterAgentClient()
 		if err != nil {
 			c.logger.Debugf("failed to get dca client %s, not sending batch", err)
 			return
 		}
-		client = dcaClient
+		c.langDetectionCl = dcaClient
 	}
 	t := time.Now()
-	err := client.PostLanguageMetadata(c.ctx, data)
+	err := c.langDetectionCl.PostLanguageMetadata(ctx, data)
 	if err != nil {
 		c.logger.Errorf("failed to post language metadata %v", err)
 		c.telemetry.Requests.Inc(statusError)

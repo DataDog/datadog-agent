@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -962,7 +961,7 @@ func TestRun(t *testing.T) {
 	client.stop(context.Background())
 }
 
-func protoToBatch(protoMessage *process.ParentLanguageAnnotationRequest) batch {
+func protoToBatch(protoMessage *pbgo.ParentLanguageAnnotationRequest) batch {
 	res := make(batch)
 
 	for _, podDetail := range protoMessage.PodDetails {
