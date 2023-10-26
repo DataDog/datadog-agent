@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Switch to the new obfuscator where lots of bugs are fixed.
+    Switch to the new obfuscator where bugs such as getting an error when obfuscating `@!` and where comments on DMLs weren't being removed are fixed.
