@@ -513,14 +513,10 @@ namespace WixSetup.Datadog
                     // This ensures this product can be removed before
                     // the new one is installed.
                     Condition.BeingUninstalled)
-                {
-                    Execute = Execute.rollback
-                }
-                .SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
             {
                 Execute = Execute.deferred,
                 Impersonate = false
-            };
+            }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
 
         }
     }
