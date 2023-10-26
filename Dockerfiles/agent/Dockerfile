@@ -133,9 +133,9 @@ RUN apt full-upgrade -y \
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser wget
 
-RUN wget -q -O msodbcsql18.deb https://packages.microsoft.com/ubuntu/23.04/prod/pool/main/m/msodbcsql18/msodbcsql18_${MSODBCSQL_VERSION}_${TARGETARCH}.deb
+RUN wget -q -O msodbcsql18.deb https://packages.microsoft.com/debian/12/prod/pool/main/m/msodbcsql18/msodbcsql18_${MSODBCSQL_VERSION}_${TARGETARCH}.deb
 
 RUN ACCEPT_EULA=Y apt install -y ./msodbcsql18.deb
 
