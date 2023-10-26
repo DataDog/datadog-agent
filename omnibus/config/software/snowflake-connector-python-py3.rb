@@ -41,5 +41,7 @@ build do
   # We can remove the oscrypto pinning once the fix becomes part of a new release
   oscrypto_commit = "d5f3437ed24257895ae1edd9e503cfb352e635a8"
 
-  command "#{pip} install . \"oscrypto @ git+https://github.com/wbond/oscrypto.git@#{oscrypto_commit}\"", :env => build_env
+  # Adding pyopenssl==23.3.0 here is a temporary workaround so that we don't get
+  # conflict because of the `cryptography` version we ship with the agent.
+  command "#{pip} install pyopenssl==23.3.0 . \"oscrypto @ git+https://github.com/wbond/oscrypto.git@#{oscrypto_commit}\"", :env => build_env
 end
