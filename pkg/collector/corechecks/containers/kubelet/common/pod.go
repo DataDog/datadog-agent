@@ -25,26 +25,57 @@ var (
 	volumeTagKeysToExclude = []string{"persistentvolumeclaim", "pod_phase"}
 )
 
+type podMetadata struct {
+	isHostNetworked bool
+	isStaticPending bool
+}
+
 // PodUtils is used to cache computed pod metadata during check execution, which would otherwise be too
-// computationally heavy to do in place.
+// computationally heavy to do in place, or would only be used by this check so it does not make sense to
+// store in the workloadmeta store.
 type PodUtils struct {
 	podTagsByPVC map[string][]string
+	podMetadata  map[string]*podMetadata
 }
 
 // NewPodUtils creates a new instance of PodUtils
 func NewPodUtils() *PodUtils {
-	return &PodUtils{podTagsByPVC: map[string][]string{}}
+	return &PodUtils{
+		podTagsByPVC: map[string][]string{},
+		podMetadata:  map[string]*podMetadata{},
+	}
 }
 
 // Reset sets the PodUtils instance back to a default state. It should be called at the end of a check run to prevent
 // stale data from impacting overall memory usage.
 func (p *PodUtils) Reset() {
 	p.podTagsByPVC = map[string][]string{}
+	p.podMetadata = map[string]*podMetadata{}
 }
 
-// ComputePodTagsByPVC stores the tags for a given pod in a global caching layer, indexed by pod namespace and persistent
+// PopulateForPod generates the PodUtils entries for a given pod.
+func (p *PodUtils) PopulateForPod(pod *kubelet.Pod) {
+	if pod == nil {
+		return
+	}
+
+	// populate the pod tags by PVC name
+	p.computePodTagsByPVC(pod)
+
+	// populate the pod metadata
+	isHostNetworked := pod.Spec.HostNetwork
+	isStaticPending := pod.Metadata.Annotations != nil &&
+		pod.Metadata.Annotations["kubernetes.io/config.source"] != "api" &&
+		pod.Status.Phase == "Pending" && pod.Status.Containers == nil
+	p.podMetadata[pod.Metadata.UID] = &podMetadata{
+		isHostNetworked: isHostNetworked,
+		isStaticPending: isStaticPending,
+	}
+}
+
+// computePodTagsByPVC stores the tags for a given pod in a global caching layer, indexed by pod namespace and persistent
 // volume name.
-func (p *PodUtils) ComputePodTagsByPVC(pod *kubelet.Pod) {
+func (p *PodUtils) computePodTagsByPVC(pod *kubelet.Pod) {
 	podUID := kubelet.PodUIDToTaggerEntityName(pod.Metadata.UID)
 	tags, _ := tagger.Tag(podUID, collectors.OrchestratorCardinality)
 	if len(tags) == 0 {
@@ -89,6 +120,24 @@ func (p *PodUtils) ComputePodTagsByPVC(pod *kubelet.Pod) {
 // GetPodTagsByPVC returns the computed pod tags for a PVC with a given name in a given namespace.
 func (p *PodUtils) GetPodTagsByPVC(namespace, pvcName string) []string {
 	return p.podTagsByPVC[fmt.Sprintf("%s/%s", namespace, pvcName)]
+}
+
+// IsStaticPendingPod returns whether the pod with the given UID is a static pending pod or not, or returns false
+// if the pod cannot be found. This is due to a bug where the kubelet pod list is not updated for static pods in
+// k8s <1.15. This has been fixed here: https://github.com/kubernetes/kubernetes/pull/77661
+func (p *PodUtils) IsStaticPendingPod(podUid string) bool {
+	if meta, ok := p.podMetadata[podUid]; ok {
+		return meta.isStaticPending
+	}
+	return false
+}
+
+// IsHostNetworkedPod returns whether the pod is on a host network or not. It returns false if the pod cannot be found.
+func (p *PodUtils) IsHostNetworkedPod(podUid string) bool {
+	if meta, ok := p.podMetadata[podUid]; ok {
+		return meta.isHostNetworked
+	}
+	return false
 }
 
 // GetContainerID returns the container ID from the workloadmeta.Store for a given set of metric labels.

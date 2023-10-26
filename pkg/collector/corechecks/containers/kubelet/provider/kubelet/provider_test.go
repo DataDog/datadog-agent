@@ -627,7 +627,7 @@ func storePopulatedFromFile(filename string, podUtils *common.PodUtils) (*worklo
 			},
 			Containers: podContainers,
 		})
-		podUtils.ComputePodTagsByPVC(pod)
+		podUtils.PopulateForPod(pod)
 	}
 	return store, err
 }
