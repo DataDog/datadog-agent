@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixing wrong values in Oracle query metrics data. Extreme cases were inflated statistics and missing statements. Affected were pure DML and PL/SQL statements.
+    Fixes wrong values in Oracle query metrics data. Extreme cases had inflated statistics and missing statements. The affected were pure DML and PL/SQL statements.
