@@ -19,6 +19,7 @@
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
   script:
+    - export GOCACHE="$CI_PROJECT_DIR/.cache"
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
     - inv -e invoke-unit-tests
