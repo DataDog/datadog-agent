@@ -197,11 +197,26 @@ func (t *Tailer) forwardMessages() {
 func (t *Tailer) seek(cursor string) error {
 	mode, _ := config.TailingModeFromString(t.source.Config.TailingMode)
 
+	seekHead := func() error {
+		if err := t.journal.SeekHead(); err != nil {
+			return err
+		}
+		_, err := t.journal.Next() // SeekHead must be followed by Next
+		return err
+	}
+	seekTail := func() error {
+		if err := t.journal.SeekTail(); err != nil {
+			return err
+		}
+		_, err := t.journal.Previous() // SeekTail must be followed by Previous
+		return err
+	}
+
 	if mode == config.ForceBeginning {
-		return t.journal.SeekHead()
+		return seekHead()
 	}
 	if mode == config.ForceEnd {
-		return t.journal.SeekTail()
+		return seekTail()
 	}
 
 	// If a position is not forced from the config, try the cursor
@@ -217,9 +232,9 @@ func (t *Tailer) seek(cursor string) error {
 
 	// If there is no cursor and an option is not forced, use the config setting
 	if mode == config.Beginning {
-		return t.journal.SeekHead()
+		return seekHead()
 	}
-	return t.journal.SeekTail()
+	return seekTail()
 }
 
 // tail tails the journal until a message stop is received.
