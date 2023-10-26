@@ -132,7 +132,7 @@ RUN apt full-upgrade -y \
   # this can be removed
   # Install libssl-dev as it's required by some Python checks and we rely on system version
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
-  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser curl ca-certificates
+  && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser curl ca-certificates gnupg
 
 RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
 
