@@ -262,4 +262,29 @@ func TestClient(t *testing.T) {
 		assert.True(t, client.processAggregator.ContainsPayloadName("i-078e212"))
 		assert.False(t, client.processAggregator.ContainsPayloadName("totoro"))
 	})
+
+	t.Run("getContainers", func(t *testing.T) {
+		payload := fixtures.CollectorContainerPayload(t)
+		response := fmt.Sprintf(
+			`{
+				"payloads": [
+					{
+						"timestamp": "2023-07-12T11:05:20.847091908Z",
+						"data": "%s",
+						"encoding": "protobuf"
+					}
+				]
+			}`, base64.StdEncoding.EncodeToString(payload))
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(response))
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getContainers()
+		require.NoError(t, err)
+		assert.True(t, client.containerAggregator.ContainsPayloadName("i-078e212"))
+		assert.False(t, client.containerAggregator.ContainsPayloadName("totoro"))
+	})
 }
