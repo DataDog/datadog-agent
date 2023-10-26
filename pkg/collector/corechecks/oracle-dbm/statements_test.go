@@ -10,6 +10,8 @@ package oracle
 import (
 	"fmt"
 	"log"
+
+	//"log"
 	"testing"
 	"time"
 
@@ -42,6 +44,8 @@ query_metrics:
   trackers:
     - contains_text:
       - begin null;
+    - contains_text:
+      - dual
 `, HOST, PORT, USER, PASSWORD, SERVICE_NAME))
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	err := c.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
@@ -59,6 +63,7 @@ query_metrics:
 func TestQueryMetrics(t *testing.T) {
 	c := initCheckReal(t)
 
+	var n int
 	var err error
 	err = c.Run()
 	assert.NoError(t, err, "statement check run")
@@ -66,21 +71,28 @@ func TestQueryMetrics(t *testing.T) {
 	testStatement := "begin null; end;"
 	for i := 1; i <= 2; i++ {
 		_, err = c.db.Exec(testStatement)
-		assert.NoError(t, err, "failed to execute test statement")
+		assert.NoError(t, err, "failed to execute the test statement")
+
+		for j := 1; j <= 10; j++ {
+			err = getWrapper(&c, &n, fmt.Sprintf("select %d from dual", j))
+			assert.NoError(t, err, "failed to execute the test query")
+		}
 		runStatementMetrics(&c, t)
 	}
 
-	var executions float64
+	var statementExecutions float64
+	var queryExecutions float64
 	for _, r := range c.lastOracleRows {
-		if r.SQLText == testStatement {
-			executions = r.Executions
-			break
+		// null in PL/SQL block is falsely  obfuscated to ?
+		if r.QueryHash == "7wm4bk66d7zbj" {
+			statementExecutions = r.Executions
+		} else if r.SQLText == "select ? from dual" {
+			queryExecutions = r.Executions
 		}
 	}
 
-	assert.Equal(t, executions, 1)
-
-	//assert.Contains(t, c.lastOracleRows, "begin")
+	assert.Equal(t, float64(1), statementExecutions)
+	assert.Equal(t, float64(10), queryExecutions)
 }
 
 func TestUInt64Binding(t *testing.T) {
@@ -122,7 +134,7 @@ func TestUInt64Binding(t *testing.T) {
 		var retValue int
 		err = chk.db.Get(&retValue, "SELECT COUNT(*) FROM v$sqlstats WHERE force_matching_signature IN (:1)", slice...)
 		if err != nil {
-			log.Fatalf("%S row error with driver %s %s", chk.logPrompt, driver, err)
+			//log.Fatalf("%S row error with driver %s %s", chk.logPrompt, driver, err)
 			return
 		}
 		assert.Equal(t, 1, retValue, "Testing IN slice uint64 overflow with driver %s", driver)

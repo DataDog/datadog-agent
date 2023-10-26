@@ -74,7 +74,7 @@ type StatementMetricsDB struct {
 	StatementMetricsKeyDB
 	SQLText       string `db:"SQL_TEXT"`
 	SQLTextLength int16  `db:"SQL_TEXT_LENGTH"`
-	SQLID         string `db:"SQL_ID"`
+	//SQLID         string `db:"SQL_ID"`
 	StatementMetricsMonotonicCountDB
 	StatementMetricsGaugeDB
 }
@@ -570,7 +570,6 @@ func (c *Check) StatementMetrics() (int, error) {
 			oracleRows = append(oracleRows, oracleRow)
 			if trace {
 				log.Infof("%s qm_tracker payload: %+v", c.logPrompt, oracleRow)
-				fmt.Printf("%s qm_tracker payload: %+v \n\n", c.logPrompt, oracleRow)
 			}
 
 			if c.fqtEmitted == nil {
