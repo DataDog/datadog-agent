@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -959,4 +960,34 @@ func TestPeerTagsEnv(t *testing.T) {
 	t.Setenv("DD_APM_PEER_TAGS", `["aws.s3.bucket","db.instance","db.system"]`)
 	testConfig = SetupConfFromYAML("")
 	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
+}
+
+func TestLogDefaults(t *testing.T) {
+
+	// New config
+	c := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	require.Equal(t, 0, c.GetInt("log_file_max_rolls"))
+	require.Equal(t, "", c.GetString("log_file_max_size"))
+	require.Equal(t, "", c.GetString("log_file"))
+	require.Equal(t, "", c.GetString("log_level"))
+	require.False(t, c.GetBool("log_to_console"))
+	require.False(t, c.GetBool("log_format_json"))
+
+	// Test Config (same as Datadog)
+	testConfig := SetupConf()
+	require.Equal(t, 1, testConfig.GetInt("log_file_max_rolls"))
+	require.Equal(t, "10Mb", testConfig.GetString("log_file_max_size"))
+	require.Equal(t, "", testConfig.GetString("log_file"))
+	require.Equal(t, "info", testConfig.GetString("log_level"))
+	require.True(t, testConfig.GetBool("log_to_console"))
+	require.False(t, testConfig.GetBool("log_format_json"))
+
+	// SystemProbe config
+	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
+	require.Equal(t, "10Mb", SystemProbe.GetString("log_file_max_size"))
+	require.Equal(t, defaultSystemProbeLogFilePath, SystemProbe.GetString("log_file"))
+	require.Equal(t, "info", SystemProbe.GetString("log_level"))
+	require.True(t, SystemProbe.GetBool("log_to_console"))
+	require.False(t, SystemProbe.GetBool("log_format_json"))
+
 }
