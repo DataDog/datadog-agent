@@ -43,13 +43,11 @@ if ohai["platform"] != "windows"
     python_configure_options.push("--enable-ipv6",
                           "--with-universal-archs=intel",
                           "--enable-shared",
-                          "--disable-static",
                           "--without-gcc",
                           "CC=clang")
   elsif linux?
     python_configure_options.push("--enable-unicode=ucs4",
-                          "--enable-shared",
-                          "--disable-static")
+                          "--enable-shared")
   end
 
   build do
