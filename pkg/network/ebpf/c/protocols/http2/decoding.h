@@ -326,9 +326,8 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
         skb_info->data_off += current_frame->length;
     }
 
-   // When we accept an RST, it means that the current stream is terminated.
-    // According to https://datatracker.ietf.org/doc/html/rfc7540#section-6.4, the frame includes a 32-bit
-    // error code integer.
+    // When we accept an RST, it means that the current stream is terminated.
+    // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
     bool is_rst = current_frame->type == kRSTStreamFrame;
        // If rst, and stream is empty (no status code, or no response) then delete from inflight
     if (is_rst && (current_stream->response_status_code == 0 || current_stream->request_started == 0)) {
