@@ -255,6 +255,19 @@ type sqlConfig struct {
 	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
 	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
 	ObfuscationMode obfuscate.ObfuscationMode `json:"obfuscation_mode"`
+
+	// RemoveSpaceBetweenParentheses specifies whether to remove spaces between parentheses.
+	// By default, spaces are inserted between parentheses during normalization.
+	RemoveSpaceBetweenParentheses bool `json:"remove_space_between_parentheses"`
+
+	// KeepNull specifies whether to disable obfuscate NULL value with ?.
+	KeepNull bool `json:"keep_null"`
+
+	// KeepBoolean specifies whether to disable obfuscate boolean value with ?.
+	KeepBoolean bool `json:"keep_boolean"`
+
+	// KeepPositionalParameter specifies whether to disable obfuscate positional parameter with ?.
+	KeepPositionalParameter bool `json:"keep_positional_parameter"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -274,15 +287,19 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	}
 	s := C.GoString(rawQuery)
 	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
-		DBMS:              sqlOpts.DBMS,
-		TableNames:        sqlOpts.TableNames,
-		CollectCommands:   sqlOpts.CollectCommands,
-		CollectComments:   sqlOpts.CollectComments,
-		CollectProcedures: sqlOpts.CollectProcedures,
-		ReplaceDigits:     sqlOpts.ReplaceDigits,
-		KeepSQLAlias:      sqlOpts.KeepSQLAlias,
-		DollarQuotedFunc:  sqlOpts.DollarQuotedFunc,
-		ObfuscationMode:   sqlOpts.ObfuscationMode,
+		DBMS:                          sqlOpts.DBMS,
+		TableNames:                    sqlOpts.TableNames,
+		CollectCommands:               sqlOpts.CollectCommands,
+		CollectComments:               sqlOpts.CollectComments,
+		CollectProcedures:             sqlOpts.CollectProcedures,
+		ReplaceDigits:                 sqlOpts.ReplaceDigits,
+		KeepSQLAlias:                  sqlOpts.KeepSQLAlias,
+		DollarQuotedFunc:              sqlOpts.DollarQuotedFunc,
+		ObfuscationMode:               sqlOpts.ObfuscationMode,
+		RemoveSpaceBetweenParentheses: sqlOpts.RemoveSpaceBetweenParentheses,
+		KeepNull:                      sqlOpts.KeepNull,
+		KeepBoolean:                   sqlOpts.KeepBoolean,
+		KeepPositionalParameter:       sqlOpts.KeepPositionalParameter,
 	})
 	if err != nil {
 		// memory will be freed by caller
