@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package runner
+package runnerimpl
 
 import (
 	"testing"
@@ -14,22 +14,23 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/process/containercheck"
-	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
-	"github.com/DataDog/datadog-agent/comp/process/processcheck"
-	"github.com/DataDog/datadog-agent/comp/process/submitter"
+	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
+	"github.com/DataDog/datadog-agent/comp/process/processcheck/processcheckimpl"
+	"github.com/DataDog/datadog-agent/comp/process/runner"
+	"github.com/DataDog/datadog-agent/comp/process/submitter/submitterimpl"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestRunnerLifecycle(t *testing.T) {
-	_ = fxutil.Test[Component](t, fx.Options(
+	_ = fxutil.Test[runner.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 
 		Module,
-		submitter.MockModule,
-		processcheck.Module,
-		hostinfo.MockModule,
+		submitterimpl.MockModule,
+		processcheckimpl.Module,
+		hostinfoimpl.MockModule,
 		core.MockBundle,
 	))
 }
@@ -38,7 +39,7 @@ func TestRunnerRealtime(t *testing.T) {
 	t.Run("rt allowed", func(t *testing.T) {
 		rtChan := make(chan types.RTResponse)
 
-		r := fxutil.Test[Component](t, fx.Options(
+		r := fxutil.Test[runner.Component](t, fx.Options(
 			fx.Provide(
 				// Cast `chan types.RTResponse` to `<-chan types.RTResponse`.
 				// We can't use `fx.As` because `<-chan types.RTResponse` is not an interface.
@@ -51,9 +52,9 @@ func TestRunnerRealtime(t *testing.T) {
 			}}),
 
 			Module,
-			submitter.MockModule,
-			processcheck.Module,
-			hostinfo.MockModule,
+			submitterimpl.MockModule,
+			processcheckimpl.Module,
+			hostinfoimpl.MockModule,
 			core.MockBundle,
 		))
 		rtChan <- types.RTResponse{
@@ -63,7 +64,7 @@ func TestRunnerRealtime(t *testing.T) {
 			},
 		}
 		assert.Eventually(t, func() bool {
-			return r.(*runner).IsRealtimeEnabled()
+			return r.(*runnerImpl).IsRealtimeEnabled()
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 
@@ -71,7 +72,7 @@ func TestRunnerRealtime(t *testing.T) {
 		// Buffer the channel because the runner will never consume from it, otherwise we will deadlock
 		rtChan := make(chan types.RTResponse, 1)
 
-		r := fxutil.Test[Component](t, fx.Options(
+		r := fxutil.Test[runner.Component](t, fx.Options(
 			fx.Supply(core.BundleParams{}),
 			fx.Replace(config.MockParams{Overrides: map[string]interface{}{
 				"process_config.disable_realtime_checks": true,
@@ -84,9 +85,9 @@ func TestRunnerRealtime(t *testing.T) {
 			),
 
 			Module,
-			submitter.MockModule,
-			processcheck.Module,
-			hostinfo.MockModule,
+			submitterimpl.MockModule,
+			processcheckimpl.Module,
+			hostinfoimpl.MockModule,
 			core.MockBundle,
 		))
 
@@ -97,24 +98,24 @@ func TestRunnerRealtime(t *testing.T) {
 			},
 		}
 		assert.Never(t, func() bool {
-			return r.(*runner).IsRealtimeEnabled()
+			return r.(*runnerImpl).IsRealtimeEnabled()
 		}, 1*time.Second, 10*time.Millisecond)
 	})
 }
 
 func TestProvidedChecks(t *testing.T) {
-	r := fxutil.Test[Component](t, fx.Options(
+	r := fxutil.Test[runner.Component](t, fx.Options(
 		fx.Supply(
 			core.BundleParams{},
 		),
 
 		Module,
-		submitter.MockModule,
-		hostinfo.MockModule,
+		submitterimpl.MockModule,
+		hostinfoimpl.MockModule,
 
 		// Checks
-		processcheck.MockModule,
-		containercheck.MockModule,
+		processcheckimpl.MockModule,
+		containercheckimpl.MockModule,
 
 		core.MockBundle,
 	))

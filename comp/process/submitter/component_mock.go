@@ -7,13 +7,7 @@
 // supported Datadog intakes.
 package submitter
 
-import (
-	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
-)
-
-// team: processes
-
-// Component is the component type.
-type Component interface {
-	processRunner.Submitter
+// Mock implements mock-specific methods.
+type Mock interface {
+	Component
 }

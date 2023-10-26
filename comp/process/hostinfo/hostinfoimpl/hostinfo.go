@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package hostinfo
+// Package hostinfoimpl wraps the hostinfo inside a component. This is useful because it is relied on by other components.
+package hostinfoimpl
 
 import (
 	"fmt"
@@ -12,7 +13,14 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	hostinfoComp "github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newHostInfo),
 )
 
 type dependencies struct {
@@ -26,7 +34,7 @@ type hostinfo struct {
 	hostinfo *checks.HostInfo
 }
 
-func newHostInfo(deps dependencies) (Component, error) {
+func newHostInfo(deps dependencies) (hostinfoComp.Component, error) {
 	hinfo, err := checks.CollectHostInfo(deps.Config)
 	if err != nil {
 		_ = deps.Logger.Critical("Error collecting host details:", err)
@@ -37,8 +45,4 @@ func newHostInfo(deps dependencies) (Component, error) {
 
 func (h *hostinfo) Object() *checks.HostInfo {
 	return h.hostinfo
-}
-
-func newMockHostInfo() Component {
-	return &hostinfo{hostinfo: &checks.HostInfo{}}
 }
