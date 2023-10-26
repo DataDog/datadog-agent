@@ -98,7 +98,8 @@
                 "ubuntu-18-04": "ami-0ee23bfc74a881de5",
                 "ubuntu-20-04": "ami-079ca844e323047c2",
                 "ubuntu-22-04": "ami-08c40ec9ead489470",
-                "ubuntu-23-04": "ami-062b1c3c00754c48b"
+                "ubuntu-23-04": "ami-062b1c3c00754c48b",
+                "ubuntu-23-10": "ami-0949b45ef274e55a1"
             },
             "arm64": {
                 "ubuntu-18-04": "ami-02ed82f3a38303e6f",
@@ -106,7 +107,8 @@
                 "ubuntu-20-04-2": "ami-0a82127206c2824a1",
                 "ubuntu-21-04": "ami-044f0ceee8e885e87",
                 "ubuntu-22-04": "ami-02ddaf75821f25213",
-                "ubuntu-23-04": "ami-05fab5da2d7fe0b0b"
+                "ubuntu-23-04": "ami-05fab5da2d7fe0b0b",
+                "ubuntu-23-10": "ami-0dea732dd5f1da0a8"
             }
         },
         "vagrant": {
