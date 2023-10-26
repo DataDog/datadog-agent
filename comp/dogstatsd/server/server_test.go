@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -47,7 +47,7 @@ func fulfillDeps(t testing.TB) serverDeps {
 func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []config.Feature) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle,
-		serverDebug.MockModule,
+		serverdebugimpl.MockModule,
 		fx.Replace(configComponent.MockParams{
 			Overrides: overrides,
 			Features:  features,
@@ -65,7 +65,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle,
-		serverDebug.MockModule,
+		serverdebugimpl.MockModule,
 		fx.Replace(configComponent.MockParams{
 			Params: configComponent.Params{ConfFilePath: yaml},
 		}),

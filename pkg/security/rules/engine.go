@@ -116,7 +116,10 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel := NewRuleFilterModel()
+	ruleFilterModel, err := NewRuleFilterModel()
+	if err != nil {
+		return fmt.Errorf("failed to create rule filter: %w", err)
+	}
 	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
 	macroFilters = append(macroFilters, seclRuleFilter)
 	ruleFilters = append(ruleFilters, seclRuleFilter)
@@ -127,7 +130,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 	}
 
 	if err := e.LoadPolicies(e.policyProviders, true); err != nil {
-		return fmt.Errorf("failed to load policies: %s", err)
+		return fmt.Errorf("failed to load policies: %w", err)
 	}
 
 	wg.Add(1)
