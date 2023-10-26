@@ -13,11 +13,5 @@ func mergeProfiles(profilesA ProfileConfigMap, profilesB ProfileConfigMap) Profi
 	for k, v := range profilesB {
 		profiles[k] = v
 	}
-	//for k, v := range profilesA {
-	//	profiles[k] = deepcopy.Copy(v).(ProfileConfig)
-	//}
-	//for k, v := range profilesB {
-	//	profiles[k] = deepcopy.Copy(v).(ProfileConfig)
-	//}
 	return profiles
 }
