@@ -230,7 +230,7 @@ static __attribute__((always_inline)) int is_overlayfs(struct dentry *dentry) {
     return get_sb_magic(sb) == OVERLAYFS_SUPER_MAGIC;
 }
 
-int __attribute__((always_inline)) get_ovl_lower_ino_old(struct dentry *dentry) {
+int __attribute__((always_inline)) get_ovl_lower_ino_direct(struct dentry *dentry) {
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
 
@@ -241,7 +241,7 @@ int __attribute__((always_inline)) get_ovl_lower_ino_old(struct dentry *dentry) 
     return get_inode_ino(lower);
 }
 
-int __attribute__((always_inline)) get_ovl_lower_ino_new(struct dentry *dentry) {
+int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_path(struct dentry *dentry) {
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
 
@@ -252,7 +252,7 @@ int __attribute__((always_inline)) get_ovl_lower_ino_new(struct dentry *dentry) 
     return get_dentry_ino(lower);
 }
 
-int __attribute__((always_inline)) get_ovl_lower_ino_new_2(struct dentry *dentry) {
+int __attribute__((always_inline)) get_ovl_lower_ino_from_ovl_entry(struct dentry *dentry) {
     struct inode *d_inode;
     bpf_probe_read(&d_inode, sizeof(d_inode), &dentry->d_inode);
 
@@ -281,13 +281,13 @@ void __always_inline set_overlayfs_ino(struct dentry *dentry, u64 *ino, u32 *fla
     u64 lower_inode = 0;
     switch (get_ovl_path_in_inode()) {
     case 2:
-        lower_inode = get_ovl_lower_ino_new_2(dentry);
+        lower_inode = get_ovl_lower_ino_from_ovl_entry(dentry);
         break;
     case 1:
-        lower_inode = get_ovl_lower_ino_new(dentry);
+        lower_inode = get_ovl_lower_ino_from_ovl_path(dentry);
         break;
     default:
-        lower_inode = get_ovl_lower_ino_old(dentry);
+        lower_inode = get_ovl_lower_ino_direct(dentry);
         break;
     }
     u64 upper_inode = get_ovl_upper_ino(dentry);
