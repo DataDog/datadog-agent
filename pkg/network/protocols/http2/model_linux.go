@@ -129,10 +129,10 @@ func (tx *EbpfTx) String() string {
 	var output strings.Builder
 	output.WriteString("http2.ebpfTx{")
 	output.WriteString("Method: '" + tx.Method().String() + "', ")
-	buf := make([]byte, 0, tx.Path_size)
+	buf := make([]byte, len(tx.Request_path))
 	path, ok := tx.Path(buf)
 	if ok {
-		output.WriteString("Path: '" + string(path))
+		output.WriteString("Path: '" + string(path) + "'")
 	}
 	output.WriteString("}")
 	return output.String()
