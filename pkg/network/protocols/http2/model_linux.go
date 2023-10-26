@@ -132,7 +132,7 @@ func (tx *EbpfTx) String() string {
 	buf := make([]byte, len(tx.Request_path))
 	path, ok := tx.Path(buf)
 	if ok {
-		output.WriteString("Path: '" + string(path))
+		output.WriteString("Path: '" + string(path) + "'")
 	}
 	output.WriteString("}")
 	return output.String()
