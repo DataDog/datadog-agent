@@ -9,8 +9,15 @@ package containerd
 
 import (
 	"context"
+
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func (c *collector) startSBOMCollection(context.Context) error {
 	return nil
+}
+
+// updateSBOMMetadata does nothing
+func updateSBOMMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []string) *workloadmeta.SBOM {
+	return sbom
 }
