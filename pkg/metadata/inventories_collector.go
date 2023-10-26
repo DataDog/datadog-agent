@@ -19,6 +19,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
 
+const (
+	// defaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
+	defaultInventoriesMinInterval = 5 * 60
+	// defaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
+	defaultInventoriesMaxInterval = 10 * 60
+)
+
 type inventoriesCollector struct {
 	coll inventories.CollectorInterface
 	sc   *Scheduler
@@ -55,7 +62,7 @@ func (c inventoriesCollector) Send(ctx context.Context, s serializer.MetricSeria
 func getMinInterval() time.Duration {
 	minInterval := time.Duration(config.Datadog.GetInt("inventories_min_interval")) * time.Second
 	if minInterval <= 0 {
-		minInterval = config.DefaultInventoriesMinInterval * time.Second
+		minInterval = defaultInventoriesMinInterval * time.Second
 	}
 	return minInterval
 }
@@ -64,7 +71,7 @@ func getMinInterval() time.Duration {
 func getMaxInterval() time.Duration {
 	maxInterval := time.Duration(config.Datadog.GetInt("inventories_max_interval")) * time.Second
 	if maxInterval <= 0 {
-		maxInterval = config.DefaultInventoriesMaxInterval * time.Second
+		maxInterval = defaultInventoriesMaxInterval * time.Second
 	}
 	return maxInterval
 }
@@ -72,7 +79,6 @@ func getMaxInterval() time.Duration {
 // Init initializes the inventory metadata collection. This should be called in
 // all agents that wish to track inventory, after configuration is initialized.
 func (c inventoriesCollector) Init() error {
-	inventories.InitializeData()
 	return inventories.StartMetadataUpdatedGoroutine(c.sc, getMinInterval())
 }
 

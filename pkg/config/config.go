@@ -87,12 +87,6 @@ const (
 	// DefaultLogsSenderBackoffRecoveryInterval is the default logs sender backoff recovery interval
 	DefaultLogsSenderBackoffRecoveryInterval = 2
 
-	// DefaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds
-	DefaultInventoriesMinInterval = 60
-
-	// DefaultInventoriesMaxInterval is the default value for inventories_max_interval, in seconds
-	DefaultInventoriesMaxInterval = 10 * 60
-
 	// maxExternalMetricsProviderChunkSize ensures batch queries are limited in size.
 	maxExternalMetricsProviderChunkSize = 35
 
@@ -129,6 +123,9 @@ var (
 	// DefaultSecurityProfilesDir is the default directory used to store Security Profiles by the runtime security module
 	DefaultSecurityProfilesDir = filepath.Join(defaultRunPath, "runtime-security", "profiles")
 )
+
+// List of integrations allowed to be configured by RC by default
+var defaultAllowedRCIntegrations = []string{}
 
 // PrometheusScrapeChecksTransformer unmarshals a prometheus check.
 func PrometheusScrapeChecksTransformer(in string) interface{} {
@@ -299,6 +296,8 @@ func InitConfig(config Config) {
 	// Remote config products
 	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.enabled", false)
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -716,6 +715,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("leader_election", false)
 	config.BindEnvAndSetDefault("leader_lease_name", "datadog-leader-election")
 	config.BindEnvAndSetDefault("leader_election_default_resource", "configmap")
+	config.BindEnvAndSetDefault("leader_election_release_on_shutdown", true)
 	config.BindEnvAndSetDefault("kube_resources_namespace", "")
 	config.BindEnvAndSetDefault("kube_cache_sync_timeout_seconds", 5)
 
@@ -1163,8 +1163,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("inventories_checks_configuration_enabled", true)      // controls the checks configurations
 	config.BindEnvAndSetDefault("inventories_collect_cloud_provider_account_id", true) // collect collection of `cloud_provider_account_id`
 	// when updating the default here also update pkg/metadata/inventories/README.md
-	config.BindEnvAndSetDefault("inventories_max_interval", DefaultInventoriesMaxInterval) // integer seconds
-	config.BindEnvAndSetDefault("inventories_min_interval", DefaultInventoriesMinInterval) // integer seconds
+	config.BindEnvAndSetDefault("inventories_max_interval", 0) // 0 == default interval from inventories
+	config.BindEnvAndSetDefault("inventories_min_interval", 0) // 0 == default interval from inventories
 
 	// Datadog security agent (common)
 	config.BindEnvAndSetDefault("security_agent.cmd_port", 5010)
@@ -2027,4 +2027,21 @@ func IsRemoteConfigEnabled(cfg Reader) bool {
 		return false
 	}
 	return cfg.GetBool("remote_configuration.enabled")
+}
+
+// GetRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
+// with remote-config
+func GetRemoteConfigurationAllowedIntegrations(cfg Reader) map[string]bool {
+	allowList := cfg.GetStringSlice("remote_configuration.agent_integrations.allow_list")
+	allowMap := map[string]bool{}
+	for _, integration := range allowList {
+		allowMap[strings.ToLower(integration)] = true
+	}
+
+	blockList := cfg.GetStringSlice("remote_configuration.agent_integrations.block_list")
+	for _, blockedIntegration := range blockList {
+		allowMap[strings.ToLower(blockedIntegration)] = false
+	}
+
+	return allowMap
 }

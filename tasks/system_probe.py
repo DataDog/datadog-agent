@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 from subprocess import check_output
 
+import requests
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -302,7 +303,10 @@ def ninja_runtime_compilation_files(nw, gobin):
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 
-    nw.rule(name="headerincl", command="go generate -mod=mod -tags linux_bpf $in", depfile="$out.d")
+    nw.rule(
+        name="headerincl", command="go generate -run=\"include_headers\" -mod=mod -tags linux_bpf $in", depfile="$out.d"
+    )
+    nw.rule(name="integrity", command="go generate -run=\"integrity\" -mod=mod -tags linux_bpf $in", depfile="$out.d")
     hash_dir = os.path.join(bc_dir, "runtime")
     rc_dir = os.path.join(build_dir, "runtime")
     for in_path, out_filename in runtime_compiler_files.items():
@@ -310,10 +314,15 @@ def ninja_runtime_compilation_files(nw, gobin):
         hash_file = os.path.join(hash_dir, f"{out_filename}.go")
         nw.build(
             inputs=[in_path],
-            outputs=[c_file],
             implicit=toolpaths,
-            implicit_outputs=[hash_file],
+            outputs=[c_file],
             rule="headerincl",
+        )
+        nw.build(
+            inputs=[in_path],
+            implicit=toolpaths + [c_file],
+            outputs=[hash_file],
+            rule="integrity",
         )
 
 
@@ -528,6 +537,7 @@ def clean(
     ctx.run("go clean -cache")
 
 
+@task
 def build_sysprobe_binary(
     ctx,
     race=False,
@@ -1594,15 +1604,23 @@ def print_failed_tests(_, output_dir):
 
 
 @task
-def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
+def save_test_dockers(ctx, output_dir, arch, windows=is_windows, use_crane=False):
     if windows:
         return
 
+    # only download images not present in preprepared vm disk
+    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker.ls')
+    docker_ls = {line for line in resp.text.split('\n') if line.strip()}
+
     images = _test_docker_image_list()
-    for image in images:
+    for image in images - docker_ls:
         output_path = image.translate(str.maketrans('', '', string.punctuation))
-        ctx.run(f"docker pull --platform linux/{arch} {image}")
-        ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
+        output_file = f"{os.path.join(output_dir, output_path)}.tar"
+        if use_crane:
+            ctx.run(f"crane pull --platform linux/{arch} {image} {output_file}")
+        else:
+            ctx.run(f"docker pull --platform linux/{arch} {image}")
+            ctx.run(f"docker save {image} > {output_file}")
 
 
 @task

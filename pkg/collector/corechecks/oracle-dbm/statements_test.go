@@ -19,7 +19,6 @@ import (
 )
 
 func TestQueryMetrics(t *testing.T) {
-	initAndStartAgentDemultiplexer(t)
 	chk.dbmEnabled = true
 	chk.statementsLastRun = time.Now().Add(-48 * time.Hour)
 	count, err := chk.StatementMetrics()
@@ -28,7 +27,6 @@ func TestQueryMetrics(t *testing.T) {
 }
 
 func TestUInt64Binding(t *testing.T) {
-	initAndStartAgentDemultiplexer(t)
 
 	chk.dbmEnabled = true
 	chk.config.QueryMetrics.Enabled = true
