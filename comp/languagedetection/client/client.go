@@ -201,10 +201,10 @@ func (c *client) startStreaming() {
 	health := health.RegisterLiveness("process-language-detection-client-sender")
 
 	ctx, cancel := context.WithCancel(c.ctx)
-	defer func() { cancel() }()
 	for {
 		select {
 		case <-c.ctx.Done():
+			cancel()
 			err := health.Deregister()
 			if err != nil {
 				log.Warnf("error de-registering health check: %s", err)
