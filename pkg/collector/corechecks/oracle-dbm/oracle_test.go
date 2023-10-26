@@ -10,12 +10,12 @@ package oracle
 import (
 	"database/sql"
 	"fmt"
-
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	_ "github.com/godror/godror"
 	"github.com/jmoiron/sqlx"
@@ -288,7 +288,7 @@ func TestObfuscator(t *testing.T) {
 	obfuscatorOptions.CollectCommands = true
 	obfuscatorOptions.CollectComments = true
 
-	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: obfuscatorOptions})
+	o := obfuscate.NewObfuscator(obfuscate.Config{SQL: config.GetDefaultObfuscatorOptions()})
 	for _, statement := range []string{
 		// needs https://datadoghq.atlassian.net/browse/DBM-2295
 		`UPDATE /* comment */ SET t n=1`,
@@ -300,4 +300,8 @@ func TestObfuscator(t *testing.T) {
 
 	_, err := o.ObfuscateSQLString(`SELECT TRUNC(SYSDATE@!) from dual`)
 	assert.NoError(t, err, "can't obfuscate @!")
+
+	nullPlSql := "begin null; end;"
+	obfuscatedStatement, err := o.ObfuscateSQLString(nullPlSql)
+	assert.Equal(t, nullPlSql, obfuscatedStatement.Query)
 }
