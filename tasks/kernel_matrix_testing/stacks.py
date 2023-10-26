@@ -11,7 +11,7 @@ try:
 except ImportError:
     libvirt = None
 
-X86_INSTANCE_TYPE = "m5d.metal"
+X86_INSTANCE_TYPE = "m5dn.metal"
 ARM_INSTANCE_TYPE = "m6gd.metal"
 
 
