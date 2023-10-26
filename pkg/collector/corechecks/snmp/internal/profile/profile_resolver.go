@@ -8,6 +8,7 @@ package profile
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/mohae/deepcopy"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,16 +21,16 @@ import (
 
 func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
-	filteredRawProfiles := ProfileConfigMap{}
-	for key, val := range rawProfiles {
-		// TODO: TESTME
-		if strings.HasPrefix(key, "_") {
-			continue
-		}
-		filteredRawProfiles[key] = val
-	}
+	//filteredRawProfiles := ProfileConfigMap{}
+	//for key, val := range rawProfiles {
+	//	// No need to resolve abstract profile
+	//	if strings.HasPrefix(key, "_") {
+	//		continue
+	//	}
+	//	filteredRawProfiles[key] = val
+	//}
 
-	userExpandedProfiles, err := loadResolveProfiles(filteredRawProfiles, defaultProfiles)
+	userExpandedProfiles, err := loadResolveProfiles(rawProfiles, defaultProfiles)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load profiles: %s", err)
 	}
@@ -39,23 +40,27 @@ func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileCon
 func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	profiles := make(ProfileConfigMap, len(pConfig))
 
-	for name, profConfig := range pConfig {
-		log.Warnf("[PROFILE DEBUG] name: %s", name)
-		err := recursivelyExpandBaseProfiles(name, &profConfig.Definition, profConfig.Definition.Extends, []string{}, pConfig, defaultProfiles)
+	for name := range pConfig {
+		// No need to resolve abstract profile
+		if strings.HasPrefix(name, "_") {
+			continue
+		}
+
+		newProfileConfig := deepcopy.Copy(pConfig[name]).(ProfileConfig)
+		err := recursivelyExpandBaseProfiles(name, &newProfileConfig.Definition, newProfileConfig.Definition.Extends, []string{}, pConfig, defaultProfiles)
 		if err != nil {
 			log.Warnf("failed to expand profile `%s`: %s", name, err)
 			continue
 		}
-		profiledefinition.NormalizeMetrics(profConfig.Definition.Metrics)
-		errors := configvalidation.ValidateEnrichMetadata(profConfig.Definition.Metadata)
-		errors = append(errors, configvalidation.ValidateEnrichMetrics(profConfig.Definition.Metrics)...)
-		errors = append(errors, configvalidation.ValidateEnrichMetricTags(profConfig.Definition.MetricTags)...)
+		profiledefinition.NormalizeMetrics(newProfileConfig.Definition.Metrics)
+		errors := configvalidation.ValidateEnrichMetadata(newProfileConfig.Definition.Metadata)
+		errors = append(errors, configvalidation.ValidateEnrichMetrics(newProfileConfig.Definition.Metrics)...)
+		errors = append(errors, configvalidation.ValidateEnrichMetricTags(newProfileConfig.Definition.MetricTags)...)
 		if len(errors) > 0 {
 			log.Warnf("validation errors: %s", strings.Join(errors, "\n"))
 			continue
 		}
-		log.Warnf("[PROFILE DEBUG] name: %s, profConfig: %s", name, marshall(profConfig))
-		profiles[name] = profConfig
+		profiles[name] = newProfileConfig
 	}
 
 	return profiles, nil
@@ -90,8 +95,6 @@ func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefin
 			}
 		}
 
-		log.Warnf("[PROFILE DEBUG] extendEntry: %s", extendEntry)
-		log.Warnf("[PROFILE DEBUG] extend baseDefinition: %s", marshall(baseDefinition))
 		mergeProfileDefinition(definition, baseDefinition)
 
 		newExtendsHistory := append(common.CopyStrings(extendsHistory), extendEntry)
