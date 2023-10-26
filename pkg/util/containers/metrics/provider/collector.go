@@ -31,7 +31,7 @@ func (pc CollectorRef[T]) bestCollector(runtime Runtime, otherID string, oth Col
 	// T is always an interface, so zero is nil, but currently we cannot express nillable in a constraint
 	var zero T
 
-	if pc.Collector == zero || (oth.Collector != zero && oth.Priority < pc.Priority) {
+	if oth.Collector != zero && (pc.Collector == zero || oth.Priority < pc.Priority) {
 		log.Debugf("Using collector id: %s for type: %T and runtime: %s", otherID, pc, runtime)
 		return oth
 	}

@@ -78,14 +78,16 @@ func newCollectorRegistry() *collectorRegistry {
 func (cr *collectorRegistry) run(c context.Context, cache *Cache, catalogUpdatedCallback func(CollectorCatalog)) {
 	cr.discoveryOnce.Do(func() {
 		cr.catalogUpdatedCallback = catalogUpdatedCallback
+
+		// Always run discovery at least once synchronously
+		cr.retryCollectors(cache)
+
+		// Now, we can run the discovery in background
 		go cr.collectorDiscovery(c, cache)
 	})
 }
 
 func (cr *collectorRegistry) collectorDiscovery(c context.Context, cache *Cache) {
-	// Always run discovery at least once synchronously
-	cr.retryCollectors(cache)
-
 	ticker := time.NewTicker(minRetryInterval)
 	for {
 		select {
