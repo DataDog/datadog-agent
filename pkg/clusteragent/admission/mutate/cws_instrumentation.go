@@ -12,8 +12,10 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"golang.org/x/exp/slices"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -41,17 +43,18 @@ func isNsTargetedByCWSInstrumentation(ns string) bool {
 	// was provided (env variable or config file).
 	cwsTargetNamespaces := config.Datadog.GetStringSlice("admission_controller.cws_instrumentation.target.namespaces")
 	cwsTargetAllNamespaces := config.Datadog.GetBool("admission_controller.cws_instrumentation.target.all_namespaces")
+	cwsTargetSkipNamespaces := config.Datadog.GetStringSlice("admission_controller.cws_instrumentation.target.skip_namespaces")
+
+	if slices.Contains(cwsTargetSkipNamespaces, ns) {
+		return false
+	}
 
 	if cwsTargetAllNamespaces {
 		return true
 	}
-	if len(cwsTargetNamespaces) == 0 {
-		return false
-	}
-	for _, targetNs := range cwsTargetNamespaces {
-		if ns == targetNs {
-			return true
-		}
+
+	if slices.Contains(cwsTargetNamespaces, ns) {
+		return true
 	}
 	return false
 }
@@ -147,6 +150,12 @@ func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface
 		return fmt.Errorf("empty CWS Injector image name")
 	}
 
+	// compute init container resources
+	resources, err := initCWSInitContainerResources()
+	if err != nil {
+		return err
+	}
+
 	// is the namespace targeted by the instrumentation ?
 	if !isNsTargetedByCWSInstrumentation(ns) {
 		return nil
@@ -169,7 +178,7 @@ func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface
 	}
 
 	// add init container to copy cws-injector in the cws volume
-	injectCWSInitContainer(pod)
+	injectCWSInitContainer(pod, resources)
 
 	// add label to indicate that the pod has been instrumented
 	if annotations == nil {
@@ -213,7 +222,7 @@ func injectCWSVolumeMount(container *corev1.Container) {
 	})
 }
 
-func injectCWSInitContainer(pod *corev1.Pod) {
+func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequirements) {
 	// check if the init container has already been added
 	for _, c := range pod.Spec.InitContainers {
 		if c.Name == cwsInjectorInitContainerName {
@@ -249,5 +258,34 @@ func injectCWSInitContainer(pod *corev1.Pod) {
 			},
 		},
 	}
+	if resources != nil {
+		initContainer.Resources = *resources
+	}
 	pod.Spec.InitContainers = append([]corev1.Container{initContainer}, pod.Spec.InitContainers...)
+}
+
+func initCWSInitContainerResources() (*corev1.ResourceRequirements, error) {
+	var resources = &corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
+	if cpu := config.Datadog.GetString("admission_controller.cws_instrumentation.init_resources.cpu"); len(cpu) > 0 {
+		quantity, err := resource.ParseQuantity(cpu)
+		if err != nil {
+			return nil, err
+		}
+		resources.Requests[corev1.ResourceCPU] = quantity
+		resources.Limits[corev1.ResourceCPU] = quantity
+	}
+
+	if mem := config.Datadog.GetString("admission_controller.cws_instrumentation.init_resources.memory"); len(mem) > 0 {
+		quantity, err := resource.ParseQuantity(mem)
+		if err != nil {
+			return nil, err
+		}
+		resources.Requests[corev1.ResourceMemory] = quantity
+		resources.Limits[corev1.ResourceMemory] = quantity
+	}
+
+	if len(resources.Limits) > 0 || len(resources.Requests) > 0 {
+		return resources, nil
+	}
+	return nil, nil
 }

@@ -409,6 +409,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 
 		// configuration
 		targetNamespaces             []string
+		targetSkipNamespaces         []string
 		targetAllNamespaces          bool
 		cwsInjectorImageName         string
 		cwsInjectorImageTag          string
@@ -570,6 +571,58 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			},
 		},
 		{
+			name: "my-namespace skipped, image name",
+			args: args{
+				pod:                          fakePod("my-pod"),
+				ns:                           "my-namespace",
+				targetSkipNamespaces:         []string{"my-namespace"},
+				cwsInjectorImageName:         "my-image",
+				cwsInjectorImageTag:          "",
+				cwsInjectorContainerRegistry: "",
+			},
+			wantInstrumentation: false,
+		},
+		{
+			name: "my-namespace skipped, all namespaces, image name",
+			args: args{
+				pod:                          fakePod("my-pod"),
+				ns:                           "my-namespace",
+				targetSkipNamespaces:         []string{"my-namespace"},
+				targetAllNamespaces:          true,
+				cwsInjectorImageName:         "my-image",
+				cwsInjectorImageTag:          "",
+				cwsInjectorContainerRegistry: "",
+			},
+			wantInstrumentation: false,
+		},
+		{
+			name: "my-namespace skipped and selected, image name",
+			args: args{
+				pod:                          fakePod("my-pod"),
+				ns:                           "my-namespace",
+				targetSkipNamespaces:         []string{"my-namespace"},
+				targetNamespaces:             []string{"my-namespace"},
+				cwsInjectorImageName:         "my-image",
+				cwsInjectorImageTag:          "",
+				cwsInjectorContainerRegistry: "",
+			},
+			wantInstrumentation: false,
+		},
+		{
+			name: "my-namespace skipped and selected, all namespaces, image name",
+			args: args{
+				pod:                          fakePod("my-pod"),
+				ns:                           "my-namespace",
+				targetSkipNamespaces:         []string{"my-namespace"},
+				targetNamespaces:             []string{"my-namespace"},
+				targetAllNamespaces:          true,
+				cwsInjectorImageName:         "my-image",
+				cwsInjectorImageTag:          "",
+				cwsInjectorContainerRegistry: "",
+			},
+			wantInstrumentation: false,
+		},
+		{
 			name: "all namespaces, image name, CWS instrumentation ready",
 			args: args{
 				pod: fakePodWithAnnotations(map[string]string{
@@ -616,9 +669,12 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig.Set("admission_controller.cws_instrumentation.target.namespaces", tt.args.targetNamespaces)
 			mockConfig.Set("admission_controller.cws_instrumentation.target.all_namespaces", tt.args.targetAllNamespaces)
+			mockConfig.Set("admission_controller.cws_instrumentation.target.skip_namespaces", tt.args.targetSkipNamespaces)
 			mockConfig.Set("admission_controller.cws_instrumentation.cws_injector_image_name", tt.args.cwsInjectorImageName)
 			mockConfig.Set("admission_controller.cws_instrumentation.cws_injector_image_tag", tt.args.cwsInjectorImageTag)
 			mockConfig.Set("admission_controller.cws_instrumentation.cws_injector_container_registry", tt.args.cwsInjectorContainerRegistry)
+			mockConfig.Set("admission_controller.cws_instrumentation.init_resources.cpu", "")
+			mockConfig.Set("admission_controller.cws_instrumentation.init_resources.memory", "")
 
 			if err := injectCWSPodInstrumentation(tt.args.pod, tt.args.ns, nil); err != nil && !tt.wantErr {
 				require.Fail(t, "CWS instrumentation shouldn't have produced an error: got %v", err)
@@ -713,5 +769,100 @@ func testInjectCWSInitContainer(t *testing.T, pod *corev1.Pod, initContainer cor
 func testNoInjectedCWSInitContainer(t *testing.T, pod *corev1.Pod) {
 	for _, c := range pod.Spec.InitContainers {
 		require.NotEqualf(t, cwsInjectorInitContainerName, c.Name, "CWS instrumentation should be missing")
+	}
+}
+
+func Test_initCWSInitContainerResources(t *testing.T) {
+	mockConfig := config.Mock(t)
+	tests := []struct {
+		name       string
+		mem        string
+		cpu        string
+		wantMemory bool
+		wantCPU    bool
+		wantErr    bool
+	}{
+		{
+			name: "empty resources",
+			mem:  "",
+			cpu:  "",
+		},
+		{
+			name:       "mem",
+			mem:        "100Mi",
+			cpu:        "",
+			wantMemory: true,
+		},
+		{
+			name:    "cpu",
+			mem:     "",
+			cpu:     "100m",
+			wantCPU: true,
+		},
+		{
+			name:       "mem, cpu",
+			mem:        "10Gi",
+			cpu:        "2",
+			wantCPU:    true,
+			wantMemory: true,
+		},
+		{
+			name:    "invalid mem",
+			mem:     "abc",
+			cpu:     "",
+			wantErr: true,
+		},
+		{
+			name:    "invalid cpu",
+			mem:     "",
+			cpu:     "abc",
+			wantErr: true,
+		},
+		{
+			name:    "invalid mem, invalid cpu",
+			mem:     "abc",
+			cpu:     "abc",
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig.Set("admission_controller.cws_instrumentation.init_resources.cpu", tt.cpu)
+			mockConfig.Set("admission_controller.cws_instrumentation.init_resources.memory", tt.mem)
+
+			got, err := initCWSInitContainerResources()
+			if err != nil && !tt.wantErr {
+				require.Nil(t, err, "an error shouldn't have been generated")
+			}
+
+			if tt.wantCPU == false && tt.wantMemory == false {
+				require.Nil(t, got, "initCWSInitContainerResources() shouldn't return resources")
+				return
+			}
+
+			memReq, okMemReq := got.Requests[corev1.ResourceMemory]
+			memLim, okMemLim := got.Requests[corev1.ResourceMemory]
+			if tt.wantMemory {
+				require.Equal(t, tt.mem, memReq.String(), "initCWSInitContainerResources(), invalid memory requests")
+				require.Equal(t, tt.mem, memLim.String(), "initCWSInitContainerResources(), invalid memory limits")
+			} else {
+				if okMemReq && okMemLim {
+					require.Nil(t, memReq, "initCWSInitContainerResources(), memory requests should be nil")
+					require.Nil(t, memLim, "initCWSInitContainerResources(), memory limits should be nil")
+				}
+			}
+
+			cpuReq, okCPUReq := got.Requests[corev1.ResourceCPU]
+			cpuLim, okCPULim := got.Requests[corev1.ResourceCPU]
+			if tt.wantCPU {
+				require.Equal(t, tt.cpu, cpuReq.String(), "initCWSInitContainerResources(), invalid cpu requests")
+				require.Equal(t, tt.cpu, cpuLim.String(), "initCWSInitContainerResources(), invalid cpu limits")
+			} else {
+				if okCPUReq && okCPULim {
+					require.Nil(t, cpuReq, "initCWSInitContainerResources(), cpu requests should be nil")
+					require.Nil(t, cpuLim, "initCWSInitContainerResources(), cpu limits should be nil")
+				}
+			}
+		})
 	}
 }
