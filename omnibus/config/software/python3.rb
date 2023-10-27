@@ -27,7 +27,7 @@ if ohai["platform"] != "windows"
     python_configure_options.push("--enable-ipv6",
                           "--with-universal-archs=intel",
                           "--enable-shared")
-  elsif linux?
+  elsif linux_target?
     python_configure_options.push("--enable-shared",
                           "--enable-ipv6")
   elsif aix?
