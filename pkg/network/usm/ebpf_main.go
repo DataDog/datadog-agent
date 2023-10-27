@@ -244,9 +244,11 @@ func (e *ebpfProgram) Close() error {
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
-	for _, protocol := range e.enabledProtocols {
-		protocol.Stop(e.Manager.Manager)
+	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
+		protocol.Stop(m)
+		return nil
 	}
+	runForProtocol(e.enabledProtocols, e.Manager.Manager, "stop", stopProtocolWrapper, nil)
 	return e.Stop(manager.CleanAll)
 }
 
@@ -437,4 +439,17 @@ func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} 
 	}
 
 	return ret
+}
+
+func runForProtocol(protocols []protocols.Protocol, mgr *manager.Manager, phaseName string, cb func(protocols.Protocol, *manager.Manager) error, cbCleanup func(protocols.Protocol, *manager.Manager)) []protocols.Protocol {
+	res := protocols[:0]
+	for _, protocol := range protocols {
+		if err := cb(protocol, mgr); err != nil {
+			cbCleanup(protocol, mgr)
+			log.Errorf("could not complete %s phase of %s monitoring: %s", phaseName, protocol.Name(), err)
+			continue
+		}
+		res = append(res, protocol)
+	}
+	return res
 }

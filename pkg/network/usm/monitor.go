@@ -139,19 +139,6 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	return usmMonitor, nil
 }
 
-func runForProtocol(protocols []protocols.Protocol, mgr *manager.Manager, phaseName string, cb func(protocols.Protocol, *manager.Manager) error, cbCleanup func(protocols.Protocol, *manager.Manager)) []protocols.Protocol {
-	res := protocols[:0]
-	for _, protocol := range protocols {
-		if err := cb(protocol, mgr); err != nil {
-			cbCleanup(protocol, mgr)
-			log.Errorf("could not complete %s phase of %s monitoring: %s", phaseName, protocol.Name(), err)
-			continue
-		}
-		res = append(res, protocol)
-	}
-	return res
-}
-
 // Start USM monitor.
 func (m *Monitor) Start() error {
 	if m == nil {
