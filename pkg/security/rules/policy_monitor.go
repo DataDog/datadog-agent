@@ -75,6 +75,18 @@ func (p *PolicyMonitor) SetPolicies(policies []*rules.Policy, mErrs *multierror.
 	}
 }
 
+// ReportHeartbeatEvent sends HeartbeatEvents reporting the current set of policies
+func (p *PolicyMonitor) ReportHeartbeatEvent(sender events.EventSender) {
+	log.Infof("send heartbeat")
+	p.RLock()
+	defer p.RUnlock()
+
+	rule, events := NewHeartbeatEvents(p.policies)
+	for _, event := range events {
+		sender.SendEvent(rule, event, nil, "")
+	}
+}
+
 // Start the monitor
 func (p *PolicyMonitor) Start(ctx context.Context) {
 	go func() {
@@ -145,16 +157,6 @@ func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientIn
 	}
 
 	sender.SendEvent(rule, event, nil, "")
-}
-
-// ReportHeartbeatEvent periodically reports to Datadog that
-func ReportHeartbeatEvent(sender events.EventSender, policies map[string]Policy) {
-	log.Infof("send heartbeat")
-
-	rule, events := NewHeartbeatEvents(policies)
-	for _, event := range events {
-		sender.SendEvent(rule, event, nil, "")
-	}
 }
 
 // RuleState defines a loaded rule
