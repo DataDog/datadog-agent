@@ -196,8 +196,6 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		vendor = config.ProfileDef.Device.Vendor
 	}
 
-	profileVersion := getProfileVersion(config)
-
 	return devicemetadata.DeviceMetadata{
 		ID:             deviceID,
 		IDTags:         idTags,
@@ -207,7 +205,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		SysObjectID:    sysObjectID,
 		Location:       location,
 		Profile:        config.Profile,
-		ProfileVersion: profileVersion,
+		ProfileVersion: getProfileVersion(config),
 		Vendor:         vendor,
 		Tags:           tags,
 		Subnet:         config.ResolvedSubnetName,
