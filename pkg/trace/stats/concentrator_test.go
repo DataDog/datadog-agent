@@ -8,6 +8,7 @@ package stats
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 	"testing"
 	"time"
 
@@ -851,7 +852,7 @@ func TestComputeStatsForSpanKind(t *testing.T) {
 	}
 }
 
-func TestPrepareTagKeys(t *testing.T) {
+func TestPreparePeerTags(t *testing.T) {
 	type testCase struct {
 		input  []string
 		output []string
@@ -860,21 +861,22 @@ func TestPrepareTagKeys(t *testing.T) {
 	for _, tc := range []testCase{
 		{
 			input:  nil,
-			output: nil,
+			output: defaultPeerTags,
 		},
 		{
 			input:  []string{},
-			output: nil,
+			output: defaultPeerTags,
 		},
 		{
-			input:  []string{"a", "b"},
-			output: []string{"a", "b"},
+			input:  []string{"zz_tag"},
+			output: append(defaultPeerTags, "zz_tag"),
 		},
 		{
-			input:  []string{"a", "a", "b"},
-			output: []string{"a", "b"},
+			input:  []string{"zz_tag", "peer.service", "some.other.tag", "db.name", "db.instance"},
+			output: append(defaultPeerTags, "zz_tag", "some.other.tag"),
 		},
 	} {
-		assert.Equal(t, tc.output, prepareTagKeys(tc.input...))
+		sort.Strings(tc.output)
+		assert.Equal(t, tc.output, preparePeerTags(tc.input...))
 	}
 }

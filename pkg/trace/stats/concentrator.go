@@ -52,15 +52,44 @@ type Concentrator struct {
 	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
 }
 
-func prepareTagKeys(tags ...string) []string {
-	if len(tags) == 0 {
-		return nil
+var defaultPeerTags []string = []string{
+	"_dd.cluster.name",
+	"_dd.first.configured.host",
+	"bucketname",
+	"db.cassandra.contact.points",
+	"db.couchbase.seed.nodes",
+	"db.hostname",
+	"db.instance",
+	"db.name",
+	"hazelcast.instance",
+	"messaging.kafka.bootstrap.servers",
+	"mongodb.db",
+	"net.peer.name",
+	"network.destination.name",
+	"out.host",
+	"peer.hostname",
+	"peer.service",
+	"queuename",
+	"rpc.service",
+	"rulename",
+	"statemachinename",
+	"streamname",
+	"tablename",
+	"topicname",
+}
+
+func preparePeerTags(tags ...string) []string {
+	// Add all defaults first.
+	deduped := make([]string, len(defaultPeerTags))
+	copy(deduped, defaultPeerTags)
+	seen := make(map[string]struct{})
+	for _, t := range deduped {
+		seen[t] = struct{}{}
 	}
-	var deduped []string
-	seen := make(map[string]bool)
+	// Now add any custom peer tags.
 	for _, t := range tags {
-		if !seen[t] {
-			seen[t] = true
+		if _, ok := seen[t]; !ok {
+			seen[t] = struct{}{}
 			deduped = append(deduped, t)
 		}
 	}
@@ -88,8 +117,12 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		peerSvcAggregation:     conf.PeerServiceAggregation,
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 	}
+	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
 	if conf.PeerServiceAggregation {
-		c.peerTagKeys = prepareTagKeys(conf.PeerTags...)
+		c.peerTagKeys = []string{"peer.service"}
+	}
+	if conf.PeerTagsAggregation {
+		c.peerTagKeys = preparePeerTags(conf.PeerTags...)
 	}
 	return &c
 }
