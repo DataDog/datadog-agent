@@ -88,9 +88,9 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 	if err != nil {
 		switch err.(type) {
 		case *netflow.ErrorTemplateNotFound:
-			s.sender.Count("datadog.netflow.processor.errors", 1, "", []string{"exporter_ip:" + key, "error:template_not_found"})
+			s.sender.Count(common.MetricPrefix+"processor.errors", 1, "", []string{"exporter_ip:" + key, "error:template_not_found"})
 		default:
-			s.sender.Count("datadog.netflow.processor.errors", 1, "", []string{"exporter_ip:" + key, "error:error_decoding"})
+			s.sender.Count(common.MetricPrefix+"processor.errors", 1, "", []string{"exporter_ip:" + key, "error:error_decoding"})
 		}
 		return err
 	}
@@ -153,12 +153,12 @@ func (s *StateNetFlow) FlowRoutine(workers int, addr string, port int, reuseport
 func (s *StateNetFlow) sendTelemetryMetrics(msg any, exporterIP string) {
 	switch msgDec := msg.(type) {
 	case netflow.NFv9Packet:
-		s.sender.Count("datadog.netflow.processor.processed", 1, "", []string{"exporter_ip:" + exporterIP, "version:9"})
+		s.sender.Count(common.MetricPrefix+"processor.processed", 1, "", []string{"exporter_ip:" + exporterIP, "version:9"})
 		for _, fs := range msgDec.FlowSets {
 			s.sendFlowSetMetrics(fs, exporterIP, "9")
 		}
 	case netflow.IPFIXPacket:
-		s.sender.Count("datadog.netflow.processor.processed", 1, "", []string{"exporter_ip:" + exporterIP, "version:10"})
+		s.sender.Count(common.MetricPrefix+"processor.processed", 1, "", []string{"exporter_ip:" + exporterIP, "version:10"})
 		for _, fs := range msgDec.FlowSets {
 			s.sendFlowSetMetrics(fs, exporterIP, "10")
 		}
@@ -168,12 +168,12 @@ func (s *StateNetFlow) sendTelemetryMetrics(msg any, exporterIP string) {
 func (s *StateNetFlow) sendFlowSetMetrics(fs any, exporterIP string, version string) {
 	switch fs.(type) {
 	case netflow.TemplateFlowSet:
-		s.sender.Count("datadog.netflow.processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:template_flow_set"})
+		s.sender.Count(common.MetricPrefix+"processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:template_flow_set"})
 	case netflow.NFv9OptionsTemplateFlowSet:
-		s.sender.Count("datadog.netflow.processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:options_template_flow_set"})
+		s.sender.Count(common.MetricPrefix+"processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:options_template_flow_set"})
 	case netflow.OptionsDataFlowSet:
-		s.sender.Count("datadog.netflow.processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:options_data_flow_set"})
+		s.sender.Count(common.MetricPrefix+"processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:options_data_flow_set"})
 	case netflow.DataFlowSet:
-		s.sender.Count("datadog.netflow.processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:data_flow_set"})
+		s.sender.Count(common.MetricPrefix+"processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:data_flow_set"})
 	}
 }

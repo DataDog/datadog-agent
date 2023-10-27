@@ -31,7 +31,6 @@ import (
 )
 
 const flushFlowsToSendInterval = 10 * time.Second
-const metricPrefix = "datadog.netflow."
 
 // FlowAggregator is used for space and time aggregation of NetFlow flows
 type FlowAggregator struct {
@@ -354,9 +353,9 @@ func (agg *FlowAggregator) submitCollectorMetrics() error {
 			}
 			switch metricType {
 			case metrics.GaugeType:
-				agg.sender.Gauge(metricPrefix+name, value, "", tags)
+				agg.sender.Gauge(common.MetricPrefix+name, value, "", tags)
 			case metrics.MonotonicCountType:
-				agg.sender.MonotonicCount(metricPrefix+name, value, "", tags)
+				agg.sender.MonotonicCount(common.MetricPrefix+name, value, "", tags)
 			default:
 				agg.logger.Debugf("cannot submit unsupported type %s", metricType.String())
 			}
