@@ -98,13 +98,13 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 	}
 
 	transformers := prometheus.Transformers{
-		"container_cpu_usage_seconds_total":                provider.containerCpuUsageSecondsTotal,
-		"container_cpu_load_average_10s":                   provider.containerCpuLoadAverage10s,
-		"container_cpu_system_seconds_total":               provider.containerCpuSystemSecondsTotal,
-		"container_cpu_user_seconds_total":                 provider.containerCpuUserSecondsTotal,
-		"container_cpu_cfs_periods_total":                  provider.containerCpuCfsPeriodsTotal,
-		"container_cpu_cfs_throttled_periods_total":        provider.containerCpuCfsThrottledPeriodsTotal,
-		"container_cpu_cfs_throttled_seconds_total":        provider.containerCpuCfsThrottledSecondsTotal,
+		"container_cpu_usage_seconds_total":                provider.containerCPUUsageSecondsTotal,
+		"container_cpu_load_average_10s":                   provider.containerCPULoadAverage10s,
+		"container_cpu_system_seconds_total":               provider.containerCPUSystemSecondsTotal,
+		"container_cpu_user_seconds_total":                 provider.containerCPUUserSecondsTotal,
+		"container_cpu_cfs_periods_total":                  provider.containerCPUCfsPeriodsTotal,
+		"container_cpu_cfs_throttled_periods_total":        provider.containerCPUCfsThrottledPeriodsTotal,
+		"container_cpu_cfs_throttled_seconds_total":        provider.containerCPUCfsThrottledSecondsTotal,
 		"container_fs_reads_bytes_total":                   provider.containerFsReadsBytesTotal,
 		"container_fs_writes_bytes_total":                  provider.containerFsWritesBytesTotal,
 		"container_network_receive_bytes_total":            provider.containerNetworkReceiveBytesTotal,
@@ -143,8 +143,8 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 		return
 	}
 
-	samples := p.sumValuesByContext(metricFam, p.getEntityIdIfContainerMetric)
-	for containerId, sample := range samples {
+	samples := p.sumValuesByContext(metricFam, p.getEntityIDIfContainerMetric)
+	for containerID, sample := range samples {
 		var tags []string
 
 		// TODO we are forced to do that because the Kubelet PodList isn't updated
@@ -161,8 +161,8 @@ func (p *Provider) processContainerMetric(metricType, metricName string, metricF
 			}
 			tags = podTags
 		} else {
-			cId, _ := kubelet.KubeContainerIDToTaggerEntityID(containerId)
-			tags, _ = tagger.Tag(cId, collectors.HighCardinality)
+			cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
+			tags, _ = tagger.Tag(cID, collectors.HighCardinality)
 		}
 
 		if len(tags) == 0 {
@@ -193,9 +193,9 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 		return
 	}
 
-	samples := p.sumValuesByContext(metricFam, p.getPodUidIfPodMetric)
-	for podUid, sample := range samples {
-		pod := p.getPodByUid(podUid)
+	samples := p.sumValuesByContext(metricFam, p.getPodUIDIfPodMetric)
+	for podUID, sample := range samples {
+		pod := p.getPodByUID(podUID)
 		if pod == nil {
 			continue
 		}
@@ -203,7 +203,7 @@ func (p *Provider) processPodRate(metricName string, metricFam *prom.MetricFamil
 		if p.filter.IsExcluded(pod.Annotations, "", "", namespace) {
 			continue
 		}
-		if strings.Contains(metricName, ".network.") && p.podUtils.IsHostNetworkedPod(podUid) {
+		if strings.Contains(metricName, ".network.") && p.podUtils.IsHostNetworkedPod(podUID) {
 			continue
 		}
 		tags, _ := tagger.Tag(fmt.Sprintf("kubernetes_pod_uid://%s", pod.EntityID.ID), collectors.HighCardinality)
@@ -229,15 +229,15 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 		seenKeys[k] = false
 	}
 
-	samples := p.sumValuesByContext(metricFam, p.getEntityIdIfContainerMetric)
-	for containerId, sample := range samples {
+	samples := p.sumValuesByContext(metricFam, p.getEntityIDIfContainerMetric)
+	for containerID, sample := range samples {
 		containerName := string(sample.Metric["name"])
 		if containerName == "" {
 			continue
 		}
 
-		cId, _ := kubelet.KubeContainerIDToTaggerEntityID(containerId)
-		tags, _ := tagger.Tag(cId, collectors.HighCardinality)
+		cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
+		tags, _ := tagger.Tag(cID, collectors.HighCardinality)
 		if len(tags) == 0 {
 			continue
 		}
@@ -281,10 +281,10 @@ func (p *Provider) processUsageMetric(metricName string, metricFam *prom.MetricF
 }
 
 func (p *Provider) processLimitMetric(metricName string, metricFam *prom.MetricFamily, cache map[string]*processCache, pctMetricName string, sender sender.Sender) {
-	samples := p.latestValueByContext(metricFam, p.getEntityIdIfContainerMetric)
-	for containerId, sample := range samples {
-		cId, _ := kubelet.KubeContainerIDToTaggerEntityID(containerId)
-		tags, _ := tagger.Tag(cId, collectors.HighCardinality)
+	samples := p.latestValueByContext(metricFam, p.getEntityIDIfContainerMetric)
+	for containerID, sample := range samples {
+		cID, _ := kubelet.KubeContainerIDToTaggerEntityID(containerID)
+		tags, _ := tagger.Tag(cID, collectors.HighCardinality)
 		if len(tags) == 0 {
 			continue
 		}
@@ -340,27 +340,27 @@ func (p *Provider) latestValueByContext(metricFam *prom.MetricFamily, uidFromLab
 	return seen
 }
 
-func (p *Provider) getEntityIdIfContainerMetric(labels model.Metric) string {
+func (p *Provider) getEntityIDIfContainerMetric(labels model.Metric) string {
 	if isContainerMetric(labels) {
 		pod := p.getPodByMetricLabel(labels)
 		if pod != nil && p.podUtils.IsStaticPendingPod(pod.ID) {
 			// If the pod is static, ContainerStatus is unavailable.
 			// Return the pod UID so that we can collect metrics from it later on.
-			return p.getPodUid(labels)
+			return p.getPodUID(labels)
 		}
 		return common.GetContainerID(p.store, labels, p.filter)
 	}
 	return ""
 }
 
-func (p *Provider) getPodUidIfPodMetric(labels model.Metric) string {
+func (p *Provider) getPodUIDIfPodMetric(labels model.Metric) string {
 	if isPodMetric(labels) {
-		return p.getPodUid(labels)
+		return p.getPodUID(labels)
 	}
 	return ""
 }
 
-func (p *Provider) getPodUid(labels model.Metric) string {
+func (p *Provider) getPodUID(labels model.Metric) string {
 	if pod := p.getPodByMetricLabel(labels); pod != nil {
 		return pod.ID
 	}
@@ -399,7 +399,7 @@ func (p *Provider) getKubeContainerNameTag(labels model.Metric) string {
 
 // region transformers
 
-func (p *Provider) containerCpuUsageSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+func (p *Provider) containerCPUUsageSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "cpu.usage.total"
 	for i := range metricFam.Samples {
 		// Replace sample value to convert cores to nano cores
@@ -408,32 +408,32 @@ func (p *Provider) containerCpuUsageSecondsTotal(metricFam *prom.MetricFamily, s
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
 
-func (p *Provider) containerCpuLoadAverage10s(metricFam *prom.MetricFamily, sender sender.Sender) {
+func (p *Provider) containerCPULoadAverage10s(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "cpu.load.10s.avg"
 	p.processContainerMetric("gauge", metricName, metricFam, nil, sender)
 }
 
-func (p *Provider) containerCpuSystemSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+func (p *Provider) containerCPUSystemSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "cpu.system.total"
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
 
-func (p *Provider) containerCpuUserSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+func (p *Provider) containerCPUUserSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "cpu.user.total"
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
 
-func (p *Provider) containerCpuCfsPeriodsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+func (p *Provider) containerCPUCfsPeriodsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "cpu.cfs.periods"
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
 
-func (p *Provider) containerCpuCfsThrottledPeriodsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+func (p *Provider) containerCPUCfsThrottledPeriodsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "cpu.cfs.throttled.periods"
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
 
-func (p *Provider) containerCpuCfsThrottledSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
+func (p *Provider) containerCPUCfsThrottledSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "cpu.cfs.throttled.seconds"
 	p.processContainerMetric("rate", metricName, metricFam, nil, sender)
 }
@@ -568,8 +568,8 @@ func (p *Provider) containerSpecMemorySwapLimitBytes(metricFam *prom.MetricFamil
 
 // endregion
 
-func (p *Provider) getPodByUid(podUid string) *workloadmeta.KubernetesPod {
-	if pod, err := p.store.GetKubernetesPod(podUid); err == nil {
+func (p *Provider) getPodByUID(podUID string) *workloadmeta.KubernetesPod {
+	if pod, err := p.store.GetKubernetesPod(podUID); err == nil {
 		return pod
 	}
 	return nil

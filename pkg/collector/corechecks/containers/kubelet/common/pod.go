@@ -125,16 +125,16 @@ func (p *PodUtils) GetPodTagsByPVC(namespace, pvcName string) []string {
 // IsStaticPendingPod returns whether the pod with the given UID is a static pending pod or not, or returns false
 // if the pod cannot be found. This is due to a bug where the kubelet pod list is not updated for static pods in
 // k8s <1.15. This has been fixed here: https://github.com/kubernetes/kubernetes/pull/77661
-func (p *PodUtils) IsStaticPendingPod(podUid string) bool {
-	if meta, ok := p.podMetadata[podUid]; ok {
+func (p *PodUtils) IsStaticPendingPod(podUID string) bool {
+	if meta, ok := p.podMetadata[podUID]; ok {
 		return meta.isStaticPending
 	}
 	return false
 }
 
 // IsHostNetworkedPod returns whether the pod is on a host network or not. It returns false if the pod cannot be found.
-func (p *PodUtils) IsHostNetworkedPod(podUid string) bool {
-	if meta, ok := p.podMetadata[podUid]; ok {
+func (p *PodUtils) IsHostNetworkedPod(podUID string) bool {
+	if meta, ok := p.podMetadata[podUID]; ok {
 		return meta.isHostNetworked
 	}
 	return false
