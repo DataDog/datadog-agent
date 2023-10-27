@@ -139,6 +139,19 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	return usmMonitor, nil
 }
 
+func runForProtocol(protocols []protocols.Protocol, mgr *manager.Manager, phaseName string, cb func(protocols.Protocol, *manager.Manager) error, cbCleanup func(protocols.Protocol, *manager.Manager)) []protocols.Protocol {
+	res := protocols[:0]
+	for _, protocol := range protocols {
+		if err := cb(protocol, mgr); err != nil {
+			cbCleanup(protocol, mgr)
+			log.Errorf("could not complete %s phase of %s monitoring: %s", phaseName, protocol.Name(), err)
+			continue
+		}
+		res = append(res, protocol)
+	}
+	return res
+}
+
 // Start USM monitor.
 func (m *Monitor) Start() error {
 	if m == nil {
@@ -164,16 +177,9 @@ func (m *Monitor) Start() error {
 	// Deleting from an array while iterating it is not a simple task. Instead, every successfully enabled protocol,
 	// we'll keep it in a temporary copy, and in case of a mismatch (a.k.a., we have a failed protocols) between
 	// enabledProtocolsTmp to m.enabledProtocols, we'll use the enabledProtocolsTmp.
-	enabledProtocolsTmp := m.enabledProtocols[:0]
-	for _, protocol := range m.enabledProtocols {
-		startErr := protocol.PreStart(m.ebpfProgram.Manager.Manager)
-		if startErr != nil {
-			log.Errorf("could not complete pre-start phase of %s monitoring: %s", protocol.Name(), startErr)
-			continue
-		}
-		enabledProtocolsTmp = append(enabledProtocolsTmp, protocol)
-	}
-	m.enabledProtocols = enabledProtocolsTmp
+	m.enabledProtocols = runForProtocol(m.enabledProtocols, m.ebpfProgram.Manager.Manager, "pre-start",
+		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
+		func(protocols.Protocol, *manager.Manager) {})
 
 	// No protocols could be enabled, abort.
 	if len(m.enabledProtocols) == 0 {
@@ -185,22 +191,9 @@ func (m *Monitor) Start() error {
 		return err
 	}
 
-	enabledProtocolsTmp = m.enabledProtocols[:0]
-	for _, protocol := range m.enabledProtocols {
-		startErr := protocol.PostStart(m.ebpfProgram.Manager.Manager)
-		if startErr != nil {
-			// Cleanup the protocol. Note that at this point we can't unload the
-			// ebpf programs of a specific protocol without shutting down the
-			// entire manager.
-			protocol.Stop(m.ebpfProgram.Manager.Manager)
-
-			// Log and reset the error value
-			log.Errorf("could not complete post-start phase of %s monitoring: %s", protocol.Name(), startErr)
-			continue
-		}
-		enabledProtocolsTmp = append(enabledProtocolsTmp, protocol)
-	}
-	m.enabledProtocols = enabledProtocolsTmp
+	m.enabledProtocols = runForProtocol(m.enabledProtocols, m.ebpfProgram.Manager.Manager, "post-start",
+		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PostStart(m) },
+		func(protocol protocols.Protocol, m *manager.Manager) { protocol.Stop(m) })
 
 	// We check again if there are protocols that could be enabled, and abort if
 	// it is not the case.
