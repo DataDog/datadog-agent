@@ -183,19 +183,7 @@ func (e *ebpfProgram) Init() error {
 		}
 	}()
 
-	var undefinedProbes []manager.ProbeIdentificationPair
-	for _, tc := range e.tailCallRouter {
-		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
-	}
-
-	for _, s := range e.probesResolvers {
-		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
-	}
-
 	e.DumpHandler = e.dumpMapsHandler
-	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
-	}
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
 	}
@@ -326,6 +314,43 @@ func (e *ebpfProgram) initPrebuilt() error {
 	return e.init(bc, manager.Options{ConstantEditors: offsets})
 }
 
+// getProtocolsForBuildMode returns 2 lists - supported and not-supported protocol lists.
+// 1. Supported - enabled protocols which are supported by the current build mode (`e.buildMode`)
+// 2. Not Supported - disabled protocols, and enabled protocols which are not supported by the current build mode.
+func (e *ebpfProgram) getProtocolsForBuildMode() ([]*protocols.ProtocolSpec, []*protocols.ProtocolSpec) {
+	supported := make([]*protocols.ProtocolSpec, 0)
+	notSupported := make([]*protocols.ProtocolSpec, 0, len(e.disabledProtocols))
+	notSupported = append(notSupported, e.disabledProtocols...)
+
+	for _, p := range e.enabledProtocols {
+		if p.Instance.IsBuildModeSupported(e.buildMode) {
+			supported = append(supported, p)
+		} else {
+			notSupported = append(notSupported, p)
+		}
+	}
+
+	return supported, notSupported
+}
+
+// configureManagerWithSupportedProtocols given a protocol list, we're adding for each protocol its Maps, Probes and
+// TailCalls to the program's lists. Also, we're providing a cleanup method (the return value) which allows removal
+// of the elements we added in case of a failure in the initialization.
+func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protocols.ProtocolSpec) func() {
+	for _, spec := range protocols {
+		e.Maps = append(e.Maps, spec.Maps...)
+		e.Probes = append(e.Probes, spec.Probes...)
+		e.tailCallRouter = append(e.tailCallRouter, spec.TailCalls...)
+	}
+	return func() {
+		for _, spec := range protocols {
+			e.Maps = e.Maps[:len(e.Maps)-len(spec.Maps)]
+			e.Probes = e.Probes[:len(e.Probes)-len(spec.Probes)]
+			e.tailCallRouter = e.tailCallRouter[:len(e.tailCallRouter)-len(spec.TailCalls)]
+		}
+	}
+}
+
 func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if e.cfg.AttachKprobesWithKprobeEventsABI {
@@ -393,12 +418,14 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		s.ConfigureOptions(&options)
 	}
 
-	for _, p := range e.enabledProtocols {
+	supported, notSupported := e.getProtocolsForBuildMode()
+	cleanup := e.configureManagerWithSupportedProtocols(supported)
+	for _, p := range supported {
 		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
 	}
 
 	// Add excluded functions from disabled protocols
-	for _, p := range e.disabledProtocols {
+	for _, p := range notSupported {
 		for _, m := range p.Maps {
 			// Unused maps still need to have a non-zero size
 			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
@@ -418,7 +445,24 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	return e.InitWithOptions(buf, options)
+	var undefinedProbes []manager.ProbeIdentificationPair
+	for _, tc := range e.tailCallRouter {
+		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
+	}
+
+	for _, s := range e.probesResolvers {
+		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
+	}
+
+	e.InstructionPatcher = func(m *manager.Manager) error {
+		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
+	}
+
+	err := e.InitWithOptions(buf, options)
+	if err != nil {
+		cleanup()
+	}
+	return err
 }
 
 const connProtoTTL = 3 * time.Minute
@@ -532,11 +576,6 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 		}
 
 		if protocol != nil {
-			// Configure the manager
-			e.Maps = append(e.Maps, spec.Maps...)
-			e.Probes = append(e.Probes, spec.Probes...)
-			e.tailCallRouter = append(e.tailCallRouter, spec.TailCalls...)
-
 			spec.Instance = protocol
 			e.enabledProtocols = append(e.enabledProtocols, spec)
 
