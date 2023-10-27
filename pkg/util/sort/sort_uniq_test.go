@@ -15,7 +15,7 @@ import (
 
 func TestSortUniqInPlace(t *testing.T) {
 	elements := []string{"tag3:tagggg", "tag2:tagval", "tag1:tagval", "tag2:tagval"}
-	elements = SortUniqInPlace(elements)
+	elements = UniqInPlace(elements)
 
 	assert.ElementsMatch(t, elements, []string{"tag1:tagval", "tag2:tagval", "tag3:tagggg"})
 }
@@ -35,9 +35,10 @@ func benchmarkDeduplicateTags(b *testing.B, numberOfTags int) {
 
 	for n := 0; n < b.N; n++ {
 		copy(tempTags, tags)
-		SortUniqInPlace(tempTags)
+		UniqInPlace(tempTags)
 	}
 }
+
 func BenchmarkDeduplicateTags(b *testing.B) {
 	for i := 1; i <= 128; i *= 2 {
 		b.Run(fmt.Sprintf("deduplicate-%d-tags-in-place", i), func(b *testing.B) {

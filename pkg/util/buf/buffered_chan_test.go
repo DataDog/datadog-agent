@@ -49,7 +49,8 @@ func TestBufferedChanContext(t *testing.T) {
 	r.Nil(v)
 
 	// `Put`` must return false as the channel is canceled.
-	for ok := c.Put(0); ok == true; ok = c.Put(0) {
+	for ok := c.Put(0); ok == true; {
+		ok = c.Put(0)
 	}
 }
 

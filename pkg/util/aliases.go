@@ -8,4 +8,4 @@ package util
 import "github.com/DataDog/datadog-agent/pkg/util/sort"
 
 // SortUniqInPlace alias
-var SortUniqInPlace = sort.SortUniqInPlace
+var SortUniqInPlace = sort.UniqInPlace

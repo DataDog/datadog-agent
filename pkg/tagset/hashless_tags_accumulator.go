@@ -61,7 +61,7 @@ func (h *HashlessTagsAccumulator) Copy() []string {
 
 // SortUniq sorts and remove duplicate in place
 func (h *HashlessTagsAccumulator) SortUniq() {
-	h.data = sort.SortUniqInPlace(h.data)
+	h.data = sort.UniqInPlace(h.data)
 }
 
 // Reset resets the size of the builder to 0 without discarding the internal

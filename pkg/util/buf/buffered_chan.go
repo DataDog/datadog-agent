@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+// Package buf provides `BufferedChan` that is more efficient than `chan []interface{}`.
 package buf
 
 import (

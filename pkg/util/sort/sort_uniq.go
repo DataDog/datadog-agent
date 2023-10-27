@@ -5,11 +5,13 @@
 
 package sort
 
-import "sort"
+import (
+	"sort"
+)
 
-// SortUniqInPlace sorts and remove duplicates from elements in place
+// UniqInPlace sorts and remove duplicates from elements in place
 // The returned slice is a subslice of elements
-func SortUniqInPlace(elements []string) []string {
+func UniqInPlace(elements []string) []string {
 	if len(elements) < 2 {
 		return elements
 	}
