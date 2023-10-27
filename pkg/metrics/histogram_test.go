@@ -27,7 +27,7 @@ func TestHistogramConfError(t *testing.T) {
 }
 
 func TestConfigureDefault(t *testing.T) {
-	cfg := setup_config()
+	cfg := setupConfig()
 	hist := NewHistogram(10, cfg)
 	hist.addSample(&MetricSample{Value: 1}, 50)
 	hist.addSample(&MetricSample{Value: 2}, 55)
@@ -54,7 +54,7 @@ func TestConfigure(t *testing.T) {
 
 func TestDefaultHistogramSampling(t *testing.T) {
 	// Initialize default histogram
-	cfg := setup_config()
+	cfg := setupConfig()
 
 	defaultAggregates = nil
 	defaultPercentiles = nil
@@ -97,7 +97,7 @@ func TestDefaultHistogramSampling(t *testing.T) {
 
 func TestCustomHistogramSampling(t *testing.T) {
 	// Initialize custom histogram, with an invalid aggregate
-	cfg := setup_config()
+	cfg := setupConfig()
 	mHistogram := NewHistogram(10, cfg)
 	mHistogram.configure([]string{"min", "sum", "invalid"}, []int{})
 
@@ -143,7 +143,7 @@ func shuffle(slice []float64) {
 
 func TestHistogramPercentiles(t *testing.T) {
 	// Initialize custom histogram
-	cfg := setup_config()
+	cfg := setupConfig()
 	mHistogram := NewHistogram(10, cfg)
 	mHistogram.configure([]string{"max", "median", "avg", "count", "min"}, []int{95, 80})
 
@@ -192,7 +192,7 @@ func TestHistogramPercentiles(t *testing.T) {
 }
 
 func TestHistogramSampleRate(t *testing.T) {
-	cfg := setup_config()
+	cfg := setupConfig()
 	mHistogram := NewHistogram(10, cfg)
 	mHistogram.configure([]string{"max", "min", "median", "avg", "sum", "count"}, []int{20, 95, 80})
 
@@ -233,7 +233,7 @@ func TestHistogramSampleRate(t *testing.T) {
 }
 
 func TestHistogramReset(t *testing.T) {
-	cfg := setup_config()
+	cfg := setupConfig()
 	mHistogram := NewHistogram(10, cfg)
 	mHistogram.configure([]string{"max", "min", "median", "avg", "sum", "count"}, []int{20, 95, 80})
 
@@ -279,7 +279,7 @@ func TestHistogramReset(t *testing.T) {
 //
 
 func benchHistogram(b *testing.B, number int, sampleRate float64) {
-	cfg := setup_config()
+	cfg := setupConfig()
 	for n := 0; n < b.N; n++ {
 		h := NewHistogram(1, cfg)
 		h.configure([]string{"max", "min", "median", "avg", "sum", "count"}, []int{20, 95, 80})
