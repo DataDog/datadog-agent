@@ -395,6 +395,8 @@ workflow:
   - <<: *if_main_branch
 
 .on_tag_or_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_tagged_commit
   - <<: *if_version_7
 
