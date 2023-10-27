@@ -74,6 +74,7 @@ type ProtocolStats struct {
 type ProtocolFactory func(*config.Config) (Protocol, error)
 type ProtocolSpec struct {
 	Factory   ProtocolFactory
+	Instance  Protocol
 	Maps      []*manager.Map
 	Probes    []*manager.Probe
 	TailCalls []manager.TailCallRoute

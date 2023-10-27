@@ -75,7 +75,7 @@ type ebpfProgram struct {
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
 
-	enabledProtocols  []protocols.Protocol
+	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
 
 	// Used for connection_protocol data expiration
@@ -274,7 +274,7 @@ func (e *ebpfProgram) Start() error {
 	}
 
 	for _, protocolName := range e.enabledProtocols {
-		log.Infof("enabled USM protocol: %s", protocolName.Name())
+		log.Infof("enabled USM protocol: %s", protocolName.Instance.Name())
 	}
 
 	return nil
@@ -390,7 +390,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	for _, p := range e.enabledProtocols {
-		p.ConfigureOptions(e.Manager.Manager, &options)
+		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
 	}
 
 	// Add excluded functions from disabled protocols
@@ -463,7 +463,7 @@ func (e *ebpfProgram) dumpMapsHandler(_ *manager.Manager, mapName string, curren
 
 	default: // Go through enabled protocols in case one of them now how to handle the current map
 		for _, p := range e.enabledProtocols {
-			p.DumpMaps(&output, mapName, currentMap)
+			p.Instance.DumpMaps(&output, mapName, currentMap)
 		}
 	}
 	return output.String()
@@ -473,7 +473,7 @@ func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} 
 	ret := make(map[protocols.ProtocolType]interface{})
 
 	for _, protocol := range e.enabledProtocols {
-		ps := protocol.GetStats()
+		ps := protocol.Instance.GetStats()
 		if ps != nil {
 			ret[ps.Type] = ps.Stats
 		}
@@ -485,16 +485,16 @@ func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} 
 // executePerProtocol runs the given callback (`cb`) for every protocol in the given list (`protocolList`).
 // If the callback failed, then we call the error callback (`errorCb`). Eventually returning a list of protocols which
 // successfully executed the callback.
-func (e *ebpfProgram) executePerProtocol(protocolList []protocols.Protocol, phaseName string, cb func(protocols.Protocol, *manager.Manager) error, errorCb func(protocols.Protocol, *manager.Manager)) []protocols.Protocol {
+func (e *ebpfProgram) executePerProtocol(protocolList []*protocols.ProtocolSpec, phaseName string, cb func(protocols.Protocol, *manager.Manager) error, errorCb func(protocols.Protocol, *manager.Manager)) []*protocols.ProtocolSpec {
 	// Deleting from an array while iterating it is not a simple task. Instead, every successfully enabled protocol,
 	// we'll keep in a temporary copy and return it at the end.
-	res := make([]protocols.Protocol, 0)
+	res := make([]*protocols.ProtocolSpec, 0)
 	for _, protocol := range protocolList {
-		if err := cb(protocol, e.Manager.Manager); err != nil {
+		if err := cb(protocol.Instance, e.Manager.Manager); err != nil {
 			if errorCb != nil {
-				errorCb(protocol, e.Manager.Manager)
+				errorCb(protocol.Instance, e.Manager.Manager)
 			}
-			log.Errorf("could not complete %q phase of %q monitoring: %s", phaseName, protocol.Name(), err)
+			log.Errorf("could not complete %q phase of %q monitoring: %s", phaseName, protocol.Instance.Name(), err)
 			continue
 		}
 		res = append(res, protocol)
@@ -518,7 +518,7 @@ func (e *ebpfProgram) executePerProtocol(protocolList []protocols.Protocol, phas
 // - a slice containing pointers to the protocol specs of disabled protocols.
 // - an error value, which is non-nil if an error occurred while initialising a protocol
 func (e *ebpfProgram) initProtocols(c *config.Config) error {
-	e.enabledProtocols = make([]protocols.Protocol, 0)
+	e.enabledProtocols = make([]*protocols.ProtocolSpec, 0)
 	e.disabledProtocols = make([]*protocols.ProtocolSpec, 0)
 
 	for _, spec := range knownProtocols {
@@ -533,7 +533,8 @@ func (e *ebpfProgram) initProtocols(c *config.Config) error {
 			e.Probes = append(e.Probes, spec.Probes...)
 			e.tailCallRouter = append(e.tailCallRouter, spec.TailCalls...)
 
-			e.enabledProtocols = append(e.enabledProtocols, protocol)
+			spec.Instance = protocol
+			e.enabledProtocols = append(e.enabledProtocols, spec)
 
 			log.Infof("%v monitoring enabled", protocol.Name())
 		} else {
