@@ -124,6 +124,9 @@ var (
 	DefaultSecurityProfilesDir = filepath.Join(defaultRunPath, "runtime-security", "profiles")
 )
 
+// List of integrations allowed to be configured by RC by default
+var defaultAllowedRCIntegrations = []string{}
+
 // PrometheusScrapeChecksTransformer unmarshals a prometheus check.
 func PrometheusScrapeChecksTransformer(in string) interface{} {
 	var promChecks []*types.PrometheusCheck
@@ -293,6 +296,8 @@ func InitConfig(config Config) {
 	// Remote config products
 	config.BindEnvAndSetDefault("remote_configuration.apm_sampling.enabled", true)
 	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.enabled", false)
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.allow_list", defaultAllowedRCIntegrations)
+	config.BindEnvAndSetDefault("remote_configuration.agent_integrations.block_list", []string{})
 
 	// Auto exit configuration
 	config.BindEnvAndSetDefault("auto_exit.validation_period", 60)
@@ -1264,6 +1269,7 @@ func InitConfig(config Config) {
 
 	// Language Detection
 	config.BindEnvAndSetDefault("language_detection.enabled", false)
+	config.BindEnvAndSetDefault("language_detection.client_period", "10s")
 
 	setupAPM(config)
 	SetupOTLP(config)
@@ -2022,4 +2028,21 @@ func IsRemoteConfigEnabled(cfg Reader) bool {
 		return false
 	}
 	return cfg.GetBool("remote_configuration.enabled")
+}
+
+// GetRemoteConfigurationAllowedIntegrations returns the list of integrations that can be scheduled
+// with remote-config
+func GetRemoteConfigurationAllowedIntegrations(cfg Reader) map[string]bool {
+	allowList := cfg.GetStringSlice("remote_configuration.agent_integrations.allow_list")
+	allowMap := map[string]bool{}
+	for _, integration := range allowList {
+		allowMap[strings.ToLower(integration)] = true
+	}
+
+	blockList := cfg.GetStringSlice("remote_configuration.agent_integrations.block_list")
+	for _, blockedIntegration := range blockList {
+		allowMap[strings.ToLower(blockedIntegration)] = false
+	}
+
+	return allowMap
 }

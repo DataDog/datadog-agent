@@ -1752,6 +1752,11 @@ func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 }
 
 func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
+	// https://github.com/torvalds/linux/commit/0af950f57fefabab628f1963af881e6b9bfe7f38
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_5 {
+		return 2
+	}
+
 	// https://github.com/torvalds/linux/commit/ffa5723c6d259b3191f851a50a98d0352b345b39
 	// changes a bit how the lower dentry/inode is stored in `ovl_inode`. To check if we
 	// are in this configuration we first probe the kernel version, then we check for the
@@ -1827,6 +1832,10 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
+	if kv.Code >= kernel.Kernel5_3 {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
+	}
+
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
