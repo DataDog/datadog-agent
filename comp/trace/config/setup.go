@@ -222,6 +222,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
 	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
+	if c.PeerServiceAggregation {
+		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tag_aggregation` instead")
+	}
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
 	if core.IsSet("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
