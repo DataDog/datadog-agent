@@ -225,7 +225,7 @@ func (c *Check) Run() error {
 			}
 		}
 		if c.config.Asm.Enabled {
-			err := c.AsmDiskgroups()
+			err := c.asmDiskgroups()
 			if err != nil {
 				return fmt.Errorf("%s %w", c.logPrompt, err)
 			}

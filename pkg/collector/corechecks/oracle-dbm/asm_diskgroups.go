@@ -23,7 +23,7 @@ type asmDiskgroupRow struct {
 	OfflineDisks  int64   `db:"OFFLINE_DISKS"`
 }
 
-func (c *Check) AsmDiskgroups() error {
+func (c *Check) asmDiskgroups() error {
 	rows := []asmDiskgroupRow{}
 	err := selectWrapper(c, &rows, asmDiskgroupQuery)
 	if err != nil {
