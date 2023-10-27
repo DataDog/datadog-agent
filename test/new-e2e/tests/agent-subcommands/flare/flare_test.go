@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
@@ -28,22 +29,22 @@ func TestFlareSuite(t *testing.T) {
 	e2e.Run(t, &commandFlareSuite{}, e2e.FakeIntakeStackDef())
 }
 
-func requestAgentFlareAndFetchFromFakeIntake(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
+func requestAgentFlareAndFetchFromFakeIntake(t *testing.T, agent client.Agent, fakeintake *fakeintake.Client, flareArgs ...client.AgentArgsOption) flare.Flare {
 	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
-	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		assert.NoError(c, v.Env().Fakeintake.Client.GetServerHealth())
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.NoError(c, fakeintake.GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "expected fakeintake server to be ready; not ready in 5min")
 
-	_ = v.Env().Agent.Flare(flareArgs...)
+	_ = agent.Flare(flareArgs...)
 
-	flare, err := v.Env().Fakeintake.Client.GetLatestFlare()
-	require.NoError(v.T(), err)
+	flare, err := fakeintake.GetLatestFlare()
+	require.NoError(t, err)
 
 	return flare
 }
 
 func (v *commandFlareSuite) TestFlareDefaultFiles() {
-	flare := requestAgentFlareAndFetchFromFakeIntake(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent, v.Env().Fakeintake.Client, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, defaultFlareFiles)
 	assertFilesExist(v.T(), flare, defaultLogFiles)
@@ -95,7 +96,7 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 
 	v.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentOptions...)))
 
-	flare := requestAgentFlareAndFetchFromFakeIntake(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent, v.Env().Fakeintake.Client, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, scenarioExpectedFiles)
 	assertFilesExist(v.T(), flare, allLogFiles)
