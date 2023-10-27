@@ -65,6 +65,9 @@ if arm_target?
   excluded_packages.push(/^pymqi==/)
 end
 
+# We explicitly check for redhat builder, not target
+# Our centos/redhat builder uses glibc 2.12 while pydantic
+# requires glibc 2.17
 if redhat? && !arm_target?
   excluded_packages.push(/^pydantic-core==/)
 end
@@ -175,7 +178,7 @@ build do
 
     # We need to explicitly specify RUSTFLAGS for libssl and libcrypto
     # See https://github.com/pyca/cryptography/issues/8614#issuecomment-1489366475
-    if redhat? && !arm_target?
+    if redhat_target? && !arm_target?
         nix_specific_build_env["cryptography"] = nix_build_env.merge(
             {
                 "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
