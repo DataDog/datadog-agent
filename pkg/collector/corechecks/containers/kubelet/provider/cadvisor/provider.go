@@ -51,9 +51,9 @@ var (
 	}
 
 	metricTypes = map[string]struct{}{
-		"counter": {},
-		"gauge":   {},
-		"summary": {},
+		"COUNTER": {},
+		"GAUGE":   {},
+		"SUMMARY": {},
 	}
 
 	// container-specific metrics should have all these labels
@@ -587,7 +587,7 @@ func isPodMetric(labels model.Metric) bool {
 	return labels["container"] == "POD" ||
 		labels["container_name"] == "POD" ||
 		(labels["container"] == "" && labels["pod"] != "") ||
-		(labels["container_name"] == "" && labels["pod_pod"] != "")
+		(labels["container_name"] == "" && labels["pod_name"] != "")
 }
 
 func metricContainsLabels(metric model.Metric, labels []string) bool {
