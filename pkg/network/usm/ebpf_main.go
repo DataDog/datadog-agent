@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -28,10 +29,27 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	errNoProtocols = errors.New("no protocol monitors were initialised")
+
+	// knownProtocols holds all known protocols supported by USM to initialize.
+	knownProtocols = []*protocols.ProtocolSpec{
+		http.Spec,
+		http2.Spec,
+		kafka.Spec,
+		javaTLSSpec,
+		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
+		// factory.
+		opensslSpec,
+	}
 )
 
 const (
@@ -157,6 +175,11 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 		probesResolvers:       subprogramProbesResolvers,
 		tailCallRouter:        tailCalls,
 		connectionProtocolMap: connectionProtocolMap,
+	}
+
+	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, sockFD, bpfTelemetry)
+	if err := program.initProtocols(c); err != nil {
+		return nil, err
 	}
 
 	return program, nil
@@ -483,4 +506,46 @@ func runForProtocol(protocols []protocols.Protocol, mgr *manager.Manager, phaseN
 		res = append(res, protocol)
 	}
 	return res
+}
+
+// initProtocols takes the network configuration `c` and uses it to initialise
+// the enabled protocols' monitoring, and configures the ebpf-manager `mgr`
+// accordingly.
+//
+// For each enabled protocols, a protocol-specific instance of the Protocol
+// interface is initialised, and the required maps and tail calls routers are setup
+// in the manager.
+//
+// If a protocol is not enabled, its tail calls are instead added to the list of
+// excluded functions for them to be patched out by ebpf-manager on startup.
+//
+// It returns:
+// - a slice containing instances of the Protocol interface for each enabled protocol support
+// - a slice containing pointers to the protocol specs of disabled protocols.
+// - an error value, which is non-nil if an error occurred while initialising a protocol
+func (e *ebpfProgram) initProtocols(c *config.Config) error {
+	e.enabledProtocols = make([]protocols.Protocol, 0)
+	e.disabledProtocols = make([]*protocols.ProtocolSpec, 0)
+
+	for _, spec := range knownProtocols {
+		protocol, err := spec.Factory(c)
+		if err != nil {
+			return &errNotSupported{err}
+		}
+
+		if protocol != nil {
+			// Configure the manager
+			e.Maps = append(e.Maps, spec.Maps...)
+			e.Probes = append(e.Probes, spec.Probes...)
+			e.tailCallRouter = append(e.tailCallRouter, spec.TailCalls...)
+
+			e.enabledProtocols = append(e.enabledProtocols, protocol)
+
+			log.Infof("%v monitoring enabled", protocol.Name())
+		} else {
+			e.disabledProtocols = append(e.disabledProtocols, spec)
+		}
+	}
+
+	return nil
 }

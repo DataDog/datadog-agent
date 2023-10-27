@@ -22,9 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -42,20 +39,7 @@ const (
 var (
 	state        = Disabled
 	startupError error
-
-	// knownProtocols holds all known protocols supported by USM to initialize.
-	knownProtocols = []*protocols.ProtocolSpec{
-		http.Spec,
-		http2.Spec,
-		kafka.Spec,
-		javaTLSSpec,
-		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
-		// factory.
-		opensslSpec,
-	}
 )
-
-var errNoProtocols = errors.New("no protocol monitors were initialised")
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -90,20 +74,11 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 		return nil, fmt.Errorf("error setting up ebpf program: %w", err)
 	}
 
-	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr.Manager.Manager, sockFD, bpfTelemetry)
-
-	enabledProtocols, disabledProtocols, err := initProtocols(c, mgr)
-	if err != nil {
-		return nil, err
-	}
-	if len(enabledProtocols) == 0 {
+	if len(mgr.enabledProtocols) == 0 {
 		state = Disabled
 		log.Debug("not enabling USM as no protocols monitoring were enabled.")
 		return nil, nil
 	}
-
-	mgr.enabledProtocols = enabledProtocols
-	mgr.disabledProtocols = disabledProtocols
 
 	if err := mgr.Init(); err != nil {
 		return nil, fmt.Errorf("error initializing ebpf program: %w", err)
@@ -218,46 +193,4 @@ func (m *Monitor) Stop() {
 // DumpMaps dumps the maps associated with the monitor
 func (m *Monitor) DumpMaps(maps ...string) (string, error) {
 	return m.ebpfProgram.DumpMaps(maps...)
-}
-
-// initProtocols takes the network configuration `c` and uses it to initialise
-// the enabled protocols' monitoring, and configures the ebpf-manager `mgr`
-// accordingly.
-//
-// For each enabled protocols, a protocol-specific instance of the Protocol
-// interface is initialised, and the required maps and tail calls routers are setup
-// in the manager.
-//
-// If a protocol is not enabled, its tail calls are instead added to the list of
-// excluded functions for them to be patched out by ebpf-manager on startup.
-//
-// It returns:
-// - a slice containing instances of the Protocol interface for each enabled protocol support
-// - a slice containing pointers to the protocol specs of disabled protocols.
-// - an error value, which is non-nil if an error occurred while initialising a protocol
-func initProtocols(c *config.Config, mgr *ebpfProgram) ([]protocols.Protocol, []*protocols.ProtocolSpec, error) {
-	enabledProtocols := make([]protocols.Protocol, 0)
-	disabledProtocols := make([]*protocols.ProtocolSpec, 0)
-
-	for _, spec := range knownProtocols {
-		protocol, err := spec.Factory(c)
-		if err != nil {
-			return nil, nil, &errNotSupported{err}
-		}
-
-		if protocol != nil {
-			// Configure the manager
-			mgr.Maps = append(mgr.Maps, spec.Maps...)
-			mgr.Probes = append(mgr.Probes, spec.Probes...)
-			mgr.tailCallRouter = append(mgr.tailCallRouter, spec.TailCalls...)
-
-			enabledProtocols = append(enabledProtocols, protocol)
-
-			log.Infof("%v monitoring enabled", protocol.Name())
-		} else {
-			disabledProtocols = append(disabledProtocols, spec)
-		}
-	}
-
-	return enabledProtocols, disabledProtocols, nil
 }
