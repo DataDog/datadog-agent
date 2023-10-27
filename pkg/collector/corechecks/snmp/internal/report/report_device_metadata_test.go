@@ -721,3 +721,32 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 	}
 	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
 }
+
+func Test_getProfileVersion(t *testing.T) {
+	tests := []struct {
+		name                   string
+		config                 checkconfig.CheckConfig
+		expectedProfileVersion uint64
+	}{
+		{
+			name: "profile definition is present",
+			config: checkconfig.CheckConfig{
+				ProfileDef: &profiledefinition.ProfileDefinition{
+					Name:    "my-profile",
+					Version: 42,
+				},
+			},
+			expectedProfileVersion: 42,
+		},
+		{
+			name:                   "profile definition not present",
+			config:                 checkconfig.CheckConfig{},
+			expectedProfileVersion: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedProfileVersion, getProfileVersion(&tt.config))
+		})
+	}
+}

@@ -196,10 +196,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		vendor = config.ProfileDef.Device.Vendor
 	}
 
-	var profileVersion uint64
-	if config.ProfileDef != nil {
-		profileVersion = config.ProfileDef.Version
-	}
+	profileVersion := getProfileVersion(config)
 
 	return devicemetadata.DeviceMetadata{
 		ID:             deviceID,
@@ -223,6 +220,14 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		OsVersion:      osVersion,
 		OsHostname:     osHostname,
 	}
+}
+
+func getProfileVersion(config *checkconfig.CheckConfig) uint64 {
+	var profileVersion uint64
+	if config.ProfileDef != nil {
+		profileVersion = config.ProfileDef.Version
+	}
+	return profileVersion
 }
 
 func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []devicemetadata.InterfaceMetadata {
