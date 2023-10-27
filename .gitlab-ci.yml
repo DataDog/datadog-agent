@@ -348,6 +348,8 @@ workflow:
   - <<: *if_version_6
 
 .on_a6_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_6
     when: manual
     allow_failure: true
