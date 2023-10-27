@@ -224,6 +224,12 @@ func (c *Check) Run() error {
 				}
 			}
 		}
+		if c.config.Asm.Enabled {
+			err := c.AsmDiskgroups()
+			if err != nil {
+				return fmt.Errorf("%s %w", c.logPrompt, err)
+			}
+		}
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
