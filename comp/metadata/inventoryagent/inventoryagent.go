@@ -168,8 +168,8 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_cws_security_profiles_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled")
 	ia.data["feature_cws_remote_config_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled")
 
-	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
-	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.host.enabled")
+	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
+	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
 
 	ia.data["feature_process_enabled"] = ia.conf.GetBool("process_config.process_collection.enabled")
 	ia.data["feature_process_language_detection_enabled"] = ia.conf.GetBool("language_detection.enabled")
