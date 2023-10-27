@@ -422,3 +422,16 @@ func (e *ebpfProgram) dumpMapsHandler(_ *manager.Manager, mapName string, curren
 	}
 	return output.String()
 }
+
+func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} {
+	ret := make(map[protocols.ProtocolType]interface{})
+
+	for _, protocol := range e.enabledProtocols {
+		ps := protocol.GetStats()
+		if ps != nil {
+			ret[ps.Type] = ps.Stats
+		}
+	}
+
+	return ret
+}

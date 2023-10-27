@@ -252,16 +252,7 @@ func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 		telemetry.ReportPrometheus()
 	}()
 
-	ret := make(map[protocols.ProtocolType]interface{})
-
-	for _, protocol := range m.enabledProtocols {
-		ps := protocol.GetStats()
-		if ps != nil {
-			ret[ps.Type] = ps.Stats
-		}
-	}
-
-	return ret
+	return m.ebpfProgram.getProtocolStats()
 }
 
 // Stop HTTP monitoring
