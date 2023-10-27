@@ -246,6 +246,51 @@ func TestConfig(t *testing.T) {
 			})
 		})
 	})
+
+	t.Run("standalone", func(t *testing.T) {
+		for _, tc := range []struct {
+			name       string
+			env        string
+			standalone bool
+		}{
+			{
+				name: "unset",
+			},
+			{
+				name:       "non-bool env",
+				env:        "A5M",
+				standalone: true,
+			},
+			{
+				name: "env=true",
+				env:  "true",
+			},
+			{
+				name: "env=1",
+				env:  "1",
+			},
+			{
+				name:       "env=false",
+				env:        "false",
+				standalone: true,
+			},
+			{
+				name:       "env=0",
+				env:        "0",
+				standalone: true,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				restoreEnv := cleanEnv()
+				restoreEnv()
+				if tc.env != "" {
+					require.NoError(t, os.Setenv(tracingEnabledEnvVar, tc.env))
+				}
+				require.Equal(t, tc.standalone, IsStandalone())
+			})
+		}
+
+	})
 }
 
 func cleanEnv() func() {

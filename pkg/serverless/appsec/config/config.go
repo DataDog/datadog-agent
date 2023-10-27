@@ -26,6 +26,7 @@ const (
 	traceRateLimitEnvVar  = "DD_APPSEC_TRACE_RATE_LIMIT"
 	obfuscatorKeyEnvVar   = "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
 	obfuscatorValueEnvVar = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
+	tracingEnabledEnvVar  = "DD_APM_TRACING_ENABLED"
 )
 
 const (
@@ -72,7 +73,7 @@ func IsEnabled() (enabled bool, set bool, err error) {
 
 // IsStandalone returns whether appsec is used as a standalone product (without APM tracing) or not
 func IsStandalone() bool {
-	value, set := os.LookupEnv("DD_APM_TRACING_ENABLED")
+	value, set := os.LookupEnv(tracingEnabledEnvVar)
 	enabled, _ := strconv.ParseBool(value)
 	return set && !enabled
 }
