@@ -244,6 +244,9 @@ func (e *ebpfProgram) Close() error {
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
+	for _, protocol := range e.enabledProtocols {
+		protocol.Stop(e.Manager.Manager)
+	}
 	return e.Stop(manager.CleanAll)
 }
 

@@ -264,9 +264,6 @@ func (m *Monitor) Stop() {
 	m.processMonitor.Stop()
 
 	ebpfcheck.RemoveNameMappings(m.ebpfProgram.Manager.Manager)
-	for _, protocol := range m.enabledProtocols {
-		protocol.Stop(m.ebpfProgram.Manager.Manager)
-	}
 
 	m.ebpfProgram.Close()
 	m.closeFilterFn()
