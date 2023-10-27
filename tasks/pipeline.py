@@ -544,8 +544,11 @@ def changelog(ctx, new_commit_sha):
     )
     if messages:
         slack_message += (
-            "\n".join(messages) + "\n:wave: Authors, please check relevant "
-            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
+            "\n".join(messages) + "\n:wave: Authors, please check the "
+            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?tpl_var_cluster_name%5B0%5D=stripe"
+            "&tpl_var_cluster_name%5B1%5D=muk&tpl_var_cluster_name%5B2%5D=snowver"
+            "&tpl_var_cluster_name%5B3%5D=chillpenguin&tpl_var_cluster_name%5B4%5D=diglet"
+            "&tpl_var_cluster_name%5B5%5D=lagaffe&tpl_var_datacenter%5B0%5D=%2A|dashboard> for issues"
         )
     else:
         slack_message += "No new System Probe related commits in this release :cricket:"
