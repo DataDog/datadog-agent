@@ -9,6 +9,10 @@ package server
 
 import (
 	"context"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
@@ -194,6 +198,15 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 	flowChan := make(chan *common.Flow, 10)
 	listenerFlowCount := atomic.NewInt64(0)
 
+	demul := fxutil.Test[demultiplexer.Component](b, fx.Options(
+		log.MockModule,
+		demultiplexer.MockModule,
+		defaultforwarder.MockModule,
+		config.MockModule))
+
+	sender, err := demul.GetDefaultSender()
+	require.NoError(b, err, "error getting sender")
+
 	go func() {
 		for {
 			// Consume chan while benchmarking
@@ -206,9 +219,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 	ctx := context.Background()
 
 	templateSystem, err := templates.FindTemplateSystem(ctx, "memory")
-	if err != nil {
-		require.NoError(b, err, "error with template")
-	}
+	require.NoError(b, err, "error with template")
 	defer templateSystem.Close(ctx)
 
 	goflowState := utils.NewStateNetFlow()
@@ -216,7 +227,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 	goflowState.Logger = logrusLogger
 	goflowState.TemplateSystem = templateSystem
 
-	customStateWithoutFields := netflowstate.NewStateNetFlow(nil)
+	customStateWithoutFields := netflowstate.NewStateNetFlow(nil, sender)
 	customStateWithoutFields.Format = formatDriver
 	customStateWithoutFields.Logger = logrusLogger
 	customStateWithoutFields.TemplateSystem = templateSystem
@@ -237,7 +248,7 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 			Destination: "icmp_type",
 			Type:        common.Bytes,
 		},
-	})
+	}, sender)
 
 	customState.Format = formatDriver
 	customState.Logger = logrusLogger

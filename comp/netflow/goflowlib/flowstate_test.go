@@ -22,7 +22,7 @@ func TestStartFlowRoutine_invalidType(t *testing.T) {
 	listenerErr := atomic.NewString("")
 	listenerFlowCount := atomic.NewInt64(0)
 
-	state, err := StartFlowRoutine("invalid", "my-hostname", 1234, 1, "my-ns", []config.Mapping{}, make(chan *common.Flow), logger, listenerErr, listenerFlowCount)
+	state, err := StartFlowRoutine("invalid", "my-hostname", 1234, 1, "my-ns", []config.Mapping{}, make(chan *common.Flow), logger, nil, listenerErr, listenerFlowCount)
 
 	assert.EqualError(t, err, "unknown flow type: invalid")
 	assert.Nil(t, state)
