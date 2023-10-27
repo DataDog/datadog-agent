@@ -6,7 +6,7 @@
 //gobuild ignore
 //go:build ignore
 
-package etw
+package etwimpl
 
 /*
 #include "etw.h"

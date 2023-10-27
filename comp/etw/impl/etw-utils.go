@@ -5,7 +5,7 @@
 
 //go:build windows && npm
 
-package etw
+package etwimpl
 
 import (
 	"bytes"

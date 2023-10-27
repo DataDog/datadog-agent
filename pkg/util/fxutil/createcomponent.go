@@ -50,7 +50,7 @@ func getComponentName() string {
 		return fmt.Sprintf("comp/%s/%s", components[len(components)-4], components[len(components)-3])
 	}
 
-	panic("must be called from a component (comp/<bundle>/<comp>/component.go)")
+	panic("must be called from a component (comp/<bundle>/<comp>/etwImpl.go)")
 }
 
 // BundleOptions is a fx.Module for Bundle with an exported field "Options" to list options
