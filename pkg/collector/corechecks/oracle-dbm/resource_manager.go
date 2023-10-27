@@ -22,8 +22,8 @@ type resourceManagerRow struct {
 	PdbName           sql.NullString `db:"NAME"`
 	ConsumerGroupName string         `db:"CONSUMER_GROUP_NAME"`
 	PlanName          string         `db:"PLAN_NAME"`
-	CpuConsumedTime   float64        `db:"CPU_CONSUMED_TIME"`
-	CpuWaitTime       float64        `db:"CPU_WAIT_TIME"`
+	CPUConsumedTime   float64        `db:"CPU_CONSUMED_TIME"`
+	CPUWaitTime       float64        `db:"CPU_WAIT_TIME"`
 }
 
 func (c *Check) resourceManager() error {
@@ -40,8 +40,8 @@ func (c *Check) resourceManager() error {
 		tags := appendPDBTag(c.tags, r.PdbName)
 		tags = append(tags, "consumer_group_name:"+r.ConsumerGroupName)
 		tags = append(tags, "plan_name:"+r.ConsumerGroupName)
-		sender.Gauge(fmt.Sprintf("%s.resource_manager.cpu_consumed_time", common.IntegrationName), r.CpuConsumedTime, "", tags)
-		sender.Gauge(fmt.Sprintf("%s.resource_manager.cpu_wait_time", common.IntegrationName), r.CpuWaitTime, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.resource_manager.cpu_consumed_time", common.IntegrationName), r.CPUConsumedTime, "", tags)
+		sender.Gauge(fmt.Sprintf("%s.resource_manager.cpu_wait_time", common.IntegrationName), r.CPUWaitTime, "", tags)
 	}
 	sender.Commit()
 	return nil
