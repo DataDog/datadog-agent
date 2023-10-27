@@ -258,15 +258,19 @@ type sqlConfig struct {
 
 	// RemoveSpaceBetweenParentheses specifies whether to remove spaces between parentheses.
 	// By default, spaces are inserted between parentheses during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_and_normalize".
 	RemoveSpaceBetweenParentheses bool `json:"remove_space_between_parentheses"`
 
 	// KeepNull specifies whether to disable obfuscate NULL value with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
 	KeepNull bool `json:"keep_null"`
 
 	// KeepBoolean specifies whether to disable obfuscate boolean value with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
 	KeepBoolean bool `json:"keep_boolean"`
 
 	// KeepPositionalParameter specifies whether to disable obfuscate positional parameter with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
 	KeepPositionalParameter bool `json:"keep_positional_parameter"`
 }
 
