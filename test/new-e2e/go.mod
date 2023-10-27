@@ -37,6 +37,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.1
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.15.0
+	github.com/DataDog/test-infra-definitions v0.0.0-20231027103941-793f85ac8e4d
 	github.com/docker/cli v24.0.6+incompatible
 	github.com/docker/docker v24.0.6+incompatible
 	github.com/google/uuid v1.3.1
