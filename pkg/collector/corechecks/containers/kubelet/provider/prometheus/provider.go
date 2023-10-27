@@ -62,7 +62,8 @@ type Provider struct {
 type ScraperConfig struct {
 	Path string
 	// AllowNotFound determines whether the check should error out or just return nothing when a 404 status code is encountered
-	AllowNotFound bool
+	AllowNotFound       bool
+	TextFilterBlacklist []string
 }
 
 // NewProvider returns a new Provider.
@@ -158,7 +159,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		return nil
 	}
 
-	metrics, err := prometheus.ParseMetrics(data)
+	metrics, err := prometheus.ParseMetricsWithFilter(data, p.ScraperConfig.TextFilterBlacklist)
 	if err != nil {
 		return err
 	}

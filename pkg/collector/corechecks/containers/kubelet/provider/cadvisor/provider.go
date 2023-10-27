@@ -125,7 +125,8 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 	}
 
 	scraperConfig := &prometheus.ScraperConfig{
-		Path: "/metrics/cadvisor",
+		Path:                "/metrics/cadvisor",
+		TextFilterBlacklist: []string{"pod_name=\"\"", "pod=\"\""},
 	}
 
 	promProvider, err := prometheus.NewProvider(&cadvisorConfig, transformers, scraperConfig)

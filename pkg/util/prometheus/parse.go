@@ -9,8 +9,6 @@ Package prometheus provides utility functions to deal with prometheus endpoints
 package prometheus
 
 import (
-	"bytes"
-
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
 )
@@ -22,12 +20,11 @@ type MetricFamily struct {
 	Samples model.Vector
 }
 
-// ParseMetrics parses prometheus-formatted metrics from the input data.
-func ParseMetrics(data []byte) ([]*MetricFamily, error) {
-	// the prometheus TextParser does not support windows line separators, so we need to explicitly remove them
-	data = bytes.Replace(data, []byte("\r"), []byte(""), -1)
-
-	reader := bytes.NewReader(data)
+// ParseMetricsWithFilter parses prometheus-formatted metrics from the input data, ignoring lines which contain
+// text that matches the passed in filter.
+func ParseMetricsWithFilter(data []byte, filter []string) ([]*MetricFamily, error) {
+	// return ParseMetrics(data)
+	reader := NewReader(data, filter)
 	var parser expfmt.TextParser
 	mf, err := parser.TextToMetricFamilies(reader)
 	if err != nil {
@@ -48,4 +45,9 @@ func ParseMetrics(data []byte) ([]*MetricFamily, error) {
 		metrics = append(metrics, metricFam)
 	}
 	return metrics, nil
+}
+
+// ParseMetrics parses prometheus-formatted metrics from the input data.
+func ParseMetrics(data []byte) ([]*MetricFamily, error) {
+	return ParseMetricsWithFilter(data, nil)
 }
