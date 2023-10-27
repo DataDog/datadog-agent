@@ -19,7 +19,7 @@ type AgentClient struct {
 }
 
 // NewAgentClient creates a new instance of AgentClient
-func NewAgentClient(t *testing.T, vm VM, os os.OS, shouldWaitForReady bool) (*AgentClient, error) {
+func NewAgentClient(t *testing.T, vm VM, os os.RawOS, shouldWaitForReady bool) (*AgentClient, error) {
 	agent := &AgentClient{
 		agentCommandRunner: newAgentCommandRunner(t, func(arguments []string) (string, error) {
 			parameters := ""

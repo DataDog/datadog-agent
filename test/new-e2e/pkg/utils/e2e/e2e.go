@@ -385,9 +385,9 @@ type Suite[Env any] struct {
 	isUpdateEnvCalledInThisTest bool
 }
 
-type suiteConstraint[Env any] interface {
+type SuiteConstraint[Env any] interface {
 	suite.TestingSuite
-	initSuite(stackName string, stackDef *StackDefinition[Env], options ...params.Option)
+	InitSuite(stackName string, stackDef *StackDefinition[Env], options ...params.Option)
 }
 
 // Run runs the tests defined in e2eSuite
@@ -405,7 +405,7 @@ type suiteConstraint[Env any] interface {
 //	}
 //	// ...
 //	e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
-func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *StackDefinition[Env], options ...params.Option) {
+func Run[Env any, T SuiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *StackDefinition[Env], options ...params.Option) {
 	suiteType := reflect.TypeOf(e2eSuite).Elem()
 	name := suiteType.Name()
 	pkgPaths := suiteType.PkgPath()
@@ -417,11 +417,11 @@ func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *St
 	// Example: "e2e-e2eSuite-cbb731954db42b"
 	defaultStackName := fmt.Sprintf("%v-%v-%v", pkgs[len(pkgs)-1], name, hash)
 
-	e2eSuite.initSuite(defaultStackName, stackDef, options...)
+	e2eSuite.InitSuite(defaultStackName, stackDef, options...)
 	suite.Run(t, e2eSuite)
 }
 
-func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...params.Option) {
+func (suite *Suite[Env]) InitSuite(stackName string, stackDef *StackDefinition[Env], options ...params.Option) {
 	suite.params.StackName = stackName
 	suite.defaultStackDef = stackDef
 	for _, o := range options {
