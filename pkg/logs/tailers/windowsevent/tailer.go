@@ -122,7 +122,7 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 		evtapi = winevtapi.New()
 	}
 
-	if len(source.Config.ProcessingRules) > 0 {
+	if len(source.Config.ProcessingRules) > 0 && config.ProcessRawMessage {
 		log.Warn("Log processing rules with the Windows Events collection will change in a future version of the Agent:")
 		log.Warn("The processing will soon apply on the message content only instead of on the structured log (e.g. on the internal JSON).")
 		log.Warn("In order to immediately switch to this new behaviour, set 'process_raw_message' to 'false' in your logs integration config.")

@@ -48,14 +48,13 @@ type Tailer struct {
 	stop chan struct{}
 	done chan struct{}
 	// processRawMessage indicates if we want to process and send the whole structured log message
-	// instead of on the logs content. Note that the default behavior is now to only send
-	// the logs content, as other tailers do.
+	// instead of on the logs content.
 	processRawMessage bool
 }
 
 // NewTailer returns a new tailer.
 func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool) *Tailer {
-	if len(source.Config.ProcessingRules) > 0 {
+	if len(source.Config.ProcessingRules) > 0 && processRawMessage {
 		log.Warn("Log processing rules with the journald collection will change in a future version of the Agent:")
 		log.Warn("The processing will soon apply on the message content only instead of on the structured log (e.g. on the collected JSON).")
 		log.Warn("In order to immediately switch to this new behaviour, set 'process_raw_message' to 'false' in your logs integration config.")
