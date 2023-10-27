@@ -81,6 +81,7 @@ build_clang_arm64:
 
 build_vcpkg_deps:
   stage: deps_build
+  rules: !reference [.except_mergequeue]
   tags: ["runner:windows-docker", "windowsversion:1809"]
   variables:
     ARCH: "x64"
