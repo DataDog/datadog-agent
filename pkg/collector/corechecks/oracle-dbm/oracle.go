@@ -224,6 +224,14 @@ func (c *Check) Run() error {
 				}
 			}
 		}
+		if metricIntervalExpired {
+			if c.config.ResourceManager.Enabled {
+				err := c.resourceManager()
+				if err != nil {
+					return fmt.Errorf("%s %w", c.logPrompt, err)
+				}
+			}
+		}
 	}
 
 	if c.config.AgentSQLTrace.Enabled {
