@@ -855,6 +855,8 @@ workflow:
 # In that case, the target OS versions is a subset of the
 # available versions, stored in DEFAULT_KITCHEN_OSVERS
 .on_default_kitchen_tests_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_kitchen
