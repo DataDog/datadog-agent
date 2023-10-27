@@ -360,6 +360,8 @@ workflow:
   - <<: *if_version_7
 
 .on_a7_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_7
     when: manual
     allow_failure: true
