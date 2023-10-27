@@ -222,9 +222,36 @@ func (e *ebpfProgram) Start() error {
 		e.mapCleaner = mapCleaner
 	}
 
+	// Deleting from an array while iterating it is not a simple task. Instead, every successfully enabled protocol,
+	// we'll keep it in a temporary copy, and in case of a mismatch (a.k.a., we have a failed protocols) between
+	// enabledProtocolsTmp to m.enabledProtocols, we'll use the enabledProtocolsTmp.
+	e.enabledProtocols = runForProtocol(e.enabledProtocols, e.Manager.Manager, "pre-start",
+		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
+		func(protocols.Protocol, *manager.Manager) {})
+
+	// No protocols could be enabled, abort.
+	if len(e.enabledProtocols) == 0 {
+		return errNoProtocols
+	}
+
 	err = e.Manager.Start()
 	if err != nil {
 		return err
+	}
+
+	e.enabledProtocols = runForProtocol(e.enabledProtocols, e.Manager.Manager, "post-start",
+		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PostStart(m) },
+		func(protocol protocols.Protocol, m *manager.Manager) { protocol.Stop(m) })
+
+	// We check again if there are protocols that could be enabled, and abort if
+	// it is not the case.
+	if len(e.enabledProtocols) == 0 {
+		err = e.Close()
+		if err != nil {
+			log.Errorf("error during USM shutdown: %s", err)
+		}
+
+		return errNoProtocols
 	}
 
 	for _, s := range e.subprograms {
@@ -234,6 +261,10 @@ func (e *ebpfProgram) Start() error {
 		} else {
 			log.Infof("%s subprogram does not support %s build mode", s.Name(), e.buildMode)
 		}
+	}
+
+	for _, protocolName := range e.enabledProtocols {
+		log.Infof("enabled USM protocol: %s", protocolName.Name())
 	}
 
 	return nil

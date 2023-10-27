@@ -64,8 +64,6 @@ var errNoProtocols = errors.New("no protocol monitors were initialised")
 type Monitor struct {
 	cfg *config.Config
 
-	enabledProtocols []protocols.Protocol
-
 	ebpfProgram *ebpfProgram
 
 	processMonitor *monitor.ProcessMonitor
@@ -127,11 +125,10 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	state = Running
 
 	usmMonitor := &Monitor{
-		cfg:              c,
-		enabledProtocols: enabledProtocols,
-		ebpfProgram:      mgr,
-		closeFilterFn:    closeFilterFn,
-		processMonitor:   processMonitor,
+		cfg:            c,
+		ebpfProgram:    mgr,
+		closeFilterFn:  closeFilterFn,
+		processMonitor: processMonitor,
 	}
 
 	usmMonitor.lastUpdateTime = atomic.NewInt64(time.Now().Unix())
@@ -161,45 +158,14 @@ func (m *Monitor) Start() error {
 		}
 	}()
 
-	// Deleting from an array while iterating it is not a simple task. Instead, every successfully enabled protocol,
-	// we'll keep it in a temporary copy, and in case of a mismatch (a.k.a., we have a failed protocols) between
-	// enabledProtocolsTmp to m.enabledProtocols, we'll use the enabledProtocolsTmp.
-	m.enabledProtocols = runForProtocol(m.enabledProtocols, m.ebpfProgram.Manager.Manager, "pre-start",
-		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
-		func(protocols.Protocol, *manager.Manager) {})
-
-	// No protocols could be enabled, abort.
-	if len(m.enabledProtocols) == 0 {
-		return errNoProtocols
-	}
-
 	err = m.ebpfProgram.Start()
 	if err != nil {
 		return err
 	}
 
-	m.enabledProtocols = runForProtocol(m.enabledProtocols, m.ebpfProgram.Manager.Manager, "post-start",
-		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PostStart(m) },
-		func(protocol protocols.Protocol, m *manager.Manager) { protocol.Stop(m) })
-
-	// We check again if there are protocols that could be enabled, and abort if
-	// it is not the case.
-	if len(m.enabledProtocols) == 0 {
-		err = m.ebpfProgram.Close()
-		if err != nil {
-			log.Errorf("error during USM shutdown: %s", err)
-		}
-
-		return errNoProtocols
-	}
-
 	// Need to explicitly save the error in `err` so the defer function could save the startup error.
 	if m.cfg.EnableNativeTLSMonitoring || m.cfg.EnableGoTLSSupport || m.cfg.EnableJavaTLSSupport || m.cfg.EnableIstioMonitoring {
 		err = m.processMonitor.Initialize()
-	}
-
-	for _, protocolName := range m.enabledProtocols {
-		log.Infof("enabled USM protocol: %s", protocolName.Name())
 	}
 
 	return err
