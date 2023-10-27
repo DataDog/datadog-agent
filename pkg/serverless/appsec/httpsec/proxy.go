@@ -107,6 +107,8 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			chunk.Tags = make(map[string]string)
 		}
 		chunk.Tags["_dd.apm.enabled"] = "0"
+		// By the spec, only the service entry span needs to be tagged.
+		// We play it safe by tagging everything in case the service entry span gets changed by the agent
 		for _, s := range chunk.Spans {
 			(*spanWrapper)(s).SetMetricsTag("_dd.apm.enabled", 0)
 		}
