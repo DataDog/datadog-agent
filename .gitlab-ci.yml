@@ -789,6 +789,8 @@ workflow:
     when: never
   - <<: *if_release_branch
     when: never
+  - <<: *if_mergequeue
+    when: never
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
