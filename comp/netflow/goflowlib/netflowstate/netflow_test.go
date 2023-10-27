@@ -18,7 +18,7 @@ import (
 
 type mockedFormatDriver struct{}
 
-func (m *mockedFormatDriver) Format(data interface{}) ([]byte, []byte, error) {
+func (m *mockedFormatDriver) Format(_ interface{}) ([]byte, []byte, error) {
 	return nil, nil, nil
 }
 
