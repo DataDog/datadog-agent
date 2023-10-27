@@ -37,6 +37,12 @@ const (
 	metricTypeGauge     = "GAUGE"
 )
 
+var (
+	// ParseMetricsWithFilterFunc allows us to override the function used for parsing the prometheus metrics. It should
+	// only be overridden for testing purposes.
+	ParseMetricsWithFilterFunc = prometheus.ParseMetricsWithFilter
+)
+
 // TransformerFunc outlines the function signature for any transformers which will be used with the prometheus Provider
 type TransformerFunc func(*prometheus.MetricFamily, sender.Sender)
 
@@ -159,7 +165,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		return nil
 	}
 
-	metrics, err := prometheus.ParseMetricsWithFilter(data, p.ScraperConfig.TextFilterBlacklist)
+	metrics, err := ParseMetricsWithFilterFunc(data, p.ScraperConfig.TextFilterBlacklist)
 	if err != nil {
 		return err
 	}

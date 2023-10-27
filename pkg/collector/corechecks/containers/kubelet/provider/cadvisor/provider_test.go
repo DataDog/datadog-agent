@@ -24,12 +24,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
+	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
@@ -94,6 +96,24 @@ var (
 
 	instanceTags = []string{"instance_tag:something"}
 
+	metricsWithDeviceTagRate = map[string]string{
+		common.KubeletMetricsPrefix + "io.read_bytes":  "/dev/sda",
+		common.KubeletMetricsPrefix + "io.write_bytes": "/dev/sda",
+	}
+
+	metricsWithDeviceTagGauge = map[string]string{
+		common.KubeletMetricsPrefix + "filesystem.usage": "/dev/sda1",
+	}
+
+	metricsWithInterfaceTag = map[string]string{
+		common.KubeletMetricsPrefix + "network.rx_bytes":   "eth0",
+		common.KubeletMetricsPrefix + "network.tx_bytes":   "eth0",
+		common.KubeletMetricsPrefix + "network.rx_errors":  "eth0",
+		common.KubeletMetricsPrefix + "network.tx_errors":  "eth0",
+		common.KubeletMetricsPrefix + "network.rx_dropped": "eth0",
+		common.KubeletMetricsPrefix + "network.tx_dropped": "eth0",
+	}
+
 	expectedMetricsPrometheus = []string{
 		common.KubeletMetricsPrefix + "cpu.usage.total",
 		common.KubeletMetricsPrefix + "cpu.load.10s.avg",
@@ -122,12 +142,6 @@ var (
 		common.KubeletMetricsPrefix + "memory.rss",
 		common.KubeletMetricsPrefix + "memory.swap",
 	}
-
-	expectedMetricsPrometheus114 = expectedMetricsPrometheus
-
-	expectedMetricsPrometheusPre114 = expectedMetricsPrometheus
-
-	expectedMetricsPrometheus121 = expectedMetricsPrometheus
 )
 
 type endpointResponse struct {
@@ -209,22 +223,14 @@ func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 				err:      nil,
 			},
 			want: want{
-				metrics: expectedMetricsPrometheusPre114,
+				metrics: expectedMetricsPrometheus,
 			},
 		},
 		{
-			name: "1.16 metrics all show up",
-			response: endpointResponse{
-				filename: "../../testdata/cadvisor_metrics_post_1_16.txt",
-				code:     200,
-				err:      nil,
-			},
-			want: want{
-				metrics: []string{},
-			},
-		},
-		{
-			name: "1.21 metrics all show up",
+			// All the metrics reported by this provider require container or pod metadata in the store, and drop the
+			// metrics if no matching entry is found. So, there should be no reported metrics if there is no pod data
+			// (or, in this case, no matching pod data)
+			name: "no matching pod data no metrics show up",
 			response: endpointResponse{
 				filename: "../../testdata/cadvisor_metrics_1_21.txt",
 				code:     200,
@@ -243,6 +249,7 @@ func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 				suite.T().Fatalf("error created kubelet mock: %v", err)
 			}
 
+			// Provide is called twice so pct metrics are guaranteed to be there
 			_ = suite.provider.Provide(kubeletMock, suite.mockSender)
 			suite.mockSender.ResetCalls()
 			err = suite.provider.Provide(kubeletMock, suite.mockSender)
@@ -253,6 +260,191 @@ func (suite *ProviderTestSuite) TestExpectedMetricsShowUp() {
 
 			suite.assertMetricCallsMatch(t, tt.want.metrics)
 		})
+	}
+}
+
+func (suite *ProviderTestSuite) TestPrometheusFiltering() {
+	tests := []struct {
+		name                string
+		response            endpointResponse
+		expectedSampleCount int
+	}{
+		{
+			name: "pre 1.16 missing pod_name is excluded",
+			response: endpointResponse{
+				filename: "../../testdata/cadvisor_metrics_pre_1_16.txt",
+				code:     200,
+				err:      nil,
+			},
+			expectedSampleCount: 12, // 12 out of 45 total metric points should show up
+		},
+		{
+			name: "post 1.16 missing pod is excluded",
+			response: endpointResponse{
+				filename: "../../testdata/cadvisor_metrics_post_1_16.txt",
+				code:     200,
+				err:      nil,
+			},
+			expectedSampleCount: 27, // 27 out of 31 total metric points should show up
+		},
+	}
+	for _, tt := range tests {
+		suite.T().Run(tt.name, func(t *testing.T) {
+			suite.SetupTest()
+			kubeletMock, err := createKubeletMock(tt.response)
+			if err != nil {
+				suite.T().Fatalf("error created kubelet mock: %v", err)
+			}
+
+			prometheus.ParseMetricsWithFilterFunc = func(data []byte, filter []string) ([]*prom.MetricFamily, error) {
+				// We are going to intercept the parsed prometheus metric family data to determine if the configured provider
+				// has the expected text blacklist settings by default, and that this functionality still works
+				metrics, err := prom.ParseMetricsWithFilter(data, filter)
+				var found bool
+				for _, metric := range metrics {
+					if metric.Name == "container_cpu_usage_seconds_total" {
+						found = true
+						if len(metric.Samples) != tt.expectedSampleCount {
+							t.Errorf("Expected %v samples for metric 'container_cpu_usage_seconds_total', got %v", tt.expectedSampleCount, len(metric.Samples))
+						}
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Expected to find metric 'container_cpu_usage_seconds_total' in parsed output, but it was not there")
+				}
+				return metrics, err
+			}
+
+			err = suite.provider.Provide(kubeletMock, suite.mockSender)
+			if err != nil {
+				suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+			}
+			suite.T().Cleanup(func() {
+				// reset the ParseMetricsWithFilterFunc back to what it is supposed to be
+				prometheus.ParseMetricsWithFilterFunc = prom.ParseMetricsWithFilter
+			})
+		})
+	}
+}
+
+func (suite *ProviderTestSuite) TestIgnoreMetrics() {
+	oldIgnore := ignoreMetrics
+	ignoreMetrics = []string{"container_network_[Aa-zZ]*_bytes_total"}
+	defer suite.T().Cleanup(func() {
+		// reset ignoreMetrics back to what it is supposed to be
+		ignoreMetrics = oldIgnore
+	})
+	// since we updated ignoreMetrics, we need to recreate the provider
+	suite.provider, _ = NewProvider(suite.provider.filter, suite.provider.Config, suite.provider.store, suite.provider.podUtils)
+
+	response := endpointResponse{
+		filename: "../../testdata/cadvisor_metrics_pre_1_16.txt",
+		code:     200,
+		err:      nil,
+	}
+
+	kubeletMock, err := createKubeletMock(response)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
+
+	// this metric is not filtered out by the regex
+	suite.mockSender.AssertMetricTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.tx_dropped", instanceTags)
+	// these metrics are disabled
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.tx_bytes", instanceTags)
+	suite.mockSender.AssertMetricNotTaggedWith(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", instanceTags)
+}
+
+func (suite *ProviderTestSuite) TestPrometheusNetSummed() {
+	response := endpointResponse{
+		filename: "../../testdata/cadvisor_metrics_pre_1_16.txt",
+		code:     200,
+		err:      nil,
+	}
+
+	kubeletMock, err := createKubeletMock(response)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
+
+	// Make sure we submit the summed rates correctly for pods:
+	// - dd-agent-q6hpw has two interfaces, we need to sum (1.2638051777 + 2.2638051777) * 10**10 = 35276103554
+	// - fluentd-gcp-v2.0.10-9q9t4 has one interface only, we submit 5.8107648 * 10**07 = 58107648
+	suite.mockSender.AssertMetric(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 35276103554.0, "", append(instanceTags, "pod_name:dd-agent-q6hpw", "interface:eth0"))
+	suite.mockSender.AssertMetric(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 58107648.0, "", append(instanceTags, "pod_name:fluentd-gcp-v2.0.10-9q9t4", "interface:eth0"))
+
+	// Make sure none of the following "bad cases" are submitted:
+	// Make sure the per-interface metrics are not submitted
+	suite.mockSender.AssertNotCalled(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 12638051777.0, "", append(instanceTags, "pod_name:dd-agent-q6hpw"))
+	suite.mockSender.AssertNotCalled(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 22638051777.0, "", append(instanceTags, "pod_name:dd-agent-q6hpw"))
+	// Make sure hostNetwork pod metrics are not submitted, test with and without sum to be sure
+	suite.mockSender.AssertNotCalled(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 4917138204.0+698882782.0, "", append(instanceTags, "pod_name:kube-proxy-gke-haissam-default-pool-be5066f1-wnvn"))
+	suite.mockSender.AssertNotCalled(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 4917138204.0, "", append(instanceTags, "pod_name:kube-proxy-gke-haissam-default-pool-be5066f1-wnvn"))
+	suite.mockSender.AssertNotCalled(suite.T(), "Rate", common.KubeletMetricsPrefix+"network.rx_bytes", 698882782.0, "", append(instanceTags, "pod_name:kube-proxy-gke-haissam-default-pool-be5066f1-wnvn"))
+}
+
+func (suite *ProviderTestSuite) TestStaticPods() {
+	response := endpointResponse{
+		filename: "../../testdata/cadvisor_metrics_pre_1_16.txt",
+		code:     200,
+		err:      nil,
+	}
+
+	kubeletMock, err := createKubeletMock(response)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
+
+	// Test that we get metrics for this static pod
+	suite.mockSender.AssertMetric(suite.T(), "Rate", common.KubeletMetricsPrefix+"cpu.user.total", 109.76, "", append(instanceTags, "kube_container_name:kube-proxy", "pod_name:kube-proxy-gke-haissam-default-pool-be5066f1-wnvn"))
+}
+
+func (suite *ProviderTestSuite) TestAddLabelsToTags() {
+	response := endpointResponse{
+		filename: "../../testdata/cadvisor_metrics_pre_1_16.txt",
+		code:     200,
+		err:      nil,
+	}
+
+	kubeletMock, err := createKubeletMock(response)
+	if err != nil {
+		suite.T().Fatalf("error created kubelet mock: %v", err)
+	}
+
+	err = suite.provider.Provide(kubeletMock, suite.mockSender)
+	if err != nil {
+		suite.T().Fatalf("unexpected error returned by call to provider.Provide: %v", err)
+	}
+
+	for k, v := range metricsWithDeviceTagRate {
+		tag := "device:" + v
+		suite.mockSender.AssertMetricTaggedWith(suite.T(), "Rate", k, append(instanceTags, tag))
+	}
+
+	for k, v := range metricsWithDeviceTagGauge {
+		tag := "device:" + v
+		suite.mockSender.AssertMetricTaggedWith(suite.T(), "Gauge", k, append(instanceTags, tag))
+	}
+
+	for k, v := range metricsWithInterfaceTag {
+		tag := "interface:" + v
+		suite.mockSender.AssertMetricTaggedWith(suite.T(), "Rate", k, append(instanceTags, tag))
 	}
 }
 
