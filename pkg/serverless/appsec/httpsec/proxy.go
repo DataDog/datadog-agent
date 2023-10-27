@@ -8,10 +8,9 @@ package httpsec
 import (
 	"bytes"
 	"encoding/json"
-	"os"
-	"strconv"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -102,7 +101,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeEnd(_ *invocationlifecycle.Invocation
 
 func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.TraceChunk, s *pb.Span) {
 	// Add relevant standalone tags to the chunk (TODO: remove per span tagging once backend handles chunk tags)
-	if isStandalone() {
+	if config.IsStandalone() {
 		if chunk.Tags == nil {
 			chunk.Tags = make(map[string]string)
 		}
@@ -288,10 +287,4 @@ type bytesStringer []byte
 
 func (b bytesStringer) String() string {
 	return string(b)
-}
-
-func isStandalone() bool {
-	value, set := os.LookupEnv("DD_APM_TRACING_ENABLED")
-	enabled, _ := strconv.ParseBool(value)
-	return set && !enabled
 }

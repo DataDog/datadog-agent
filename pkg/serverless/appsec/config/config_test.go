@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package appsec
+package config
 
 import (
 	"os"
@@ -17,10 +17,10 @@ import (
 
 func TestConfig(t *testing.T) {
 	expectedDefaultConfig := &Config{
-		rules:          []byte(appsec.StaticRecommendedRules),
-		wafTimeout:     defaultWAFTimeout,
-		traceRateLimit: defaultTraceRate,
-		obfuscator: ObfuscatorConfig{
+		Rules:          []byte(appsec.StaticRecommendedRules),
+		WafTimeout:     defaultWAFTimeout,
+		TraceRateLimit: defaultTraceRate,
+		Obfuscator: ObfuscatorConfig{
 			KeyRegex:   defaultObfuscatorKeyRegex,
 			ValueRegex: defaultObfuscatorValueRegex,
 		},
@@ -29,7 +29,7 @@ func TestConfig(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		restoreEnv := cleanEnv()
 		defer restoreEnv()
-		cfg, err := newConfig()
+		cfg, err := NewConfig()
 		require.NoError(t, err)
 		require.Equal(t, expectedDefaultConfig, cfg)
 	})
@@ -37,22 +37,22 @@ func TestConfig(t *testing.T) {
 	t.Run("waf-timeout", func(t *testing.T) {
 		t.Run("parsable", func(t *testing.T) {
 			expCfg := *expectedDefaultConfig
-			expCfg.wafTimeout = 5 * time.Second
+			expCfg.WafTimeout = 5 * time.Second
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			require.NoError(t, os.Setenv(wafTimeoutEnvVar, "5s"))
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, &expCfg, cfg)
 		})
 
 		t.Run("parsable-default-microsecond", func(t *testing.T) {
 			expCfg := *expectedDefaultConfig
-			expCfg.wafTimeout = 1 * time.Microsecond
+			expCfg.WafTimeout = 1 * time.Microsecond
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			require.NoError(t, os.Setenv(wafTimeoutEnvVar, "1"))
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, &expCfg, cfg)
 		})
@@ -61,7 +61,7 @@ func TestConfig(t *testing.T) {
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			require.NoError(t, os.Setenv(wafTimeoutEnvVar, "not a duration string"))
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, expectedDefaultConfig, cfg)
 		})
@@ -70,7 +70,7 @@ func TestConfig(t *testing.T) {
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			require.NoError(t, os.Setenv(wafTimeoutEnvVar, "-1s"))
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, expectedDefaultConfig, cfg)
 		})
@@ -79,7 +79,7 @@ func TestConfig(t *testing.T) {
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			require.NoError(t, os.Setenv(wafTimeoutEnvVar, "0"))
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, expectedDefaultConfig, cfg)
 		})
@@ -88,7 +88,7 @@ func TestConfig(t *testing.T) {
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			require.NoError(t, os.Setenv(wafTimeoutEnvVar, ""))
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, expectedDefaultConfig, cfg)
 		})
@@ -99,7 +99,7 @@ func TestConfig(t *testing.T) {
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			os.Setenv(rulesEnvVar, "")
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, expectedDefaultConfig, cfg)
 		})
@@ -108,7 +108,7 @@ func TestConfig(t *testing.T) {
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			os.Setenv(rulesEnvVar, "i do not exist")
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.Error(t, err)
 			require.Nil(t, cfg)
 		})
@@ -124,11 +124,11 @@ func TestConfig(t *testing.T) {
 			}()
 			expectedRules := `custom rule file content`
 			expCfg := *expectedDefaultConfig
-			expCfg.rules = []byte(expectedRules)
+			expCfg.Rules = []byte(expectedRules)
 			_, err = file.WriteString(expectedRules)
 			require.NoError(t, err)
 			os.Setenv(rulesEnvVar, file.Name())
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, &expCfg, cfg)
 		})
@@ -137,11 +137,11 @@ func TestConfig(t *testing.T) {
 	t.Run("trace-rate-limit", func(t *testing.T) {
 		t.Run("parsable", func(t *testing.T) {
 			expCfg := *expectedDefaultConfig
-			expCfg.traceRateLimit = 1234567890
+			expCfg.TraceRateLimit = 1234567890
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			require.NoError(t, os.Setenv(traceRateLimitEnvVar, "1234567890"))
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, &expCfg, cfg)
 		})
@@ -150,7 +150,7 @@ func TestConfig(t *testing.T) {
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			require.NoError(t, os.Setenv(wafTimeoutEnvVar, "not a uint"))
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, expectedDefaultConfig, cfg)
 		})
@@ -159,7 +159,7 @@ func TestConfig(t *testing.T) {
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			require.NoError(t, os.Setenv(wafTimeoutEnvVar, "-1"))
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, expectedDefaultConfig, cfg)
 		})
@@ -168,7 +168,7 @@ func TestConfig(t *testing.T) {
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			require.NoError(t, os.Setenv(wafTimeoutEnvVar, "0"))
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, expectedDefaultConfig, cfg)
 		})
@@ -177,7 +177,7 @@ func TestConfig(t *testing.T) {
 			restoreEnv := cleanEnv()
 			defer restoreEnv()
 			require.NoError(t, os.Setenv(wafTimeoutEnvVar, ""))
-			cfg, err := newConfig()
+			cfg, err := NewConfig()
 			require.NoError(t, err)
 			require.Equal(t, expectedDefaultConfig, cfg)
 		})
@@ -187,21 +187,21 @@ func TestConfig(t *testing.T) {
 		t.Run("key-regexp", func(t *testing.T) {
 			t.Run("env-var-normal", func(t *testing.T) {
 				expCfg := *expectedDefaultConfig
-				expCfg.obfuscator.KeyRegex = "test"
+				expCfg.Obfuscator.KeyRegex = "test"
 				restoreEnv := cleanEnv()
 				defer restoreEnv()
 				require.NoError(t, os.Setenv(obfuscatorKeyEnvVar, "test"))
-				cfg, err := newConfig()
+				cfg, err := NewConfig()
 				require.NoError(t, err)
 				require.Equal(t, &expCfg, cfg)
 			})
 			t.Run("env-var-empty", func(t *testing.T) {
 				expCfg := *expectedDefaultConfig
-				expCfg.obfuscator.KeyRegex = ""
+				expCfg.Obfuscator.KeyRegex = ""
 				restoreEnv := cleanEnv()
 				defer restoreEnv()
 				require.NoError(t, os.Setenv(obfuscatorKeyEnvVar, ""))
-				cfg, err := newConfig()
+				cfg, err := NewConfig()
 				require.NoError(t, err)
 				require.Equal(t, &expCfg, cfg)
 			})
@@ -209,7 +209,7 @@ func TestConfig(t *testing.T) {
 				restoreEnv := cleanEnv()
 				defer restoreEnv()
 				require.NoError(t, os.Setenv(obfuscatorKeyEnvVar, "+"))
-				cfg, err := newConfig()
+				cfg, err := NewConfig()
 				require.NoError(t, err)
 				require.Equal(t, expectedDefaultConfig, cfg)
 			})
@@ -218,21 +218,21 @@ func TestConfig(t *testing.T) {
 		t.Run("value-regexp", func(t *testing.T) {
 			t.Run("env-var-normal", func(t *testing.T) {
 				expCfg := *expectedDefaultConfig
-				expCfg.obfuscator.ValueRegex = "test"
+				expCfg.Obfuscator.ValueRegex = "test"
 				restoreEnv := cleanEnv()
 				defer restoreEnv()
 				require.NoError(t, os.Setenv(obfuscatorValueEnvVar, "test"))
-				cfg, err := newConfig()
+				cfg, err := NewConfig()
 				require.NoError(t, err)
 				require.Equal(t, &expCfg, cfg)
 			})
 			t.Run("env-var-empty", func(t *testing.T) {
 				expCfg := *expectedDefaultConfig
-				expCfg.obfuscator.ValueRegex = ""
+				expCfg.Obfuscator.ValueRegex = ""
 				restoreEnv := cleanEnv()
 				defer restoreEnv()
 				require.NoError(t, os.Setenv(obfuscatorValueEnvVar, ""))
-				cfg, err := newConfig()
+				cfg, err := NewConfig()
 				require.NoError(t, err)
 				require.Equal(t, &expCfg, cfg)
 			})
@@ -240,7 +240,7 @@ func TestConfig(t *testing.T) {
 				restoreEnv := cleanEnv()
 				defer restoreEnv()
 				require.NoError(t, os.Setenv(obfuscatorValueEnvVar, "+"))
-				cfg, err := newConfig()
+				cfg, err := NewConfig()
 				require.NoError(t, err)
 				require.Equal(t, expectedDefaultConfig, cfg)
 			})

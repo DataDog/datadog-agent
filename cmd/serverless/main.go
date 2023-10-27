@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/apikey"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
+	appsecConfig "github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/debug"
@@ -315,7 +316,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// This limit is decided in the Standalone ASM Billing RFC and ensures reducing non ASM-related trace throughput
 		// while keeping billing and service catalog running correctly.
 		// In case of ASM event, the trace priority will be set to manual keep
-		if appsec.IsStandalone() {
+		if appsecConfig.IsStandalone() {
 			ta.PrioritySampler.UpdateTargetTPS(1. / 120)
 		}
 	} else if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
