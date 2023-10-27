@@ -169,7 +169,7 @@ func TestInitData(t *testing.T) {
 		"feature_processes_container_enabled":        true,
 		"feature_remote_configuration_enabled":       true,
 		"feature_process_enabled":                    true,
-		"feature_container_image_enabled":            true,
+		"feature_container_images_enabled":           true,
 
 		"feature_dynamic_instrumentation_enabled":      true,
 		"feature_cws_enabled":                          true,

@@ -163,7 +163,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_dynamic_instrumentation_enabled"] = pkgconfig.SystemProbe.GetBool("dynamic_instrumentation.enabled")
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
 
-	ia.data["feature_container_image_enabled"] = ia.conf.GetBool("container_image.enabled")
+	ia.data["feature_container_images_enabled"] = ia.conf.GetBool("container_image.enabled")
 
 	ia.data["feature_cws_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.enabled")
 	ia.data["feature_cws_network_enabled"] = pkgconfig.SystemProbe.GetBool("event_monitoring_config.network.enabled")
