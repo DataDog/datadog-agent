@@ -38,7 +38,8 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 
 	t.Run("Installing the agent", func(tt *testing.T) {
 		cmd := fmt.Sprintf(`DD_API_KEY="aaaaaaaaaa" %v DD_SITE="datadoghq.eu" bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"`, commandLine)
-		_, err := client.VMClient.ExecuteWithError(cmd)
+		output, err := client.VMClient.ExecuteWithError(cmd)
+		tt.Log(output)
 		require.NoError(tt, err, "agent installation should not return any error: ", err)
 	})
 }

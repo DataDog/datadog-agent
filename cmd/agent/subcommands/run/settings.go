@@ -7,12 +7,12 @@ package run
 
 import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings"
-	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // initRuntimeSettings builds the map of runtime settings configurable at runtime.
-func initRuntimeSettings(serverDebug dogstatsdDebug.Component) error {
+func initRuntimeSettings(serverDebug dogstatsddebug.Component) error {
 	// Runtime-editable settings must be registered here to dynamically populate command-line information
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting()); err != nil {
 		return err

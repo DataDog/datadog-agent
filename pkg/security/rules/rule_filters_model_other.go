@@ -23,8 +23,8 @@ type RuleFilterModel struct {
 }
 
 // NewRuleFilterModel returns a new rule filtering model
-func NewRuleFilterModel() *RuleFilterModel {
-	return &RuleFilterModel{}
+func NewRuleFilterModel() (*RuleFilterModel, error) {
+	return &RuleFilterModel{}, nil
 }
 
 // NewEvent returns a new rule filtering event
