@@ -1017,17 +1017,15 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	queryMsg.RecursionDesired = true
 
 	dnsClient := new(dns.Client)
-	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-	require.NoError(t, err)
-	defer dnsConn.Close()
-	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
+	var dnsClientAddr *net.UDPAddr
 	require.Eventually(t, func() bool {
+		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
+		require.NoError(t, err)
+		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+		_ = dnsConn.Close()
 		return err == nil || timeout != 0
 	}, 3*time.Second, 100*time.Millisecond, "Failed to get dns response")
-
-	// Allow the DNS reply to be processed in the snooper
-	time.Sleep(time.Millisecond * 500)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
