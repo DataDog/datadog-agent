@@ -71,7 +71,7 @@ import (
 
 const (
 	maxSnapshotRetries  = 3
-	scansWorkerPoolSize = 10
+	scansWorkerPoolSize = 40
 )
 
 var statsd *ddgostatsd.Client
