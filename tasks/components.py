@@ -40,13 +40,14 @@ def find_doc(content):
 def has_type_component(content):
     return any(l.startswith('type Component interface') for l in content)
 
+
 def check_component(file, content):
     if not any(l.startswith('type Component interface') for l in content):
         return f"** {file} does not define a Component interface; skipping"
 
     # // TODO: (components)
     # The migration of these components is in progresss.
-    # Please do not add a new component to this list.     
+    # Please do not add a new component to this list.
     components_to_migrate = [
         "comp/aggregator/demultiplexer/component.go",
         "comp/core/config/component.go",
@@ -68,19 +69,19 @@ def check_component(file, content):
         "comp/languagedetection/client/component.go",
         "comp/process/apiserver/component.go",
         "comp/process/forwarders/component.go",
-        ]
+    ]
 
     if file in components_to_migrate:
         return ""
-    
+
     for not_allow_definition in [
         "type Mock interface",
         "var Module = fxutil.Component",
         "var MockModule = fxutil.Component",
-        ]:
+    ]:
         if any(l.startswith(not_allow_definition) for l in content):
             return f"** {file} define '{not_allow_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"
-    return "" # no error
+    return ""  # no error
 
 
 def get_components_and_bundles(ctx):
@@ -254,7 +255,9 @@ def new_bundle(_, bundle_path, overwrite=False, team="/* TODO: add team name */"
         inv components.new-bundle /tmp/baz                 # Create the 'baz' bundle in the '/tmp/' folder. './comp' prefix is not enforced by the task.
     """
     template_var_mapping = {"BUNDLE_NAME": os.path.basename(bundle_path), "TEAM_NAME": team}
-    create_components_framework_files(bundle_path, [("bundle.go", "bundle.go"), ("bundle_test.go", "bundle_test.go")], template_var_mapping, overwrite)
+    create_components_framework_files(
+        bundle_path, [("bundle.go", "bundle.go"), ("bundle_test.go", "bundle_test.go")], template_var_mapping, overwrite
+    )
 
 
 @task
@@ -327,7 +330,7 @@ def create_components_framework_files(comp_path, new_paths, template_var_mapping
         os.umask(original_umask)
 
     # Create the components framework common files from predefined templates
-    for (path, template_path) in new_paths:
+    for path, template_path in new_paths:
         folder = os.path.dirname(path)
         os.makedirs(os.path.join(comp_path, folder), exist_ok=True)
         write_template(comp_path, template_path, path, template_var_mapping, overwrite)
@@ -337,7 +340,7 @@ def write_template(comp_path, template_name, new_file_path, var_mapping, overwri
     """
     Get the content of a templated file, substitute its variables and then writes the result into 'new_file_path' file.
     """
-    template_path = get_template_path(template_name) 
+    template_path = get_template_path(template_name)
     # Get the content of the template and resolve it
     raw_template_value = read_file_content(template_path)
 
