@@ -141,6 +141,8 @@ func TestInitData(t *testing.T) {
 		"process_config.container_collection.enabled": true,
 		"remote_configuration.enabled":                true,
 		"process_config.process_collection.enabled":   true,
+		"container_image.enabled":                     true,
+		"sbom.enabled":                                true,
 		"sbom.container_image.enabled":                true,
 		"sbom.host.enabled":                           true,
 	}
@@ -167,6 +169,7 @@ func TestInitData(t *testing.T) {
 		"feature_processes_container_enabled":        true,
 		"feature_remote_configuration_enabled":       true,
 		"feature_process_enabled":                    true,
+		"feature_container_image_enabled":            true,
 
 		"feature_dynamic_instrumentation_enabled":      true,
 		"feature_cws_enabled":                          true,
