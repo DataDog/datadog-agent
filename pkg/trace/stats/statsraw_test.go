@@ -37,55 +37,6 @@ func TestGrain(t *testing.T) {
 	}, aggr)
 }
 
-func TestGrainWithPeerService(t *testing.T) {
-	t.Run("disabled", func(t *testing.T) {
-		assert := assert.New(t)
-		s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"span.kind": "client", "peer.service": "remote-service"}}
-		aggr, _ := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
-			Env:         "default",
-			Hostname:    "default",
-			ContainerID: "cid",
-		}, false, nil)
-		assert.Equal(Aggregation{
-			PayloadAggregationKey: PayloadAggregationKey{
-				Env:         "default",
-				Hostname:    "default",
-				ContainerID: "cid",
-			},
-			BucketsAggregationKey: BucketsAggregationKey{
-				Service:     "thing",
-				SpanKind:    "client",
-				Name:        "other",
-				Resource:    "yo",
-				PeerService: "",
-			},
-		}, aggr)
-	})
-	t.Run("enabled", func(t *testing.T) {
-		assert := assert.New(t)
-		s := pb.Span{Service: "thing", Name: "other", Resource: "yo", Meta: map[string]string{"span.kind": "client", "peer.service": "remote-service"}}
-		aggr, _ := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
-			Env:         "default",
-			Hostname:    "default",
-			ContainerID: "cid",
-		}, true, nil)
-		assert.Equal(Aggregation{
-			PayloadAggregationKey: PayloadAggregationKey{
-				Env:         "default",
-				Hostname:    "default",
-				ContainerID: "cid",
-			},
-			BucketsAggregationKey: BucketsAggregationKey{
-				Service:     "thing",
-				SpanKind:    "client",
-				Name:        "other",
-				Resource:    "yo",
-				PeerService: "remote-service",
-			},
-		}, aggr)
-	})
-}
-
 func TestGrainWithPeerTags(t *testing.T) {
 	t.Run("none present", func(t *testing.T) {
 		assert := assert.New(t)
@@ -93,13 +44,13 @@ func TestGrainWithPeerTags(t *testing.T) {
 			Service:  "thing",
 			Name:     "other",
 			Resource: "yo",
-			Meta:     map[string]string{"span.kind": "client", "peer.service": "aws-s3"},
+			Meta:     map[string]string{"span.kind": "client"},
 		}
 		aggr, et := NewAggregationFromSpan(&s, "", PayloadAggregationKey{
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, true, []string{"aws.s3.bucket", "db.instance", "db.system"})
+		}, true, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
 
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
@@ -108,11 +59,10 @@ func TestGrainWithPeerTags(t *testing.T) {
 				ContainerID: "cid",
 			},
 			BucketsAggregationKey: BucketsAggregationKey{
-				Service:     "thing",
-				SpanKind:    "client",
-				Name:        "other",
-				Resource:    "yo",
-				PeerService: "aws-s3",
+				Service:  "thing",
+				SpanKind: "client",
+				Name:     "other",
+				Resource: "yo",
 			},
 		}, aggr)
 		assert.Nil(et)
@@ -129,7 +79,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, true, []string{"aws.s3.bucket", "db.instance", "db.system"})
+		}, true, []string{"aws.s3.bucket", "db.instance", "db.system", "peer.service"})
 
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
@@ -142,11 +92,10 @@ func TestGrainWithPeerTags(t *testing.T) {
 				SpanKind:     "client",
 				Name:         "other",
 				Resource:     "yo",
-				PeerService:  "aws-s3",
-				PeerTagsHash: 6956349601612342508,
+				PeerTagsHash: 13698082192712149795,
 			},
 		}, aggr)
-		assert.Equal([]string{"aws.s3.bucket:bucket-a"}, et)
+		assert.Equal([]string{"aws.s3.bucket:bucket-a", "peer.service:aws-s3"}, et)
 	})
 	t.Run("all present", func(t *testing.T) {
 		assert := assert.New(t)
@@ -160,7 +109,7 @@ func TestGrainWithPeerTags(t *testing.T) {
 			Env:         "default",
 			Hostname:    "default",
 			ContainerID: "cid",
-		}, true, []string{"db.instance", "db.system"})
+		}, true, []string{"db.instance", "db.system", "peer.service"})
 
 		assert.Equal(Aggregation{
 			PayloadAggregationKey: PayloadAggregationKey{
@@ -173,11 +122,10 @@ func TestGrainWithPeerTags(t *testing.T) {
 				SpanKind:     "client",
 				Name:         "other",
 				Resource:     "yo",
-				PeerService:  "aws-dynamodb",
-				PeerTagsHash: 7368490161962389668,
+				PeerTagsHash: 5537613849774405073,
 			},
 		}, aggr)
-		assert.Equal([]string{"db.instance:dynamo.test.us1", "db.system:dynamodb"}, et)
+		assert.Equal([]string{"db.instance:dynamo.test.us1", "db.system:dynamodb", "peer.service:aws-dynamodb"}, et)
 	})
 }
 

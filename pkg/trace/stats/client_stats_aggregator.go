@@ -209,7 +209,7 @@ func (b *bucket) add(p *pb.ClientStatsPayload, enablePeerSvcAgg bool) []*pb.Clie
 	return []*pb.ClientStatsPayload{trimCounts(p)}
 }
 
-func (b *bucket) aggregateCounts(p *pb.ClientStatsPayload, enablePeerSvcAgg bool) {
+func (b *bucket) aggregateCounts(p *pb.ClientStatsPayload, enablePeerTagsAgg bool) {
 	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID)
 	payloadAgg, ok := b.agg[payloadAggKey]
 	if !ok {
@@ -225,12 +225,12 @@ func (b *bucket) aggregateCounts(p *pb.ClientStatsPayload, enablePeerSvcAgg bool
 			if sb == nil {
 				continue
 			}
-			aggKey := newBucketAggregationKey(sb, enablePeerSvcAgg)
+			aggKey := newBucketAggregationKey(sb, enablePeerTagsAgg)
 			agg, ok := payloadAgg[aggKey]
 			if !ok {
 				agg = &aggregatedCounts{}
 				payloadAgg[aggKey] = agg
-				if enablePeerSvcAgg {
+				if enablePeerTagsAgg {
 					agg.peerTags = sb.PeerTags
 				}
 			}
@@ -255,7 +255,6 @@ func (b *bucket) aggregationToPayloads() []*pb.ClientStatsPayload {
 		for aggrKey, counts := range aggrCounts {
 			stats = append(stats, &pb.ClientGroupedStats{
 				Service:        aggrKey.Service,
-				PeerService:    aggrKey.PeerService,
 				Name:           aggrKey.Name,
 				SpanKind:       aggrKey.SpanKind,
 				Resource:       aggrKey.Resource,
@@ -289,7 +288,7 @@ func newPayloadAggregationKey(env, hostname, version, cid string) PayloadAggrega
 	return PayloadAggregationKey{Env: env, Hostname: hostname, Version: version, ContainerID: cid}
 }
 
-func newBucketAggregationKey(b *pb.ClientGroupedStats, enablePeerSvcAgg bool) BucketsAggregationKey {
+func newBucketAggregationKey(b *pb.ClientGroupedStats, enablePeerTagsAgg bool) BucketsAggregationKey {
 	k := BucketsAggregationKey{
 		Service:    b.Service,
 		Name:       b.Name,
@@ -299,8 +298,7 @@ func newBucketAggregationKey(b *pb.ClientGroupedStats, enablePeerSvcAgg bool) Bu
 		Synthetics: b.Synthetics,
 		StatusCode: b.HTTPStatusCode,
 	}
-	if enablePeerSvcAgg {
-		k.PeerService = b.PeerService
+	if enablePeerTagsAgg {
 		k.PeerTagsHash = peerTagsHash(b.GetPeerTags())
 	}
 	return k

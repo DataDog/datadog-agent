@@ -578,61 +578,6 @@ func TestForceFlush(t *testing.T) {
 	assert.Len(stats.GetStats(), 1)
 }
 
-// TestPeerServiceStats tests that if peer.service is present in the span's meta, we will generate stats with it as an additional field.
-func TestPeerServiceStats(t *testing.T) {
-	assert := assert.New(t)
-	now := time.Now()
-	sp := &pb.Span{
-		ParentID: 0,
-		SpanID:   1,
-		Service:  "myservice",
-		Name:     "http.server.request",
-		Resource: "GET /users",
-		Duration: 100,
-		Meta:     map[string]string{"span.kind": "server"},
-	}
-	peerSvcSp := &pb.Span{
-		ParentID: sp.SpanID,
-		SpanID:   2,
-		Service:  "myservice",
-		Name:     "postgres.query",
-		Resource: "SELECT user_id from users WHERE user_name = ?",
-		Duration: 75,
-		Metrics:  map[string]float64{"_dd.measured": 1.0},
-		Meta:     map[string]string{"span.kind": "client", "peer.service": "users-db"},
-	}
-	t.Run("enabled", func(t *testing.T) {
-		spans := []*pb.Span{sp, peerSvcSp}
-		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "")
-		c := NewTestConcentrator(now)
-		c.peerSvcAggregation = true
-		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
-		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
-		for _, st := range stats.Stats[0].Stats[0].Stats {
-			if st.Name == "postgres.query" {
-				assert.Equal("users-db", st.PeerService)
-			} else {
-				assert.Equal("", st.PeerService)
-			}
-		}
-	})
-	t.Run("disabled", func(t *testing.T) {
-		spans := []*pb.Span{sp, peerSvcSp}
-		traceutil.ComputeTopLevel(spans)
-		testTrace := toProcessedTrace(spans, "none", "")
-		c := NewTestConcentrator(now)
-		c.peerSvcAggregation = false
-		c.addNow(testTrace, "")
-		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
-		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
-		for _, st := range stats.Stats[0].Stats[0].Stats {
-			assert.Equal("", st.PeerService)
-		}
-	})
-}
-
 func TestPeerTags(t *testing.T) {
 	assert := assert.New(t)
 	now := time.Now()
@@ -652,7 +597,7 @@ func TestPeerTags(t *testing.T) {
 		Name:     "postgres.query",
 		Resource: "SELECT user_id from users WHERE user_name = ?",
 		Duration: 75,
-		Meta:     map[string]string{"span.kind": "client", "region": "us1"},
+		Meta:     map[string]string{"span.kind": "client", "db.instance": "i-1234", "db.system": "postgres", "region": "us1"},
 		Metrics:  map[string]float64{"_dd.measured": 1.0},
 	}
 	t.Run("not configured", func(t *testing.T) {
@@ -672,13 +617,14 @@ func TestPeerTags(t *testing.T) {
 		traceutil.ComputeTopLevel(spans)
 		testTrace := toProcessedTrace(spans, "none", "")
 		c := NewTestConcentrator(now)
-		c.peerTagKeys = []string{"region"}
+		c.peerTagKeys = []string{"db.instance", "db.system", "peer.service"}
+		c.peerTagsAggregation = true
 		c.addNow(testTrace, "")
 		stats := c.flushNow(now.UnixNano()+int64(c.bufferLen)*testBucketInterval, false)
 		assert.Len(stats.Stats[0].Stats[0].Stats, 2)
 		for _, st := range stats.Stats[0].Stats[0].Stats {
 			if st.Name == "postgres.query" {
-				assert.Equal([]string{"region:us1"}, st.PeerTags)
+				assert.Equal([]string{"db.instance:i-1234", "db.system:postgres"}, st.PeerTags)
 			} else {
 				assert.Nil(st.PeerTags)
 			}
