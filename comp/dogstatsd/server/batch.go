@@ -222,7 +222,7 @@ func (b *batcher) flushSamplesWithTs() {
 // the demux for processing.  Do this last so our worst mistake is to
 // retain things too long instead of long enough.
 func (b *batcher) forwardRetentions() {
-	b.demux.TakeRetentions(b)
+	b.demux.TakeRetentions(b, "batcher")
 }
 
 // flush pushes all batched metrics to the aggregator.

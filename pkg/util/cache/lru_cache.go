@@ -119,12 +119,19 @@ func (c *lruStringCache) lookupOrInsert(key []byte, allocator func(key []byte) s
 		//log.Debug("Removing element from interner LRU cache")
 	}
 
+	str := allocator(key)
+	// Don't insert blanks.
+	if str == "" {
+		return str
+	}
+
 	// Insert into the cache, and allocate to the backing store.
 	s := &stringCacheItem{
 		s:    allocator(key),
 		prev: nil,
 		next: c.head,
 	}
+
 	if c.head != nil {
 		c.head.prev = s
 	}

@@ -111,7 +111,7 @@ type Demultiplexer interface {
 
 	// TakeRetentions accepts retentions and will keep them alive while data is
 	// still in-flight.  The retentions will be released after the data is serialized.
-	TakeRetentions(retentions cache.InternRetainer)
+	TakeRetentions(retentions cache.InternRetainer, tag string)
 }
 
 // trigger be used to trigger something in the TimeSampler or the BufferedAggregator.

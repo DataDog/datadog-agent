@@ -153,7 +153,6 @@ func (c *serializerConsumer) Send(s serializer.MetricSerializer) error {
 		}, func(sketchesSource metrics.SketchesSource) {
 			sketchesErr = s.SendSketch(sketchesSource)
 		},
-		nil,
 	)
 
 	apmErr := c.sendAPMStats()

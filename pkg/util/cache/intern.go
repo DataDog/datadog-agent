@@ -45,6 +45,14 @@ type stringInterner struct {
 	refcountLock sync.Mutex
 }
 
+func (i *stringInterner) Name() string {
+	if i.fileBacking != nil {
+		return i.fileBacking.Name
+	} else {
+		return "unbacked interner"
+	}
+}
+
 func newStringInterner(origin string, maxSize int, tmpPath string, closeOnRelease bool) *stringInterner {
 	// First version: a basic mmap'd file. Nothing fancy. Later: refcount system for
 	// each interner. When the mmap goes to zero, unmap it WHEN we have a newer
@@ -281,15 +289,24 @@ func NewInternerContext(interner *KeyedInterner, origin string, retainer InternR
 	}
 }
 
-func (i *InternerContext) UseStringBytes(s []byte) string {
+func (i *InternerContext) UseStringBytes(s []byte, suffix string) string {
 	// TODO: Assume that the string is almost certainly already intern'd.
 	// TODO: Validate here.
 	//s = CheckDefault(s)
-	return i.interner.LoadOrStore(s, i.origin, i.retainer)
+	if i == nil {
+		return string(s)
+	} else {
+		return i.interner.LoadOrStore(s, i.origin+suffix, i.retainer)
+	}
 }
 
-func (i *InternerContext) UseString(s string) string {
+/*
+func (i *InternerContext) UseString(s string, suffix string) string {
 	s = CheckDefault(s)
 	// TODO: Assume that the string is almost certainly already intern'd.
-	return i.interner.LoadOrStore(unsafe.Slice(unsafe.StringData(s), len(s)), i.origin, i.retainer)
-}
+	if i == nil {
+		return s
+	} else {
+		return i.interner.LoadOrStore(unsafe.Slice(unsafe.StringData(s), len(s)), i.origin+suffix, i.retainer)
+	}
+}*/

@@ -55,7 +55,8 @@ type contextResolver struct {
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
 func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) (ckey.ContextKey, ckey.TagsKey, ckey.TagsKey) {
-	return cr.keyGenerator.GenerateWithTags2(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.taggerBuffer, cr.metricBuffer)
+	return cr.keyGenerator.GenerateWithTags2(cache.CheckDefault(metricSampleContext.GetName()),
+		cache.CheckDefault(metricSampleContext.GetHost()), cr.taggerBuffer, cr.metricBuffer)
 }
 
 func newContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter, interner *cache.KeyedInterner) *contextResolver {

@@ -131,7 +131,7 @@ func (d *ServerlessDemultiplexer) ForceFlushToSerializer(start time.Time, waitFo
 			if sketches.WaitForValue() {
 				d.serializer.SendSketch(sketches) //nolint:errcheck
 			}
-		}, nil)
+		})
 }
 
 // AggregateSample send a MetricSample to the TimeSampler.
@@ -172,6 +172,8 @@ func (d *ServerlessDemultiplexer) GetMetricSamplePool() *metrics.MetricSamplePoo
 	return d.metricSamplePool
 }
 
-func (d *ServerlessDemultiplexer) TakeRetentions(retentions cache.InternRetainer) {
+func (d *ServerlessDemultiplexer) TakeRetentions(retentions cache.InternRetainer, tag string) {
+	// TODO: Figure out the lifetime of serverless and see if we actually want to do reference
+	// counting at all for it.  Alternatively, never release and let the agent die.
 	panic("not implemented")
 }

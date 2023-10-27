@@ -9,8 +9,10 @@ import (
 	"hash/maphash"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -35,6 +37,9 @@ const MaxValueSize = hashPageSize - 16
 
 // MaxProbes is the maximum number of probes going into the hash table.
 const MaxProbes = 8
+
+// containerSummaryPattern will help abbreviate the name of the container.
+var containerSummaryPattern = regexp.MustCompile("^container_id://[0-9a-f]{60}([0-9a-f]{4})")
 
 type hashEntry struct {
 	hashCode       uint32
@@ -100,7 +105,11 @@ type mmap_hash struct {
 	pages          []hashPage
 	mapping        []byte // This is virtual address space, not memory used.
 	closeOnRelease bool
-	lock           sync.Mutex
+	// value-length statistics, Welford's online variance algorithm
+	valueCount uint64
+	valueMean  float64
+	valueM2    float64
+	lock       sync.Mutex
 }
 
 // mmap_all_record holds every mmap_hash created.  This isn't for permanent use,
@@ -211,7 +220,15 @@ func (table *mmap_hash) lookupOrInsert(key []byte) (string, bool) {
 		page := &table.pages[hash%uint64(len(table.pages))]
 		if result, allocated := page.lookupOrInsert(hash, key); result != "" {
 			if allocated {
+				// Online mean & variance calculation:
+				// https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Welford's_online_algorithm
+				keyLenF := float64(keyLen)
 				table.used += int64(keyLen)
+				table.valueCount += 1
+				delta := keyLenF - table.valueMean
+				table.valueMean += delta / float64(table.valueCount)
+				delta2 := keyLenF - table.valueMean
+				table.valueM2 += delta * delta2
 			}
 			table.seedHist[n] += 1
 			return result, false
@@ -222,6 +239,26 @@ func (table *mmap_hash) lookupOrInsert(key []byte) (string, bool) {
 
 func (table *mmap_hash) sizes() (int64, int64) {
 	return table.used, table.capacity
+}
+
+// stats returns the mean and variance for the lengths of keys inserted into
+// this mmap_hash. When these values aren't defined, you get NaN back.
+func (table *mmap_hash) stats() (float64, float64) {
+	if table.valueCount < 1 {
+		return math.NaN(), math.NaN()
+	} else if table.valueCount < 2 {
+		return table.valueMean, math.NaN()
+	} else {
+		return table.valueMean, table.valueM2 / float64(table.valueCount)
+	}
+}
+
+func (table *mmap_hash) name() string {
+	if table.Name[0] == '!' {
+		return table.Name
+	} else {
+		return containerSummaryPattern.ReplaceAllString(table.Name, "container-$1")
+	}
 }
 
 func (table *mmap_hash) finalize() {
@@ -293,10 +330,8 @@ func isMapped(s string) (int, bool, bool) {
 // logFailedCheck returns a safe value for 'tag'.  Using the 'safe' value from isMapped,
 // logFailedCheck will log a failed call to isMapped and
 func logFailedCheck(index int, safe bool, callsite, tag string) string {
-	var name = "container"
-	if all_mmaps.hashes[index].Name[0] == '!' {
-		name = all_mmaps.hashes[index].Name
-	}
+	var name = all_mmaps.hashes[index].name()
+
 	location := fmt.Sprintf("<%s>", name)
 	for i := 0; i < callStackDepth; i++ {
 		// skip over logFailedCheck and the in-package call site, just the ones above.
@@ -354,10 +389,12 @@ func Report() {
 		} else {
 			status = "ACTIVE"
 		}
+		mean, variance := t.stats()
 		log.Info(p.Sprintf("> %d/%d: %8s Origin=\"%s\" mmap range starting at %p: %v bytes.", n+1, nrHashes, status,
 			t.Name, unsafe.Pointer(unsafe.SliceData(t.mapping)), len(t.mapping)))
-		log.Info(p.Sprintf("  %d/%d:   used: %v, capacity: %v.  Utilization: %4.1f%%. lookup depth: %7d %7d %7d %7d %7d %7d %7d %7d",
-			n+1, nrHashes, t.used, t.capacity, 100.0*float64(t.used)/float64(t.capacity),
+		log.Info(p.Sprintf("  %d/%d:   used: %11d, capacity: %11d.  Utilization: %4.1f%%. Mean len: %4.2f, "+
+			"Var len: %4.2f. Lookup depth: %10d %6d %5d %5d %3d %2d %2d %d",
+			n+1, nrHashes, t.used, t.capacity, 100.0*float64(t.used)/float64(t.capacity), mean, variance,
 			t.seedHist[0], t.seedHist[1], t.seedHist[2], t.seedHist[3],
 			t.seedHist[4], t.seedHist[5], t.seedHist[6], t.seedHist[7],
 		))
@@ -365,8 +402,11 @@ func Report() {
 
 	nrChecks := len(all_mmaps.origins)
 	count := 1
-	for k := range all_mmaps.origins {
-		log.Info(p.Sprintf("- %3d/%d %12d/ failed checks: %s", count, nrChecks, all_mmaps.origins[k], k))
+	totalFailedChecks := 0
+	for k, v := range all_mmaps.origins {
+		log.Info(p.Sprintf("- %3d/%d %12d/ failed checks: %s", count, nrChecks, v, k))
+		totalFailedChecks += v
 		count += 1
 	}
+	log.Info(p.Sprintf("Failed Checks Total %d on %d different locations", totalFailedChecks, len(all_mmaps.origins)))
 }

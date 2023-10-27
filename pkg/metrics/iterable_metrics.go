@@ -7,7 +7,6 @@ package metrics
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"sync"
 
 	"go.uber.org/atomic"
@@ -102,7 +101,7 @@ func (it *iterableMetrics) Current() interface{} {
 	return it.current
 }
 
-// Wait until a value is available for MoveNext() or until senderStopped() is called
+// WaitForValue waits until a value is available for MoveNext() or until senderStopped() is called
 // Returns true if a value is available, false otherwise
 func (it *iterableMetrics) WaitForValue() bool {
 	return it.ch.WaitForValue()
@@ -118,8 +117,7 @@ func Serialize(
 	iterableSketches *IterableSketches,
 	producer func(SerieSink, SketchesSink),
 	serieConsumer func(SerieSource),
-	sketchesConsumer func(SketchesSource),
-	retentions cache.InternRetainer) {
+	sketchesConsumer func(SketchesSource)) {
 	var waitGroup sync.WaitGroup
 	var serieSink SerieSink = noOpSerieSink{}
 	var sketchesSink SketchesSink = noOpSketchesSink{}
@@ -149,14 +147,6 @@ func Serialize(
 		iterableSketches.senderStopped()
 	}
 	waitGroup.Wait()
-
-	// Release any memory-holds that any in-flight data may have held.  Serialization copies everything.
-	if retentions != nil {
-		reportCopy := cache.NewRetainerBlock()
-		retentions.CopyTo(reportCopy)
-		log.Infof("metrics.Serialize: Releasing %v", reportCopy.Summarize())
-		retentions.ReleaseAll()
-	}
 }
 
 var _ SerieSink = noOpSerieSink{}

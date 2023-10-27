@@ -96,11 +96,11 @@ func (p *parser) parseTags(rawTags []byte, intContext cache.InternerContext) []s
 		if tagPos < 0 {
 			break
 		}
-		tagsList[i] = intContext.UseStringBytes(rawTags[:tagPos])
+		tagsList[i] = intContext.UseStringBytes(rawTags[:tagPos], ".parseTags_ith")
 		rawTags = rawTags[tagPos+len(commaSeparator):]
 		i++
 	}
-	tagsList[i] = intContext.UseStringBytes(rawTags)
+	tagsList[i] = intContext.UseStringBytes(rawTags, ".parseTags_end")
 	return tagsList
 }
 
@@ -187,7 +187,7 @@ func (p *parser) parseMetricSample(message []byte, intContext cache.InternerCont
 	}
 
 	return dogstatsdMetricSample{
-		name:        intContext.UseStringBytes(name),
+		name:        intContext.UseStringBytes(name, ".parseMetricSample_name"),
 		value:       value,
 		values:      values,
 		setValue:    string(setValue),

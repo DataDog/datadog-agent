@@ -55,7 +55,7 @@ type AgentDemultiplexer struct {
 	// options are the options with which the demultiplexer has been created
 	options    AgentDemultiplexerOptions
 	aggregator *BufferedAggregator
-	retentions *cache.RetainerBlock
+	retentions map[string]*cache.RetainerBlock
 	dataOutputs
 	*senders
 
@@ -251,7 +251,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 
 		senders: newSenders(agg),
 
-		retentions: cache.NewRetainerBlock(),
+		retentions: make(map[string]*cache.RetainerBlock),
 
 		// statsd time samplers
 		statsd: statsd{
@@ -261,7 +261,6 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 			noAggStreamWorker: noAggWorker,
 		},
 	}
-
 	return demux
 }
 
@@ -365,9 +364,11 @@ func (d *AgentDemultiplexer) flushLoop() {
 			if trigger.blockChan != nil {
 				trigger.blockChan <- struct{}{}
 			}
+			d.LogRetentions()
 		// automatic flush sequence
 		case t := <-flushTicker:
 			d.flushToSerializer(t, false)
+			d.LogRetentions()
 		}
 	}
 }
@@ -476,7 +477,18 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	}
 
 	logPayloads := config.Datadog.GetBool("log_payloads")
-	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, d.retentions, logPayloads, false)
+
+	const retTag = "IterableMetrics"
+	iterableRetentions := d.retentions[retTag]
+	if iterableRetentions == nil {
+		iterableRetentions = cache.NewRetainerBlock()
+		d.retentions[retTag] = iterableRetentions
+	}
+	for _, retainer := range d.retentions {
+		retainer.ReleaseAll()
+	}
+
+	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, iterableRetentions, logPayloads, false)
 
 	metrics.Serialize(
 		series,
@@ -529,8 +541,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 				updateSketchTelemetry(start, sketchesCount, err)
 				addFlushCount("Sketches", int64(sketchesCount))
 			}
-		},
-		d.retentions)
+		})
 
 	addFlushTime("MainFlushTime", int64(time.Since(start)))
 	aggregatorNumberOfFlush.Add(1)
@@ -617,6 +628,19 @@ func (d *AgentDemultiplexer) GetMetricSamplePool() *metrics.MetricSamplePool {
 	return d.statsd.metricSamplePool
 }
 
-func (d *AgentDemultiplexer) TakeRetentions(retentions cache.InternRetainer) {
-	d.retentions.Import(retentions)
+func (d *AgentDemultiplexer) TakeRetentions(retentions cache.InternRetainer, tag string) {
+	if ret, ok := d.retentions[tag]; !ok {
+		ret = cache.NewRetainerBlock()
+		d.retentions[tag] = ret
+		ret.Import(retentions)
+	} else {
+		ret.Import(retentions)
+	}
+}
+
+func (d *AgentDemultiplexer) LogRetentions() {
+	d.log.Infof("cache.Retainer: Cache Retainers:")
+	for tag, retainer := range d.retentions {
+		d.log.Infof("cache.Retainer: %s: %s", tag, retainer.Summarize())
+	}
 }

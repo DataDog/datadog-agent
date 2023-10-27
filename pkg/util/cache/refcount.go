@@ -10,6 +10,7 @@ import (
 // mechanism, use the per-type implementation functions for that.
 type Refcounted interface {
 	Release(n int32)
+	Name() string
 }
 
 // InternRetainer counts references to internal types, that we can then release later.  Here, it's
@@ -82,6 +83,7 @@ func (s *SmallRetainer) Import(other InternRetainer) {
 }
 
 type RetainerBlock struct {
+	InternRetainer
 	retentions map[Refcounted]int32
 }
 
@@ -130,7 +132,7 @@ func (r *RetainerBlock) Summarize() string {
 	var total int32 = 0
 	s.WriteString(p.Sprintf("{%d keys. ", len(r.retentions)))
 	for k, v := range r.retentions {
-		s.WriteString(p.Sprintf("%p: %d, ", k, v))
+		s.WriteString(p.Sprintf("%s: %d, ", k.Name(), v))
 		total += v
 	}
 	s.WriteString(p.Sprintf("; %d total}", total))

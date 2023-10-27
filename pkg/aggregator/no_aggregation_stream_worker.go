@@ -236,7 +236,7 @@ func (w *noAggregationStreamWorker) run() {
 				sendIterableSeries(w.serializer, start, serieSource)
 			}, func(sketches metrics.SketchesSource) {
 				// noop: we do not support sketches in the no-agg pipeline.
-			}, nil)
+			})
 
 		if stopped {
 			break
