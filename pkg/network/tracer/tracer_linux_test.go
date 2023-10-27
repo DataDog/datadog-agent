@@ -72,11 +72,9 @@ func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *ne
 	var dnsClientAddr *net.UDPAddr
 	require.Eventually(t, func() bool {
 		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-		defer func(dnsConn *dns.Conn) {
-			_ = dnsConn.Close()
-		}(dnsConn)
 		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, connErr := dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+		_ = dnsConn.Close()
 		return err == nil && connErr == nil
 	}, 3*time.Second, 100*time.Millisecond, "failed to make successful DNS request")
 	return dnsClientAddr, dnsServerAddr
