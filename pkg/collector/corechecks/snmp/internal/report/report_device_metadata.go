@@ -196,7 +196,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		vendor = config.ProfileDef.Device.Vendor
 	}
 
-	var profileVersion uint
+	var profileVersion uint64
 	if config.ProfileDef != nil {
 		profileVersion = config.ProfileDef.Version
 	}
