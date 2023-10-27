@@ -367,6 +367,8 @@ workflow:
     allow_failure: true
 
 .on_dev_branch_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_main_branch
     when: never
   - <<: *if_tagged_commit
@@ -543,6 +545,8 @@ workflow:
 # rule to trigger job for internal image deployment if deploy is set or
 # manually if not
 .on_deploy_a7_internal_or_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_deploy
