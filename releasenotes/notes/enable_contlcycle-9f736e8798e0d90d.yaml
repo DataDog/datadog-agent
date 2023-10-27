@@ -9,4 +9,4 @@
 features:
   - |
     Enable container lifecycle events collection by default.
-    This feature helps stopped containers to be cleaned from the Datadog app faster.
+    This feature helps stopped containers to be cleaned from Datadog faster.
