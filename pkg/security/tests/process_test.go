@@ -14,7 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
+	"math/bits"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -1546,7 +1546,7 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 		}
 
 		if capabilities&v == v {
-			c.Set(flag, capability.Cap(math.Log2(float64(v))))
+			c.Set(flag, capability.Cap(bits.TrailingZeros64(v)))
 		}
 	}
 }

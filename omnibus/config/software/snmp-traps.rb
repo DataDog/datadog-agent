@@ -8,7 +8,7 @@ source :url => "https://s3.amazonaws.com/dd-agent-omnibus/snmp_traps_db/dd_traps
 
 build do
   # The dir for confs
-  if osx?
+  if osx_target?
     traps_db_dir = "#{install_dir}/etc/conf.d/snmp.d/traps_db"
   else
     traps_db_dir = "#{install_dir}/etc/datadog-agent/conf.d/snmp.d/traps_db"

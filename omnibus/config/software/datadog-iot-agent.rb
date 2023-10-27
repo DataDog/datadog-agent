@@ -31,7 +31,7 @@ build do
   # include embedded path (mostly for `pkg-config` binary)
   env = with_embedded_path(env)
 
-  if windows?
+  if windows_target?
     major_version_arg = "%MAJOR_VERSION%"
     py_runtimes_arg = "%PY_RUNTIMES%"
   else
@@ -39,7 +39,7 @@ build do
     py_runtimes_arg = "$PY_RUNTIMES"
   end
 
-  if linux?
+  if linux_target?
     command "invoke agent.build --flavor iot --rebuild --no-development --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg}", env: env
     mkdir "#{install_dir}/bin"
     mkdir "#{install_dir}/run/"
@@ -55,12 +55,12 @@ build do
     copy 'bin/agent', "#{install_dir}/bin/"
 
     # Upstart
-    if debian?
+    if debian_target?
       erb source: "upstart_debian.conf.erb",
           dest: "/etc/init/datadog-agent.conf",
           mode: 0644,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
-    elsif redhat? || suse?
+    elsif redhat_target? || suse_target?
       # Ship a different upstart job definition on RHEL to accommodate the old
       # version of upstart (0.6.5) that RHEL 6 provides.
       erb source: "upstart_redhat.conf.erb",
@@ -70,7 +70,7 @@ build do
     end
 
     # Systemd
-    if debian?
+    if debian_target?
       erb source: "systemd.service.erb",
           dest: "/lib/systemd/system/datadog-agent.service",
           mode: 0644,
@@ -84,7 +84,7 @@ build do
     end
 
   end
-  if windows?
+  if windows_target?
     platform = windows_arch_i386? ? "x86" : "x64"
 
     conf_dir = "#{install_dir}/etc/datadog-agent"
@@ -109,7 +109,7 @@ build do
 
   end
   block do
-    if windows?
+    if windows_target?
       # defer compilation step in a block to allow getting the project's build version, which is populated
       # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
       platform = windows_arch_i386? ? "x86" : "x64"
