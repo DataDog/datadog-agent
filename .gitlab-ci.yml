@@ -865,6 +865,8 @@ workflow:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
 .on_default_new-e2e_tests_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_kitchen
