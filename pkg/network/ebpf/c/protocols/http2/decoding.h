@@ -326,9 +326,17 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
         skb_info->data_off += current_frame->length;
     }
 
-    if ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
-        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
+    // When we accept an RST, it means that the current stream is terminated.
+    // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
+    bool is_rst = current_frame->type == kRSTStreamFrame;
+       // If rst, and stream is empty (no status code, or no response) then delete from inflight
+    if (is_rst && (current_stream->response_status_code == 0 || current_stream->request_started == 0)) {
+        bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
+        return;
     }
+    if (is_rst || ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM)) {
+             handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
+     }
 
     return;
 }
@@ -403,7 +411,7 @@ static __always_inline void reset_frame(struct http2_frame *out) {
 }
 
 static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, frame_header_remainder_t *frame_state) {
-    bool is_headers_frame, is_data_end_of_stream;
+    bool is_headers_or_rst_frame, is_data_end_of_stream;
     __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
 
@@ -488,9 +496,9 @@ valid_frame:
         // END_STREAM can appear only in Headers and Data frames.
         // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
-        is_headers_frame = current_frame.type == kHeadersFrame;
+        is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-        if (is_headers_frame || is_data_end_of_stream) {
+        if (is_headers_or_rst_frame || is_data_end_of_stream) {
             frames_array[interesting_frame_index].frame = current_frame;
             frames_array[interesting_frame_index].offset = skb_info->data_off;
             interesting_frame_index++;

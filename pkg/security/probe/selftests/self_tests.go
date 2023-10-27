@@ -36,6 +36,14 @@ type SelfTestEvent struct {
 
 // ToJSON marshal using json format
 func (t SelfTestEvent) ToJSON() ([]byte, error) {
+	// cleanup the serialization of potentially nil slices
+	if t.Success == nil {
+		t.Success = []string{}
+	}
+	if t.Fails == nil {
+		t.Fails = []string{}
+	}
+
 	return json.Marshal(t)
 }
 

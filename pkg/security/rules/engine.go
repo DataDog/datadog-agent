@@ -201,7 +201,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 			case <-ctx.Done():
 				return
 			case <-heartbeatTicker.C:
-				ReportHeartbeatEvent(e.eventSender, e.policyMonitor.policies)
+				e.policyMonitor.ReportHeartbeatEvent(e.eventSender)
 			}
 		}
 	}()

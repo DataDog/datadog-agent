@@ -222,13 +222,27 @@ namespace Datadog.CustomActions
                     return ActionResult.Success;
                 }
 
-                subkey.DeleteValue("installedDomain");
-                subkey.DeleteValue("installedUser");
+                foreach (var value in new[]
+                         {
+                             "installedDomain",
+                             "installedUser"
+                         })
+                {
+                    try
+                    {
+                        subkey.DeleteValue(value);
+                    }
+                    catch (Exception e)
+                    {
+                        // Don't print stack trace as it may be seen as a terminal error by readers of the log.
+                        _session.Log($"Warning, cannot removing registry value: {e.Message}");
+                    }
+                }
             }
             catch (Exception e)
             {
-                _session.Log($"Error removing registry properties: {e}");
-                return ActionResult.Failure;
+                _session.Log($"Warning, could not access registry key {Constants.DatadogAgentRegistryKey}: {e}");
+                // This step can fail without failing the un-installation.
             }
 
             return ActionResult.Success;

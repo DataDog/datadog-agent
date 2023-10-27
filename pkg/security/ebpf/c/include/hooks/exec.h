@@ -107,9 +107,12 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
     LOAD_CONSTANT("do_fork_input", input);
 
     if (input == DO_FORK_STRUCT_INPUT) {
+        u64 exit_signal_offset;
+        LOAD_CONSTANT("kernel_clone_args_exit_signal_offset", exit_signal_offset);
+
         void *args = (void *)CTX_PARM1(ctx);
         int exit_signal;
-        bpf_probe_read(&exit_signal, sizeof(int), (void *)args + 32);
+        bpf_probe_read(&exit_signal, sizeof(int), (void *)args + exit_signal_offset);
 
         if (exit_signal == SIGCHLD) {
             syscall.fork.is_thread = 0;
