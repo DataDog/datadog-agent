@@ -78,10 +78,11 @@ func (p *PolicyMonitor) SetPolicies(policies []*rules.Policy, mErrs *multierror.
 // ReportHeartbeatEvent sends HeartbeatEvents reporting the current set of policies
 func (p *PolicyMonitor) ReportHeartbeatEvent(sender events.EventSender) {
 	log.Infof("send heartbeat")
-	p.RLock()
-	defer p.RUnlock()
 
+	p.RLock()
 	rule, events := NewHeartbeatEvents(p.policies)
+	p.RUnlock()
+
 	for _, event := range events {
 		sender.SendEvent(rule, event, nil, "")
 	}
