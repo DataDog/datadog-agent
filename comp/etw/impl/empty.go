@@ -3,11 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
+// Package etwimpl has no implementation on non-Windows platforms
 package etwimpl
 
-import "C"
-
-/*
-This file exists merely to import the C file so that the linter doesn't complain about
-a c file with no cgo
-*/
+var Module = fxutil.Component()

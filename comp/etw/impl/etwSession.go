@@ -13,23 +13,39 @@ import (
 	"unsafe"
 )
 
+/*
+#include "session.h"
+*/
+import "C"
+
 type etwSession struct {
 	Name          string
 	hSession      C.TRACEHANDLE
 	propertiesBuf []byte
+	providers     map[windows.GUID]etw.ProviderConfiguration
 }
 
-func (etwSession) StartTracing(providerGUID windows.GUID, callback etw.EventCallback) error {
-
+func (e *etwSession) ConfigureProvider(providerGUID windows.GUID, configurations ...etw.ProviderConfigurationFunc) error {
+	cfg := etw.ProviderConfiguration{}
+	for _, configuration := range configurations {
+		configuration(&cfg)
+	}
+	e.providers[providerGUID] = cfg
+	return nil
 }
 
-func (etwSession) StopTracing() error {
+func (e *etwSession) StartTracing(providerGUID windows.GUID, callback etw.EventCallback) error {
+	return nil
+}
 
+func (e *etwSession) StopTracing() error {
+	return nil
 }
 
 func CreateEtwSession(name string) (etw.Session, error) {
-	s := etwSession{
-		Name: name,
+	s := &etwSession{
+		Name:      name,
+		providers: make(map[windows.GUID]etw.ProviderConfiguration),
 	}
 
 	utf16SessionName, err := windows.UTF16FromString(name)

@@ -5,7 +5,7 @@
 
 //go:build windows && npm
 
-package etwimpl
+package native
 
 //revive:disable:var-naming Name is intended to match the Windows const name
 

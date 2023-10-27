@@ -1,27 +1,27 @@
+//go:build windows
+
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
-
 // Package etw provides ETW tracing facilities to other components
 package etw
 
-import "C"
 import (
-	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
+	"github.com/DataDog/datadog-agent/comp/etw/native"
 	"golang.org/x/sys/windows"
 )
 
 // team: windows-agent
 
 // EventCallback is a function that will be called when an ETW event is received
-type EventCallback func(e *etwimpl.DDEtwEvent)
+type EventCallback func(e *native.DDEtwEvent)
 
 // TraceLevel A value that indicates the maximum level of events that you want the provider to write.
 // The provider typically writes an event if the event's level is less than or equal to this value,
 // in addition to meeting the MatchAnyKeyword and MatchAllKeyword criteria.
 // See https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-enabletraceex2
-type TraceLevel C.UCHAR
+type TraceLevel uint8
 
 //nolint:golint,stylecheck // Keep the Microsoft naming-style
 const (
@@ -55,8 +55,10 @@ type ProviderConfigurationFunc func(cfg *ProviderConfiguration)
 
 // Session represents an ETW session. A session can have multiple tracing providers enabled.
 type Session interface {
-	// EnableProvider configures a particular ETW provider identified by its GUID for this session.
+	// ConfigureProvider configures a particular ETW provider identified by its GUID for this session.
 	ConfigureProvider(providerGUID windows.GUID, configurations ...ProviderConfigurationFunc) error
+
+	StartTracing(providerGUID windows.GUID, callback EventCallback) error
 
 	// StopTracing stops all tracing activities.
 	// It's not possible to use the session anymore after a call to StopTracing.
