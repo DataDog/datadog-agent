@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
+
 //go:build windows
 
 // Package apmetwtracerimpl provides a component for the .Net tracer application
@@ -36,7 +37,7 @@ type dependencies struct {
 	fx.In
 	Lc  fx.Lifecycle
 	Log log.Component
-	etw etw.Component
+	Etw etw.Component
 }
 
 func newApmEtwTracerImpl(deps dependencies) (apmetwtracer.Component, error) {
@@ -45,7 +46,7 @@ func newApmEtwTracerImpl(deps dependencies) (apmetwtracer.Component, error) {
 
 	apmEtwTracer := &apmetwtracerimpl{
 		log:                       deps.Log,
-		etw:                       deps.etw,
+		etw:                       deps.Etw,
 		dotNetRuntimeProviderGuid: guid,
 	}
 

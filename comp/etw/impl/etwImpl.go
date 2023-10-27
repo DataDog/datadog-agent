@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+//go:build windows
+
 package etwimpl
 
 import "C"
@@ -18,8 +20,28 @@ var Module = fxutil.Component(
 	fx.Provide(newEtw),
 )
 
+type dependencies struct {
+	fx.In
+	Lc fx.Lifecycle
+}
+
+func newEtw(deps dependencies) (etw.Component, error) {
+	etw := &etwImpl{}
+	deps.Lc.Append(fx.Hook{OnStart: etw.start, OnStop: etw.stop})
+	return etw, nil
+}
+
 type etwImpl struct {
 	sessions []etw.Session
+}
+
+func (s *etwImpl) NewSession(sessionName string) (etw.Session, error) {
+	session, err := CreateEtwSession(sessionName)
+	if err != nil {
+		return nil, err
+	}
+	s.sessions = append(s.sessions, session)
+	return session, nil
 }
 
 func (s *etwImpl) start(_ context.Context) error {
@@ -32,24 +54,4 @@ func (s *etwImpl) stop(_ context.Context) error {
 		session.StopTracing()
 	}
 	return nil
-}
-
-func (s *etwImpl) NewSession(sessionName string) (etw.Session, error) {
-	session, err := CreateEtwSession(sessionName)
-	if err != nil {
-		return nil, err
-	}
-	s.sessions = append(s.sessions, session)
-	return session, nil
-}
-
-type dependencies struct {
-	fx.In
-	Lc fx.Lifecycle
-}
-
-func newEtw(deps dependencies) (etw.Component, error) {
-	etw := &etwImpl{}
-	deps.Lc.Append(fx.Hook{OnStart: etw.start, OnStop: etw.stop})
-	return etw, nil
 }
