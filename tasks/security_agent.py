@@ -225,6 +225,7 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
     syscall_tester_c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
     syscall_tester_c_file = os.path.join(syscall_tester_c_dir, f"{file_name}.c")
     syscall_tester_exe_file = os.path.join(build_dir, file_name)
+    uname_m = os.uname().machine
 
     if static:
         flags.append("-static")
@@ -236,6 +237,7 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
         variables={
             "exeflags": flags,
             "exelibs": libs,
+            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu"],
         },
     )
     return syscall_tester_exe_file

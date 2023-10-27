@@ -103,7 +103,7 @@ def ninja_define_co_re_compiler(nw):
 def ninja_define_exe_compiler(nw):
     nw.rule(
         name="execlang",
-        command="clang -MD -MF $out.d $exeflags $in -o $out $exelibs",
+        command="clang -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
         depfile="$out.d",
     )
 
