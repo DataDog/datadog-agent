@@ -176,6 +176,13 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 }
 
 func (e *ebpfProgram) Init() error {
+	var err error
+	defer func() {
+		if err != nil {
+			e.buildMode = ""
+		}
+	}()
+
 	var undefinedProbes []manager.ProbeIdentificationPair
 	for _, tc := range e.tailCallRouter {
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
@@ -193,11 +200,10 @@ func (e *ebpfProgram) Init() error {
 		s.ConfigureManager(e.Manager)
 	}
 
-	var err error
 	if e.cfg.EnableCORE {
+		e.buildMode = buildmode.CORE
 		err = e.initCORE()
 		if err == nil {
-			e.buildMode = buildmode.CORE
 			return nil
 		}
 
@@ -208,9 +214,9 @@ func (e *ebpfProgram) Init() error {
 	}
 
 	if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
+		e.buildMode = buildmode.RuntimeCompiled
 		err = e.initRuntimeCompiler()
 		if err == nil {
-			e.buildMode = buildmode.RuntimeCompiled
 			return nil
 		}
 
@@ -220,10 +226,8 @@ func (e *ebpfProgram) Init() error {
 		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
 	}
 
+	e.buildMode = buildmode.Prebuilt
 	err = e.initPrebuilt()
-	if err == nil {
-		e.buildMode = buildmode.Prebuilt
-	}
 	return err
 }
 
