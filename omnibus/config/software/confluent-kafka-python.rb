@@ -15,7 +15,7 @@ build do
   license "Apache-2.0"
   license_file "./LICENSE.txt"
 
-  if windows?
+  if windows_target?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
     command "#{pip} install confluent-kafka"
   else
@@ -28,6 +28,6 @@ build do
     command "#{pip} install --no-binary confluent-kafka .", :env => build_env
   end
 
-  
+
 
 end
