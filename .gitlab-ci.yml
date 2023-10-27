@@ -343,6 +343,8 @@ workflow:
     allow_failure: true
 
 .on_a6:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_6
 
 .on_a6_manual:
@@ -351,6 +353,8 @@ workflow:
     allow_failure: true
 
 .on_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_7
 
 .on_a7_manual:
