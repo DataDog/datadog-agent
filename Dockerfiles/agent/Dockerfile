@@ -135,10 +135,11 @@ RUN apt full-upgrade -y \
   # Install libseccomp2 as required by `nosys-seccomp` wrapper
   && apt install -y iproute2 libssl-dev libseccomp2 tzdata adduser wget
 
+# Download msodbcsql18 driver for SQL Server integration
 RUN wget -q -O msodbcsql18.deb https://packages.microsoft.com/debian/12/prod/pool/main/m/msodbcsql18/msodbcsql18_${MSODBCSQL_VERSION}_${TARGETARCH}.deb
-
+# Install msodbcsql18
 RUN ACCEPT_EULA=Y apt install -y ./msodbcsql18.deb
-
+# Remove msodbcsql18
 RUN rm -f ./msodbcsql18.deb
 
 # Install openjdk-11-jre-headless on jmx flavor
