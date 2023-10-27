@@ -67,7 +67,14 @@ const (
 
 var (
 	emptyBody = []byte(nil)
+	kv        = kernel.MustHostVersion()
 )
+
+func skipIfUSMNotSupported(t *testing.T) {
+	if kv < http.MinimumKernelVersion {
+		t.Skipf("USM is not supported on %v", kv)
+	}
+}
 
 func TestMonitorProtocolFail(t *testing.T) {
 	failingStartupMock := func(_ *manager.Manager) error {
@@ -105,6 +112,7 @@ type HTTPTestSuite struct {
 }
 
 func TestHTTP(t *testing.T) {
+	skipIfUSMNotSupported(t)
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
@@ -560,7 +568,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					Path:   http.Path{Content: http.Interner.GetString("/")},
 					Method: http.MethodPost,
 				}: {
-					lower: 999,
+					lower: 1000,
 					upper: 1000,
 				},
 			},
@@ -582,7 +590,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					Path:   http.Path{Content: http.Interner.GetString("/index.html")},
 					Method: http.MethodPost,
 				}: {
-					lower: 999,
+					lower: 1000,
 					upper: 1000,
 				},
 			},
@@ -600,7 +608,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 				tt.runClients(t, clientCount)
 
 				res := make(map[http.Key]int)
-				require.Eventually(t, func() bool {
+				assert.Eventually(t, func() bool {
 					stats := monitor.GetProtocolStats()
 					http2Stats, ok := stats[protocols.HTTP2]
 					if !ok {
@@ -638,6 +646,14 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+				if t.Failed() {
+					o, err := monitor.DumpMaps("http2_in_flight")
+					if err != nil {
+						t.Logf("failed dumping http2_in_flight: %s", err)
+					} else {
+						t.Log(o)
+					}
+				}
 			})
 		}
 	}

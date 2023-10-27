@@ -14,11 +14,11 @@ import (
 
 // AptPackageManager struct for Apt package manager
 type AptPackageManager struct {
-	vmClient *e2eClient.VMClient
+	vmClient e2eClient.VM
 }
 
 // NewAptPackageManager return apt package manager
-func NewAptPackageManager(vmClient *e2eClient.VMClient) *AptPackageManager {
+func NewAptPackageManager(vmClient e2eClient.VM) *AptPackageManager {
 	return &AptPackageManager{vmClient: vmClient}
 }
 

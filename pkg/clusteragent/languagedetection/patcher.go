@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -21,7 +22,7 @@ import (
 )
 
 // OwnersLanguages maps an owner to the detected languages of each container
-type OwnersLanguages map[NamespacedOwnerReference]ContainersLanguages
+type OwnersLanguages map[NamespacedOwnerReference]util.ContainersLanguages
 
 // LanguagePatcher defines an object that patches kubernetes resources with language annotations
 type LanguagePatcher struct {
@@ -42,8 +43,8 @@ func NewLanguagePatcher() (*LanguagePatcher, error) {
 	}, nil
 }
 
-func (lp *LanguagePatcher) getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails) ContainersLanguages {
-	containerslanguages := NewContainersLanguages()
+func (lp *LanguagePatcher) getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails) util.ContainersLanguages {
+	containerslanguages := util.NewContainersLanguages()
 
 	for _, containerLanguageDetails := range podDetail.ContainerDetails {
 		container := containerLanguageDetails.ContainerName
@@ -85,13 +86,13 @@ func (lp *LanguagePatcher) getOwnersLanguages(requestData *pbgo.ParentLanguageAn
 
 // Updates the existing annotations based on the detected languages.
 // Currently we only add languages to the annotations.
-func (lp *LanguagePatcher) getUpdatedOwnerAnnotations(currentAnnotations map[string]string, containerslanguages ContainersLanguages) (map[string]string, int) {
+func (lp *LanguagePatcher) getUpdatedOwnerAnnotations(currentAnnotations map[string]string, containerslanguages util.ContainersLanguages) (map[string]string, int) {
 	if currentAnnotations == nil {
 		currentAnnotations = make(map[string]string)
 	}
 
 	// Add the existing language annotations into containers languages object
-	existingContainersLanguages := NewContainersLanguages()
+	existingContainersLanguages := util.NewContainersLanguages()
 	existingContainersLanguages.ParseAnnotations(currentAnnotations)
 
 	// Append the potentially new languages to the containers languages object
@@ -113,7 +114,7 @@ func (lp *LanguagePatcher) getUpdatedOwnerAnnotations(currentAnnotations map[str
 }
 
 // patches the owner with the corresponding language annotations
-func (lp *LanguagePatcher) patchOwner(namespacedOwnerRef *NamespacedOwnerReference, containerslanguages ContainersLanguages) error {
+func (lp *LanguagePatcher) patchOwner(namespacedOwnerRef *NamespacedOwnerReference, containerslanguages util.ContainersLanguages) error {
 	ownerGVR, err := getGVR(namespacedOwnerRef)
 	if err != nil {
 		return err

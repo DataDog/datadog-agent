@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/mohae/deepcopy"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
@@ -19,40 +20,37 @@ import (
 
 func resolveProfiles(userProfiles, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	rawProfiles := mergeProfiles(defaultProfiles, userProfiles)
-
 	userExpandedProfiles, err := loadResolveProfiles(rawProfiles, defaultProfiles)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load profiles: %s", err)
 	}
-	profiles := ProfileConfigMap{}
-
-	for key, val := range userExpandedProfiles {
-		if strings.HasPrefix(key, "_") {
-			continue
-		}
-		profiles[key] = val
-	}
-	return profiles, nil
+	return userExpandedProfiles, nil
 }
 
 func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	profiles := make(ProfileConfigMap, len(pConfig))
 
-	for name, profConfig := range pConfig {
-		err := recursivelyExpandBaseProfiles(name, &profConfig.Definition, profConfig.Definition.Extends, []string{}, pConfig, defaultProfiles)
+	for name := range pConfig {
+		// No need to resolve abstract profile
+		if strings.HasPrefix(name, "_") {
+			continue
+		}
+
+		newProfileConfig := deepcopy.Copy(pConfig[name]).(ProfileConfig)
+		err := recursivelyExpandBaseProfiles(name, &newProfileConfig.Definition, newProfileConfig.Definition.Extends, []string{}, pConfig, defaultProfiles)
 		if err != nil {
 			log.Warnf("failed to expand profile `%s`: %s", name, err)
 			continue
 		}
-		profiledefinition.NormalizeMetrics(profConfig.Definition.Metrics)
-		errors := configvalidation.ValidateEnrichMetadata(profConfig.Definition.Metadata)
-		errors = append(errors, configvalidation.ValidateEnrichMetrics(profConfig.Definition.Metrics)...)
-		errors = append(errors, configvalidation.ValidateEnrichMetricTags(profConfig.Definition.MetricTags)...)
+		profiledefinition.NormalizeMetrics(newProfileConfig.Definition.Metrics)
+		errors := configvalidation.ValidateEnrichMetadata(newProfileConfig.Definition.Metadata)
+		errors = append(errors, configvalidation.ValidateEnrichMetrics(newProfileConfig.Definition.Metrics)...)
+		errors = append(errors, configvalidation.ValidateEnrichMetricTags(newProfileConfig.Definition.MetricTags)...)
 		if len(errors) > 0 {
 			log.Warnf("validation errors: %s", strings.Join(errors, "\n"))
 			continue
 		}
-		profiles[name] = profConfig
+		profiles[name] = newProfileConfig
 	}
 
 	return profiles, nil
@@ -60,11 +58,7 @@ func loadResolveProfiles(pConfig ProfileConfigMap, defaultProfiles ProfileConfig
 
 func recursivelyExpandBaseProfiles(parentExtend string, definition *profiledefinition.ProfileDefinition, extends []string, extendsHistory []string, profiles ProfileConfigMap, defaultProfiles ProfileConfigMap) error {
 	for _, extendEntry := range extends {
-		// Skip non yaml profiles
-		if !strings.HasSuffix(extendEntry, ".yaml") {
-			continue
-		}
-		extendEntry = extendEntry[:len(extendEntry)-len(".yaml")]
+		extendEntry = strings.TrimSuffix(extendEntry, ".yaml")
 
 		var baseDefinition *profiledefinition.ProfileDefinition
 		// User profile can extend default profile by extending the default profile.

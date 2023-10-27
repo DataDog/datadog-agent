@@ -21,10 +21,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/impl"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 
@@ -65,8 +65,8 @@ func replaceWithDummyFlowProcessor(server *Server) *dummyFlowProcessor {
 var testOptions = fx.Options(
 	Module,
 	nfconfig.MockModule,
-	forwarder.MockModule,
-	hostname.MockModule,
+	forwarderimpl.MockModule,
+	hostnameimpl.MockModule,
 	log.MockModule,
 	demultiplexer.MockModule,
 	defaultforwarder.MockModule,

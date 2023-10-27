@@ -14,9 +14,11 @@
 
 # Config files for various CI systems / tasks
 /.*                                     @DataDog/agent-platform
+/.go-version                            @DataDog/agent-shared-components @DataDog/agent-platform
 
 /CHANGELOG.rst                          @DataDog/agent-platform
 /CHANGELOG-DCA.rst                      @DataDog/container-integrations
+/CHANGELOG-INSTALLSCRIPT.rst            @DataDog/agent-platform
 
 /*.md                                   @DataDog/agent-platform @DataDog/documentation
 /NOTICE                                 @DataDog/agent-platform @DataDog/documentation
@@ -30,6 +32,8 @@
 /requirements.txt                       @DataDog/agent-platform
 /pyproject.toml                         @DataDog/agent-platform
 /setup.cfg                              @DataDog/agent-platform
+/repository.datadog.yml                 @DataDog/agent-platform
+/generate_tools.go                      @DataDog/agent-platform
 
 /.circleci/                             @DataDog/agent-platform
 
@@ -205,6 +209,7 @@
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
 /comp/forwarder @DataDog/agent-shared-components
+/comp/languagedetection @DataDog/container-integrations
 /comp/logs @DataDog/agent-metrics-logs
 /comp/metadata @DataDog/agent-shared-components
 /comp/ndmtmp @DataDog/network-device-monitoring
@@ -289,7 +294,7 @@
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
-/pkg/config/logs                        @Datadog/agent-platform
+/pkg/config/logs                        @Datadog/agent-shared-components @Datadog/agent-platform
 /pkg/config/logs/internal/seelog/seelog_config.go          @Datadog/agent-shared-components
 /pkg/config/process*.go                 @DataDog/processes
 /pkg/config/system_probe.go               @DataDog/ebpf-platform
@@ -430,7 +435,7 @@
 /tasks/winbuildscripts/                 @DataDog/windows-agent
 /tasks/windows_resources.py             @DataDog/windows-agent
 /tasks/components.py                    @DataDog/agent-shared-components
-/tasks/components_templates/bundle_test.go.tmpl @DataDog/agent-shared-components
+/tasks/components_templates             @DataDog/agent-shared-components
 /test/                                  @DataDog/agent-platform
 /test/benchmarks/                       @DataDog/agent-metrics-logs
 /test/benchmarks/kubernetes_state/      @DataDog/container-integrations
@@ -487,3 +492,4 @@
 /internal/tools/                        @DataDog/agent-platform
 /internal/third_party/client-go         @DataDog/container-integrations
 /internal/third_party/kubernetes        @DataDog/container-integrations
+/internal/third_party/golang/           @DataDog/container-integrations

@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -64,7 +65,7 @@ func TestGetContainersLanguagesFromPodDetail(t *testing.T) {
 
 	containerslanguages := lp.getContainersLanguagesFromPodDetail(podLanguageDetails)
 
-	expectedContainersLanguages := NewContainersLanguages()
+	expectedContainersLanguages := util.NewContainersLanguages()
 
 	expectedContainersLanguages.GetOrInitializeLanguageset("mono-lang").Parse("java")
 	expectedContainersLanguages.GetOrInitializeLanguageset("bi-lang").Parse("java,cpp")
@@ -174,14 +175,14 @@ func TestGetOwnersLanguages(t *testing.T) {
 		},
 	}
 
-	expectedContainersLanguagesA := NewContainersLanguages()
+	expectedContainersLanguagesA := util.NewContainersLanguages()
 
 	expectedContainersLanguagesA.GetOrInitializeLanguageset("container-1").Parse("java,cpp,go")
 	expectedContainersLanguagesA.GetOrInitializeLanguageset("container-2").Parse("java,python")
 	expectedContainersLanguagesA.GetOrInitializeLanguageset("init.container-3").Parse("java,cpp")
 	expectedContainersLanguagesA.GetOrInitializeLanguageset("init.container-4").Parse("java,python")
 
-	expectedContainersLanguagesB := NewContainersLanguages()
+	expectedContainersLanguagesB := util.NewContainersLanguages()
 
 	expectedContainersLanguagesB.GetOrInitializeLanguageset("container-5").Parse("python,cpp,go")
 	expectedContainersLanguagesB.GetOrInitializeLanguageset("container-6").Parse("java,ruby")
@@ -204,7 +205,7 @@ func TestGetUpdatedOwnerAnnotations(t *testing.T) {
 		k8sClient: nil,
 	}
 
-	mockContainersLanguages := NewContainersLanguages()
+	mockContainersLanguages := util.NewContainersLanguages()
 	mockContainersLanguages.GetOrInitializeLanguageset("container-1").Parse("cpp,java,python")
 	mockContainersLanguages.GetOrInitializeLanguageset("container-2").Parse("python,ruby")
 	mockContainersLanguages.GetOrInitializeLanguageset("container-3").Parse("cpp")
@@ -265,7 +266,7 @@ func TestPatchOwner(t *testing.T) {
 
 	namespacedOwnerReference := NewNamespacedOwnerReference("apps/v1", "deployment", deploymentName, "uid-dummy", ns)
 
-	mockContainersLanguages := NewContainersLanguages()
+	mockContainersLanguages := util.NewContainersLanguages()
 	mockContainersLanguages.GetOrInitializeLanguageset("container-1").Parse("cpp,java,python")
 	mockContainersLanguages.GetOrInitializeLanguageset("container-2").Parse("python,ruby")
 	mockContainersLanguages.GetOrInitializeLanguageset("container-3").Parse("cpp")

@@ -43,26 +43,24 @@ if ohai["platform"] != "windows"
     python_configure_options.push("--enable-ipv6",
                           "--with-universal-archs=intel",
                           "--enable-shared",
-                          "--disable-static",
                           "--without-gcc",
                           "CC=clang")
-  elsif linux?
+  elsif linux_target?
     python_configure_options.push("--enable-unicode=ucs4",
-                          "--enable-shared",
-                          "--disable-static")
+                          "--enable-shared")
   end
 
   build do
     # 2.0 is the license version here, not the python version
     license "Python-2.0"
 
-    patch :source => "avoid-allocating-thunks-in-ctypes.patch" if linux?
-    patch :source => "fix-platform-ubuntu.diff" if linux?
+    patch :source => "avoid-allocating-thunks-in-ctypes.patch" if linux_target?
+    patch :source => "fix-platform-ubuntu.diff" if linux_target?
     # security patches backported by the debian community
     # see: http://deb.debian.org/debian/pool/main/p/python2.7/python2.7_2.7.18-6.diff.gz
-    patch :source => "python2.7_2.7.18-cve-2019-20907.diff" unless windows?
-    patch :source => "python2.7_2.7.18-cve-2020-8492.diff" unless windows?
-    patch :source => "python2.7_2.7.18-cve-2021-3177.diff" unless windows?
+    patch :source => "python2.7_2.7.18-cve-2019-20907.diff" unless windows_target?
+    patch :source => "python2.7_2.7.18-cve-2020-8492.diff" unless windows_target?
+    patch :source => "python2.7_2.7.18-cve-2021-3177.diff" unless windows_target?
 
     configure(*python_configure_options, :env => env)
     command "make -j #{workers}", :env => env
