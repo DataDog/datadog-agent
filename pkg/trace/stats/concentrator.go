@@ -79,14 +79,11 @@ var defaultPeerTags []string = []string{
 }
 
 func preparePeerTags(tags ...string) []string {
-	// Add all defaults first.
-	deduped := make([]string, len(defaultPeerTags))
-	copy(deduped, defaultPeerTags)
-	seen := make(map[string]struct{})
-	for _, t := range deduped {
-		seen[t] = struct{}{}
+	if len(tags) == 0 {
+		return nil
 	}
-	// Now add any custom peer tags.
+	var deduped []string
+	seen := make(map[string]struct{})
 	for _, t := range tags {
 		if _, ok := seen[t]; !ok {
 			seen[t] = struct{}{}
@@ -119,10 +116,10 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 	}
 	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
 	if conf.PeerServiceAggregation {
-		c.peerTagKeys = []string{"peer.service"}
+		c.peerTagKeys = preparePeerTags(append([]string{"peer.service"}, conf.PeerTags...)...)
 	}
 	if conf.PeerTagsAggregation {
-		c.peerTagKeys = preparePeerTags(conf.PeerTags...)
+		c.peerTagKeys = preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
 	}
 	return &c
 }

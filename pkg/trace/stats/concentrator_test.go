@@ -96,6 +96,104 @@ func assertCountsEqual(t *testing.T, expected []*pb.ClientGroupedStats, actual [
 	assert.Equal(t, expectedM, actualM)
 }
 
+func TestNewConcentratorPeerTags(t *testing.T) {
+	t.Run("nothing enabled", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval: time.Duration(testBucketInterval),
+			AgentVersion:   "0.99.0",
+			DefaultEnv:     "env",
+			Hostname:       "hostname",
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.False(c.peerTagsAggregation)
+		assert.Nil(c.peerTagKeys)
+	})
+	t.Run("deprecated peer service flag set", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:         time.Duration(testBucketInterval),
+			AgentVersion:           "0.99.0",
+			DefaultEnv:             "env",
+			Hostname:               "hostname",
+			PeerServiceAggregation: true,
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal([]string{"peer.service"}, c.peerTagKeys)
+	})
+	t.Run("deprecated peer service flag set + peer tags", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:         time.Duration(testBucketInterval),
+			AgentVersion:           "0.99.0",
+			DefaultEnv:             "env",
+			Hostname:               "hostname",
+			PeerServiceAggregation: true,
+			PeerTags:               []string{"db.instance", "db.system"},
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal([]string{"db.instance", "db.system", "peer.service"}, c.peerTagKeys)
+	})
+	t.Run("deprecated peer service flag set + new peer tags aggregation flag", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:         time.Duration(testBucketInterval),
+			AgentVersion:           "0.99.0",
+			DefaultEnv:             "env",
+			Hostname:               "hostname",
+			PeerServiceAggregation: true,
+			PeerTagsAggregation:    true,
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal(defaultPeerTags, c.peerTagKeys)
+	})
+	t.Run("deprecated peer service flag set + new peer tags aggregation flag + peer tags", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:         time.Duration(testBucketInterval),
+			AgentVersion:           "0.99.0",
+			DefaultEnv:             "env",
+			Hostname:               "hostname",
+			PeerServiceAggregation: true,
+			PeerTagsAggregation:    true,
+			PeerTags:               []string{"zz_tag"},
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
+	})
+	t.Run("new peer tags aggregation flag", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:      time.Duration(testBucketInterval),
+			AgentVersion:        "0.99.0",
+			DefaultEnv:          "env",
+			Hostname:            "hostname",
+			PeerTagsAggregation: true,
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal(defaultPeerTags, c.peerTagKeys)
+	})
+	t.Run("new peer tags aggregation flag + peer tags", func(t *testing.T) {
+		assert := assert.New(t)
+		cfg := config.AgentConfig{
+			BucketInterval:      time.Duration(testBucketInterval),
+			AgentVersion:        "0.99.0",
+			DefaultEnv:          "env",
+			Hostname:            "hostname",
+			PeerTagsAggregation: true,
+			PeerTags:            []string{"zz_tag"},
+		}
+		c := NewConcentrator(&cfg, nil, time.Now())
+		assert.True(c.peerTagsAggregation)
+		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
+	})
+}
+
 // TestTracerHostname tests if `Concentrator` uses the tracer hostname rather than agent hostname, if there is one.
 func TestTracerHostname(t *testing.T) {
 	assert := assert.New(t)
@@ -807,19 +905,19 @@ func TestPreparePeerTags(t *testing.T) {
 	for _, tc := range []testCase{
 		{
 			input:  nil,
-			output: defaultPeerTags,
+			output: nil,
 		},
 		{
 			input:  []string{},
-			output: defaultPeerTags,
-		},
-		{
-			input:  []string{"zz_tag"},
-			output: append(defaultPeerTags, "zz_tag"),
+			output: nil,
 		},
 		{
 			input:  []string{"zz_tag", "peer.service", "some.other.tag", "db.name", "db.instance"},
-			output: append(defaultPeerTags, "zz_tag", "some.other.tag"),
+			output: []string{"db.name", "db.instance", "peer.service", "some.other.tag", "zz_tag"},
+		},
+		{
+			input:  append([]string{"zz_tag"}, defaultPeerTags...),
+			output: append(defaultPeerTags, "zz_tag"),
 		},
 	} {
 		sort.Strings(tc.output)
