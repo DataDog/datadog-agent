@@ -17,6 +17,7 @@ import (
 	"net"
 	nethttp "net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -42,7 +44,17 @@ import (
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func TestMain(m *testing.M) {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
+	os.Exit(m.Run())
+}
 
 const (
 	kb = 1024
@@ -55,7 +67,14 @@ const (
 
 var (
 	emptyBody = []byte(nil)
+	kv        = kernel.MustHostVersion()
 )
+
+func skipIfUSMNotSupported(t *testing.T) {
+	if kv < http.MinimumKernelVersion {
+		t.Skipf("USM is not supported on %v", kv)
+	}
+}
 
 func TestMonitorProtocolFail(t *testing.T) {
 	failingStartupMock := func(_ *manager.Manager) error {
@@ -93,6 +112,7 @@ type HTTPTestSuite struct {
 }
 
 func TestHTTP(t *testing.T) {
+	skipIfUSMNotSupported(t)
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
@@ -508,8 +528,6 @@ type captureRange struct {
 }
 
 func TestHTTP2(t *testing.T) {
-	t.Skip("tests are broken after upgrading go-grpc to 1.58")
-
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < usmhttp2.MinimumKernelVersion {
@@ -550,7 +568,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					Path:   http.Path{Content: http.Interner.GetString("/")},
 					Method: http.MethodPost,
 				}: {
-					lower: 999,
+					lower: 1000,
 					upper: 1000,
 				},
 			},
@@ -572,7 +590,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					Path:   http.Path{Content: http.Interner.GetString("/index.html")},
 					Method: http.MethodPost,
 				}: {
-					lower: 999,
+					lower: 1000,
 					upper: 1000,
 				},
 			},
@@ -590,7 +608,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 				tt.runClients(t, clientCount)
 
 				res := make(map[http.Key]int)
-				require.Eventually(t, func() bool {
+				assert.Eventually(t, func() bool {
 					stats := monitor.GetProtocolStats()
 					http2Stats, ok := stats[protocols.HTTP2]
 					if !ok {
@@ -628,6 +646,14 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+				if t.Failed() {
+					o, err := monitor.DumpMaps("http2_in_flight")
+					if err != nil {
+						t.Logf("failed dumping http2_in_flight: %s", err)
+					} else {
+						t.Log(o)
+					}
+				}
 			})
 		}
 	}

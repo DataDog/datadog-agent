@@ -14,8 +14,6 @@
 # limitations under the License.
 #
 
-require './lib/cmake.rb'
-
 name "zstd"
 default_version "1.5.5"
 

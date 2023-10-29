@@ -121,6 +121,7 @@ def get_build_flags(
     python_home_3=None,
     major_version='7',
     python_runtimes='3',
+    headless_mode=False,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -170,9 +171,10 @@ def get_build_flags(
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
-        print(
-            f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
-        )
+        if not headless_mode:
+            print(
+                f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
+            )
         env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # OSX
         env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
@@ -366,10 +368,19 @@ def cache_version(ctx, git_sha_length=7, prefix=None):
 
 
 def get_version(
-    ctx, include_git=False, url_safe=False, git_sha_length=7, prefix=None, major_version='7', include_pipeline_id=False
+    ctx,
+    include_git=False,
+    url_safe=False,
+    git_sha_length=7,
+    prefix=None,
+    major_version='7',
+    include_pipeline_id=False,
+    pipeline_id=None,
 ):
     version = ""
-    pipeline_id = os.getenv("CI_PIPELINE_ID")
+    if pipeline_id is None:
+        pipeline_id = os.getenv("CI_PIPELINE_ID")
+
     project_name = os.getenv("CI_PROJECT_NAME")
     try:
         agent_version_cache_file_exist = os.path.exists(AGENT_VERSION_CACHE_NAME)
@@ -392,11 +403,11 @@ def get_version(
                 version = f"{version}-{pre}"
     except (IOError, json.JSONDecodeError, IndexError) as e:
         # If a cache file is found but corrupted we ignore it.
-        print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}")
+        print(f"Error while recovering the version from {AGENT_VERSION_CACHE_NAME}: {e}", file=sys.stderr)
         version = ""
     # If we didn't load the cache
     if not version:
-        print("[WARN] Agent version cache file hasn't been loaded !")
+        print("[WARN] Agent version cache file hasn't been loaded !", file=sys.stderr)
         # we only need the git info for the non omnibus builds, omnibus includes all this information by default
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
             ctx, git_sha_length, prefix, major_version_hint=major_version

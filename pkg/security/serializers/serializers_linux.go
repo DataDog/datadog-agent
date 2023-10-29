@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -400,17 +401,28 @@ type BindEventSerializer struct {
 // MountEventSerializer serializes a mount event to JSON
 // easyjson:json
 type MountEventSerializer struct {
-	MountPoint                     *FileSerializer `json:"mp,omitempty"`                    // Mount point file information
-	Root                           *FileSerializer `json:"root,omitempty"`                  // Root file information
-	MountID                        uint32          `json:"mount_id"`                        // Mount ID of the new mount
-	ParentMountID                  uint32          `json:"parent_mount_id"`                 // Mount ID of the parent mount
-	BindSrcMountID                 uint32          `json:"bind_src_mount_id"`               // Mount ID of the source of a bind mount
-	Device                         uint32          `json:"device"`                          // Device associated with the file
-	FSType                         string          `json:"fs_type,omitempty"`               // Filesystem type
-	MountPointPath                 string          `json:"mountpoint.path,omitempty"`       // Mount point path
-	MountSourcePath                string          `json:"source.path,omitempty"`           // Mount source path
-	MountPointPathResolutionError  string          `json:"mountpoint.path_error,omitempty"` // Mount point path error
-	MountSourcePathResolutionError string          `json:"source.path_error,omitempty"`     // Mount source path error
+	// Mount point file information
+	MountPoint *FileSerializer `json:"mp,omitempty"`
+	// Root file information
+	Root *FileSerializer `json:"root,omitempty"`
+	// Mount ID of the new mount
+	MountID uint32 `json:"mount_id"`
+	// Mount ID of the parent mount
+	ParentMountID uint32 `json:"parent_mount_id"`
+	// Mount ID of the source of a bind mount
+	BindSrcMountID uint32 `json:"bind_src_mount_id"`
+	// Device associated with the file
+	Device uint32 `json:"device"`
+	// Filesystem type
+	FSType string `json:"fs_type,omitempty"`
+	// Mount point path
+	MountPointPath string `json:"mountpoint.path,omitempty"`
+	// Mount source path
+	MountSourcePath string `json:"source.path,omitempty"`
+	// Mount point path error
+	MountPointPathResolutionError string `json:"mountpoint.path_error,omitempty"`
+	// Mount source path error
+	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
 }
 
 // AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
@@ -812,6 +824,27 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	}
 
 	return &ps
+}
+
+// ToJSON returns json
+func (e *EventSerializer) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
+// MarshalJSON returns json
+func (e *EventSerializer) MarshalJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
+// MarshalEvent marshal the event
+func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error) {
+	s := NewEventSerializer(event, probe)
+	return utils.MarshalEasyJSON(s)
+}
+
+// MarshalCustomEvent marshal the custom event
+func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
+	return event.MarshalJSON()
 }
 
 // NewEventSerializer creates a new event serializer based on the event type

@@ -16,13 +16,23 @@ void __attribute__((always_inline)) monitor_syscalls(u64 event_type, int delta) 
         return;
     }
 
-    u32 key = event_type;
-    u32 *value = bpf_map_lookup_elem(&syscalls_stats, &key);
-    if (value == NULL) {
+    u32 key = 0;
+    u32 *value = bpf_map_lookup_elem(&syscalls_stats_enabled, &key);
+    if (value == NULL || !*value) {
         return;
     }
 
-    __sync_fetch_and_add(value, delta);
+    key = event_type;
+    struct syscalls_stats_t *stats = bpf_map_lookup_elem(&syscalls_stats, &key);
+    if (stats == NULL) {
+        return;
+    }
+    if (delta < 0 && !stats->active) {
+        return;
+    }
+    stats->active = 1;
+
+    __sync_fetch_and_add(&stats->count, delta);
 }
 
 struct policy_t __attribute__((always_inline)) fetch_policy(u64 event_type) {
@@ -90,10 +100,11 @@ struct syscall_cache_t *__attribute__((always_inline)) pop_task_syscall(u64 pid_
     if (!syscall) {
         return NULL;
     }
-    if (!type || syscall->type == type) {
+    u64 event_type = syscall->type; // fixes 4.14 verifier issue
+    if (!type || event_type == type) {
         bpf_map_delete_elem(&syscalls, &pid_tgid);
 
-        monitor_syscalls(syscall->type, -1);
+        monitor_syscalls(event_type, -1);
         return syscall;
     }
     return NULL;
