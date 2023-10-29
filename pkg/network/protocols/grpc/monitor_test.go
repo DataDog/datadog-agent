@@ -372,7 +372,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 						if !ok {
 							return false
 						}
-						if val != count {
+						if val.lower > count || val.upper < count {
 							return false
 						}
 					}
