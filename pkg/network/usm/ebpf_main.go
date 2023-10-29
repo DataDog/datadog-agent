@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -61,7 +62,7 @@ type ebpfProgram struct {
 
 	// Used for connection_protocol data expiration
 	mapCleaner *ddebpf.MapCleaner
-	buildMode  buildMode
+	buildMode  buildmode.Type
 }
 
 type probeResolver interface {
@@ -90,20 +91,9 @@ type probeResolver interface {
 	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
 }
 
-type buildMode string
-
-const (
-	// Prebuilt mode
-	Prebuilt buildMode = "prebuilt"
-	// RuntimeCompiled mode
-	RuntimeCompiled buildMode = "runtime-compilation"
-	// CORE mode
-	CORE buildMode = "CO-RE"
-)
-
 type subprogram interface {
 	Name() string
-	IsBuildModeSupported(buildMode) bool
+	IsBuildModeSupported(buildmode.Type) bool
 	ConfigureManager(*errtelemetry.Manager)
 	ConfigureOptions(*manager.Options)
 	Start()
@@ -184,7 +174,7 @@ func (e *ebpfProgram) Init() error {
 	if e.cfg.EnableCORE {
 		err = e.initCORE()
 		if err == nil {
-			e.buildMode = CORE
+			e.buildMode = buildmode.CORE
 			return nil
 		}
 
@@ -197,7 +187,7 @@ func (e *ebpfProgram) Init() error {
 	if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
 		err = e.initRuntimeCompiler()
 		if err == nil {
-			e.buildMode = RuntimeCompiled
+			e.buildMode = buildmode.RuntimeCompiled
 			return nil
 		}
 
@@ -209,7 +199,7 @@ func (e *ebpfProgram) Init() error {
 
 	err = e.initPrebuilt()
 	if err == nil {
-		e.buildMode = Prebuilt
+		e.buildMode = buildmode.Prebuilt
 	}
 	return err
 }
