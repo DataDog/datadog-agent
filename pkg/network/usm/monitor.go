@@ -10,6 +10,7 @@ package usm
 import (
 	"errors"
 	"fmt"
+	"os"
 	"syscall"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -107,6 +109,26 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	mgr.enabledProtocols = enabledProtocols
 	mgr.disabledProtocols = disabledProtocols
 
+	processMonitor := monitor.GetProcessMonitor()
+
+	processMonitorEbpfFeatureFlag := true
+	if processMonitorEbpfFeatureFlag &&
+		(mgr.cfg.EnableNativeTLSMonitoring || mgr.cfg.EnableGoTLSSupport || mgr.cfg.EnableJavaTLSSupport || mgr.cfg.EnableIstioMonitoring) {
+		processMonitorEventsMapName := "process_monitor_events"
+		handler := ddebpf.NewPerfHandler(100)
+		mgr.PerfMaps = append(mgr.PerfMaps, &manager.PerfMap{
+			Map: manager.Map{Name: processMonitorEventsMapName},
+			PerfMapOptions: manager.PerfMapOptions{
+				PerfRingBufferSize: 16 * os.Getpagesize(),
+				Watermark:          1,
+				RecordHandler:      handler.RecordHandler,
+				LostHandler:        handler.LostHandler,
+				RecordGetter:       handler.RecordGetter,
+			},
+		})
+		processMonitor.EbpfEventsHandler = handler
+	}
+
 	if err := mgr.Init(); err != nil {
 		return nil, fmt.Errorf("error initializing ebpf program: %w", err)
 	}
@@ -121,8 +143,6 @@ func NewMonitor(c *config.Config, connectionProtocolMap, sockFD *ebpf.Map, bpfTe
 	if err != nil {
 		return nil, fmt.Errorf("error enabling traffic inspection: %s", err)
 	}
-
-	processMonitor := monitor.GetProcessMonitor()
 
 	state = Running
 

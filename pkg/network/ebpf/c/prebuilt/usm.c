@@ -2,6 +2,7 @@
 #include "bpf_tracing.h"
 #include "bpf_telemetry.h"
 #include "bpf_builtins.h"
+#include "ktypes.h"
 
 #include "offsets.h"
 
@@ -47,6 +48,30 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     http_batch_flush(ctx);
     http2_batch_flush(ctx);
     kafka_batch_flush(ctx);
+    return 0;
+}
+
+BPF_PERF_EVENT_ARRAY_MAP(process_monitor_events, __u32);
+
+struct trace_entry {
+	short unsigned int type;
+	unsigned char flags;
+	unsigned char preempt_count;
+	int pid;
+};
+
+struct trace_event_raw_sys_enter {
+	struct trace_entry ent;
+	long int id;
+	long unsigned int args[6];
+	char __data[0];
+};
+
+SEC("tracepoint/syscalls/sys_enter_connect")
+int tracepoint__syscalls__sys_enter_connect(struct trace_event_raw_sys_enter *ctx) {
+    uint32_t tgid = (uint32_t)bpf_get_current_pid_tgid();
+    log_debug("tracepoint__syscalls__sys_enter_connect: tgid is %d", tgid);
+    bpf_perf_event_output_with_telemetry(ctx, &process_monitor_events, BPF_F_CURRENT_CPU, &tgid, sizeof(tgid));
     return 0;
 }
 

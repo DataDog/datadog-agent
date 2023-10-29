@@ -8,6 +8,7 @@
 package monitor
 
 import (
+	"encoding/binary"
 	"fmt"
 	"sync"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -106,6 +108,8 @@ type ProcessMonitor struct {
 	callbackRunner            chan func()
 
 	tel processMonitorTelemetry
+
+	EbpfEventsHandler *ebpf.PerfHandler
 }
 
 type ProcessCallback func(pid uint32)
@@ -214,61 +218,104 @@ func (pm *ProcessMonitor) mainEventLoop() {
 		pm.processMonitorWG.Done()
 	}()
 
-	maxChannelSize := 0
-	for {
-		select {
-		case <-pm.done:
-			return
-		case event, ok := <-pm.netlinkEventsChannel:
-			if !ok {
+	processMonitorEbpfFeatureFlag := true
+	if processMonitorEbpfFeatureFlag {
+		for {
+			select {
+			case <-pm.done:
 				return
-			}
-
-			if maxChannelSize < len(pm.netlinkEventsChannel) {
-				maxChannelSize = len(pm.netlinkEventsChannel)
-			}
-
-			pm.tel.events.Add(1)
-			switch ev := event.Msg.(type) {
-			case *netlink.ExecProcEvent:
-				pm.tel.exec.Add(1)
-				// handleProcessExec locks a mutex to access the exec callbacks array, if it is empty, then we're
-				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
-				// Checking an atomic boolean, is an atomic operation, hence much faster.
-				if pm.hasExecCallbacks.Load() {
-					pm.handleProcessExec(ev.ProcessPid)
+			case dataEvent, ok := <-pm.EbpfEventsHandler.DataChannel:
+				if !ok {
+					return
 				}
-			case *netlink.ExitProcEvent:
-				pm.tel.exit.Add(1)
-				// handleProcessExit locks a mutex to access the exit callbacks array, if it is empty, then we're
-				// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
-				// Checking an atomic boolean, is an atomic operation, hence much faster.
-				if pm.hasExitCallbacks.Load() {
-					pm.handleProcessExit(ev.ProcessPid)
-				}
-			}
-		case _, ok := <-pm.netlinkErrorsChannel:
-			if !ok {
-				return
-			}
-			pm.tel.restart.Add(1)
+				CONNECT_EVENT := 0
+				BIND_EVENT := 1
+				PROCESS_EXIT_EVENT := 2
+				eventType := binary.LittleEndian.Uint32(dataEvent.Data[:4])
+				processID := binary.LittleEndian.Uint32(dataEvent.Data[4:8])
 
-			pm.netlinkDoneChannel <- struct{}{}
-			// Netlink might suffer from temporary errors (insufficient buffer for example). We're trying to recover
-			// by reinitializing netlink socket.
-			// Waiting a bit before reinitializing.
-			time.Sleep(50 * time.Millisecond)
-			if err := pm.initNetlinkProcessEventMonitor(); err != nil {
-				log.Errorf("failed re-initializing process monitor: %s", err)
-				pm.tel.reinitFailed.Add(1)
-				return
+				log.Debugf("pid: %d", processID)
+				switch eventType {
+				case uint32(CONNECT_EVENT):
+					fallthrough
+				case uint32(BIND_EVENT):
+					log.Debugf("Got CONNECT_EVENT")
+					if pm.hasExecCallbacks.Load() {
+						pm.handleProcessExec(processID)
+					}
+				case uint32(PROCESS_EXIT_EVENT):
+					log.Debugf("Got PROCESS_EXIT_EVENT")
+					if pm.hasExitCallbacks.Load() {
+						pm.handleProcessExit(processID)
+					}
+				}
+				dataEvent.Done()
+			case _, ok := <-pm.EbpfEventsHandler.LostChannel:
+				if !ok {
+					return
+				}
+
+				//missedEvents := c.batchSize.Load()
+				//c.missesCount.Add(missedEvents)
 			}
-		case <-logTicker.C:
-			log.Debugf("process monitor stats - %s; max channel size: %d / 2 minutes)",
-				pm.tel.mg.Summary(),
-				maxChannelSize,
-			)
-			maxChannelSize = 0
+		}
+	} else {
+		maxChannelSize := 0
+		for {
+			select {
+			case <-pm.done:
+				return
+			case event, ok := <-pm.netlinkEventsChannel:
+				if !ok {
+					return
+				}
+
+				if maxChannelSize < len(pm.netlinkEventsChannel) {
+					maxChannelSize = len(pm.netlinkEventsChannel)
+				}
+
+				pm.tel.events.Add(1)
+				switch ev := event.Msg.(type) {
+				case *netlink.ExecProcEvent:
+					pm.tel.exec.Add(1)
+					// handleProcessExec locks a mutex to access the exec callbacks array, if it is empty, then we're
+					// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
+					// Checking an atomic boolean, is an atomic operation, hence much faster.
+					if pm.hasExecCallbacks.Load() {
+						pm.handleProcessExec(ev.ProcessPid)
+					}
+				case *netlink.ExitProcEvent:
+					pm.tel.exit.Add(1)
+					// handleProcessExit locks a mutex to access the exit callbacks array, if it is empty, then we're
+					// wasting "resources" to check it. Since it is a hot-code-path, it has some cpu load.
+					// Checking an atomic boolean, is an atomic operation, hence much faster.
+					if pm.hasExitCallbacks.Load() {
+						pm.handleProcessExit(ev.ProcessPid)
+					}
+				}
+			case _, ok := <-pm.netlinkErrorsChannel:
+				if !ok {
+					return
+				}
+				pm.tel.restart.Add(1)
+
+				pm.netlinkDoneChannel <- struct{}{}
+				// Netlink might suffer from temporary errors (insufficient buffer for example). We're trying to recover
+				// by reinitializing netlink socket.
+				// Waiting a bit before reinitializing.
+				time.Sleep(50 * time.Millisecond)
+				if err := pm.initNetlinkProcessEventMonitor(); err != nil {
+					log.Errorf("failed re-initializing process monitor: %s", err)
+					pm.tel.reinitFailed.Add(1)
+					return
+				}
+			case <-logTicker.C:
+				log.Debugf("process monitor stats - %s; max channel size: %d / 2 minutes)",
+					pm.tel.mg.Summary(),
+					maxChannelSize,
+				)
+				maxChannelSize = 0
+			}
 		}
 	}
 }
