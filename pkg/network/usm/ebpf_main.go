@@ -245,10 +245,7 @@ func (e *ebpfProgram) Start() error {
 		e.mapCleaner = mapCleaner
 	}
 
-	// Deleting from an array while iterating it is not a simple task. Instead, every successfully enabled protocol,
-	// we'll keep it in a temporary copy, and in case of a mismatch (a.k.a., we have a failed protocols) between
-	// enabledProtocolsTmp to m.enabledProtocols, we'll use the enabledProtocolsTmp.
-	e.enabledProtocols = runForProtocol(e.enabledProtocols, e.Manager.Manager, "pre-start",
+	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "pre-start",
 		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
 		func(protocols.Protocol, *manager.Manager) {})
 
@@ -262,7 +259,7 @@ func (e *ebpfProgram) Start() error {
 		return err
 	}
 
-	e.enabledProtocols = runForProtocol(e.enabledProtocols, e.Manager.Manager, "post-start",
+	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "post-start",
 		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PostStart(m) },
 		func(protocol protocols.Protocol, m *manager.Manager) { protocol.Stop(m) })
 
@@ -302,7 +299,7 @@ func (e *ebpfProgram) Close() error {
 		protocol.Stop(m)
 		return nil
 	}
-	runForProtocol(e.enabledProtocols, e.Manager.Manager, "stop", stopProtocolWrapper, nil)
+	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
 	return e.Stop(manager.CleanAll)
 }
 
@@ -495,12 +492,19 @@ func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} 
 	return ret
 }
 
-func runForProtocol(protocols []protocols.Protocol, mgr *manager.Manager, phaseName string, cb func(protocols.Protocol, *manager.Manager) error, cbCleanup func(protocols.Protocol, *manager.Manager)) []protocols.Protocol {
-	res := protocols[:0]
-	for _, protocol := range protocols {
-		if err := cb(protocol, mgr); err != nil {
-			cbCleanup(protocol, mgr)
-			log.Errorf("could not complete %s phase of %s monitoring: %s", phaseName, protocol.Name(), err)
+// executePerProtocol runs the given callback (`cb`) for every protocol in the given list (`protocolList`).
+// If the callback failed, then we call the error callback (`errorCb`). Eventually returning a list of protocols which
+// successfully executed the callback.
+func (e *ebpfProgram) executePerProtocol(protocolList []protocols.Protocol, phaseName string, cb func(protocols.Protocol, *manager.Manager) error, errorCb func(protocols.Protocol, *manager.Manager)) []protocols.Protocol {
+	// Deleting from an array while iterating it is not a simple task. Instead, every successfully enabled protocol,
+	// we'll keep in a temporary copy and return it at the end.
+	res := make([]protocols.Protocol, 0)
+	for _, protocol := range protocolList {
+		if err := cb(protocol, e.Manager.Manager); err != nil {
+			if errorCb != nil {
+				errorCb(protocol, e.Manager.Manager)
+			}
+			log.Errorf("could not complete %q phase of %q monitoring: %s", phaseName, protocol.Name(), err)
 			continue
 		}
 		res = append(res, protocol)
