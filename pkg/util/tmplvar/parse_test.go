@@ -7,6 +7,7 @@ package tmplvar
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,6 +49,46 @@ func TestParseTemplateVar(t *testing.T) {
 			name, key := parseTemplateVar([]byte(testCase.tmpl))
 			assert.Equal(t, testCase.name, string(name))
 			assert.Equal(t, testCase.key, string(key))
+		})
+	}
+}
+
+func TestParseTemplateEnvString(t *testing.T) {
+	testCases := []struct {
+		tmpl, expected_value string
+	}{
+		{
+			"app",
+			"app",
+		},
+		{
+			"app",
+			"app",
+		},
+		{
+			"%%env_APP%%",
+			"testapp", //found
+		},
+		{
+			"%%env_app%%",
+			"%%env_app%%", //not found, return original string
+		},
+		{
+			"%%env_TEAM_NAME%%",
+			"containers",
+		},
+		{
+			"team_%%env_TEAM_NAME%%_%%env_APP%%_prod",
+			"team_containers_testapp_prod",
+		},
+	}
+
+	for i, testCase := range testCases {
+		t.Run(fmt.Sprintf("#%d", i), func(t *testing.T) {
+			os.Setenv("APP", "testapp")
+			os.Setenv("TEAM_NAME", "containers")
+			value := ParseTemplateEnvString(testCase.tmpl)
+			assert.Equal(t, testCase.expected_value, value)
 		})
 	}
 }
