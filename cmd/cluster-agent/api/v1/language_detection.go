@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 
 	"github.com/gorilla/mux"
@@ -25,6 +26,12 @@ func InstallLanguageDetectionEndpoints(r *mux.Router) {
 }
 
 func postDetectedLanguages(w http.ResponseWriter, r *http.Request) {
+	if !config.Datadog.GetBool("language_detecion.enabled") {
+		languagedetection.ErrorResponses.Inc()
+		http.Error(w, "Language detection feature is disabled on the cluster agent", http.StatusInternalServerError)
+		return
+	}
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
