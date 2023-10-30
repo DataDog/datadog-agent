@@ -23,7 +23,7 @@ build do
   # This introduces a pyarrow dependency that is not needed for the agent and fails to build on the CentOS 6 builder.
   delete "pyproject.toml"
 
-  if windows?
+  if windows_target?
     pip = "#{windows_safe_path(python_3_embedded)}\\Scripts\\pip.exe"
     build_env = {}
   else

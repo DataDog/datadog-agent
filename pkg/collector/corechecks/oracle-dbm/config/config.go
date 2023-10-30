@@ -93,6 +93,10 @@ type asmConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+type resourceManagerConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
 	Server                             string                 `yaml:"server"`
@@ -124,6 +128,7 @@ type InstanceConfig struct {
 	MetricCollectionInterval           int64                  `yaml:"metric_collection_interval"`
 	DatabaseInstanceCollectionInterval uint64                 `yaml:"database_instance_collection_interval"`
 	Asm                                asmConfig              `yaml:"asm"`
+	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -172,6 +177,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.SharedMemory.Enabled = true
 	instance.InactiveSessions.Enabled = true
 	instance.Asm.Enabled = true
+	instance.ResourceManager.Enabled = true
 
 	instance.UseGlobalCustomQueries = "true"
 

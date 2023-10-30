@@ -20,9 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -120,11 +122,12 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 		evtapi = winevtapi.New()
 	}
 
-	if len(source.Config.ProcessingRules) > 0 {
+	if len(source.Config.ProcessingRules) > 0 && config.ProcessRawMessage {
 		log.Warn("Log processing rules with the Windows Events collection will change in a future version of the Agent:")
-		log.Warn("The processing will soon apply on the message content instead of the structured log (e.g. XML or JSON).")
-		log.Warn("A flag will make possible to use the original behavior but will have to set through configuration.")
+		log.Warn("The processing will soon apply on the message content only instead of on the structured log (e.g. on the internal JSON).")
+		log.Warn("In order to immediately switch to this new behaviour, set 'process_raw_message' to 'false' in your logs integration config.")
 		log.Warn("Please reach Datadog support if you have more questions.")
+		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, 1, []string{"tailer:windowsevent"})
 	}
 
 	return &Tailer{

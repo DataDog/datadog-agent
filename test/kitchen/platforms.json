@@ -98,7 +98,8 @@
                 "ubuntu-18-04": "ami-0ee23bfc74a881de5",
                 "ubuntu-20-04": "ami-079ca844e323047c2",
                 "ubuntu-22-04": "ami-08c40ec9ead489470",
-                "ubuntu-23-04": "ami-062b1c3c00754c48b"
+                "ubuntu-23-04": "ami-062b1c3c00754c48b",
+                "ubuntu-23-10": "ami-0949b45ef274e55a1"
             },
             "arm64": {
                 "ubuntu-18-04": "ami-02ed82f3a38303e6f",

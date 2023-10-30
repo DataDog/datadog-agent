@@ -37,7 +37,7 @@ build do
 
   mkdir jar_dir
 
-  if osx? && code_signing_identity
+  if osx_target? && code_signing_identity
     # Also sign binaries and libraries inside the .jar, because they're detected by the Apple notarization service.
     command "unzip jmxfetch.jar -d ."
     delete "jmxfetch.jar"

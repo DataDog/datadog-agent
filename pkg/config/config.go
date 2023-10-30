@@ -1113,7 +1113,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.run_on_node_agent", false)
 
 	// Container lifecycle configuration
-	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
+	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
