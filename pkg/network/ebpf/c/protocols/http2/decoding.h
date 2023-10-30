@@ -616,28 +616,38 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
         return 0;
     }
 
-    if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS || tail_call_state->iteration >= tail_call_state->frames_count) {
-        goto delete_iteration;
-    }
-    http2_frame_with_offset current_frame = tail_call_state->frames_array[tail_call_state->iteration];
-
     const __u32 zero = 0;
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
     if (http2_ctx == NULL) {
         goto delete_iteration;
     }
 
-    // create the http2 ctx for the current http2 frame.
-    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
-    normalize_tuple(&http2_ctx->http2_stream_key.tup);
-    http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
-    dispatcher_args_copy.skb_info.data_off = current_frame.offset;
+    http2_frame_with_offset *frames_array = tail_call_state->frames_array;
+    http2_frame_with_offset current_frame;
 
-    parse_frame(skb, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, http2_ctx, &current_frame.frame);
+    #pragma unroll(HTTP2_FRAMES_PER_TAIL_CALL)
+    for (__u8 index = 0; index < HTTP2_FRAMES_PER_TAIL_CALL; index++) {
+        if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
+            break;
+        }
 
-    // update the tail calls state when the http2 decoding part was completed successfully.
-    tail_call_state->iteration += 1;
+        current_frame = frames_array[tail_call_state->iteration];
+        // Having this condition after assignment and not before is due to a verifier issue.
+        if (tail_call_state->iteration >= tail_call_state->frames_count) {
+            break;
+        }
+        tail_call_state->iteration += 1;
+
+        // create the http2 ctx for the current http2 frame.
+        bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
+        http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
+        normalize_tuple(&http2_ctx->http2_stream_key.tup);
+        http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
+        dispatcher_args_copy.skb_info.data_off = current_frame.offset;
+
+        parse_frame(skb, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, http2_ctx, &current_frame.frame);
+    }
+
     if (tail_call_state->iteration < HTTP2_MAX_FRAMES_ITERATIONS && tail_call_state->iteration < tail_call_state->frames_count) {
         bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_PARSER);
     }
