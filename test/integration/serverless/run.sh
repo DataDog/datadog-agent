@@ -266,13 +266,17 @@ for function_name in "${all_functions[@]}"; do
             sleep 10
             continue
         fi
-        count=$(echo $raw_logs | grep -o 'REPORT RequestId' | wc -l)
-        if [ $count -lt 2 ]; then
-            echo "Logs not done flushing yet ($count Lambda reports seen, at least 2 expected)..."
-            echo "Retrying fetch logs for $function_name in 60 seconds... (retry #$retry_counter)"
-            retry_counter=$(($retry_counter + 1))
-            sleep 60
-            continue
+        if [[ "${function_name}" =~ "^timeout-.*$" ]]; then
+            echo "Ignoring Lambda report check count as this is a timeout example..."
+        else
+            count=$(echo $raw_logs | grep -o 'REPORT RequestId' | wc -l)
+            if [ $count -lt 2 ]; then
+                echo "Logs not done flushing yet ($count Lambda reports seen, at least 2 expected)..."
+                echo "Retrying fetch logs for $function_name in 60 seconds... (retry #$retry_counter)"
+                retry_counter=$(($retry_counter + 1))
+                sleep 60
+                continue
+            fi
         fi
         break
     done

@@ -1,7 +1,10 @@
 import argparse
 import json
 import re
+import os
 import traceback
+
+from typing import Union
 
 
 def normalize_metrics(stage):
@@ -291,11 +294,14 @@ if __name__ == '__main__':
 
         print(normalize(args.logs, args.type, args.stage))
     except Exception as e:
-        err = {
+        err: dict[str, Union[str, list[str]]] = {
             "error": "normalization raised exception",
-            "message": str(e),
-            "backtrace": traceback.format_exception(type(e), e, e.__traceback__),
         }
+        # Unless explicitly specified, perform as it did historically
+        if os.environ.get("TRACEBACK") == "true":
+            err["message"] = str(e)
+            err["backtrace"] = traceback.format_exception(type(e), e, e.__traceback__)
+
         err_json = json.dumps(err, indent=2)
         print(err_json)
         exit(1)
