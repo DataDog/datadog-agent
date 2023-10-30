@@ -19,6 +19,7 @@ import (
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -28,8 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
-
-	_ "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 )
 
 var (
@@ -121,6 +120,7 @@ func setup() error {
 		fx.Supply(complog.ForOneShot("TEST", "info", false)),
 		complog.Module,
 		fx.Supply(workloadmeta.NewParams()),
+		collectors.GetCatalog(),
 		workloadmeta.Module,
 	))
 	workloadmeta.SetGlobalStore(store)
