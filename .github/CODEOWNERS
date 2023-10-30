@@ -222,6 +222,7 @@
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
+/comp/core/workloadmeta @DataDog/container-integrations
 # END COMPONENTS
 
 # pkg
