@@ -109,7 +109,7 @@ func testStartStopUDSListener(t *testing.T, listenerFactory udsListenerFactory, 
 	conn.Close()
 
 	s.Stop()
-	conn, err = net.Dial(transport, socketPath)
+	_, err = net.Dial(transport, socketPath)
 	assert.NotNil(t, err)
 }
 
