@@ -19,16 +19,25 @@ import (
 	"strings"
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	logsConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
+	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 func init() {
 	diagnosis.Register("connectivity-datadog-core-endpoints", diagnose)
+}
+
+func getLogsHTTPEndpoints() (*logsConfig.Endpoints, error) {
+	// For now, a few parameters are hardcoded
+	datadogConfig := config.Datadog
+	logsConfigKey := logsConfig.NewLogsConfigKeys("diagnose_key", datadogConfig)
+	return logsConfig.BuildHTTPEndpointsWithConfig(datadogConfig, logsConfigKey, "agent-http-intake.logs.", "diagnose-track-type", logsConfig.DefaultIntakeProtocol, logsConfig.IntakeOrigin(logsConfig.DefaultIntakeProtocol))
 }
 
 func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
@@ -50,6 +59,26 @@ func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagno
 	var diagnoses []diagnosis.Diagnosis
 	domainResolvers := resolver.NewSingleDomainResolvers(keysPerDomain)
 	client := forwarder.NewHTTPClient(config.Datadog)
+
+	// Logs diagnosing
+	endpoints, err := getLogsHTTPEndpoints()
+	url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main)
+
+	name := fmt.Sprintf("Connectivity to %s", url)
+	diag := diagnosis.Diagnosis{
+		Name: name,
+	}
+	if err == nil {
+		diag.Result = diagnosis.DiagnosisSuccess
+		diag.Diagnosis = "Successfully connected to logs endpoint"
+	} else {
+		diag.Result = diagnosis.DiagnosisFail
+		diag.Diagnosis = "Unsuccessful connection to logs endpoint"
+		diag.Remediation = "Please validate logs endpoint"
+		diag.RawError = err.Error()
+	}
+
+	diagnoses = append(diagnoses, diag)
 
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
