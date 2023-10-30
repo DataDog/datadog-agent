@@ -14,7 +14,9 @@ import (
 	"time"
 
 	log "github.com/cihub/seelog"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -23,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/test/integration/utils"
 
 	_ "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -55,6 +58,7 @@ docker_env_as_tags:
 var (
 	sender      *mocksender.MockSender
 	dockerCheck check.Check
+	fxApp       *fx.App
 )
 
 func TestMain(m *testing.M) {
@@ -107,12 +111,17 @@ func setup() error {
 	}
 	config.SetFeaturesNoCleanup(config.Docker)
 
-	store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
-	store.Start(context.Background())
+	// Note: workloadmeta will be started by fx with the App
+	var store workloadmeta.Component
+	fxApp, store, err = fxutil.TestApp[workloadmeta.Component](fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.Module,
+	))
 
 	// Setup tagger
 	tagger.SetDefaultTagger(local.NewTagger(store))
-	tagger.Init(context.Background())
+	tagger.Init(context.TODO())
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
@@ -151,6 +160,8 @@ func tearOffAndExit(exitcode int) {
 	if *skipCleanup {
 		os.Exit(exitcode)
 	}
+
+	_ = fxApp.Stop(context.TODO())
 
 	// Stop compose recipes, ignore errors
 	for projectName, file := range defaultCatalog.composeFilesByProjects {

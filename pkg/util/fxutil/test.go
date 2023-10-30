@@ -6,6 +6,7 @@
 package fxutil
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -47,6 +48,27 @@ func Test[T any](t testing.TB, opts ...fx.Option) T {
 	}
 
 	return deps
+}
+
+// TestApp starts an fx app and returns fulfilled dependencies
+//
+// The generic return type T must conform to fx.In such
+// that it's dependencies can be fulfilled.
+func TestApp[T any](opts ...fx.Option) (*fx.App, T, error) {
+	var deps T
+	delayed := newDelayedFxInvocation(func(d T) {
+		deps = d
+	})
+
+	app := fx.New(
+		delayed.option(),
+		fx.Options(opts...),
+	)
+	app.Start(context.TODO())
+
+	err := delayed.call()
+
+	return app, deps, err
 }
 
 type appAssertFn func(testing.TB, *fx.App)
