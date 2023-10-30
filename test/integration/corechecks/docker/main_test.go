@@ -16,7 +16,8 @@ import (
 	log "github.com/cihub/seelog"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
+	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
+	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -114,10 +115,15 @@ func setup() error {
 	// Note: workloadmeta will be started by fx with the App
 	var store workloadmeta.Component
 	fxApp, store, err = fxutil.TestApp[workloadmeta.Component](fx.Options(
-		core.MockBundle,
+		fx.Supply(compcfg.NewAgentParamsWithoutSecrets(
+			"", compcfg.WithConfigMissingOK(true))),
+		compcfg.Module,
+		fx.Supply(complog.ForOneShot("TEST", "info", false)),
+		complog.Module,
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module,
 	))
+	workloadmeta.SetGlobalStore(store)
 
 	// Setup tagger
 	tagger.SetDefaultTagger(local.NewTagger(store))
