@@ -22,7 +22,7 @@ golang_deps_commenter                @DataDog/ebpf-platform
 build_system-probe*                  @DataDog/ebpf-platform
 cluster_agent_cloudfoundry-build*    @Datadog/platform-integrations
 cluster_agent-build*                 @DataDog/container-integrations
-cws_instrumentation-build*                  @DataDog/agent-security
+cws_instrumentation-build*           @DataDog/agent-security
 build_serverless*                    @DataDog/serverless
 
 # Package deps build
@@ -46,13 +46,15 @@ check_already_deployed_version_*     @DataDog/do-not-notify
 # Dev container deploy
 dca_dev_branch*                        @DataDog/container-integrations
 dca_dev_master*                        @DataDog/container-integrations
+cws_instrumentation_dev_branch*        @DataDog/agent-security
 dev_branch*                            @DataDog/container-integrations
 dev_master*                            @DataDog/container-integrations
 dev_nightly*                           @DataDog/container-integrations
 
 # Internal image deploy
-docker_trigger_internal*               @DataDog/container-integrations
-docker_trigger_cluster_agent_internal* @DataDog/container-integrations
+docker_trigger_internal*                     @DataDog/container-integrations
+docker_trigger_cluster_agent_internal*       @DataDog/container-integrations
+docker_trigger_cws_instrumentation_internal* @DataDog/agent-security
 
 # Internal kubernetes deploy
 internal_kubernetes_deploy*            @DataDog/container-integrations

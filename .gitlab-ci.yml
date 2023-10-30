@@ -27,6 +27,7 @@ include:
   - /.gitlab/deploy_common.yml
   - /.gitlab/deploy_containers.yml
   - /.gitlab/deploy_packages.yml
+  - /.gitlab/deploy_cws_instrumentation.yml
   - /.gitlab/deploy_dca.yml
   - /.gitlab/choco_build.yml
   - /.gitlab/choco_deploy.yml
@@ -80,6 +81,7 @@ stages:
   - deploy_containers
   - deploy_packages
   - trigger_release
+  - deploy_cws_instrumentation
   - deploy_dca
   - choco_build
   - choco_deploy

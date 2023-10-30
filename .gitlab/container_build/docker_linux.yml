@@ -213,7 +213,7 @@ docker_build_cws_instrumentation_amd64:
 docker_build_cws_instrumentation_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
-    !reference [.on_tag_or_a7_all_builds]
+    !reference [.on_tag_or_a7]
   needs:
     - job: cws_instrumentation-build_arm64
       artifacts: false
