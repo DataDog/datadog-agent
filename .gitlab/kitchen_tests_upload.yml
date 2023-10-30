@@ -3,7 +3,9 @@ kitchen_tests_upload_common:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   allow_failure: true
-  when: always
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
   dependencies:
     - kitchen_amazonlinux_install_script_agent-a6_arm64
     - kitchen_amazonlinux_install_script_agent-a6_x64
