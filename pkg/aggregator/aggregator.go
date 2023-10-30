@@ -738,13 +738,13 @@ func (agg *BufferedAggregator) run() {
 			agg.addServiceCheck(serviceCheck)
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
-			tlmProcessed.Add(float64(len(serviceChecks)), "service_checks")
+			tlmProcessed.Add(float64(len(serviceChecks)), "", "service_checks")
 			for _, serviceCheck := range serviceChecks {
 				agg.addServiceCheck(*serviceCheck)
 			}
 		case events := <-agg.bufferedEventIn:
 			aggregatorEvent.Add(int64(len(events)))
-			tlmProcessed.Add(float64(len(events)), "events")
+			tlmProcessed.Add(float64(len(events)), "", "events")
 			for _, event := range events {
 				agg.addEvent(*event)
 			}
@@ -770,7 +770,7 @@ func (agg *BufferedAggregator) run() {
 			agg.addOrchestratorManifest(&orchestratorManifest)
 		case event := <-agg.eventPlatformIn:
 			state := stateOk
-			tlmProcessed.Add(1, event.eventType)
+			tlmProcessed.Inc("", event.eventType)
 			aggregatorEventPlatformEvents.Add(event.eventType, 1)
 			err := agg.handleEventPlatformEvent(event)
 			if err != nil {
