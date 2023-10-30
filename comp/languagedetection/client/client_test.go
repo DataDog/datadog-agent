@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -53,6 +54,9 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2,
+		fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
+			return m.(workloadmeta.Component)
+		}),
 	))
 
 	optComponent := newClient(deps).(optional.Option[Component])
@@ -85,6 +89,12 @@ func TestClientEnabled(t *testing.T) {
 				}}),
 				telemetry.MockModule,
 				log.MockModule,
+				collectors.GetCatalog(),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2,
+				fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
+					return m.(workloadmeta.Component)
+				}),
 			))
 
 			optionalCl := newClient(deps).(optional.Option[Component])
@@ -321,7 +331,7 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 		},
 	}
 
-	mockStore.Notify(collectorEvents)
+	client.store.Notify(collectorEvents)
 
 	client.handleEvent(eventBundle)
 
@@ -488,7 +498,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 	}
 
 	// store everything but the pod
-	mockStore.Notify(collectorEvents)
+	client.store.Notify(collectorEvents)
 
 	// process the events
 	client.handleEvent(eventBundle)
@@ -501,7 +511,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 	assert.Empty(t, client.freshlyUpdatedPods)
 
 	// add the pod in workloadmeta
-	mockStore.Notify([]workloadmeta.CollectorEvent{
+	client.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
@@ -881,7 +891,7 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	mockStore.Notify(collectorEvents1)
+	client.store.Notify(collectorEvents1)
 
 	expectedBatch := batch{
 		"nginx-pod-name1": {
@@ -921,7 +931,7 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	mockStore.Notify(collectorEvents2)
+	client.store.Notify(collectorEvents2)
 
 	b := batch{
 		"nginx-pod-name2": {
@@ -970,7 +980,7 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	mockStore.Notify(unsetPodEvent)
+	client.store.Notify(unsetPodEvent)
 
 	// the periodic flush mechanism should send the up to date data after removing the pod
 	b = batch{

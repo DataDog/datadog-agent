@@ -64,9 +64,12 @@ func TestApp[T any](opts ...fx.Option) (*fx.App, T, error) {
 		delayed.option(),
 		fx.Options(opts...),
 	)
-	app.Start(context.TODO())
+	var err error
+	if err = app.Start(context.TODO()); err != nil {
+		return nil, deps, err
+	}
 
-	err := delayed.call()
+	err = delayed.call()
 
 	return app, deps, err
 }
