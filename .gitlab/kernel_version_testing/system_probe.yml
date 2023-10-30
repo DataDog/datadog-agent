@@ -306,8 +306,8 @@ kernel_matrix_testing_setup_env:
     - !reference [.shared_filters_and_queries]
     - mkdir -p $CI_PROJECT_DIR/libvirt/log/x86_64 $CI_PROJECT_DIR/libvirt/log/arm64
     - INSTANCE_TYPE=m5d.metal
-    - TEST=$(  - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE --output text --query $QUERY_PRIVATE_IPS)
-)
+    - TEST=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE --output text --query $QUERY_PRIVATE_IPS)
+    - echo $TEST
     - !reference [.get_instance_ip_by_type]
     - X64_INSTANCE_IP=$INSTANCE_IP
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$X64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/x86_64/
