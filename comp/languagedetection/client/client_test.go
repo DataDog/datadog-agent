@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -51,7 +50,6 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 		}}),
 		telemetry.MockModule,
 		log.MockModule,
-		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2,
 		fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
@@ -89,7 +87,6 @@ func TestClientEnabled(t *testing.T) {
 				}}),
 				telemetry.MockModule,
 				log.MockModule,
-				collectors.GetCatalog(),
 				fx.Supply(workloadmeta.NewParams()),
 				workloadmeta.MockModuleV2,
 				fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
