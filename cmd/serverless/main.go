@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/apikey"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
+	appsecConfig "github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/debug"
@@ -315,6 +316,13 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// to detect the finished request spans and run the complete AppSec
 		// monitoring logic, and ultimately adding the AppSec events to them.
 		ta.ModifySpan = appsecProxyProcessor.WrapSpanModifier(serverlessDaemon.ExecutionContext, ta.ModifySpan)
+		// Set the default rate limiting to approach 1 trace/min in live circumstances to limit non ASM related traces as much as possible.
+		// This limit is decided in the Standalone ASM Billing RFC and ensures reducing non ASM-related trace throughput
+		// while keeping billing and service catalog running correctly.
+		// In case of ASM event, the trace priority will be set to manual keep
+		if appsecConfig.IsStandalone() {
+			ta.PrioritySampler.UpdateTargetTPS(1. / 120)
+		}
 	} else if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
 		// start the experimental proxy if enabled
 		log.Debug("Starting the experimental runtime api proxy")
