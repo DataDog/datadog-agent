@@ -282,10 +282,12 @@ func TestConfig(t *testing.T) {
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				restoreEnv := cleanEnv()
-				restoreEnv()
+				defer restoreEnv()
+				// This is what happens at init() in config.go
 				if tc.env != "" {
 					require.NoError(t, os.Setenv(tracingEnabledEnvVar, tc.env))
 				}
+				standalone = isStandalone()
 				require.Equal(t, tc.standalone, IsStandalone())
 			})
 		}

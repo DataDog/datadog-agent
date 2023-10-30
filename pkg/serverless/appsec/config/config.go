@@ -57,6 +57,9 @@ type ObfuscatorConfig struct {
 	ValueRegex string
 }
 
+// standalone is assigned at init by reading the environment
+var standalone bool
+
 // IsEnabled returns true when appsec is enabled when the environment variable
 // It also returns whether the env var is actually set in the env or not
 // DD_APPSEC_ENABLED is set to true.
@@ -73,9 +76,7 @@ func IsEnabled() (enabled bool, set bool, err error) {
 
 // IsStandalone returns whether appsec is used as a standalone product (without APM tracing) or not
 func IsStandalone() bool {
-	value, set := os.LookupEnv(tracingEnabledEnvVar)
-	enabled, _ := strconv.ParseBool(value)
-	return set && !enabled
+	return standalone
 }
 
 // NewConfig returns a new appsec configuration read from the environment
@@ -180,4 +181,16 @@ func logEnvVarParsingError(name, value string, err error, defaultValue interface
 
 func logUnexpectedEnvVarValue(name string, value interface{}, reason string, defaultValue interface{}) {
 	log.Errorf("appsec: unexpected configuration value of %s=%v: %s. Using default value %v.", name, value, reason, defaultValue)
+}
+
+// isStandalone is reads the env and reports whether appsec runs in standalone mode
+// Used at init and for testing
+func isStandalone() bool {
+	value, set := os.LookupEnv(tracingEnabledEnvVar)
+	enabled, _ := strconv.ParseBool(value)
+	return set && !enabled
+}
+
+func init() {
+	standalone = isStandalone()
 }
