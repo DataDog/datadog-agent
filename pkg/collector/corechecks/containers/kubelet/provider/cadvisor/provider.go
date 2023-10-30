@@ -397,8 +397,6 @@ func (p *Provider) getKubeContainerNameTag(labels model.Metric) string {
 	return ""
 }
 
-// region transformers
-
 func (p *Provider) containerCPUUsageSecondsTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "cpu.usage.total"
 	for i := range metricFam.Samples {
@@ -565,8 +563,6 @@ func (p *Provider) containerSpecMemorySwapLimitBytes(metricFam *prom.MetricFamil
 	pctName := common.KubeletMetricsPrefix + "memory.sw_in_use"
 	p.processLimitMetric(metricName, metricFam, p.swapUsageBytes, pctName, sender)
 }
-
-// endregion
 
 func (p *Provider) getPodByUID(podUID string) *workloadmeta.KubernetesPod {
 	if pod, err := p.store.GetKubernetesPod(podUID); err == nil {
