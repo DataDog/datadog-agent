@@ -93,14 +93,23 @@ func sqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
 // context from the events.SQSMessageAttribute field on an events.SQSMessage
 // type.
 func sqsMessageAttrCarrier(attr events.SQSMessageAttribute) (tracer.TextMapReader, error) {
-	var carrier tracer.TextMapCarrier
-	if attr.DataType != "String" {
+	var bytes []byte
+	switch attr.DataType {
+	case "String":
+		if attr.StringValue == nil {
+			return nil, errors.New("String value not found in _datadog payload")
+		}
+		bytes = []byte(*attr.StringValue)
+	case "Binary":
+		// SNS => SQS => Lambda with SQS's subscription to SNS has enabled RAW
+		// MESSAGE DELIVERY option
+		bytes = attr.BinaryValue // No need to decode base64 because already decoded
+	default:
 		return nil, errors.New("Unsupported DataType in _datadog payload")
 	}
-	if attr.StringValue == nil {
-		return nil, errors.New("String value not found in _datadog payload")
-	}
-	if err := json.Unmarshal([]byte(*attr.StringValue), &carrier); err != nil {
+
+	var carrier tracer.TextMapCarrier
+	if err := json.Unmarshal(bytes, &carrier); err != nil {
 		return nil, fmt.Errorf("Error unmarshaling payload value: %w", err)
 	}
 	return carrier, nil

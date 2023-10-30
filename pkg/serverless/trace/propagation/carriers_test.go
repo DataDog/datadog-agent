@@ -36,7 +36,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 		expNoErr bool
 	}{
 		{
-			name: "datadog-map",
+			name: "string-datadog-map",
 			attr: events.SQSMessageAttribute{
 				DataType:    "String",
 				StringValue: aws.String(headersAll),
@@ -45,7 +45,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 			expNoErr: true,
 		},
 		{
-			name: "empty-map",
+			name: "string-empty-map",
 			attr: events.SQSMessageAttribute{
 				DataType:    "String",
 				StringValue: aws.String("{}"),
@@ -54,7 +54,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 			expNoErr: true,
 		},
 		{
-			name: "empty-string",
+			name: "string-empty-string",
 			attr: events.SQSMessageAttribute{
 				DataType:    "String",
 				StringValue: aws.String(""),
@@ -63,7 +63,7 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 			expNoErr: false,
 		},
 		{
-			name: "nil-string",
+			name: "string-nil-string",
 			attr: events.SQSMessageAttribute{
 				DataType:    "String",
 				StringValue: nil,
@@ -72,9 +72,45 @@ func TestSQSMessageAttrCarrier(t *testing.T) {
 			expNoErr: false,
 		},
 		{
+			name: "binary-datadog-map",
+			attr: events.SQSMessageAttribute{
+				DataType:    "Binary",
+				BinaryValue: []byte(headersAll),
+			},
+			expMap:   headersMapAll,
+			expNoErr: true,
+		},
+		{
+			name: "binary-empty-map",
+			attr: events.SQSMessageAttribute{
+				DataType:    "Binary",
+				BinaryValue: []byte("{}"),
+			},
+			expMap:   map[string]string{},
+			expNoErr: true,
+		},
+		{
+			name: "binary-empty-string",
+			attr: events.SQSMessageAttribute{
+				DataType:    "Binary",
+				BinaryValue: []byte(""),
+			},
+			expMap:   nil,
+			expNoErr: false,
+		},
+		{
+			name: "binary-nil-string",
+			attr: events.SQSMessageAttribute{
+				DataType:    "Binary",
+				BinaryValue: nil,
+			},
+			expMap:   nil,
+			expNoErr: false,
+		},
+		{
 			name: "wrong-data-type",
 			attr: events.SQSMessageAttribute{
-				DataType: "Binary",
+				DataType: "Purple",
 			},
 			expMap:   nil,
 			expNoErr: false,
