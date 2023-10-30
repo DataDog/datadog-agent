@@ -9,12 +9,14 @@ package autoscalers
 
 import (
 	"strconv"
+	"sync"
 	"time"
 
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
 type minRemainingRequests struct {
+	sync.Mutex
 	val            int
 	timestamp      time.Time
 	expiryDuration time.Duration
@@ -29,6 +31,9 @@ func newMinRemainingRequests(expiryDuration time.Duration) minRemainingRequests 
 }
 
 func (mrr *minRemainingRequests) update(newVal string) {
+	mrr.Lock()
+	defer mrr.Unlock()
+
 	newValFloat, err := strconv.Atoi(newVal)
 
 	if err != nil {

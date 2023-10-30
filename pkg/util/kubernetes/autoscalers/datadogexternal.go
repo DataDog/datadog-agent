@@ -65,7 +65,12 @@ const (
 	queryEndpoint = "/api/v1/query"
 )
 
-<<<<<<< HEAD
+var (
+	refreshPeriod  = config.Datadog.GetInt("external_metrics_provider.refresh_period")
+	expiryDuration = 2 * refreshPeriod
+	mrr            = newMinRemainingRequests(time.Duration(time.Duration(expiryDuration) * time.Second))
+)
+
 // isRateLimitError is a helper function that checks if the received error is a rate limit error
 func isRateLimitError(err error) bool {
 	if err == nil {
@@ -73,13 +78,6 @@ func isRateLimitError(err error) bool {
 	}
 	return strings.Contains(err.Error(), "429 Too Many Requests")
 }
-=======
-var (
-	refreshPeriod  = config.Datadog.GetInt("external_metrics_provider.refresh_period")
-	expiryDuration = 2 * refreshPeriod
-	mrr            = newMinRemainingRequests(time.Duration(expiryDuration))
-)
->>>>>>> 9005f6e178 (add rate_limit_queries_remaining_min telemetry in cluster agent external metrics server)
 
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
