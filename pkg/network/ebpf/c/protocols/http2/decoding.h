@@ -314,14 +314,11 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     http2_ctx->http2_stream_key.stream_id = current_frame->stream_id;
     http2_stream_t *current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
     if (current_stream == NULL) {
-        skb_info->data_off += current_frame->length;
         return;
     }
 
     if (current_frame->type == kHeadersFrame) {
         process_headers_frame(skb, current_stream, skb_info, tup, &http2_ctx->dynamic_index, current_frame);
-    } else {
-        skb_info->data_off += current_frame->length;
     }
 
     // When we accept an RST, it means that the current stream is terminated.
@@ -638,9 +635,6 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
     local_skb_info.data_off = current_frame.offset;
 
     parse_frame(skb, &local_skb_info, &dispatcher_args_copy.tup, http2_ctx, &current_frame.frame);
-    if (local_skb_info.data_off >= local_skb_info.data_end) {
-        goto delete_iteration;
-    }
 
     // update the tail calls state when the http2 decoding part was completed successfully.
     tail_call_state->iteration += 1;
