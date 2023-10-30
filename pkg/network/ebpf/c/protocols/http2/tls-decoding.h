@@ -269,6 +269,7 @@ static __always_inline void parse_frame_tls(tls_dispatcher_arguments_t *info, ht
     process_headers_frame_tls(info, current_stream, &http2_ctx->dynamic_index);
 
     if ((frame_flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
+        log_debug("[grpcdebug] Got EOS");
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, info->tags);
     }
 

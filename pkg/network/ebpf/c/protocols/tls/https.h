@@ -83,6 +83,8 @@ static __always_inline void tls_process(struct pt_regs *ctx, conn_tuple_t *t, vo
         return;
     }
 
+    log_debug("[grpcdebug] tls_process - len: %lu\n", len);
+
     tls_dispatcher_arguments_t *args = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
     if (args == NULL) {
         log_debug("dispatcher failed to save arguments for tls tail call\n");
@@ -105,6 +107,8 @@ static __always_inline void tls_finish(struct pt_regs *ctx, conn_tuple_t *t) {
     if (!stack) {
         return;
     }
+
+    log_debug("[grpcdebug] tls finish entry");
 
     tls_prog_t prog;
     protocol_t protocol = get_protocol_from_stack(stack, LAYER_APPLICATION);
