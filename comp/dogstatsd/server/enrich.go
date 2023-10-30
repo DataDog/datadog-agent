@@ -84,7 +84,6 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 			continue
 		} else if strings.HasPrefix(tag, jmxTagPrefix) {
 			metricSource = metrics.MetricSourceJmxCustom
-			continue
 		}
 		tags[n] = tag
 		n++
