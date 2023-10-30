@@ -129,7 +129,7 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 
 // EnrichInferredSpanWithLambdaFunctionURLEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
-// specific set of data to the span expected from a Lambda Funciton URL event.
+// specific set of data to the span expected from a Lambda Function URL event.
 func (inferredSpan *InferredSpan) EnrichInferredSpanWithLambdaFunctionURLEvent(eventPayload events.LambdaFunctionURLRequest) {
 	log.Debug("Enriching an inferred span for a Lambda Function URL")
 	requestContext := eventPayload.RequestContext
@@ -139,8 +139,8 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithLambdaFunctionURLEvent(e
 	domainName := requestContext.DomainName
 	httpurl := fmt.Sprintf("%s%s", domainName, path)
 	startTime := calculateStartTime(requestContext.TimeEpoch)
-	apiId := requestContext.APIID
-	serviceName := DetermineServiceName(serviceMapping, apiId, "lambda_url", domainName)
+	apiID := requestContext.APIID
+	serviceName := DetermineServiceName(serviceMapping, apiID, "lambda_url", domainName)
 	inferredSpan.Span.Name = "aws.lambda.url"
 	inferredSpan.Span.Service = serviceName
 	inferredSpan.Span.Resource = resource
