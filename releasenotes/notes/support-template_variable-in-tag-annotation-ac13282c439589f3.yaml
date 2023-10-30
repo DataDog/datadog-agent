@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+enhancements:
+  - |
+    Add tagger parse to support envirable varible in format of "%%env_XXXXX%%". 
+    For example, add the following template variable to ad.datadoghq.com/tags or com.datadoghq.ad.tags
+      "available_zone": "%%env_AVAILABILITY_ZONE%%"
+    %%env_AVAILABILITY_ZONE%% will be replaced by the env var in the tagger
