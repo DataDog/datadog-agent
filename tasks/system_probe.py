@@ -229,7 +229,7 @@ def ninja_network_ebpf_programs(nw, build_dir, co_re_build_dir):
     network_bpf_dir = os.path.join("pkg", "network", "ebpf")
     network_c_dir = os.path.join(network_bpf_dir, "c")
 
-    network_flags = "-Ipkg/network/ebpf/c -g"
+    network_flags = "-Ipkg/network/ebpf/c -g -DFARGATE=1"
     network_programs = [
         "prebuilt/dns",
         "prebuilt/offset-guess",
