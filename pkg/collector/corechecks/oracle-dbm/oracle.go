@@ -224,6 +224,16 @@ func (c *Check) Run() error {
 				}
 			}
 		}
+
+		if metricIntervalExpired {
+			if c.config.Asm.Enabled {
+				err := c.asmDiskgroups()
+				if err != nil {
+					return fmt.Errorf("%s %w", c.logPrompt, err)
+				}
+			}
+		}
+
 		if metricIntervalExpired {
 			if c.config.ResourceManager.Enabled {
 				err := c.resourceManager()
