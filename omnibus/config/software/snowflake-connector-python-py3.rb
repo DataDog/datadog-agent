@@ -28,11 +28,7 @@ build do
     build_env = {}
   else
     pip = "#{install_dir}/embedded/bin/pip3"
-    build_env = {
-      "CFLAGS" => "-I#{install_dir}/embedded/include",
-      "CXXFLAGS" => "-I#{install_dir}/embedded/include",
-      "LDFLAGS" => "-L#{install_dir}/embedded/lib",
-    }
+    build_env = with_standard_compiler_flags(with_embedded_path)
   end
 
   # We need a newer version of oscrypto than the one released to get a fix for a bug
