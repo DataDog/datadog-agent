@@ -516,6 +516,12 @@ valid_frame:
     return interesting_frame_index;
 }
 
+SEC("socket/http2_handle_first_frame")
+int socket__http2_handle_first_frame(struct __sk_buff *skb) {
+    bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
+    return 0;
+}
+
 SEC("socket/http2_filter")
 int socket__http2_filter(struct __sk_buff *skb) {
     dispatcher_arguments_t dispatcher_args_copy;

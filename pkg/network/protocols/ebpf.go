@@ -28,10 +28,11 @@ const (
 type ProgramType C.protocol_prog_t
 
 const (
-	ProgramHTTP             ProgramType = C.PROG_HTTP
-	ProgramHTTP2FrameFilter ProgramType = C.PROG_HTTP2_FRAME_FILTER
-	ProgramHTTP2FrameParser ProgramType = C.PROG_HTTP2_FRAME_PARSER
-	ProgramKafka            ProgramType = C.PROG_KAFKA
+	ProgramHTTP                  ProgramType = C.PROG_HTTP
+	ProgramHTTP2HandleFirstFrame ProgramType = C.PROG_HTTP2_HANDLE_FIRST_FRAME
+	ProgramHTTP2FrameFilter      ProgramType = C.PROG_HTTP2_FRAME_FILTER
+	ProgramHTTP2FrameParser      ProgramType = C.PROG_HTTP2_FRAME_PARSER
+	ProgramKafka                 ProgramType = C.PROG_KAFKA
 )
 
 func Application(protoNum uint8) ProtocolType {
