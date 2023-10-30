@@ -123,7 +123,7 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, integrat
 		// Set custom tags configured for this check
 		if len(commonOptions.Tags) > 0 {
 			// Tags are sorted and duplicates are removed in the aggregator. Pre-sorting a subslice can speed up the next call
-			// of SortUniqInPlace in the aggregator
+			// of UniqInPlace in the aggregator
 			commonOptions.Tags = sort.RemoveDuplicatesAndSort(commonOptions.Tags)
 			s, err := c.GetSender()
 			if err != nil {

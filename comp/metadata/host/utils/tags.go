@@ -177,7 +177,7 @@ func GetHostTags(ctx context.Context, cached bool, conf config.Reader) *Tags {
 	}
 
 	t := &Tags{
-		System:              sort.SortUniqInPlace(hostTags),
+		System:              sort.UniqInPlace(hostTags),
 		GoogleCloudPlatform: gceTags,
 	}
 

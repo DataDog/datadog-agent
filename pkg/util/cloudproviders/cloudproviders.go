@@ -141,7 +141,7 @@ func GetHostAliases(ctx context.Context) []string {
 	}
 	wg.Wait()
 
-	return sort.SortUniqInPlace(aliases)
+	return sort.UniqInPlace(aliases)
 }
 
 // GetPublicIPv4 returns the public IPv4 from different providers

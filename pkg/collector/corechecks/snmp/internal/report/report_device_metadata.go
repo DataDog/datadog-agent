@@ -36,7 +36,7 @@ const ciscoNetworkProtocolIPv6 = "20"
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
 	tags := common.CopyStrings(origTags)
-	tags = sortutil.SortUniqInPlace(tags)
+	tags = sortutil.UniqInPlace(tags)
 
 	metadataStore := buildMetadataStore(config.Metadata, store)
 

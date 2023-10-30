@@ -285,7 +285,7 @@ func (c *CheckConfig) GetNetworkTags() []string {
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
 	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace, deviceIPTagKey + ":" + c.IPAddress}
-	sortutil.SortUniqInPlace(tags)
+	sortutil.UniqInPlace(tags)
 	return tags
 }
 

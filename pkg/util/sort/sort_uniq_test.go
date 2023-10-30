@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestSortUniqInPlace(t *testing.T) {
+func TestUniqInPlace(t *testing.T) {
 	elements := []string{"tag3:tagggg", "tag2:tagval", "tag1:tagval", "tag2:tagval"}
-	elements = SortUniqInPlace(elements)
+	elements = UniqInPlace(elements)
 
 	assert.ElementsMatch(t, elements, []string{"tag1:tagval", "tag2:tagval", "tag3:tagggg"})
 }
@@ -68,7 +68,7 @@ func benchmarkDeduplicateTags(b *testing.B, numberOfTags int) {
 
 	for n := 0; n < b.N; n++ {
 		copy(tempTags, tags)
-		SortUniqInPlace(tempTags)
+		UniqInPlace(tempTags)
 	}
 }
 func BenchmarkDeduplicateTags(b *testing.B) {

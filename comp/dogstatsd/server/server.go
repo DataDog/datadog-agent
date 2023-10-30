@@ -237,7 +237,7 @@ func newServerCompat(cfg config.Reader, log logComponent.Component, capture repl
 	if staticTags := util.GetStaticTagsSlice(context.TODO()); staticTags != nil {
 		extraTags = append(extraTags, staticTags...)
 	}
-	sort.SortUniqInPlace(extraTags)
+	sort.UniqInPlace(extraTags)
 
 	entityIDPrecedenceEnabled := cfg.GetBool("dogstatsd_entity_id_precedence")
 
