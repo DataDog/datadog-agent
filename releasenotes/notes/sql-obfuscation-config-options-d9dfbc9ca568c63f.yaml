@@ -9,7 +9,7 @@
 enhancements:
   - |
     dbm: add SQL obfuscation options to give customer more control over how SQL is obfuscated and normalized.
-    - `RemoveSpaceBetweenParentheses` - remove spaces between parentheses. This option is only valid when ObfuscationMode is "obfuscate_and_normalize".
-    - `KeepNull` - disable obfuscating null values with ?. This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
-    - `KeepBoolean` - disable obfuscating boolean values with ?. This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
-    - `KeepPositionalParameter` - disable obfuscating positional parameters with ?. This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+    - ``RemoveSpaceBetweenParentheses`` - remove spaces between parentheses. This option is only valid when ``ObfuscationMode`` is ``obfuscate_and_normalize``.
+    - ``KeepNull` - disable obfuscating null values with ?. This option is only valid when ``ObfuscationMode`` is "obfuscate_only" or ``obfuscate_and_normalize``.
+    - ``KeepBoolean`` - disable obfuscating boolean values with ?. This option is only valid when ``ObfuscationMode`` is ``obfuscate_only`` or ``obfuscate_and_normalize``.
+    - ``KeepPositionalParameter`` - disable obfuscating positional parameters with ?. This option is only valid when ``ObfuscationMode`` is ``obfuscate_only`` or ``obfuscate_and_normalize``.
