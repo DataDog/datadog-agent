@@ -39,12 +39,12 @@ type ClientStatsAggregator struct {
 	out     chan *pb.StatsPayload
 	buckets map[int64]*bucket // buckets used to aggregate client stats
 
-	flushTicker        *time.Ticker
-	oldestTs           time.Time
-	agentEnv           string
-	agentHostname      string
-	agentVersion       string
-	peerSvcAggregation bool // flag to enable peer.service aggregation
+	flushTicker         *time.Ticker
+	oldestTs            time.Time
+	agentEnv            string
+	agentHostname       string
+	agentVersion        string
+	peerTagsAggregation bool // flag to enable aggregation over peer tags
 
 	exit chan struct{}
 	done chan struct{}
@@ -53,17 +53,17 @@ type ClientStatsAggregator struct {
 // NewClientStatsAggregator initializes a new aggregator ready to be started
 func NewClientStatsAggregator(conf *config.AgentConfig, out chan *pb.StatsPayload) *ClientStatsAggregator {
 	c := &ClientStatsAggregator{
-		flushTicker:        time.NewTicker(time.Second),
-		In:                 make(chan *pb.ClientStatsPayload, 10),
-		buckets:            make(map[int64]*bucket, 20),
-		out:                out,
-		agentEnv:           conf.DefaultEnv,
-		agentHostname:      conf.Hostname,
-		agentVersion:       conf.AgentVersion,
-		peerSvcAggregation: conf.PeerServiceAggregation,
-		oldestTs:           alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
-		exit:               make(chan struct{}),
-		done:               make(chan struct{}),
+		flushTicker:         time.NewTicker(time.Second),
+		In:                  make(chan *pb.ClientStatsPayload, 10),
+		buckets:             make(map[int64]*bucket, 20),
+		out:                 out,
+		agentEnv:            conf.DefaultEnv,
+		agentHostname:       conf.Hostname,
+		agentVersion:        conf.AgentVersion,
+		peerTagsAggregation: conf.PeerServiceAggregation || conf.PeerTagsAggregation,
+		oldestTs:            alignAggTs(time.Now().Add(bucketDuration - oldestBucketStart)),
+		exit:                make(chan struct{}),
+		done:                make(chan struct{}),
 	}
 	return c
 }
@@ -138,7 +138,7 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 			a.buckets[ts.Unix()] = b
 		}
 		p.Stats = []*pb.ClientStatsBucket{clientBucket}
-		a.flush(b.add(p, a.peerSvcAggregation))
+		a.flush(b.add(p, a.peerTagsAggregation))
 	}
 }
 

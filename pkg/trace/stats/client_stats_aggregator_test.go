@@ -130,6 +130,8 @@ func agg2Counts(insertionTime time.Time, p *proto.ClientStatsPayload) *proto.Cli
 			if stat == nil {
 				continue
 			}
+			// NOTE: We do not expect the PeerService field to be set, since we now place its value in the PeerTags.
+			stat.PeerService = ""
 			stat.DBType = ""
 			stat.Hits *= 2
 			stat.Errors *= 2
@@ -243,8 +245,8 @@ func TestFuzzCountFields(t *testing.T) {
 	assert := assert.New(t)
 	for i := 0; i < 30; i++ {
 		a := newTestAggregator()
-		// Ensure that peer.service aggregation is on. Some tests may expect non-empty values for peer.service.
-		a.peerSvcAggregation = true
+		// Ensure that peer tags aggregation is on. Some tests may expect non-empty values the peer tags.
+		a.peerTagsAggregation = true
 		payloadTime := time.Now().Truncate(bucketDuration)
 		merge1 := getTestStatsWithStart(payloadTime)
 
@@ -266,13 +268,13 @@ func TestFuzzCountFields(t *testing.T) {
 			if s == nil {
 				continue
 			}
-			actual = append(actual, s)
+			expected = append(expected, s)
 		}
 		for _, s := range aggCounts.Stats[0].Stats[0].Stats {
 			if s == nil {
 				continue
 			}
-			expected = append(expected, s)
+			actual = append(actual, s)
 		}
 
 		assert.ElementsMatch(pb.PbToStringSlice(expected), pb.PbToStringSlice(actual))
@@ -367,34 +369,34 @@ func TestCountAggregation(t *testing.T) {
 }
 
 func TestCountAggregationPeerTags(t *testing.T) {
-	assert := assert.New(t)
 	peerTags := []string{"db.instance:a", "db.system:b", "peer.service:remote-service"}
 	type tt struct {
-		k                BucketsAggregationKey
-		res              *proto.ClientGroupedStats
-		name             string
-		enablePeerSvcAgg bool
+		k                 BucketsAggregationKey
+		res               *proto.ClientGroupedStats
+		name              string
+		enablePeerTagsAgg bool
 	}
 	// The fnv64a hash of the peerTags var.
-	peerSvcHash := uint64(8580633704111928789)
+	peerTagsHash := uint64(8580633704111928789)
 	tts := []tt{
 		{
-			BucketsAggregationKey{Service: "s", PeerTagsHash: peerSvcHash},
-			&proto.ClientGroupedStats{Service: "s", PeerService: ""},
-			"peer.service aggregation disabled",
+			BucketsAggregationKey{Service: "s", Name: "test.op"},
+			&proto.ClientGroupedStats{Service: "s", Name: "test.op"},
+			"peer tags aggregation disabled",
 			false,
 		},
 		{
-			BucketsAggregationKey{Service: "s", PeerTagsHash: peerSvcHash},
+			BucketsAggregationKey{Service: "s", PeerTagsHash: peerTagsHash},
 			&proto.ClientGroupedStats{Service: "s", PeerTags: peerTags},
-			"peer.service aggregation enabled",
+			"peer tags aggregation enabled",
 			true,
 		},
 	}
 	for _, tc := range tts {
 		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
 			a := newTestAggregator()
-			a.peerSvcAggregation = tc.enablePeerSvcAgg
+			a.peerTagsAggregation = tc.enablePeerTagsAgg
 			testTime := time.Unix(time.Now().Unix(), 0)
 
 			c1 := payloadWithCounts(testTime, tc.k, 11, 7, 100)
