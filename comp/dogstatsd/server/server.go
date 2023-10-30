@@ -678,7 +678,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 
 			switch messageType {
 			case serviceCheckType:
-				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, batcher)
+				serviceCheck, err := s.parseServiceCheckMessage(parser, message, packet.Origin, batcher.Retainer())
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 					continue
@@ -686,7 +686,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 				atomic.AddUint64(&s.nrServiceChecks, 1)
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
-				event, err := s.parseEventMessage(parser, message, packet.Origin, batcher)
+				event, err := s.parseEventMessage(parser, message, packet.Origin, batcher.Retainer())
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
 					continue
@@ -697,8 +697,8 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 				var err error
 
 				samples = samples[0:0]
-
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, s.originTelemetry, batcher)
+				references := cache.SmallRetainer{}
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, s.originTelemetry, &references)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
@@ -708,16 +708,16 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					s.Debug.StoreMetricStats(samples[idx])
 
 					if samples[idx].Timestamp > 0.0 {
-						batcher.appendLateSample(samples[idx])
+						batcher.appendLateSample(samples[idx], &references)
 					} else {
-						batcher.appendSample(samples[idx])
+						batcher.appendSample(samples[idx], &references)
 					}
 
 					if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
 						distSample := samples[idx].Copy()
 						distSample.Name = s.histToDistPrefix + distSample.Name
 						distSample.Mtype = metrics.DistributionType
-						batcher.appendSample(*distSample)
+						batcher.appendSample(*distSample, &references)
 					}
 				}
 				atomic.AddUint64(&s.nrMetricSamples, uint64(len(samples)))

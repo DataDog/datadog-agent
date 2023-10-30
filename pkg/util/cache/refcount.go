@@ -4,6 +4,7 @@ import (
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
 	"strings"
+	"sync"
 )
 
 // Refcounted tracks references.  The interface doesn't provide a reference construction
@@ -85,48 +86,62 @@ func (s *SmallRetainer) Import(other InternRetainer) {
 type RetainerBlock struct {
 	InternRetainer
 	retentions map[Refcounted]int32
+	lock       sync.Mutex
 }
 
 func NewRetainerBlock() *RetainerBlock {
 	return &RetainerBlock{
 		retentions: make(map[Refcounted]int32),
+		lock:       sync.Mutex{},
 	}
 }
 
 func (r *RetainerBlock) Reference(obj Refcounted) {
+	r.lock.Lock()
 	r.retentions[obj] += 1
+	r.lock.Unlock()
 }
 
 func (r *RetainerBlock) ReferenceN(obj Refcounted, n int32) {
+	r.lock.Lock()
 	r.retentions[obj] += n
+	r.lock.Unlock()
 }
 
 func (r *RetainerBlock) ReleaseAllWith(callback func(obj Refcounted, count int32)) {
+	r.lock.Lock()
 	for k, v := range r.retentions {
 		callback(k, v)
 		delete(r.retentions, k)
 	}
+	r.lock.Unlock()
 }
 
 func (r *RetainerBlock) ReleaseAll() {
+	// Don't lock as we're calling a locking method.
 	r.ReleaseAllWith(func(obj Refcounted, count int32) {
 		obj.Release(count)
 	})
 }
 
 func (r *RetainerBlock) Import(other InternRetainer) {
+	r.lock.Lock()
 	other.ReleaseAllWith(func(obj Refcounted, count int32) {
 		r.retentions[obj] += count
 	})
+	r.lock.Unlock()
 }
 
 func (r *RetainerBlock) CopyTo(other InternRetainer) {
+	r.lock.Lock()
 	for k, v := range r.retentions {
 		other.ReferenceN(k, v)
 	}
+	r.lock.Unlock()
 }
 
 func (r *RetainerBlock) Summarize() string {
+	r.lock.Lock()
 	p := message.NewPrinter(language.English)
 	s := strings.Builder{}
 	var total int32 = 0
@@ -136,5 +151,6 @@ func (r *RetainerBlock) Summarize() string {
 		total += v
 	}
 	s.WriteString(p.Sprintf("; %d total}", total))
+	r.lock.Unlock()
 	return s.String()
 }

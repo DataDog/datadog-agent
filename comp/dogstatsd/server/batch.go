@@ -58,8 +58,7 @@ type batcher struct {
 	noAggPipelineEnabled bool
 
 	// Retain intern'd objects long enough to serialize them back out.
-	retentions map[cache.Refcounted]int32
-	cache.InternRetainer
+	retentions *cache.RetainerBlock
 }
 
 // Use fastrange instead of a modulo for better performance.
@@ -113,7 +112,7 @@ func newBatcher(demux aggregator.DemultiplexerWithAggregator) *batcher {
 		keyGenerator:  ckey.NewKeyGenerator(),
 
 		noAggPipelineEnabled: demux.Options().EnableNoAggregationPipeline,
-		retentions:           make(map[cache.Refcounted]int32),
+		retentions:           cache.NewRetainerBlock(),
 	}
 }
 
@@ -147,7 +146,8 @@ func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 // Batching data
 // -------------
 
-func (b *batcher) appendSample(sample metrics.MetricSample) {
+func (b *batcher) appendSample(sample metrics.MetricSample, references cache.InternRetainer) {
+	b.Retainer().Import(references)
 	var shardKey uint32
 	if b.pipelineCount > 1 {
 		// TODO(remy): re-using this tagsBuffer later in the pipeline (by sharing
@@ -175,14 +175,15 @@ func (b *batcher) appendServiceCheck(serviceCheck *servicecheck.ServiceCheck) {
 	b.serviceChecks = append(b.serviceChecks, serviceCheck)
 }
 
-func (b *batcher) appendLateSample(sample metrics.MetricSample) {
+func (b *batcher) appendLateSample(sample metrics.MetricSample, references cache.InternRetainer) {
 	// if the no aggregation pipeline is not enabled, we fallback on the
 	// main pipeline eventually distributing the samples on multiple samplers.
 	if !b.noAggPipelineEnabled {
-		b.appendSample(sample)
+		b.appendSample(sample, references)
 		return
 	}
 
+	// TODO: Fix reference work here.
 	if b.samplesWithTsCount == len(b.samplesWithTs) {
 		b.flushSamplesWithTs()
 	}
@@ -222,7 +223,7 @@ func (b *batcher) flushSamplesWithTs() {
 // the demux for processing.  Do this last so our worst mistake is to
 // retain things too long instead of long enough.
 func (b *batcher) forwardRetentions() {
-	b.demux.TakeRetentions(b, "batcher")
+	b.demux.TakeRetentions(b.Retainer(), "batcher")
 }
 
 // flush pushes all batched metrics to the aggregator.
@@ -258,21 +259,6 @@ func (b *batcher) flush() {
 	b.forwardRetentions()
 }
 
-// Interner Retention
-// -------- ---------
-
-func (b *batcher) Reference(obj cache.Refcounted) {
-	b.retentions[obj] += 1
-}
-func (b *batcher) ReleaseAllWith(callback func(obj cache.Refcounted, count int32)) {
-	for k, v := range b.retentions {
-		callback(k, v)
-		delete(b.retentions, k)
-	}
-}
-
-func (b *batcher) ReleaseAll() {
-	b.ReleaseAllWith(func(obj cache.Refcounted, count int32) {
-		obj.Release(count)
-	})
+func (b *batcher) Retainer() cache.InternRetainer {
+	return b.retentions
 }

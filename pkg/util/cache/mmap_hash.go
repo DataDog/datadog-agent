@@ -254,7 +254,9 @@ func (table *mmap_hash) stats() (float64, float64) {
 }
 
 func (table *mmap_hash) name() string {
-	if table.Name[0] == '!' {
+	if len(table.Name) == 0 {
+		return "<empty>"
+	} else if table.Name[0] == '!' {
 		return table.Name
 	} else {
 		return containerSummaryPattern.ReplaceAllString(table.Name, "container-$1")
@@ -267,9 +269,10 @@ func (table *mmap_hash) finalize() {
 	if table.pages == nil {
 		_ = log.Warnf("finalize(%p): Already dead.", table)
 	}
+	table.pages = nil
 	address := unsafe.SliceData(table.mapping)
-	_ = log.Warnf(fmt.Sprintf("finalize(%p): Invalidating address %p-%p.",
-		table, address, unsafe.Add(unsafe.Pointer(address), len(table.mapping))))
+	_ = log.Warnf(fmt.Sprintf("finalize(%s): Invalidating address %p-%p.",
+		table.name(), address, unsafe.Add(unsafe.Pointer(address), len(table.mapping))))
 	// Make the segment read-only, worry about actual deletion after we have
 	// better debugging around page faults.
 	var err error
@@ -292,7 +295,6 @@ func (table *mmap_hash) finalize() {
 			_ = log.Errorf("Failed mprotect(): ", err)
 		}
 	}
-	table.pages = nil
 }
 
 func (table *mmap_hash) finalized() bool {
@@ -317,7 +319,8 @@ func isMapped(s string) (int, bool, bool) {
 		mapAddr := uintptr(unsafe.Pointer(unsafe.SliceData(t.mapping)))
 		if mapAddr <= addr && addr <= (mapAddr+unsafe.Sizeof(constP)*uintptr(len(t.mapping))) {
 			// Found it.
-			active, safe := !t.finalized(), t.accessible()
+			active := !t.finalized()
+			safe := t.accessible()
 			t.lock.Unlock()
 			return n, active, safe
 		}
@@ -330,9 +333,7 @@ func isMapped(s string) (int, bool, bool) {
 // logFailedCheck returns a safe value for 'tag'.  Using the 'safe' value from isMapped,
 // logFailedCheck will log a failed call to isMapped and
 func logFailedCheck(index int, safe bool, callsite, tag string) string {
-	var name = all_mmaps.hashes[index].name()
-
-	location := fmt.Sprintf("<%s>", name)
+	location := fmt.Sprintf("<%s>", all_mmaps.hashes[index].name())
 	for i := 0; i < callStackDepth; i++ {
 		// skip over logFailedCheck and the in-package call site, just the ones above.
 		_, file, line, _ := runtime.Caller(2 + i)
