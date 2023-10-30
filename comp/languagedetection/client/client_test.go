@@ -503,7 +503,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 	assert.Empty(t, client.currentBatch)
 
 	// make sure the events are added in `processesWithoutPod` so processing can be retried
-	assert.Equal(t, eventBundle.Events, client.processesWithoutPod)
+	assert.Len(t, client.processesWithoutPod, 2)
 	assert.Empty(t, client.freshlyUpdatedPods)
 
 	// add the pod in workloadmeta
@@ -516,7 +516,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 	})
 
 	// retry processing processes without pod
-	client.retryProcessEventsWithoutPod()
+	client.retryProcessEventsWithoutPod([]string{"init-nginx-cont-id", "nginx-cont-id"})
 	assert.Equal(t,
 		batch{
 			"nginx-pod-name": {
@@ -697,13 +697,61 @@ func TestPodHasOwner(t *testing.T) {
 	}
 }
 
+func TestCleanUpProcesssesWithoutPod(t *testing.T) {
+	ttl := 1 * time.Minute
+
+	now := time.Now()
+	past := now.Add(-ttl)
+	future := now.Add(ttl)
+
+	tests := []struct {
+		name                string
+		time                time.Time
+		processesWithoutPod map[string]*eventsToRetry
+		expected            map[string]*eventsToRetry
+	}{
+		{
+			name: "has not expired",
+			time: now,
+			processesWithoutPod: map[string]*eventsToRetry{
+				"a": {
+					expirationTime: future,
+				},
+			},
+			expected: map[string]*eventsToRetry{
+				"a": {
+					expirationTime: future,
+				},
+			},
+		},
+		{
+			name: "has expired",
+			time: now,
+			processesWithoutPod: map[string]*eventsToRetry{
+				"a": {
+					expirationTime: past,
+				},
+			},
+			expected: map[string]*eventsToRetry{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, _, _ := newTestClient(t, nil)
+			client.processesWithoutPod = tt.processesWithoutPod
+			client.cleanUpProcesssesWithoutPod(tt.time)
+			assert.Equal(t, tt.expected, client.processesWithoutPod)
+		})
+	}
+}
+
 // TestRun checks that the client runs as expected and will help to identify potential data races
 func TestRun(t *testing.T) {
 	mockStore := workloadmeta.NewMockStore()
 	client, mockDCAClient, doneCh := newTestClient(t, mockStore)
 	client.newUpdatePeriod = 50 * time.Millisecond
 	client.periodicalFlushPeriod = 1 * time.Second
-	client.retryProcessWithoutPodPeriod = 100 * time.Millisecond
+	client.processesWithoutPodCleanupPeriod = 100 * time.Millisecond
 
 	err := client.start(context.Background())
 	require.NoError(t, err)
