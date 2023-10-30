@@ -111,7 +111,10 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 		for {
 			select {
 			case <-c.closed:
-				return
+				log.Info("Entering infinite loop...")
+				for {
+
+				}
 			case <-health.C:
 			case batchData, ok := <-c.perfHandler.DataChannel:
 				if !ok {
