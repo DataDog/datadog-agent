@@ -6,10 +6,29 @@
 package server
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func BenchmarkLoadOrStoreReset(b *testing.B) {
+	sInterner := newStringInterner(4, 1)
+
+	// benchmark with the internal telemetry enabled
+	sInterner.telemetry.enabled = true
+	sInterner.prepareTelemetry()
+
+	list := []string{}
+	for i := 0; i < 512; i++ {
+		list = append(list, fmt.Sprintf("testing.metric%d", i))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		sInterner.LoadOrStore([]byte(list[i%len(list)]))
+	}
+}
 
 func TestInternLoadOrStoreValue(t *testing.T) {
 	assert := assert.New(t)
