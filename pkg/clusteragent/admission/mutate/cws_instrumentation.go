@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 
 	"golang.org/x/exp/slices"
 	authenticationv1 "k8s.io/api/authentication/v1"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -70,10 +72,17 @@ func InjectCWSCommandInstrumentation(rawPodExecOptions []byte, name string, ns s
 }
 
 func injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, ns string, userInfo *authenticationv1.UserInfo, _ dynamic.Interface, apiClient kubernetes.Interface) error {
+	var injected bool
+	defer func() {
+		metrics.MutationAttempts.Inc(metrics.CWSExecInstrumentation, strconv.FormatBool(injected), "")
+	}()
+
 	if exec == nil || userInfo == nil {
+		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "nil exec or user info", "")
 		return fmt.Errorf("cannot inject CWS instrumentation into nil exec options or nil userInfo")
 	}
 	if len(exec.Command) == 0 {
+		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "empty command", "")
 		return fmt.Errorf("cannot inject CWS instrumentation into empty exec command")
 	}
 
@@ -85,6 +94,7 @@ func injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, n
 	// check if the pod has been instrumented
 	pod, err := apiClient.CoreV1().Pods(ns).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
+		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot get pod", "")
 		return fmt.Errorf("couldn't describe pod %s in namespace %s from the API server: %w", name, ns, err)
 	}
 
@@ -98,8 +108,9 @@ func injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, n
 	// prepare the user session context
 	userSessionCtx, err := usersessions.PrepareK8SUserSessionContext(userInfo, cwsUserSessionDataMaxSize)
 	if err != nil {
+		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot serialize user info", "")
 		log.Debugf("ignoring instrumentation of %s: %v", podString(pod), err)
-		return nil
+		return err
 	}
 
 	if len(exec.Command) > 7 {
@@ -113,6 +124,7 @@ func injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, n
 
 			if exec.Command[5] == string(userSessionCtx) {
 				log.Debugf("Exec request into %s is already instrumented, ignoring", podString(pod))
+				injected = true
 				return nil
 			}
 		}
@@ -130,6 +142,7 @@ func injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, n
 	}, exec.Command...)
 
 	log.Debugf("Pod exec request to %s is now instrumented for CWS", podString(pod))
+	injected = true
 
 	return nil
 }
@@ -140,12 +153,19 @@ func InjectCWSPodInstrumentation(rawPod []byte, _ string, ns string, _ *authenti
 }
 
 func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) error {
+	var injected bool
+	defer func() {
+		metrics.MutationAttempts.Inc(metrics.CWSPodInstrumentation, strconv.FormatBool(injected), "")
+	}()
+
 	if pod == nil {
+		metrics.MutationErrors.Inc(metrics.CWSPodInstrumentation, "nil pod", "")
 		return fmt.Errorf("cannot inject CWS instrumentation into nil pod")
 	}
 
 	// sanity check: make sure the provided CWS Injector image name isn't empty
 	if len(config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")) == 0 {
+		metrics.MutationErrors.Inc(metrics.CWSPodInstrumentation, "missing image name", "")
 		// don't touch the pod and leave now
 		return fmt.Errorf("empty CWS Injector image name")
 	}
@@ -153,6 +173,7 @@ func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface
 	// compute init container resources
 	resources, err := initCWSInitContainerResources()
 	if err != nil {
+		metrics.MutationErrors.Inc(metrics.CWSPodInstrumentation, "invalid resources configuration", "")
 		return err
 	}
 
@@ -165,6 +186,7 @@ func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface
 
 	// check if the pod has already been instrumented
 	if isPodCWSInstrumentationReady(annotations) {
+		injected = true
 		// nothing to do, return
 		return nil
 	}
@@ -186,6 +208,7 @@ func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface
 	}
 	annotations[cwsInstrumentationPodAnotationStatus] = cwsInstrumentationPodAnotationReady
 	pod.Annotations = annotations
+	injected = true
 	log.Debugf("Pod %s is now instrumented for CWS", podString(pod))
 	return nil
 }
