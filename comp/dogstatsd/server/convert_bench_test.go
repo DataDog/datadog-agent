@@ -33,7 +33,7 @@ var (
 
 func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 	cfg := fxutil.Test[config.Component](b, config.MockModule)
-	parser := newParser(cfg, newFloat64ListPool())
+	parser := newParser(cfg, newFloat64ListPool(), 1)
 
 	conf := enrichConfig{
 		defaultHostname:           "default-hostname",

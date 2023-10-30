@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/listeners"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -47,7 +47,7 @@ func fulfillDeps(t testing.TB) serverDeps {
 func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []config.Feature) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle,
-		serverDebug.MockModule,
+		serverdebugimpl.MockModule,
 		fx.Replace(configComponent.MockParams{
 			Overrides: overrides,
 			Features:  features,
@@ -65,7 +65,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
 		core.MockBundle,
-		serverDebug.MockModule,
+		serverdebugimpl.MockModule,
 		fx.Replace(configComponent.MockParams{
 			Params: configComponent.Params{ConfFilePath: yaml},
 		}),
@@ -677,7 +677,7 @@ func TestNoMappingsConfig(t *testing.T) {
 
 	assert.Nil(t, s.mapper)
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
@@ -791,7 +791,7 @@ dogstatsd_mapper_profiles:
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				parser := newParser(deps.Config, newFloat64ListPool())
+				parser := newParser(deps.Config, newFloat64ListPool(), 1)
 				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
@@ -866,7 +866,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		parser := newParser(deps.Config, newFloat64ListPool())
+		parser := newParser(deps.Config, newFloat64ListPool(), 1)
 		samples := []metrics.MetricSample{}
 		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", "1", false)
 		assert.NoError(err)
@@ -940,7 +940,7 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	parser.dsdOriginEnabled = true
 
 	// Metric
@@ -982,7 +982,7 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	parser.dsdOriginEnabled = true
 
 	// Metric

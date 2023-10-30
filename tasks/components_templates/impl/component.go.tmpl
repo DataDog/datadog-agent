@@ -1,0 +1,14 @@
+${COPYRIGHT_HEADER}
+
+package todoimpl
+
+import (
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+    fx.Provide(/* TODO: provide Component constructor */),
+)

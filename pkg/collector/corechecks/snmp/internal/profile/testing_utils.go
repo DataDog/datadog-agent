@@ -6,11 +6,10 @@
 package profile
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"os"
 	"path/filepath"
 	"regexp"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
