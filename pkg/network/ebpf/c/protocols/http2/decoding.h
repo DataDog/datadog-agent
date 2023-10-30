@@ -601,9 +601,9 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
         return 0;
     }
 
-    // Some functions might change and override fields in dispatcher_args_copy.skb_info. Since it is used as a key
-    // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
-    skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
+    // Some functions might change and override data_off field in dispatcher_args_copy.skb_info. Since it is used as a key
+    // in a map, we cannot allow it to be modified. Thus, storing the original value of the offset.
+    __u32 original_off = dispatcher_args_copy.skb_info.data_off;
 
     // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
     // processing into multiple tail calls, where each tail call process a single frame. We must have context when
@@ -632,9 +632,9 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
     http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
     http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
-    local_skb_info.data_off = current_frame.offset;
+    dispatcher_args_copy.skb_info.data_off = current_frame.offset;
 
-    parse_frame(skb, &local_skb_info, &dispatcher_args_copy.tup, http2_ctx, &current_frame.frame);
+    parse_frame(skb, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, http2_ctx, &current_frame.frame);
 
     // update the tail calls state when the http2 decoding part was completed successfully.
     tail_call_state->iteration += 1;
@@ -643,6 +643,8 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
     }
 
 delete_iteration:
+    // restoring the original value.
+    dispatcher_args_copy.skb_info.data_off = original_off;
     bpf_map_delete_elem(&http2_iterations, &dispatcher_args_copy);
 
     return 0;
