@@ -85,6 +85,7 @@ func getProfilingSettings(cfg config.Component) profiling.Settings {
 		MutexProfileFraction: cfg.GetInt("internal_profiling.mutex_profile_fraction"),
 		BlockProfileRate:     cfg.GetInt("internal_profiling.block_profile_rate"),
 		WithGoroutineProfile: cfg.GetBool("internal_profiling.enable_goroutine_stacktraces"),
+		Socket:               cfg.GetString("internal_profiling.unix_socket"),
 		Tags:                 []string{fmt.Sprintf("version:%v", v)},
 	}
 }
