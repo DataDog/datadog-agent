@@ -21,9 +21,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	coreutil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	sortutil "github.com/DataDog/datadog-agent/pkg/util/sort"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
@@ -247,7 +247,7 @@ func (c *CheckConfig) RebuildMetadataMetricsAndTags() {
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
 func (c *CheckConfig) UpdateDeviceIDAndTags() {
-	c.DeviceIDTags = coreutil.SortUniqInPlace(c.getDeviceIDTags())
+	c.DeviceIDTags = c.getDeviceIDTags()
 	c.DeviceID = c.Namespace + ":" + c.IPAddress
 }
 
@@ -285,7 +285,7 @@ func (c *CheckConfig) GetNetworkTags() []string {
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
 	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace, deviceIPTagKey + ":" + c.IPAddress}
-	sort.Strings(tags)
+	sortutil.SortUniqInPlace(tags)
 	return tags
 }
 

@@ -26,12 +26,12 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	"golang.org/x/exp/maps"
 
 	"gopkg.in/yaml.v2"
@@ -788,7 +788,7 @@ func (k *KSMCheck) initTags() {
 		k.globalTags = append(k.globalTags, configUtils.GetConfiguredTags(k.agentConfig, false)...)
 	}
 
-	k.globalTags = util.RemoveDuplicatesAndSort(k.globalTags)
+	k.globalTags = sort.RemoveDuplicatesAndSort(k.globalTags)
 }
 
 // processTelemetry accumulates the telemetry metric values, it can be called multiple times
@@ -827,8 +827,8 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	// reset the cache for the next check run
 	defer k.telemetry.reset()
 
-	s.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", util.CopyArray(k.globalTags))
-	s.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", util.CopyArray(k.globalTags))
+	s.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", sort.CopyArray(k.globalTags))
+	s.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", sort.CopyArray(k.globalTags))
 	for resource, count := range k.telemetry.getResourcesCount() {
 		tags := make([]string, len(k.globalTags)+1)
 		copy(tags, k.globalTags)

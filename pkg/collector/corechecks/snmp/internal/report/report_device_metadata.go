@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
@@ -25,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/lldp"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
+	sortutil "github.com/DataDog/datadog-agent/pkg/util/sort"
 )
 
 const interfaceStatusMetric = "snmp.interface.status"
@@ -36,7 +36,7 @@ const ciscoNetworkProtocolIPv6 = "20"
 // ReportNetworkDeviceMetadata reports device metadata
 func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckConfig, store *valuestore.ResultValueStore, origTags []string, collectTime time.Time, deviceStatus devicemetadata.DeviceStatus, diagnoses []devicemetadata.DiagnosisMetadata) {
 	tags := common.CopyStrings(origTags)
-	tags = util.SortUniqInPlace(tags)
+	tags = sortutil.SortUniqInPlace(tags)
 
 	metadataStore := buildMetadataStore(config.Metadata, store)
 

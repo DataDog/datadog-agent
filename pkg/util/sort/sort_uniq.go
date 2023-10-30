@@ -1,9 +1,9 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2023-present Datadog, Inc.
 
-package util
+package sort
 
 import "sort"
 
@@ -40,28 +40,16 @@ func uniqSorted(elements []string) []string {
 
 // RemoveDuplicatesAndSort sorts and removes duplicates from a slice without doing it in place.
 func RemoveDuplicatesAndSort(elements []string) []string {
-	// isolate unique elements
-	found := make(map[string]bool)
-	unique := []string{}
-
-	for v := range elements {
-		if !found[elements[v]] {
-			unique = append(unique, elements[v])
-			found[elements[v]] = true
-		}
-	}
-
-	// sort the array
-	sort.Strings(unique)
-
+	res := CopyArray(elements)
+	res = SortUniqInPlace(res)
 	// copying the array with exactly enough capacity should make it more resilient
 	// against cases where `append` mutates the original array
-	return CopyArray(unique)
+	return CopyArray(res)
 }
 
 // CopyArray returns a copied array
 func CopyArray[T any](array []T) []T {
-	res := make([]T, len(array))
+	res := make([]T, len(array), len(array))
 	copy(res, array)
 	return res
 }

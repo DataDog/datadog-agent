@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -26,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/oracle"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/tencent"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
 )
 
 type cloudProviderDetector struct {
@@ -141,7 +141,7 @@ func GetHostAliases(ctx context.Context) []string {
 	}
 	wg.Wait()
 
-	return util.SortUniqInPlace(aliases)
+	return sort.SortUniqInPlace(aliases)
 }
 
 // GetPublicIPv4 returns the public IPv4 from different providers

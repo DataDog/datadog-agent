@@ -6,33 +6,9 @@
 package utils
 
 import (
-	"sort"
-
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
 )
-
-// removeDuplicatesAndSort returns a new array, sorted without duplicates.
-func removeDuplicatesAndSort(elements []string) []string {
-	// isolate unique elements
-	found := make(map[string]bool)
-	unique := []string{}
-
-	for v := range elements {
-		if !found[elements[v]] {
-			unique = append(unique, elements[v])
-			found[elements[v]] = true
-		}
-	}
-
-	// sort the array
-	sort.Strings(unique)
-
-	// copying the array with exactly enough capacity should make it more resilient
-	// against cases where `append` mutates the original array
-	res := make([]string, len(unique))
-	copy(res, unique)
-	return res
-}
 
 // GetConfiguredTags returns list of tags from a configuration, based on
 // `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
@@ -51,8 +27,8 @@ func GetConfiguredTags(c config.Reader, includeDogstatsd bool) []string {
 	combined = append(combined, extraTags...)
 	combined = append(combined, dsdTags...)
 
-	// The aggregator should sort and remove duplicates in place. Pre-sorting part of the tags should
+	// The aggregator sorts and removes duplicates in place. Pre-sorting part of the tags should
 	// improve the performances of the insertion sort in the aggregators.
-	combined = removeDuplicatesAndSort(combined)
+	combined = sort.RemoveDuplicatesAndSort(combined)
 	return combined
 }
