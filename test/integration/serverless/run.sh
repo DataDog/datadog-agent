@@ -266,7 +266,7 @@ for function_name in "${all_functions[@]}"; do
             sleep 10
             continue
         fi
-        if [[ "${function_name}" =~ "^timeout-.*$" ]]; then
+        if [[ "${function_name}" = timeout-* ]]; then
             echo "Ignoring Lambda report check count as this is a timeout example..."
         else
             count=$(echo $raw_logs | grep -o 'REPORT RequestId' | wc -l)
