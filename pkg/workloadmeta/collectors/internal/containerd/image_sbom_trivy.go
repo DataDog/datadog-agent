@@ -140,7 +140,7 @@ func (c *collector) extractSBOMWithTrivy(ctx context.Context, storedImage *workl
 }
 
 // updateSBOMMetadata updates entered SBOM with new metadata properties if the initial SBOM status was successful
-// and there are new repoTags and repoDigests missing in the sbom. It returns the updated SBOM.
+// and there are new repoTags and repoDigests missing in the SBOM. It returns the updated SBOM.
 func updateSBOMMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []string) *workloadmeta.SBOM {
 	if sbom.Status != workloadmeta.Success || sbom.CycloneDXBOM.Metadata.Component.Properties == nil {
 		return sbom
@@ -185,7 +185,7 @@ func appendMissingProperties(properties []cyclonedx.Property, propertySet map[cy
 	return properties
 }
 
-// cdxProperty function generates a trivy-specific cycloneDX Property .
+// cdxProperty function generates a trivy-specific cycloneDX Property.
 func cdxProperty(key, value string) cyclonedx.Property {
 	return cyclonedx.Property{
 		Name:  trivydx.Namespace + key,
