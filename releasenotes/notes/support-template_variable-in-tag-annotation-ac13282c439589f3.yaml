@@ -7,7 +7,7 @@
 # Each section note must be formatted as reStructuredText.
 enhancements:
   - |
-    Add tagger parse to support envirable varible in format of "%%env_XXXXX%%". 
+    Add tagger parsing to support environment variables in "%%env_XXXXX%%" format. 
     For example, add the following template variable to ad.datadoghq.com/tags or com.datadoghq.ad.tags
       "available_zone": "%%env_AVAILABILITY_ZONE%%"
     %%env_AVAILABILITY_ZONE%% will be replaced by the env var in the tagger
