@@ -307,9 +307,7 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
     __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length);
-    if (interesting_headers > 0) {
-        process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers);
-    }
+    process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers);
 }
 
 static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_ctx_t *http2_ctx, struct http2_frame *current_frame) {
