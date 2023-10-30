@@ -278,8 +278,6 @@ func TestCreateContainerService(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			listener, wlm := newContainerListener(t)
 
-			// FIXME(components): these tests will likely remain broken until we actually
-			//                    adopt the workloadmeta component mocks.
 			if tt.container != nil {
 				listener.Store().(workloadmeta.Mock).Set(tt.container)
 			}

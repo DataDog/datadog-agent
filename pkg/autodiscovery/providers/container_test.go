@@ -22,8 +22,6 @@ import (
 )
 
 func TestProcessEvents(t *testing.T) {
-	// FIXME(components): this test is broken until it adopts the actual mock workloadmeta component
-	//                    and testing infra.
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		config.MockModule,
 		log.MockModule,

@@ -26,10 +26,8 @@ type wlmListenerSvc struct {
 }
 
 type testWorkloadmetaListener struct {
-	t       *testing.T
-	filters *containerFilters
-	// FIXME(components): these tests will likely remain broken until we actually
-	//                    adopt the workloadmeta component mocks.
+	t        *testing.T
+	filters  *containerFilters
 	store    workloadmeta.Component
 	services map[string]wlmListenerSvc
 }
@@ -42,9 +40,6 @@ func (l *testWorkloadmetaListener) Stop() {
 	panic("not implemented")
 }
 
-// FIXME(components): these tests will likely remain broken until we actually
-//
-//	adopt the workloadmeta component mocks.
 func (l *testWorkloadmetaListener) Store() workloadmeta.Component {
 	return l.store
 }
@@ -92,10 +87,8 @@ func newTestWorkloadmetaListener(t *testing.T) *testWorkloadmetaListener {
 	))
 
 	return &testWorkloadmetaListener{
-		t:       t,
-		filters: filters,
-		// FIXME(components): these tests will likely remain broken until we actually
-		//                    adopt the workloadmeta component mocks.
+		t:        t,
+		filters:  filters,
 		store:    w,
 		services: make(map[string]wlmListenerSvc),
 	}

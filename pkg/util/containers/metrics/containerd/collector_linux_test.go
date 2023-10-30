@@ -378,9 +378,6 @@ func TestGetContainerNetworkStats_Containerd(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			containerID := "1"
 
-			// FIXME(components): these tests are broken until they adopt the new
-			//                    workloadmeta component testing logic.
-
 			// The container needs to exist in the workloadmeta store and have a
 			// namespace.
 			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(

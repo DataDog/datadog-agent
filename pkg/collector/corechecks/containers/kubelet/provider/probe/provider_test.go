@@ -260,8 +260,6 @@ func TestProvider_Provide(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
 
-			// FIXME(components): these tests will remain broken until we adopt the actual mock workloadmeta
-			//                    component.
 			store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 				core.MockBundle,
 				fx.Supply(context.Background()),

@@ -38,8 +38,6 @@ func TestGetContainers(t *testing.T) {
 	metricsProvider.RegisterConcreteCollector(provider.RuntimeNameGarden, metricsCollector)
 
 	// Workload meta + tagger
-	// FIXME(components): these tests will remain broken until we adopt the actual mock workloadmeta
-	//                    component.
 	metadataProvider := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(context.Background()),

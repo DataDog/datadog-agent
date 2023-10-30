@@ -25,9 +25,6 @@ import (
 )
 
 func TestKubeletCollectorLinux(t *testing.T) {
-	// FIXME(components): these tests are broken until they adopt the new
-	//                    workloadmeta component testing logic.
-
 	metadataStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(context.Background()),
@@ -162,8 +159,6 @@ func TestKubeletCollectorLinux(t *testing.T) {
 }
 
 func TestKubeletCollectorWindows(t *testing.T) {
-	// FIXME(components): these tests are broken until they adopt the new
-	//                    workloadmeta component testing logic.
 	metadataStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(context.Background()),

@@ -21,12 +21,8 @@ import (
 
 func TestTagBuilder(t *testing.T) {
 
-	// FIXME(components): these tests will likely remain broken until we actually
-	//                    adopt the workloadmeta component mocks.
-
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
-		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2,
 	))
