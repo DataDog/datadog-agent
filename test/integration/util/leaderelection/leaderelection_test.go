@@ -188,7 +188,11 @@ func (suite *apiserverSuite) getNewLeaderEngine(holderIdentity string) *leaderel
 	leaderelection.ResetGlobalLeaderEngine()
 	telemetryComponent.GetCompatComponent().Reset()
 
-	leader, err := leaderelection.GetCustomLeaderEngine(holderIdentity, time.Second*30)
+	leader := leaderelection.CreateGlobalLeaderEngine(context.Background())
+	leader.HolderIdentity = holderIdentity
+	leader.LeaseDuration = time.Second * 30
+
+	_, err := leaderelection.GetLeaderEngine()
 	require.Nil(suite.T(), err)
 	return leader
 }

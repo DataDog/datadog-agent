@@ -1,6 +1,11 @@
 #ifndef __HTTP2_MAPS_DEFS_H
 #define __HTTP2_MAPS_DEFS_H
 
+// http2_remainder maps a connection tuple to the remainder from the previous packet.
+// It is possible for frames to be split to multiple tcp packets, so we need to associate the remainder from the previous
+// packet, to the current one.
+BPF_HASH_MAP(http2_remainder, conn_tuple_t, frame_header_remainder_t, 2048)
+
 // http2_static_table is the map that holding the supported static values by index and its static value.
 BPF_HASH_MAP(http2_static_table, u8, static_table_value_t, 20)
 

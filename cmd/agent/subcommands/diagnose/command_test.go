@@ -57,3 +57,14 @@ func TestShowMetadataInventoryCommand(t *testing.T) {
 			require.Equal(t, "inventory", cliParams.payloadName)
 		})
 }
+
+func TestShowMetadataInventoryAgentCommand(t *testing.T) {
+	fxutil.TestOneShotSubcommand(t,
+		Commands(&command.GlobalParams{}),
+		[]string{"diagnose", "show-metadata", "inventory-agent"},
+		printPayload,
+		func(cliParams *cliParams, coreParams core.BundleParams) {
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+			require.Equal(t, "inventory-agent", cliParams.payloadName)
+		})
+}

@@ -110,7 +110,6 @@ func setupHostMetadataMock(t *testing.T) {
 		platformGet = platform.CollectInfo
 
 		inventoryMutex.Lock()
-		delete(agentMetadata, HostCloudProvider)
 		delete(hostMetadata, HostOSVersion)
 		inventoryMutex.Unlock()
 	})
@@ -121,7 +120,7 @@ func setupHostMetadataMock(t *testing.T) {
 	platformGet = platformMock
 	dmi.SetupMock(t, "hypervisorUUID", "dmiUUID", "boardTag", "boardVendor")
 
-	SetAgentMetadata(HostCloudProvider, "some_cloud_provider")
+	SetHostMetadata(HostCloudProvider, "some_cloud_provider")
 	SetHostMetadata(HostOSVersion, "testOS")
 }
 
@@ -156,6 +155,6 @@ func TestGetHostMetadataError(t *testing.T) {
 	setupHostMetadataErrorMock(t)
 
 	m := getHostMetadata()
-	expected := &HostMetadata{AgentVersion: version.AgentVersion}
+	expected := &HostMetadata{AgentVersion: version.AgentVersion, CloudProvider: "some_cloud_provider"}
 	assert.Equal(t, expected, m)
 }

@@ -256,7 +256,7 @@ def get_default_build_tags(build="agent", arch="x64", flavor=AgentFlavor.base, p
     """
     include = build_tags.get(flavor).get(build)
     if include is None:
-        print("Warning: unrecognized build type, no build tags included.")
+        print("Warning: unrecognized build type, no build tags included.", file=sys.stderr)
         include = set()
 
     return sorted(filter_incompatible_tags(include, arch=arch, platform=platform))
@@ -298,12 +298,12 @@ def get_build_tags(include, exclude):
     known_include = ALL_TAGS.intersection(include)
     unknown_include = include - known_include
     for tag in unknown_include:
-        print(f"Warning: unknown build tag '{tag}' was filtered out from included tags list.")
+        print(f"Warning: unknown build tag '{tag}' was filtered out from included tags list.", file=sys.stderr)
 
     known_exclude = ALL_TAGS.intersection(exclude)
     unknown_exclude = exclude - known_exclude
     for tag in unknown_exclude:
-        print(f"Warning: unknown build tag '{tag}' was filtered out from excluded tags list.")
+        print(f"Warning: unknown build tag '{tag}' was filtered out from excluded tags list.", file=sys.stderr)
 
     return list(known_include - known_exclude)
 

@@ -1,17 +1,17 @@
 .pull_test_dockers:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: []
-  tags: ["runner:docker"]
+  tags: ["arch:amd64"]
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | crane auth login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Pull base images
     - mkdir $KITCHEN_DOCKERS
-    - inv -e system-probe.save-test-dockers --output-dir $KITCHEN_DOCKERS --arch $ARCH
+    - inv -e system-probe.save-test-dockers --use-crane --output-dir $KITCHEN_DOCKERS --arch $ARCH
   artifacts:
     expire_in: 1 day
     paths:
@@ -111,7 +111,7 @@ upload_dependencies_x64:
   variables:
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
-    INSTANCE_TYPE: m5.metal
+    INSTANCE_TYPE: m5d.metal
 
 upload_dependencies_arm64:
   extends:
@@ -120,7 +120,7 @@ upload_dependencies_arm64:
   variables:
     ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
-    INSTANCE_TYPE: m6g.metal
+    INSTANCE_TYPE: m6gd.metal
 
 .upload_system_probe_tests:
   stage: kernel_matrix_testing
@@ -195,7 +195,7 @@ upload_system_probe_tests_x64:
   variables:
     ARCHIVE_NAME: tests-x86_64.tar.gz
     ARCH: x86_64
-    INSTANCE_TYPE: m5.metal
+    INSTANCE_TYPE: m5d.metal
 
 upload_system_probe_tests_arm64:
   extends:
@@ -206,7 +206,7 @@ upload_system_probe_tests_arm64:
   variables:
     ARCHIVE_NAME: tests-arm64.tar.gz
     ARCH: arm64
-    INSTANCE_TYPE: m6g.metal
+    INSTANCE_TYPE: m6gd.metal
 
 .upload_minimized_btfs:
   stage: kernel_matrix_testing
@@ -248,7 +248,7 @@ upload_minimized_btfs_x64:
   variables:
     ARCHIVE_NAME: btfs-x86_64.tar.gz
     ARCH: x86_64
-    INSTANCE_TYPE: m5.metal
+    INSTANCE_TYPE: m5d.metal
 
 upload_minimized_btfs_arm64:
   extends:
@@ -257,7 +257,7 @@ upload_minimized_btfs_arm64:
   variables:
     ARCHIVE_NAME: btfs-arm64.tar.gz
     ARCH: arm64
-    INSTANCE_TYPE: m6g.metal
+    INSTANCE_TYPE: m6gd.metal
 
 .kernel_matrix_testing_new_profile:
   - mkdir -p ~/.aws
@@ -276,8 +276,8 @@ kernel_matrix_testing_setup_env:
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
   variables:
-    EC2_X86_INSTANCE_TYPE: "m5.metal"
-    EC2_ARM_INSTANCE_TYPE: "m6g.metal"
+    EC2_X86_INSTANCE_TYPE: "m5d.metal"
+    EC2_ARM_INSTANCE_TYPE: "m6gd.metal"
     X86_AMI_ID: $KERNEL_MATRIX_TESTING_X86_AMI_ID
     ARM_AMI_ID: $KERNEL_MATRIX_TESTING_ARM_AMI_ID
     AWS_REGION: us-east-1
@@ -302,6 +302,11 @@ kernel_matrix_testing_setup_env:
     - inv -e system-probe.start-microvms --provision --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$CI_PIPELINE_ID
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
+    - mkdir -p $CI_PROJECT_DIR/libvirt/log/x86_64 $CI_PROJECT_DIR/libvirt/log/arm64
+    - X64_INSTANCE_IP=$(grep x86_64-instance-ip $CI_PROJECT_DIR/stack.outputs | cut -d ' ' -f 2)
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$X64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/x86_64/
+    - ARM64_INSTANCE_IP=$(grep arm64-instance-ip $CI_PROJECT_DIR/stack.outputs | cut -d ' ' -f 2)
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$ARM64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/arm64/
   artifacts:
     when: always
     paths:
@@ -311,6 +316,7 @@ kernel_matrix_testing_setup_env:
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
       - $CI_PROJECT_DIR/stack.outputs
+      - $CI_PROJECT_DIR/libvirt
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
@@ -358,7 +364,7 @@ kernel_matrix_testing_run_tests_x64:
     ARCH: "x86_64"
   parallel:
     matrix:
-      - TAG: ["bionic", "focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_35", "fedora_36", "fedora_37", "fedora_38"]
+      - TAG: ["ubuntu_18.04", "ubuntu_20.04", "ubuntu_22.04", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38", "debian_10", "debian_11"]
 
 kernel_matrix_testing_run_tests_arm64:
   extends:
@@ -371,7 +377,7 @@ kernel_matrix_testing_run_tests_arm64:
     ARCH: "arm64"
   parallel:
     matrix:
-      - TAG: ["focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_35", "fedora_36", "fedora_37", "fedora_38"]
+      - TAG: ["ubuntu_20.04", "ubuntu_22.04", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38"]
 
 kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
