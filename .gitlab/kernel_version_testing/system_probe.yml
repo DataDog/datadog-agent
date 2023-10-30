@@ -310,7 +310,7 @@ kernel_matrix_testing_setup_env:
     - !reference [.get_instance_ip_by_type]
     - X64_INSTANCE_IP=$INSTANCE_IP
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$X64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/x86_64/
-    - INSTANCE_TYPE=m5d.metal
+    - INSTANCE_TYPE=m6gd.metal
     - !reference [.get_instance_ip_by_type]
     - ARM64_INSTANCE_IP=$INSTANCE_IP
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$ARM64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/arm64/
