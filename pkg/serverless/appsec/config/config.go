@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:deadcode,unused
-package appsec
+// Package config defines configuration utilities for appsec
+package config
 
 import (
 	"fmt"
@@ -26,6 +26,7 @@ const (
 	traceRateLimitEnvVar  = "DD_APPSEC_TRACE_RATE_LIMIT"
 	obfuscatorKeyEnvVar   = "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
 	obfuscatorValueEnvVar = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
+	tracingEnabledEnvVar  = "DD_APM_TRACING_ENABLED"
 )
 
 const (
@@ -41,13 +42,13 @@ type StartOption func(c *Config)
 // Config is the AppSec configuration.
 type Config struct {
 	// rules loaded via the env var DD_APPSEC_RULES. When not set, the builtin rules will be used.
-	rules []byte
+	Rules []byte
 	// Maximum WAF execution time
-	wafTimeout time.Duration
+	WafTimeout time.Duration
 	// AppSec trace rate limit (traces per second).
-	traceRateLimit uint
+	TraceRateLimit uint
 	// Obfuscator configuration parameters
-	obfuscator ObfuscatorConfig
+	Obfuscator ObfuscatorConfig
 }
 
 // ObfuscatorConfig wraps the key and value regexp to be passed to the WAF to perform obfuscation.
@@ -56,10 +57,13 @@ type ObfuscatorConfig struct {
 	ValueRegex string
 }
 
-// isEnabled returns true when appsec is enabled when the environment variable
+// standalone is assigned at init by reading the environment
+var standalone bool
+
+// IsEnabled returns true when appsec is enabled when the environment variable
 // It also returns whether the env var is actually set in the env or not
 // DD_APPSEC_ENABLED is set to true.
-func isEnabled() (enabled bool, set bool, err error) {
+func IsEnabled() (enabled bool, set bool, err error) {
 	enabledStr, set := os.LookupEnv(enabledEnvVar)
 	if enabledStr == "" {
 		return false, set, nil
@@ -70,16 +74,22 @@ func isEnabled() (enabled bool, set bool, err error) {
 	}
 }
 
-func newConfig() (*Config, error) {
+// IsStandalone returns whether appsec is used as a standalone product (without APM tracing) or not
+func IsStandalone() bool {
+	return standalone
+}
+
+// NewConfig returns a new appsec configuration read from the environment
+func NewConfig() (*Config, error) {
 	rules, err := readRulesConfig()
 	if err != nil {
 		return nil, err
 	}
 	return &Config{
-		rules:          rules,
-		wafTimeout:     readWAFTimeoutConfig(),
-		traceRateLimit: readRateLimitConfig(),
-		obfuscator:     readObfuscatorConfig(),
+		Rules:          rules,
+		WafTimeout:     readWAFTimeoutConfig(),
+		TraceRateLimit: readRateLimitConfig(),
+		Obfuscator:     readObfuscatorConfig(),
 	}, nil
 }
 
@@ -171,4 +181,16 @@ func logEnvVarParsingError(name, value string, err error, defaultValue interface
 
 func logUnexpectedEnvVarValue(name string, value interface{}, reason string, defaultValue interface{}) {
 	log.Errorf("appsec: unexpected configuration value of %s=%v: %s. Using default value %v.", name, value, reason, defaultValue)
+}
+
+// isStandalone is reads the env and reports whether appsec runs in standalone mode
+// Used at init and for testing
+func isStandalone() bool {
+	value, set := os.LookupEnv(tracingEnabledEnvVar)
+	enabled, _ := strconv.ParseBool(value)
+	return set && !enabled
+}
+
+func init() {
+	standalone = isStandalone()
 }
