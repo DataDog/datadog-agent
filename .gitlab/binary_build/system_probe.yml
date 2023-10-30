@@ -37,8 +37,8 @@
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tcp-queue-length.o $S3_ARTIFACTS_URI/tcp-queue-length-co-re.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/ebpf.o $S3_ARTIFACTS_URI/ebpf-co-re.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/ebpf-debug.o $S3_ARTIFACTS_URI/ebpf-debug-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry.o $S3_ARTIFACTS_URI/tracer-fentry-co-re.o.$ARCH
-    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fentry-debug.o $S3_ARTIFACTS_URI/tracer-fentry-debug-co-re.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fargate.o $S3_ARTIFACTS_URI/tracer-fargate-co-re.o.$ARCH
+    - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-fargate-debug.o $S3_ARTIFACTS_URI/tracer-fargate-debug-co-re.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer.o $S3_ARTIFACTS_URI/tracer-co-re.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/co-re/tracer-debug.o $S3_ARTIFACTS_URI/tracer-debug-co-re.o.$ARCH
     - $S3_CP_CMD $CI_PROJECT_DIR/pkg/ebpf/bytecode/build/runtime/tracer.c $S3_ARTIFACTS_URI/tracer.c.$ARCH

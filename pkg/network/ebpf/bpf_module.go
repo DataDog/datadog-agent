@@ -67,7 +67,7 @@ func ReadOffsetBPFModule(bpfDir string, debug bool) (bytecode.AssetReader, error
 }
 
 func ReadFentryTracerModule(bpfDir string, debug bool) (bytecode.AssetReader, error) {
-	return readModule(bpfDir, "tracer-fentry", debug)
+	return readModule(bpfDir, "tracer-fargate", debug)
 }
 
 // ReadConntrackBPFModule from the asset file
