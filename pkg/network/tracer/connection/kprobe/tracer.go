@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -41,6 +42,8 @@ var (
 	// The kernel has to be newer than 4.7.0 since we are using bpf_skb_load_bytes (4.5.0+) method to read from the
 	// socket filter, and a tracepoint (4.7.0+).
 	classificationMinimumKernel = kernel.VersionCode(4, 7, 0)
+
+	fentryMinimumKernel = kernel.VersionCode(5, 5, 0)
 
 	protocolClassificationTailCalls = []manager.TailCallRoute{
 		{
@@ -103,6 +106,15 @@ func ClassificationSupported(config *config.Config) bool {
 	}
 
 	return currentKernelVersion >= classificationMinimumKernel
+}
+
+func fentrySupported() bool {
+	kv, err := skernel.NewKernelVersion()
+	if err != nil {
+		log.Warn("could not determine the current kernel version. fentry/fexit support disabled.")
+		return false
+	}
+	return kv.HaveFentrySupport()
 }
 
 func addBoolConst(options *manager.Options, flag bool, name string) {
@@ -241,6 +253,11 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 		if _, enabled := enabledProbes[p.EBPFFuncName]; !enabled {
 			mgrOpts.ExcludedFunctions = append(mgrOpts.ExcludedFunctions, p.EBPFFuncName)
 		}
+	}
+
+	// exclude all maps responsible for storing argument values between kprobes and kretprobes
+	if fentrySupported() {
+		mgrOpts.ExcludedMaps = append(mgrOpts.ExcludedMaps, probes.TcpSendMsgArgsMap)
 	}
 
 	var tailCallsIdentifiersSet map[manager.ProbeIdentificationPair]struct{}

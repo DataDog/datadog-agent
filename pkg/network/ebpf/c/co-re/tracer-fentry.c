@@ -8,6 +8,7 @@
 #include "ipv6.h"
 #include "sock.h"
 #include "skb.h"
+#include "task_event.h"
 
 #include "tracer/tracer.h"
 #include "tracer/events.h"
@@ -16,40 +17,10 @@
 #include "tracer/stats.h"
 #include "tracer/telemetry.h"
 #include "tracer/port.h"
+#include "tracer/tcp_send_recv.h"
 
 BPF_PERCPU_HASH_MAP(udp6_send_skb_args, u64, u64, 1024)
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
-
-#define RETURN_IF_NOT_IN_SYSPROBE_TASK(prog_name)           \
-    if (!event_in_task(prog_name)) {                        \
-        return 0;                                           \
-    }
-
-static __always_inline __u32 systemprobe_dev() {
-    __u64 val = 0;
-    LOAD_CONSTANT("systemprobe_device", val);
-    return (__u32)val;
-}
-
-static __always_inline __u32 systemprobe_ino() {
-    __u64 val = 0;
-    LOAD_CONSTANT("systemprobe_ino", val);
-    return (__u32)val;
-}
-
-static __always_inline bool event_in_task(char *prog_name) {
-    __u32 dev = systemprobe_dev();
-    __u32 ino = systemprobe_ino();
-    struct bpf_pidns_info ns = {};
-
-    u64 error = bpf_get_ns_current_pid_tgid(dev, ino, &ns, sizeof(struct bpf_pidns_info));
-
-    if (error) {
-        log_debug("%s: err=event originates from outside current fargate task\n", prog_name);
-    }
-
-    return !error;
-}
 
 static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, struct flowi4 *fl4, u64 pid_tgid, metadata_mask_t type) {
     t->pid = pid_tgid >> 32;
@@ -135,31 +106,6 @@ static __always_inline int read_conn_tuple_partial_from_flowi6(conn_tuple_t *t, 
     return 1;
 }
 
-SEC("fexit/tcp_sendmsg")
-int BPF_PROG(tcp_sendmsg_exit, struct sock *sk, struct msghdr *msg, size_t size, int sent) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_sendmsg");
-    if (sent < 0) {
-        log_debug("fexit/tcp_sendmsg: tcp_sendmsg err=%d\n", sent);
-        return 0;
-    }
-
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    log_debug("fexit/tcp_sendmsg: pid_tgid: %d, sent: %d, sock: %llx\n", pid_tgid, sent, sk);
-
-    conn_tuple_t t = {};
-    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
-        return 0;
-    }
-
-    handle_tcp_stats(&t, sk, 0);
-
-    __u32 packets_in = 0;
-    __u32 packets_out = 0;
-    get_tcp_segment_counts(sk, &packets_in, &packets_out);
-
-    return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, packets_out, packets_in, PACKET_COUNT_ABSOLUTE, sk);
-}
-
 SEC("fexit/tcp_sendpage")
 int BPF_PROG(tcp_sendpage_exit, struct sock *sk, struct page *page, int offset, size_t size, int flags, int sent) {
 RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_sendpage");
@@ -202,28 +148,6 @@ int BPF_PROG(udp_sendpage_exit, struct sock *sk, struct page *page, int offset, 
     }
 
     return handle_message(&t, sent, 0, CONN_DIRECTION_UNKNOWN, 0, 0, PACKET_COUNT_NONE, sk);
-}
-
-SEC("fexit/tcp_recvmsg")
-int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, int flags, int *addr_len, int copied) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_recvmsg");
-    if (copied < 0) { // error
-        return 0;
-    }
-
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    return handle_tcp_recv(pid_tgid, sk, copied);
-}
-
-SEC("fexit/tcp_recvmsg")
-int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
-    RETURN_IF_NOT_IN_SYSPROBE_TASK("fexit/tcp_recvmsg");
-    if (copied < 0) { // error
-        return 0;
-    }
-
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    return handle_tcp_recv(pid_tgid, sk, copied);
 }
 
 SEC("fentry/tcp_close")
