@@ -55,7 +55,7 @@ func TestParseTemplateVar(t *testing.T) {
 
 func TestParseTemplateEnvString(t *testing.T) {
 	testCases := []struct {
-		tmpl, expected_value string
+		tmpl, expectedValue string
 	}{
 		{
 			"app",
@@ -88,7 +88,7 @@ func TestParseTemplateEnvString(t *testing.T) {
 			os.Setenv("APP", "testapp")
 			os.Setenv("TEAM_NAME", "containers")
 			value := ParseTemplateEnvString(testCase.tmpl)
-			assert.Equal(t, testCase.expected_value, value)
+			assert.Equal(t, testCase.expectedValue, value)
 		})
 	}
 }
