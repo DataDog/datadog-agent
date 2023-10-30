@@ -16,11 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -37,7 +37,7 @@ func (m *MockDCAClient) PostLanguageMetadata(_ context.Context, request *pbgo.Pa
 	return nil
 }
 
-func newTestClient(t *testing.T, store workloadmeta.Store) (*client, chan *pbgo.ParentLanguageAnnotationRequest) {
+func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRequest) {
 	respCh := make(chan *pbgo.ParentLanguageAnnotationRequest)
 	mockDCAClient := &MockDCAClient{respCh: respCh}
 
@@ -50,13 +50,15 @@ func newTestClient(t *testing.T, store workloadmeta.Store) (*client, chan *pbgo.
 		}}),
 		telemetry.MockModule,
 		log.MockModule,
+		collectors.GetCatalog(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2,
 	))
 
 	optComponent := newClient(deps).(optional.Option[Component])
 	comp, _ := optComponent.Get()
 	client := comp.(*client)
 	client.langDetectionCl = mockDCAClient
-	client.store = store
 
 	return client, respCh
 }
@@ -92,7 +94,7 @@ func TestClientEnabled(t *testing.T) {
 }
 
 func TestClientSend(t *testing.T) {
-	client, respCh := newTestClient(t, nil)
+	client, respCh := newTestClient(t)
 	container := langUtil.ContainersLanguages{
 		"java-cont": {
 			"java": {},
@@ -142,7 +144,7 @@ func TestClientSend(t *testing.T) {
 }
 
 func TestClientSendFreshPods(t *testing.T) {
-	client, _ := newTestClient(t, nil)
+	client, _ := newTestClient(t)
 	container := langUtil.ContainersLanguages{
 		"java-cont": {
 			"java": {},
@@ -195,8 +197,7 @@ func TestClientSendFreshPods(t *testing.T) {
 }
 
 func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
-	mockStore := workloadmeta.NewMockStore()
-	client, _ := newTestClient(t, mockStore)
+	client, _ := newTestClient(t)
 
 	container := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -367,8 +368,7 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 }
 
 func TestClientProcessEvent_PodMissing(t *testing.T) {
-	mockStore := workloadmeta.NewMockStore()
-	client, _ := newTestClient(t, mockStore)
+	client, _ := newTestClient(t)
 
 	container := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -731,7 +731,7 @@ func TestCleanUpProcesssesWithoutPod(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client, _ := newTestClient(t, nil)
+			client, _ := newTestClient(t)
 			client.processesWithoutPod = tt.processesWithoutPod
 			client.cleanUpProcesssesWithoutPod(tt.time)
 			assert.Equal(t, tt.expected, client.processesWithoutPod)
@@ -741,8 +741,7 @@ func TestCleanUpProcesssesWithoutPod(t *testing.T) {
 
 // TestRun checks that the client runs as expected and will help to identify potential data races
 func TestRun(t *testing.T) {
-	mockStore := workloadmeta.NewMockStore()
-	client, respCh := newTestClient(t, mockStore)
+	client, respCh := newTestClient(t)
 	client.freshDataPeriod = 50 * time.Millisecond
 	client.periodicalFlushPeriod = 1 * time.Second
 	client.processesWithoutPodCleanupPeriod = 100 * time.Millisecond

@@ -16,12 +16,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	"go.uber.org/fx"
 )
 
 const (
@@ -42,10 +44,11 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc        fx.Lifecycle
-	Config    config.Component
-	Log       logComponent.Component
-	Telemetry telemetry.Component
+	Lc           fx.Lifecycle
+	Config       config.Component
+	Log          logComponent.Component
+	Telemetry    telemetry.Component
+	Workloadmeta workloadmeta.Component
 
 	// workloadmeta is still not a component but should be provided as one in the future
 	// TODO(components): Workloadmeta workloadmeta.Component
@@ -61,7 +64,7 @@ type client struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	logger logComponent.Component
-	store  workloadmeta.Store
+	store  workloadmeta.Component
 
 	// mutex protecting UpdatedPodDetails and currentBatch
 	mutex sync.Mutex
@@ -107,6 +110,7 @@ func newClient(
 		ctx:                              ctx,
 		cancel:                           cancel,
 		logger:                           deps.Log,
+		store:                            deps.Workloadmeta,
 		freshDataPeriod:                  deps.Config.GetDuration("language_detection.client_period"),
 		mutex:                            sync.Mutex{},
 		telemetry:                        newComponentTelemetry(deps.Telemetry),
@@ -141,10 +145,6 @@ func (c *client) stop(_ context.Context) error {
 // run starts processing events and starts streaming
 func (c *client) run() {
 	defer c.logger.Info("Shutting down language detection client")
-	// workloadmeta can't be initialized in the constructor or provided as a dependency until workloadmeta is refactored as a component
-	if c.store == nil {
-		c.store = workloadmeta.GetGlobalStore() // TODO(components): should be replaced by components
-	}
 
 	filterParams := workloadmeta.FilterParams{
 		Kinds: []workloadmeta.Kind{
