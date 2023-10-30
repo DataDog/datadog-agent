@@ -32,7 +32,6 @@ build do
       "CFLAGS" => "-I#{install_dir}/embedded/include",
       "CXXFLAGS" => "-I#{install_dir}/embedded/include",
       "LDFLAGS" => "-L#{install_dir}/embedded/lib",
-      "PKG_CONFIG_PATH" => "#{install_dir}/embedded/lib/pkgconfig",
     }
   end
 
