@@ -324,14 +324,14 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     // When we accept an RST, it means that the current stream is terminated.
     // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.4
     bool is_rst = current_frame->type == kRSTStreamFrame;
-       // If rst, and stream is empty (no status code, or no response) then delete from inflight
+    // If rst, and stream is empty (no status code, or no response) then delete from inflight
     if (is_rst && (current_stream->response_status_code == 0 || current_stream->request_started == 0)) {
         bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
         return;
     }
     if (is_rst || ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM)) {
-             handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
-     }
+        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
+    }
 
     return;
 }
