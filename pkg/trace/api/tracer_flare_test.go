@@ -77,11 +77,11 @@ func TestTracerFlareProxyHandler(t *testing.T) {
 			err := req.ParseMultipartForm(1000000)
 			assert.Nil(t, err)
 
-			assert.Equal(t, req.FormValue("case_id"), "case_id")
-			assert.Equal(t, req.FormValue("source"), "tracer_go")
-			assert.Equal(t, req.FormValue("email"), "test@test.com")
-			assert.Equal(t, req.FormValue("hostname"), "hostname")
-			assert.Equal(t, req.MultipartForm.File["flare_file"][0].Filename, "flare.zip")
+			assert.Equal(t, "case_id", req.FormValue("case_id"))
+			assert.Equal(t, "tracer_go", req.FormValue("source"))
+			assert.Equal(t, "test@test.com", req.FormValue("email"))
+			assert.Equal(t, "hostname", req.FormValue("hostname"))
+			assert.Equal(t, "flare.zip", req.MultipartForm.File["flare_file"][0].Filename)
 
 			w.WriteHeader(200)
 		default:
@@ -90,7 +90,7 @@ func TestTracerFlareProxyHandler(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	req, err := http.NewRequest("POST", srv.URL, nil)
+	req, err := http.NewRequest(http.MethodPost, srv.URL, nil)
 	assert.NoError(t, err)
 	boundaryWriter := multipart.NewWriter(nil)
 
