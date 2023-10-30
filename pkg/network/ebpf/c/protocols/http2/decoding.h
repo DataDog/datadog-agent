@@ -403,30 +403,23 @@ static __always_inline void reset_frame(struct http2_frame *out) {
     out->flags = 0;
 }
 
-static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, frame_header_remainder_t *frame_state) {
-    bool is_headers_or_rst_frame, is_data_end_of_stream;
-    __u8 interesting_frame_index = 0;
-    struct http2_frame current_frame = {};
-
-    // Filter preface.
-    skip_preface(skb, skb_info);
-
+static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *skb_info, frame_header_remainder_t *frame_state, struct http2_frame *current_frame) {
     // No state, try reading a frame.
     if (frame_state == NULL) {
         // Checking we have enough bytes in the packet to read a frame header.
         if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
             // Not enough bytes, cannot read frame, so we have 0 interesting frames in that packet.
-            return 0;
+            return false;
         }
 
         // Reading frame, and ensuring the frame is valid.
-        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
+        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
         skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
-        if (!format_http2_frame_header(&current_frame)) {
+        if (!format_http2_frame_header(current_frame)) {
             // Frame is not valid, so we have 0 interesting frames in that packet.
-            return 0;
+            return false;
         }
-        goto valid_frame;
+        return true;
     }
 
     // Getting here means we have a frame state from the previous packets.
@@ -442,24 +435,24 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
 
     // Frame-header-remainder.
     if (frame_state->header_length > 0) {
-        fix_header_frame(skb, skb_info, (char*)&current_frame, frame_state);
-        if (format_http2_frame_header(&current_frame)) {
+        fix_header_frame(skb, skb_info, (char*)current_frame, frame_state);
+        if (format_http2_frame_header(current_frame)) {
             skb_info->data_off += frame_state->remainder;
             frame_state->remainder = 0;
-            goto valid_frame;
+            return true;
         }
 
         // We couldn't read frame header using the remainder.
-        return 0;
+        return false;
     }
 
     // Checking if we can read a frame header.
     if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE <= skb_info->data_end) {
-        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
-        if (format_http2_frame_header(&current_frame)) {
+        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
+        if (format_http2_frame_header(current_frame)) {
             // We successfully read a valid frame.
             skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
-            goto valid_frame;
+            return true;
         }
     }
 
@@ -469,20 +462,31 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
         // The remainders "ends" the current packet. No interesting frames were found.
         if (skb_info->data_off == skb_info->data_end) {
             frame_state->remainder = 0;
-            return 0;
+            return false;
         }
-        reset_frame(&current_frame);
-        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
-        if (format_http2_frame_header(&current_frame)) {
+        reset_frame(current_frame);
+        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
+        if (format_http2_frame_header(current_frame)) {
             frame_state->remainder = 0;
             skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
-            goto valid_frame;
+            return true;
         }
     }
     // still not valid / does not have a remainder - abort.
-    return 0;
+    return false;
+}
 
-valid_frame:
+static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, frame_header_remainder_t *frame_state) {
+    bool is_headers_or_rst_frame, is_data_end_of_stream;
+    __u8 interesting_frame_index = 0;
+    struct http2_frame current_frame = {};
+
+    // Filter preface.
+    skip_preface(skb, skb_info);
+
+    if (!get_first_frame(skb, skb_info, frame_state, &current_frame)) {
+        return 0;
+    }
 
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
     for (__u32 iteration = 0; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
