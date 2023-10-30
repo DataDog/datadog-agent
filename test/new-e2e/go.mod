@@ -15,7 +15,6 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20231024173211-d08836e5ac08
 	github.com/aws/aws-sdk-go-v2 v1.21.2
 	github.com/aws/aws-sdk-go-v2/config v1.18.40
 	github.com/aws/aws-sdk-go-v2/service/eks v1.29.7
@@ -38,6 +37,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.1
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.15.0
+	github.com/DataDog/test-infra-definitions v0.0.0-20231027164033-8158a5b2c60e
 	github.com/docker/cli v24.0.6+incompatible
 	github.com/docker/docker v24.0.6+incompatible
 	github.com/google/uuid v1.3.1
