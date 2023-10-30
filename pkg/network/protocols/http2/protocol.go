@@ -81,7 +81,7 @@ var Spec = &protocols.ProtocolSpec{
 	TailCalls: []manager.TailCallRoute{
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP2),
+			Key:           uint32(protocols.ProgramHTTP2FrameFilter),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
 			},
