@@ -8,8 +8,6 @@ package httpsec
 import (
 	"bytes"
 	"encoding/json"
-	"strings"
-
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -244,22 +242,9 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	}
 
 	if config.IsStandalone() {
-		// Manually remove runtime metrics, yuk
-		if language, ok := span.GetMetaTag("language"); ok {
-			for tag := range span.Metrics {
-				if strings.HasPrefix(tag, "runtime."+language+".") {
-					delete(span.Metrics, tag)
-				}
-			}
-		}
-
-		// Manually remove trace metrics, yuk as well
-		for tag := range span.Metrics {
-			if strings.HasPrefix(tag, "trace."+span.Name+".") {
-				delete(span.Meta, tag)
-			}
-		}
-
+		// _dd.measured indicates that trace metrics should not be computed for this span
+		span.SetMetricsTag("_dd.measured", 0)
+		// Make sure stats aren't computed backend side
 		span.SetMetaTag("_dd.compute_stats", "0")
 	}
 }
