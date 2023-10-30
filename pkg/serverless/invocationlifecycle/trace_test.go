@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -190,6 +191,155 @@ func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 	assert.Equal(t, uint64(1480558859903409531), inferredSpan.Span.ParentID)
 
 	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
+}
+
+func TestStartExecutionSpan(t *testing.T) {
+	eventWithoutCtx := events.APIGatewayV2HTTPRequest{}
+	eventWithCtx := events.APIGatewayV2HTTPRequest{
+		Headers: map[string]string{
+			"x-datadog-trace-id":          "1",
+			"x-datadog-parent-id":         "1",
+			"x-datadog-sampling-priority": "1",
+		},
+	}
+
+	payloadWithoutCtx := []byte(`{"hello":"world"}`)
+	payloadWithCtx := []byte(`{
+		"hello": "world",
+		"headers": {
+			"x-datadog-trace-id": "2",
+			"x-datadog-parent-id": "2",
+			"x-datadog-sampling-priority": "2"
+		}
+	}`)
+
+	reqHeadersWithoutCtx := http.Header{}
+	reqHeadersWithCtx := http.Header{}
+	reqHeadersWithCtx.Set("x-datadog-trace-id", "3")
+	reqHeadersWithCtx.Set("x-datadog-parent-id", "3")
+	reqHeadersWithCtx.Set("x-datadog-sampling-priority", "3")
+
+	// TODO:
+	//	inferred spans enabled/disabled sets trace/parent id
+	//	propagation style for event and payload but not headers
+	//	rawPayload saved, startTime saved
+
+	testcases := []struct {
+		name       string
+		event      interface{}
+		payload    []byte
+		reqHeaders http.Header
+		expectCtx  *ExecutionStartInfo
+	}{
+		{
+			name:       "eventWithoutCtx-payloadWithoutCtx-reqHeadersWithoutCtx",
+			event:      eventWithoutCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          0,
+				parentID:         0,
+				SamplingPriority: sampler.PriorityNone,
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithoutCtx-reqHeadersWithoutCtx",
+			event:      eventWithCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          1,
+				parentID:         1,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithoutCtx-payloadWithCtx-reqHeadersWithoutCtx",
+			event:      eventWithoutCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          2,
+				parentID:         2,
+				SamplingPriority: sampler.SamplingPriority(2),
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithCtx-reqHeadersWithoutCtx",
+			event:      eventWithCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          1,
+				parentID:         1,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithoutCtx-payloadWithoutCtx-reqHeadersWithCtx",
+			event:      eventWithoutCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithCtx,
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          3,
+				parentID:         3,
+				SamplingPriority: sampler.SamplingPriority(3),
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithoutCtx-reqHeadersWithCtx",
+			event:      eventWithCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithCtx,
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          1,
+				parentID:         1,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithoutCtx-payloadWithCtx-reqHeadersWithCtx",
+			event:      eventWithoutCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithCtx,
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          2,
+				parentID:         2,
+				SamplingPriority: sampler.SamplingPriority(2),
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithCtx-reqHeadersWithCtx",
+			event:      eventWithCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithCtx,
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          1,
+				parentID:         1,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			actualCtx := &ExecutionStartInfo{}
+			lp := &LifecycleProcessor{
+				requestHandler: &RequestHandler{
+					executionInfo: actualCtx,
+				},
+			}
+			startDetails := &InvocationStartDetails{
+				InvokeEventHeaders: tc.reqHeaders,
+			}
+
+			lp.startExecutionSpan(tc.event, tc.payload, startDetails)
+
+			assert := assert.New(t)
+			actualCtx.requestPayload = nil // allows for assert.Equal comparison
+			assert.Equal(tc.expectCtx, actualCtx)
+		})
+	}
 }
 
 func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
