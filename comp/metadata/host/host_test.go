@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
+	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -26,7 +27,7 @@ func TestNewHostProviderDefaultInterval(t *testing.T) {
 			t,
 			log.MockModule,
 			config.MockModule,
-			resources.MockModule,
+			resourcesimpl.MockModule,
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 		),
@@ -50,7 +51,7 @@ func TestNewHostProviderCustomInterval(t *testing.T) {
 			t,
 			log.MockModule,
 			config.MockModule,
-			resources.MockModule,
+			resourcesimpl.MockModule,
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -75,7 +76,7 @@ func TestNewHostProviderInvalidCustomInterval(t *testing.T) {
 			t,
 			log.MockModule,
 			config.MockModule,
-			resources.MockModule,
+			resourcesimpl.MockModule,
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),

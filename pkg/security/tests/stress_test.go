@@ -53,7 +53,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		t.Fatal(err)
 	}
 
-	eventStreamMonitor := test.probe.GetMonitor().GetEventStreamMonitor()
+	eventStreamMonitor := test.probe.GetMonitors().GetEventStreamMonitor()
 	eventStreamMonitor.GetAndResetLostCount("events", -1)
 	eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)
 
@@ -195,7 +195,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		t.Fatal(err)
 	}
 
-	eventStreamMonitor := test.probe.GetMonitor().GetEventStreamMonitor()
+	eventStreamMonitor := test.probe.GetMonitors().GetEventStreamMonitor()
 	eventStreamMonitor.GetAndResetLostCount("events", -1)
 	eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)
 

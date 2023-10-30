@@ -5,13 +5,17 @@
 
 package profile
 
+import "github.com/mohae/deepcopy"
+
+// mergeProfiles merges two profiles config map
+// we use deepcopy to lower risk of modifying original profiles
 func mergeProfiles(profilesA ProfileConfigMap, profilesB ProfileConfigMap) ProfileConfigMap {
 	profiles := make(ProfileConfigMap)
 	for k, v := range profilesA {
-		profiles[k] = v
+		profiles[k] = deepcopy.Copy(v).(ProfileConfig)
 	}
 	for k, v := range profilesB {
-		profiles[k] = v
+		profiles[k] = deepcopy.Copy(v).(ProfileConfig)
 	}
 	return profiles
 }

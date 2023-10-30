@@ -46,12 +46,14 @@ type invocationPayload struct {
 
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
-func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *inferredspan.InferredSpan, rawPayload []byte, startDetails *InvocationStartDetails, inferredSpansEnabled bool) {
+func (lp *LifecycleProcessor) startExecutionSpan(rawPayload []byte, startDetails *InvocationStartDetails) {
 	payload := convertRawPayload(rawPayload)
+	inferredSpan := lp.GetInferredSpan()
+	executionContext := lp.GetExecutionInfo()
 	executionContext.requestPayload = rawPayload
 	executionContext.startTime = startDetails.StartTime
 
-	if inferredSpansEnabled && inferredSpan.Span.Start != 0 {
+	if lp.InferredSpansEnabled && inferredSpan.Span.Start != 0 {
 		executionContext.TraceID = inferredSpan.Span.TraceID
 		executionContext.parentID = inferredSpan.Span.SpanID
 	}
@@ -63,7 +65,7 @@ func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *infe
 			log.Debug("Unable to parse traceID from payload headers")
 		} else {
 			executionContext.TraceID = traceID
-			if inferredSpansEnabled {
+			if lp.InferredSpansEnabled {
 				inferredSpan.Span.TraceID = traceID
 			}
 		}
@@ -72,7 +74,7 @@ func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *infe
 		if err != nil {
 			log.Debug("Unable to parse parentID from payload headers")
 		} else {
-			if inferredSpansEnabled {
+			if lp.InferredSpansEnabled {
 				inferredSpan.Span.ParentID = parentID
 			} else {
 				executionContext.parentID = parentID
@@ -98,7 +100,8 @@ func startExecutionSpan(executionContext *ExecutionStartInfo, inferredSpan *infe
 
 // endExecutionSpan builds the function execution span and sends it to the intake.
 // It should be called at the end of the invocation.
-func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[string]string, triggerMetrics map[string]float64, processTrace func(p *api.Payload), endDetails *InvocationEndDetails) {
+func (lp *LifecycleProcessor) endExecutionSpan(endDetails *InvocationEndDetails) {
+	executionContext := lp.GetExecutionInfo()
 	duration := endDetails.EndTime.UnixNano() - executionContext.startTime.UnixNano()
 
 	executionSpan := &pb.Span{
@@ -111,8 +114,8 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 		ParentID: executionContext.parentID,
 		Start:    executionContext.startTime.UnixNano(),
 		Duration: duration,
-		Meta:     triggerTags,
-		Metrics:  triggerMetrics,
+		Meta:     lp.requestHandler.triggerTags,
+		Metrics:  lp.requestHandler.triggerMetrics,
 	}
 	executionSpan.Meta["request_id"] = endDetails.RequestID
 	executionSpan.Meta["cold_start"] = fmt.Sprintf("%t", endDetails.ColdStart)
@@ -144,6 +147,15 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 
 	if endDetails.IsError {
 		executionSpan.Error = 1
+		if len(endDetails.ErrorMsg) > 0 {
+			executionSpan.Meta["error.msg"] = endDetails.ErrorMsg
+		}
+		if len(endDetails.ErrorType) > 0 {
+			executionSpan.Meta["error.type"] = endDetails.ErrorType
+		}
+		if len(endDetails.ErrorStack) > 0 {
+			executionSpan.Meta["error.stack"] = endDetails.ErrorStack
+		}
 	}
 
 	traceChunk := &pb.TraceChunk{
@@ -155,7 +167,41 @@ func endExecutionSpan(executionContext *ExecutionStartInfo, triggerTags map[stri
 		Chunks: []*pb.TraceChunk{traceChunk},
 	}
 
-	processTrace(&api.Payload{
+	lp.ProcessTrace(&api.Payload{
+		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
+		TracerPayload: tracerPayload,
+	})
+}
+
+// completeInferredSpan finishes the inferred span and passes it
+// as an API payload to be processed by the trace agent
+func (lp *LifecycleProcessor) completeInferredSpan(inferredSpan *inferredspan.InferredSpan, endTime time.Time, isError bool) {
+	durationIsSet := inferredSpan.Span.Duration != 0
+	if inferredSpan.IsAsync {
+		// SNSSQS span duration is set in invocationlifecycle/init.go
+		if !durationIsSet {
+			inferredSpan.Span.Duration = inferredSpan.CurrentInvocationStartTime.UnixNano() - inferredSpan.Span.Start
+		}
+	} else {
+		inferredSpan.Span.Duration = endTime.UnixNano() - inferredSpan.Span.Start
+	}
+	if isError {
+		inferredSpan.Span.Error = 1
+	}
+
+	inferredSpan.Span.TraceID = lp.GetExecutionInfo().TraceID
+
+	traceChunk := &pb.TraceChunk{
+		Origin:   "lambda",
+		Spans:    []*pb.Span{inferredSpan.Span},
+		Priority: int32(lp.GetExecutionInfo().SamplingPriority),
+	}
+
+	tracerPayload := &pb.TracerPayload{
+		Chunks: []*pb.TraceChunk{traceChunk},
+	}
+
+	lp.ProcessTrace(&api.Payload{
 		Source:        info.NewReceiverStats().GetTagStats(info.Tags{}),
 		TracerPayload: tracerPayload,
 	})

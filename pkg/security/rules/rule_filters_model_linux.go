@@ -26,11 +26,14 @@ type RuleFilterModel struct {
 }
 
 // NewRuleFilterModel returns a new rule filter model
-func NewRuleFilterModel() *RuleFilterModel {
-	kv, _ := kernel.NewKernelVersion()
+func NewRuleFilterModel() (*RuleFilterModel, error) {
+	kv, err := kernel.NewKernelVersion()
+	if err != nil {
+		return nil, err
+	}
 	return &RuleFilterModel{
 		Version: kv,
-	}
+	}, nil
 }
 
 // NewEvent returns a new event

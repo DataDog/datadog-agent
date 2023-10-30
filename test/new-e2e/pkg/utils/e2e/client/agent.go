@@ -6,83 +6,60 @@
 package client
 
 import (
-	"os"
-	"strings"
-	"testing"
 	"time"
-
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclientparams"
-	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
-	e2eOs "github.com/DataDog/test-infra-definitions/components/os"
-	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 )
 
-var _ stackInitializer = (*Agent)(nil)
+// Agent is an interface to run Agent command.
+type Agent interface {
+	// Version runs version command returns the runtime Agent version
+	Version(commandArgs ...AgentArgsOption) string
 
-// An Agent that is connected to an [agent.Installer].
-//
-// [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
-type Agent struct {
-	deserializer utils.RemoteServiceDeserializer[agent.ClientData]
-	os           e2eOs.OS
-	*AgentCommandRunner
-	vmClient           *VMClient
-	shouldWaitForReady bool
-}
+	// Hostname runs hostname command and returns the runtime Agent hostname
+	Hostname(commandArgs ...AgentArgsOption) string
 
-// NewAgent creates a new instance of an Agent connected to an [agent.Installer].
-//
-// [agent.Installer]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
-func NewAgent(installer *agent.Installer, agentClientOptions ...agentclientparams.Option) *Agent {
-	agentClientParams := agentclientparams.NewParams(agentClientOptions...)
-	agentInstance := &Agent{
-		os:                 installer.VM().GetOS(),
-		shouldWaitForReady: agentClientParams.ShouldWaitForReady,
-		deserializer:       installer,
-	}
-	return agentInstance
-}
+	// Config runs config command and returns the runtime agent config
+	Config(commandArgs ...AgentArgsOption) string
 
-//lint:ignore U1000 Ignore unused function as this function is called using reflection
-func (agent *Agent) setStack(t *testing.T, stackResult auto.UpResult) error {
-	clientData, err := agent.deserializer.Deserialize(stackResult)
-	if err != nil {
-		return err
-	}
+	// ConfigWithError runs config command and returns the runtime agent config or an error
+	ConfigWithError(commandArgs ...AgentArgsOption) (string, error)
 
-	var privateSSHKey []byte
+	// Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
+	Flare(commandArgs ...AgentArgsOption) string
 
-	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
-	if err != nil {
-		return err
-	}
+	// Health runs health command and returns the runtime agent health
+	Health() (string, error)
 
-	if privateKeyPath != "" {
-		privateSSHKey, err = os.ReadFile(privateKeyPath)
-		if err != nil {
-			return err
-		}
-	}
+	// ConfigCheck runs configcheck command and returns the runtime agent configcheck
+	ConfigCheck(commandArgs ...AgentArgsOption) string
 
-	agent.vmClient, err = newVMClient(t, privateSSHKey, &clientData.Connection, agent.os)
-	if err != nil {
-		return err
-	}
-	agent.AgentCommandRunner = newAgentCommandRunner(t, agent.executeAgentCmdWithError)
-	if !agent.shouldWaitForReady {
-		return nil
-	}
-	return agent.waitForReadyTimeout(1 * time.Minute)
-}
+	// Integration run integration command and returns the output
+	Integration(commandArgs ...AgentArgsOption) string
 
-func (agent *Agent) executeAgentCmdWithError(arguments []string) (string, error) {
-	parameters := ""
-	if len(arguments) > 0 {
-		parameters = `"` + strings.Join(arguments, `" "`) + `"`
-	}
-	cmd := agent.os.GetRunAgentCmd(parameters)
-	return agent.vmClient.ExecuteWithError(cmd)
+	// IntegrationWithError run integration command and returns the output
+	IntegrationWithError(commandArgs ...AgentArgsOption) (string, error)
+
+	// Secret runs the secret command
+	Secret(commandArgs ...AgentArgsOption) string
+
+	// IsReady runs status command and returns true if the command returns a zero exit code.
+	// This function should rarely be used.
+	IsReady() bool
+
+	// Status runs status command and returns a Status struct
+	Status(commandArgs ...AgentArgsOption) *Status
+
+	// StatusWithError runs status command and returns a Status struct and error
+	StatusWithError(commandArgs ...AgentArgsOption) (*Status, error)
+
+	// waitForReadyTimeout blocks up to timeout waiting for agent to be ready.
+	// Retries every 100 ms up to timeout.
+	// Returns error on failure.
+	waitForReadyTimeout(timeout time.Duration) error
+
+	// WaitAgentLogs waits for the agent log corresponding to the pattern
+	// agent-name can be: datadog-agent, system-probe, security-agent
+	// pattern: is the log that we are looking for
+	// Retries every 500 ms up to timeout.
+	// Returns error on failure.
+	WaitAgentLogs(agentName string, pattern string) error
 }

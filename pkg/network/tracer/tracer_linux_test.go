@@ -425,13 +425,13 @@ func (s *TracerSuite) TestConntrackExpiration() {
 	_, err = c.Write([]byte("ping"))
 	require.NoError(t, err)
 
-	// Give enough time for conntrack cache to be populated
-	time.Sleep(100 * time.Millisecond)
-
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
-	require.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "missing translation for connection")
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		connections := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		return ok && tr.conntracker.GetTranslationForConn(*conn) != nil
+	}, 3*time.Second, 100*time.Millisecond, "failed to find connection translation")
 
 	// This will force the connection to be expired next time we call getConnections, but
 	// conntrack should still have the connection information since the connection is still
@@ -468,7 +468,6 @@ func (s *TracerSuite) TestConntrackDelays() {
 
 	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
 	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
-	rand.Seed(time.Now().UnixNano())
 	port := 5430 + rand.Intn(100)
 	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
 		wg.Add(1)
@@ -487,13 +486,11 @@ func (s *TracerSuite) TestConntrackDelays() {
 	_, err = c.Write([]byte("ping"))
 	require.NoError(t, err)
 
-	// Give enough time for conntrack cache to be populated
-	time.Sleep(100 * time.Millisecond)
-
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
-	require.NotNil(t, tr.conntracker.GetTranslationForConn(*conn), "missing translation for connection")
+	require.Eventually(t, func() bool {
+		connections := getConnections(t, tr)
+		conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		return ok && tr.conntracker.GetTranslationForConn(*conn) != nil
+	}, 3*time.Second, 100*time.Millisecond, "failed to find connection with translation")
 
 	// write newline so server connections will exit
 	_, err = c.Write([]byte("\n"))
@@ -1813,10 +1810,14 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	r := bufio.NewReader(c)
 	_, _ = r.ReadBytes(byte('\n'))
 
-	connections := getConnections(t, tr)
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		connections := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		return ok
+	}, 3*time.Second, 100*time.Millisecond, "could not find connection")
 
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
 	m := conn.Monotonic
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
@@ -1824,7 +1825,6 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
-	assert.True(t, conn.IntraHost)
 }
 
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {
