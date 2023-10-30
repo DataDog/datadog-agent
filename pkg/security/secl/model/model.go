@@ -349,7 +349,7 @@ func (e *Event) GetProcessService() string {
 }
 
 // UserSessionContext describes the user session context
-// Disclaimer: the `json` tags are used to parse K8s credentials from cws-injector
+// Disclaimer: the `json` tags are used to parse K8s credentials from cws-instrumentation
 type UserSessionContext struct {
 	ID          uint64           `field:"-" json:"-"`
 	SessionType usersession.Type `field:"-" json:"-"`

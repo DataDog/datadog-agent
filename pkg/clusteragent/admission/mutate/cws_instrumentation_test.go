@@ -303,7 +303,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			args: args{
 				exec: &corev1.PodExecOptions{
 					Command: []string{
-						filepath.Join(cwsMountPath, "cws-injector"),
+						filepath.Join(cwsMountPath, "cws-instrumentation"),
 						"inject",
 						"--session-type",
 						"k8s",
@@ -331,7 +331,7 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			args: args{
 				exec: &corev1.PodExecOptions{
 					Command: []string{
-						filepath.Join(cwsMountPath, "cws-injector"),
+						filepath.Join(cwsMountPath, "cws-instrumentation"),
 						"inject",
 						"--session-type",
 						"k8s",
@@ -374,12 +374,12 @@ func Test_injectCWSCommandInstrumentation(t *testing.T) {
 			}
 
 			if tt.wantInstrumentation {
-				// make sure the cws-injector command was injected
+				// make sure the cws-instrumentation command was injected
 				if l := len(tt.args.exec.Command); l <= 7 {
 					require.Fail(t, "CWS instrumentation failed", "invalid exec command length %d", l)
 					return
 				}
-				expectedCommand := fmt.Sprintf("%s%s", filepath.Join(cwsMountPath, "cws-injector"), " inject --session-type k8s --data")
+				expectedCommand := fmt.Sprintf("%s%s", filepath.Join(cwsMountPath, "cws-instrumentation"), " inject --session-type k8s --data")
 				require.Equal(t, expectedCommand, strings.Join(tt.args.exec.Command[0:5], " "), "incorrect CWS instrumentation")
 				require.Equal(t, "--", tt.args.exec.Command[6], "incorrect CWS instrumentation")
 				require.LessOrEqual(t, len(tt.args.exec.Command[5]), cwsUserSessionDataMaxSize, "user session context too long")
@@ -451,7 +451,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
 				Image:   "my-image:latest",
-				Command: []string{"/cws-injector", "setup", "--cws-volume-mount", cwsMountPath},
+				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
 						Name:      cwsVolumeName,
@@ -488,7 +488,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
 				Image:   "my-image:my-tag",
-				Command: []string{"/cws-injector", "setup", "--cws-volume-mount", cwsMountPath},
+				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
 						Name:      cwsVolumeName,
@@ -512,7 +512,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
 				Image:   "my-registry/my-image:my-tag",
-				Command: []string{"/cws-injector", "setup", "--cws-volume-mount", cwsMountPath},
+				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
 						Name:      cwsVolumeName,
@@ -548,7 +548,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
 				Image:   "my-image:latest",
-				Command: []string{"/cws-injector", "setup", "--cws-volume-mount", cwsMountPath},
+				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
 						Name:      cwsVolumeName,
@@ -654,7 +654,7 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			expectedInitContainer: corev1.Container{
 				Name:    cwsInjectorInitContainerName,
 				Image:   "my-image:latest",
-				Command: []string{"/cws-injector", "setup", "--cws-volume-mount", cwsMountPath},
+				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 				VolumeMounts: []corev1.VolumeMount{
 					{
 						Name:      cwsVolumeName,
@@ -670,9 +670,9 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 			mockConfig.Set("admission_controller.cws_instrumentation.target.namespaces", tt.args.targetNamespaces)
 			mockConfig.Set("admission_controller.cws_instrumentation.target.all_namespaces", tt.args.targetAllNamespaces)
 			mockConfig.Set("admission_controller.cws_instrumentation.target.skip_namespaces", tt.args.targetSkipNamespaces)
-			mockConfig.Set("admission_controller.cws_instrumentation.cws_injector_image_name", tt.args.cwsInjectorImageName)
-			mockConfig.Set("admission_controller.cws_instrumentation.cws_injector_image_tag", tt.args.cwsInjectorImageTag)
-			mockConfig.Set("admission_controller.cws_instrumentation.cws_injector_container_registry", tt.args.cwsInjectorContainerRegistry)
+			mockConfig.Set("admission_controller.cws_instrumentation.image_name", tt.args.cwsInjectorImageName)
+			mockConfig.Set("admission_controller.cws_instrumentation.image_tag", tt.args.cwsInjectorImageTag)
+			mockConfig.Set("admission_controller.cws_instrumentation.container_registry", tt.args.cwsInjectorContainerRegistry)
 			mockConfig.Set("admission_controller.cws_instrumentation.init_resources.cpu", "")
 			mockConfig.Set("admission_controller.cws_instrumentation.init_resources.memory", "")
 

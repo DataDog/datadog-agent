@@ -245,7 +245,7 @@ func (c *ControllerV1) generateTemplates() {
 		// generate selectors
 		nsSelector, objSelector := buildCWSInstrumentationLabelSelectors(c.config.useNamespaceSelector())
 
-		// bind mount cws-injector
+		// bind mount cws-instrumentation
 		webhook := c.getWebhookSkeleton(
 			"cws-pod-instrumentation",
 			config.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"),

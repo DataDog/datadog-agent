@@ -18,7 +18,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/cws-injector/flags"
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/flags"
+
 	"github.com/DataDog/datadog-agent/pkg/security/probe/erpc"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 	"github.com/DataDog/datadog-agent/pkg/util/native"
@@ -63,7 +64,7 @@ func InjectUserSessionCmd(args []string, params *InjectCliParams) error {
 
 	// check user input
 	if len(args) == 0 {
-		fmt.Printf("cws-injector: empty command, nothing to run ... if the problem persists, disable `admission_controller.cws_instrumentation.enabled` in the Datadog Agent config and try again.\n")
+		fmt.Printf("cws-instrumentation: empty command, nothing to run ... if the problem persists, disable `admission_controller.cws_instrumentation.enabled` in the Datadog Agent config and try again.\n")
 		return nil
 	}
 
@@ -78,7 +79,7 @@ func InjectUserSessionCmd(args []string, params *InjectCliParams) error {
 	return syscall.Exec(resolvedPath, args, os.Environ())
 }
 
-// injectUserSession copies the cws-injector binary to the provided target directory
+// injectUserSession copies the cws-instrumentation binary to the provided target directory
 func injectUserSession(params *InjectCliParams) error {
 	// sanitize user input
 	if len(params.Data) > UserSessionDataMaxSize {

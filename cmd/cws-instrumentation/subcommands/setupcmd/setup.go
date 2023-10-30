@@ -16,7 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/cws-injector/flags"
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/flags"
 )
 
 type setupCliParams struct {
@@ -29,7 +29,7 @@ func Command() []*cobra.Command {
 
 	setupCmd := &cobra.Command{
 		Use:   "setup",
-		Short: "Copies the cws-injector binary to the CWS volume mount",
+		Short: "Copies the cws-instrumentation binary to the CWS volume mount",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return setupCWSInjector(&params)
 		},
@@ -41,7 +41,7 @@ func Command() []*cobra.Command {
 	return []*cobra.Command{setupCmd}
 }
 
-// setupCWSInjector copies the cws-injector binary to the provided target directory
+// setupCWSInjector copies the cws-instrumentation binary to the provided target directory
 func setupCWSInjector(params *setupCliParams) error {
 	// check if the target directory exists
 	targetFileInfo, err := os.Stat(params.cwsVolumeMount)
@@ -61,26 +61,26 @@ func setupCWSInjector(params *setupCliParams) error {
 	// copy the binary to the destination directory
 	source, err := os.Open(path)
 	if err != nil {
-		return fmt.Errorf("couldn't open cws-injector's binary file: %w", err)
+		return fmt.Errorf("couldn't open cws-instrumentation's binary file: %w", err)
 	}
 	defer source.Close()
 
 	targetPath := filepath.Join(params.cwsVolumeMount, filepath.Base(path))
 	target, err := os.Create(targetPath)
 	if err != nil {
-		return fmt.Errorf("couldn't create target cws-injector binary file in the mounted volume")
+		return fmt.Errorf("couldn't create target cws-instrumentation binary file in the mounted volume")
 	}
 	defer target.Close()
 
 	// copy
 	_, err = io.Copy(target, source)
 	if err != nil {
-		return fmt.Errorf("target cws-injector binary couldn't be copied to the mounted volume: %w", err)
+		return fmt.Errorf("target cws-instrumentation binary couldn't be copied to the mounted volume: %w", err)
 	}
 
 	// add execution rights
 	if err = os.Chmod(targetPath, 0755); err != nil {
-		return fmt.Errorf("couldn't set execution permissions on 'cws-injector': %w", err)
+		return fmt.Errorf("couldn't set execution permissions on 'cws-instrumentation': %w", err)
 	}
 	return nil
 }

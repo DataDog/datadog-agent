@@ -30,7 +30,7 @@ const (
 	cwsMountPath                         = "/datadog-cws-instrumentation"
 	cwsInstrumentationPodAnotationStatus = "admission.datadoghq.com/cws-instrumentation.status"
 	cwsInstrumentationPodAnotationReady  = "ready"
-	cwsInjectorInitContainerName         = "cws-injector"
+	cwsInjectorInitContainerName         = "cws-instrumentation"
 	cwsUserSessionDataMaxSize            = 1024
 
 	// CWSInstrumentationPodLabelEnabled is used to label pods that should be instrumented or skipped by the CWS mutating webhook
@@ -104,7 +104,7 @@ func injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, n
 
 	if len(exec.Command) > 7 {
 		// make sure the command hasn't already been instrumented
-		if exec.Command[0] == filepath.Join(cwsMountPath, "cws-injector") &&
+		if exec.Command[0] == filepath.Join(cwsMountPath, "cws-instrumentation") &&
 			exec.Command[1] == "inject" &&
 			exec.Command[2] == "--session-type" &&
 			exec.Command[3] == "k8s" &&
@@ -118,9 +118,9 @@ func injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, n
 		}
 	}
 
-	// override the command with the call to cws-injector
+	// override the command with the call to cws-instrumentation
 	exec.Command = append([]string{
-		filepath.Join(cwsMountPath, "cws-injector"),
+		filepath.Join(cwsMountPath, "cws-instrumentation"),
 		"inject",
 		"--session-type",
 		"k8s",
@@ -145,7 +145,7 @@ func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface
 	}
 
 	// sanity check: make sure the provided CWS Injector image name isn't empty
-	if len(config.Datadog.GetString("admission_controller.cws_instrumentation.cws_injector_image_name")) == 0 {
+	if len(config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")) == 0 {
 		// don't touch the pod and leave now
 		return fmt.Errorf("empty CWS Injector image name")
 	}
@@ -169,7 +169,7 @@ func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface
 		return nil
 	}
 
-	// create a new volume that will be used to share cws-injector across the containers of this pod
+	// create a new volume that will be used to share cws-instrumentation across the containers of this pod
 	injectCWSVolume(pod)
 
 	// bind mount the volume to all the containers of the pod
@@ -177,7 +177,7 @@ func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface
 		injectCWSVolumeMount(&pod.Spec.Containers[i])
 	}
 
-	// add init container to copy cws-injector in the cws volume
+	// add init container to copy cws-instrumentation in the cws volume
 	injectCWSInitContainer(pod, resources)
 
 	// add label to indicate that the pod has been instrumented
@@ -233,9 +233,9 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 
 	// We have to fetch the config at runtime otherwise we might behave differently depending on how the configuration
 	// was provided (env variable or config file).
-	cwsInjectorImageName := config.Datadog.GetString("admission_controller.cws_instrumentation.cws_injector_image_name")
-	cwsInjectorImageTag := config.Datadog.GetString("admission_controller.cws_instrumentation.cws_injector_image_tag")
-	cwsInjectorContainerRegistry := config.Datadog.GetString("admission_controller.cws_instrumentation.cws_injector_container_registry")
+	cwsInjectorImageName := config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")
+	cwsInjectorImageTag := config.Datadog.GetString("admission_controller.cws_instrumentation.image_tag")
+	cwsInjectorContainerRegistry := config.Datadog.GetString("admission_controller.cws_instrumentation.container_registry")
 
 	if len(cwsInjectorImageTag) == 0 {
 		cwsInjectorImageTag = "latest"
@@ -250,7 +250,7 @@ func injectCWSInitContainer(pod *corev1.Pod, resources *corev1.ResourceRequireme
 	initContainer := corev1.Container{
 		Name:    cwsInjectorInitContainerName,
 		Image:   image,
-		Command: []string{"/cws-injector", "setup", "--cws-volume-mount", cwsMountPath},
+		Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      cwsVolumeName,

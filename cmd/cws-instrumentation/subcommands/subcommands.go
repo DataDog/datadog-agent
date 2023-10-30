@@ -9,9 +9,9 @@
 package subcommands
 
 import (
-	"github.com/DataDog/datadog-agent/cmd/cws-injector/command"
-	"github.com/DataDog/datadog-agent/cmd/cws-injector/subcommands/injectcmd"
-	"github.com/DataDog/datadog-agent/cmd/cws-injector/subcommands/setupcmd"
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/command"
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/injectcmd"
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/setupcmd"
 )
 
 // CWSInjectorSubcommands returns SubcommandFactories for the subcommands supported

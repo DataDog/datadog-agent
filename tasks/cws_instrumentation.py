@@ -20,8 +20,8 @@ from .utils import (
 )
 
 BIN_DIR = os.path.join(".", "bin")
-BIN_PATH = os.path.join(BIN_DIR, "cws-injector", bin_name("cws-injector"))
-AGENT_TAG = "datadog/cws-injector:master"
+BIN_PATH = os.path.join(BIN_DIR, "cws-instrumentation", bin_name("cws-instrumentation"))
+AGENT_TAG = "datadog/cws-instrumentation:master"
 CONTAINER_PLATFORM_MAPPING = {"aarch64": "arm64", "amd64": "amd64", "x86_64": "amd64"}
 
 
@@ -39,7 +39,7 @@ def build(
     static=False,
 ):
     """
-    Build cws-injector
+    Build cws-instrumentation
     """
     ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
 
@@ -55,7 +55,7 @@ def build(
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(
-        build="cws-injector"
+        build="cws-instrumentation"
     )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
     build_tags.append("netgo")
     build_tags.append("osusergo")
@@ -67,7 +67,7 @@ def build(
 
     cmd = (
         f'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '
-        f'-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags} -s -w" {REPO_PATH}/cmd/cws-injector'
+        f'-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags} -s -w" {REPO_PATH}/cmd/cws-instrumentation'
     )
 
     ctx.run(cmd, env=env)
@@ -85,18 +85,18 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
         print("Unable to determine architecture to build, please set `arch` parameter")
         raise Exit(code=1)
 
-    cws_injector_binary = glob.glob(BIN_PATH)
+    cws_instrumentation_binary = glob.glob(BIN_PATH)
     # get the last debian package built
-    if not cws_injector_binary:
+    if not cws_instrumentation_binary:
         print(f"{BIN_PATH} not found")
-        print("See cws-injector.build")
+        print("See cws-instrumentation.build")
         raise Exit(code=1)
 
-    latest_file = max(cws_injector_binary, key=os.path.getctime)
+    latest_file = max(cws_instrumentation_binary, key=os.path.getctime)
     ctx.run(f"chmod +x {latest_file}")
 
-    build_context = "Dockerfiles/cws-injector"
-    exec_path = f"{build_context}/cws-injector.{arch}"
+    build_context = "Dockerfiles/cws-instrumentation"
+    exec_path = f"{build_context}/cws-instrumentation.{arch}"
     dockerfile_path = f"{build_context}/Dockerfile"
 
     shutil.copy2(latest_file, exec_path)

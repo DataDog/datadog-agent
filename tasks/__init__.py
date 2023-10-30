@@ -11,7 +11,7 @@ from . import (
     cluster_agent_cloudfoundry,
     components,
     customaction,
-    cws_injector,
+    cws_instrumentation,
     diff,
     docker_tasks,
     dogstatsd,
@@ -144,7 +144,7 @@ ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(security_agent)
-ns.add_collection(cws_injector)
+ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(kmt)

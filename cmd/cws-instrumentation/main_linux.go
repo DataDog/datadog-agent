@@ -9,8 +9,9 @@ package main
 import (
 	"os"
 
-	"github.com/DataDog/datadog-agent/cmd/cws-injector/command"
-	"github.com/DataDog/datadog-agent/cmd/cws-injector/subcommands"
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/command"
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands"
+
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 )
 

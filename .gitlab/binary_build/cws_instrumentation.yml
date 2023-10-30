@@ -1,14 +1,14 @@
 ---
-.cws_injector-build_common:
+.cws_instrumentation-build_common:
   stage: binary_build
   needs: ["go_mod_tidy_check"]
   script:
     - inv check-go-version
-    - inv -e cws-injector.build
-    - $S3_CP_CMD $CI_PROJECT_DIR/$CWS_INJECTOR_BINARIES_DIR/cws-injector $S3_ARTIFACTS_URI/cws-injector.$ARCH
+    - inv -e cws-instrumentation.build
+    - $S3_CP_CMD $CI_PROJECT_DIR/$CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation $S3_ARTIFACTS_URI/cws-instrumentation.$ARCH
 
-cws_injector-build_amd64:
-  extends: .cws_injector-build_common
+cws_instrumentation-build_amd64:
+  extends: .cws_instrumentation-build_common
   rules:
     !reference [.on_tag_or_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
@@ -20,8 +20,8 @@ cws_injector-build_amd64:
     - source /root/.bashrc
     - !reference [.retrieve_linux_go_deps]
 
-cws_injector-build_arm64:
-  extends: .cws_injector-build_common
+cws_instrumentation-build_arm64:
+  extends: .cws_instrumentation-build_common
   rules:
     !reference [.on_tag_or_a7]
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES

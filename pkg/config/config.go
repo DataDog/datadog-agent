@@ -1075,9 +1075,9 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.target.all_namespaces", true)
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.target.skip_namespaces", []string{})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", false)
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.cws_injector_container_registry", "")
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.cws_injector_image_name", "datadog/cws-injector")
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.cws_injector_image_tag", "master")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.container_registry", "")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "datadog/cws-instrumentation")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "master")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.memory")
 

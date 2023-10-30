@@ -18,7 +18,8 @@ import (
 	"github.com/syndtr/gocapability/capability"
 	authenticationv1 "k8s.io/api/authentication/v1"
 
-	"github.com/DataDog/datadog-agent/cmd/cws-injector/subcommands/injectcmd"
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/injectcmd"
+
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 )
 

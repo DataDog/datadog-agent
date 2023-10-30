@@ -13,7 +13,7 @@ import (
 	authenticationv1 "k8s.io/api/authentication/v1"
 )
 
-// PrepareK8SUserSessionContext prepares the input parameters forwarded to cws-injector
+// PrepareK8SUserSessionContext prepares the input parameters forwarded to cws-instrumentation
 func PrepareK8SUserSessionContext(userInfo *authenticationv1.UserInfo, cwsUserSessionDataMaxSize int) ([]byte, error) {
 	userSessionCtx, err := json.Marshal(userInfo)
 	if err != nil {
