@@ -102,7 +102,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	return flare.GetEndpointsChecks(color.Output, cliParams.checkName)
 }
 
-func rebalance(log log.Component, config config.Component, cliParams *cliParams) error {
+func rebalance(_ log.Component, _ config.Component, cliParams *cliParams) error {
 
 	fmt.Println("Requesting a cluster check rebalance...")
 	c := util.GetClient(false) // FIX: get certificates right then make this true
