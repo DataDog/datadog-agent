@@ -6,8 +6,8 @@ integrations locally. In other words, you've made changes to how JMXFetch
 works and you'd like to run JMXFetch via the Agent to validate your changes.
 
 ## Stable JMXFetch
-If your goal is just to run an JMX-based check and you don't need a custom
-version of JMXFetch, follow these instructions.
+If your goal is to run a JMX-based check and you don't need a custom
+version of JMXFetch, follow the instructions below:
 
 1. Download the `-jar-with-dependencies.jar` build of the latest version of JMXFetch from
    [`maven`](https://repo1.maven.org/maven2/com/datadoghq/jmxfetch/)
