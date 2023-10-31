@@ -41,6 +41,7 @@ type QueryMetricsConfig struct {
 	DisableLastActive  bool                        `yaml:"disable_last_active"`
 	Lookback           int64                       `yaml:"lookback"`
 	Trackers           []queryMetricsTrackerConfig `yaml:"trackers"`
+	MaxRunTime         int64                       `yaml:"max_run_time"`
 }
 
 type SysMetricsConfig struct {
@@ -167,6 +168,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QueryMetrics.Enabled = true
 	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
+	instance.QueryMetrics.MaxRunTime = 20
 
 	instance.ExecutionPlans.Enabled = true
 	instance.ExecutionPlans.PlanCacheRetention = 15
