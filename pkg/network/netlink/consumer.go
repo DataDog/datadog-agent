@@ -362,7 +362,7 @@ func LoadNfConntrackKernelModule(ns netns.NsHandle) error {
 	req := netlink.Message{
 		Header: netlink.Header{
 			Type:  netlink.HeaderType((unix.NFNL_SUBSYS_CTNETLINK << 8) | ipctnlMsgCtGet),
-			Flags: netlink.Request,
+			Flags: netlink.Request | netlink.Dump,
 		},
 		Data: dummyTupleData,
 	}
