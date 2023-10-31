@@ -322,7 +322,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 				Version:    resultPkg.Version,
 				SrcVersion: resultPkg.SrcVersion,
 			}
-			for _, file := range resultPkg.SystemInstalledFiles {
+			for _, file := range resultPkg.InstalledFiles {
 				seclog.Tracef("indexing %s as %+v", file, pkg)
 				sbom.files[murmur3.StringSum64(file)] = pkg
 			}
