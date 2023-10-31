@@ -38,6 +38,7 @@ func adjustUSM(cfg config.Config) {
 	applyDefault(cfg, smNS("http_idle_connection_ttl_in_s"), 30)
 	deprecateInt64(cfg, netNS("http_notification_threshold"), smNS("http_notification_threshold"))
 	applyDefault(cfg, smNS("http_notification_threshold"), 512)
+	// http_max_request_fragment
 	deprecateInt64(cfg, netNS("http_max_request_fragment"), smNS("http_max_request_fragment"))
 	// set the default to be the max allowed by the driver.  So now the config will allow us to
 	// shorten the allowed path, but not lengthen it.

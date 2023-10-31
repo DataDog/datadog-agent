@@ -8,12 +8,8 @@
 package http
 
 import (
-	"strings"
-	"testing"
-
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
-	"github.com/stretchr/testify/assert"
 )
 
 func requestFragment(fragment []byte, buffsize int) []byte {
@@ -23,79 +19,22 @@ func requestFragment(fragment []byte, buffsize int) []byte {
 	return b
 }
 
-func TestPath(t *testing.T) {
+func getBufferSize() int {
 	cfg := config.New()
-	BufferSize := int(cfg.HTTPMaxRequestFragment)
-	tx := WinHttpTransaction{
-		RequestFragment: requestFragment([]byte("GET /foo/bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"), BufferSize),
-	}
-	b := make([]byte, cfg.HTTPMaxRequestFragment)
-	path, fullPath := tx.Path(b)
-	assert.Equal(t, "/foo/bar", string(path))
-	assert.True(t, fullPath)
+	return int(cfg.HTTPMaxRequestFragment)
 }
 
-func TestMaximumLengthPath(t *testing.T) {
-	cfg := config.New()
-	BufferSize := int(cfg.HTTPMaxRequestFragment)
-	rep := strings.Repeat("a", BufferSize-6)
-	str := "GET /" + rep
-	str += "bc"
-	tx := WinHttpTransaction{
-		RequestFragment: requestFragment([]byte(str), BufferSize),
+func makeTxnFromRequestString(s string) WinHttpTransaction {
+	return WinHttpTransaction{
+		RequestFragment: requestFragment([]byte(s), getBufferSize()),
 	}
-	b := make([]byte, BufferSize)
-	path, fullPath := tx.Path(b)
-	expected := "/" + rep
-	expected = expected + "b"
-	assert.Equal(t, expected, string(path))
-	assert.False(t, fullPath)
-
 }
 
-func TestFullPath(t *testing.T) {
-	cfg := config.New()
-	BufferSize := int(cfg.HTTPMaxRequestFragment)
-
-	prefix := "GET /"
-	rep := strings.Repeat("a", BufferSize-len(prefix)-1)
-	str := prefix + rep + " "
-	tx := WinHttpTransaction{
-		RequestFragment: requestFragment([]byte(str), BufferSize),
-	}
-	b := make([]byte, BufferSize)
-	path, fullPath := tx.Path(b)
-	expected := "/" + rep
-	assert.Equal(t, expected, string(path))
-	assert.True(t, fullPath)
-}
-
-func TestPathHandlesNullTerminator(t *testing.T) {
-	cfg := config.New()
-	BufferSize := int(cfg.HTTPMaxRequestFragment)
-
-	tx := WinHttpTransaction{
-		// This probably isn't a valid HTTP request
-		// (since it's missing a version before the end),
-		// but if the null byte isn't handled
-		// then the path becomes "/foo/\x00bar"
-
-		RequestFragment: requestFragment([]byte("GET /foo/\x00bar?var1=value HTTP/1.1\nHost: example.com\nUser-Agent: example-browser/1.0"), BufferSize),
-	}
-	b := make([]byte, BufferSize)
-	path, fullPath := tx.Path(b)
-	assert.Equal(t, "/foo/", string(path))
-	assert.False(t, fullPath)
-}
-
-func TestLatency(t *testing.T) {
-	tx := WinHttpTransaction{
+func makeTxnFromLatency(lastSeen, started uint64) WinHttpTransaction {
+	return WinHttpTransaction{
 		Txn: driver.HttpTransactionType{
-			ResponseLastSeen: 2e6,
-			RequestStarted:   1e6,
+			ResponseLastSeen: lastSeen,
+			RequestStarted:   started,
 		},
 	}
-
-	// quantization brings it down
-	assert.Equal(t, 999424.0, tx.RequestLatency())
 }
