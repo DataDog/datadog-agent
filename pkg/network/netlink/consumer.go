@@ -370,10 +370,7 @@ func LoadNfConntrackKernelModule(ns netns.NsHandle) error {
 	if _, err = conn.Send(req); err != nil {
 		return fmt.Errorf("error while sending netlink request: %w", err)
 	}
-	_, _, err = sock.ReceiveAndDiscard()
-	if err != nil {
-		return fmt.Errorf("error while trying to load dummy entry from netlink: %w", err)
-	}
+	_, _, _ = sock.ReceiveAndDiscard()
 	return nil
 }
 

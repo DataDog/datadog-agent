@@ -217,7 +217,7 @@ def new_bundle(_, bundle_path, overwrite=False, team="/* TODO: add team name */"
 @task
 def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */"):
     """
-    Create a new component package with the component.go file.
+    Create a new component package with default files.
 
     Notes:
         - This task must be called from the datadog-agent repository root folder.
@@ -230,10 +230,20 @@ def new_component(_, comp_path, overwrite=False, team="/* TODO: add team name */
         inv components.new-component /tmp/baz                 # Create the 'baz' component in the '/tmp/' folder. './comp' prefix is not enforced by the task.
     """
     template_var_mapping = {"COMPONENT_NAME": os.path.basename(comp_path), "TEAM_NAME": team}
-    create_components_framework_files(comp_path, ["component.go"], template_var_mapping, overwrite)
+    create_components_framework_files(
+        comp_path,
+        [
+            "component.go",
+            "component_mock.go",
+            os.path.join("impl", "component.go"),
+            os.path.join("impl", "component_mock.go"),
+        ],
+        template_var_mapping,
+        overwrite,
+    )
 
 
-def create_components_framework_files(comp_path, new_files, template_var_mapping, overwrite):
+def create_components_framework_files(comp_path, new_paths, template_var_mapping, overwrite):
     """
     Create the folder and files common to all components and bundles.
 
@@ -273,11 +283,13 @@ def create_components_framework_files(comp_path, new_files, template_var_mapping
         os.umask(original_umask)
 
     # Create the components framework common files from predefined templates
-    for filename in new_files:
-        write_template(f"{comp_path}/{filename}", template_var_mapping, overwrite)
+    for path in new_paths:
+        folder = os.path.dirname(path)
+        os.makedirs(os.path.join(comp_path, folder), exist_ok=True)
+        write_template(comp_path, path, template_var_mapping, overwrite)
 
 
-def write_template(new_file_path, var_mapping, overwrite=False):
+def write_template(comp_path, new_file_path, var_mapping, overwrite=False):
     """
     Get the content of a templated file, substitute its variables and then writes the result into 'new_file_path' file.
     """
@@ -290,9 +302,10 @@ def write_template(new_file_path, var_mapping, overwrite=False):
 
     # Fails if file exists and 'overwrite' is False
     mode = "w" if overwrite else "x"
-    with open(new_file_path, mode) as file:
+    full_path = os.path.join(comp_path, new_file_path)
+    with open(full_path, mode) as file:
         file.write(resolved_template)
-        print(f"Writing to {new_file_path}")
+        print(f"Writing to {full_path}")
 
 
 def get_template_path(file_path):
@@ -308,7 +321,7 @@ def get_template_path(file_path):
     """
 
     template_folder_path = "tasks/components_templates/"
-    template_name = os.path.basename(file_path) + ".tmpl"
+    template_name = file_path + ".tmpl"
     return os.path.join(template_folder_path, template_name)
 
 
@@ -337,21 +350,20 @@ def lint_fxutil_oneshot_test(_):
             if "cmd/system-probe/subcommands/run/command.go" in str(file):
                 continue
 
-            # remove this file from the linting check pending a solution to the
-            # tests not being run properly due to mismatched arguments
-            if "cmd/agent/subcommands/run/command_windows.go" in str(file):
-                continue
-
             one_shot_count = file.read_text().count("fxutil.OneShot(")
             if one_shot_count > 0:
                 test_path = file.parent.joinpath(f"{file.stem}_test.go")
                 if not test_path.exists():
                     errors.append(f"The file {file} contains fxutil.OneShot but the file {test_path} doesn't exist.")
                 else:
-                    test_one_shot_count = test_path.read_text().count("fxutil.TestOneShotSubcommand(")
-                    if one_shot_count > test_one_shot_count:
+                    content = test_path.read_text()
+                    sub_cmd_count = content.count("fxutil.TestOneShotSubcommand(")
+                    test_one_shot_count = content.count("fxutil.TestOneShot(")
+                    if one_shot_count > sub_cmd_count + test_one_shot_count:
                         errors.append(
-                            f"The file {file} contains {one_shot_count} call(s) to `fxutil.OneShot` but {test_path} contains only {test_one_shot_count} call(s) to `fxutil.TestOneShotSubcommand`"
+                            f"The file {file} contains {one_shot_count} call(s) to `fxutil.OneShot`"
+                            + f"but {test_path} contains only {sub_cmd_count} call(s) to `fxutil.TestOneShotSubcommand`"
+                            + f"and {test_one_shot_count} call(s) to `fxutil.TestOneShot`"
                         )
     if len(errors) > 0:
         msg = '\n'.join(errors)

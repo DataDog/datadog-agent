@@ -7,34 +7,55 @@ package client
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/clients"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/executeparams"
 	"github.com/DataDog/test-infra-definitions/common/utils"
-	commonos "github.com/DataDog/test-infra-definitions/components/os"
+	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 )
 
-// VMClient wrap testing struct and SSH client
+var _ VM = (*VMClient)(nil)
+
+// VMClient is a type that implements [VM] interface to interact with a remote VM.
 type VMClient struct {
 	client *ssh.Client
-	os     commonos.OS
+	osType componentos.Type
 	t      *testing.T
 }
 
-func newVMClient(t *testing.T, sshKey []byte, connection *utils.Connection, os commonos.OS) (*VMClient, error) {
+// NewVMClient creates a new instance of VMClient.
+func NewVMClient(t *testing.T, connection *utils.Connection, osType componentos.Type) (*VMClient, error) {
 	t.Logf("connecting to remote VM at %s:%s", connection.User, connection.Host)
+
+	var privateSSHKey []byte
+
+	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
+	if err != nil {
+		return nil, err
+	}
+
+	if privateKeyPath != "" {
+		privateSSHKey, err = os.ReadFile(privateKeyPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),
-		sshKey,
+		privateSSHKey,
 		2*time.Second, 5)
 	return &VMClient{
 		client: client,
-		os:     os,
+		osType: osType,
 		t:      t,
 	}, err
 }
@@ -76,7 +97,7 @@ func (vmClient *VMClient) CopyFolder(srcFolder string, dstFolder string) {
 func (vmClient *VMClient) setEnvVariables(command string, envVar executeparams.EnvVar) string {
 
 	cmd := ""
-	if vmClient.os.GetType() == commonos.WindowsType {
+	if vmClient.osType == componentos.WindowsType {
 		envVarSave := map[string]string{}
 		for envName, envValue := range envVar {
 			previousEnvVar, err := vmClient.ExecuteWithError(fmt.Sprintf("$env:%s", envName))

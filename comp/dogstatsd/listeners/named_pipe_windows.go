@@ -189,7 +189,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 		}
 
 		t2 = time.Now()
-		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "named_pipe")
+		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "named_pipe", "named_pipe", "named_pipe")
 	}
 	l.connections.connToClose <- conn
 }

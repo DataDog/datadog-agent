@@ -55,6 +55,10 @@ type ProcessMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
 
+type inactiveSessionsConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 type SharedMemoryConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
@@ -85,35 +89,46 @@ type CustomQuery struct {
 	Tags         []string             `yaml:"tags"`
 }
 
+type asmConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type resourceManagerConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
-	Server                             string               `yaml:"server"`
-	Port                               int                  `yaml:"port"`
-	ServiceName                        string               `yaml:"service_name"`
-	Username                           string               `yaml:"username"`
-	Password                           string               `yaml:"password"`
-	TnsAlias                           string               `yaml:"tns_alias"`
-	TnsAdmin                           string               `yaml:"tns_admin"`
-	Protocol                           string               `yaml:"protocol"`
-	Wallet                             string               `yaml:"wallet"`
-	DBM                                bool                 `yaml:"dbm"`
-	Tags                               []string             `yaml:"tags"`
-	LogUnobfuscatedQueries             bool                 `yaml:"log_unobfuscated_queries"`
-	ObfuscatorOptions                  obfuscate.SQLConfig  `yaml:"obfuscator_options"`
-	InstantClient                      bool                 `yaml:"instant_client"`
-	ReportedHostname                   string               `yaml:"reported_hostname"`
-	QuerySamples                       QuerySamplesConfig   `yaml:"query_samples"`
-	QueryMetrics                       QueryMetricsConfig   `yaml:"query_metrics"`
-	SysMetrics                         SysMetricsConfig     `yaml:"sysmetrics"`
-	Tablespaces                        TablespacesConfig    `yaml:"tablespaces"`
-	ProcessMemory                      ProcessMemoryConfig  `yaml:"process_memory"`
-	SharedMemory                       SharedMemoryConfig   `yaml:"shared_memory"`
-	ExecutionPlans                     ExecutionPlansConfig `yaml:"execution_plans"`
-	AgentSQLTrace                      AgentSQLTrace        `yaml:"agent_sql_trace"`
-	UseGlobalCustomQueries             string               `yaml:"use_global_custom_queries"`
-	CustomQueries                      []CustomQuery        `yaml:"custom_queries"`
-	MetricCollectionInterval           int64                `yaml:"metric_collection_interval"`
-	DatabaseInstanceCollectionInterval uint64               `yaml:"database_instance_collection_interval"`
+	Server                             string                 `yaml:"server"`
+	Port                               int                    `yaml:"port"`
+	ServiceName                        string                 `yaml:"service_name"`
+	Username                           string                 `yaml:"username"`
+	Password                           string                 `yaml:"password"`
+	TnsAlias                           string                 `yaml:"tns_alias"`
+	TnsAdmin                           string                 `yaml:"tns_admin"`
+	Protocol                           string                 `yaml:"protocol"`
+	Wallet                             string                 `yaml:"wallet"`
+	DBM                                bool                   `yaml:"dbm"`
+	Tags                               []string               `yaml:"tags"`
+	LogUnobfuscatedQueries             bool                   `yaml:"log_unobfuscated_queries"`
+	ObfuscatorOptions                  obfuscate.SQLConfig    `yaml:"obfuscator_options"`
+	InstantClient                      bool                   `yaml:"instant_client"`
+	ReportedHostname                   string                 `yaml:"reported_hostname"`
+	QuerySamples                       QuerySamplesConfig     `yaml:"query_samples"`
+	QueryMetrics                       QueryMetricsConfig     `yaml:"query_metrics"`
+	SysMetrics                         SysMetricsConfig       `yaml:"sysmetrics"`
+	Tablespaces                        TablespacesConfig      `yaml:"tablespaces"`
+	ProcessMemory                      ProcessMemoryConfig    `yaml:"process_memory"`
+	InactiveSessions                   inactiveSessionsConfig `yaml:"inactive_sessions"`
+	SharedMemory                       SharedMemoryConfig     `yaml:"shared_memory"`
+	ExecutionPlans                     ExecutionPlansConfig   `yaml:"execution_plans"`
+	AgentSQLTrace                      AgentSQLTrace          `yaml:"agent_sql_trace"`
+	UseGlobalCustomQueries             string                 `yaml:"use_global_custom_queries"`
+	CustomQueries                      []CustomQuery          `yaml:"custom_queries"`
+	MetricCollectionInterval           int64                  `yaml:"metric_collection_interval"`
+	DatabaseInstanceCollectionInterval uint64                 `yaml:"database_instance_collection_interval"`
+	Asm                                asmConfig              `yaml:"asm"`
+	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -131,6 +146,11 @@ Port: '%d'
 `, c.Server, c.ServiceName, c.Port)
 }
 
+// GetDefaultObfuscatorOptions return default obfuscator options
+func GetDefaultObfuscatorOptions() obfuscate.SQLConfig {
+	return obfuscate.SQLConfig{DBMS: common.IntegrationName, TableNames: true, CollectCommands: true, CollectComments: true, ObfuscationMode: obfuscate.ObfuscateAndNormalize}
+}
+
 // NewCheckConfig builds a new check config.
 func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
 	instance := InstanceConfig{}
@@ -140,10 +160,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	var defaultMetricCollectionInterval int64 = 60
 	instance.MetricCollectionInterval = defaultMetricCollectionInterval
 
-	instance.ObfuscatorOptions.DBMS = common.IntegrationName
-	instance.ObfuscatorOptions.TableNames = true
-	instance.ObfuscatorOptions.CollectCommands = true
-	instance.ObfuscatorOptions.CollectComments = true
+	instance.ObfuscatorOptions = GetDefaultObfuscatorOptions()
 
 	instance.QuerySamples.Enabled = true
 
@@ -151,14 +168,16 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
 
+	instance.ExecutionPlans.Enabled = true
 	instance.ExecutionPlans.PlanCacheRetention = 15
 
 	instance.SysMetrics.Enabled = true
 	instance.Tablespaces.Enabled = true
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
-
-	instance.ExecutionPlans.Enabled = true
+	instance.InactiveSessions.Enabled = true
+	instance.Asm.Enabled = true
+	instance.ResourceManager.Enabled = true
 
 	instance.UseGlobalCustomQueries = "true"
 

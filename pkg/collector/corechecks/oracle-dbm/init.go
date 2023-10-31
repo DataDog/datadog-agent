@@ -61,7 +61,6 @@ func (c *Check) init() error {
 		tags = append(tags, fmt.Sprintf("host:%s", c.dbHostname), fmt.Sprintf("db_server:%s", c.dbHostname))
 	}
 	tags = append(tags, fmt.Sprintf("oracle_version:%s", c.dbVersion))
-	tags = append(tags, fmt.Sprintf("dd.internal.resource:database_instance:%s/%s", c.dbHostname, c.cdbName))
 
 	var d vDatabase
 	if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
@@ -75,6 +74,7 @@ func (c *Check) init() error {
 	}
 	c.cdbName = d.Name
 	tags = append(tags, fmt.Sprintf("cdb:%s", c.cdbName))
+	tags = append(tags, fmt.Sprintf("dd.internal.resource:database_instance:%s/%s", c.dbHostname, c.cdbName))
 	isMultitenant := true
 	if d.Cdb == "NO" {
 		isMultitenant = false
@@ -100,8 +100,7 @@ func (c *Check) init() error {
 	// determine hosting type
 	ht := selfManaged
 
-	if isMultitenant {
-		// is RDS?
+	if isDbVersionGreaterOrEqualThan(c, "19") {
 		if ht == selfManaged {
 			// Is RDS?
 			if c.filePath == "" {
@@ -117,7 +116,7 @@ func (c *Check) init() error {
 		}
 
 		// is OCI?
-		if ht == selfManaged {
+		if ht == selfManaged && isMultitenant {
 			var cloudRows int
 			if c.connectedToPdb {
 				err = getWrapper(c, &cloudRows, "select 1 from v$pdbs where cloud_identity like '%oraclecloud%' and rownum = 1")

@@ -14,7 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/cadvisor"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/health"
+	kube "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/node"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/probe"
@@ -40,43 +42,48 @@ type KubeletCheck struct {
 	instance  *common.KubeletConfig
 	filter    *containers.Filter
 	providers []Provider
+	podUtils  *common.PodUtils
 }
 
 // NewKubeletCheck returns a new KubeletCheck
 func NewKubeletCheck(base core.CheckBase, instance *common.KubeletConfig) *KubeletCheck {
-	filter, err := containers.GetSharedMetricFilter()
-	if err != nil {
-		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
-	}
-
-	providers := initProviders(filter, instance)
-
 	return &KubeletCheck{
 		CheckBase: base,
 		instance:  instance,
-		filter:    filter,
-		providers: providers,
 	}
 }
 
-func initProviders(filter *containers.Filter, config *common.KubeletConfig) []Provider {
-	podProvider := pod.NewProvider(filter, config)
+func initProviders(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils) []Provider {
+	podProvider := pod.NewProvider(filter, config, podUtils)
 	// nodeProvider collects from the /spec endpoint, which was hidden by default in k8s 1.18 and removed in k8s 1.19.
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
 	healthProvider := health.NewProvider(config)
-	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
 	summaryProvider := summary.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+
+	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
 	if err != nil {
 		log.Warnf("Can't get probe provider: %v", err)
 	}
 
+	kubeletProvider, err := kube.NewProvider(filter, config, workloadmeta.GetGlobalStore(), podUtils)
+	if err != nil {
+		log.Warnf("Can't get kubelet provider: %v", err)
+	}
+
+	cadvisorProvider, err := cadvisor.NewProvider(filter, config, workloadmeta.GetGlobalStore(), podUtils)
+	if err != nil {
+		log.Warnf("Can't get cadvisor provider: %v", err)
+	}
+
 	return []Provider{
+		healthProvider,
 		podProvider,
 		nodeProvider,
-		probeProvider,
-		healthProvider,
 		summaryProvider,
+		cadvisorProvider,
+		kubeletProvider,
+		probeProvider,
 	}
 }
 
@@ -92,10 +99,25 @@ func (k *KubeletCheck) Configure(senderManager sender.SenderManager, integration
 		return err
 	}
 
+	filter, err := containers.GetSharedMetricFilter()
+	if err != nil {
+		log.Warnf("Can't get container include/exclude filter, no filtering will be applied: %v", err)
+	}
+	k.filter = filter
+
 	err = k.instance.Parse(config)
 	if err != nil {
 		return err
 	}
+
+	k.instance.Namespace = common.KubeletMetricsPrefix
+	if k.instance.SendHistogramBuckets == nil {
+		sendBuckets := true
+		k.instance.SendHistogramBuckets = &sendBuckets
+	}
+
+	k.podUtils = common.NewPodUtils()
+	k.providers = initProviders(filter, k.instance, k.podUtils)
 
 	return nil
 }
@@ -107,6 +129,7 @@ func (k *KubeletCheck) Run() error {
 		return err
 	}
 	defer sender.Commit()
+	defer k.podUtils.Reset()
 
 	// Get client
 	kc, err := kubelet.GetKubeUtil()
