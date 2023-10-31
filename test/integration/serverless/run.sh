@@ -199,9 +199,7 @@ fi
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
-functions_to_skip=(
-    "appsec-go" # Pending merge/release of https://github.com/DataDog/datadog-lambda-go/pull/143
-)
+functions_to_skip=()
 
 echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff
