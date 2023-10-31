@@ -140,7 +140,7 @@ def normalize_appsec(stage):
         require(r'BEGINTRACE.*ENDTRACE'),
         exclude(r'BEGINTRACE'),
         exclude(r'ENDTRACE'),
-        flat_map(select__dd_appsec_json),
+        flatmap(select__dd_appsec_json),
         replace(stage, 'XXXXXX'),
     ]
 
@@ -198,7 +198,7 @@ def foreach(fn):
     return _foreach
 
 
-def flat_map(fn):
+def flatmap(fn):
     """
     Execute fn with each element of the list in order, flatten the results.
     """
