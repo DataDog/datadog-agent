@@ -129,4 +129,16 @@ typedef struct {
     char buf[HTTP2_FRAME_HEADER_SIZE];
 } frame_header_remainder_t;
 
+typedef struct {
+    __u64 end_of_stream_eos;
+    __u64 end_of_stream_rst;
+    __u64 str_len_greater_then_frame_loc;
+    __u64 str_len_too_big_mid;
+    __u64 str_len_too_big_large;
+    __u64 request_seen;
+    __u64 response_seen;
+    __u64 frame_remainder;
+    __u64 max_frames_in_packet;
+} http2_telemetry_t;
+
 #endif

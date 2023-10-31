@@ -10,6 +10,7 @@ package ebpf
 /*
 #include "./c/pid_fd.h"
 #include "./c/tracer/tracer.h"
+#include "./c/protocols/http2/decoding-defs.h"
 #include "./c/tcp_states.h"
 #include "./c/prebuilt/offset-guess.h"
 #include "./c/protocols/classification/defs.h"
@@ -22,6 +23,7 @@ type ConnStats C.conn_stats_ts_t
 type Conn C.conn_t
 type Batch C.batch_t
 type Telemetry C.telemetry_t
+type HTTP2Telemetry C.http2_telemetry_t
 type PortBinding C.port_binding_t
 type PIDFD C.pid_fd_t
 type UDPRecvSock C.udp_recv_sock_t

@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -96,10 +98,11 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	// c is a stream endpoint
 	// a + b are unary endpoints
 	tests := []struct {
-		name              string
-		runClients        func(t *testing.T, clientsCount int)
-		expectedEndpoints map[http.Key]captureRange
-		expectedError     bool
+		name                string
+		runClients          func(t *testing.T, clientsCount int)
+		expectedEndpoints   map[http.Key]captureRange
+		expectedError       bool
+		expectedEndOfStream int
 	}{
 		{
 			name: "simple unary - multiple requests",
@@ -120,6 +123,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 1001,
 				},
 			},
+			expectedEndOfStream: 2000,
 		},
 		{
 			name: "unary, a->b->a",
@@ -146,6 +150,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 1,
 				},
 			},
+			expectedEndOfStream: 6,
 		},
 		{
 			name: "unary, a->b->a->b",
@@ -173,6 +178,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 2,
 				},
 			},
+			expectedEndOfStream: 8,
 		},
 		{
 			name: "unary, a->b->b->a",
@@ -200,6 +206,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 2,
 				},
 			},
+			expectedEndOfStream: 8,
 		},
 		{
 			name: "stream, c",
@@ -220,6 +227,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 25,
 				},
 			},
+			expectedEndOfStream: 50,
 		},
 		{
 			name: "mixed, c->b->c->b",
@@ -247,6 +255,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 2,
 				},
 			},
+			expectedEndOfStream: 8,
 		},
 		{
 			name: "500 headers -> b -> 500 headers -> b",
@@ -283,7 +292,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 2,
 				},
 			},
-			expectedError: true,
+			expectedEndOfStream: 8,
+			expectedError:       true,
 		},
 		{
 			name: "duplicated headers -> b -> duplicated headers -> b",
@@ -320,7 +330,8 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 2,
 				},
 			},
-			expectedError: true,
+			expectedError:       true,
+			expectedEndOfStream: 8,
 		},
 	}
 	for _, tt := range tests {
@@ -379,6 +390,29 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+				ch := make(chan prometheus.Metric, 9)
+				monitor.Collect(ch)
+				close(ch)
+				require.Equal(t, usm.MonitorTelemetry.LastEndOfStreamEOS.Load(), int64(tt.expectedEndOfStream))
+				require.Zero(t, usm.MonitorTelemetry.LastEndOfStreamRST.Load())
+				require.Zero(t, usm.MonitorTelemetry.LastStrLenGraterThenFrameLoc.Load())
+				require.Zero(t, usm.MonitorTelemetry.LastStrLenTooBigLarge.Load())
+				require.Zero(t, usm.MonitorTelemetry.LastStrLenTooBigMid.Load())
+				require.Zero(t, usm.MonitorTelemetry.LastMaxFramesInPacket.Load())
+				require.Zero(t, usm.MonitorTelemetry.LastFrameRemainder.Load())
+
+				for key, _ := range res {
+					val, ok := tt.expectedEndpoints[key]
+					if !ok {
+						log.Error("unable to find key in expectedEndpoints")
+					}
+					if int64(val.lower) > usm.MonitorTelemetry.LastRequestSeen.Load() || int64(val.upper) < usm.MonitorTelemetry.LastRequestSeen.Load() {
+						log.Errorf("expected %v requests to be between %v and %v", usm.MonitorTelemetry.LastRequestSeen.Load(), val.lower, val.upper)
+					}
+					if int64(val.lower) > usm.MonitorTelemetry.LastResponseSeen.Load() || int64(val.upper) < usm.MonitorTelemetry.LastResponseSeen.Load() {
+						log.Errorf("expected %v responses to be between %v and %v", usm.MonitorTelemetry.LastRequestSeen.Load(), val.lower, val.upper)
+					}
+				}
 			})
 		}
 	}

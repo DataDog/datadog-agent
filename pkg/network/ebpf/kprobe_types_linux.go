@@ -55,6 +55,18 @@ type Telemetry struct {
 	Udp_sends_missed    uint64
 	Udp_dropped_conns   uint64
 }
+
+type HTTP2Telemetry struct {
+	End_of_stream_eos              uint64
+	End_of_stream_rst              uint64
+	Str_len_greater_then_frame_loc uint64
+	Str_len_too_big_mid            uint64
+	Str_len_too_big_large          uint64
+	Request_seen                   uint64
+	Response_seen                  uint64
+	Frame_remainder                uint64
+	Max_frames_in_packet           uint64
+}
 type PortBinding struct {
 	Netns     uint32
 	Port      uint16

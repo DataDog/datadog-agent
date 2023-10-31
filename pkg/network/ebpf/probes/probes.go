@@ -190,6 +190,7 @@ const (
 	PortBindingsMap                   BPFMapName = "port_bindings"
 	UDPPortBindingsMap                BPFMapName = "udp_port_bindings"
 	TelemetryMap                      BPFMapName = "telemetry"
+	HTTP2TelemetryMap                 BPFMapName = "http2_telemetry"
 	ConnCloseBatchMap                 BPFMapName = "conn_close_batch"
 	ConntrackMap                      BPFMapName = "conntrack"
 	ConntrackTelemetryMap             BPFMapName = "conntrack_telemetry"
