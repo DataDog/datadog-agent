@@ -11,6 +11,15 @@ retract (
 	v0.8.0
 )
 
+// Branch: single-machine-performance/distributions-buffer-counts
+// replace github.com/DataDog/opentelemetry-mapping-go/pkg/quantile => github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20231031033814-48eeffcad02d
+
+// Branch: single-machine-performance/distributions-32-bit-store
+replace github.com/DataDog/opentelemetry-mapping-go/pkg/quantile => github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20231031034527-e5a297addb7f
+
+// Branch: single-machine-performance/distributions (both of the above)
+// replace github.com/DataDog/opentelemetry-mapping-go/pkg/quantile => github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20231031034422-52c24c5dd23d
+
 // NOTE: Prefer using simple `require` directives instead of using `replace` if possible.
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
 // for more details.
@@ -79,7 +88,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.8.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.8.0
-	github.com/DataDog/sketches-go v1.4.2
+	github.com/DataDog/sketches-go v1.4.3
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.5.2
 	github.com/DataDog/zstd v1.5.5
