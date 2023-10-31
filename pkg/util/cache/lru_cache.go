@@ -1,5 +1,7 @@
 package cache
 
+import "unsafe"
+
 /*import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -127,7 +129,7 @@ func (c *lruStringCache) lookupOrInsert(key []byte, allocator func(key []byte) s
 
 	// Insert into the cache, and allocate to the backing store.
 	s := &stringCacheItem{
-		s:    allocator(key),
+		s:    str,
 		prev: nil,
 		next: c.head,
 	}
@@ -140,7 +142,10 @@ func (c *lruStringCache) lookupOrInsert(key []byte, allocator func(key []byte) s
 		c.tail = s
 	}
 
-	c.strings[s.s] = s
+	if str == "" || unsafe.StringData(str) == nil || c == nil || c.strings == nil {
+		panic("Dead string going to LRU")
+	}
+	c.strings[str] = s
 
 	if c.tlmEnabled {
 		length := len(s.s)

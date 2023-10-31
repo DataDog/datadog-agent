@@ -146,8 +146,7 @@ func newServerlessBatcher(demux aggregator.Demultiplexer) *batcher {
 // Batching data
 // -------------
 
-func (b *batcher) appendSample(sample metrics.MetricSample, references cache.InternRetainer) {
-	b.Retainer().Import(references)
+func (b *batcher) appendSample(sample metrics.MetricSample) {
 	var shardKey uint32
 	if b.pipelineCount > 1 {
 		// TODO(remy): re-using this tagsBuffer later in the pipeline (by sharing
@@ -175,11 +174,11 @@ func (b *batcher) appendServiceCheck(serviceCheck *servicecheck.ServiceCheck) {
 	b.serviceChecks = append(b.serviceChecks, serviceCheck)
 }
 
-func (b *batcher) appendLateSample(sample metrics.MetricSample, references cache.InternRetainer) {
+func (b *batcher) appendLateSample(sample metrics.MetricSample) {
 	// if the no aggregation pipeline is not enabled, we fallback on the
 	// main pipeline eventually distributing the samples on multiple samplers.
 	if !b.noAggPipelineEnabled {
-		b.appendSample(sample, references)
+		b.appendSample(sample)
 		return
 	}
 

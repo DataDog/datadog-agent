@@ -19,7 +19,7 @@ import (
 	"syscall"
 	"unsafe"
 
-	log "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // hashPage is a 4k page of memory.  After two bookkeeping ints,
@@ -96,8 +96,8 @@ func (hp *hashPage) lookupOrInsert(hcode uint64, key []byte) (string, bool) {
 		int(hp.entries[index].length)), !found
 }
 
-type mmap_hash struct {
-	Name           string
+type mmapHash struct {
+	name           string
 	fd             fs.File
 	used, capacity int64 // Bytes used and capacity for strings in the
 	seeds          []maphash.Seed
@@ -112,17 +112,17 @@ type mmap_hash struct {
 	lock       sync.Mutex
 }
 
-// mmap_all_record holds every mmap_hash created.  This isn't for permanent use,
+// mmapAllRecord holds every mmapHash created.  This isn't for permanent use,
 // just debugging and validation.
-type mmap_all_record struct {
+type mmapAllRecord struct {
 	// When we actually delete, make this nil.
-	hashes  []*mmap_hash
+	hashes  []*mmapHash
 	origins map[string]int
 	lock    sync.Mutex
 }
 
-var all_mmaps = mmap_all_record{
-	hashes:  make([]*mmap_hash, 0, 1),
+var allMmaps = mmapAllRecord{
+	hashes:  make([]*mmapHash, 0, 1),
 	origins: make(map[string]int),
 }
 
@@ -143,7 +143,7 @@ func normalizeOrigin(origin string) string {
 	return result.String()
 }
 
-func newMmapHash(origin string, fileSize int64, prefixPath string, closeOnRelease bool) (*mmap_hash, error) {
+func newMmapHash(origin string, fileSize int64, prefixPath string, closeOnRelease bool) (*mmapHash, error) {
 	if fileSize < hashPageSize {
 		return nil, errors.New("file size too small")
 	}
@@ -177,8 +177,8 @@ func newMmapHash(origin string, fileSize int64, prefixPath string, closeOnReleas
 		seeds = append(seeds, maphash.MakeSeed())
 	}
 
-	h := &mmap_hash{
-		Name:           origin,
+	h := &mmapHash{
+		name:           origin,
 		fd:             file,
 		used:           0,
 		capacity:       fileSize,
@@ -189,9 +189,9 @@ func newMmapHash(origin string, fileSize int64, prefixPath string, closeOnReleas
 		closeOnRelease: closeOnRelease,
 	}
 
-	all_mmaps.lock.Lock()
-	defer all_mmaps.lock.Unlock()
-	all_mmaps.hashes = append(all_mmaps.hashes, h)
+	allMmaps.lock.Lock()
+	defer allMmaps.lock.Unlock()
+	allMmaps.hashes = append(allMmaps.hashes, h)
 
 	return h, nil
 }
@@ -201,7 +201,7 @@ func newMmapHash(origin string, fileSize int64, prefixPath string, closeOnReleas
 // you would be able to allocate this string on some other instance that isn't full.  If you get an
 // empty string and a false, the implementation doesn't support this string.  Go ahead and
 // heap-allocate the string, then.
-func (table *mmap_hash) lookupOrInsert(key []byte) (string, bool) {
+func (table *mmapHash) lookupOrInsert(key []byte) (string, bool) {
 	keyLen := len(key)
 	if keyLen > MaxValueSize {
 		// We don't support long strings, punt.
@@ -237,13 +237,13 @@ func (table *mmap_hash) lookupOrInsert(key []byte) (string, bool) {
 	return "", true
 }
 
-func (table *mmap_hash) sizes() (int64, int64) {
+func (table *mmapHash) sizes() (int64, int64) {
 	return table.used, table.capacity
 }
 
 // stats returns the mean and variance for the lengths of keys inserted into
-// this mmap_hash. When these values aren't defined, you get NaN back.
-func (table *mmap_hash) stats() (float64, float64) {
+// this mmapHash. When these values aren't defined, you get NaN back.
+func (table *mmapHash) stats() (float64, float64) {
 	if table.valueCount < 1 {
 		return math.NaN(), math.NaN()
 	} else if table.valueCount < 2 {
@@ -253,26 +253,31 @@ func (table *mmap_hash) stats() (float64, float64) {
 	}
 }
 
-func (table *mmap_hash) name() string {
-	if len(table.Name) == 0 {
+func (table *mmapHash) Name() string {
+	if len(table.name) == 0 {
 		return "<empty>"
-	} else if table.Name[0] == '!' {
-		return table.Name
+	} else if table.name[0] == '!' {
+		return table.name
 	} else {
-		return containerSummaryPattern.ReplaceAllString(table.Name, "container-$1")
+		return containerSummaryPattern.ReplaceAllString(table.name, "container-$1")
 	}
 }
 
-func (table *mmap_hash) finalize() {
+func (table *mmapHash) finalize() {
 	table.lock.Lock()
 	defer table.lock.Unlock()
 	if table.pages == nil {
 		_ = log.Warnf("finalize(%p): Already dead.", table)
 	}
+
+	if strings.HasSuffix(table.name, "parseMetricSample_name") || strings.Contains(table.name, "!Timesampler.Name") {
+		log.Infof("Finalizing a segment that often causes issues.")
+	}
+
 	table.pages = nil
 	address := unsafe.SliceData(table.mapping)
 	_ = log.Warnf(fmt.Sprintf("finalize(%s): Invalidating address %p-%p.",
-		table.name(), address, unsafe.Add(unsafe.Pointer(address), len(table.mapping))))
+		table.Name(), address, unsafe.Add(unsafe.Pointer(address), len(table.mapping))))
 	// Make the segment read-only, worry about actual deletion after we have
 	// better debugging around page faults.
 	var err error
@@ -297,11 +302,11 @@ func (table *mmap_hash) finalize() {
 	}
 }
 
-func (table *mmap_hash) finalized() bool {
+func (table *mmapHash) finalized() bool {
 	return table.pages == nil
 }
 
-func (table *mmap_hash) accessible() bool {
+func (table *mmapHash) accessible() bool {
 	return table.fd != nil
 }
 
@@ -314,7 +319,7 @@ func isMapped(s string) (int, bool, bool) {
 	// TODO: make isMapped lock-free.
 	addr := uintptr(unsafe.Pointer(unsafe.StringData(s)))
 	var constP *byte = nil
-	for n, t := range all_mmaps.hashes {
+	for n, t := range allMmaps.hashes {
 		t.lock.Lock()
 		mapAddr := uintptr(unsafe.Pointer(unsafe.SliceData(t.mapping)))
 		if mapAddr <= addr && addr <= (mapAddr+unsafe.Sizeof(constP)*uintptr(len(t.mapping))) {
@@ -333,21 +338,21 @@ func isMapped(s string) (int, bool, bool) {
 // logFailedCheck returns a safe value for 'tag'.  Using the 'safe' value from isMapped,
 // logFailedCheck will log a failed call to isMapped and
 func logFailedCheck(index int, safe bool, callsite, tag string) string {
-	location := fmt.Sprintf("<%s>", all_mmaps.hashes[index].name())
+	location := fmt.Sprintf("<%s>", allMmaps.hashes[index].Name())
 	for i := 0; i < callStackDepth; i++ {
 		// skip over logFailedCheck and the in-package call site, just the ones above.
 		_, file, line, _ := runtime.Caller(2 + i)
 		location = fmt.Sprintf("%s\t[%s:%d]", location,
 			strings.Replace(file, "/go/src/github.com/DataDog/datadog-agent/pkg", "PKG", 1), line)
 	}
-	if _, found := all_mmaps.origins[location]; !found {
+	if _, found := allMmaps.origins[location]; !found {
 		if safe {
 			_ = log.Errorf("mmap_hash.%v: Found tag (%s) from dead region, called from %v", callsite, tag, location)
 		} else {
 			_ = log.Errorf("mmap_hash.%v: Found tag (INACCESSIBLE) from dead region, called from %v", callsite, location)
 		}
 	}
-	all_mmaps.origins[location] += 1
+	allMmaps.origins[location] += 1
 	if safe {
 		return tag
 	} else {
@@ -356,8 +361,8 @@ func logFailedCheck(index int, safe bool, callsite, tag string) string {
 }
 
 func Check(tag string) bool {
-	all_mmaps.lock.Lock()
-	defer all_mmaps.lock.Unlock()
+	allMmaps.lock.Lock()
+	defer allMmaps.lock.Unlock()
 
 	index, active, safe := isMapped(tag)
 	if index >= 0 && !active {
@@ -367,8 +372,8 @@ func Check(tag string) bool {
 }
 
 func CheckDefault(tag string) string {
-	all_mmaps.lock.Lock()
-	defer all_mmaps.lock.Unlock()
+	allMmaps.lock.Lock()
+	defer allMmaps.lock.Unlock()
 	index, active, safe := isMapped(tag)
 	if index >= 0 && !active {
 		return logFailedCheck(index, safe, "CheckDefault", tag)
@@ -379,11 +384,11 @@ func CheckDefault(tag string) string {
 
 // Report the active and dead mappings, their lookup depths, and all the failed lookup checks.
 func Report() {
-	all_mmaps.lock.Lock()
-	defer all_mmaps.lock.Unlock()
+	allMmaps.lock.Lock()
+	defer allMmaps.lock.Unlock()
 	p := message.NewPrinter(language.English)
-	nrHashes := len(all_mmaps.hashes)
-	for n, t := range all_mmaps.hashes {
+	nrHashes := len(allMmaps.hashes)
+	for n, t := range allMmaps.hashes {
 		var status string
 		if t.finalized() {
 			status = "INACTIVE"
@@ -392,7 +397,7 @@ func Report() {
 		}
 		mean, variance := t.stats()
 		log.Info(p.Sprintf("> %d/%d: %8s Origin=\"%s\" mmap range starting at %p: %v bytes.", n+1, nrHashes, status,
-			t.Name, unsafe.Pointer(unsafe.SliceData(t.mapping)), len(t.mapping)))
+			t.Name(), unsafe.Pointer(unsafe.SliceData(t.mapping)), len(t.mapping)))
 		log.Info(p.Sprintf("  %d/%d:   used: %11d, capacity: %11d.  Utilization: %4.1f%%. Mean len: %4.2f, "+
 			"Var len: %4.2f. Lookup depth: %10d %6d %5d %5d %3d %2d %2d %d",
 			n+1, nrHashes, t.used, t.capacity, 100.0*float64(t.used)/float64(t.capacity), mean, variance,
@@ -401,13 +406,13 @@ func Report() {
 		))
 	}
 
-	nrChecks := len(all_mmaps.origins)
+	nrChecks := len(allMmaps.origins)
 	count := 1
 	totalFailedChecks := 0
-	for k, v := range all_mmaps.origins {
+	for k, v := range allMmaps.origins {
 		log.Info(p.Sprintf("- %3d/%d %12d/ failed checks: %s", count, nrChecks, v, k))
 		totalFailedChecks += v
 		count += 1
 	}
-	log.Info(p.Sprintf("Failed Checks Total %d on %d different locations", totalFailedChecks, len(all_mmaps.origins)))
+	log.Info(p.Sprintf("Failed Checks Total %d on %d different locations", totalFailedChecks, len(allMmaps.origins)))
 }

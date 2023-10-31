@@ -479,16 +479,36 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 	logPayloads := config.Datadog.GetBool("log_payloads")
 
 	const retTag = "IterableMetrics"
-	iterableRetentions := d.retentions[retTag]
-	if iterableRetentions == nil {
-		iterableRetentions = cache.NewRetainerBlock()
-		d.retentions[retTag] = iterableRetentions
-	}
-	for _, retainer := range d.retentions {
-		retainer.ReleaseAll()
+	const statsTag = "StatsdWorkers"
+	const checkTag = "CheckSamplerWorkers"
+	const seriesTag = "SeriesIterables"
+	const sketchTag = "SketchIterables"
+	allTags := []string{retTag, statsTag, checkTag, seriesTag, sketchTag}
+
+	for _, t := range allTags {
+		if _, ok := d.retentions[t]; !ok {
+			d.retentions[t] = cache.NewRetainerBlock()
+		}
 	}
 
-	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, iterableRetentions, logPayloads, false)
+	for k, retainer := range d.retentions {
+		switch k {
+		case sketchTag:
+			fallthrough
+		case statsTag:
+			// let it build up to localize faults.
+		case retTag:
+			fallthrough
+		case seriesTag:
+			fallthrough
+		case checkTag:
+			retainer.ReleaseAll()
+		}
+
+	}
+
+	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, d.retentions[seriesTag],
+		d.retentions[sketchTag], logPayloads, false)
 
 	metrics.Serialize(
 		series,
@@ -506,6 +526,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 					},
 					sketchesSink: sketchesSink,
 					seriesSink:   seriesSink,
+					retainer:     d.retentions[statsTag],
 				}
 
 				worker.flushChan <- t
@@ -524,6 +545,7 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 					},
 					sketchesSink: sketchesSink,
 					seriesSink:   seriesSink,
+					retainer:     d.retentions[checkTag],
 				}
 
 				d.aggregator.flushChan <- t

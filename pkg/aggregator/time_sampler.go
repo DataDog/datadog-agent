@@ -41,7 +41,10 @@ type TimeSampler struct {
 	// since we start running more than one with the demultiplexer introduction
 	id TimeSamplerID
 
-	hostname string
+	// Accumulate the current retentions up to the current
+	// flush, then flush out the prior retentions from there.
+	retentions, priorRetentions cache.SmallRetainer
+	hostname                    string
 }
 
 // NewTimeSampler returns a newly initialized TimeSampler
@@ -91,9 +94,15 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 
 	switch metricSample.Mtype {
 	case metrics.DistributionType:
+		// Add references to the context for this distribution, and take the references for the
+		// metric samples.
 		refs, _ := s.contextResolver.resolver.referenceContext(contextKey)
+		refs.Import(&metricSample.References)
 		s.sketchMap.insert(bucketStart, contextKey, metricSample.Value, metricSample.SampleRate, &refs)
+
 	default:
+		// Save the references for the next flush.
+		s.retentions.Import(&metricSample.References)
 		// If it's a new bucket, initialize it
 		bucketMetrics, ok := s.metricsByTimestamp[bucketStart]
 		if !ok {
@@ -111,7 +120,8 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 		}
 	}
 }
-func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
+
+func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint, refs cache.InternRetainer) *metrics.SketchSeries {
 	ctx, _ := s.contextResolver.get(ck)
 	ss := &metrics.SketchSeries{
 		Interval:   s.interval,
@@ -123,7 +133,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 		return s.interner.LoadOrStoreString(tag, cache.OriginTimeSampler+".Tags", &ss.References)
 	})
 	ss.Host = s.interner.LoadOrStoreString(ctx.Host, cache.OriginTimeSampler+".Host", &ss.References)
-
+	ss.References.Import(refs)
 	return ss
 }
 
@@ -215,19 +225,24 @@ func (s *TimeSampler) dedupSerieBySerieSignature(
 
 func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.SketchesSink) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
+	refsByCtx := make(map[ckey.ContextKey]cache.SmallRetainer)
 
-	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint) {
+	s.sketchMap.flushBefore(cutoffTime, func(ck ckey.ContextKey, p metrics.SketchPoint, r cache.InternRetainer) {
 		if p.Sketch == nil {
 			return
 		}
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
+		retainer := refsByCtx[ck]
+		retainer.Import(r)
+		refsByCtx[ck] = retainer
 	})
 	for ck, points := range pointsByCtx {
-		sketchesSink.Append(s.newSketchSeries(ck, points))
+		retainer := refsByCtx[ck]
+		sketchesSink.Append(s.newSketchSeries(ck, points, &retainer))
 	}
 }
 
-func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink) {
+func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketches metrics.SketchesSink, retainer cache.InternRetainer) {
 	// Compute a limit timestamp
 	cutoffTime := s.calculateBucketStart(timestamp)
 
@@ -253,6 +268,9 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 		tlmDogstatsdContextsByMtype.Set(float64(count), mtype)
 	}
 
+	// Return the prior cycle's retentions.
+	retainer.Import(&s.priorRetentions)
+	s.priorRetentions.Import(&s.retentions)
 	s.sendTelemetry(timestamp, series)
 }
 

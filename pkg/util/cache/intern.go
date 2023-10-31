@@ -39,7 +39,7 @@ const OriginContextLimiter = "!OriginContextLimiter"
 
 type stringInterner struct {
 	cache        lruStringCache
-	fileBacking  *mmap_hash // if this is nil, the string interner acts as a regular LRU string cache.
+	fileBacking  *mmapHash // if this is nil, the string interner acts as a regular LRU string cache.
 	maxSize      int
 	refcount     int32
 	refcountLock sync.Mutex
@@ -47,7 +47,7 @@ type stringInterner struct {
 
 func (i *stringInterner) Name() string {
 	if i.fileBacking != nil {
-		return i.fileBacking.Name
+		return i.fileBacking.Name()
 	} else {
 		return "unbacked interner"
 	}
@@ -61,7 +61,7 @@ func newStringInterner(origin string, maxSize int, tmpPath string, closeOnReleas
 	// new larger mmap and start interning from there (up to some quota we later worry about).
 	// Old mmap gets removed when all strings referencing it get finalized.  New strings won't be
 	// created.
-	var backing *mmap_hash = nil
+	var backing *mmapHash = nil
 	var err error = nil
 	if tmpPath != "" {
 		backing, err = newMmapHash(origin, int64(maxSize*backingBytesPerInCoreEntry), tmpPath, closeOnRelease)
@@ -201,9 +201,15 @@ func NewKeyedStringInternerMemOnly(stringInternerCacheSize int) *KeyedInterner {
 }
 
 var s_globalQueryCount uint64 = 0
+var s_failedInternalCount uint64 = 0
 
 func (i *KeyedInterner) LoadOrStoreString(s string, origin string, retainer InternRetainer) string {
-	return i.LoadOrStore(unsafe.Slice(unsafe.StringData(s), len(s)), origin, retainer)
+	if Check(s) {
+		return i.LoadOrStore(unsafe.Slice(unsafe.StringData(s), len(s)), origin, retainer)
+	} else {
+		atomic.AddUint64(&s_failedInternalCount, 1)
+		return "<invalid>"
+	}
 }
 
 func (i *KeyedInterner) LoadOrStore(key []byte, origin string, retainer InternRetainer) string {
@@ -226,8 +232,8 @@ func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRe
 	defer i.lock.Unlock()
 
 	if i.lastReport.Before(time.Now().Add(-1 * time.Minute)) {
-		log.Infof("*** INTERNER *** Keyed Interner has %d interners.  closeOnRelease=%v, Total Query Count: %v", i.interners.Len(), i.closeOnRelease,
-			atomic.LoadUint64(&s_globalQueryCount))
+		log.Infof("*** INTERNER *** Keyed Interner has %d interners.  closeOnRelease=%v, Total Query Count: %v, Total Failures: %v", i.interners.Len(), i.closeOnRelease,
+			atomic.LoadUint64(&s_globalQueryCount), atomic.LoadUint64(&s_failedInternalCount))
 		Report()
 		i.lastReport = time.Now()
 	}
@@ -299,14 +305,3 @@ func (i *InternerContext) UseStringBytes(s []byte, suffix string) string {
 		return i.interner.LoadOrStore(s, i.origin+suffix, i.retainer)
 	}
 }
-
-/*
-func (i *InternerContext) UseString(s string, suffix string) string {
-	s = CheckDefault(s)
-	// TODO: Assume that the string is almost certainly already intern'd.
-	if i == nil {
-		return s
-	} else {
-		return i.interner.LoadOrStore(unsafe.Slice(unsafe.StringData(s), len(s)), i.origin+suffix, i.retainer)
-	}
-}*/

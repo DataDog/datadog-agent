@@ -70,15 +70,16 @@ func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey, refs cache.InternRe
 	}
 
 	// Keep references for this context's dependencies.
-	retainer := m[ts][ck].refs
-	retainer.Import(refs)
+	entry := m[ts][ck]
+	entry.refs.Import(refs)
+	m[ts][ck] = entry
 
 	return s.agent
 }
 
 // flushBefore calls f for every sketch inserted before beforeTs, removing flushed sketches
 // from the map.
-func (m sketchMap) flushBefore(beforeTs int64, f func(ckey.ContextKey, metrics.SketchPoint)) {
+func (m sketchMap) flushBefore(beforeTs int64, f func(ckey.ContextKey, metrics.SketchPoint, cache.InternRetainer)) {
 	for ts, byCtx := range m {
 		if ts >= beforeTs {
 			continue
@@ -88,8 +89,7 @@ func (m sketchMap) flushBefore(beforeTs int64, f func(ckey.ContextKey, metrics.S
 			f(ck, metrics.SketchPoint{
 				Sketch: as.agent.Finish(),
 				Ts:     ts,
-			})
-			as.refs.ReleaseAll()
+			}, &as.refs)
 		}
 
 		delete(m, ts)

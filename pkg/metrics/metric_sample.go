@@ -8,6 +8,7 @@ package metrics
 import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 // MetricType is the representation of an aggregator metric type
@@ -101,6 +102,7 @@ type MetricSample struct {
 	NoIndex          bool
 	Origin           string
 	Source           MetricSource
+	References       cache.SmallRetainer
 }
 
 // Implement the MetricSampleContext interface

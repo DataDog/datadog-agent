@@ -58,7 +58,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample) {
 	}
 }
 
-func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
+func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint, refs cache.InternRetainer) *metrics.SketchSeries {
 	ctx, _ := cs.contextResolver.get(ck)
 	ss := &metrics.SketchSeries{
 		// Interval: TODO: investigate
@@ -70,6 +70,7 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 		return cs.contextResolver.resolver.interner.LoadOrStoreString(s, cache.OriginCheckSampler, &ss.References)
 	})
 	ss.Host = cs.contextResolver.resolver.interner.LoadOrStoreString(ctx.Host, cache.OriginCheckSampler, &ss.References)
+	ss.References.Import(refs)
 
 	return ss
 }
@@ -165,15 +166,20 @@ func (cs *CheckSampler) commitSeries(timestamp float64) {
 
 func (cs *CheckSampler) commitSketches(timestamp float64) {
 	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
+	refsByCtx := make(map[ckey.ContextKey]cache.SmallRetainer)
 
-	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
+	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint, r cache.InternRetainer) {
 		if p.Sketch == nil {
 			return
 		}
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
+		retainer := refsByCtx[ck]
+		retainer.Import(r)
+		refsByCtx[ck] = retainer
 	})
 	for ck, points := range pointsByCtx {
-		cs.sketches = append(cs.sketches, cs.newSketchSeries(ck, points))
+		retainer := refsByCtx[ck]
+		cs.sketches = append(cs.sketches, cs.newSketchSeries(ck, points, &retainer))
 	}
 }
 

@@ -21,7 +21,7 @@ type InternRetainer interface {
 	ReferenceN(obj Refcounted, n int32)
 	// CopyTo duplicates all references in this InternRetainer into dest.
 	CopyTo(dest InternRetainer)
-	// Import takes all the references from source.  Source will hae no references after this operation.
+	// Import takes all the references from source.  Source will have no references after this operation.
 	Import(source InternRetainer)
 	// ReleaseAll calls Release once on every object it's ever Referenced for each time it was referenced.
 	ReleaseAll()
@@ -34,6 +34,10 @@ type InternRetainer interface {
 type SmallRetainer struct {
 	origins []Refcounted
 	counts  []int32
+}
+
+func (s *SmallRetainer) Len() int {
+	return len(s.origins)
 }
 
 func (s *SmallRetainer) Reference(obj Refcounted) {
@@ -80,11 +84,12 @@ func (s *SmallRetainer) CopyTo(dest InternRetainer) {
 }
 
 func (s *SmallRetainer) Import(other InternRetainer) {
-	other.ReleaseAllWith(s.ReferenceN)
+	if other != nil {
+		other.ReleaseAllWith(s.ReferenceN)
+	}
 }
 
 type RetainerBlock struct {
-	InternRetainer
 	retentions map[Refcounted]int32
 	lock       sync.Mutex
 }

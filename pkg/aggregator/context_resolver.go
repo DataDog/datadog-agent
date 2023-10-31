@@ -255,7 +255,9 @@ func (cr *timestampContextResolver) get(key ckey.ContextKey) (*Context, bool) {
 // expireContexts cleans up the contexts that haven't been tracked since the given timestamp
 // and returns the associated contextKeys.
 // keep can be used to retain contexts longer than their natural expiration time based on some condition.
-func (cr *timestampContextResolver) expireContexts(expireTimestamp float64, keep func(ckey.ContextKey) bool) {
+func (cr *timestampContextResolver) expireContexts(expireTimestamp float64,
+
+	keep func(ckey.ContextKey) bool) {
 	for contextKey, lastSeen := range cr.lastSeenByKey {
 		if lastSeen < expireTimestamp && (keep == nil || !keep(contextKey)) {
 			delete(cr.lastSeenByKey, contextKey)

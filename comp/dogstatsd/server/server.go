@@ -697,8 +697,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 				var err error
 
 				samples = samples[0:0]
-				references := cache.SmallRetainer{}
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, s.originTelemetry, &references)
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, s.originTelemetry)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
@@ -708,16 +707,16 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					s.Debug.StoreMetricStats(samples[idx])
 
 					if samples[idx].Timestamp > 0.0 {
-						batcher.appendLateSample(samples[idx], &references)
+						batcher.appendLateSample(samples[idx])
 					} else {
-						batcher.appendSample(samples[idx], &references)
+						batcher.appendSample(samples[idx])
 					}
 
 					if s.histToDist && samples[idx].Mtype == metrics.HistogramType {
 						distSample := samples[idx].Copy()
 						distSample.Name = s.histToDistPrefix + distSample.Name
 						distSample.Mtype = metrics.DistributionType
-						batcher.appendSample(*distSample, &references)
+						batcher.appendSample(*distSample)
 					}
 				}
 				atomic.AddUint64(&s.nrMetricSamples, uint64(len(samples)))
@@ -775,14 +774,15 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
-func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, originTelemetry bool, retainer cache.InternRetainer) ([]metrics.MetricSample, error) {
+func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, originTelemetry bool) ([]metrics.MetricSample, error) {
 	okCnt := tlmProcessedOk
 	errorCnt := tlmProcessedError
 	if origin != "" && originTelemetry {
 		okCnt, errorCnt = s.getOriginCounter(origin)
 	}
 
-	sample, err := parser.parseMetricSample(message, cache.NewInternerContext(s.interner, origin, retainer))
+	retainer := cache.SmallRetainer{}
+	sample, err := parser.parseMetricSample(message, cache.NewInternerContext(s.interner, origin, &retainer))
 	if err != nil {
 		dogstatsdMetricParseErrors.Add(1)
 		errorCnt.Inc()
@@ -793,7 +793,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		mapResult := s.mapper.Map(sample.name)
 		if mapResult != nil {
 			s.log.Tracef("Dogstatsd mapper: metric mapped from %q to %q with tags %v", sample.name, mapResult.Name, mapResult.Tags)
-			sample.name = mapResult.Name
+			sample.name = s.interner.LoadOrStoreString(mapResult.Name, origin, &retainer)
 			sample.tags = append(sample.tags, mapResult.Tags...)
 		}
 	}
@@ -815,6 +815,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		dogstatsdMetricPackets.Add(1)
 		okCnt.Inc()
 	}
+	metricSamples[len(metricSamples)-1].References.Import(&retainer)
 	return metricSamples, nil
 }
 
