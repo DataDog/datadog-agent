@@ -1018,13 +1018,13 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 
 	dnsClient := new(dns.Client)
 	var dnsClientAddr *net.UDPAddr
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-		require.NoError(t, err)
+		assert.Nil(c, err)
 		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 		_ = dnsConn.Close()
-		return err == nil || timeout != 0
+		assert.True(c, err == nil || timeout != 0, "Expected no DNS error")
 	}, 3*time.Second, 100*time.Millisecond, "Failed to get dns response")
 
 	// Allow the DNS reply to be processed in the snooper
