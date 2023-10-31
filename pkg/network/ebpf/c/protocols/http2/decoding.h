@@ -476,37 +476,18 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
     return false;
 }
 
-static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, frame_header_remainder_t *frame_state) {
+static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
-
-    // Filter preface.
-    skip_preface(skb, skb_info);
-
-    if (!get_first_frame(skb, skb_info, frame_state, &current_frame)) {
-        return 0;
+    if (original_index == 1) {
+        interesting_frame_index = 1;
     }
 
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
     for (__u32 iteration = 0; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
-        // END_STREAM can appear only in Headers and Data frames.
-        // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
-        // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
-        is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
-        is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-        if (is_headers_or_rst_frame || is_data_end_of_stream) {
-            frames_array[interesting_frame_index].frame = current_frame;
-            frames_array[interesting_frame_index].offset = skb_info->data_off;
-            interesting_frame_index++;
-        }
-        skb_info->data_off += current_frame.length;
-
         // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
         if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
-            break;
-        }
-        if (interesting_frame_index >= HTTP2_MAX_FRAMES_ITERATIONS) {
             break;
         }
 
@@ -515,6 +496,18 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
         if (!format_http2_frame_header(&current_frame)) {
             break;
         }
+
+        // END_STREAM can appear only in Headers and Data frames.
+        // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
+        // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
+        is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
+        is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
+        if (interesting_frame_index < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
+            frames_array[interesting_frame_index].frame = current_frame;
+            frames_array[interesting_frame_index].offset = skb_info->data_off;
+            interesting_frame_index++;
+        }
+        skb_info->data_off += current_frame.length;
     }
 
     return interesting_frame_index;
@@ -523,12 +516,18 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
 SEC("socket/http2_handle_first_frame")
 int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     const __u32 zero = 0;
+    struct http2_frame current_frame = {};
 
     dispatcher_arguments_t dispatcher_args_copy;
     bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
-    if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
-        return 0;
+    // We're not calling fetch_dispatching_arguments as, we need to modify the `data_off` field of skb_info, so
+    // the next prog will start to read from the next valid frame.
+    dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
+    if (args == NULL) {
+        return false;
     }
+    bpf_memcpy(&dispatcher_args_copy.tup, &args->tup, sizeof(conn_tuple_t));
+    bpf_memcpy(&dispatcher_args_copy.skb_info, &args->skb_info, sizeof(skb_info_t));
 
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
@@ -550,7 +549,34 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     if (iteration_value == NULL) {
         return 0;
     }
-    bpf_memset(iteration_value->frames_array, 0, HTTP2_MAX_FRAMES_ITERATIONS * sizeof(http2_frame_with_offset));
+    iteration_value->frames_count = 0;
+    iteration_value->iteration = 0;
+
+    // Filter preface.
+    skip_preface(skb, &dispatcher_args_copy.skb_info);
+
+    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
+
+    if (!get_first_frame(skb, &dispatcher_args_copy.skb_info, frame_state, &current_frame)) {
+        return 0;
+    }
+
+    // If we have a state and we consumed it, then delete it.
+    if (frame_state != NULL && frame_state->remainder == 0) {
+        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
+    }
+
+    bool is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
+    bool is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
+    if (is_headers_or_rst_frame || is_data_end_of_stream) {
+        iteration_value->frames_array[0].frame = current_frame;
+        iteration_value->frames_array[0].offset = dispatcher_args_copy.skb_info.data_off;
+        iteration_value->frames_count = 1;
+    }
+    dispatcher_args_copy.skb_info.data_off += current_frame.length;
+    // Overriding the data_off field of the cached skb_info. The next prog will start from the offset of the next valid
+    // frame.
+    args->skb_info.data_off = dispatcher_args_copy.skb_info.data_off;
 
     bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
     return 0;
@@ -580,14 +606,10 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
     skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
 
-    frame_header_remainder_t *frame_state = bpf_map_lookup_elem(&http2_remainder, &dispatcher_args_copy.tup);
+    // The verifier cannot tell if `iteration_value->frames_count` is 0 or 1, so we have to help it. The value is
+    // 1 if we have found an interesting frame in `socket__http2_handle_first_frame`, otherwise it is 0.
     // filter frames
-    iteration_value->frames_count = find_relevant_headers(skb, &local_skb_info, iteration_value->frames_array, frame_state);
-
-    // if we have a state and we consumed it, then delete it.
-    if (frame_state != NULL && frame_state->remainder == 0) {
-        bpf_map_delete_elem(&http2_remainder, &dispatcher_args_copy.tup);
-    }
+    iteration_value->frames_count = find_relevant_headers(skb, &local_skb_info, iteration_value->frames_array, iteration_value->frames_count);
 
     frame_header_remainder_t new_frame_state = {0};
     if (local_skb_info.data_off > local_skb_info.data_end) {
