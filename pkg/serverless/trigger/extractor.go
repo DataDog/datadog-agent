@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
-	"github.com/aws/aws-sdk-go/aws/arn"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 )
 
 // GetAWSPartitionByRegion parses an AWS region and returns an AWS partition

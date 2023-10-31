@@ -14,10 +14,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/command"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -36,6 +37,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true), // no need to show regular logs
 				}),
 				core.Bundle,
+				diagnosesendermanagerimpl.Module,
 			)
 		},
 	}
@@ -43,7 +45,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{cmd}
 }
 
-func run(log log.Component, config config.Component) error {
+func run(diagnoseSenderManager diagnosesendermanager.Component) error {
 	// Verbose:  true - to show details like if was done a while ago
 	// RunLocal: true - do not attept to run in actual running agent but
 	//                  may need to implement it in future
@@ -56,5 +58,5 @@ func run(log log.Component, config config.Component) error {
 		RunLocal: true, // do not attept to run in actual runnin agent (may need to implement it in future)
 		Include:  []string{"connectivity-datadog-autodiscovery"},
 	}
-	return diagnose.RunStdOut(color.Output, diagCfg, aggregator.GetSenderManager())
+	return diagnose.RunStdOut(color.Output, diagCfg, diagnoseSenderManager)
 }

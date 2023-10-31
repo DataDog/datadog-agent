@@ -44,7 +44,7 @@ func NewRemoteConfigProvider() *RemoteConfigProvider {
 }
 
 // Collect retrieves integrations from the remote-config, builds Config objects and returns them
-func (rc *RemoteConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
+func (rc *RemoteConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) { //nolint:revive // TODO fix revive unused-parameter
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 
@@ -61,7 +61,7 @@ func (rc *RemoteConfigProvider) Collect(ctx context.Context) ([]integration.Conf
 }
 
 // IsUpToDate allows to cache configs as long as no changes are detected in remote-config
-func (rc *RemoteConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
+func (rc *RemoteConfigProvider) IsUpToDate(ctx context.Context) (bool, error) { //nolint:revive // TODO fix revive unused-parameter
 	rc.mu.RLock()
 	defer rc.mu.RUnlock()
 

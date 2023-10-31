@@ -240,6 +240,8 @@ type sqlConfig struct {
 	CollectCommands bool `json:"collect_commands"`
 	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
 	CollectComments bool `json:"collect_comments"`
+	// CollectProcedures specifies whether the obfuscator should extract and return procedure names as SQL metadata when obfuscating.
+	CollectProcedures bool `json:"collect_procedures"`
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits"`
 	// KeepSQLAlias specifies whether or not to strip sql aliases while obfuscating.
@@ -248,6 +250,11 @@ type sqlConfig struct {
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
 	// ReturnJSONMetadata specifies whether the stub will return metadata as JSON.
 	ReturnJSONMetadata bool `json:"return_json_metadata"`
+
+	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
+	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	ObfuscationMode obfuscate.ObfuscationMode `json:"obfuscation_mode"`
 }
 
 // ObfuscateSQL obfuscates & normalizes the provided SQL query, writing the error into errResult if the operation
@@ -267,13 +274,15 @@ func ObfuscateSQL(rawQuery, opts *C.char, errResult **C.char) *C.char {
 	}
 	s := C.GoString(rawQuery)
 	obfuscatedQuery, err := lazyInitObfuscator().ObfuscateSQLStringWithOptions(s, &obfuscate.SQLConfig{
-		DBMS:             sqlOpts.DBMS,
-		TableNames:       sqlOpts.TableNames,
-		CollectCommands:  sqlOpts.CollectCommands,
-		CollectComments:  sqlOpts.CollectComments,
-		ReplaceDigits:    sqlOpts.ReplaceDigits,
-		KeepSQLAlias:     sqlOpts.KeepSQLAlias,
-		DollarQuotedFunc: sqlOpts.DollarQuotedFunc,
+		DBMS:              sqlOpts.DBMS,
+		TableNames:        sqlOpts.TableNames,
+		CollectCommands:   sqlOpts.CollectCommands,
+		CollectComments:   sqlOpts.CollectComments,
+		CollectProcedures: sqlOpts.CollectProcedures,
+		ReplaceDigits:     sqlOpts.ReplaceDigits,
+		KeepSQLAlias:      sqlOpts.KeepSQLAlias,
+		DollarQuotedFunc:  sqlOpts.DollarQuotedFunc,
+		ObfuscationMode:   sqlOpts.ObfuscationMode,
 	})
 	if err != nil {
 		// memory will be freed by caller

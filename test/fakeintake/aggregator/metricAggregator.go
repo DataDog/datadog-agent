@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"bytes"
 	"time"
 
 	metricspb "github.com/DataDog/agent-payload/v5/gogen"
@@ -35,6 +36,11 @@ func (mp *MetricSeries) GetCollectedTime() time.Time {
 
 // ParseMetricSeries return the parsed metrics from payload
 func ParseMetricSeries(payload api.Payload) (metrics []*MetricSeries, err error) {
+	if bytes.Equal(payload.Data, []byte("{}")) {
+		// metrics can submit empty JSON object
+		return []*MetricSeries{}, nil
+	}
+
 	enflated, err := enflate(payload.Data, payload.Encoding)
 	if err != nil {
 		return nil, err

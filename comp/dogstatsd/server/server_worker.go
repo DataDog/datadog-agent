@@ -31,7 +31,7 @@ type worker struct {
 	samples metrics.MetricSampleBatch
 }
 
-func newWorker(s *server) *worker {
+func newWorker(s *server, workerNum int) *worker {
 	var batcher *batcher
 	if s.ServerlessMode {
 		batcher = newServerlessBatcher(s.demultiplexer)
@@ -42,7 +42,7 @@ func newWorker(s *server) *worker {
 	return &worker{
 		server:  s,
 		batcher: batcher,
-		parser:  newParser(s.config, s.sharedFloat64List),
+		parser:  newParser(s.config, s.sharedFloat64List, workerNum),
 		samples: make(metrics.MetricSampleBatch, 0, defaultSampleSize),
 	}
 }

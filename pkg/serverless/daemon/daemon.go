@@ -151,7 +151,7 @@ func wrapOtlpError(handle http.Handler) http.Handler {
 // HandleRuntimeDone should be called when the runtime is done handling the current invocation. It will tell the daemon
 // that the runtime is done, and may also flush telemetry.
 func (d *Daemon) HandleRuntimeDone() {
-	if !d.ShouldFlush(flush.Stopping, time.Now()) {
+	if !d.ShouldFlush(flush.Stopping) {
 		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", d.GetFlushStrategy(), flush.Stopping)
 		d.TellDaemonRuntimeDone()
 		return
@@ -173,11 +173,11 @@ func (d *Daemon) HandleRuntimeDone() {
 }
 
 // ShouldFlush indicated whether or a flush is needed
-func (d *Daemon) ShouldFlush(moment flush.Moment, t time.Time) bool {
-	return d.flushStrategy.ShouldFlush(moment, t)
+func (d *Daemon) ShouldFlush(moment flush.Moment) bool {
+	return d.flushStrategy.ShouldFlush(moment, time.Now())
 }
 
-// GetFlushStrategy returns the flush stategy
+// GetFlushStrategy returns the flush strategy
 func (d *Daemon) GetFlushStrategy() string {
 	return d.flushStrategy.String()
 }
@@ -248,8 +248,10 @@ func (d *Daemon) TriggerFlush(isLastFlushBeforeShutdown bool) {
 	timedOut := waitWithTimeout(&wg, FlushTimeout)
 	if timedOut {
 		log.Debug("Timed out while flushing")
+		d.flushStrategy.Failure(time.Now())
 	} else {
 		log.Debug("Finished flushing")
+		d.flushStrategy.Success()
 	}
 	cancel()
 
@@ -328,7 +330,9 @@ func (d *Daemon) Stop() {
 
 	// Once the HTTP server is shut down, it is safe to shut down the agents
 	// Otherwise, we might try to handle API calls after the agent has already been shut down
-	d.TriggerFlush(true)
+	if d.ShouldFlush(flush.Stopping) {
+		d.TriggerFlush(true)
+	}
 
 	log.Debug("Shutting down agents")
 
@@ -391,7 +395,7 @@ func (d *Daemon) WaitForDaemon() {
 	// If we are flushing at the end of the invocation, we need to wait for the invocation itself to end
 	// before we finish handling it. Otherwise, the daemon does not actually need to wait for the runtime to
 	// complete the invocation before it is done.
-	if d.flushStrategy.ShouldFlush(flush.Stopping, time.Now()) {
+	if d.ShouldFlush(flush.Stopping) {
 		d.RuntimeWg.Wait()
 	}
 }

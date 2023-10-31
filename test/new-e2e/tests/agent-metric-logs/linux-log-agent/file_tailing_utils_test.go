@@ -6,13 +6,12 @@
 package logagent
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
-	commonos "github.com/DataDog/test-infra-definitions/components/os"
+	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,18 +22,19 @@ func generateLog(s *vmFakeintakeSuite, content string) {
 	var logPath, cmd, checkCmd string
 	t := s.T()
 
-	osType := s.Env().VM.VMClient.OS.GetType()
+	// Get OS type using the OSType from vm_client.go from e2e/client package
+	osType := s.Env().VM.GetOSType()
 	var os string
 
 	switch osType {
-	case commonos.WindowsType:
-		os = "Windows"
+	case componentos.WindowsType:
+		os = "windows"
 		t.Log("Generating Windows log.")
 		logPath = "C:\\logs\\hello-world.log"
 		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content, 10), logPath)
 		checkCmd = fmt.Sprintf("Get-Content %s", logPath)
 	default: // Assuming Linux if not Windows.
-		os = "Linux"
+		os = "linux"
 		t.Log("Generating Linux log.")
 		logPath = "/var/log/hello-world.log"
 		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content, 10), logPath)
@@ -76,53 +76,42 @@ func checkLogs(suite *vmFakeintakeSuite, service, content string) {
 
 }
 
-func (s *vmFakeintakeSuite) getOSType() (string, error) {
-	// Get Linux OS.
-	output, err := s.Env().VM.ExecuteWithError("cat /etc/os-release")
-	if err == nil && strings.Contains(output, "ID=ubuntu") {
-		return "linux", nil
-	}
-
-	// Get Windows OS.
-	output, err = s.Env().VM.ExecuteWithError("wmic os get Caption")
-	if err == nil && strings.Contains(output, "Windows") {
-		return "windows", nil
-	}
-
-	return "", errors.New("unable to determine OS type.")
-}
-
 // cleanUp cleans up any existing log files (only useful when running dev mode/local runs).
 func (s *vmFakeintakeSuite) cleanUp() {
 	t := s.T()
-	osType, err := s.getOSType()
-	if err != nil {
-		t.Logf("Failed to determine OS type: %v", err)
-		return
-	}
+	osType := s.Env().VM.GetOSType()
+	var os string
 
 	var checkCmd string
 
 	switch osType {
-	case "linux":
+	default: // default is linux
+		os = "linux"
 		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log")
 		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log.old")
 		checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
-	case "windows":
+	case componentos.WindowsType:
+		os = "windows"
 		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
 		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
 		checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
-	default:
-		t.Logf("Unsupported OS type: %s", osType)
-		return
 	}
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		output, err := s.Env().VM.ExecuteWithError(checkCmd)
 		if err != nil {
-			require.NoErrorf(t, err, "Having issue cleaning log files, retrying... %s", output)
+			require.NoErrorf(t, err, "Having issue cleaning log %s files, retrying... %s", os, output)
 		} else {
 			t.Log("Successfully cleaned up.")
 		}
 	}, 5*time.Minute, 2*time.Second)
 }
+
+// func (s *vmFakeintakeSuite) getOSType() (string, error) {
+// 	output, err := s.Env().VM.ExecuteWithError("cat /etc/os-release")
+// 	if err == nil && strings.Contains(output, "ID=ubuntu") {
+// 		return "linux", nil
+// 	} else {
+// 		return "windows", nil
+// 	}
+// }

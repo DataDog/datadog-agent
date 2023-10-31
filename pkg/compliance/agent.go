@@ -76,7 +76,24 @@ type AgentOptions struct {
 	// CheckIntervalLowPriority is like CheckInterval but for low-priority
 	// benchmarks.
 	CheckIntervalLowPriority time.Duration
+
+	// EnabledConfigurationExporters lists configuration exporter that shall be
+	// enabled.
+	EnabledConfigurationExporters []ConfigurationExporter
 }
+
+// ConfigurationExporter is an enum type defining all configuration export
+// configuration processes.
+type ConfigurationExporter int
+
+const (
+	// KubernetesExporter exports Kubernetes components configuration running
+	// on the system.
+	KubernetesExporter ConfigurationExporter = iota
+
+	// AptExporter exports local APT configuration data.
+	AptExporter
+)
 
 // Agent is the compliance agent that is responsible for running compliance
 // continuously benchmarks and configuration checking.
@@ -113,7 +130,11 @@ func DefaultRuleFilter(r *Rule) bool {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel := rules.NewRuleFilterModel()
+		ruleFilterModel, err := rules.NewRuleFilterModel()
+		if err != nil {
+			log.Errorf("failed to apply rule filters: %v", err)
+			return false
+		}
 		seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
 		accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 			Filters: r.Filters,
@@ -198,17 +219,23 @@ func (a *Agent) Start() error {
 		wg.Done()
 	}()
 
-	wg.Add(1)
-	go func() {
-		a.runKubernetesConfigurationsExport(ctx)
-		wg.Done()
-	}()
+	for _, conf := range a.opts.EnabledConfigurationExporters {
+		switch conf {
+		case AptExporter:
+			wg.Add(1)
+			go func() {
+				a.runAptConfigurationExport(ctx)
+				wg.Done()
+			}()
 
-	wg.Add(1)
-	go func() {
-		a.runAptConfigurationExport(ctx)
-		wg.Done()
-	}()
+		case KubernetesExporter:
+			wg.Add(1)
+			go func() {
+				a.runKubernetesConfigurationsExport(ctx)
+				wg.Done()
+			}()
+		}
+	}
 
 	go func() {
 		<-ctx.Done()
@@ -349,7 +376,12 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel := rules.NewRuleFilterModel()
+	ruleFilterModel, err := rules.NewRuleFilterModel()
+	if err != nil {
+		log.Errorf("failed to run apt configuration export: %v", err)
+		return
+	}
+
 	seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
 	accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 		Filters: []string{aptconfig.SeclFilter},
