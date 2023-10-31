@@ -24,7 +24,7 @@ import (
 )
 
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
-func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (workloadmeta.Container, error) {
+func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf, pauseContainerFilter *containers.Filter) (workloadmeta.Container, error) {
 	if container == nil {
 		return workloadmeta.Container{}, fmt.Errorf("cannot build workloadmeta container from nil containerd container")
 	}
@@ -75,6 +75,11 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		log.Debugf("no IPs for container")
 	} else {
 		networkIPs[""] = ip
+	}
+
+	isPauseContainer := false
+	if pauseContainerFilter.IsExcluded(nil, "", info.Image, "") {
+		isPauseContainer = true
 	}
 
 	// Some attributes in workloadmeta.Container cannot be fetched from

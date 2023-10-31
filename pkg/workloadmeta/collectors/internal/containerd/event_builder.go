@@ -17,6 +17,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -30,7 +31,7 @@ func (c *collector) buildCollectorEvent(
 ) (workloadmeta.CollectorEvent, error) {
 	switch containerdEvent.Topic {
 	case containerCreationTopic, containerUpdateTopic:
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, nil)
 
 	case containerDeletionTopic:
 		exitInfo := c.getExitInfo(containerID)
@@ -45,7 +46,7 @@ func (c *collector) buildCollectorEvent(
 		}
 
 		c.cacheExitInfo(containerID, &exited.ExitStatus, exited.ExitedAt.AsTime())
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, nil)
 
 	case TaskDeleteTopic:
 		deleted := &events.TaskDelete{}
@@ -54,22 +55,22 @@ func (c *collector) buildCollectorEvent(
 		}
 
 		c.cacheExitInfo(containerID, &deleted.ExitStatus, deleted.ExitedAt.AsTime())
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, nil)
 
 	case TaskStartTopic, TaskOOMTopic, TaskPausedTopic, TaskResumedTopic:
-		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient)
+		return createSetEvent(container, containerdEvent.Namespace, c.containerdClient, nil)
 
 	default:
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("unknown action type %s, ignoring", containerdEvent.Topic)
 	}
 }
 
-func createSetEvent(container containerd.Container, namespace string, containerdClient cutil.ContainerdItf) (workloadmeta.CollectorEvent, error) {
+func createSetEvent(container containerd.Container, namespace string, containerdClient cutil.ContainerdItf, pauseContainerFilter *containers.Filter) (workloadmeta.CollectorEvent, error) {
 	if container == nil {
 		return workloadmeta.CollectorEvent{}, errNoContainer
 	}
 
-	entity, err := buildWorkloadMetaContainer(namespace, container, containerdClient)
+	entity, err := buildWorkloadMetaContainer(namespace, container, containerdClient, nil)
 	if err != nil {
 		return workloadmeta.CollectorEvent{}, fmt.Errorf("could not fetch info for container %s: %s", container.ID(), err)
 	}

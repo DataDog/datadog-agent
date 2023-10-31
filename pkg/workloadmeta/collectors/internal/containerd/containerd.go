@@ -242,7 +242,7 @@ func (c *collector) generateInitialContainerEvents(namespace string) ([]workload
 			continue
 		}
 
-		ev, err := createSetEvent(container, namespace, c.containerdClient)
+		ev, err := createSetEvent(container, namespace, c.containerdClient, nil)
 		if err != nil {
 			log.Warnf(err.Error())
 			continue

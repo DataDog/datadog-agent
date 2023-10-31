@@ -52,7 +52,7 @@ func TestBuildCollectorEvent(t *testing.T) {
 
 	client := containerdClient(&container)
 
-	workloadMetaContainer, err := buildWorkloadMetaContainer(namespace, &container, &client)
+	workloadMetaContainer, err := buildWorkloadMetaContainer(namespace, &container, &client, nil)
 	workloadMetaContainer.Namespace = namespace
 	assert.NoError(t, err)
 
