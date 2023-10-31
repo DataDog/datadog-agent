@@ -26,15 +26,13 @@ func TestGetSingleMetadataMalformedUrl(t *testing.T) {
 }
 
 func TestSingleMetadataTimeout(t *testing.T) {
-	// TODO: Fix flaky test
-	t.SkipNow()
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(200)
 	}))
 	defer ts.Close()
 	httpClient := &http.Client{
-		Timeout: 1 * time.Millisecond,
+		Timeout: 1 * time.Nanosecond,
 	}
 	assert.Equal(t, "unknown", getSingleMetadata(httpClient, ts.URL))
 }
