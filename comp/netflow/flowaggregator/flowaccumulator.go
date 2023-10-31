@@ -142,12 +142,12 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		// keep first non-null value for custom fields
 		if flowToAdd.AdditionalFields != nil {
 			if aggFlow.flow.AdditionalFields == nil {
-				aggFlow.flow.AdditionalFields = flowToAdd.AdditionalFields
-			} else {
-				for field, value := range flowToAdd.AdditionalFields {
-					if _, ok := aggFlow.flow.AdditionalFields[field]; !ok {
-						aggFlow.flow.AdditionalFields[field] = value
-					}
+				aggFlow.flow.AdditionalFields = make(common.AdditionalFields)
+			}
+
+			for field, value := range flowToAdd.AdditionalFields {
+				if _, ok := aggFlow.flow.AdditionalFields[field]; !ok {
+					aggFlow.flow.AdditionalFields[field] = value
 				}
 			}
 		}
