@@ -200,7 +200,7 @@ func (*goTLSProgram) IsBuildModeSupported(mode buildmode.Type) bool {
 }
 
 // ConfigureOptions changes map attributes to the given options.
-func (p *goTLSProgram) ConfigureOptions(m *manager.Manager, options *manager.Options) {
+func (p *goTLSProgram) ConfigureOptions(_ *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
