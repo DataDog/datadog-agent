@@ -102,18 +102,7 @@ func (t *Telemetry) Count(tx Transaction) {
 		t.hits5XX.Add(1)
 	}
 
-	switch tx.StaticTags() {
-	case GnuTLS:
-		t.totalHitsGnuTLS.Add(1)
-	case OpenSSL:
-		t.totalHitsOpenSLL.Add(1)
-	case Java:
-		t.totalHitsJavaTLS.Add(1)
-	case Go:
-		t.totalHitsGoTLS.Add(1)
-	default:
-		t.totalHitsPlain.Add(1)
-	}
+	t.countOSSpecific(tx)
 }
 
 func (t *Telemetry) Log() {
