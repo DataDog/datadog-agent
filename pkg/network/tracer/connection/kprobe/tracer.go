@@ -108,7 +108,7 @@ func ClassificationSupported(config *config.Config) bool {
 	return currentKernelVersion >= classificationMinimumKernel
 }
 
-func fentrySupported() bool {
+func FentrySupported() bool {
 	kv, err := skernel.NewKernelVersion()
 	if err != nil {
 		log.Warn("could not determine the current kernel version. fentry/fexit support disabled.")

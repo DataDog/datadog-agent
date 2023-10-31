@@ -10,8 +10,6 @@ package kprobe
 import (
 	"fmt"
 
-	skernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
