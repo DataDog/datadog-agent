@@ -53,7 +53,6 @@ func getFullConfig(v *agentConfigSuite) map[interface{}]interface{} {
 }
 
 func (v *agentConfigSuite) TestDefaultConfig() {
-	v.UpdateEnv(e2e.AgentStackDef())
 	config := getFullConfig(v)
 
 	assertConfigValueContains(v.T(), config, "api_key", "***************************")

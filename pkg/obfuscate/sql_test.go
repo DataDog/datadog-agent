@@ -2123,14 +2123,18 @@ func TestSQLLexerObfuscation(t *testing.T) {
 
 func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 	tests := []struct {
-		name              string
-		query             string
-		expected          string
-		replaceDigits     bool
-		dollarQuotedFunc  bool
-		keepSQLAlias      bool
-		collectProcedures bool
-		metadata          SQLMetadata
+		name                          string
+		query                         string
+		expected                      string
+		replaceDigits                 bool
+		dollarQuotedFunc              bool
+		keepSQLAlias                  bool
+		collectProcedures             bool
+		removeSpaceBetweenParentheses bool
+		keepNull                      bool
+		keepBoolean                   bool
+		keepPositionalParameter       bool
+		metadata                      SQLMetadata
 	}{
 		{
 			name:     "simple query obfuscation and normalization",
@@ -2265,20 +2269,98 @@ func TestSQLLexerObfuscationAndNormalization(t *testing.T) {
 				Procedures: []string{},
 			},
 		},
+		{
+			name:     "normalization with query with null boolean and positional parameter",
+			query:    "SELECT * FROM users WHERE id = 1 AND address = $1 and id = $2 AND deleted IS NULL AND active is TRUE",
+			expected: "SELECT * FROM users WHERE id = ? AND address = ? and id = ? AND deleted IS ? AND active is ?",
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                          "normalization with remove space between parentheses",
+			query:                         "SELECT * FROM users WHERE id = 1 AND (name = 'test' OR name = 'test2')",
+			expected:                      "SELECT * FROM users WHERE id = ? AND (name = ? OR name = ?)",
+			removeSpaceBetweenParentheses: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:     "normalization with keep null",
+			query:    "SELECT * FROM users WHERE id = 1 AND name IS NULL",
+			expected: "SELECT * FROM users WHERE id = ? AND name IS NULL",
+			keepNull: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:        "normalization with keep boolean",
+			query:       "SELECT * FROM users WHERE id = 1 AND name is TRUE",
+			expected:    "SELECT * FROM users WHERE id = ? AND name is TRUE",
+			keepBoolean: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
+		{
+			name:                    "normalization with keep positional parameter",
+			query:                   "SELECT * FROM users WHERE id = 1 AND name = $1 and id = $2",
+			expected:                "SELECT * FROM users WHERE id = ? AND name = $1 and id = $2",
+			keepPositionalParameter: true,
+			metadata: SQLMetadata{
+				Size:      11,
+				TablesCSV: "users",
+				Commands: []string{
+					"SELECT",
+				},
+				Comments:   []string{},
+				Procedures: []string{},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			oq, err := NewObfuscator(Config{
 				SQL: SQLConfig{
-					ObfuscationMode:   "obfuscate_and_normalize",
-					ReplaceDigits:     tt.replaceDigits,
-					DollarQuotedFunc:  tt.dollarQuotedFunc,
-					KeepSQLAlias:      tt.keepSQLAlias,
-					TableNames:        true,
-					CollectCommands:   true,
-					CollectComments:   true,
-					CollectProcedures: tt.collectProcedures,
+					ObfuscationMode:               "obfuscate_and_normalize",
+					ReplaceDigits:                 tt.replaceDigits,
+					DollarQuotedFunc:              tt.dollarQuotedFunc,
+					KeepSQLAlias:                  tt.keepSQLAlias,
+					TableNames:                    true,
+					CollectCommands:               true,
+					CollectComments:               true,
+					CollectProcedures:             tt.collectProcedures,
+					KeepNull:                      tt.keepNull,
+					KeepBoolean:                   tt.keepBoolean,
+					KeepPositionalParameter:       tt.keepPositionalParameter,
+					RemoveSpaceBetweenParentheses: tt.removeSpaceBetweenParentheses,
 				},
 			}).ObfuscateSQLString(tt.query)
 			require.NoError(t, err)

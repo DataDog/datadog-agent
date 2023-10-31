@@ -1325,7 +1325,7 @@ func TestEnrichTags(t *testing.T) {
 					originOptOutEnabled: true,
 				},
 			},
-			wantedTags:         []string{"env:prod"},
+			wantedTags:         []string{"env:prod", "jmx_domain:org.apache"},
 			wantedHost:         "",
 			wantedOrigin:       "",
 			wantedK8sOrigin:    "",
