@@ -8,4 +8,4 @@
 ---
 enhancements:
   - |
-    Impose the time limit on query metrics processing. After exceeding the default limit of 20s, the agent stops emitting execution plans and fqt events.
+    Impose a time limit on query metrics processing. After exceeding the default limit of 20s, the Agent stops emitting execution plans and fqt events.
