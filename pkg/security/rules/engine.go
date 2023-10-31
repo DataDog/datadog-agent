@@ -351,11 +351,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
-	for _, action := range rule.Definition.Actions {
-		if action.InternalCallbackDefinition != nil && rule.ID == refreshUserCacheRuleID {
-			_ = e.probe.RefreshUserCache(ev.ContainerContext.ID)
-		}
-	}
+	e.probe.HandleActions(rule, event)
 
 	if rule.Definition.Silent {
 		return false

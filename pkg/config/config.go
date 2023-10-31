@@ -517,6 +517,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
+	config.BindEnvAndSetDefault("dogstatsd_telemetry_enabled_listener_id", false)
 	// Control how dogstatsd-stats logs can be generated
 	config.BindEnvAndSetDefault("dogstatsd_log_file", "")
 	config.BindEnvAndSetDefault("dogstatsd_logging_enabled", true)

@@ -89,6 +89,10 @@ type CustomQuery struct {
 	Tags         []string             `yaml:"tags"`
 }
 
+type asmConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 type resourceManagerConfig struct {
 	Enabled bool `yaml:"enabled"`
 }
@@ -123,6 +127,7 @@ type InstanceConfig struct {
 	CustomQueries                      []CustomQuery          `yaml:"custom_queries"`
 	MetricCollectionInterval           int64                  `yaml:"metric_collection_interval"`
 	DatabaseInstanceCollectionInterval uint64                 `yaml:"database_instance_collection_interval"`
+	Asm                                asmConfig              `yaml:"asm"`
 	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
 }
 
@@ -171,6 +176,7 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
 	instance.InactiveSessions.Enabled = true
+	instance.Asm.Enabled = true
 	instance.ResourceManager.Enabled = true
 
 	instance.UseGlobalCustomQueries = "true"
