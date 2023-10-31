@@ -23,14 +23,6 @@ import (
 
 var chk Check
 
-var HOST = "localhost"
-var PORT = 1521
-var USER = "c##datadog"
-var PASSWORD = "datadog"
-var SERVICE_NAME = "XE"
-var TNS_ALIAS = "XE"
-var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/testutil/etc/netadmin"
-
 func TestBasic(t *testing.T) {
 	chk = Check{}
 
@@ -63,7 +55,6 @@ func TestCustomQueries(t *testing.T) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 	defer db.Close()
-	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
 
 	dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -80,14 +71,16 @@ func TestCustomQueries(t *testing.T) {
 		Columns:      columns,
 	}
 
-	initAndStartAgentDemultiplexer(t)
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	chk, err := initCheck(t, senderManager, "localhost", 1523, "a", "a", "a")
 	chk.Run()
 
-	sender := mocksender.NewMockSender(chk.ID())
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.SetupAcceptAll()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q}
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
 
 	err = chk.CustomQueries()
 	assert.NoError(t, err, "failed to execute custom query")
