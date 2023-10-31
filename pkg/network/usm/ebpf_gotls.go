@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -157,8 +158,8 @@ func (p *GoTLSProgram) Name() string {
 }
 
 // IsBuildModeSupported return true if the build mode is supported.
-func (p *GoTLSProgram) IsBuildModeSupported(mode buildMode) bool {
-	return mode == CORE || mode == RuntimeCompiled
+func (*GoTLSProgram) IsBuildModeSupported(mode buildmode.Type) bool {
+	return mode == buildmode.CORE || mode == buildmode.RuntimeCompiled
 }
 
 // ConfigureManager adds maps to the given manager.

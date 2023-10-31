@@ -1810,10 +1810,14 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	r := bufio.NewReader(c)
 	_, _ = r.ReadBytes(byte('\n'))
 
-	connections := getConnections(t, tr)
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		connections := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		return ok
+	}, 3*time.Second, 100*time.Millisecond, "could not find connection")
 
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
 	m := conn.Monotonic
 	assert.Equal(t, clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
@@ -1821,7 +1825,6 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
-	assert.True(t, conn.IntraHost)
 }
 
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {

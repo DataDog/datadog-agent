@@ -62,6 +62,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
+		Profile:            "my-profile",
+		ProfileDef: &profiledefinition.ProfileDefinition{
+			Name:    "my-profile",
+			Version: 10,
+		},
 		Metadata: profiledefinition.MetadataConfig{
 			"device": {
 				Fields: map[string]profiledefinition.MetadataField{
@@ -143,6 +148,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "name": "my-sys-name",
             "description": "my-sys-descr",
             "location": "my-sys-location",
+            "profile": "my-profile",
+            "profile_version": 10,
             "subnet": "127.0.0.0/29"
         }
     ],
@@ -713,4 +720,33 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
+}
+
+func Test_getProfileVersion(t *testing.T) {
+	tests := []struct {
+		name                   string
+		config                 checkconfig.CheckConfig
+		expectedProfileVersion uint64
+	}{
+		{
+			name: "profile definition is present",
+			config: checkconfig.CheckConfig{
+				ProfileDef: &profiledefinition.ProfileDefinition{
+					Name:    "my-profile",
+					Version: 42,
+				},
+			},
+			expectedProfileVersion: 42,
+		},
+		{
+			name:                   "profile definition not present",
+			config:                 checkconfig.CheckConfig{},
+			expectedProfileVersion: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedProfileVersion, getProfileVersion(&tt.config))
+		})
+	}
 }

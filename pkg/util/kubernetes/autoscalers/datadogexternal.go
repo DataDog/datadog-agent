@@ -61,6 +61,14 @@ const (
 	queryEndpoint = "/api/v1/query"
 )
 
+// isRateLimitError is a helper function that checks if the received error is a rate limit error
+func isRateLimitError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "429 Too Many Requests")
+}
+
 // queryDatadogExternal converts the metric name and labels from the Ref format into a Datadog metric.
 // It returns the last value for a bucket of 5 minutes,
 func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Duration) (map[string]Point, error) {
@@ -76,6 +84,11 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 	seriesSlice, err := p.datadogClient.QueryMetrics(currentTime.Add(-timeWindow).Unix(), currentTimeUnix, query)
 	if err != nil {
 		ddRequests.Inc("error", le.JoinLeaderValue)
+
+		if isRateLimitError(err) {
+			ddRequests.Inc("rate_limit_error", le.JoinLeaderValue)
+		}
+
 		return nil, fmt.Errorf("error while executing metric query %s: %w", query, err)
 	}
 	ddRequests.Inc("success", le.JoinLeaderValue)
