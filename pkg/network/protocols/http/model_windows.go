@@ -124,7 +124,7 @@ func (tx *WinHttpTransaction) Incomplete() bool {
 }
 
 func (tx *WinHttpTransaction) Path(buffer []byte) ([]byte, bool) {
-	bLen := bytes.IndexByte(tx.RequestFragment[:], 0)
+	bLen := bytes.IndexByte(tx.RequestFragment, 0)
 	if bLen == -1 {
 		bLen = len(tx.RequestFragment)
 	}
