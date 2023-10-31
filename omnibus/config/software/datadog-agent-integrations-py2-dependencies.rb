@@ -2,7 +2,7 @@ name 'datadog-agent-integrations-py2-dependencies'
 
 dependency 'pip2'
 
-if arm?
+if arm_target?
   # same with libffi to build the cffi wheel
   dependency 'libffi'
   # same with libxml2 and libxslt to build the lxml wheel
@@ -10,12 +10,12 @@ if arm?
   dependency 'libxslt'
 end
 
-if osx?
+if osx_target?
   dependency 'postgresql'
   dependency 'unixodbc'
 end
 
-if linux?
+if linux_target?
   # * Psycopg2 doesn't come with pre-built wheel on the arm architecture.
   #   to compile from source, it requires the `pg_config` executable present on the $PATH
   # * We also need it to build psycopg[c] Python dependency
@@ -34,7 +34,7 @@ if linux?
   dependency 'gstatus'
 end
 
-if linux?
+if linux_target?
   # We need to use cython<3.0.0 to build pyyaml for py2
   dependency 'pyyaml-py2'
   dependency 'kubernetes-py2'

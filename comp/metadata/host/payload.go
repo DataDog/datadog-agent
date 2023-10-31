@@ -13,7 +13,6 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/utils"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
@@ -21,8 +20,8 @@ import (
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	hostMetadataUtils.CommonPayload
-	hostMetadataUtils.Payload
+	utils.CommonPayload
+	utils.Payload
 
 	ResourcesPayload interface{} `json:"resources,omitempty"`
 	GohaiPayload     string      `json:"gohai"`
@@ -46,7 +45,7 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 func (h *host) getPayload(ctx context.Context) *Payload {
 	p := &Payload{
 		CommonPayload: *utils.GetCommonPayload(h.hostname, h.config),
-		Payload:       *hostMetadataUtils.GetPayload(ctx, h.config),
+		Payload:       *utils.GetPayload(ctx, h.config),
 	}
 
 	if r := h.resources.Get(); r != nil {

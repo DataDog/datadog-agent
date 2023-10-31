@@ -8,6 +8,7 @@ package profile
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -60,13 +61,14 @@ func Test_resolveProfiles(t *testing.T) {
 		count int
 	}
 	tests := []struct {
-		name                   string
-		userProfiles           ProfileConfigMap
-		defaultProfiles        ProfileConfigMap
-		expectedProfileDefMap  ProfileConfigMap
-		expectedProfileMetrics []string
-		expectedIncludeErrors  []string
-		expectedLogs           []logCount
+		name                    string
+		userProfiles            ProfileConfigMap
+		defaultProfiles         ProfileConfigMap
+		expectedProfileDefMap   ProfileConfigMap
+		expectedProfileMetrics  []string
+		expectedInterfaceIDTags []string
+		expectedIncludeErrors   []string
+		expectedLogs            []logCount
 	}{
 		{
 			name:                  "ok case",
@@ -80,11 +82,21 @@ func Test_resolveProfiles(t *testing.T) {
 			userProfiles:    userProfilesCaseUserProfiles,
 			defaultProfiles: userProfilesCaseDefaultProfiles,
 			expectedProfileMetrics: []string{
-				"default_p2_metric",
-				"default_p4_metric",
-				"user_p1_metric",
-				"user_p3_metric",
-				"user_p4_metric", // user p4 extends default p4
+				"p1:user_p1_metric",
+				"p2:default_p2_metric",
+				"p3:user_p3_metric",
+				"p4:default_p4_metric",
+				"p4:user_p4_metric", // user p4 extends default p4
+				"p5:user_intermediate1_metric",
+				"p5:user_intermediate2_metric",
+				"p5:user_intermediate3_metric",
+				"p6:user_intermediate1_metric",
+				"p6:user_intermediate2_metric",
+				"p6:user_intermediate3_metric",
+			},
+			expectedInterfaceIDTags: []string{
+				"p5:interface",
+				"p6:interface",
 			},
 			expectedIncludeErrors: []string{},
 		},
@@ -106,7 +118,7 @@ func Test_resolveProfiles(t *testing.T) {
 			userProfiles:          profilesWithInvalidExtendProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
-				{"loadResolveProfiles: failed to expand profile `_generic-if`: extend does not exist: `invalid`", 1},
+				{"loadResolveProfiles: failed to expand profile `generic-if`: extend does not exist: `invalid`", 1},
 			},
 		},
 		{
@@ -114,7 +126,7 @@ func Test_resolveProfiles(t *testing.T) {
 			userProfiles:          invalidCyclicProfiles,
 			expectedProfileDefMap: ProfileConfigMap{},
 			expectedLogs: []logCount{
-				{"[WARN] loadResolveProfiles: failed to expand profile `_extend1`: cyclic profile extend detected", 1},
+				{"[WARN] loadResolveProfiles: failed to expand profile `f5-big-ip`: cyclic profile extend detected", 1},
 			},
 		},
 		{
@@ -158,12 +170,20 @@ func Test_resolveProfiles(t *testing.T) {
 			}
 			if len(tt.expectedProfileMetrics) > 0 {
 				var metricsNames []string
-				for _, profile := range profiles {
+				var ifIDTags []string
+				for name, profile := range profiles {
 					for _, metric := range profile.Definition.Metrics {
-						metricsNames = append(metricsNames, metric.Symbol.Name)
+						metricsNames = append(metricsNames, fmt.Sprintf("%s:%s", name, metric.Symbol.Name))
+					}
+					ifMeta, ok := profile.Definition.Metadata["interface"]
+					if ok {
+						for _, metricTag := range ifMeta.IDTags {
+							ifIDTags = append(ifIDTags, fmt.Sprintf("%s:%s", name, metricTag.Tag))
+						}
 					}
 				}
 				assert.ElementsMatch(t, tt.expectedProfileMetrics, metricsNames)
+				assert.ElementsMatch(t, tt.expectedInterfaceIDTags, ifIDTags)
 			} else {
 				assert.Equal(t, tt.expectedProfileDefMap, profiles)
 			}

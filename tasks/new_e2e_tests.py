@@ -45,6 +45,7 @@ def run(
     osversion="",
     platform="",
     cws_supported_osversion="",
+    keep_stacks=False,
     cache=False,
     junit_tar="",
     coverage=False,
@@ -89,12 +90,7 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg}'
-    if osversion != "" or platform != "" or cws_supported_osversion != "":
-        cmd += "-args"
-        cmd += " -osversion {osversion}" if osversion else ""
-        cmd += " -platform {platform}" if platform else ""
-        cmd += " -cws-supported-osversion {cws_supported_osversion}" if cws_supported_osversion else ""
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {cws_supported_osversion} {keep_stacks}'
 
     args = {
         "go_mod": "mod",
@@ -107,9 +103,12 @@ def run(
         "skip": '-test.skip ' + skip if skip else '',
         "coverage_opt": coverage_opt,
         "test_run_arg": test_run_arg,
-        "osversion": osversion,
-        "platform": platform,
-        "cws_supported_osversion": cws_supported_osversion,
+        "osversion": f"-osversion {osversion}" if osversion else '',
+        "platform": f"-platform {platform}" if platform else '',
+        "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}"
+        if cws_supported_osversion
+        else '',
+        "keep_stacks": '-keep-stacks' if keep_stacks else '',
     }
 
     test_res = test_flavor(
@@ -175,13 +174,17 @@ def _clean_locks():
 
     for entry in os.listdir(Path(lock_dir)):
         subdir = os.path.join(lock_dir, entry)
-        for filename in os.listdir(Path(subdir)):
-            path = os.path.join(subdir, filename)
-            if os.path.isfile(path) and filename.endswith(".json"):
-                os.remove(path)
-                print(f"🗑️ Deleted lock: {path}")
-            elif os.path.isdir(path):
-                shutil.rmtree(path)
+        if os.path.isdir(subdir):
+            for filename in os.listdir(Path(subdir)):
+                path = os.path.join(subdir, filename)
+                if os.path.isfile(path) and filename.endswith(".json"):
+                    os.remove(path)
+                    print(f"🗑️ Deleted lock: {path}")
+                elif os.path.isdir(path):
+                    shutil.rmtree(path)
+        elif os.path.isfile(subdir) and entry.endswith(".json"):
+            os.remove(subdir)
+            print(f"🗑️ Deleted lock: {subdir}")
 
 
 def _clean_stacks(ctx: Context):
