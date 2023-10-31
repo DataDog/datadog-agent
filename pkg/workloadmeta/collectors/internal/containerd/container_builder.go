@@ -77,6 +77,11 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		networkIPs[""] = ip
 	}
 
+	isPauseContainer := false
+	if containers.IsPauseContainer(info.Labels) {
+		isPauseContainer = true
+	}
+
 	// Some attributes in workloadmeta.Container cannot be fetched from
 	// containerd. I've marked those as "Not available".
 	workloadContainer := workloadmeta.Container{
@@ -98,8 +103,9 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 			StartedAt:  info.CreatedAt, // StartedAt not available in containerd, mapped to CreatedAt
 			FinishedAt: time.Time{},    // Not available
 		},
-		NetworkIPs: networkIPs,
-		PID:        0, // Not available
+		NetworkIPs:       networkIPs,
+		PID:              0, // Not available
+		IsPauseContainer: isPauseContainer,
 	}
 
 	// Spec retrieval is slow if large due to JSON parsing

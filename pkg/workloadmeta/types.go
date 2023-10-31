@@ -495,6 +495,9 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
+		if c.IsPauseContainer {
+			_, _ = fmt.Fprint(&sb, "Is Pause Container:", c.IsPauseContainer)
+		}
 	}
 
 	if len(c.Ports) > 0 && verbose {
