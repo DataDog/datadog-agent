@@ -77,7 +77,7 @@ type AdditionalFields = map[string]any
 
 // FlowMessageWithAdditionalFields contains a goflow flowmessage and additional fields
 type FlowMessageWithAdditionalFields struct {
-	FlowMessage      *flowmessage.FlowMessage
+	*flowmessage.FlowMessage
 	AdditionalFields AdditionalFields
 }
 
