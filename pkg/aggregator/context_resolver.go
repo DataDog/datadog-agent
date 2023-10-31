@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
@@ -239,6 +240,10 @@ func (cr *timestampContextResolver) sendOriginTelemetry(timestamp float64, serie
 
 func (cr *timestampContextResolver) sendLimiterTelemetry(timestamp float64, series metrics.SerieSink, hostname string, tags []string) {
 	cr.resolver.sendLimiterTelemetry(timestamp, series, hostname, tags)
+}
+
+func (cr *timestampContextResolver) dumpContexts(dest io.Writer) error {
+	return cr.resolver.dumpContexts(dest)
 }
 
 // countBasedContextResolver allows tracking and expiring contexts based on the number

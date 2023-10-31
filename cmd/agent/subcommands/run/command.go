@@ -475,6 +475,7 @@ func startAgent(
 		demultiplexer,
 		hostMetadata,
 		invAgent,
+		demultiplexer,
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}

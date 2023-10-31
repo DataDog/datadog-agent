@@ -31,6 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/check"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -61,6 +62,7 @@ func StartServer(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	demux demultiplexer.Component,
 ) error {
 	initializeTLS()
 
@@ -138,6 +140,7 @@ func StartServer(
 				senderManager,
 				hostMetadata,
 				invAgent,
+				demux,
 			)))
 	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	mux.Handle("/", gwmux)
