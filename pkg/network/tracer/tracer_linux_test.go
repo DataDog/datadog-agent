@@ -1742,41 +1742,59 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 
 	// Enable BPF-based system probe
 	tr := setupTracer(t, testConfig())
-	// Write more data so that the tracer will notice the connection
-	_, err = c.Write(genPayload(clientMessageSize))
-	require.NoError(t, err)
-	_, err = r.ReadBytes(byte('\n'))
-	require.NoError(t, err)
 
-	c.Close()
-
+	var sent, read int
 	var incoming, outgoing *network.ConnectionStats
-	require.Eventually(t, func() bool {
-		connections := getConnections(t, tr)
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		// Write more data so that the tracer will notice the connection
+		_, err = c.Write(genPayload(clientMessageSize))
+		require.NoError(collect, err)
+		sent += clientMessageSize
+		_, err = r.ReadBytes(byte('\n'))
+		require.NoError(collect, err)
+		read += serverMessageSize
+
+		connections := getConnections(collect, tr)
 		if outgoing == nil {
 			outgoing, _ = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+			if assert.NotNil(collect, outgoing) {
+				t.Log(outgoing)
+				if !assert.Equal(collect, network.OUTGOING, outgoing.Direction) {
+					outgoing = nil
+				}
+			}
 		}
 		if incoming == nil {
 			incoming, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), connections)
+			if assert.NotNil(collect, incoming) {
+				t.Log(incoming)
+				if !assert.Equal(collect, network.INCOMING, incoming.Direction) {
+					incoming = nil
+				}
+			}
 		}
-		return incoming != nil && outgoing != nil
+
+		if !assert.NotNil(collect, outgoing) || !assert.NotNil(collect, incoming) {
+			return
+		}
+
+		m := outgoing.Monotonic
+		assert.Equal(collect, sent, int(m.SentBytes))
+		assert.Equal(collect, read, int(m.RecvBytes))
+		assert.Equal(collect, os.Getpid(), int(outgoing.Pid))
+		assert.Equal(collect, addrPort(server.address), int(outgoing.DPort))
+		assert.Equal(collect, c.LocalAddr().(*net.TCPAddr).Port, int(outgoing.SPort))
+		assert.Equal(collect, network.OUTGOING, outgoing.Direction)
+
+		m = incoming.Monotonic
+		assert.Equal(collect, sent, int(m.RecvBytes))
+		assert.Equal(collect, read, int(m.SentBytes))
+		assert.Equal(collect, os.Getpid(), int(incoming.Pid))
+		assert.Equal(collect, addrPort(server.address), int(incoming.SPort))
+		assert.Equal(collect, c.LocalAddr().(*net.TCPAddr).Port, int(incoming.DPort))
+		assert.Equal(collect, network.INCOMING, incoming.Direction)
 	}, 3*time.Second, 100*time.Millisecond, "could not find connection incoming and outgoing connections")
 
-	m := outgoing.Monotonic
-	assert.Equal(t, clientMessageSize, int(m.SentBytes))
-	assert.Equal(t, serverMessageSize, int(m.RecvBytes))
-	assert.Equal(t, os.Getpid(), int(outgoing.Pid))
-	assert.Equal(t, addrPort(server.address), int(outgoing.DPort))
-	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(outgoing.SPort))
-	assert.Equal(t, network.OUTGOING, outgoing.Direction)
-
-	m = incoming.Monotonic
-	assert.Equal(t, clientMessageSize, int(m.RecvBytes))
-	assert.Equal(t, serverMessageSize, int(m.SentBytes))
-	assert.Equal(t, os.Getpid(), int(incoming.Pid))
-	assert.Equal(t, addrPort(server.address), int(incoming.SPort))
-	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(incoming.DPort))
-	assert.Equal(t, network.INCOMING, incoming.Direction)
 }
 
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {
