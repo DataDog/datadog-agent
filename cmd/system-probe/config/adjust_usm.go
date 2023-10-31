@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	maxHTTPFrag = 160
+	maxHTTPFrag = 512 // matches hard limit currently imposed in NPM driver
 )
 
 func adjustUSM(cfg config.Config) {
@@ -38,8 +38,9 @@ func adjustUSM(cfg config.Config) {
 	applyDefault(cfg, smNS("http_idle_connection_ttl_in_s"), 30)
 	deprecateInt64(cfg, netNS("http_notification_threshold"), smNS("http_notification_threshold"))
 	applyDefault(cfg, smNS("http_notification_threshold"), 512)
+	// http_max_request_fragment
 	deprecateInt64(cfg, netNS("http_max_request_fragment"), smNS("http_max_request_fragment"))
-	applyDefault(cfg, smNS("http_max_request_fragment"), 160)
+	applyDefault(cfg, smNS("http_max_request_fragment"), 208)
 	applyDefault(cfg, smNS("max_concurrent_requests"), cfg.GetInt(spNS("max_tracked_connections")))
 
 	if cfg.GetBool(dsmNS("enabled")) {

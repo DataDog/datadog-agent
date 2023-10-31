@@ -972,7 +972,7 @@ service_monitoring_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(208))
 	})
 }
 
@@ -982,72 +982,72 @@ func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := configurationFromYAML(t, `
 network_config:
-  http_max_request_fragment: 175
+  http_max_request_fragment: 600
 `)
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "600")
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := configurationFromYAML(t, `
 service_monitoring_config:
-  http_max_request_fragment: 175
+  http_max_request_fragment: 600
 `)
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "600")
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
 	})
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "600")
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
 	})
 
 	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "600")
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
 	})
 
 	t.Run("Both enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		// Setting a different value
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "176")
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "600")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "601")
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
 	})
 
 	t.Run("Not enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(208))
 	})
 }
 
