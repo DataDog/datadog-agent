@@ -11,7 +11,7 @@ version of JMXFetch, follow the instructions below:
 
 1. Download the `-jar-with-dependencies.jar` build of the latest version of JMXFetch from
    [`maven`](https://repo1.maven.org/maven2/com/datadoghq/jmxfetch/)
-2. Copy it to `$GOPATH/src/github.com/DataDog/datadog-agent/dev/dist/jmx/jmxfetch.jar`.
+2. Copy the jar file and rename it to `$GOPATH/src/github.com/DataDog/datadog-agent/dev/dist/jmx/jmxfetch.jar`.
 3. Run `inv agent.run`.
 4. Validate that the JMXFetch section appears in `agent status`.
 
