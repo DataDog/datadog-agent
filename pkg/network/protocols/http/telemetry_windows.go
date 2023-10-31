@@ -7,6 +7,6 @@
 
 package http
 
-func (t *Telemetry) countOSSpecific(tx Transaction) {
+func (t *Telemetry) countOSSpecific(Transaction) {
 	t.totalHitsPlain.Add(1)
 }
