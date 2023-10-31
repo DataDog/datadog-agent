@@ -252,8 +252,9 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	metrics.Count("datadog.trace_agent.otlp.spans", spancount, tags, 1)
 	metrics.Count("datadog.trace_agent.otlp.traces", int64(len(tracesByID)), tags, 1)
 	p := Payload{
-		Source:              tagstats,
-		ClientComputedStats: rattr[keyStatsComputed] != "",
+		Source:                 tagstats,
+		ClientComputedStats:    rattr[keyStatsComputed] != "" || httpHeader.Get(header.ComputedStats) != "",
+		ClientComputedTopLevel: httpHeader.Get(header.ComputedTopLevel) != "",
 	}
 	if env == "" {
 		env = o.conf.DefaultEnv

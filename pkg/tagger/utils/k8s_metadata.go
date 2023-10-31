@@ -38,7 +38,7 @@ func InitMetadataAsTags(metadataAsTags map[string]string) (map[string]string, ma
 
 // AddMetadataAsTags converts name and value into tags based on the metadata as tags configuration and patterns
 func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glob map[string]glob.Glob, tags *TagList) {
-	for pattern, tmpl := range metadataAsTags {
+	for pattern, tmplStr := range metadataAsTags {
 		n := strings.ToLower(name)
 		if g, ok := glob[pattern]; ok {
 			if !g.Match(n) {
@@ -47,8 +47,20 @@ func AddMetadataAsTags(name, value string, metadataAsTags map[string]string, glo
 		} else if pattern != n {
 			continue
 		}
-		tags.AddAuto(resolveTag(tmpl, name), value)
+		tagTmplList := splitTags(tmplStr)
+		for _, tmpl := range tagTmplList {
+			tags.AddAuto(resolveTag(tmpl, name), value)
+		}
 	}
+}
+
+// splitTags splits tmplStr into tag slice using "," as delimiter. This can generate multiple tags from a label
+func splitTags(tmplStr string) []string {
+	tagTmpList := strings.Split(tmplStr, ",")
+	for i := range tagTmpList {
+		tagTmpList[i] = strings.TrimSpace(tagTmpList[i])
+	}
+	return tagTmpList
 }
 
 var templateVariables = map[string]struct{}{

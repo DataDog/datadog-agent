@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
@@ -674,4 +675,9 @@ func removeHooks(m *manager.Manager, probes []manager.ProbesSelector) func(utils
 // functionName is variable but with a minimum guarantee of 10 chars
 func getUID(lib utils.PathIdentifier) string {
 	return lib.Key()[:5]
+}
+
+// IsBuildModeSupported returns always true, as tls module is supported by all modes.
+func (*sslProgram) IsBuildModeSupported(buildmode.Type) bool {
+	return true
 }

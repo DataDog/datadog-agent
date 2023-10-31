@@ -197,26 +197,35 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 	}
 
 	return devicemetadata.DeviceMetadata{
-		ID:           deviceID,
-		IDTags:       idTags,
-		Name:         sysName,
-		Description:  sysDescr,
-		IPAddress:    config.IPAddress,
-		SysObjectID:  sysObjectID,
-		Location:     location,
-		Profile:      config.Profile,
-		Vendor:       vendor,
-		Tags:         tags,
-		Subnet:       config.ResolvedSubnetName,
-		Status:       deviceStatus,
-		SerialNumber: serialNumber,
-		Version:      version,
-		ProductName:  productName,
-		Model:        model,
-		OsName:       osName,
-		OsVersion:    osVersion,
-		OsHostname:   osHostname,
+		ID:             deviceID,
+		IDTags:         idTags,
+		Name:           sysName,
+		Description:    sysDescr,
+		IPAddress:      config.IPAddress,
+		SysObjectID:    sysObjectID,
+		Location:       location,
+		Profile:        config.Profile,
+		ProfileVersion: getProfileVersion(config),
+		Vendor:         vendor,
+		Tags:           tags,
+		Subnet:         config.ResolvedSubnetName,
+		Status:         deviceStatus,
+		SerialNumber:   serialNumber,
+		Version:        version,
+		ProductName:    productName,
+		Model:          model,
+		OsName:         osName,
+		OsVersion:      osVersion,
+		OsHostname:     osHostname,
 	}
+}
+
+func getProfileVersion(config *checkconfig.CheckConfig) uint64 {
+	var profileVersion uint64
+	if config.ProfileDef != nil {
+		profileVersion = config.ProfileDef.Version
+	}
+	return profileVersion
 }
 
 func buildNetworkInterfacesMetadata(deviceID string, store *metadata.Store) []devicemetadata.InterfaceMetadata {

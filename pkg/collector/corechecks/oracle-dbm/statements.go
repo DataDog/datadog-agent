@@ -456,7 +456,7 @@ func (c *Check) StatementMetrics() (int, error) {
 				if diff.Fetches = statementMetricRow.Fetches - previousMonotonic.Fetches; diff.Fetches < 0 {
 					continue
 				}
-				if diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions; diff.Executions <= 0 {
+				if diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions; diff.Executions < 0 {
 					continue
 				}
 				if diff.EndOfFetchCount = statementMetricRow.EndOfFetchCount - previousMonotonic.EndOfFetchCount; diff.EndOfFetchCount < 0 {

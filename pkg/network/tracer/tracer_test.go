@@ -1021,11 +1021,10 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	require.NoError(t, err)
 	defer dnsConn.Close()
 	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
-	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
-
-	if err != nil && timeout == 0 {
-		t.Fatalf("Failed to get dns response %s\n", err.Error())
-	}
+	require.Eventually(t, func() bool {
+		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+		return err == nil || timeout != 0
+	}, 3*time.Second, 100*time.Millisecond, "Failed to get dns response")
 
 	// Allow the DNS reply to be processed in the snooper
 	time.Sleep(time.Millisecond * 500)

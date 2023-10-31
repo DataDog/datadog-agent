@@ -97,6 +97,7 @@ type MetricSample struct {
 	FlushFirstValue  bool
 	OriginFromUDS    string
 	OriginFromClient string
+	ListenerID       string
 	Cardinality      string
 	NoIndex          bool
 	Source           MetricSource
