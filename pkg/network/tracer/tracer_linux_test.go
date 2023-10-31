@@ -70,12 +70,13 @@ func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *ne
 	queryMsg.RecursionDesired = true
 	dnsClient := new(dns.Client)
 	var dnsClientAddr *net.UDPAddr
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
+		assert.Nil(c, err, "expected no DNS dial error")
 		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, connErr := dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 		_ = dnsConn.Close()
-		return err == nil && connErr == nil
+		assert.Nil(c, connErr, "expected no DNS query error")
 	}, 3*time.Second, 100*time.Millisecond, "failed to make successful DNS request")
 	return dnsClientAddr, dnsServerAddr
 }
