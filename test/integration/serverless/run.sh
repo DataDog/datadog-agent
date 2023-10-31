@@ -324,9 +324,7 @@ for function_name in "${all_functions[@]}"; do
             echo
             echo "$diff_output"
             echo
-            echo "Raw output:"
-            echo
-            echo "$raw_logs"
+            echo "Raw output can be found in $RAWLOGS_DIR/$function_name (or in CI output artifacts)"
             echo
         else
             printf "${GREEN} PASS ${END_COLOR} $function_name\n"
