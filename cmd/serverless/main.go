@@ -204,7 +204,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	lambdaSpanChan := make(chan *pb.Span)
 	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
 	coldStartSpanId := random.Random.Uint64()
-	metricAgent := &metrics.ServerlessMetricAgent{}
+	metricAgent := &metrics.ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+	}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), lambdaInitMetricChan)

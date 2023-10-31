@@ -1184,46 +1184,35 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 	cfg.TCPConnTimeout = 3 * time.Second
 	tr := setupTracer(t, cfg)
 
-	started := make(chan struct{})
-	cmd := exec.Command("testdata/reuseport.py")
-	stdOutReader, stdOutWriter := io.Pipe()
-	go func() {
-		var stderr bytes.Buffer
-		cmd.Stderr = &stderr
-		cmd.Stdout = stdOutWriter
-		err := cmd.Start()
-		close(started)
-		require.NoError(t, err)
-		cmd.Wait()
-	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	t.Cleanup(cancel)
+	out, err := testutil.RunCommandWithContext(ctx, "testdata/reuseport.py")
+	require.NoError(t, err)
 
-	<-started
-
-	defer cmd.Process.Kill()
-
-	portStr, err := bufio.NewReader(stdOutReader).ReadString('\n')
-	require.NoError(t, err, "error reading port from fork.py")
-	stdOutReader.Close()
-	port, err := strconv.ParseUint(strings.TrimSpace(portStr), 10, 16)
-	require.NoError(t, err, "could not convert %s to integer port", portStr)
+	port, err := strconv.ParseUint(strings.TrimSpace(strings.Split(out, "\n")[0]), 10, 16)
+	require.NoError(t, err, "could not convert %s to integer port", out)
 
 	t.Logf("port is %d", port)
 
-	var conns []network.ConnectionStats
+	conns := map[string]network.ConnectionStats{}
+	buf := make([]byte, network.ConnectionByteKeyMaxLen)
 	require.Eventually(t, func() bool {
-		conns = searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
+		_conns := searchConnections(getConnections(t, tr), func(cs network.ConnectionStats) bool {
 			return cs.Type == network.UDP &&
 				cs.Source.IsLoopback() &&
 				cs.Dest.IsLoopback() &&
 				(cs.DPort == uint16(port) || cs.SPort == uint16(port))
 		})
 
+		for _, c := range _conns {
+			conns[string(c.ByteKey(buf))] = c
+		}
+
 		return len(conns) == 4
-	}, 5*time.Second, time.Second, "could not find expected number of udp connections, expected: 4")
+	}, 3*time.Second, 100*time.Millisecond, "could not find expected number of udp connections, expected: 4")
 
 	var incoming, outgoing []network.ConnectionStats
 	for _, c := range conns {
-		t.Log(c)
 		if c.SPort == uint16(port) {
 			incoming = append(incoming, c)
 		} else if c.DPort == uint16(port) {
