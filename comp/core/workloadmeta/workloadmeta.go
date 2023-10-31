@@ -81,6 +81,10 @@ func newWorkloadMeta(deps dependencies) Component {
 		if deps.Params.InitHelper != nil {
 			return deps.Params.InitHelper(c, wm)
 		}
+
+		// Set global
+		SetGlobalStore(wm)
+
 		wm.Start(c)
 		return nil
 	}})
