@@ -1515,7 +1515,7 @@ api_key:
   ## @env DD_APM_PEER_TAGS_AGGREGATION - bool - default: false
   ## [BETA] Enables aggregation of peer related tags (e.g., `peer.service`, `db.instance`, etc.) in the Agent.
   ## If disabled, aggregated trace stats will not include these tags as dimensions on trace metrics.
-  ## For the best experience with it is recommended to also enable `compute_stats_by_span_kind`.
+  ## For the best experience, Datadog also recommends enabling `compute_stats_by_span_kind`.
   ## If enabling both causes the Agent to consume too many resources, try disabling `compute_stats_by_span_kind` first.
   ## If the overhead remains high, it will be due to a high cardinality of peer tags from the traces. You may need to check your instrumentation.
   ## NOTE: If you are using an OTel tracer it's best to have both enabled because client/producer spans with a `peer.service` value
