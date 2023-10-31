@@ -522,6 +522,8 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
 
 SEC("socket/http2_handle_first_frame")
 int socket__http2_handle_first_frame(struct __sk_buff *skb) {
+    const __u32 zero = 0;
+
     dispatcher_arguments_t dispatcher_args_copy;
     bpf_memset(&dispatcher_args_copy, 0, sizeof(dispatcher_arguments_t));
     if (!fetch_dispatching_arguments(&dispatcher_args_copy.tup, &dispatcher_args_copy.skb_info)) {
@@ -538,6 +540,17 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
         bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
         return 0;
     }
+
+    // A single packet can contain multiple HTTP/2 frames, due to instruction limitations we have divided the
+    // processing into multiple tail calls, where each tail call process a single frame. We must have context when
+    // we are processing the frames, for example, to know how many bytes have we read in the packet, or it we reached
+    // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
+    // If not, creating a new one to be used for further processing
+    http2_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
+    if (iteration_value == NULL) {
+        return 0;
+    }
+    bpf_memset(iteration_value->frames_array, 0, HTTP2_MAX_FRAMES_ITERATIONS * sizeof(http2_frame_with_offset));
 
     bpf_tail_call_compat(skb, &protocols_progs, PROG_HTTP2_FRAME_FILTER);
     return 0;
@@ -562,7 +575,6 @@ int socket__http2_filter(struct __sk_buff *skb) {
     if (iteration_value == NULL) {
         return 0;
     }
-    bpf_memset(iteration_value->frames_array, 0, HTTP2_MAX_FRAMES_ITERATIONS * sizeof(http2_frame_with_offset));
 
     // Some functions might change and override fields in dispatcher_args_copy.skb_info. Since it is used as a key
     // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
