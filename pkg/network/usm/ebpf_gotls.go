@@ -173,7 +173,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map) pro
 		}
 
 		if !c.EnableRuntimeCompiler && !c.EnableCORE {
-			return nil, fmt.Errorf("goTLS support requires runtime-compilation or CO-RE to be enabled")
+			return nil, errors.New("goTLS support requires runtime-compilation or CO-RE to be enabled")
 		}
 
 		return &goTLSProgram{
