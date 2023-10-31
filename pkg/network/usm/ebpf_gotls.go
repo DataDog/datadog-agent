@@ -9,6 +9,7 @@ package usm
 
 import (
 	"debug/elf"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -168,7 +169,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map) pro
 		}
 
 		if !http.HTTPSSupported(c) {
-			return nil, fmt.Errorf("goTLS not supported by this platform")
+			return nil, errors.New("goTLS not supported by this platform")
 		}
 
 		if !c.EnableRuntimeCompiler && !c.EnableCORE {
