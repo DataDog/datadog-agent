@@ -182,6 +182,11 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 			for _, cachedEntity := range entitiesOfKind {
 				entity := cachedEntity.get(sub.filter.Source())
 				if entity != nil {
+					container, ok := entity.(*Container)
+					if ok && !sub.filter.MatchIncludePauseContainers() && container.IsPauseContainer {
+						continue
+					}
+
 					events = append(events, Event{
 						Type:   EventTypeSet,
 						Entity: entity,
@@ -677,6 +682,12 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 			if !filter.MatchKind(entityID.Kind) || !filter.MatchSource(ev.Source) || !filter.MatchEventType(ev.Type) {
 				// event should be filtered out because it
 				// doesn't match the filter
+				continue
+			}
+
+			// Pause containers are stored in the workloadmeta store but not sent to subscribers unless they have specified that they would like to include pause contaienrs
+			container, ok := ev.Entity.(*Container)
+			if ok && !filter.MatchIncludePauseContainers() && container.IsPauseContainer {
 				continue
 			}
 
