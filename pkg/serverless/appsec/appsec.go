@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
-	waf "github.com/DataDog/go-libddwaf"
+	waf "github.com/DataDog/go-libddwaf/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -103,9 +103,8 @@ func (a *AppSec) Close() error {
 	return nil
 }
 
-// Monitor runs the security event rules and return the events as raw JSON byte
-// array.
-func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
+// Monitor runs the security event rules and return the events as an slice
+func (a *AppSec) Monitor(addresses map[string]any) []any {
 	log.Debugf("appsec: monitoring the request context %v", addresses)
 	ctx := waf.NewContext(a.handle)
 	if ctx == nil {
@@ -113,7 +112,7 @@ func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
 	}
 	defer ctx.Close()
 	timeout := a.cfg.WafTimeout
-	events, _, err := ctx.Run(addresses, timeout)
+	res, err := ctx.Run(waf.RunAddressData{Persistent: addresses}, timeout)
 	if err != nil {
 		if err == waf.ErrTimeout {
 			log.Debugf("appsec: waf timeout value of %s reached", timeout)
@@ -122,15 +121,16 @@ func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
 			return nil
 		}
 	}
+
 	dt, _ := ctx.TotalRuntime()
-	if len(events) > 0 {
-		log.Debugf("appsec: security events found in %s: %s", time.Duration(dt), string(events))
+	if res.HasEvents() {
+		log.Debugf("appsec: security events found in %s: %v", time.Duration(dt), res.Events)
 	}
 	if !a.eventsRateLimiter.Allow() {
 		log.Debugf("appsec: security events discarded: the rate limit of %d events/s is reached", a.cfg.TraceRateLimit)
 		return nil
 	}
-	return events
+	return res.Events
 }
 
 // wafHealth is a simple test helper that returns the same thing as `waf.Health`
