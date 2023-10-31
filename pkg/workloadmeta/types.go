@@ -318,7 +318,7 @@ func (e EntityMeta) String(verbose bool) string {
 	return sb.String()
 }
 
-// ContainerImage is the an image used by a container.
+// ContainerImage is the image used by a container.
 type ContainerImage struct {
 	ID        string
 	RawName   string
@@ -446,9 +446,10 @@ type Container struct {
 	State      ContainerState
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
-	CollectorTags   []string
-	Owner           *EntityID
-	SecurityContext *ContainerSecurityContext
+	CollectorTags    []string
+	Owner            *EntityID
+	SecurityContext  *ContainerSecurityContext
+	IsPauseContainer bool
 }
 
 // GetID implements Entity#GetID.
