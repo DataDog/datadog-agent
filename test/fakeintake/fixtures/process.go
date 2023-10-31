@@ -551,3 +551,98 @@ func CollectorContainerPayload(t *testing.T) []byte {
 
 	return encode(t, agentmodel.TypeCollectorContainer, &body)
 }
+
+// CollectorProcDiscoveryPayload serializes an agentmodel.CollectorProcDiscovery into a []byte
+// payload.
+// It should use the same serialization steps as the process-agent's EncodePayload function.
+func CollectorProcDiscoveryPayload(t *testing.T) []byte {
+	body := agentmodel.CollectorProcDiscovery{
+		HostName:  "i-078e212",
+		GroupId:   21052302,
+		GroupSize: 1,
+		ProcessDiscoveries: []*agentmodel.ProcessDiscovery{
+			{
+				Pid:   446,
+				NsPid: 446,
+				Command: &agentmodel.Command{
+					Args: []string{"/usr/bin/python3", "/usr/bin/networkd-dispatcher", "--run-startup-triggers"},
+					Ppid: 1,
+				},
+				User: &agentmodel.ProcessUser{
+					Name: "root",
+				},
+				CreateTime: 1696620615000,
+			},
+			{
+				Pid:   494,
+				NsPid: 494,
+				Command: &agentmodel.Command{
+					Args: []string{"/usr/sbin/chronyd", "-F", "1"},
+					Ppid: 485,
+				},
+				User: &agentmodel.ProcessUser{
+					Name: "_chrony",
+					Uid:  114,
+					Gid:  121,
+				},
+				CreateTime: 1696620615000,
+			},
+			{
+				Pid:   2636,
+				NsPid: 2636,
+				Command: &agentmodel.Command{
+					Args: []string{"/opt/datadog-agent/embedded/bin/process-agent", "--cfgpath=/etc/datadog-agent/datadog.yaml", "--sysprobe-config=/etc/datadog-agent/system-probe.yaml", "--pid=/opt/datadog-agent/run/process-agent.pid"},
+					Cwd:  "/",
+					Ppid: 1,
+					Exe:  "/opt/datadog-agent/embedded/bin/process-agent",
+				},
+				User: &agentmodel.ProcessUser{
+					Name: "dd-agent",
+					Uid:  115,
+					Gid:  122,
+				},
+				CreateTime: 1696620744000,
+			},
+			{
+				Pid:   712,
+				NsPid: 712,
+				Command: &agentmodel.Command{
+					Args: []string{"(sd-pam)"},
+					Ppid: 711,
+				},
+				User: &agentmodel.ProcessUser{
+					Name: "ubuntu",
+					Uid:  1000,
+					Gid:  1000,
+				},
+				CreateTime: 1696620618000,
+			},
+			{
+				Pid:   1767,
+				NsPid: 1767,
+				Command: &agentmodel.Command{
+					Args: []string{"/usr/libexec/packagekitd"},
+					Ppid: 1,
+				},
+				User: &agentmodel.ProcessUser{
+					Name: "root",
+				},
+				CreateTime: 1696620635000,
+			},
+			{
+				Pid:   520,
+				NsPid: 520,
+				Command: &agentmodel.Command{
+					Args: []string{"/sbin/agetty", "-o", "-p -- \\u", "--noclear", "tty1", "linux"},
+					Ppid: 1,
+				},
+				User: &agentmodel.ProcessUser{
+					Name: "root",
+				},
+				CreateTime: 1696620616000,
+			},
+		},
+	}
+
+	return encode(t, agentmodel.TypeCollectorProcDiscovery, &body)
+}

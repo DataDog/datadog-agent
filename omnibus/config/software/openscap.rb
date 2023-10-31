@@ -3,8 +3,6 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 
-require './lib/cmake.rb'
-
 name 'openscap'
 default_version '1.3.9'
 

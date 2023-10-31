@@ -56,37 +56,40 @@ import (
 )
 
 const (
-	metricsEndpoint     = "/api/v2/series"
-	checkRunsEndpoint   = "/api/v1/check_run"
-	logsEndpoint        = "/api/v2/logs"
-	connectionsEndpoint = "/api/v1/connections"
-	processesEndpoint   = "/api/v1/collector"
-	containersEndpoint  = "/api/v1/container"
-	flareEndpoint       = "/support/flare"
+	metricsEndpoint          = "/api/v2/series"
+	checkRunsEndpoint        = "/api/v1/check_run"
+	logsEndpoint             = "/api/v2/logs"
+	connectionsEndpoint      = "/api/v1/connections"
+	processesEndpoint        = "/api/v1/collector"
+	containersEndpoint       = "/api/v1/container"
+	processDiscoveryEndpoint = "/api/v1/discovery"
+	flareEndpoint            = "/support/flare"
 )
 
 type Client struct {
 	fakeIntakeURL string
 
-	metricAggregator     aggregator.MetricAggregator
-	checkRunAggregator   aggregator.CheckRunAggregator
-	logAggregator        aggregator.LogAggregator
-	connectionAggregator aggregator.ConnectionsAggregator
-	processAggregator    aggregator.ProcessAggregator
-	containerAggregator  aggregator.ContainerAggregator
+	metricAggregator           aggregator.MetricAggregator
+	checkRunAggregator         aggregator.CheckRunAggregator
+	logAggregator              aggregator.LogAggregator
+	connectionAggregator       aggregator.ConnectionsAggregator
+	processAggregator          aggregator.ProcessAggregator
+	containerAggregator        aggregator.ContainerAggregator
+	processDiscoveryAggregator aggregator.ProcessDiscoveryAggregator
 }
 
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
 func NewClient(fakeIntakeURL string) *Client {
 	return &Client{
-		fakeIntakeURL:        strings.TrimSuffix(fakeIntakeURL, "/"),
-		metricAggregator:     aggregator.NewMetricAggregator(),
-		checkRunAggregator:   aggregator.NewCheckRunAggregator(),
-		logAggregator:        aggregator.NewLogAggregator(),
-		connectionAggregator: aggregator.NewConnectionsAggregator(),
-		processAggregator:    aggregator.NewProcessAggregator(),
-		containerAggregator:  aggregator.NewContainerAggregator(),
+		fakeIntakeURL:              strings.TrimSuffix(fakeIntakeURL, "/"),
+		metricAggregator:           aggregator.NewMetricAggregator(),
+		checkRunAggregator:         aggregator.NewCheckRunAggregator(),
+		logAggregator:              aggregator.NewLogAggregator(),
+		connectionAggregator:       aggregator.NewConnectionsAggregator(),
+		processAggregator:          aggregator.NewProcessAggregator(),
+		containerAggregator:        aggregator.NewContainerAggregator(),
+		processDiscoveryAggregator: aggregator.NewProcessDiscoveryAggregator(),
 	}
 }
 
@@ -136,6 +139,14 @@ func (c *Client) getContainers() error {
 		return err
 	}
 	return c.containerAggregator.UnmarshallPayloads(payloads)
+}
+
+func (c *Client) getProcessDiscoveries() error {
+	payloads, err := c.getFakePayloads(processDiscoveryEndpoint)
+	if err != nil {
+		return err
+	}
+	return c.processDiscoveryAggregator.UnmarshallPayloads(payloads)
 }
 
 // GetLatestFlare queries the Fake Intake to fetch flares that were sent by a Datadog Agent and returns the latest flare as a Flare struct
@@ -457,4 +468,20 @@ func (c *Client) GetContainers() ([]*aggregator.ContainerPayload, error) {
 	}
 
 	return containers, nil
+}
+
+// GetProcessDiscoveries fetches fakeintake on `/api/v1/discovery` endpoint and returns
+// all received process discovery payloads
+func (c *Client) GetProcessDiscoveries() ([]*aggregator.ProcessDiscoveryPayload, error) {
+	err := c.getProcessDiscoveries()
+	if err != nil {
+		return nil, err
+	}
+
+	var discs []*aggregator.ProcessDiscoveryPayload
+	for _, name := range c.processDiscoveryAggregator.GetNames() {
+		discs = append(discs, c.processDiscoveryAggregator.GetPayloadsByName(name)...)
+	}
+
+	return discs, nil
 }

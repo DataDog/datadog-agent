@@ -1,39 +1,39 @@
 # ------------------------------------
 # OS-detection helper functions
 # ------------------------------------
-def linux?()
+def linux_target?()
     return %w(rhel debian fedora suse gentoo slackware arch exherbo).include? ohai['platform_family']
 end
 
-def redhat?()
+def redhat_target?()
     return %w(rhel fedora).include? ohai['platform_family']
 end
 
-def suse?()
+def suse_target?()
     return %w(suse).include? ohai['platform_family']
 end
 
-def debian?()
+def debian_target?()
     return ohai['platform_family'] == 'debian'
 end
 
-def osx?()
+def osx_target?()
     return ohai['platform_family'] == 'mac_os_x'
 end
 
-def windows?()
+def windows_target?()
     return ohai['platform_family'] == 'windows'
 end
 
-def arm?()
+def arm_target?()
     return ohai["kernel"]["machine"].start_with?("aarch", "arm")
 end
 
-def arm7l?()
+def arm7l_target?()
     return ohai["kernel"]["machine"] == 'armv7l'
 end
 
-def heroku?()
+def heroku_target?()
     return ENV['AGENT_FLAVOR'] == 'heroku'
 end
 

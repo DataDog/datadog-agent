@@ -17,7 +17,7 @@ skip_transitive_dependency_licensing true
 build do
     license :project_license
 
-    if windows?
+    if windows_target?
         conf_dir_root = "#{Omnibus::Config.source_dir()}/etc/datadog-dogstatsd"
         conf_dir = "#{conf_dir_root}/extra_package_files/EXAMPLECONFSLOCATION"
         mkdir conf_dir
@@ -35,7 +35,7 @@ build do
         mkdir "/var/log/datadog"
 
         # cleanup clutter
-        delete "#{install_dir}/etc" if !osx?
+        delete "#{install_dir}/etc" if !osx_target?
         delete "#{install_dir}/bin/dogstatsd/dist"
     end
 end

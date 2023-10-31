@@ -53,6 +53,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	langDetectionCl "github.com/DataDog/datadog-agent/comp/languagedetection/client"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata"
@@ -196,6 +197,7 @@ func run(log log.Component,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
 	_ netflowServer.Component,
+	_ langDetectionCl.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer)
@@ -285,6 +287,7 @@ func getSharedFxOption() fx.Option {
 			})
 		}),
 		logs.Bundle,
+		langDetectionCl.Module,
 		metadata.Bundle,
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.

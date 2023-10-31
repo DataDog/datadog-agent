@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
@@ -66,6 +67,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "http2_headers_to_process",
+		},
+		{
+			Name: "http2_frames_to_process",
 		},
 		{
 			Name: "http2_stream_heap",
@@ -290,4 +294,9 @@ func (p *protocol) createStaticTable(mgr *manager.Manager) error {
 		}
 	}
 	return nil
+}
+
+// IsBuildModeSupported returns always true, as http2 module is supported by all modes.
+func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
+	return true
 }
