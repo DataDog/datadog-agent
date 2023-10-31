@@ -15,8 +15,8 @@ version of JMXFetch, follow the instructions below:
 3. Run `inv agent.run`.
 4. Validate that the JMXFetch section appears in `agent status`.
 
-If you have a JMX-based integration configured to run, it should automatically
-be run in your local JMXFetch instance.
+If you have a JMX-based integration configured to run, it automatically
+runs in your local JMXFetch instance.
 
 
 ## Custom Build of JMXFetch
