@@ -1,9 +1,8 @@
 import argparse
 import json
-import re
 import os
+import re
 import traceback
-
 from typing import Union
 
 
