@@ -139,8 +139,3 @@ func (s *TrapServer) Stop() {
 func IsEnabled(conf config.Component) bool {
 	return conf.GetBool("network_devices.snmp_traps.enabled")
 }
-
-// GetStatus returns key-value data for use in status reporting of the traps server.
-func GetStatus() map[string]interface{} {
-	return status.GetStatus()
-}

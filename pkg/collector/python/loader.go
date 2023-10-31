@@ -8,6 +8,7 @@
 package python
 
 import (
+	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
@@ -77,6 +79,17 @@ func init() {
 			fmt.Sprintf("agent_version_patch:%d", agentVersion.Patch),
 		}
 	}
+
+	expvarcollector.RegisterExpvarReport("pyLoaderStats", func() (interface{}, error) {
+		pyLoaderData := expvar.Get("pyLoader")
+		pyLoaderStats := make(map[string]interface{})
+		if pyLoaderData != nil {
+			pyLoaderStatsJSON := []byte(pyLoaderData.String())
+			json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats) //nolint:errcheck
+
+		}
+		return pyLoaderStats, nil
+	})
 }
 
 // PythonCheckLoader is a specific loader for checks living in Python modules

@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"io"
@@ -21,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -159,6 +161,13 @@ func init() {
 	transactionsErrorsByType.Set("SentRequestErrors", &transactionsSentRequestErrors)
 	TransactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
 	TransactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
+
+	expvarcollector.RegisterExpvarReport("forwarderStats", func() (interface{}, error) {
+		forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
+		forwarderStats := make(map[string]interface{})
+		json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
+		return forwarderStats, nil
+	})
 }
 
 // Priority defines the priority of a transaction

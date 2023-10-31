@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -130,6 +131,25 @@ func init() {
 	exportedMapStatus.Set("orgEnabled", &exportedStatusOrgEnabled)
 	exportedMapStatus.Set("apiKeyScoped", &exportedStatusKeyAuthorized)
 	exportedMapStatus.Set("lastError", &exportedLastUpdateErr)
+
+	expvarcollector.RegisterExpvarReport("remoteConfiguration", func() (interface{}, error) {
+		status := make(map[string]interface{})
+
+		if config.IsRemoteConfigEnabled(config.Datadog) && expvar.Get("remoteConfigStatus") != nil {
+			remoteConfigStatusJSON := expvar.Get("remoteConfigStatus").String()
+			json.Unmarshal([]byte(remoteConfigStatusJSON), &status) //nolint:errcheck
+		} else {
+			if !config.Datadog.GetBool("remote_configuration.enabled") {
+				status["disabledReason"] = "it is explicitly disabled in the agent configuration. (`remote_configuration.enabled: false`)"
+			} else if config.Datadog.GetBool("fips.enabled") {
+				status["disabledReason"] = "it is not supported when FIPS is enabled. (`fips.enabled: true`)"
+			} else if config.Datadog.GetString("site") == "ddog-gov.com" {
+				status["disabledReason"] = "it is not supported on GovCloud. (`site: \"ddog-gov.com\"`)"
+			}
+		}
+
+		return status, nil
+	})
 }
 
 // NewService instantiates a new remote configuration management service

@@ -6,6 +6,7 @@
 package expvars
 
 import (
+	"encoding/json"
 	"expvar"
 	"sync"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -53,6 +55,13 @@ func init() {
 	checkStats = &expCheckStats{
 		stats: make(map[string]map[checkid.ID]*checkstats.Stats),
 	}
+
+	expvarcollector.RegisterExpvarReport("runnerStats", func() (interface{}, error) {
+		runnerStatsJSON := []byte(expvar.Get(runnerExpvarKey).String())
+		runnerStats := make(map[string]interface{})
+		json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
+		return runnerStats, nil
+	})
 }
 
 // Helpers

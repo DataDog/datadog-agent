@@ -11,6 +11,7 @@ import (
 	"expvar"
 
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 )
 
 var (
@@ -22,6 +23,19 @@ var (
 func init() {
 	trapsExpvars.Set("Packets", &trapsPackets)
 	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
+
+	expvarcollector.RegisterExpvarReport("snmpTrapsStats", func() (interface{}, error) {
+		status := make(map[string]interface{})
+
+		metricsJSON := []byte(expvar.Get("snmp_traps").String())
+		metrics := make(map[string]interface{})
+		json.Unmarshal(metricsJSON, &metrics) //nolint:errcheck
+		if dropped := getDroppedPackets(); dropped > 0 {
+			metrics["PacketsDropped"] = dropped
+		}
+		status["metrics"] = metrics
+		return status, nil
+	})
 }
 
 // Manager exposes the expvars we care about
@@ -71,20 +85,4 @@ func getDroppedPackets() int64 {
 		return 0
 	}
 	return droppedPackets.Value()
-}
-
-// GetStatus returns key-value data for use in status reporting of the traps server.
-func GetStatus() map[string]interface{} {
-
-	status := make(map[string]interface{})
-
-	metricsJSON := []byte(expvar.Get("snmp_traps").String())
-	metrics := make(map[string]interface{})
-	json.Unmarshal(metricsJSON, &metrics) //nolint:errcheck
-	if dropped := getDroppedPackets(); dropped > 0 {
-		metrics["PacketsDropped"] = dropped
-	}
-	status["metrics"] = metrics
-
-	return status
 }

@@ -6,8 +6,11 @@
 package autodiscovery
 
 import (
+	"encoding/json"
 	"expvar"
 	"sync"
+
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 )
 
 var (
@@ -23,6 +26,13 @@ func init() {
 	acErrors.Set("ResolveWarnings", expvar.Func(func() interface{} {
 		return errorStats.getResolveWarnings()
 	}))
+
+	expvarcollector.RegisterExpvarReport("autoConfigStats", func() (interface{}, error) {
+		autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
+		autoConfigStats := make(map[string]interface{})
+		json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck
+		return autoConfigStats, nil
+	})
 }
 
 // loaderErrorStats holds the error objects

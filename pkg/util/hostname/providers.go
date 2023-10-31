@@ -9,9 +9,11 @@ package hostname
 
 import (
 	"context"
+	"encoding/json"
 	"expvar"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -31,6 +33,14 @@ func init() {
 	hostnameErrors.Init()
 	hostnameExpvars.Set("provider", &hostnameProvider)
 	hostnameExpvars.Set("errors", &hostnameErrors)
+
+	expvarcollector.RegisterExpvarReport("hostnameStats", func() (interface{}, error) {
+		hostnameStatsJSON := []byte(expvar.Get("hostname").String())
+		hostnameStats := make(map[string]interface{})
+		json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
+
+		return hostnameStats, nil
+	})
 }
 
 // providerCb is a generic function to grab the hostname and return it. currentHostname represents the hostname detected

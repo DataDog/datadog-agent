@@ -8,6 +8,7 @@
 package python
 
 import (
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"os"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
@@ -220,6 +222,16 @@ func init() {
 
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
+
+	expvarcollector.RegisterExpvarReport("pythonInit", func() (interface{}, error) {
+		pythonInitData := expvar.Get("pythonInit")
+		pythonInit := make(map[string]interface{})
+		if pythonInitData != nil {
+			pythonInitJSON := []byte(pythonInitData.String())
+			json.Unmarshal(pythonInitJSON, &pythonInit) //nolint:errcheck
+		}
+		return pythonInit, nil
+	})
 }
 
 func expvarPythonInitErrors() interface{} {

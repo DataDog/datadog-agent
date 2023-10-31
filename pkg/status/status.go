@@ -30,7 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -98,7 +98,6 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 		stats["filterErrors"] = containers.GetFilterErrors()
 	}
 
-	stats["remoteConfiguration"] = getRemoteConfigStatus()
 	return stats, nil
 }
 
@@ -306,33 +305,13 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 	return endpointsInfos, nil
 }
 
-// getRemoteConfigStatus return the current status of remote config
-func getRemoteConfigStatus() map[string]interface{} {
-	status := make(map[string]interface{})
-
-	if config.IsRemoteConfigEnabled(config.Datadog) && expvar.Get("remoteConfigStatus") != nil {
-		remoteConfigStatusJSON := expvar.Get("remoteConfigStatus").String()
-		json.Unmarshal([]byte(remoteConfigStatusJSON), &status) //nolint:errcheck
-	} else {
-		if !config.Datadog.GetBool("remote_configuration.enabled") {
-			status["disabledReason"] = "it is explicitly disabled in the agent configuration. (`remote_configuration.enabled: false`)"
-		} else if config.Datadog.GetBool("fips.enabled") {
-			status["disabledReason"] = "it is not supported when FIPS is enabled. (`fips.enabled: true`)"
-		} else if config.Datadog.GetString("site") == "ddog-gov.com" {
-			status["disabledReason"] = "it is not supported on GovCloud. (`site: \"ddog-gov.com\"`)"
-		}
-	}
-
-	return status
-}
-
 // getCommonStatus grabs the status from expvar and puts it into a map.
 // It gets the status elements common to all Agent flavors.
 func getCommonStatus() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
-	stats, err := expvarStats(stats)
-	if err != nil {
-		log.Errorf("Error Getting ExpVar Stats: %v", err)
+	stats, errors := expvarStats(stats)
+	if len(errors) > 0 {
+		log.Errorf("Error Getting ExpVar Stats: %v", errors)
 	}
 
 	stats["version"] = version.AgentVersion
@@ -345,91 +324,13 @@ func getCommonStatus() (map[string]interface{}, error) {
 	stats["build_arch"] = runtime.GOARCH
 	now := time.Now()
 	stats["time_nano"] = now.UnixNano()
+	stats["netflowStats"] = netflowServer.GetStatus()
 
 	return stats, nil
 }
 
-func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
-	var err error
-	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
-	forwarderStats := make(map[string]interface{})
-	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
-	stats["forwarderStats"] = forwarderStats
-
-	runnerStatsJSON := []byte(expvar.Get("runner").String())
-	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
-	stats["runnerStats"] = runnerStats
-
-	autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
-	autoConfigStats := make(map[string]interface{})
-	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck
-	stats["autoConfigStats"] = autoConfigStats
-
-	checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
-	checkSchedulerStats := make(map[string]interface{})
-	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats) //nolint:errcheck
-	stats["checkSchedulerStats"] = checkSchedulerStats
-
-	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
-	aggregatorStats := make(map[string]interface{})
-	json.Unmarshal(aggregatorStatsJSON, &aggregatorStats) //nolint:errcheck
-	stats["aggregatorStats"] = aggregatorStats
-	s, err := checkstats.TranslateEventPlatformEventTypes(stats["aggregatorStats"])
-	if err != nil {
-		log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
-	} else {
-		stats["aggregatorStats"] = s
-	}
-
-	if expvar.Get("dogstatsd") != nil {
-		dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
-		dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
-		dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
-		dogstatsdStats := make(map[string]interface{})
-		json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats) //nolint:errcheck
-		dogstatsdUdsStats := make(map[string]interface{})
-		json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats) //nolint:errcheck
-		for name, value := range dogstatsdUdsStats {
-			dogstatsdStats["Uds"+name] = value
-		}
-		dogstatsdUDPStats := make(map[string]interface{})
-		json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats) //nolint:errcheck
-		for name, value := range dogstatsdUDPStats {
-			dogstatsdStats["Udp"+name] = value
-		}
-		stats["dogstatsdStats"] = dogstatsdStats
-	}
-
-	pyLoaderData := expvar.Get("pyLoader")
-	if pyLoaderData != nil {
-		pyLoaderStatsJSON := []byte(pyLoaderData.String())
-		pyLoaderStats := make(map[string]interface{})
-		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats) //nolint:errcheck
-		stats["pyLoaderStats"] = pyLoaderStats
-	} else {
-		stats["pyLoaderStats"] = nil
-	}
-
-	pythonInitData := expvar.Get("pythonInit")
-	if pythonInitData != nil {
-		pythonInitJSON := []byte(pythonInitData.String())
-		pythonInit := make(map[string]interface{})
-		json.Unmarshal(pythonInitJSON, &pythonInit) //nolint:errcheck
-		stats["pythonInit"] = pythonInit
-	} else {
-		stats["pythonInit"] = nil
-	}
-
-	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
-	hostnameStats := make(map[string]interface{})
-	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
-	stats["hostnameStats"] = hostnameStats
-
-	ntpOffset := expvar.Get("ntpOffset")
-	if ntpOffset != nil && ntpOffset.String() != "" {
-		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
-	}
+func expvarStats(stats map[string]interface{}) (map[string]interface{}, []error) {
+	stats, errors := expvarcollector.Report(stats)
 
 	inventories := expvar.Get("inventories")
 	var inventoriesStats map[string]interface{}
@@ -466,21 +367,7 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 		stats["agent_metadata"] = map[string]string{}
 	}
 
-	stats["snmpTrapsStats"] = traps.GetStatus()
-
-	stats["netflowStats"] = netflowServer.GetStatus()
-
-	complianceVar := expvar.Get("compliance")
-	if complianceVar != nil {
-		complianceStatusJSON := []byte(complianceVar.String())
-		complianceStatus := make(map[string]interface{})
-		json.Unmarshal(complianceStatusJSON, &complianceStatus) //nolint:errcheck
-		stats["complianceChecks"] = complianceStatus["Checks"]
-	} else {
-		stats["complianceChecks"] = map[string]interface{}{}
-	}
-
-	return stats, err
+	return stats, errors
 }
 
 // GetExpvarRunnerStats grabs the status of the runner from expvar

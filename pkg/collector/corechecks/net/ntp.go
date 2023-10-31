@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/beevik/ntp"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -248,4 +250,13 @@ func ntpFactory() check.Check {
 
 func init() {
 	core.RegisterCheck(ntpCheckName, ntpFactory)
+
+	expvarcollector.RegisterExpvarReport("ntpOffset", func() (interface{}, error) {
+		ntpOffset := expvar.Get("ntpOffset")
+		if ntpOffset != nil && ntpOffset.String() != "" {
+			result, err := strconv.ParseFloat(ntpOffset.String(), 64)
+			return result, err
+		}
+		return nil, nil
+	})
 }

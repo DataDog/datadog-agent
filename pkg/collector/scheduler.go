@@ -6,6 +6,7 @@
 package collector
 
 import (
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/loaders"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -47,6 +49,13 @@ func init() {
 	schedulerErrs.Set("RunErrors", expvar.Func(func() interface{} {
 		return errorStats.getRunErrors()
 	}))
+
+	expvarcollector.RegisterExpvarReport("checkSchedulerStats", func() (interface{}, error) {
+		checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
+		checkSchedulerStats := make(map[string]interface{})
+		json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats) //nolint:errcheck
+		return checkSchedulerStats, nil
+	})
 }
 
 // CheckScheduler is the check scheduler

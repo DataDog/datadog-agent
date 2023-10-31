@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -28,9 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
+	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
@@ -195,6 +198,19 @@ func init() {
 	tagsetTlm = newTagsetTelemetry([]uint64{90, 100})
 
 	aggregatorExpvars.Set("MetricTags", expvar.Func(expMetricTags))
+
+	expvarcollector.RegisterExpvarReport("aggregator", func() (interface{}, error) {
+		aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
+		aggregatorStats := make(map[string]interface{})
+		json.Unmarshal(aggregatorStatsJSON, &aggregatorStats) //nolint:errcheck
+		s, err := checkstats.TranslateEventPlatformEventTypes(aggregatorStats)
+		if err != nil {
+			log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
+		} else {
+			return s, nil
+		}
+		return aggregatorStats, err
+	})
 }
 
 // BufferedAggregator aggregates metrics in buckets for dogstatsd Metrics

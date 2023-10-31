@@ -8,6 +8,7 @@ package server
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"net"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -142,6 +144,31 @@ type server struct {
 	originTelemetry bool
 
 	enrichConfig enrichConfig
+}
+
+func init() {
+	expvarcollector.RegisterExpvarReport("dogstatsdStats", func() (interface{}, error) {
+		dogstatsdStats := make(map[string]interface{})
+
+		if expvar.Get("dogstatsd") != nil {
+			dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
+			dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
+			dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
+			json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats) //nolint:errcheck
+			dogstatsdUdsStats := make(map[string]interface{})
+			json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats) //nolint:errcheck
+			for name, value := range dogstatsdUdsStats {
+				dogstatsdStats["Uds"+name] = value
+			}
+			dogstatsdUDPStats := make(map[string]interface{})
+			json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats) //nolint:errcheck
+			for name, value := range dogstatsdUDPStats {
+				dogstatsdStats["Udp"+name] = value
+			}
+			return dogstatsdStats, nil
+		}
+		return dogstatsdStats, nil
+	})
 }
 
 func initTelemetry(cfg config.Reader, logger logComponent.Component) {
