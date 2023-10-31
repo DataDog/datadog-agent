@@ -108,6 +108,7 @@ def normalize_traces(stage):
         replace(r'("otel.trace_id":")[a-zA-Z0-9]+"', r'\1null"'),
         replace(r'("faas.execution":")[a-zA-Z0-9-]+"', r'\1null"'),
         replace(r'("faas.instance":")[a-zA-Z0-9-/]+\[\$LATEST\][a-zA-Z0-9]+"', r'\1null"'),
+        replace(r'("_dd.tracer_hostname":)"\d{1,3}(?:.\d{1,3}){3}"+', r'\1"<redacted>"'),
         replace(stage, 'XXXXXX'),
         exclude(r'[ ]$'),
         foreach(sort__dd_tags_container),
