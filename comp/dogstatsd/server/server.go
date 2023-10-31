@@ -129,6 +129,7 @@ type server struct {
 	cachedTlmLock sync.Mutex
 	// cachedOriginCounters caches telemetry counter per origin
 	// (when dogstatsd origin telemetry is enabled)
+	// TODO: use lru.Cache and track listenerId too
 	cachedOriginCounters map[string]cachedOriginCounter
 	cachedOrder          []cachedOriginCounter // for cache eviction
 
@@ -177,7 +178,7 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 	tlmChannel = telemetry.NewHistogram(
 		"dogstatsd",
 		"channel_latency",
-		[]string{"message_type"},
+		[]string{"shard", "message_type"},
 		"Time in millisecond to push metrics to the aggregator input buffer",
 		buckets)
 
@@ -636,7 +637,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 
 				samples = samples[0:0]
 
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, s.originTelemetry)
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ListenerID, s.originTelemetry)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
@@ -711,7 +712,7 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
-func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, originTelemetry bool) ([]metrics.MetricSample, error) {
+func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, listenerID string, originTelemetry bool) ([]metrics.MetricSample, error) {
 	okCnt := tlmProcessedOk
 	errorCnt := tlmProcessedError
 	if origin != "" && originTelemetry {
@@ -734,7 +735,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		}
 	}
 
-	metricSamples = enrichMetricSample(metricSamples, sample, origin, s.enrichConfig)
+	metricSamples = enrichMetricSample(metricSamples, sample, origin, listenerID, s.enrichConfig)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)
