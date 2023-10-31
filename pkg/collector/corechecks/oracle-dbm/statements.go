@@ -74,7 +74,6 @@ type StatementMetricsDB struct {
 	StatementMetricsKeyDB
 	SQLText       string `db:"SQL_TEXT"`
 	SQLTextLength int16  `db:"SQL_TEXT_LENGTH"`
-	//SQLID         string `db:"SQL_ID"`
 	StatementMetricsMonotonicCountDB
 	StatementMetricsGaugeDB
 }
