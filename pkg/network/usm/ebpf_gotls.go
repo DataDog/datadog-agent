@@ -259,18 +259,18 @@ func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	return nil
 }
 
-func (p *goTLSProgram) PostStart(m *manager.Manager) error {
+func (p *goTLSProgram) PostStart(_ *manager.Manager) error {
 	return nil
 }
 
-func (p *goTLSProgram) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {}
+func (p *goTLSProgram) DumpMaps(_ *strings.Builder, _ string, _ *ebpf.Map) {}
 
 func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }
 
 // Stop terminates goTLS main goroutine.
-func (p *goTLSProgram) Stop(*manager.Manager) {
+func (p *goTLSProgram) Stop(_ *manager.Manager) {
 	close(p.done)
 	// Waiting for the main event loop to finish.
 	p.wg.Wait()
