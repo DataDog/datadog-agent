@@ -8,44 +8,34 @@
 package autoscalers
 
 import (
-	"strconv"
 	"sync"
 	"time"
-
-	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 )
 
-type minRemainingRequests struct {
+type minTracker struct {
 	sync.Mutex
 	val            int
 	timestamp      time.Time
 	expiryDuration time.Duration
 }
 
-func newMinRemainingRequests(expiryDuration time.Duration) minRemainingRequests {
-	return minRemainingRequests{
+func newMinTracker(expiryDuration time.Duration) *minTracker {
+	return &minTracker{
 		val:            -1,
 		timestamp:      time.Now(),
 		expiryDuration: expiryDuration,
 	}
 }
 
-func (mrr *minRemainingRequests) update(newVal string) {
-	mrr.Lock()
-	defer mrr.Unlock()
+func (mt *minTracker) update(newVal int) {
+	mt.Lock()
+	defer mt.Unlock()
 
-	newValFloat, err := strconv.Atoi(newVal)
+	isSet := mt.val >= 0
+	hasExpired := time.Since(mt.timestamp) > mt.expiryDuration
 
-	if err != nil {
-		return
-	}
-
-	isSet := mrr.val >= 0
-	hasExpired := time.Since(mrr.timestamp) > mrr.expiryDuration
-
-	if mrr.val >= newValFloat || !isSet || hasExpired {
-		mrr.val = newValFloat
-		mrr.timestamp = time.Now()
-		rateLimitsRemainingMin.Set(float64(mrr.val), queryEndpoint, le.JoinLeaderValue)
+	if newVal <= mt.val || !isSet || hasExpired {
+		mt.val = newVal
+		mt.timestamp = time.Now()
 	}
 }

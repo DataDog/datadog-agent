@@ -13,6 +13,7 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
@@ -66,10 +67,19 @@ const (
 )
 
 var (
-	refreshPeriod  = config.Datadog.GetInt("external_metrics_provider.refresh_period")
-	expiryDuration = 2 * refreshPeriod
-	mrr            = newMinRemainingRequests(time.Duration(time.Duration(expiryDuration) * time.Second))
+	minRemainingRequestsTracker *minTracker
+	once                        sync.Once
 )
+
+func getMinRemainingRequestsTracker() *minTracker {
+	once.Do(func() {
+		refreshPeriod := config.Datadog.GetInt("external_metrics_provider.refresh_period")
+		expiryDuration := 2 * refreshPeriod
+		minRemainingRequestsTracker = newMinTracker(time.Duration(time.Duration(expiryDuration) * time.Second))
+	})
+
+	return minRemainingRequestsTracker
+}
 
 // isRateLimitError is a helper function that checks if the received error is a rate limit error
 func isRateLimitError(err error) bool {
@@ -184,7 +194,11 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 	// Update rateLimitsRemainingMin metric
 	updateMap := p.datadogClient.GetRateLimitStats()
 	queryLimits := updateMap[queryEndpoint]
-	mrr.update(queryLimits.Remaining)
+	newVal, err := strconv.Atoi(queryLimits.Remaining)
+	if err == nil {
+		getMinRemainingRequestsTracker().update(newVal)
+		rateLimitsRemainingMin.Set(float64(minRemainingRequestsTracker.val), queryEndpoint, le.JoinLeaderLabel)
+	}
 
 	return processedMetrics, nil
 }
