@@ -10,22 +10,17 @@ package apmetwtracerimpl
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/apm/etwtracer"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/etw"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/Microsoft/go-winio"
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
 	"io"
 	"net"
-	"unsafe"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
-
-const (
-	namedPipePath = "\\\\.\\pipe\\DD_ETW_DISPATCHER"
 )
 
 // Module defines the fx options for this component.
@@ -68,28 +63,97 @@ type apmetwtracerimpl struct {
 }
 
 type header struct {
-	magic           []byte
-	size            uint16
-	commandResponse uint8
+	Magic           [14]byte
+	Size            uint16
+	CommandResponse uint8
+}
+
+const (
+	namedPipePath = "\\\\.\\pipe\\DD_ETW_DISPATCHER"
+	bufSize       = 25
+	Register      = 1
+	Unregister    = 2
+	ClrEvent      = 16
+)
+
+type win32MessageBytePipe interface {
+	CloseWrite() error
 }
 
 func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
-	defer c.Close()
-	a.log.Debugf("client connected [%s]", c.RemoteAddr().Network())
+	// calls https://github.com/microsoft/go-winio/blob/e6aebd619a7278545b11188a0e21babea6b94182/pipe.go#L147
+	// which closes a pipe in message-mode
+	defer c.(win32MessageBytePipe).CloseWrite()
 
-	buf := make([]byte, 512)
+	a.log.Debugf("client connected [%s]\n", c.RemoteAddr().Network())
 	for {
-		n, err := c.Read(buf)
+		h := header{}
+		err := binary.Read(c, binary.LittleEndian, &h)
+
+		// Client disconnected
+		if err == io.EOF {
+			return
+		}
+
 		if err != nil {
-			if err != io.EOF {
-				a.log.Debugf("read error: %v\n", err)
+			a.log.Errorf("Read error: %v\n", err)
+			return
+		}
+
+		magicStr := string(h.Magic[:13]) // Don't count last byte
+		if magicStr != "DD_ETW_IPC_V1" {
+			a.log.Errorf("Invalid header: %s\n", magicStr)
+			return
+		}
+
+		// Read pid
+		var pid uint64
+		err = binary.Read(c, binary.LittleEndian, &pid)
+
+		// Client disconnected
+		if err == io.EOF {
+			return
+		}
+
+		if err != nil {
+			a.log.Errorf("Read error: %v\n", err)
+			return
+		}
+
+		switch h.CommandResponse {
+		case Register:
+			a.log.Debugf("Registering process with ID %d\n", pid)
+			err = a.AddPID(pid)
+			if err != nil {
+				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v\n", pid, err)
+				return
+			}
+			break
+		case Unregister:
+			a.log.Debugf("Unregistering process with ID %d\n", pid)
+			err = a.RemovePID(pid)
+			if err != nil {
+				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v\n", pid, err)
+				return
 			}
 			break
 		}
-		p := (*header)(unsafe.Pointer(unsafe.SliceData(buf[:n])))
-		a.log.Debugf("received message: %s with magic %s", p.commandResponse, string(p.magic))
+
+		h.CommandResponse = 0 // ok
+		h.Size = 17           // header = 17
+
+		err = binary.Write(c, binary.LittleEndian, &h)
+
+		// Client disconnected
+		if err == io.EOF {
+			return
+		}
+
+		if err != nil {
+			a.log.Errorf("Read error: %v\n", err)
+			return
+		}
 	}
-	a.log.Debugf("Client disconnected")
 }
 
 func (a *apmetwtracerimpl) start(_ context.Context) error {
@@ -114,7 +178,14 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 		}
 	}()
 
-	return a.reconfigureProvider()
+	err = a.reconfigureProvider()
+	if err != nil {
+		return err
+	}
+
+	return a.session.StartTracing(func(e *etw.DDEtwEvent) {
+		a.log.Infof("received event %d from %v\n", e.Id, e.ProviderId)
+	})
 }
 
 func (a *apmetwtracerimpl) stop(_ context.Context) error {
@@ -124,14 +195,14 @@ func (a *apmetwtracerimpl) stop(_ context.Context) error {
 	return nil
 }
 
-func (a *apmetwtracerimpl) AddPID(pid uint64) {
+func (a *apmetwtracerimpl) AddPID(pid uint64) error {
 	a.pids[pid] = struct{}{}
-	a.reconfigureProvider()
+	return a.reconfigureProvider()
 }
 
-func (a *apmetwtracerimpl) RemovePID(pid uint64) {
+func (a *apmetwtracerimpl) RemovePID(pid uint64) error {
 	delete(a.pids, pid)
-	a.reconfigureProvider()
+	return a.reconfigureProvider()
 }
 
 func (a *apmetwtracerimpl) reconfigureProvider() error {

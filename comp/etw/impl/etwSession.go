@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	"golang.org/x/sys/windows"
+	"runtime/cgo"
 	"unsafe"
 )
 
@@ -25,6 +26,7 @@ type etwSession struct {
 	hSession      C.TRACEHANDLE
 	propertiesBuf []byte
 	providers     map[windows.GUID]etw.ProviderConfiguration
+	utf16name     []uint16
 }
 
 func (e *etwSession) ConfigureProvider(providerGUID windows.GUID, configurations ...etw.ProviderConfigurationFunc) error {
@@ -33,24 +35,139 @@ func (e *etwSession) ConfigureProvider(providerGUID windows.GUID, configurations
 		configuration(&cfg)
 	}
 	e.providers[providerGUID] = cfg
+	return e.enableProvider(providerGUID)
+}
+
+func (e *etwSession) enableProvider(providerGUID windows.GUID) error {
+	cfg := e.providers[providerGUID]
+	params := C.ENABLE_TRACE_PARAMETERS{
+		Version: 2, // ENABLE_TRACE_PARAMETERS_VERSION_2
+	}
+
+	ret := windows.Errno(C.EnableTraceEx2(
+		e.hSession,
+		(*C.GUID)(unsafe.Pointer(&providerGUID)),
+		C.EVENT_CONTROL_CODE_ENABLE_PROVIDER,
+		C.UCHAR(cfg.TraceLevel),
+		C.ULONGLONG(cfg.MatchAnyKeyword),
+		C.ULONGLONG(cfg.MatchAllKeyword),
+		0,
+		&params,
+	))
+
+	if ret != windows.ERROR_SUCCESS {
+		return fmt.Errorf("failed to enable tracing for provider %v: %v", providerGUID, ret)
+	}
 	return nil
 }
 
-func (e *etwSession) StartTracing(providerGUID windows.GUID, callback etw.EventCallback) error {
-	return nil
+func (e *etwSession) disableProvider(providerGUID windows.GUID) error {
+	ret := windows.Errno(C.EnableTraceEx2(
+		e.hSession,
+		(*C.GUID)(unsafe.Pointer(&providerGUID)),
+		C.EVENT_CONTROL_CODE_DISABLE_PROVIDER,
+		0,
+		0,
+		0,
+		0,
+		nil))
+
+	if ret == windows.ERROR_MORE_DATA ||
+		ret == windows.ERROR_NOT_FOUND {
+		return nil
+	} else {
+		return ret
+	}
 }
 
-func (e *etwSession) StopTracing() error {
-	return nil
+//export etwCallbackC
+func etwCallbackC(eventRecord C.PEVENT_RECORD) {
+	handle := cgo.Handle(eventRecord.UserContext)
+	eventInfo := (*etw.DDEtwEvent)(unsafe.Pointer(&eventRecord))
+	handle.Value().(etw.EventCallback)(eventInfo)
 }
 
-func CreateEtwSession(name string) (etw.Session, error) {
+func (e *etwSession) StartTracing(callback etw.EventCallback) error {
+	handle := cgo.NewHandle(callback)
+	defer handle.Delete()
+	traceHandle := C.StartTracing(
+		(C.LPWSTR)(unsafe.Pointer(&e.utf16name[0])),
+		(C.uintptr_t)(handle),
+	)
+	if traceHandle == C.INVALID_PROCESSTRACE_HANDLE {
+		return fmt.Errorf("failed to start tracing: %v", windows.GetLastError())
+	}
+
+	ret := windows.Errno(C.ProcessTrace(
+		C.PTRACEHANDLE(&traceHandle),
+		1,
+		nil,
+		nil,
+	))
+	if ret == windows.ERROR_SUCCESS || ret == windows.ERROR_CANCELLED {
+		return nil
+	}
+	return ret
+}
+
+func (e *etwSession) StopTracing() {
+	for guid, _ := range e.providers {
+		err := e.disableProvider(guid)
+		if err != nil {
+			// TODO: log error
+		}
+	}
+
+	ret := windows.Errno(C.ControlTraceW(
+		e.hSession,
+		nil,
+		(C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&e.propertiesBuf[0])),
+		C.EVENT_TRACE_CONTROL_STOP))
+	if !(ret == windows.ERROR_MORE_DATA ||
+		ret == windows.ERROR_SUCCESS) {
+		// TODO: log error
+	}
+}
+
+// DeleteEtwSession deletes an ETW session by name, typically after a crash since we don't have access to the session
+// handle anymore.
+func DeleteEtwSession(name string) error {
+	utf16SessionName, err := windows.UTF16FromString(name)
+	if err != nil {
+		return fmt.Errorf("incorrect session name; %w", err)
+	}
+	sessionNameLength := len(utf16SessionName) * int(unsafe.Sizeof(utf16SessionName[0]))
+
+	const maxLengthLogfileName = 1024
+	bufSize := int(unsafe.Sizeof(C.EVENT_TRACE_PROPERTIES{})) + sessionNameLength + maxLengthLogfileName
+	propertiesBuf := make([]byte, bufSize)
+	pProperties := (C.PEVENT_TRACE_PROPERTIES)(unsafe.Pointer(&propertiesBuf[0]))
+	pProperties.Wnode.BufferSize = C.ulong(bufSize)
+
+	ret := windows.Errno(C.ControlTraceW(
+		0,
+		(*C.ushort)(unsafe.Pointer(&utf16SessionName[0])),
+		pProperties,
+		C.EVENT_TRACE_CONTROL_STOP))
+
+	if ret == windows.ERROR_MORE_DATA ||
+		ret == windows.ERROR_SUCCESS {
+		return nil
+	} else {
+		return ret
+	}
+}
+
+func CreateEtwSession(name string) (*etwSession, error) {
+	DeleteEtwSession(name)
+
+	utf16SessionName, err := windows.UTF16FromString(name)
 	s := &etwSession{
 		Name:      name,
+		utf16name: utf16SessionName,
 		providers: make(map[windows.GUID]etw.ProviderConfiguration),
 	}
 
-	utf16SessionName, err := windows.UTF16FromString(name)
 	if err != nil {
 		return nil, fmt.Errorf("incorrect session name; %w", err)
 	}
@@ -65,18 +182,21 @@ func CreateEtwSession(name string) (etw.Session, error) {
 
 	pProperties.LogFileMode = C.EVENT_TRACE_REAL_TIME_MODE
 
-	ret := C.StartTraceW(
+	ret := windows.Errno(C.StartTraceW(
 		&s.hSession,
 		C.LPWSTR(unsafe.Pointer(&utf16SessionName[0])),
 		pProperties,
-	)
-	switch err := windows.Errno(ret); err {
-	case windows.ERROR_ALREADY_EXISTS:
+	))
+
+	// Should never happen given we start by deleting any session with the same name
+	if ret == windows.ERROR_ALREADY_EXISTS {
 		return nil, fmt.Errorf("session %s already exists; %w", s.Name, err)
-	case windows.ERROR_SUCCESS:
+	}
+
+	if ret == windows.ERROR_SUCCESS {
 		s.propertiesBuf = propertiesBuf
 		return s, nil
-	default:
-		return nil, fmt.Errorf("StartTraceW failed; %w", err)
 	}
+
+	return nil, fmt.Errorf("StartTraceW failed; %w", err)
 }

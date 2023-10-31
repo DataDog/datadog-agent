@@ -32,7 +32,7 @@ func newEtw(deps dependencies) (etw.Component, error) {
 }
 
 type etwImpl struct {
-	sessions []etw.Session
+	sessions []*etwSession
 }
 
 func (s *etwImpl) NewSession(sessionName string) (etw.Session, error) {
@@ -52,6 +52,7 @@ func (s *etwImpl) start(_ context.Context) error {
 func (s *etwImpl) stop(_ context.Context) error {
 	for _, session := range s.sessions {
 		session.StopTracing()
+		DeleteEtwSession(session.Name)
 	}
 	return nil
 }
