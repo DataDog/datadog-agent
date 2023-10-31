@@ -10,6 +10,7 @@ environment:
   DD_SYSTEM_PROBE_PROCESS_ENABLED: true
 
 profiling_environment:
+  DD_PROCESS_CONFIG_INTERNAL_PROFILING_ENABLED: true
   DD_INTERNAL_PROFILING_ENABLED: true
   DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:process_agent_standard_check_with_stats
   DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
