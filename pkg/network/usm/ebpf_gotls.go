@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -28,11 +29,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/go/bininspect"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -100,12 +101,12 @@ var structFieldsLookupFunctions = map[bininspect.FieldIdentifier]bininspect.Stru
 
 type pid = uint32
 
-// GoTLSProgram contains implementation for go-TLS.
-type GoTLSProgram struct {
+// goTLSProgram contains implementation for go-TLS.
+type goTLSProgram struct {
 	wg      sync.WaitGroup
 	done    chan struct{}
 	cfg     *config.Config
-	manager *errtelemetry.Manager
+	manager *manager.Manager
 
 	// Path to the process/container's procfs
 	procRoot string
@@ -124,58 +125,82 @@ type GoTLSProgram struct {
 	registry *utils.FileRegistry
 }
 
-// Static evaluation to make sure we are not breaking the interface.
-var _ subprogram = &GoTLSProgram{}
-
-func newGoTLSProgram(c *config.Config, sockFD *ebpf.Map) *GoTLSProgram {
-	if !c.EnableGoTLSSupport {
-		return nil
-	}
-
-	if !http.HTTPSSupported(c) {
-		log.Errorf("goTLS not supported by this platform")
-		return nil
-	}
-
-	if !c.EnableRuntimeCompiler && !c.EnableCORE {
-		log.Errorf("goTLS support requires runtime-compilation or CO-RE to be enabled")
-		return nil
-	}
-
-	return &GoTLSProgram{
-		done:              make(chan struct{}),
-		cfg:               c,
-		procRoot:          c.ProcRoot,
-		sockFDMap:         sockFD,
-		binAnalysisMetric: libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
-		registry:          utils.NewFileRegistry("go-tls"),
-	}
-}
-
-// Name return the program's name.
-func (p *GoTLSProgram) Name() string {
-	return "go-tls"
-}
-
-// IsBuildModeSupported return true if the build mode is supported.
-func (*GoTLSProgram) IsBuildModeSupported(mode buildmode.Type) bool {
-	return mode == buildmode.CORE || mode == buildmode.RuntimeCompiled
-}
-
-// ConfigureManager adds maps to the given manager.
-func (p *GoTLSProgram) ConfigureManager(m *errtelemetry.Manager) {
-	p.manager = m
-	p.manager.Maps = append(p.manager.Maps, []*manager.Map{
+var goTLSSpec = &protocols.ProtocolSpec{
+	Maps: []*manager.Map{
 		{Name: offsetsDataMap},
 		{Name: goTLSReadArgsMap},
 		{Name: goTLSWriteArgsMap},
 		{Name: connectionTupleByGoTLSMap},
-	}...)
-	// Hooks will be added in runtime for each binary
+	},
+	Probes: []*manager.Probe{
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: connReadProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: connReadRetProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: connWriteProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: connWriteRetProbe,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: connCloseProbe,
+			},
+		},
+	},
+}
+
+func newGoTLSProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map) protocols.ProtocolFactory {
+	return func(c *config.Config) (protocols.Protocol, error) {
+		if !c.EnableGoTLSSupport {
+			return nil, nil
+		}
+
+		if !http.HTTPSSupported(c) {
+			log.Errorf("goTLS not supported by this platform")
+			return nil, nil
+		}
+
+		if !c.EnableRuntimeCompiler && !c.EnableCORE {
+			log.Errorf("goTLS support requires runtime-compilation or CO-RE to be enabled")
+			return nil, nil
+		}
+
+		return &goTLSProgram{
+			done:              make(chan struct{}),
+			cfg:               c,
+			manager:           m,
+			procRoot:          c.ProcRoot,
+			sockFDMap:         sockFDMap,
+			binAnalysisMetric: libtelemetry.NewCounter("usm.go_tls.analysis_time", libtelemetry.OptPrometheus),
+			registry:          utils.NewFileRegistry("go-tls"),
+		}, nil
+	}
+}
+
+// Name return the program's name.
+func (p *goTLSProgram) Name() string {
+	return "go-tls"
+}
+
+// IsBuildModeSupported return true if the build mode is supported.
+func (*goTLSProgram) IsBuildModeSupported(mode buildmode.Type) bool {
+	return mode == buildmode.CORE || mode == buildmode.RuntimeCompiled
 }
 
 // ConfigureOptions changes map attributes to the given options.
-func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
+func (p *goTLSProgram) ConfigureOptions(m *manager.Manager, options *manager.Options) {
 	options.MapSpecEditors[connectionTupleByGoTLSMap] = manager.MapSpecEditor{
 		MaxEntries: p.cfg.MaxTrackedConnections,
 		EditorFlag: manager.EditMaxEntries,
@@ -192,33 +217,13 @@ func (p *GoTLSProgram) ConfigureOptions(options *manager.Options) {
 	options.MapEditors[probes.SockByPidFDMap] = p.sockFDMap
 }
 
-// GetAllUndefinedProbes returns a list of the program's probes.
-func (*GoTLSProgram) GetAllUndefinedProbes() []manager.ProbeIdentificationPair {
-	probeList := make([]manager.ProbeIdentificationPair, 0)
-	for _, probeInfo := range functionToProbes {
-		if probeInfo.functionInfo != "" {
-			probeList = append(probeList, manager.ProbeIdentificationPair{
-				EBPFFuncName: probeInfo.functionInfo,
-			})
-		}
-
-		if probeInfo.returnInfo != "" {
-			probeList = append(probeList, manager.ProbeIdentificationPair{
-				EBPFFuncName: probeInfo.returnInfo,
-			})
-		}
-	}
-
-	return probeList
-}
-
 // Start launches the goTLS main goroutine to handle events.
-func (p *GoTLSProgram) Start() {
+func (p *goTLSProgram) PreStart(m *manager.Manager) error {
 	var err error
-	p.offsetsDataMap, _, err = p.manager.GetMap(offsetsDataMap)
+
+	p.offsetsDataMap, _, err = m.GetMap(offsetsDataMap)
 	if err != nil {
-		log.Errorf("could not get offsets_data map: %s", err)
-		return
+		return fmt.Errorf("could not get offsets_data map: %s", err)
 	}
 
 	procMonitor := monitor.GetProcessMonitor()
@@ -251,10 +256,22 @@ func (p *GoTLSProgram) Start() {
 			}
 		}
 	}()
+
+	return nil
+}
+
+func (p *goTLSProgram) PostStart(m *manager.Manager) error {
+	return nil
+}
+
+func (p *goTLSProgram) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {}
+
+func (p *goTLSProgram) GetStats() *protocols.ProtocolStats {
+	return nil
 }
 
 // Stop terminates goTLS main goroutine.
-func (p *GoTLSProgram) Stop() {
+func (p *goTLSProgram) Stop(*manager.Manager) {
 	close(p.done)
 	// Waiting for the main event loop to finish.
 	p.wg.Wait()
@@ -264,7 +281,7 @@ var (
 	internalProcessRegex = regexp.MustCompile("datadog-agent/.*/((process|security|trace)-agent|system-probe|agent)")
 )
 
-func registerCBCreator(mgr *errtelemetry.Manager, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric *libtelemetry.Counter) func(path utils.FilePath) error {
+func registerCBCreator(mgr *manager.Manager, offsetsDataMap *ebpf.Map, probeIDs *[]manager.ProbeIdentificationPair, binAnalysisMetric *libtelemetry.Counter) func(path utils.FilePath) error {
 	return func(filePath utils.FilePath) error {
 		start := time.Now()
 
@@ -303,7 +320,7 @@ func registerCBCreator(mgr *errtelemetry.Manager, offsetsDataMap *ebpf.Map, prob
 	}
 }
 
-func (p *GoTLSProgram) handleProcessStart(pid pid) {
+func (p *goTLSProgram) handleProcessStart(pid pid) {
 	pidAsStr := strconv.FormatUint(uint64(pid), 10)
 	exePath := filepath.Join(p.procRoot, pidAsStr, "exe")
 
@@ -369,7 +386,7 @@ func removeInspectionResultFromMap(offsetsDataMap *ebpf.Map, binID utils.PathIde
 	}
 }
 
-func attachHooks(mgr *errtelemetry.Manager, result *bininspect.Result, binPath string, binID utils.PathIdentifier) ([]manager.ProbeIdentificationPair, error) {
+func attachHooks(mgr *manager.Manager, result *bininspect.Result, binPath string, binID utils.PathIdentifier) ([]manager.ProbeIdentificationPair, error) {
 	uid := getUID(binID)
 	probeIDs := make([]manager.ProbeIdentificationPair, 0)
 
@@ -420,7 +437,7 @@ func attachHooks(mgr *errtelemetry.Manager, result *bininspect.Result, binPath s
 	return probeIDs, nil
 }
 
-func unregisterCBCreator(mgr *errtelemetry.Manager, probeIDs *[]manager.ProbeIdentificationPair, offsetsDataMap *ebpf.Map) func(path utils.FilePath) error {
+func unregisterCBCreator(mgr *manager.Manager, probeIDs *[]manager.ProbeIdentificationPair, offsetsDataMap *ebpf.Map) func(path utils.FilePath) error {
 	return func(path utils.FilePath) error {
 		if len(*probeIDs) == 0 {
 			return nil
