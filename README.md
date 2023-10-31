@@ -111,10 +111,10 @@ The file `bin/agent/dist/datadog.yaml` is copied from `dev/dist/datadog.yaml` by
 
 ### Run a JMX check
 In order to run a JMX based check locally, you must have:
-1) A copy of a JMXFetch `jar` copied to `dev/dist/jmx/jmxfetch.jar`
-2) `java` available on your `$PATH`
+1. A copy of a JMXFetch `jar` copied to `dev/dist/jmx/jmxfetch.jar`
+2. `java` available on your `$PATH`
 
-For detailed instructions, check [here](./docs/dev/checks/jmxfetch.md)
+For detailed instructions, see [JMX checks](./docs/dev/checks/jmxfetch.md)
 
 ## Contributing code
 
