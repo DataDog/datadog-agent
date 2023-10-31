@@ -59,7 +59,7 @@ func StartServer(w workloadmeta.Component, senderManager sender.DiagnoseSenderMa
 	v1.InstallMetadataEndpoints(apiRouter, w)
 
 	// API V1 Language Detection APIs
-	v1.InstallLanguageDetectionEndpoints(apiRouter)
+	v1.InstallLanguageDetectionEndpoints(apiRouter, w)
 
 	// Validate token for every request
 	router.Use(validateToken)
