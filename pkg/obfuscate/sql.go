@@ -433,9 +433,9 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 	obfuscator := sqllexer.NewObfuscator(
 		sqllexer.WithReplaceDigits(opts.ReplaceDigits),
 		sqllexer.WithDollarQuotedFunc(opts.DollarQuotedFunc),
-		sqllexer.WithReplacePositionalParameter(true),
-		sqllexer.WithReplaceBoolean(true),
-		sqllexer.WithReplaceNull(true),
+		sqllexer.WithReplacePositionalParameter(!opts.KeepPositionalParameter),
+		sqllexer.WithReplaceBoolean(!opts.KeepBoolean),
+		sqllexer.WithReplaceNull(!opts.KeepNull),
 	)
 	if opts.ObfuscationMode == ObfuscateOnly {
 		// Obfuscate the query without normalizing it.
@@ -457,6 +457,7 @@ func (o *Obfuscator) ObfuscateWithSQLLexer(in string, opts *SQLConfig) (*Obfusca
 		sqllexer.WithCollectTables(opts.TableNames),
 		sqllexer.WithCollectProcedures(opts.CollectProcedures),
 		sqllexer.WithKeepSQLAlias(opts.KeepSQLAlias),
+		sqllexer.WithRemoveSpaceBetweenParentheses(opts.RemoveSpaceBetweenParentheses),
 	)
 	out, statementMetadata, err := sqllexer.ObfuscateAndNormalize(
 		in,

@@ -42,8 +42,22 @@ package 'java' do
   case node[:platform]
   when 'redhat', 'centos', 'fedora', 'amazon'
     package_name 'java'
-  when 'ubuntu', 'debian'
+  when 'ubuntu'
     package_name 'default-jre'
+  when 'debian'
+    package_name 'default-jre'
+    # ignore failure because of error about /etc/ssl/certs/java/cacerts
+    ignore_failure true
+  end
+end
+
+# do install a second time to fix debian error
+package 'ca-certificates-java' do
+  case node[:platform]
+  when 'debian'
+    action :install
+  else
+    action :nothing
   end
 end
 

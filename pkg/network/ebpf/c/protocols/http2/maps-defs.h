@@ -29,6 +29,9 @@ BPF_LRU_MAP(http2_iterations, dispatcher_arguments_t, http2_tail_call_state_t, 0
 /* Allocating an array of headers, to hold all interesting headers from the frame. */
 BPF_PERCPU_ARRAY_MAP(http2_headers_to_process, __u32, http2_header_t[HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING], 1)
 
+/* Allocating an array of frame, to hold all interesting frames from the packet. */
+BPF_PERCPU_ARRAY_MAP(http2_frames_to_process, __u32, http2_tail_call_state_t, 1)
+
 /* Allocating a stream on the heap, the stream is used to save the current stream info. */
 BPF_PERCPU_ARRAY_MAP(http2_stream_heap, __u32, http2_stream_t, 1)
 
