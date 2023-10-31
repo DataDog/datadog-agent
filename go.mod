@@ -85,7 +85,7 @@ require (
 	// do not update datadog-operator to 1.2.1 because the indirect dependency github.com/DataDog/datadog-api-client-go/v2 v2.15.0 is trigger a huge Go heap memory increase.
 	github.com/DataDog/datadog-operator v1.1.0
 	github.com/DataDog/ebpf-manager v0.3.6
-	github.com/DataDog/go-libddwaf v1.5.0
+	github.com/DataDog/go-libddwaf v1.6.0
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.1
@@ -643,7 +643,7 @@ require (
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
-	github.com/ebitengine/purego v0.5.0-alpha.1 // indirect
+	github.com/ebitengine/purego v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
