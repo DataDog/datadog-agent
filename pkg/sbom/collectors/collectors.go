@@ -41,8 +41,6 @@ type Collector interface {
 	Scan(context.Context, sbom.ScanRequest) sbom.ScanResult
 	// Channel returns the channel to send scan results
 	Channel() chan sbom.ScanResult
-	// Options returns the collector options
-	Options() sbom.ScanOptions
 	// Shutdown shuts down the collector
 	Shutdown()
 }

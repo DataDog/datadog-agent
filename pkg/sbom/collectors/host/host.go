@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/trivy"
 )
@@ -29,6 +28,7 @@ const channelSize = 1
 // hashable to be pushed in the work queue for processing.
 type ScanRequest struct {
 	Path string
+	Opts *sbom.ScanOptions
 }
 
 // Collector returns the collector name
@@ -46,11 +46,18 @@ func (r ScanRequest) ID() string {
 	return r.Path
 }
 
+// Options returns the request scan options
+func (r ScanRequest) Options() sbom.ScanOptions {
+	if r.Opts != nil {
+		return *r.Opts
+	}
+	return sbom.ScanOptionsFromConfig(config.Datadog, false)
+}
+
 // Collector defines a host collector
 type Collector struct {
 	trivyCollector *trivy.Collector
 	resChan        chan sbom.ScanResult
-	opts           sbom.ScanOptions
 
 	closed bool
 }
@@ -67,11 +74,6 @@ func (c *Collector) Init(cfg config.Config) error {
 		return err
 	}
 	c.trivyCollector = trivyCollector
-	if flavor.GetFlavor() == flavor.SecurityAgent {
-		c.opts = sbom.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: true}
-	} else {
-		c.opts = sbom.ScanOptionsFromConfig(config.Datadog, false)
-	}
 	return nil
 }
 
@@ -83,7 +85,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 	}
 	log.Infof("host scan request [%v]", hostScanRequest.ID())
 
-	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.Path, c.opts)
+	report, err := c.trivyCollector.ScanFilesystem(ctx, hostScanRequest.Path, request.Options())
 	return sbom.ScanResult{
 		Error:  err,
 		Report: report,
@@ -98,11 +100,6 @@ func (c *Collector) Type() collectors.ScanType {
 // Channel returns the channel to send scan results
 func (c *Collector) Channel() chan sbom.ScanResult {
 	return c.resChan
-}
-
-// Options returns the collector options
-func (c *Collector) Options() sbom.ScanOptions {
-	return c.opts
 }
 
 // Shutdown shuts down the collector

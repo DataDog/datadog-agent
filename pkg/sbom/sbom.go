@@ -60,6 +60,7 @@ type ScanRequest interface {
 	Collector() string
 	Type() string
 	ID() string
+	Options() ScanOptions
 }
 
 // ScanResult defines the scan result

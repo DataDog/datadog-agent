@@ -47,11 +47,15 @@ func (r ScanRequest) ID() string {
 	return r.ImageID
 }
 
+// Options returns the request scan options
+func (r ScanRequest) Options() sbom.ScanOptions {
+	return sbom.ScanOptionsFromConfig(config.Datadog, true)
+}
+
 // Collector defines a collector
 type Collector struct {
 	trivyCollector *trivy.Collector
 	resChan        chan sbom.ScanResult
-	opts           sbom.ScanOptions
 	cl             client.ImageAPIClient
 
 	closed bool
@@ -69,7 +73,6 @@ func (c *Collector) Init(cfg config.Config) error {
 		return err
 	}
 	c.trivyCollector = trivyCollector
-	c.opts = sbom.ScanOptionsFromConfig(config.Datadog, true)
 	return nil
 }
 
@@ -102,7 +105,7 @@ func (c *Collector) Scan(ctx context.Context, request sbom.ScanRequest) sbom.Sca
 		ctx,
 		imageMeta,
 		c.cl,
-		c.opts,
+		request.Options(),
 	)
 
 	return sbom.ScanResult{
@@ -120,11 +123,6 @@ func (c *Collector) Type() collectors.ScanType {
 // Channel returns the channel to send scan results
 func (c *Collector) Channel() chan sbom.ScanResult {
 	return c.resChan
-}
-
-// Options returns the collector options
-func (c *Collector) Options() sbom.ScanOptions {
-	return c.opts
 }
 
 // Shutdown shuts down the collector

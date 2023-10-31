@@ -112,10 +112,12 @@ func (s *Scanner) start(ctx context.Context) {
 				if !ok {
 					break loop
 				}
-				telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 
-				collector := request.collector
-				if err := s.enoughDiskSpace(request.collector.Options()); err != nil {
+				requestCollector := request.Collector()
+				requestType := request.Type()
+				telemetry.SBOMAttempts.Inc(requestCollector, requestType)
+
+				if err := s.enoughDiskSpace(request.Options()); err != nil {
 					var imgMeta *workloadmeta.ContainerImageMetadata
 					if store := workloadmeta.GetGlobalStore(); store != nil {
 						img, err := store.GetImage(request.ID())
@@ -129,30 +131,32 @@ func (s *Scanner) start(ctx context.Context) {
 						Error:   fmt.Errorf("failed to check current disk usage: %w", err),
 					}
 					request.sendResult(&result)
-					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "disk_space")
+					telemetry.SBOMFailures.Inc(requestCollector, requestType, "disk_space")
 					continue
 				}
 
-				scanTimeout := request.collector.Options().Timeout
+				scanTimeout := request.Options().Timeout
 				if scanTimeout == 0 {
 					scanTimeout = defaultScanTimeout
 				}
 
 				scanContext, cancel := context.WithTimeout(ctx, scanTimeout)
 				createdAt := time.Now()
-				scanResult := collector.Scan(scanContext, request.ScanRequest)
+				scanResult := request.collector.Scan(scanContext, request.ScanRequest)
 				generationDuration := time.Since(createdAt)
 				scanResult.CreatedAt = createdAt
 				scanResult.Duration = generationDuration
+
 				if scanResult.Error != nil {
-					telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "scan")
+					telemetry.SBOMFailures.Inc(requestCollector, requestType, "scan")
 				} else {
-					telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), request.Collector(), request.Type())
+					telemetry.SBOMGenerationDuration.Observe(generationDuration.Seconds(), requestCollector, requestType)
 				}
+
 				cancel()
 				request.sendResult(&scanResult)
-				if request.collector.Options().WaitAfter != 0 {
-					t := time.NewTimer(request.collector.Options().WaitAfter)
+				if request.Options().WaitAfter != 0 {
+					t := time.NewTimer(request.Options().WaitAfter)
 					select {
 					case <-ctx.Done():
 					case <-t.C:

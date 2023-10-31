@@ -26,6 +26,7 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
@@ -212,39 +213,39 @@ func (r *Resolver) Start(ctx context.Context) {
 }
 
 // generateSBOM calls Trivy to generate the SBOM of a sbom
-func (r *Resolver) generateSBOM(root string, sbom *SBOM) error {
+func (r *Resolver) generateSBOM(root string) (*trivy.Report, error) {
 	seclog.Infof("Generating SBOM for %s", root)
 	r.sbomGenerations.Inc()
 
-	scanRequest := host.ScanRequest{Path: root}
+	scanOpts := sbom.ScanOptions{Analyzers: []string{trivy.OSAnalyzers}, Fast: true}
+	scanRequest := host.ScanRequest{Path: root, Opts: &scanOpts}
 	ch := collectors.GetHostScanner().Channel()
 	if ch == nil {
-		return fmt.Errorf("couldn't retrieve global host scanner result channel")
+		return nil, fmt.Errorf("couldn't retrieve global host scanner result channel")
 	}
 	if err := r.sbomScanner.Scan(scanRequest); err != nil {
 		r.failedSBOMGenerations.Inc()
-		return fmt.Errorf("failed to trigger SBOM generation for %s: %w", root, err)
+		return nil, fmt.Errorf("failed to trigger SBOM generation for %s: %w", root, err)
 	}
 
 	result, more := <-ch
 	if !more {
-		return fmt.Errorf("failed to generate SBOM for %s: result channel is closed", root)
+		return nil, fmt.Errorf("failed to generate SBOM for %s: result channel is closed", root)
 	}
 
 	if result.Error != nil {
 		// TODO: add a retry mechanism for retryable errors
-		return fmt.Errorf("failed to generate SBOM for %s: %w", root, result.Error)
+		return nil, fmt.Errorf("failed to generate SBOM for %s: %w", root, result.Error)
 	}
 
 	seclog.Infof("SBOM successfully generated from %s", root)
 
 	trivyReport, ok := result.Report.(*trivy.Report)
 	if !ok {
-		return fmt.Errorf("failed to convert report for %s", root)
+		return nil, fmt.Errorf("failed to convert report for %s", root)
 	}
-	sbom.report = trivyReport
 
-	return nil
+	return trivyReport, nil
 }
 
 // analyzeWorkload generates the SBOM of the provided sbom and send it to the security agent
@@ -297,7 +298,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 			}
 		}
 
-		lastErr = r.generateSBOM(containerProcRootPath, sbom)
+		sbom.report, lastErr = r.generateSBOM(containerProcRootPath)
 		if lastErr == nil {
 			scanned = true
 			break
@@ -315,14 +316,16 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	sbom.files = make(map[uint64]*Package)
 
 	// build file cache
+	pkgCount := 0
 	for _, result := range sbom.report.Results {
+		pkgCount += len(result.Packages)
 		for _, resultPkg := range result.Packages {
 			pkg := &Package{
 				Name:       resultPkg.Name,
 				Version:    resultPkg.Version,
 				SrcVersion: resultPkg.SrcVersion,
 			}
-			for _, file := range resultPkg.SystemInstalledFiles {
+			for _, file := range resultPkg.InstalledFiles {
 				seclog.Tracef("indexing %s as %+v", file, pkg)
 				sbom.files[murmur3.StringSum64(file)] = pkg
 			}
@@ -340,7 +343,7 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 	r.sbomsCache.Add(sbom.workloadKey, sbom)
 	r.sbomsCacheLock.Unlock()
 
-	seclog.Infof("new sbom generated for '%s': %d files added", sbom.ContainerID, len(sbom.files))
+	seclog.Infof("new sbom generated for '%s': %d files added from %d packages", sbom.ContainerID, len(sbom.files), pkgCount)
 	return nil
 }
 
