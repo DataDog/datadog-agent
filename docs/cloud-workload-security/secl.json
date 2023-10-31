@@ -10294,6 +10294,21 @@
       ]
     },
     {
+      "name": "Boolean constants",
+      "link": "boolean-constants",
+      "description": "Boolean constants are the supported boolean constants.",
+      "all": [
+        {
+          "name": "true",
+          "architecture": "all"
+        },
+        {
+          "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "DNS qclasses",
       "link": "dns-qclasses",
       "description": "DNS qclasses are the supported DNS query classes.",
@@ -12736,21 +12751,6 @@
         {
           "name": "PTRACE_POKEMTETAGS",
           "architecture": "arm64"
-        }
-      ]
-    },
-    {
-      "name": "SecL constants",
-      "link": "secl-constants",
-      "description": "SecL constants are the supported generic SecL constants.",
-      "all": [
-        {
-          "name": "true",
-          "architecture": "all"
-        },
-        {
-          "name": "false",
-          "architecture": "all"
         }
       ]
     },
