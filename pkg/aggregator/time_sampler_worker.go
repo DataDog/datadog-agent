@@ -67,13 +67,16 @@ func newTimeSamplerWorker(sampler *TimeSampler, flushInterval time.Duration, buf
 // If we want to move to a design where we can flush while we are processing samples,
 // we could consider implementing double-buffering or locking for every sample reception.
 func (w *timeSamplerWorker) run() {
+	shard := w.sampler.idString
+
 	for {
+		tlmChannelSize.Set(float64(len(w.samplesChan)), shard)
 		select {
 		case <-w.stopChan:
 			return
 		case ms := <-w.samplesChan:
 			aggregatorDogstatsdMetricSample.Add(int64(len(ms)))
-			tlmProcessed.Add(float64(len(ms)), "dogstatsd_metrics")
+			tlmProcessed.Add(float64(len(ms)), shard, "dogstatsd_metrics")
 			t := timeNowNano()
 			for i := 0; i < len(ms); i++ {
 				w.sampler.sample(&ms[i], t)

@@ -24,7 +24,6 @@ build do
   env = with_standard_compiler_flags(with_embedded_path)
 
   configure_options = [
-    "--prefix=#{install_dir}/embedded",
     "--disable-static",
     "--disable-doxygen-docs",
     "--disable-ducktype-docs",

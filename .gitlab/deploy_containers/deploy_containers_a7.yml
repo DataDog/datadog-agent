@@ -1,0 +1,132 @@
+---
+# deploy containers stage
+# Contains jobs which deploy Agent 6 & 7 to staging repositories and to Dockerhub / GCR.
+
+stages:
+  - deploy_containers
+
+include:
+  - /.gitlab/docker_common/publish_job_templates.yml
+  - /.gitlab/deploy_containers/conditions.yml
+
+#
+# Image tagging & manifest publication
+#
+#
+# Agent v7
+#
+.deploy_containers-a7-base:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  dependencies: []
+  before_script:
+    - source /root/.bashrc
+    - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)"; fi
+    - export IMG_BASE_SRC="${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}"
+    - export IMG_LINUX_SOURCES="${IMG_BASE_SRC}-7${JMX}-amd64,${IMG_BASE_SRC}-7${JMX}-arm64"
+    - export IMG_WINDOWS_SOURCES="${IMG_BASE_SRC}-7${JMX}-win1809${FLAVOR}-amd64,${IMG_BASE_SRC}-7${JMX}-winltsc2022${FLAVOR}-amd64"
+    - if [[ "$FLAVOR" == "-linux" ]]; then export IMG_SOURCES="${IMG_LINUX_SOURCES}"; elif [[ "$FLAVOR" == "-servercore" ]]; then export IMG_SOURCES="${IMG_WINDOWS_SOURCES}"; else export IMG_SOURCES="${IMG_LINUX_SOURCES},${IMG_WINDOWS_SOURCES}"; fi
+    - export IMG_DESTINATIONS="${AGENT_REPOSITORY}:${VERSION}${FLAVOR}${JMX}"
+
+
+.deploy_containers-a7_external:
+  extends: .deploy_containers-a7-base
+  parallel:
+    matrix:
+      - JMX:
+          - ""
+          - "-jmx"
+        FLAVOR:
+          - ""
+          - "-servercore"
+          - "-linux"
+
+
+deploy_containers-a7:
+  extends: .deploy_containers-a7_external
+  rules:
+    !reference [.manual_on_deploy_auto_on_rc]
+
+deploy_containers-a7-rc:
+  extends: .deploy_containers-a7_external
+  rules:
+    !reference [.on_rc]
+  variables:
+    VERSION: 7-rc
+
+deploy_containers-dogstatsd:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  rules:
+    !reference [.manual_on_deploy_auto_on_rc]
+  dependencies: []
+  before_script:
+    - source /root/.bashrc
+    - export VERSION="$(inv agent.version --major-version 7 --url-safe --pipeline-id $PARENT_PIPELINE_ID)"
+    - export IMG_SOURCES="${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64"
+    - export IMG_DESTINATIONS="${DSD_REPOSITORY}:${VERSION}"
+
+deploy_containers-a7_internal:
+  extends: .deploy_containers-a7-base
+  rules:
+    !reference [.on_internal_final]
+  variables:
+    JMX: "-jmx"
+
+
+deploy_containers-a7_internal-rc:
+  extends: .deploy_containers-a7-base
+  rules:
+    !reference [.on_internal_rc]
+  variables:
+    VERSION: 7-rc
+
+
+#
+# Latest publication
+#
+
+deploy_containers_latest-a7:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  rules:
+    !reference [.on_final]
+  dependencies: []
+  parallel:
+    matrix:
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
+        IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64,%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7,${AGENT_REPOSITORY}:latest
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
+        IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64,%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-jmx,${AGENT_REPOSITORY}:latest-jmx
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7"
+        IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore,${AGENT_REPOSITORY}:latest-servercore
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
+        IMG_SOURCES: "%BASE%-win1809-servercore-amd64,%BASE%-winltsc2022-servercore-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-servercore-jmx,${AGENT_REPOSITORY}:latest-servercore-jmx
+
+
+deploy_containers_latest-a7_internal:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  rules:
+    !reference [.on_internal_final]
+  dependencies: []
+  parallel:
+    matrix:
+      - IMG_VARIABLES: "BASE=${SRC_AGENT}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-7-jmx"
+        IMG_SOURCES: "%BASE%-amd64,%BASE%-arm64,%BASE%-win1809-amd64,%BASE%-winltsc2022-amd64"
+        IMG_DESTINATIONS: ${AGENT_REPOSITORY}:7-jmx
+
+
+deploy_containers_latest-dogstatsd:
+  extends: .docker_publish_job_definition
+  stage: deploy_containers
+  rules:
+    !reference [.on_final]
+  dependencies: []
+  variables:
+    IMG_SOURCES: ${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_DSD}:v${PARENT_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
+    IMG_DESTINATIONS: ${DSD_REPOSITORY}:7,${DSD_REPOSITORY}:latest

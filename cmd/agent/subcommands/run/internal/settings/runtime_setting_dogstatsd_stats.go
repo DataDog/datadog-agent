@@ -8,18 +8,19 @@ package settings
 import (
 	"fmt"
 
-	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 )
 
 // DsdStatsRuntimeSetting wraps operations to change the collection of dogstatsd stats at runtime.
 type DsdStatsRuntimeSetting struct {
-	ServerDebug dogstatsdDebug.Component
+	ServerDebug dogstatsddebug.Component
 	source      settings.Source
 }
 
-func NewDsdStatsRuntimeSetting(serverDebug dogstatsdDebug.Component) *DsdStatsRuntimeSetting {
+// NewDsdStatsRuntimeSetting creates a new instance of DsdStatsRuntimeSetting
+func NewDsdStatsRuntimeSetting(serverDebug dogstatsddebug.Component) *DsdStatsRuntimeSetting {
 	return &DsdStatsRuntimeSetting{
 		ServerDebug: serverDebug,
 		source:      settings.SourceDefault,

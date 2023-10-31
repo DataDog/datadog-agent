@@ -70,7 +70,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		batcher := newBatcher(demux.AgentDemultiplexer)
-		parser := newParser(deps.Config, newFloat64ListPool())
+		parser := newParser(deps.Config, newFloat64ListPool(), 1)
 		packet := packets.Packet{
 			Contents: rawPacket,
 			Origin:   packets.NoOrigin,
@@ -116,13 +116,13 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 	}()
 	defer close(done)
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
 
 	b.RunParallel(func(pb *testing.PB) {
 		samplesBench = make([]metrics.MetricSample, 0, 512)
 		for pb.Next() {
-			s.parseMetricMessage(samplesBench, parser, message, "", false)
+			s.parseMetricMessage(samplesBench, parser, message, "", "", false)
 			samplesBench = samplesBench[0:0]
 		}
 	})
@@ -170,7 +170,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 	defer close(done)
 
 	batcher := newBatcher(demux.AgentDemultiplexer)
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), 1)
 
 	samples := make([]metrics.MetricSample, 0, 512)
 	for n := 0; n < b.N; n++ {
