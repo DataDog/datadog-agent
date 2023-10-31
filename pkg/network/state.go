@@ -188,6 +188,7 @@ type networkState struct {
 
 // NewState creates a new network state
 func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats int, maxDNSStats int, maxHTTPStats int, maxKafkaStats int) State {
+
 	return &networkState{
 		clients:        map[string]*client{},
 		clientExpiry:   clientExpiry,
