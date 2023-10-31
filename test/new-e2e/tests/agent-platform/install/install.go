@@ -26,7 +26,7 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 		testEnvVars = append(testEnvVars, "TESTING_APT_URL=apttesting.datad0g.com")
 		// apt testing repo
 		// TESTING_APT_REPO_VERSION="pipeline-xxxxx-ay y"
-		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="pipeline-%v-a%v %v"`, params.PipelineID, params.MajorVersion, params.MajorVersion))
+		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_APT_REPO_VERSION="pipeline-%v-a%v-%s %v"`, params.PipelineID, params.MajorVersion, params.MajorVersion, params.Arch))
 		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=yumtesting.datad0g.com")
 		// yum testing repo
 		// TESTING_YUM_VERSION_PATH="testing/pipeline-xxxxx-ay/y"
