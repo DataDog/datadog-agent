@@ -392,6 +392,8 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	if err != nil {
 		cleanup()
 	} else {
+		// Update the protocols lists to reflect the ones we actually can
+		// enable
 		e.enabledProtocols = supported
 		e.disabledProtocols = notSupported
 	}

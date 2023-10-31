@@ -168,13 +168,11 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map) pro
 		}
 
 		if !http.HTTPSSupported(c) {
-			log.Errorf("goTLS not supported by this platform")
-			return nil, nil
+			return nil, fmt.Errorf("goTLS not supported by this platform")
 		}
 
 		if !c.EnableRuntimeCompiler && !c.EnableCORE {
-			log.Errorf("goTLS support requires runtime-compilation or CO-RE to be enabled")
-			return nil, nil
+			return nil, fmt.Errorf("goTLS support requires runtime-compilation or CO-RE to be enabled")
 		}
 
 		return &goTLSProgram{
