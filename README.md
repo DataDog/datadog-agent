@@ -109,7 +109,7 @@ You can run the agent with:
 
 The file `bin/agent/dist/datadog.yaml` is copied from `dev/dist/datadog.yaml` by `invoke agent.build` and must contain a valid api key.
 
-### Running a JMX check
+### Run a JMX check
 In order to run a JMX based check locally, you must have:
 1) A copy of a JMXFetch `jar` copied to `dev/dist/jmx/jmxfetch.jar`
 2) `java` available on your `$PATH`
