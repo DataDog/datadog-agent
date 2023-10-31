@@ -44,15 +44,15 @@ var (
 	PageSize                    = uint64(os.Getpagesize())
 	keyName                     = []byte("Name")
 	keyState                    = []byte("State")
-	keyUid                      = []byte("Uid")
+	keyUID                      = []byte("Uid")
 	keyGid                      = []byte("Gid")
 	keyNSpid                    = []byte("NSpid")
 	keyThreads                  = []byte("Threads")
 	keyVoluntaryCtxtSwitches    = []byte("voluntary_ctxt_switches")
 	keyNonvoluntaryCtxtSwitches = []byte("nonvoluntary_ctxt_switches")
-	keyVmRSS                    = []byte("VmRSS")
-	keyVmSize                   = []byte("VmSize")
-	keyVmSwap                   = []byte("VmSwap")
+	keyVMRSS                    = []byte("VmRSS")
+	keyVMSize                   = []byte("VmSize")
+	keyVMSwap                   = []byte("VmSwap")
 )
 
 type statusInfo struct {
@@ -521,7 +521,7 @@ func (p *probe) parseStatusKV(key, value []byte, sInfo *statusInfo) {
 		sInfo.name = bytes.Trim(value, " \t")
 	case bytes.Equal(key, keyState):
 		sInfo.status = value[:1]
-	case bytes.Equal(key, keyUid), bytes.Equal(key, keyGid):
+	case bytes.Equal(key, keyUID), bytes.Equal(key, keyGid):
 		values := bytes.Fields(value)
 		ints := make([]int32, 0, len(values))
 		for _, v := range values {
@@ -552,7 +552,7 @@ func (p *probe) parseStatusKV(key, value []byte, sInfo *statusInfo) {
 				sInfo.ctxSwitches.Involuntary = v
 			}
 		}
-	case bytes.Equal(key, keyVmRSS), bytes.Equal(key, keyVmSize), bytes.Equal(key, keyVmSwap):
+	case bytes.Equal(key, keyVMRSS), bytes.Equal(key, keyVMSize), bytes.Equal(key, keyVMSwap):
 		parseMemInfo(value, key, sInfo.memInfo)
 	}
 }
