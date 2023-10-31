@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
@@ -38,7 +39,8 @@ type TimeSampler struct {
 
 	// id is a number to differentiate multiple time samplers
 	// since we start running more than one with the demultiplexer introduction
-	id TimeSamplerID
+	id       TimeSamplerID
+	idString string
 
 	hostname string
 }
@@ -58,6 +60,7 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, context
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
 		id:                          id,
+		idString:                    strconv.Itoa(int(id)),
 		hostname:                    hostname,
 	}
 
@@ -233,13 +236,14 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 
 	totalContexts := s.contextResolver.length()
 	aggregatorDogstatsdContexts.Set(int64(totalContexts))
-	tlmDogstatsdContexts.Set(float64(totalContexts))
+	tlmDogstatsdContexts.Set(float64(totalContexts), s.idString)
+	tlmDogstatsdTimeBuckets.Set(float64(len(s.metricsByTimestamp)), s.idString)
 
 	byMtype := s.contextResolver.countsByMtype()
 	for i, count := range byMtype {
 		mtype := metrics.MetricType(i).String()
 		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
-		tlmDogstatsdContextsByMtype.Set(float64(count), mtype)
+		tlmDogstatsdContextsByMtype.Set(float64(count), s.idString, mtype)
 	}
 
 	s.sendTelemetry(timestamp, series)

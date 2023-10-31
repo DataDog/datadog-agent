@@ -20,6 +20,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -96,65 +97,6 @@ func (s *USMSuite) TestEnableHTTPMonitoring() {
 	cfg := testConfig()
 	cfg.EnableHTTPMonitoring = true
 	_ = setupTracer(t, cfg)
-}
-
-func (s *USMSuite) TestHTTPStats() {
-	t := s.T()
-	t.Run("status code", func(t *testing.T) {
-		testHTTPStats(t, true)
-	})
-	t.Run("status class", func(t *testing.T) {
-		testHTTPStats(t, false)
-	})
-}
-
-func testHTTPStats(t *testing.T, aggregateByStatusCode bool) {
-	if !httpSupported() {
-		t.Skip("HTTP monitoring feature not available")
-		return
-	}
-
-	cfg := testConfig()
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableHTTPStatsByStatusCode = aggregateByStatusCode
-	tr := setupTracer(t, cfg)
-
-	// Start an HTTP server on localhost:8080
-	serverAddr := "127.0.0.1:8080"
-	srv := &nethttp.Server{
-		Addr: serverAddr,
-		Handler: nethttp.HandlerFunc(func(w nethttp.ResponseWriter, req *nethttp.Request) {
-			io.Copy(io.Discard, req.Body)
-			w.WriteHeader(204)
-		}),
-		ReadTimeout:  time.Second,
-		WriteTimeout: time.Second,
-	}
-	srv.SetKeepAlivesEnabled(false)
-	go func() { _ = srv.ListenAndServe() }()
-	t.Cleanup(func() { _ = srv.Shutdown(context.Background()) })
-
-	// Allow the HTTP server time to get set up
-	time.Sleep(time.Millisecond * 500)
-
-	// Send a series of HTTP requests to the test server
-	resp, err := nethttp.Get("http://" + serverAddr + "/test")
-	require.NoError(t, err)
-	_ = resp.Body.Close()
-	// Iterate through active connections until we find connection created above
-	require.Eventuallyf(t, func() bool {
-		payload := getConnections(t, tr)
-		for key, stats := range payload.HTTP {
-			if key.Method == http.MethodGet && key.Path.Content.Get() == "/test" && (key.SrcPort == 8080 || key.DstPort == 8080) {
-				currentStats := stats.Data[stats.NormalizeStatusCode(204)]
-				if currentStats != nil && currentStats.Count == 1 {
-					return true
-				}
-			}
-		}
-
-		return false
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find http connection matching: %s", serverAddr)
 }
 
 func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
@@ -273,10 +215,15 @@ func buildPrefetchFileBin(t *testing.T) string {
 	return binary
 }
 
-func prefetchLib(t *testing.T, filename string) {
+func prefetchLib(t *testing.T, filenames ...string) *exec.Cmd {
 	prefetchBin := buildPrefetchFileBin(t)
-	cmd := exec.Command(prefetchBin, filename, "3s")
+	cmd := exec.Command(prefetchBin, filenames...)
 	require.NoError(t, cmd.Start())
+	t.Cleanup(func() {
+		_ = cmd.Process.Kill()
+		_, _ = cmd.Process.Wait()
+	})
+	return cmd
 }
 
 func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
@@ -291,10 +238,17 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	tr := setupTracer(t, cfg)
 
 	// not ideal but, short process are hard to catch
-	for _, lib := range prefetchLibs {
-		prefetchLib(t, lib)
-	}
-	time.Sleep(2 * time.Second)
+	prefetchPid := uint32(prefetchLib(t, prefetchLibs...).Process.Pid)
+	require.Eventuallyf(t, func() bool {
+		traced := utils.GetTracedPrograms("shared_libraries")
+		for _, prog := range traced {
+			if slices.Contains[[]uint32](prog.PIDs, prefetchPid) {
+				return true
+			}
+		}
+
+		return false
+	}, time.Second*5, time.Millisecond*100, "process %v is not traced by shared-libraries", prefetchPid)
 
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
@@ -399,14 +353,20 @@ func (s *USMSuite) TestOpenSSLVersions() {
 	tr := setupTracer(t, cfg)
 
 	addressOfHTTPPythonServer := "127.0.0.1:8001"
-	closer, err := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
+	cmd := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
 		EnableTLS: true,
 	})
-	require.NoError(t, err)
-	defer closer()
 
-	// Giving the tracer time to install the hooks
-	time.Sleep(time.Second)
+	require.Eventuallyf(t, func() bool {
+		traced := utils.GetTracedPrograms("shared_libraries")
+		for _, prog := range traced {
+			if slices.Contains[[]uint32](prog.PIDs, uint32(cmd.Process.Pid)) {
+				return true
+			}
+		}
+		return false
+	}, time.Second*5, time.Millisecond*100, "process %v is not traced by shared libraries", cmd.Process.Pid)
+
 	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
 	var requests []*nethttp.Request
 	for i := 0; i < numberOfRequests; i++ {
@@ -459,11 +419,9 @@ func (s *USMSuite) TestOpenSSLVersionsSlowStart() {
 	cfg.EnableHTTPMonitoring = true
 
 	addressOfHTTPPythonServer := "127.0.0.1:8001"
-	closer, err := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
+	cmd := testutil.HTTPPythonServer(t, addressOfHTTPPythonServer, testutil.Options{
 		EnableTLS: true,
 	})
-	require.NoError(t, err)
-	t.Cleanup(closer)
 
 	client, requestFn := simpleGetRequestsGenerator(t, addressOfHTTPPythonServer)
 	// Send a couple of requests we won't capture.
@@ -475,7 +433,15 @@ func (s *USMSuite) TestOpenSSLVersionsSlowStart() {
 	tr := setupTracer(t, cfg)
 
 	// Giving the tracer time to install the hooks
-	time.Sleep(time.Second)
+	require.Eventuallyf(t, func() bool {
+		traced := utils.GetTracedPrograms("shared_libraries")
+		for _, prog := range traced {
+			if slices.Contains[[]uint32](prog.PIDs, uint32(cmd.Process.Pid)) {
+				return true
+			}
+		}
+		return false
+	}, time.Second*5, time.Millisecond*100, "process %v is not traced by shared libraries", cmd.Process.Pid)
 
 	// Send a warmup batch of requests to trigger the fallback behavior
 	for i := 0; i < numberOfRequests; i++ {
@@ -555,7 +521,7 @@ func simpleGetRequestsGenerator(t *testing.T, targetAddr string) (*nethttp.Clien
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 		require.Equal(t, status, resp.StatusCode)
-		io.ReadAll(resp.Body)
+		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 		return req
 	}
@@ -685,17 +651,6 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 	})
 }
 
-// Java Injection and TLS tests
-func createJavaTempFile(t *testing.T, dir string) string {
-	tempfile, err := os.CreateTemp(dir, "TestAgentLoaded.agentmain.*")
-	require.NoError(t, err)
-	tempfile.Close()
-	os.Remove(tempfile.Name())
-	t.Cleanup(func() { os.Remove(tempfile.Name()) })
-
-	return tempfile.Name()
-}
-
 func (s *USMSuite) TestJavaInjection() {
 	t := s.T()
 	if !httpsSupported() {
@@ -748,7 +703,7 @@ func (s *USMSuite) TestJavaInjection() {
 				t.Cleanup(serverDoneFn)
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
-				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", regexp.MustCompile("Response code = .*")), "Failed running Java version")
+				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", "./", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
@@ -863,7 +818,8 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 
 	// Setup
 	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableTLS: true,
+		EnableTLS:       true,
+		EnableKeepAlive: true,
 	})
 	t.Cleanup(closeServer)
 
@@ -903,7 +859,8 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 
 	// Setup
 	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableTLS: true,
+		EnableTLS:       true,
+		EnableKeepAlive: true,
 	})
 	t.Cleanup(closeServer)
 
@@ -1011,6 +968,18 @@ type tlsTestCommand struct {
 	openSSLCommand string
 }
 
+func getFreePort() (port uint16, err error) {
+	var a *net.TCPAddr
+	if a, err = net.ResolveTCPAddr("tcp", "localhost:0"); err == nil {
+		var l *net.TCPListener
+		if l, err = net.ListenTCP("tcp", a); err == nil {
+			defer l.Close()
+			return uint16(l.Addr().(*net.TCPAddr).Port), nil
+		}
+	}
+	return
+}
+
 // TLS classification tests
 func (s *USMSuite) TestTLSClassification() {
 	t := s.T()
@@ -1041,7 +1010,11 @@ func (s *USMSuite) TestTLSClassification() {
 			openSSLCommand: "-tls1_3",
 		},
 	}
-	require.NoError(t, prototls.RunServerOpenssl(t, "44330", len(scenarios), "-www"))
+
+	port, err := getFreePort()
+	require.NoError(t, err)
+	portAsString := strconv.Itoa(int(port))
+	require.NoError(t, prototls.RunServerOpenssl(t, portAsString, len(scenarios), "-www"))
 
 	tr := setupTracer(t, cfg)
 
@@ -1055,19 +1028,19 @@ func (s *USMSuite) TestTLSClassification() {
 		tests = append(tests, tlsTest{
 			name: "TLS-" + scenario.version + "_docker",
 			postTracerSetup: func(t *testing.T) {
-				require.True(t, prototls.RunClientOpenssl(t, "localhost", "44330", scenario.openSSLCommand))
+				require.True(t, prototls.RunClientOpenssl(t, "localhost", portAsString, scenario.openSSLCommand))
 			},
 			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
-				require.Eventually(t, func() bool {
+				require.Eventuallyf(t, func() bool {
 					payload := getConnections(t, tr)
 					for _, c := range payload.Conns {
-						if c.DPort == 44330 && c.ProtocolStack.Contains(protocols.TLS) {
+						if c.DPort == port && c.ProtocolStack.Contains(protocols.TLS) {
 							return true
 						}
 					}
 					return false
-				}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port 44330")
+				}, 4*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", portAsString)
 			},
 		})
 	}
@@ -1182,14 +1155,24 @@ func testHTTPSClassification(t *testing.T, tr *Tracer, clientHost, targetHost, s
 				extras:        make(map[string]interface{}),
 			},
 			preTracerSetup: func(t *testing.T, ctx testContext) {
-				closer, err := testutil.HTTPPythonServer(t, ctx.serverAddress, testutil.Options{
+				cmd := testutil.HTTPPythonServer(t, ctx.serverAddress, testutil.Options{
 					EnableKeepAlive: false,
 					EnableTLS:       true,
 				})
-				require.NoError(t, err)
-				t.Cleanup(closer)
+				ctx.extras["cmd"] = cmd
 			},
 			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+				cmd := ctx.extras["cmd"].(*exec.Cmd)
+				require.Eventuallyf(t, func() bool {
+					traced := utils.GetTracedPrograms("shared_libraries")
+					for _, prog := range traced {
+						if slices.Contains[[]uint32](prog.PIDs, uint32(cmd.Process.Pid)) {
+							return true
+						}
+					}
+					return false
+				}, time.Second*5, time.Millisecond*100, "process %v is not traced by shared libraries", cmd.Process.Pid)
+
 				client := nethttp.Client{
 					Transport: &nethttp.Transport{
 						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},

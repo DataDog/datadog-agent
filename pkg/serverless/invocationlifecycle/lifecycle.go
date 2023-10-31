@@ -128,6 +128,20 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 			break
 		}
 		lp.initFromAPIGatewayWebsocketEvent(event, region)
+	case trigger.APIGatewayLambdaAuthorizerTokenEvent:
+		var event events.APIGatewayCustomAuthorizerRequest
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
+			break
+		}
+		lp.initFromAPIGatewayLambdaAuthorizerTokenEvent(event)
+	case trigger.APIGatewayLambdaAuthorizerRequestParametersEvent:
+		var event events.APIGatewayCustomAuthorizerRequestTypeRequest
+		if err := json.Unmarshal(payloadBytes, &event); err != nil {
+			log.Debugf("Failed to unmarshal %s event: %s", apiGateway, err)
+			break
+		}
+		lp.initFromAPIGatewayLambdaAuthorizerRequestParametersEvent(event)
 	case trigger.ALBEvent:
 		var event events.ALBTargetGroupRequest
 		if err := json.Unmarshal(payloadBytes, &event); err != nil {
@@ -207,7 +221,7 @@ func (lp *LifecycleProcessor) OnInvokeStart(startDetails *InvocationStartDetails
 	}
 
 	if !lp.DetectLambdaLibrary() {
-		startExecutionSpan(lp.GetExecutionInfo(), lp.GetInferredSpan(), payloadBytes, startDetails, lp.InferredSpansEnabled)
+		lp.startExecutionSpan(payloadBytes, startDetails)
 	}
 }
 
@@ -244,23 +258,24 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			endDetails.IsError = true
 		}
 
-		endExecutionSpan(lp.GetExecutionInfo(), lp.requestHandler.triggerTags, lp.requestHandler.triggerMetrics, lp.ProcessTrace, endDetails)
+		lp.endExecutionSpan(endDetails)
 
 		if lp.InferredSpansEnabled {
 			log.Debug("[lifecycle] Attempting to complete the inferred span")
 			log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
 			if lp.GetInferredSpan().Span.Start != 0 {
-				if lp.requestHandler.inferredSpans[1] != nil {
+				span0, span1 := lp.requestHandler.inferredSpans[0], lp.requestHandler.inferredSpans[1]
+				if span1 != nil {
 					log.Debug("[lifecycle] Completing a secondary inferred span")
 					lp.setParentIDForMultipleInferredSpans()
-					lp.requestHandler.inferredSpans[1].AddTagToInferredSpan("http.status_code", statusCode)
-					lp.requestHandler.inferredSpans[1].AddTagToInferredSpan("peer.service", lp.GetServiceName())
-					lp.requestHandler.inferredSpans[1].CompleteInferredSpan(lp.ProcessTrace, lp.getInferredSpanStart(), endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
+					span1.AddTagToInferredSpan("http.status_code", statusCode)
+					span1.AddTagToInferredSpan("peer.service", lp.GetServiceName())
+					lp.completeInferredSpan(span1, lp.getInferredSpanStart(), endDetails.IsError)
 					log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
 				}
-				lp.GetInferredSpan().AddTagToInferredSpan("http.status_code", statusCode)
-				lp.GetInferredSpan().AddTagToInferredSpan("peer.service", lp.GetServiceName())
-				lp.GetInferredSpan().CompleteInferredSpan(lp.ProcessTrace, endDetails.EndTime, endDetails.IsError, lp.GetExecutionInfo().TraceID, lp.GetExecutionInfo().SamplingPriority)
+				span0.AddTagToInferredSpan("http.status_code", statusCode)
+				span0.AddTagToInferredSpan("peer.service", lp.GetServiceName())
+				lp.completeInferredSpan(span0, endDetails.EndTime, endDetails.IsError)
 				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
 			} else {
 				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")

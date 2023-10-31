@@ -91,6 +91,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("log_to_syslog", false)
 	cfg.BindEnvAndSetDefault("log_to_console", true)
 	cfg.BindEnvAndSetDefault("log_format_json", false)
+	cfg.BindEnvAndSetDefault("log_file_max_size", "10Mb")
+	cfg.BindEnvAndSetDefault("log_file_max_rolls", 1)
 
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
@@ -224,6 +226,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
 	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
+	cfg.BindEnv(join(smNS, "enable_quantization"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")

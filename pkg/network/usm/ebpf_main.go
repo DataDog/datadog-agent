@@ -8,6 +8,7 @@
 package usm
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -22,15 +23,34 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+var (
+	errNoProtocols = errors.New("no protocol monitors were initialised")
+
+	// knownProtocols holds all known protocols supported by USM to initialize.
+	knownProtocols = []*protocols.ProtocolSpec{
+		http.Spec,
+		http2.Spec,
+		kafka.Spec,
+		javaTLSSpec,
+		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
+		// factory.
+		opensslSpec,
+	}
 )
 
 const (
@@ -55,12 +75,12 @@ type ebpfProgram struct {
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
 
-	enabledProtocols  []protocols.Protocol
+	enabledProtocols  []*protocols.ProtocolSpec
 	disabledProtocols []*protocols.ProtocolSpec
 
 	// Used for connection_protocol data expiration
 	mapCleaner *ddebpf.MapCleaner
-	buildMode  buildMode
+	buildMode  buildmode.Type
 }
 
 type probeResolver interface {
@@ -89,20 +109,9 @@ type probeResolver interface {
 	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
 }
 
-type buildMode string
-
-const (
-	// Prebuilt mode
-	Prebuilt buildMode = "prebuilt"
-	// RuntimeCompiled mode
-	RuntimeCompiled buildMode = "runtime-compilation"
-	// CORE mode
-	CORE buildMode = "CO-RE"
-)
-
 type subprogram interface {
 	Name() string
-	IsBuildModeSupported(buildMode) bool
+	IsBuildModeSupported(buildmode.Type) bool
 	ConfigureManager(*errtelemetry.Manager)
 	ConfigureOptions(*manager.Options)
 	Start()
@@ -158,32 +167,31 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 		connectionProtocolMap: connectionProtocolMap,
 	}
 
+	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, sockFD, bpfTelemetry)
+	if err := program.initProtocols(c); err != nil {
+		return nil, err
+	}
+
 	return program, nil
 }
 
 func (e *ebpfProgram) Init() error {
-	var undefinedProbes []manager.ProbeIdentificationPair
-	for _, tc := range e.tailCallRouter {
-		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
-	}
-
-	for _, s := range e.probesResolvers {
-		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
-	}
+	var err error
+	defer func() {
+		if err != nil {
+			e.buildMode = ""
+		}
+	}()
 
 	e.DumpHandler = e.dumpMapsHandler
-	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
-	}
 	for _, s := range e.subprograms {
 		s.ConfigureManager(e.Manager)
 	}
 
-	var err error
 	if e.cfg.EnableCORE {
+		e.buildMode = buildmode.CORE
 		err = e.initCORE()
 		if err == nil {
-			e.buildMode = CORE
 			return nil
 		}
 
@@ -194,9 +202,9 @@ func (e *ebpfProgram) Init() error {
 	}
 
 	if e.cfg.EnableRuntimeCompiler || (err != nil && e.cfg.AllowRuntimeCompiledFallback) {
+		e.buildMode = buildmode.RuntimeCompiled
 		err = e.initRuntimeCompiler()
 		if err == nil {
-			e.buildMode = RuntimeCompiled
 			return nil
 		}
 
@@ -206,10 +214,8 @@ func (e *ebpfProgram) Init() error {
 		log.Warnf("runtime compilation failed: attempting fallback: %s", err)
 	}
 
+	e.buildMode = buildmode.Prebuilt
 	err = e.initPrebuilt()
-	if err == nil {
-		e.buildMode = Prebuilt
-	}
 	return err
 }
 
@@ -221,9 +227,33 @@ func (e *ebpfProgram) Start() error {
 		e.mapCleaner = mapCleaner
 	}
 
+	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "pre-start",
+		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PreStart(m) },
+		func(protocols.Protocol, *manager.Manager) {})
+
+	// No protocols could be enabled, abort.
+	if len(e.enabledProtocols) == 0 {
+		return errNoProtocols
+	}
+
 	err = e.Manager.Start()
 	if err != nil {
 		return err
+	}
+
+	e.enabledProtocols = e.executePerProtocol(e.enabledProtocols, "post-start",
+		func(protocol protocols.Protocol, m *manager.Manager) error { return protocol.PostStart(m) },
+		func(protocol protocols.Protocol, m *manager.Manager) { protocol.Stop(m) })
+
+	// We check again if there are protocols that could be enabled, and abort if
+	// it is not the case.
+	if len(e.enabledProtocols) == 0 {
+		err = e.Close()
+		if err != nil {
+			log.Errorf("error during USM shutdown: %s", err)
+		}
+
+		return errNoProtocols
 	}
 
 	for _, s := range e.subprograms {
@@ -235,6 +265,10 @@ func (e *ebpfProgram) Start() error {
 		}
 	}
 
+	for _, protocolName := range e.enabledProtocols {
+		log.Infof("enabled USM protocol: %s", protocolName.Instance.Name())
+	}
+
 	return nil
 }
 
@@ -243,6 +277,11 @@ func (e *ebpfProgram) Close() error {
 	for _, s := range e.subprograms {
 		s.Stop()
 	}
+	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
+		protocol.Stop(m)
+		return nil
+	}
+	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
 	return e.Stop(manager.CleanAll)
 }
 
@@ -275,6 +314,43 @@ func (e *ebpfProgram) initPrebuilt() error {
 	return e.init(bc, manager.Options{ConstantEditors: offsets})
 }
 
+// getProtocolsForBuildMode returns 2 lists - supported and not-supported protocol lists.
+// 1. Supported - enabled protocols which are supported by the current build mode (`e.buildMode`)
+// 2. Not Supported - disabled protocols, and enabled protocols which are not supported by the current build mode.
+func (e *ebpfProgram) getProtocolsForBuildMode() ([]*protocols.ProtocolSpec, []*protocols.ProtocolSpec) {
+	supported := make([]*protocols.ProtocolSpec, 0)
+	notSupported := make([]*protocols.ProtocolSpec, 0, len(e.disabledProtocols))
+	notSupported = append(notSupported, e.disabledProtocols...)
+
+	for _, p := range e.enabledProtocols {
+		if p.Instance.IsBuildModeSupported(e.buildMode) {
+			supported = append(supported, p)
+		} else {
+			notSupported = append(notSupported, p)
+		}
+	}
+
+	return supported, notSupported
+}
+
+// configureManagerWithSupportedProtocols given a protocol list, we're adding for each protocol its Maps, Probes and
+// TailCalls to the program's lists. Also, we're providing a cleanup method (the return value) which allows removal
+// of the elements we added in case of a failure in the initialization.
+func (e *ebpfProgram) configureManagerWithSupportedProtocols(protocols []*protocols.ProtocolSpec) func() {
+	for _, spec := range protocols {
+		e.Maps = append(e.Maps, spec.Maps...)
+		e.Probes = append(e.Probes, spec.Probes...)
+		e.tailCallRouter = append(e.tailCallRouter, spec.TailCalls...)
+	}
+	return func() {
+		for _, spec := range protocols {
+			e.Maps = e.Maps[:len(e.Maps)-len(spec.Maps)]
+			e.Probes = e.Probes[:len(e.Probes)-len(spec.Probes)]
+			e.tailCallRouter = e.tailCallRouter[:len(e.tailCallRouter)-len(spec.TailCalls)]
+		}
+	}
+}
+
 func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) error {
 	kprobeAttachMethod := manager.AttachKprobeWithPerfEventOpen
 	if e.cfg.AttachKprobesWithKprobeEventsABI {
@@ -304,7 +380,11 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		options.MapEditors[probes.ConnectionProtocolMap] = e.connectionProtocolMap
 	}
 
-	options.TailCallRouter = e.tailCallRouter
+	begin, end := network.EphemeralRange()
+	options.ConstantEditors = append(options.ConstantEditors,
+		manager.ConstantEditor{Name: "ephemeral_range_begin", Value: uint64(begin)},
+		manager.ConstantEditor{Name: "ephemeral_range_end", Value: uint64(end)})
+
 	options.ActivatedProbes = []manager.ProbesSelector{
 		&manager.ProbeSelector{
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -337,12 +417,15 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		s.ConfigureOptions(&options)
 	}
 
-	for _, p := range e.enabledProtocols {
-		p.ConfigureOptions(e.Manager.Manager, &options)
+	supported, notSupported := e.getProtocolsForBuildMode()
+	cleanup := e.configureManagerWithSupportedProtocols(supported)
+	options.TailCallRouter = e.tailCallRouter
+	for _, p := range supported {
+		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
 	}
 
 	// Add excluded functions from disabled protocols
-	for _, p := range e.disabledProtocols {
+	for _, p := range notSupported {
 		for _, m := range p.Maps {
 			// Unused maps still need to have a non-zero size
 			options.MapSpecEditors[m.Name] = manager.MapSpecEditor{
@@ -362,7 +445,24 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	return e.InitWithOptions(buf, options)
+	var undefinedProbes []manager.ProbeIdentificationPair
+	for _, tc := range e.tailCallRouter {
+		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
+	}
+
+	for _, s := range e.probesResolvers {
+		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
+	}
+
+	e.InstructionPatcher = func(m *manager.Manager) error {
+		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
+	}
+
+	err := e.InitWithOptions(buf, options)
+	if err != nil {
+		cleanup()
+	}
+	return err
 }
 
 const connProtoTTL = 3 * time.Minute
@@ -411,8 +511,79 @@ func (e *ebpfProgram) dumpMapsHandler(_ *manager.Manager, mapName string, curren
 
 	default: // Go through enabled protocols in case one of them now how to handle the current map
 		for _, p := range e.enabledProtocols {
-			p.DumpMaps(&output, mapName, currentMap)
+			p.Instance.DumpMaps(&output, mapName, currentMap)
 		}
 	}
 	return output.String()
+}
+
+func (e *ebpfProgram) getProtocolStats() map[protocols.ProtocolType]interface{} {
+	ret := make(map[protocols.ProtocolType]interface{})
+
+	for _, protocol := range e.enabledProtocols {
+		ps := protocol.Instance.GetStats()
+		if ps != nil {
+			ret[ps.Type] = ps.Stats
+		}
+	}
+
+	return ret
+}
+
+// executePerProtocol runs the given callback (`cb`) for every protocol in the given list (`protocolList`).
+// If the callback failed, then we call the error callback (`errorCb`). Eventually returning a list of protocols which
+// successfully executed the callback.
+func (e *ebpfProgram) executePerProtocol(protocolList []*protocols.ProtocolSpec, phaseName string, cb func(protocols.Protocol, *manager.Manager) error, errorCb func(protocols.Protocol, *manager.Manager)) []*protocols.ProtocolSpec {
+	// Deleting from an array while iterating it is not a simple task. Instead, every successfully enabled protocol,
+	// we'll keep in a temporary copy and return it at the end.
+	res := make([]*protocols.ProtocolSpec, 0)
+	for _, protocol := range protocolList {
+		if err := cb(protocol.Instance, e.Manager.Manager); err != nil {
+			if errorCb != nil {
+				errorCb(protocol.Instance, e.Manager.Manager)
+			}
+			log.Errorf("could not complete %q phase of %q monitoring: %s", phaseName, protocol.Instance.Name(), err)
+			continue
+		}
+		res = append(res, protocol)
+	}
+	return res
+}
+
+// initProtocols takes the network configuration `c` and uses it to initialise
+// the enabled protocols' monitoring, and configures the ebpf-manager `mgr`
+// accordingly.
+//
+// For each enabled protocols, a protocol-specific instance of the Protocol
+// interface is initialised, and the required maps and tail calls routers are setup
+// in the manager.
+//
+// If a protocol is not enabled, its tail calls are instead added to the list of
+// excluded functions for them to be patched out by ebpf-manager on startup.
+//
+// It returns:
+// - a slice containing instances of the Protocol interface for each enabled protocol support
+// - a slice containing pointers to the protocol specs of disabled protocols.
+// - an error value, which is non-nil if an error occurred while initialising a protocol
+func (e *ebpfProgram) initProtocols(c *config.Config) error {
+	e.enabledProtocols = make([]*protocols.ProtocolSpec, 0)
+	e.disabledProtocols = make([]*protocols.ProtocolSpec, 0)
+
+	for _, spec := range knownProtocols {
+		protocol, err := spec.Factory(c)
+		if err != nil {
+			return &errNotSupported{err}
+		}
+
+		if protocol != nil {
+			spec.Instance = protocol
+			e.enabledProtocols = append(e.enabledProtocols, spec)
+
+			log.Infof("%v monitoring enabled", protocol.Name())
+		} else {
+			e.disabledProtocols = append(e.disabledProtocols, spec)
+		}
+	}
+
+	return nil
 }

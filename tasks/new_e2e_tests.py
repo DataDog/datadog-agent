@@ -42,6 +42,10 @@ def run(
     verbose=True,
     run="",
     skip="",
+    osversion="",
+    platform="",
+    cws_supported_osversion="",
+    keep_stacks=False,
     cache=False,
     junit_tar="",
     coverage=False,
@@ -86,7 +90,8 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {cws_supported_osversion} {keep_stacks}'
+
     args = {
         "go_mod": "mod",
         "timeout": "4h",
@@ -98,6 +103,12 @@ def run(
         "skip": '-test.skip ' + skip if skip else '',
         "coverage_opt": coverage_opt,
         "test_run_arg": test_run_arg,
+        "osversion": f"-osversion {osversion}" if osversion else '',
+        "platform": f"-platform {platform}" if platform else '',
+        "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}"
+        if cws_supported_osversion
+        else '',
+        "keep_stacks": '-keep-stacks' if keep_stacks else '',
     }
 
     test_res = test_flavor(
@@ -163,13 +174,17 @@ def _clean_locks():
 
     for entry in os.listdir(Path(lock_dir)):
         subdir = os.path.join(lock_dir, entry)
-        for filename in os.listdir(Path(subdir)):
-            path = os.path.join(subdir, filename)
-            if os.path.isfile(path) and filename.endswith(".json"):
-                os.remove(path)
-                print(f"🗑️ Deleted lock: {path}")
-            elif os.path.isdir(path):
-                shutil.rmtree(path)
+        if os.path.isdir(subdir):
+            for filename in os.listdir(Path(subdir)):
+                path = os.path.join(subdir, filename)
+                if os.path.isfile(path) and filename.endswith(".json"):
+                    os.remove(path)
+                    print(f"🗑️ Deleted lock: {path}")
+                elif os.path.isdir(path):
+                    shutil.rmtree(path)
+        elif os.path.isfile(subdir) and entry.endswith(".json"):
+            os.remove(subdir)
+            print(f"🗑️ Deleted lock: {subdir}")
 
 
 def _clean_stacks(ctx: Context):
@@ -190,7 +205,7 @@ def _get_existing_stacks(ctx: Context) -> List[str]:
     # running in temp dir as this is where datadog-agent test
     # stacks are stored
     with ctx.cd(tempfile.gettempdir()):
-        output = ctx.run("pulumi stack ls --all", pty=True)
+        output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all", pty=True)
         if output is None or not output:
             return []
         lines = output.stdout.splitlines()
@@ -205,20 +220,32 @@ def _get_existing_stacks(ctx: Context) -> List[str]:
 
 def _destroy_stack(ctx: Context, stack_name: str):
     # running in temp dir as this is where datadog-agent test
-    # stacks are stored
+    # stacks are stored. It is expected to fail on stacks existing locally
+    # with resources removed by agent-sandbox clean up job
     with ctx.cd(tempfile.gettempdir()):
-        ctx.run(f"pulumi destroy --stack {stack_name} -r --yes --remove --skip-preview", pty=True)
+        ret = ctx.run(
+            f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack_name} --yes --remove --skip-preview",
+            pty=True,
+            warn=True,
+        )
+        if ret is not None and ret.exited != 0:
+            # run with refresh on first destroy attempt failure
+            ctx.run(
+                f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack_name} -r --yes --remove --skip-preview",
+                pty=True,
+                warn=True,
+            )
 
 
 def _remove_stack(ctx: Context, stack_name: str):
     # running in temp dir as this is where datadog-agent test
     # stacks are stored
     with ctx.cd(tempfile.gettempdir()):
-        ctx.run(f"pulumi stack rm --force --yes --stack {stack_name}", pty=True)
+        ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack_name}", pty=True)
 
 
 def _get_pulumi_about(ctx: Context) -> dict:
-    output = ctx.run("pulumi about --json", pty=True, hide=True)
+    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi about --json", pty=True, hide=True)
     if output is None or not output:
         return ""
     return json.loads(output.stdout)

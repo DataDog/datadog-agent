@@ -22,13 +22,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
 	"github.com/DataDog/datadog-agent/comp/process/expvars"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo"
 	"github.com/DataDog/datadog-agent/comp/process/profiler"
-	runnerComp "github.com/DataDog/datadog-agent/comp/process/runner"
+	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -113,8 +114,8 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 	app := fx.New(
 		fx.Supply(
 			core.BundleParams{
-				SysprobeConfigParams: sysprobeconfig.NewParams(
-					sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+				SysprobeConfigParams: sysprobeconfigimpl.NewParams(
+					sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
 				),
 				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
 				LogParams:    command.DaemonLogParams,
@@ -140,7 +141,7 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 
 		// Invoke the components that we want to start
 		fx.Invoke(func(
-			runnerComp.Component,
+			runner.Component,
 			profiler.Component,
 			expvars.Component,
 			apiserver.Component,
@@ -207,7 +208,7 @@ func anyChecksEnabled(checks []types.CheckComponent) bool {
 	return false
 }
 
-func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.ConfigReader) bool {
+func shouldEnableProcessAgent(checks []types.CheckComponent, cfg ddconfig.Reader) bool {
 	return anyChecksEnabled(checks) || collector.Enabled(cfg)
 }
 

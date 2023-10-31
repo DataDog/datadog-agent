@@ -230,14 +230,6 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	// Datadog Agent sends a HEAD request to avoid redirect issue before sending the actual flare
-	if req.Method == http.MethodHead && req.URL.Path == "/support/flare" {
-		writeHTTPResponse(w, httpResponse{
-			statusCode: http.StatusOK,
-		})
-		return
-	}
-
 	// from now on accept only POST requests
 	if req.Method != http.MethodPost {
 		response := buildErrorResponse(fmt.Errorf("invalid request with route %s and method %s", req.URL.Path, req.Method))

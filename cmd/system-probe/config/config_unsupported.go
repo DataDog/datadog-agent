@@ -15,6 +15,6 @@ const (
 )
 
 // ValidateSocketAddress validates that the sysprobe socket config option is of the correct format.
-func ValidateSocketAddress(sockPath string) error {
+func ValidateSocketAddress(sockPath string) error { //nolint:revive // TODO fix revive unused-parameter
 	return fmt.Errorf("system-probe unsupported")
 }

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 )
 
 // Helper type to wrap & mock Protocols in tests. We keep an instance of the
@@ -69,6 +70,9 @@ func (p *protocolMock) Stop(mgr *manager.Manager) {
 
 func (p *protocolMock) DumpMaps(*strings.Builder, string, *ebpf.Map) {}
 func (p *protocolMock) GetStats() *protocols.ProtocolStats           { return nil }
+
+// IsBuildModeSupported returns always true, as java tls module is supported by all modes.
+func (*protocolMock) IsBuildModeSupported(buildmode.Type) bool { return true }
 
 // patchProtocolMock updates the map of known protocols to replace the mock
 // factory in place of the HTTP protocol factory

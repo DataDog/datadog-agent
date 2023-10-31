@@ -188,7 +188,7 @@ docker_build_cluster_agent_amd64:
 docker_build_cluster_agent_arm64:
   extends: .docker_build_job_definition_arm64
   rules:
-    !reference [.on_tag_or_a7_all_builds]
+    !reference [.on_tag_or_a7]
   needs:
     - job: cluster_agent-build_arm64
       artifacts: false

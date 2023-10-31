@@ -23,8 +23,8 @@ type RuleFilterModel struct {
 }
 
 // NewRuleFilterModel returns a new rule filtering model
-func NewRuleFilterModel() *RuleFilterModel {
-	return &RuleFilterModel{}
+func NewRuleFilterModel() (*RuleFilterModel, error) {
+	return &RuleFilterModel{}, nil
 }
 
 // NewEvent returns a new rule filtering event
@@ -33,7 +33,7 @@ func (m *RuleFilterModel) NewEvent() eval.Event {
 }
 
 // GetEvaluator returns a new evaluator for a rule filtering field
-func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) {
+func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) { //nolint:revive // TODO fix revive unused-parameter
 	switch field {
 	case "kernel.version.major", "kernel.version.minor", "kernel.version.patch",
 		"kernel.version.abi", "kernel.version.flavor":

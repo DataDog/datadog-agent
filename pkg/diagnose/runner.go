@@ -214,7 +214,7 @@ func getSortedAndFilteredDiagnoseSuites(diagCfg diagnosis.Config) ([]diagnosis.S
 	return sortedFilteredSuites, nil
 }
 
-func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+func getSuiteDiagnoses(ds diagnosis.Suite, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) []diagnosis.Diagnosis {
 	diagnoses := ds.Diagnose(diagCfg, senderManager)
 
 	// validate each diagnoses
@@ -266,7 +266,7 @@ func ListStdOut(w io.Writer, diagCfg diagnosis.Config) {
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for structural output
-func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, senderManager sender.SenderManager) ([]diagnosis.Diagnoses, error) {
+func getDiagnosesFromCurrentProcess(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) ([]diagnosis.Diagnoses, error) {
 	suites, err := getSortedAndFilteredDiagnoseSuites(diagCfg)
 	if err != nil {
 		return nil, err
@@ -330,7 +330,7 @@ func requestDiagnosesFromAgentProcess(diagCfg diagnosis.Config) ([]diagnosis.Dia
 }
 
 // Run runs diagnoses.
-func Run(diagCfg diagnosis.Config, senderManager sender.SenderManager) ([]diagnosis.Diagnoses, error) {
+func Run(diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) ([]diagnosis.Diagnoses, error) {
 
 	// Make remote call to get diagnoses
 	if !diagCfg.RunLocal {
@@ -348,7 +348,7 @@ func Run(diagCfg diagnosis.Config, senderManager sender.SenderManager) ([]diagno
 
 // Enumerate registered Diagnose suites and get their diagnoses
 // for human consumption
-func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.SenderManager) error {
+func RunStdOut(w io.Writer, diagCfg diagnosis.Config, senderManager sender.DiagnoseSenderManager) error {
 	if w != color.Output {
 		color.NoColor = true
 	}
