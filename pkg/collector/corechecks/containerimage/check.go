@@ -10,7 +10,7 @@ import (
 	"errors"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -140,6 +140,7 @@ func (c *Check) Run() error {
 			[]workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
 			workloadmeta.SourceAll,
 			workloadmeta.EventTypeSet, // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
+			false,
 		),
 	)
 

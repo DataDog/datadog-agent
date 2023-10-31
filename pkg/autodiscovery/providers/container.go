@@ -60,6 +60,7 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod, workloadmeta.KindContainer},
 		workloadmeta.SourceAll,
 		workloadmeta.EventTypeAll,
+		false,
 	))
 
 	go func() {

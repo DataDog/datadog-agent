@@ -61,7 +61,7 @@ func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		c.ddConfig.GetDuration("workloadmeta.local_process_collector.collection_interval"),
 	)
 
-	filter := workloadmeta.NewFilter([]workloadmeta.Kind{workloadmeta.KindContainer}, workloadmeta.SourceAll, workloadmeta.EventTypeAll)
+	filter := workloadmeta.NewFilter([]workloadmeta.Kind{workloadmeta.KindContainer}, workloadmeta.SourceAll, workloadmeta.EventTypeAll, false)
 	containerEvt := store.Subscribe(collectorId, workloadmeta.NormalPriority, filter)
 
 	go c.run(ctx, store, containerEvt, collectionTicker)

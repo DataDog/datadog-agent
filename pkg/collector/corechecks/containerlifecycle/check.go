@@ -11,7 +11,7 @@ import (
 	"errors"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -100,6 +100,7 @@ func (c *Check) Run() error {
 			[]workloadmeta.Kind{workloadmeta.KindContainer},
 			workloadmeta.SourceRuntime,
 			workloadmeta.EventTypeUnset,
+			false,
 		),
 	)
 
@@ -110,6 +111,7 @@ func (c *Check) Run() error {
 			[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
 			workloadmeta.SourceNodeOrchestrator,
 			workloadmeta.EventTypeUnset,
+			false,
 		),
 	)
 

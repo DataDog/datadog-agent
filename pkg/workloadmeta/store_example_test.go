@@ -14,7 +14,7 @@ func init() {
 }
 
 func ExampleStore_Subscribe() {
-	filter := NewFilter([]Kind{KindContainer}, SourceRuntime, EventTypeAll)
+	filter := NewFilter([]Kind{KindContainer}, SourceRuntime, EventTypeAll, false)
 	ch := GetGlobalStore().Subscribe("test", NormalPriority, filter)
 
 	go func() {

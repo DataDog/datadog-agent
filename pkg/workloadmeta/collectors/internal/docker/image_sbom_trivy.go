@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/CycloneDX/cyclonedx-go"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/docker"
@@ -48,6 +49,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 			[]workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
 			workloadmeta.SourceAll,
 			workloadmeta.EventTypeSet,
+			false,
 		),
 	)
 

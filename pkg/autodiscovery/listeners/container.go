@@ -43,6 +43,7 @@ func NewContainerListener(Config) (ServiceListener, error) {
 		[]workloadmeta.Kind{workloadmeta.KindContainer},
 		workloadmeta.SourceRuntime,
 		workloadmeta.EventTypeAll,
+		false,
 	)
 
 	var err error

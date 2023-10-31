@@ -173,6 +173,7 @@ func (c *Check) Run() error {
 			},
 			workloadmeta.SourceAll,
 			workloadmeta.EventTypeAll,
+			false,
 		),
 	)
 

@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -20,7 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"go.uber.org/fx"
 )
 
 const (
@@ -149,6 +150,7 @@ func (c *client) run() {
 			},
 			workloadmeta.SourceAll,
 			workloadmeta.EventTypeAll,
+			false,
 		),
 	)
 	defer c.store.Unsubscribe(eventCh)
