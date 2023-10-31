@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/ec2metadata"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/lambda"
@@ -81,7 +83,8 @@ var (
 		ConfigFilePath string
 	}
 
-	configPath string
+	configPath    string
+	attachVolumes bool
 )
 
 func main() {
@@ -101,6 +104,7 @@ func rootCommand() *cobra.Command {
 	}
 
 	sideScannerCmd.PersistentFlags().StringVarP(&configPath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "side-scanner.yaml"), "specify the path to side-scanner configuration yaml file")
+	sideScannerCmd.PersistentFlags().BoolVarP(&attachVolumes, "attach-volumes", "", false, "scan EBS snapshots by creating a dedicated volume")
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 
@@ -250,10 +254,11 @@ func unmarshalScanTasks(b []byte) ([]scanTask, error) {
 }
 
 type ebsScan struct {
-	Region     string `json:"region"`
-	SnapshotID string `json:"snapshotId"`
-	VolumeID   string `json:"volumeId"`
-	Hostname   string `json:"hostname"`
+	Region       string `json:"region"`
+	SnapshotID   string `json:"snapshotId"`
+	VolumeID     string `json:"volumeId"`
+	Hostname     string `json:"hostname"`
+	AttachVolume bool   `json:"attachVolume"`
 }
 
 func (s ebsScan) String() string {
@@ -404,10 +409,8 @@ func (s *sideScanner) sendSBOM(sourceAgent string, entity *sbommodel.SBOMEntity)
 func launchScan(ctx context.Context, scan scanTask) (*sbommodel.SBOMEntity, error) {
 	switch scan.Type {
 	case "ebs-scan":
-		defer log.Debugf("finished ebs-scan of %s", scan)
 		return scanEBS(ctx, scan.Scan.(ebsScan))
 	case "lambda-scan":
-		defer log.Debugf("finished lambda-scan of %s", scan)
 		return scanLambda(ctx, scan.Scan.(lambdaScan))
 	default:
 		return nil, fmt.Errorf("unknown scan type: %s", scan.Type)
@@ -474,7 +477,7 @@ func tagSuccess(s []string) []string {
 	return append(s, fmt.Sprint("status:success"))
 }
 
-func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
+func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, err error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
 	}
@@ -489,19 +492,21 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 		fmt.Sprintf("type:%s", "ebs-scan"),
 	}
 
+	sess, err := session.NewSession(&aws.Config{
+		Region:                        aws.String(scan.Region),
+		CredentialsChainVerboseErrors: aws.Bool(true),
+	})
+	if err != nil {
+		return nil, err
+	}
+	svc := ec2.New(sess)
+
 	snapshotID := scan.SnapshotID
 	if snapshotID == "" {
 		if scan.VolumeID == "" {
 			return nil, fmt.Errorf("ebs-scan: missing volume ID")
 		}
 		snapshotStartedAt := time.Now()
-		sess, err := session.NewSession(&aws.Config{
-			Region: aws.String(scan.Region),
-		})
-		if err != nil {
-			return nil, err
-		}
-		svc := ec2.New(sess)
 		statsd.Count("datadog.sidescanner.snapshots.started", 1.0, tags, 1.0)
 		log.Debugf("starting volume snapshotting %q", scan.VolumeID)
 		snapshotID, err = createEBSSnapshot(ctx, svc, scan)
@@ -515,9 +520,10 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 			statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(tags), 1.0)
 			return nil, err
 		}
-		log.Debugf("volume snapshotting finished sucessfully %q", snapshotID)
+		snapshotDuration := time.Since(snapshotStartedAt)
+		log.Debugf("volume snapshotting finished sucessfully %q (took %s)", snapshotID, snapshotDuration)
 		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(tags), 1.0)
-		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(time.Since(snapshotStartedAt).Milliseconds()), tags, 1.0)
+		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tags, 1.0)
 		defer func() {
 			log.Debugf("deleting snapshot %q", snapshotID)
 			deleteEBSSnapshot(ctx, svc, snapshotID)
@@ -525,44 +531,214 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 	}
 
 	log.Infof("start EBS scanning %s", scan)
+
+	metasvc := ec2metadata.New(sess)
+	self, err := metasvc.GetInstanceIdentityDocument()
+	if err != nil {
+		return nil, err
+	}
+
 	statsd.Count("datadog.sidescanner.scans.started", 1.0, tags, 1.0)
-	scanStartedAt := time.Now()
-	target := "ebs:" + snapshotID
+	defer func() {
+		if err != nil {
+			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
+		} else {
+			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
+		}
+	}()
+
 	trivyCache := newMemoryCache()
 	trivyDisabledAnalyzers := []analyzer.Type{analyzer.TypeSecret, analyzer.TypeLicenseFile}
 	trivyDisabledAnalyzers = append(trivyDisabledAnalyzers, analyzer.TypeConfigFiles...)
 	trivyDisabledAnalyzers = append(trivyDisabledAnalyzers, analyzer.TypeLanguages...)
-	trivyVMArtifact, err := vm.NewArtifact(target, trivyCache, artifact.Option{
-		Offline:           true,
-		NoProgress:        true,
-		DisabledAnalyzers: trivyDisabledAnalyzers,
-		Slow:              true,
-		SBOMSources:       []string{},
-		DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
-		OnlyDirs:          []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"},
-		AWSRegion:         scan.Region,
-	})
-	if err != nil {
-		statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
-		return nil, fmt.Errorf("unable to create artifact from image: %w", err)
+	var trivyArtifact artifact.Artifact
+
+	if scan.AttachVolume || attachVolumes {
+		log.Debugf("creating new volume for snapshot %q in az %q", snapshotID, self.AvailabilityZone)
+		volume, err := svc.CreateVolumeWithContext(ctx, &ec2.CreateVolumeInput{
+			VolumeType:       aws.String("gp2"),
+			AvailabilityZone: aws.String(self.AvailabilityZone),
+			SnapshotId:       aws.String(snapshotID),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not create volume from snapshot: %s", err)
+		}
+		defer func() {
+			// do not use context here: we want to force deletion
+			log.Debugf("detaching volume %q", *volume.VolumeId)
+			svc.DetachVolume(&ec2.DetachVolumeInput{
+				Force:    aws.Bool(true),
+				VolumeId: volume.VolumeId,
+			})
+			var errd error
+			for i := 0; i < 10; i++ {
+				_, errd = svc.DeleteVolume(&ec2.DeleteVolumeInput{
+					VolumeId: volume.VolumeId,
+				})
+				if errd == nil {
+					log.Debugf("volume deleted %q", *volume.VolumeId)
+					break
+				}
+				time.Sleep(1 * time.Second)
+			}
+			if errd != nil {
+				log.Warnf("could not delete volume %q: %v", *volume.VolumeId, errd)
+			}
+		}()
+
+		device := nextDeviceName()
+		log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
+		for i := 0; i < 10; i++ {
+			_, err = svc.AttachVolumeWithContext(ctx, &ec2.AttachVolumeInput{
+				InstanceId: aws.String(self.InstanceID),
+				VolumeId:   volume.VolumeId,
+				Device:     aws.String(device),
+			})
+			if err == nil {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, err)
+		}
+
+		mountTarget := fmt.Sprintf("/data/%s", snapshotID)
+		err = os.MkdirAll(mountTarget, 0700)
+		if err != nil {
+			return nil, fmt.Errorf("could not create mountTarget directory %q: %w", mountTarget, err)
+		}
+		defer func() {
+			log.Debugf("unlink directory %q", mountTarget)
+			os.Remove(mountTarget)
+		}()
+
+		var partitionDevice, partitionFSType string
+		for i := 0; i < 10; i++ {
+			if i > 0 {
+				time.Sleep(1 * time.Second)
+			}
+			lsblkJSON, err := exec.CommandContext(ctx, "lsblk", device, "--paths", "--json", "--bytes", "--fs", "--output", "NAME,PATH,TYPE,FSTYPE").Output()
+			if err != nil {
+				log.Warnf("lsblk error: %v", err)
+				continue
+			}
+			log.Debugf("lsblk %q: %s", device, string(lsblkJSON))
+			var blockDevices struct {
+				BlockDevices []struct {
+					Name     string `json:"name"`
+					Path     string `json:"path"`
+					Type     string `json:"type"`
+					FsType   string `json:"fstype"`
+					Children []struct {
+						Name   string `json:"name"`
+						Path   string `json:"path"`
+						Type   string `json:"type"`
+						FsType string `json:"fstype"`
+					} `json:"children"`
+				} `json:"blockdevices"`
+			}
+			if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
+				log.Warnf("lsblk parsing error: %v", err)
+				continue
+			}
+			if len(blockDevices.BlockDevices) == 0 {
+				continue
+			}
+			blockDevice := blockDevices.BlockDevices[0]
+			for _, child := range blockDevice.Children {
+				if child.Type == "part" && (child.FsType == "ext4" || child.FsType == "xfs") {
+					partitionDevice = child.Path
+					partitionFSType = child.FsType
+					break
+				}
+			}
+			if partitionFSType != "" {
+				break
+			}
+		}
+
+		if partitionFSType == "" {
+			return nil, fmt.Errorf("could not successfully find the attached device filesystem")
+		}
+
+		var mountOutput []byte
+		for i := 0; i < 10; i++ {
+			log.Debugf("execing mount %q %q", partitionDevice, mountTarget)
+			mountOutput, err = exec.CommandContext(ctx, "mount", "-t", partitionFSType, "--source", partitionDevice, "--target", mountTarget).CombinedOutput()
+			if err == nil {
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountTarget, partitionDevice, string(mountOutput), err)
+		}
+		defer func() {
+			log.Debugf("un-mounting %s", mountTarget)
+			umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountTarget).CombinedOutput()
+			if err != nil {
+				log.Warnf("could not umount %s: %s:\n%s", mountTarget, err, string(umountOuput))
+			}
+		}()
+
+		trivyArtifact, err = local2.NewArtifact(mountTarget, trivyCache, artifact.Option{
+			Offline:           true,
+			NoProgress:        true,
+			DisabledAnalyzers: trivyDisabledAnalyzers,
+			Slow:              false,
+			SBOMSources:       []string{},
+			DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
+			OnlyDirs: []string{
+				filepath.Join(mountTarget, "etc"),
+				filepath.Join(mountTarget, "var/lib/dpkg"),
+				filepath.Join(mountTarget, "var/lib/rpm"),
+				filepath.Join(mountTarget, "lib/apk"),
+			},
+			AWSRegion: scan.Region,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
+		}
+	} else {
+		target := "ebs:" + snapshotID
+		trivyArtifact, err = vm.NewArtifact(target, trivyCache, artifact.Option{
+			Offline:           true,
+			NoProgress:        true,
+			DisabledAnalyzers: trivyDisabledAnalyzers,
+			Slow:              false,
+			SBOMSources:       []string{},
+			DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
+			OnlyDirs:          []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"},
+			AWSRegion:         scan.Region,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("unable to create artifact from image: %w", err)
+		}
 	}
+
+	scanStartedAt := time.Now()
+
 	trivyDetector := ospkg.Detector{}
 	trivyVulnClient := vulnerability.NewClient(db.Config{})
 	trivyApplier := applier.NewApplier(trivyCache)
 	trivyLocalScanner := local.NewScanner(trivyApplier, trivyDetector, trivyVulnClient)
-	trivyScanner := scanner.NewScanner(trivyLocalScanner, trivyVMArtifact)
+	trivyScanner := scanner.NewScanner(trivyLocalScanner, trivyArtifact)
+
+	log.Debugf("starting scan of artifact")
 	trivyReport, err := trivyScanner.ScanArtifact(ctx, types.ScanOptions{
 		VulnType:            []string{},
 		SecurityChecks:      []string{},
 		ScanRemovedPackages: false,
 		ListAllPackages:     true,
 	})
-	statsd.Histogram("datadog.sidescanner.scans.duration", float64(time.Since(scanStartedAt).Milliseconds()), tags, 1.0)
 	if err != nil {
-		statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, fmt.Errorf("trivy scan failed: %w", err)
 	}
-	statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
+
+	scanDuration := time.Since(scanStartedAt)
+	log.Debugf("ebs-scan: finished (took %s)", scanDuration)
+	statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tags, 1.0)
 
 	createdAt := time.Now()
 	duration := time.Since(scanStartedAt)
@@ -572,7 +748,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 		return nil, fmt.Errorf("unable to marshal report to sbom format: %w", err)
 	}
 
-	entity := &sbommodel.SBOMEntity{
+	entity = &sbommodel.SBOMEntity{
 		Status:             sbommodel.SBOMStatus_SUCCESS,
 		Type:               sbommodel.SBOMSourceType_HOST_FILE_SYSTEM, // TODO: SBOMSourceType_EBS
 		Id:                 scan.Hostname,
@@ -584,11 +760,27 @@ func scanEBS(ctx context.Context, scan ebsScan) (*sbommodel.SBOMEntity, error) {
 			Cyclonedx: convertBOM(bom),
 		},
 	}
-
-	return entity, nil
+	return
 }
 
-func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, error) {
+// reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
+var deviceName struct {
+	mu     sync.Mutex
+	letter byte
+}
+
+func nextDeviceName() string {
+	deviceName.mu.Lock()
+	defer deviceName.mu.Unlock()
+	if deviceName.letter == 0 || deviceName.letter == 'a' {
+		deviceName.letter = 'f'
+	} else {
+		deviceName.letter += 1
+	}
+	return fmt.Sprintf("/dev/sd%c", deviceName.letter)
+}
+
+func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEntity, err error) {
 	if scan.Region == "" {
 		return nil, fmt.Errorf("lambda-scan: missing region")
 	}
@@ -661,6 +853,14 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 	}
 
 	statsd.Count("datadog.sidescanner.scans.started", 1.0, tags, 1.0)
+	defer func() {
+		if err != nil {
+			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
+		} else {
+			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
+		}
+	}()
+
 	scanStartedAt := time.Now()
 	trivyCache := newMemoryCache()
 	trivyFSArtifact, err := local2.NewArtifact(extractedPath, trivyCache, artifact.Option{
@@ -669,9 +869,9 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 		DisabledAnalyzers: []analyzer.Type{},
 		Slow:              true,
 		SBOMSources:       []string{},
+		AWSRegion:         scan.Region,
 	})
 	if err != nil {
-		statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, fmt.Errorf("unable to create artifact from fs: %w", err)
 	}
 
@@ -688,10 +888,8 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 	})
 	statsd.Histogram("datadog.sidescanner.scans.duration", float64(time.Since(scanStartedAt).Milliseconds()), tags, 1.0)
 	if err != nil {
-		statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, fmt.Errorf("trivy scan failed: %w", err)
 	}
-	statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
 
 	createdAt := time.Now()
 	duration := time.Since(scanStartedAt)
@@ -701,7 +899,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 		return nil, err
 	}
 
-	entity := &sbommodel.SBOMEntity{
+	entity = &sbommodel.SBOMEntity{
 		Status: sbommodel.SBOMStatus_SUCCESS,
 		Type:   sbommodel.SBOMSourceType_HOST_FILE_SYSTEM, // TODO: SBOMSourceType_LAMBDA
 		Id:     "",
@@ -716,7 +914,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (*sbommodel.SBOMEntity, er
 			Cyclonedx: convertBOM(bom),
 		},
 	}
-	return entity, nil
+	return
 }
 
 func extractZip(zipPath, destinationPath string) error {
