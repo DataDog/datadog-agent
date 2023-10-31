@@ -27,9 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	filterpkg "github.com/DataDog/datadog-agent/pkg/network/filter"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/monitor"
@@ -91,8 +88,6 @@ var MonitorTelemetry = struct {
 	atomic.NewInt64(0),
 	atomic.NewInt64(0),
 }
-
-var errNoProtocols = errors.New("no protocol monitors were initialised")
 
 // Monitor is responsible for:
 // * Creating a raw socket and attaching an eBPF filter to it;
@@ -325,4 +320,3 @@ func (m *Monitor) Collect(ch chan<- prometheus.Metric) {
 	MonitorTelemetry.LastMaxFramesInPacket.Store(int64(http2EbpfTelemetry.Max_frames_in_packet))
 	ch <- prometheus.MustNewConstMetric(MonitorTelemetry.MaxFramesInPacket, prometheus.CounterValue, float64(delta))
 }
-
