@@ -514,7 +514,15 @@ func (p *probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 	}
 }
 
-// parseStatusKV takes tokens parsed from each line in "status" file and populates statusInfo object
+// parseStatusKV takes tokens parsed from each line in "status" file and
+// populates statusInfo object.
+//
+// Notes on Performance:
+// Passed key, value are byte slices and we attempt to avoid coercion
+// to string in this function: string allocation is expensive and this function
+// is called often in the operation of the process-agent. There are still some
+// functions in the call-stack here that allocate. It's possible that this
+// function could be made zero-copy with some more effort, should the need arise.
 func (p *probe) parseStatusKV(key, value []byte, sInfo *statusInfo) {
 	switch {
 	case bytes.Equal(key, keyName):
