@@ -541,7 +541,7 @@ func GetConnection(r *http.Request) net.Conn {
 	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
 }
 
-func dumpDogstatsdContexts(w http.ResponseWriter, r *http.Request, demux demultiplexer.Component) {
+func dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request, demux demultiplexer.Component) {
 	if demux == nil {
 		setJSONError(w, log.Errorf("Unable to stream dogstatsd contexts, demultiplexer is not initialized"), 404)
 		return
@@ -560,7 +560,6 @@ func dumpDogstatsdContexts(w http.ResponseWriter, r *http.Request, demux demulti
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(resp)
-
 }
 
 func dumpDogstatsdContextsImpl(demux demultiplexer.Component) (string, error) {

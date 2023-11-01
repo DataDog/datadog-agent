@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 )
 
+// ContextDebugRepr is the on-disk representation of a context.
 type ContextDebugRepr struct {
 	Name       string
 	Host       string

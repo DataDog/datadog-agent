@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
+// dogstatsd contains "agent dogstatsd" subcommands
 package dogstatsd
 
 import (
@@ -172,7 +173,7 @@ func topContexts(config cconfig.Component, flags *topFlags) error {
 			metrics[repr.Name] = m
 		}
 
-		m.count += 1
+		m.count++
 
 		for _, tag := range repr.MetricTags {
 			m.tags[tag] = struct{}{}
