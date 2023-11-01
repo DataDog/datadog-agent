@@ -130,7 +130,11 @@ func DefaultRuleFilter(r *Rule) bool {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel := rules.NewRuleFilterModel()
+		ruleFilterModel, err := rules.NewRuleFilterModel()
+		if err != nil {
+			log.Errorf("failed to apply rule filters: %v", err)
+			return false
+		}
 		seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
 		accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 			Filters: r.Filters,
@@ -372,7 +376,12 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel := rules.NewRuleFilterModel()
+	ruleFilterModel, err := rules.NewRuleFilterModel()
+	if err != nil {
+		log.Errorf("failed to run apt configuration export: %v", err)
+		return
+	}
+
 	seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
 	accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 		Filters: []string{aptconfig.SeclFilter},

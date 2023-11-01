@@ -8,7 +8,6 @@
 package initcontainer
 
 import (
-	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"os"
 	"os/exec"
 	"runtime"
@@ -16,6 +15,8 @@ import (
 	"syscall"
 	"testing"
 	"time"
+
+	serverlessLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/stretchr/testify/assert"
@@ -92,7 +93,7 @@ func TestForwardSignalToChild(t *testing.T) {
 		cmd := exec.Command("sleep", "2s")
 		cmd.Start()
 		sigs := make(chan os.Signal, 1)
-		go forwardSignals(cmd.Process, &serverlessLog.Config{}, sigs)
+		go forwardSignals(cmd.Process, sigs)
 
 		go func() {
 			err := cmd.Wait()

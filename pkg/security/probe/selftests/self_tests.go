@@ -1,5 +1,3 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers $GOFILE
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -9,6 +7,8 @@
 package selftests
 
 import (
+	json "encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -27,12 +27,24 @@ const (
 )
 
 // SelfTestEvent is used to report a self test result
-// easyjson:json
 type SelfTestEvent struct {
 	events.CustomEventCommonFields
 	Success    []string                                `json:"succeeded_tests"`
 	Fails      []string                                `json:"failed_tests"`
 	TestEvents map[string]*serializers.EventSerializer `json:"test_events"`
+}
+
+// ToJSON marshal using json format
+func (t SelfTestEvent) ToJSON() ([]byte, error) {
+	// cleanup the serialization of potentially nil slices
+	if t.Success == nil {
+		t.Success = []string{}
+	}
+	if t.Fails == nil {
+		t.Fails = []string{}
+	}
+
+	return json.Marshal(t)
 }
 
 // NewSelfTestEvent returns the rule and the result of the self test

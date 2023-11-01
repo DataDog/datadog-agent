@@ -209,6 +209,12 @@ rules:
           scope: {{$Action.Set.Scope}}
           append: {{$Action.Set.Append}}
 {{- end}}
+{{- if $Action.Kill}}
+      - kill:
+          {{- if $Action.Kill.Signal}}
+          signal: {{$Action.Kill.Signal}}
+          {{- end}}
+{{- end}}
 {{- end}}
 {{end}}
 `
@@ -1172,11 +1178,11 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	if probe == nil {
 		return ""
 	}
-	monitor := probe.GetMonitor()
-	if monitor == nil {
+	monitors := probe.GetMonitors()
+	if monitors == nil {
 		return ""
 	}
-	eventStreamMonitor := monitor.GetEventStreamMonitor()
+	eventStreamMonitor := monitors.GetEventStreamMonitor()
 	if eventStreamMonitor == nil {
 		return ""
 	}
