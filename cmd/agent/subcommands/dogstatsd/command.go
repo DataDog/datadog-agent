@@ -24,7 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -78,14 +78,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{c}
 }
 
-func triggerDump() (string, error) {
+func triggerDump(config cconfig.Component) (string, error) {
 	c := util.GetClient(false)
-	addr, err := config.GetIPCAddress()
+	addr, err := pkgconfig.GetIPCAddress()
 	if err != nil {
 		return "", err
 	}
 
-	port := config.Datadog.GetInt("cmd_port")
+	port := config.GetInt("cmd_port")
 	url := fmt.Sprintf("https://%v:%v/agent/dump-dogstatsd-contexts", addr, port)
 
 	err = util.SetAuthToken()
@@ -107,7 +107,7 @@ func triggerDump() (string, error) {
 }
 
 func dumpContexts(config cconfig.Component) error {
-	path, err := triggerDump()
+	path, err := triggerDump(config)
 	if err != nil {
 		return err
 	}
@@ -127,7 +127,7 @@ func topContexts(config cconfig.Component, flags *topFlags) error {
 
 	path := flags.path
 	if path == "" {
-		path, err = triggerDump()
+		path, err = triggerDump(config)
 		if err != nil {
 			return err
 		}
