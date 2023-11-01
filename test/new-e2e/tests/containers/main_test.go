@@ -20,15 +20,13 @@ var keepStacks = flag.Bool("keep-stacks", false, "Do not destroy the Pulumi stac
 
 func TestMain(m *testing.M) {
 	code := m.Run()
-	if code == 0 {
-		if runner.GetProfile().AllowDevMode() && *keepStacks {
-			fmt.Fprintln(os.Stderr, "Keeping stacks")
-		} else {
-			fmt.Fprintln(os.Stderr, "Cleaning up stacks")
-			errs := infra.GetStackManager().Cleanup(context.Background())
-			for _, err := range errs {
-				fmt.Fprint(os.Stderr, err.Error())
-			}
+	if runner.GetProfile().AllowDevMode() && *keepStacks {
+		fmt.Fprintln(os.Stderr, "Keeping stacks")
+	} else {
+		fmt.Fprintln(os.Stderr, "Cleaning up stacks")
+		errs := infra.GetStackManager().Cleanup(context.Background())
+		for _, err := range errs {
+			fmt.Fprint(os.Stderr, err.Error())
 		}
 	}
 	os.Exit(code)
