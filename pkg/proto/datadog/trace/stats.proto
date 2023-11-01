@@ -42,9 +42,6 @@ message ClientStatsPayload {
 	// Tags specifies a set of tags obtained from the orchestrator (where applicable) using the specified containerID.
 	// This field should be left empty by the client. It only applies to some specific environment.
 	repeated string tags = 12;
-	// split_payload indicates if the payload was a split-out part of a larger payload.
-	// This flag can be used in the backend to determine if re-aggregation is necessary.
-	bool split_payload = 13;
 }
 
 // ClientStatsBucket is a time bucket containing aggregated stats.
