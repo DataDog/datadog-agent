@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -19,6 +18,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 
 	"go.uber.org/atomic"
 
