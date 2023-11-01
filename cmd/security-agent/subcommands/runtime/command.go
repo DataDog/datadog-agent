@@ -18,10 +18,9 @@ import (
 	"path"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/flags"
@@ -91,7 +90,8 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(evalArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false),
+				}),
 				core.Bundle,
 			)
 		},
@@ -120,7 +120,8 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false),
+				}),
 				core.Bundle,
 			)
 		},
@@ -140,7 +141,8 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 			return fxutil.OneShot(reloadRuntimePolicies,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
+				}),
 				core.Bundle,
 			)
 		},
@@ -156,7 +158,8 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(runRuntimeSelfTest,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
+				}),
 				core.Bundle,
 			)
 		},
@@ -185,7 +188,8 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 				fx.Supply(downloadPolicyArgs),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "off", false),
+				}),
 				core.Bundle,
 			)
 		},
@@ -216,7 +220,8 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
+				}),
 				core.Bundle,
 			)
 		},
@@ -251,7 +256,8 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
+				}),
 				core.Bundle,
 			)
 		},
@@ -268,7 +274,6 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 }
 
 func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
-
 	dumpDiscardersCmd := &cobra.Command{
 		Use:   "dump",
 		Short: "dump discarders",
@@ -276,7 +281,8 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(dumpDiscarders,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
+				}),
 				core.Bundle,
 			)
 		},
@@ -691,7 +697,7 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 	}
 
 	ctx := context.Background()
-	res, err := httputils.Get(ctx, downloadURL, headers, 10*time.Second)
+	res, err := httputils.Get(ctx, downloadURL, headers, 10*time.Second, config)
 	if err != nil {
 		return err
 	}

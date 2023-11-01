@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -56,13 +57,13 @@ func NewRemoteConfigFlareSource(rcTaskUUID string) FlareSource {
 }
 
 func getFlareReader(multipartBoundary, archivePath, caseID, email, hostname string, source FlareSource) io.ReadCloser {
-	//No need to close the reader, http.Client does it for us
+	// No need to close the reader, http.Client does it for us
 	bodyReader, bodyWriter := io.Pipe()
 
 	writer := multipart.NewWriter(bodyWriter)
 	writer.SetBoundary(multipartBoundary) //nolint:errcheck
 
-	//Write stuff to the pipe will block until it is read from the other end, so we don't load everything in memory
+	// Write stuff to the pipe will block until it is read from the other end, so we don't load everything in memory
 	go func() {
 		// defer order matters to avoid empty result when reading the form.
 		defer bodyWriter.Close()
@@ -115,7 +116,7 @@ func readAndPostFlareFile(archivePath, caseID, email, hostname, url string, sour
 		return http.ErrUseLastResponse
 	}
 
-	request, err := http.NewRequest("POST", url, nil) //nil body, we set it manually later
+	request, err := http.NewRequest("POST", url, nil) // nil body, we set it manually later
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +231,7 @@ func SendTo(archivePath, caseID, email, apiKey, url string, source FlareSource) 
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
 	baseURL, _ := configUtils.AddAgentVersionToDomain(url, "flare")
 
-	transport := httputils.CreateHTTPTransport()
+	transport := httputils.CreateHTTPTransport(pkgconfig.Datadog)
 	client := &http.Client{
 		Transport: transport,
 		Timeout:   httpTimeout,
