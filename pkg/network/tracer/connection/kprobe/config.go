@@ -44,8 +44,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[probes
 			enableProbe(enabled, probes.NetDevQueue)
 			enableProbe(enabled, probes.TCPCloseCleanProtocolsReturn)
 		}
-		secKv, err := skernel.NewKernelVersion()
-		if err == nil && secKv.HaveFentrySupport() {
+		if FentrySupported() {
 			enableProbe(enabled, fentry.TCPSendMsgReturn)
 			// set runtimeTracer arg to false to do strict version based selection
 			enableProbe(enabled, selectVersionBasedProbe(false, kv, fentry.TCPRecvMsgReturn, fentry.TCPRecvMsgPre5190Return, kv5190))
