@@ -40,7 +40,7 @@ func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrich
 	}
 
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", conf)
+	samples = enrichMetricSample(samples, parsed, "", "", conf)
 	if len(samples) != 1 {
 		return metrics.MetricSample{}, fmt.Errorf("wrong number of metrics parsed")
 	}
@@ -56,7 +56,7 @@ func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enri
 	}
 
 	samples := []metrics.MetricSample{}
-	return enrichMetricSample(samples, parsed, "", conf), nil
+	return enrichMetricSample(samples, parsed, "", "", conf), nil
 }
 
 func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*servicecheck.ServiceCheck, error) {
@@ -963,7 +963,7 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", conf)
+	samples = enrichMetricSample(samples, parsed, "", "", conf)
 
 	assert.Equal(t, 0, len(samples))
 }
@@ -980,7 +980,7 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", conf)
+	samples = enrichMetricSample(samples, parsed, "", "", conf)
 
 	assert.Equal(t, 1, len(samples))
 	assert.Equal(t, "", samples[0].Host)
@@ -1000,7 +1000,7 @@ func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 	parsed, err := parser.parseMetricSample(message)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
-	samples = enrichMetricSample(samples, parsed, "", conf)
+	samples = enrichMetricSample(samples, parsed, "", "", conf)
 
 	assert.Equal(t, 1, len(samples))
 }
@@ -1325,7 +1325,7 @@ func TestEnrichTags(t *testing.T) {
 					originOptOutEnabled: true,
 				},
 			},
-			wantedTags:         []string{"env:prod"},
+			wantedTags:         []string{"env:prod", "jmx_domain:org.apache"},
 			wantedHost:         "",
 			wantedOrigin:       "",
 			wantedK8sOrigin:    "",

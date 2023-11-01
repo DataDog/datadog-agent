@@ -301,7 +301,15 @@ func TestObfuscator(t *testing.T) {
 	_, err := o.ObfuscateSQLString(`SELECT TRUNC(SYSDATE@!) from dual`)
 	assert.NoError(t, err, "can't obfuscate @!")
 
-	nullPlSql := "begin null; end;"
-	obfuscatedStatement, err := o.ObfuscateSQLString(nullPlSql)
-	assert.Equal(t, nullPlSql, obfuscatedStatement.Query)
+	sql := "begin null ; end"
+	obfuscatedStatement, err := o.ObfuscateSQLString(sql)
+	assert.Equal(t, sql, obfuscatedStatement.Query)
+
+	sql = "select count (*) from dual"
+	obfuscatedStatement, err = o.ObfuscateSQLString(sql)
+	assert.Equal(t, sql, obfuscatedStatement.Query)
+
+	sql = "select file# from dual"
+	obfuscatedStatement, err = o.ObfuscateSQLString(sql)
+	assert.Equal(t, sql, obfuscatedStatement.Query)
 }

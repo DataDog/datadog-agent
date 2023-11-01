@@ -23,12 +23,18 @@ const (
 	maxAttempts = 6
 )
 
-// GetHostname attempts to acquire a hostname by connecting to the core agent's
-// gRPC endpoints
+// GetHostname attempts to acquire a hostname by connecting to the core
+// agent's gRPC endpoints.
 func GetHostname() (string, error) {
+	return GetHostnameWithContext(context.Background())
+}
+
+// GetHostnameWithContext attempts to acquire a hostname by connecting to the
+// core agent's gRPC endpoints extending the given context.
+func GetHostnameWithContext(ctx context.Context) (string, error) {
 	var hostname string
 	err := retry.Do(func() error {
-		ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 		defer cancel()
 
 		client, err := grpc.GetDDAgentClient(ctx)
@@ -45,6 +51,6 @@ func GetHostname() (string, error) {
 
 		hostname = reply.Hostname
 		return nil
-	}, retry.LastErrorOnly(true), retry.Attempts(maxAttempts))
+	}, retry.LastErrorOnly(true), retry.Attempts(maxAttempts), retry.Context(ctx))
 	return hostname, err
 }

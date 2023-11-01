@@ -103,7 +103,7 @@ def ninja_define_co_re_compiler(nw):
 def ninja_define_exe_compiler(nw):
     nw.rule(
         name="execlang",
-        command="clang -MD -MF $out.d $exeflags $in -o $out $exelibs",
+        command="clang -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
         depfile="$out.d",
     )
 
@@ -546,6 +546,7 @@ def build_sysprobe_binary(
     python_runtimes='3',
     go_mod="mod",
     arch=CURRENT_ARCH,
+    binary=BIN_PATH,
     bundle_ebpf=False,
     strip_binary=False,
 ):
@@ -569,7 +570,7 @@ def build_sysprobe_binary(
         "race_opt": " -race" if race else "",
         "build_type": "" if incremental_build else " -a",
         "go_build_tags": " ".join(build_tags),
-        "agent_bin": BIN_PATH,
+        "agent_bin": binary,
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,

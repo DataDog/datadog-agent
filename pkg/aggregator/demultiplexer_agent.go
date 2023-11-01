@@ -526,7 +526,7 @@ func (d *AgentDemultiplexer) SendSamplesWithoutAggregation(samples metrics.Metri
 		return
 	}
 
-	tlmProcessed.Add(float64(len(samples)), "late_metrics")
+	tlmProcessed.Add(float64(len(samples)), "", "late_metrics")
 	d.statsd.noAggStreamWorker.addSamples(samples)
 }
 
