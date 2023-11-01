@@ -536,6 +536,7 @@ def test(
     arch="x64",
     cache=True,
     test_run_name="",
+    skip_linters=False,
     save_result_json=None,
     rerun_fails=None,
     go_mod="mod",
@@ -571,6 +572,12 @@ def test(
     for env in os.environ:
         if env.startswith("DD_"):
             del os.environ[env]
+
+    if skip_linters:
+        deprecation_msg = """Warning: the --skip-linters is deprecated for the test invoke task.
+If you want to run the linters, please run inv -e lint-go instead.
+"""
+        print(deprecation_msg, file=sys.stderr)
 
     # Process input arguments
 
