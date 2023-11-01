@@ -188,6 +188,7 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 			svcConf[i].Source = "kube_services:" + serviceID
 			svcConf[i].IgnoreAutodiscoveryTags = ignoreADTags
 		}
+
 		configs = append(configs, svcConf...)
 	}
 
