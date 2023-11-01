@@ -601,8 +601,6 @@ def test(
         for f in flavors
     }
 
-    timeout = int(timeout)
-
     ldflags, gcflags, env = get_build_flags(
         ctx,
         rtloader_root=rtloader_root,
@@ -646,7 +644,7 @@ def test(
         "covermode_opt": covermode_opt,
         "coverprofile": coverprofile,
         "test_run_arg": test_run_arg,
-        "timeout": timeout,
+        "timeout": int(timeout),
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
         # Used to print failed tests at the end of the go test command
