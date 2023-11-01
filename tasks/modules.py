@@ -161,6 +161,7 @@ DEFAULT_MODULES = {
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
+    "pkg/util/http": GoModule("pkg/util/http", independent=True),
     "pkg/util/log": GoModule("pkg/util/log", independent=True),
     "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True),
