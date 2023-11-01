@@ -137,7 +137,6 @@ def get_build_flags(
     env = {"GO111MODULE": "on"}
 
     if sys.platform == 'win32':
-        env['CGO_LDFLAGS'] += ' -Wl,--allow-multiple-definition'
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
     else:
         # for pkg/ebpf/compiler on linux
@@ -180,6 +179,9 @@ def get_build_flags(
         env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # OSX
         env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
+
+    if sys.platform == 'win32':
+        env['CGO_LDFLAGS'] += ' -Wl,--allow-multiple-definition'
 
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
     if rtloader_headers:
