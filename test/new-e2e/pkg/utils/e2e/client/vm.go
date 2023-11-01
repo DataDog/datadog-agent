@@ -28,6 +28,7 @@ type VM interface {
 	GetOSType() componentos.Type
 }
 
+// GetOSType returns the operating system type of the VMClient instance.
 func (vmClient *VMClient) GetOSType() componentos.Type {
 	return vmClient.OSType
 }

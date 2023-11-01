@@ -17,7 +17,7 @@ import (
 )
 
 // generateLog generates and verifies log contents.
-func generateLog(s *vmFakeintakeSuite, content string) {
+func generateLog(s *LinuxVMFakeintakeSuite, content string) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
 	t := s.T()
@@ -55,7 +55,7 @@ func generateLog(s *vmFakeintakeSuite, content string) {
 }
 
 // checkLogs checks and verifies logs inside the intake.
-func checkLogs(suite *vmFakeintakeSuite, service, content string) {
+func checkLogs(suite *LinuxVMFakeintakeSuite, service, content string) {
 	client := suite.Env().Fakeintake
 	t := suite.T()
 
@@ -77,7 +77,7 @@ func checkLogs(suite *vmFakeintakeSuite, service, content string) {
 }
 
 // cleanUp cleans up any existing log files (only useful when running dev mode/local runs).
-func (s *vmFakeintakeSuite) cleanUp() {
+func (s *LinuxVMFakeintakeSuite) cleanUp() {
 	t := s.T()
 	osType := s.Env().VM.GetOSType()
 	var os string
@@ -107,7 +107,7 @@ func (s *vmFakeintakeSuite) cleanUp() {
 	}, 5*time.Minute, 2*time.Second)
 }
 
-// func (s *vmFakeintakeSuite) getOSType() (string, error) {
+// func (s *LinuxVMFakeintakeSuite) getOSType() (string, error) {
 // 	output, err := s.Env().VM.ExecuteWithError("cat /etc/os-release")
 // 	if err == nil && strings.Contains(output, "ID=ubuntu") {
 // 		return "linux", nil
