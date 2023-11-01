@@ -151,8 +151,11 @@ func TestSubscribe(t *testing.T) {
 		{
 			// if the filter has type "EventTypeUnset", it does not receive
 			// events for entities that are currently in the store.
-			name:   "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
-			filter: NewFilter(nil, fooSource, EventTypeUnset, false),
+			name: "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
+			filter: NewFilter(FilterParams{
+				Source:    fooSource,
+				EventType: EventTypeUnset,
+			}),
 			preEvents: []CollectorEvent{
 				{
 					Type:   EventTypeSet,
@@ -169,8 +172,11 @@ func TestSubscribe(t *testing.T) {
 			// in the store, and match a filter by source. entities
 			// that don't match the filter at all should not
 			// generate an event.
-			name:   "receive events for entities in the store pre-subscription with filter",
-			filter: NewFilter(nil, fooSource, EventTypeAll, false),
+			name: "receive events for entities in the store pre-subscription with filter",
+			filter: NewFilter(FilterParams{
+				Source:    fooSource,
+				EventType: EventTypeAll,
+			}),
 			preEvents: []CollectorEvent{
 				// set container with two sources, delete one source
 				{
@@ -333,8 +339,11 @@ func TestSubscribe(t *testing.T) {
 			// setting an entity from two different sources, but
 			// unsetting from only one (that matches the filter)
 			// correctly generates an unset event
-			name:   "sets and unsets an entity with source filters",
-			filter: NewFilter(nil, fooSource, EventTypeAll, false),
+			name: "sets and unsets an entity with source filters",
+			filter: NewFilter(FilterParams{
+				Source:    fooSource,
+				EventType: EventTypeAll,
+			}),
 			postEvents: [][]CollectorEvent{
 				{
 					{
@@ -497,8 +506,11 @@ func TestSubscribe(t *testing.T) {
 			},
 		},
 		{
-			name:   "filters by event type",
-			filter: NewFilter(nil, SourceAll, EventTypeUnset, false),
+			name: "filters by event type",
+			filter: NewFilter(FilterParams{
+				Source:    SourceAll,
+				EventType: EventTypeUnset,
+			}),
 			postEvents: [][]CollectorEvent{
 				{
 					{

@@ -140,18 +140,19 @@ func (c *client) run() {
 		c.store = workloadmeta.GetGlobalStore() // TODO(components): should be replaced by components
 	}
 
+	filterParams := workloadmeta.FilterParams{
+		Kinds: []workloadmeta.Kind{
+			workloadmeta.KindKubernetesPod, // Subscribe to pod events to clean up the current batch when a pod is deleted
+			workloadmeta.KindProcess,       // Subscribe to process events to populate the current batch
+		},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeAll,
+	}
+
 	eventCh := c.store.Subscribe(
 		subscriber,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{
-				workloadmeta.KindKubernetesPod, // Subscribe to pod events to clean up the current batch when a pod is deleted
-				workloadmeta.KindProcess,       // Subscribe to process events to populate the current batch
-			},
-			workloadmeta.SourceAll,
-			workloadmeta.EventTypeAll,
-			false,
-		),
+		workloadmeta.NewFilter(filterParams),
 	)
 	defer c.store.Unsubscribe(eventCh)
 

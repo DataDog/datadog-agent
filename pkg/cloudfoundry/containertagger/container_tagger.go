@@ -63,12 +63,13 @@ func NewContainerTagger() (*ContainerTagger, error) {
 // Cancel the context to stop the container tagger.
 func (c *ContainerTagger) Start(ctx context.Context) {
 	go func() {
-		filter := workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindContainer},
-			workloadmeta.SourceClusterOrchestrator,
-			workloadmeta.EventTypeAll,
-			false,
-		)
+		filterParams := workloadmeta.FilterParams{
+			Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
+			Source:    workloadmeta.SourceClusterOrchestrator,
+			EventType: workloadmeta.EventTypeAll,
+		}
+		filter := workloadmeta.NewFilter(filterParams)
+
 		ch := c.store.Subscribe(componentName, workloadmeta.NormalPriority, filter)
 		defer c.store.Unsubscribe(ch)
 		for {

@@ -133,15 +133,15 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeSet, // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
+	}
 	imgEventsCh := c.workloadmetaStore.Subscribe(
 		checkName,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
-			workloadmeta.SourceAll,
-			workloadmeta.EventTypeSet, // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
-			false,
-		),
+		workloadmeta.NewFilter(filterParams),
 	)
 
 	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)

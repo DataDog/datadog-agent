@@ -93,26 +93,26 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
+	containerFilterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
+		Source:    workloadmeta.SourceRuntime,
+		EventType: workloadmeta.EventTypeUnset,
+	}
 	contEventsCh := c.workloadmetaStore.Subscribe(
 		checkName+"-cont",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindContainer},
-			workloadmeta.SourceRuntime,
-			workloadmeta.EventTypeUnset,
-			false,
-		),
+		workloadmeta.NewFilter(containerFilterParams),
 	)
 
+	podFilterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod},
+		Source:    workloadmeta.SourceNodeOrchestrator,
+		EventType: workloadmeta.EventTypeUnset,
+	}
 	podEventsCh := c.workloadmetaStore.Subscribe(
 		checkName+"-pod",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-			workloadmeta.SourceNodeOrchestrator,
-			workloadmeta.EventTypeUnset,
-			false,
-		),
+		workloadmeta.NewFilter(podFilterParams),
 	)
 
 	pollInterval := time.Duration(c.instance.PollInterval) * time.Second
