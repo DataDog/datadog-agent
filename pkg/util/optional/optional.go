@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package util
+package optional
 
 // Optional represents an optional type.
 // By default, no value is set and a call to Get() returns (T{}, false)
