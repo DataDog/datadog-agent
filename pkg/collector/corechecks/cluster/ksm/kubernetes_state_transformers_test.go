@@ -2347,3 +2347,41 @@ func Test_timestampTransformers(t *testing.T) {
 		})
 	}
 }
+
+func Test_removeSecret(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "secret",
+			args: args{
+				name: "kube_ingress_tls",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+				},
+				tags: []string{"secret:foo", "tls_host:foo"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.ingress.tls",
+				val:  1.0,
+				tags: []string{"tls_host:foo"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			currentTime := time.Now()
+			removeSecret(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
+		})
+	}
+}
