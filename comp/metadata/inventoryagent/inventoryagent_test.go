@@ -141,6 +141,10 @@ func TestInitData(t *testing.T) {
 		"process_config.container_collection.enabled": true,
 		"remote_configuration.enabled":                true,
 		"process_config.process_collection.enabled":   true,
+		"container_image.enabled":                     true,
+		"sbom.enabled":                                true,
+		"sbom.container_image.enabled":                true,
+		"sbom.host.enabled":                           true,
 	}
 	ia := getTestInventoryPayload(t, overrides)
 
@@ -165,12 +169,15 @@ func TestInitData(t *testing.T) {
 		"feature_processes_container_enabled":        true,
 		"feature_remote_configuration_enabled":       true,
 		"feature_process_enabled":                    true,
+		"feature_container_images_enabled":           true,
 
 		"feature_dynamic_instrumentation_enabled":      true,
 		"feature_cws_enabled":                          true,
 		"feature_cws_network_enabled":                  true,
 		"feature_cws_security_profiles_enabled":        true,
 		"feature_cws_remote_config_enabled":            true,
+		"feature_csm_vm_containers_enabled":            true,
+		"feature_csm_vm_hosts_enabled":                 true,
 		"feature_networks_enabled":                     true,
 		"feature_networks_http_enabled":                true,
 		"feature_networks_https_enabled":               true,

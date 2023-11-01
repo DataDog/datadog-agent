@@ -208,6 +208,62 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	assert.Equal(t, (*api.Payload)(nil), tracePayload)
 }
 
+func TestEndExecutionSpanWithTraceMetadata(t *testing.T) {
+	t.Setenv(functionNameEnvVar, "TestFunction")
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	log := fxutil.Test[log.Component](t, log.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+	startInvocationTime := time.Now()
+	duration := 1 * time.Second
+	endInvocationTime := startInvocationTime.Add(duration)
+	endDetails := InvocationEndDetails{
+		EndTime:    endInvocationTime,
+		IsError:    true,
+		RequestID:  "test-request-id",
+		ErrorMsg:   "custom exception",
+		ErrorType:  "Exception",
+		ErrorStack: "exception",
+	}
+	samplingPriority := sampler.SamplingPriority(1)
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:           extraTags,
+		ProcessTrace:        mockProcessTrace,
+		DetectLambdaLibrary: mockDetectLambdaLibrary,
+		Demux:               demux,
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{
+				startTime:        startInvocationTime,
+				TraceID:          123,
+				SpanID:           1,
+				parentID:         3,
+				SamplingPriority: samplingPriority,
+			},
+			triggerTags: make(map[string]string),
+		},
+	}
+	testProcessor.OnInvokeEnd(&endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, int32(1), executionSpan.Error)
+	assert.Equal(t, "custom exception", executionSpan.Meta["error.msg"])
+	assert.Equal(t, "Exception", executionSpan.Meta["error.type"])
+	assert.Equal(t, "exception", executionSpan.Meta["error.stack"])
+}
+
 func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_SERVICE", "mock-lambda-service")

@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package languagedetection contains the DCA handler functions to patch kubernetes resources with language annotations
 package languagedetection
 
 import (

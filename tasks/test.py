@@ -74,7 +74,7 @@ def environ(env):
     original_environ = os.environ.copy()
     os.environ.update(env)
     yield
-    for var in env.keys():
+    for var in env:
         if var in original_environ:
             os.environ[var] = original_environ[var]
         else:
@@ -261,7 +261,7 @@ class ModuleTestResult(ModuleResult):
 
                             if action == "fail":
                                 failed_packages.add(package)
-                            elif action == "pass" and package in failed_tests.keys():
+                            elif action == "pass" and package in failed_tests:
                                 # The package was retried and fully succeeded, removing from the list of packages to report
                                 failed_packages.remove(package)
 
@@ -501,8 +501,8 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
     """
 
     success = True
-    for phase in module_results.keys():
-        for flavor in module_results[phase].keys():
+    for phase in module_results:
+        for flavor in module_results[phase]:
             for module_result in module_results[phase][flavor]:
                 if module_result is not None:
                     module_failed, failure_string = module_result.get_failure(flavor)
@@ -571,7 +571,7 @@ def test(
     # Sanitize environment variables
     # We want to ignore all `DD_` variables, as they will interfere with the behavior
     # of some unit tests
-    for env in os.environ.keys():
+    for env in os.environ:
         if env.startswith("DD_"):
             del os.environ[env]
 
@@ -709,7 +709,7 @@ def test(
     # Output
     if junit_tar:
         junit_files = []
-        for flavor in modules_results_per_phase["test"].keys():
+        for flavor in modules_results_per_phase["test"]:
             for module_test_result in modules_results_per_phase["test"][flavor]:
                 if module_test_result.junit_file_path:
                     junit_files.append(module_test_result.junit_file_path)
