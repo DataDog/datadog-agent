@@ -6,7 +6,6 @@
 package windowslogagent
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -18,12 +17,12 @@ import (
 )
 
 // generateLog generates and verifies log contents.
-func generateLog(s *vmFakeintakeSuite, content string) {
+func generateLog(s *windowsVMFakeintakeSuite, content string) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
 	t := s.T()
 
-	osType := s.Env().VM.VMClient.OS.GetType()
+	osType := s.Env().VM.GetOSType()
 	var os string
 
 	switch osType {
@@ -55,7 +54,7 @@ func generateLog(s *vmFakeintakeSuite, content string) {
 }
 
 // checkLogs checks and verifies logs inside the intake.
-func checkLogs(suite *vmFakeintakeSuite, service, content string) {
+func checkLogs(suite *windowsVMFakeintakeSuite, service, content string) {
 	client := suite.Env().Fakeintake
 	t := suite.T()
 
@@ -76,29 +75,13 @@ func checkLogs(suite *vmFakeintakeSuite, service, content string) {
 
 }
 
-func (s *vmFakeintakeSuite) getOSType() (string, error) {
-	// Get Linux OS.
-	output, err := s.Env().VM.ExecuteWithError("cat /etc/os-release")
-	if err == nil && strings.Contains(output, "ID=ubuntu") {
-		return "linux", nil
-	}
-
-	// Get Windows OS.
-	output, err = s.Env().VM.ExecuteWithError("wmic os get Caption")
-	if err == nil && strings.Contains(output, "Windows") {
-		return "windows", nil
-	}
-
-	return "", errors.New("unable to determine OS type")
-}
-
 // cleanUp cleans up any existing log files (only useful when running dev mode/local runs).
-func (s *vmFakeintakeSuite) cleanUp() {
+func (s *windowsVMFakeintakeSuite) cleanUp() {
 	t := s.T()
 
 	var checkCmd string
 
-	osType := s.Env().VM.VMClient.OS.GetType()
+	osType := s.Env().VM.GetOSType()
 	var os string
 
 	switch osType {
@@ -123,3 +106,19 @@ func (s *vmFakeintakeSuite) cleanUp() {
 		}
 	}, 5*time.Minute, 2*time.Second)
 }
+
+// func (s *windowsVMFakeintakeSuite) getOSType() (string, error) {
+// 	// Get Linux OS.
+// 	output, err := s.Env().VM.ExecuteWithError("cat /etc/os-release")
+// 	if err == nil && strings.Contains(output, "ID=ubuntu") {
+// 		return "linux", nil
+// 	}
+
+// 	// Get Windows OS.
+// 	output, err = s.Env().VM.ExecuteWithError("wmic os get Caption")
+// 	if err == nil && strings.Contains(output, "Windows") {
+// 		return "windows", nil
+// 	}
+
+// 	return "", errors.New("unable to determine OS type")
+// }

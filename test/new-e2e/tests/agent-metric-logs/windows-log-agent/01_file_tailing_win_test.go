@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 )
 
-type vmFakeintakeSuite struct {
+type windowsVMFakeintakeSuite struct {
 	e2e.Suite[e2e.FakeIntakeEnv]
 	DevMode bool
 }
@@ -43,14 +43,14 @@ func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
 
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
-	s := &vmFakeintakeSuite{}
+	s := &windowsVMFakeintakeSuite{}
 	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
 		s.DevMode = true
 	}
-	e2e.Run(t, &vmFakeintakeSuite{}, logsExampleStackDef(), params.WithDevMode())
+	e2e.Run(t, &windowsVMFakeintakeSuite{}, logsExampleStackDef(), params.WithDevMode())
 }
 
-func (s *vmFakeintakeSuite) BeforeTest(suiteName, testName string) {
+func (s *windowsVMFakeintakeSuite) BeforeTest(suiteName, testName string) {
 	// Flush server and reset aggregators before the test is ran
 	if s.DevMode {
 		s.cleanUp()
@@ -58,7 +58,7 @@ func (s *vmFakeintakeSuite) BeforeTest(suiteName, testName string) {
 	s.Env().Fakeintake.FlushServerAndResetAggregators()
 }
 
-func (s *vmFakeintakeSuite) TearDownSuite() {
+func (s *windowsVMFakeintakeSuite) TearDownSuite() {
 	// Flush server and reset aggregators after the test is ran
 	if s.DevMode {
 		s.cleanUp()
@@ -66,7 +66,7 @@ func (s *vmFakeintakeSuite) TearDownSuite() {
 	s.Env().Fakeintake.FlushServerAndResetAggregators()
 }
 
-func (s *vmFakeintakeSuite) TestWindowsLogTailing() {
+func (s *windowsVMFakeintakeSuite) TestWindowsLogTailing() {
 	// Run test cases
 	s.T().Run("WindowsLogCollection", func(t *testing.T) {
 		s.WindowsLogCollection()
@@ -82,7 +82,7 @@ func (s *vmFakeintakeSuite) TestWindowsLogTailing() {
 
 }
 
-func (s *vmFakeintakeSuite) WindowsLogCollection() {
+func (s *windowsVMFakeintakeSuite) WindowsLogCollection() {
 	t := s.T()
 	fakeintake := s.Env().Fakeintake
 
@@ -122,7 +122,7 @@ func (s *vmFakeintakeSuite) WindowsLogCollection() {
 	checkLogs(s, "hello", logsContent)
 }
 
-func (s *vmFakeintakeSuite) WindowsLogPermission() {
+func (s *windowsVMFakeintakeSuite) WindowsLogPermission() {
 	t := s.T()
 
 	// Part 4: Block permission and check the Agent status
@@ -163,7 +163,7 @@ func (s *vmFakeintakeSuite) WindowsLogPermission() {
 	}, 5*time.Minute, 2*time.Second)
 }
 
-func (s *vmFakeintakeSuite) WindowsLogRotation() {
+func (s *windowsVMFakeintakeSuite) WindowsLogRotation() {
 	t := s.T()
 
 	// Part 7: Rotate the log file and check if the agent is tailing the new log file.

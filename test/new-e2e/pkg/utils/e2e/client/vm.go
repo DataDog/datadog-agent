@@ -7,6 +7,7 @@ package client
 
 import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/executeparams"
+	componentos "github.com/DataDog/test-infra-definitions/components/os"
 )
 
 // VM is an interface that provides methods to run commands on a virtual machine.
@@ -22,4 +23,11 @@ type VM interface {
 
 	// CopyFolder copy a folder to the remote host
 	CopyFolder(srcFolder string, dstFolder string)
+	// GetOSType retrieves the operating system type of the VM.
+	GetOSType() componentos.Type
+}
+
+// GetOSType returns the operating system type of the VMClient instance.
+func (vmClient *VMClient) GetOSType() componentos.Type {
+	return vmClient.OSType
 }
