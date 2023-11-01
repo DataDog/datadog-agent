@@ -11,17 +11,17 @@ package winregistry
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"io/fs"
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"golang.org/x/sys/windows/registry"
 	"gopkg.in/yaml.v2"
 )
@@ -32,8 +32,8 @@ const (
 )
 
 type registryValueCfg struct {
-	Name         string                 `yaml:"name"` // The metric name of the registry value
-	DefaultValue util.Optional[float64] `yaml:"default_value"`
+	Name         string                     `yaml:"name"` // The metric name of the registry value
+	DefaultValue optional.Optional[float64] `yaml:"default_value"`
 }
 
 type registryKeyCfg struct {

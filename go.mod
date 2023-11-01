@@ -594,7 +594,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/goroutines v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/json v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/retry v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.0.0-00010101000000-000000000000
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
