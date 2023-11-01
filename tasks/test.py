@@ -613,16 +613,12 @@ def test(
         race=race,
     )
 
-    if profile:
-        test_profiler = TestProfiler()
-    else:
-        test_profiler = None  # Use stdout
+    # Use stdout if no profile is set
+    test_profiler = TestProfiler() if profile else None
 
     race_opt = ""
     covermode_opt = ""
-    build_cpus_opt = ""
-    if cpus:
-        build_cpus_opt = f"-p {cpus}"
+    build_cpus_opt = f"-p {cpus}" if cpus else ""
     if race:
         # race doesn't appear to be supported on non-x64 platforms
         if arch == "x86":
@@ -639,9 +635,7 @@ def test(
         else:
             covermode_opt = "-covermode=count"
 
-    coverprofile = ""
-    if coverage:
-        coverprofile = f"-coverprofile={PROFILE_COV}"
+    coverprofile = f"-coverprofile={PROFILE_COV}" if coverage else ""
 
     nocache = '-count=1' if not cache else ''
 
@@ -651,9 +645,7 @@ def test(
         print(f"Removing existing '{save_result_json}' file")
         os.remove(save_result_json)
 
-    test_run_arg = ""
-    if test_run_name != "":
-        test_run_arg = f"-run {test_run_name}"
+    test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} {nocache} std cmd'
