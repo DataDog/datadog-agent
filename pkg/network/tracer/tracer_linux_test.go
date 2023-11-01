@@ -1697,14 +1697,13 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	f, err := c.(*net.TCPConn).File()
 	require.NoError(t, err)
 
+	fd := int(f.Fd())
+	require.NoError(t, syscall.SetNonblock(fd, false), "could not set socket to blocking")
+
 	buf := make([]byte, 6)
-	read := 0
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		n, _, err := syscall.Recvfrom(int(f.Fd()), buf, syscall.MSG_WAITALL)
-		require.NoError(collect, err)
-		read += n
-		assert.Equal(t, 6, read)
-	}, 3*time.Second, 100*time.Millisecond, "failed to receive expected bytes")
+	n, _, err := syscall.Recvfrom(fd, buf, syscall.MSG_WAITALL)
+	require.NoError(t, err)
+	require.Equal(t, 6, n)
 
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
@@ -1713,7 +1712,7 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 		return found
 	}, 3*time.Second, 100*time.Millisecond)
 
-	assert.Equal(t, uint64(read), conn.Monotonic.RecvBytes)
+	assert.Equal(t, uint64(n), conn.Monotonic.RecvBytes)
 }
 
 func (s *TracerSuite) TestPreexistingConnectionDirection() {
