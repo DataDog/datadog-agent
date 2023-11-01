@@ -387,7 +387,7 @@ def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dic
     failed_job_owners = find_job_owners(failed_jobs)
     for owner, jobs in failed_job_owners.items():
         if owner == "@DataDog/multiple":
-            for job in jobs:
+            for job in jobs.all_non_infra_failures():
                 for test in get_failed_tests(project_name, job):
                     messages_to_send[all_teams].add_test_failure(test, job)
                     for owner in test.owners:
@@ -494,6 +494,9 @@ def is_system_probe(owners, files):
     return False
 
 
+EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2", "safchain@gmail.com": "U01009CUG9X"}
+
+
 @task
 def changelog(ctx, new_commit_sha):
     old_commit_sha = ctx.run(
@@ -523,7 +526,10 @@ def changelog(ctx, new_commit_sha):
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
-        author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout.strip()
+        if author_email in EMAIL_SLACK_ID_MAP:
+            author_handle = EMAIL_SLACK_ID_MAP[author_email]
+        else:
+            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout.strip()
         if author_handle:
             author_handle = f"<@{author_handle}>"
         else:
@@ -544,7 +550,7 @@ def changelog(ctx, new_commit_sha):
     else:
         slack_message += "No new System Probe related commits in this release :cricket:"
 
-    print(f"Posting message to slack \n {slack_message}")
+    print(f"Posting message to slack: \n {slack_message}")
     send_slack_message("system-probe-ops", slack_message)
     print(f"Writing new commit sha: {new_commit_sha} to SSM")
     ctx.run(
@@ -854,7 +860,12 @@ def update_gitlab_config(file_path, image_tag, test_version):
     with open(file_path, "r") as gl:
         file_content = gl.readlines()
     gitlab_ci = yaml.safe_load("".join(file_content))
-    suffixes = [name for name in gitlab_ci["variables"].keys() if name.endswith("SUFFIX")]
+    # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
+    suffixes = [
+        name
+        for name in gitlab_ci["variables"]
+        if name.endswith("SUFFIX") and not name.startswith("TEST_INFRA_DEFINITION")
+    ]
     images = [name.replace("_SUFFIX", "") for name in suffixes]
     with open(file_path, "w") as gl:
         for line in file_content:
@@ -896,9 +907,11 @@ def trigger_build(ctx, branch_name=None, create_branch=False):
     """
     if create_branch:
         ctx.run(f"git checkout -b {branch_name}")
-    ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
     answer = input("Do you want to trigger a pipeline (will also commit and push)? [Y/n]\n")
     if len(answer) == 0 or answer.casefold() == "y":
+        ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
         ctx.run("git commit -m 'Update buildimages version'")
         ctx.run(f"git push origin {branch_name}")
+        print("Wait 10s to let Gitlab create the first events before triggering a new pipeline")
+        time.sleep(10)
         run(ctx, here=True)

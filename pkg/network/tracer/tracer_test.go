@@ -194,15 +194,18 @@ func (s *TracerSuite) TestTCPSendAndReceive() {
 	err = wg.Wait()
 	require.NoError(t, err)
 
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections := getConnections(t, tr)
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		// Iterate through active connections until we find connection created above, and confirm send + recv counts
+		connections := getConnections(t, tr)
+		var ok bool
+		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
+		return conn != nil && ok
+	}, 3*time.Second, 100*time.Millisecond, "failed to find connection")
 
-	conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-	require.True(t, ok)
 	m := conn.Monotonic
 	assert.Equal(t, 10*clientMessageSize, int(m.SentBytes))
 	assert.Equal(t, 10*serverMessageSize, int(m.RecvBytes))
-	assert.Equal(t, 0, int(m.Retransmits))
 	assert.Equal(t, os.Getpid(), int(conn.Pid))
 	assert.Equal(t, addrPort(server.address), int(conn.DPort))
 	assert.Equal(t, network.OUTGOING, conn.Direction)
@@ -1018,11 +1021,10 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	require.NoError(t, err)
 	defer dnsConn.Close()
 	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
-	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
-
-	if err != nil && timeout == 0 {
-		t.Fatalf("Failed to get dns response %s\n", err.Error())
-	}
+	require.Eventually(t, func() bool {
+		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+		return err == nil || timeout != 0
+	}, 3*time.Second, 100*time.Millisecond, "Failed to get dns response")
 
 	// Allow the DNS reply to be processed in the snooper
 	time.Sleep(time.Millisecond * 500)

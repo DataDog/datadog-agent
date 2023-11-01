@@ -120,7 +120,7 @@ func (r *SECLRuleFilter) IsRuleAccepted(rule *RuleDefinition) (bool, error) {
 
 	evalOpts := &eval.Opts{}
 	evalOpts.
-		WithConstants(model.SECLConstants)
+		WithConstants(model.SECLConstants())
 
 	evaluator, err := eval.NewRuleEvaluator(astRule, r.model, evalOpts)
 	if err != nil {

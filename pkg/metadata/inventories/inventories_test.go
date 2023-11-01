@@ -27,7 +27,6 @@ func clearMetadata() {
 	defer inventoryMutex.Unlock()
 
 	checkMetadata = make(map[string]*checkMetadataCacheEntry)
-	agentMetadata = make(AgentMetadata)
 
 	// purge metadataUpdatedC
 L:
@@ -109,10 +108,6 @@ func TestGetPayloadForExpvar(t *testing.T) {
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp)
 
-	agentMetadata := *p.AgentMetadata
-	assert.NotContains(t, agentMetadata, "full_configuration")
-	assert.NotContains(t, agentMetadata, "provided_configuration")
-
 	checkMeta := *p.CheckMetadata
 	require.Len(t, checkMeta, 1)
 	require.Len(t, checkMeta["check1"], 1)
@@ -160,8 +155,6 @@ func TestGetPayload(t *testing.T) {
 		},
 	}}
 
-	SetAgentMetadata("test", true)
-
 	SetCheckMetadata("check1_instance1", "check_provided_key1", 123)
 	SetCheckMetadata("check1_instance1", "check_provided_key2", "Hi")
 	SetCheckMetadata("non_running_checkid", "check_provided_key1", "this_should_not_be_kept")
@@ -169,17 +162,6 @@ func TestGetPayload(t *testing.T) {
 	p := GetPayload(ctx, "testHostname", coll, true)
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp)
-
-	agentMetadata := *p.AgentMetadata
-	// keys are:
-	//  - test
-	//  - full_configuration
-	//  - provided_configuration
-	//  - install_method_installer_version
-	//  - install_method_tool": "undefined
-	//  - install_method_tool_version
-	assert.Len(t, agentMetadata, 6)
-	assert.Equal(t, true, agentMetadata["test"])
 
 	checkMeta := *p.CheckMetadata
 	assert.Len(t, checkMeta, 2)           // 'non_running_checkid' should have been cleaned
@@ -215,25 +197,6 @@ func TestGetPayload(t *testing.T) {
 	p = GetPayload(ctx, "testHostname", coll, true)
 
 	assert.Equal(t, startNow.UnixNano(), p.Timestamp) //updated startNow is returned
-
-	agentMetadata = *p.AgentMetadata
-	// keys are:
-	//  - test
-	//  - cloud_provider
-	//  - full_configuration
-	//  - provided_configuration
-	//  - install_method_installer_version
-	//  - install_method_tool": "undefined
-	//  - install_method_tool_version
-	assert.Len(t, agentMetadata, 7)
-	assert.Equal(t, true, agentMetadata["test"])
-
-	// no point in asserting every field from the agent configuration. We just check they are present and then set
-	// then delete them to assert the rest.
-	assert.NotNil(t, agentMetadata["provided_configuration"])
-	assert.NotNil(t, agentMetadata["full_configuration"])
-	delete(agentMetadata, "provided_configuration")
-	delete(agentMetadata, "full_configuration")
 
 	checkMeta = *p.CheckMetadata
 	assert.Len(t, checkMeta, 2)
@@ -286,14 +249,6 @@ func TestGetPayload(t *testing.T) {
 				}
 			]
 		},
-		"agent_metadata":
-		{
-			"cloud_provider": "some_cloud_provider",
-			"install_method_installer_version": "",
-			"install_method_tool": "undefined",
-			"install_method_tool_version": "",
-			"test": true
-		},
 		"host_metadata":
 		{
 			"cpu_cores": 6,
@@ -336,50 +291,6 @@ func TestGetPayload(t *testing.T) {
 
 }
 
-func TestSetup(t *testing.T) {
-	defer func() { clearMetadata() }()
-
-	startNow := time.Now()
-	timeNow = func() time.Time { return startNow }
-	defer func() { timeNow = time.Now }()
-
-	timeSince = func(t time.Time) time.Duration { return 24 * time.Hour }
-	defer func() { timeSince = time.Since }()
-
-	ms := mockScheduler{
-		sendNowCalled:    make(chan interface{}, 5),
-		lastSendNowDelay: -1,
-	}
-
-	err := StartMetadataUpdatedGoroutine(&ms, 10*time.Minute)
-	assert.Nil(t, err)
-
-	// Collector should be added but not called after setup
-	assert.False(t, waitForCalledSignal(ms.sendNowCalled))
-
-	// New metadata should trigger the collector
-	SetAgentMetadata("key", "value")
-	assert.True(t, waitForCalledSignal(ms.sendNowCalled))
-	assert.Equal(t, time.Duration(0), ms.lastSendNowDelay)
-
-	// The same metadata shouldn't
-	SetAgentMetadata("key", "value")
-	assert.False(t, waitForCalledSignal(ms.sendNowCalled))
-
-	// Different metadata for the same key should
-	SetAgentMetadata("key", "new_value")
-	assert.True(t, waitForCalledSignal(ms.sendNowCalled))
-	assert.Equal(t, time.Duration(0), ms.lastSendNowDelay)
-
-	// Simulate next call happens too quickly after the previous one
-	timeSince = func(t time.Time) time.Duration { return 0 * time.Second }
-
-	// Different metadata after a short time should trigger the collector but with a delay
-	SetAgentMetadata("key", "yet_another_value")
-	assert.True(t, waitForCalledSignal(ms.sendNowCalled))
-	assert.True(t, ms.lastSendNowDelay > time.Duration(0))
-}
-
 func TestCreateCheckInstanceMetadataReturnsNewMetadata(t *testing.T) {
 	defer clearMetadata()
 
@@ -399,86 +310,4 @@ func TestCreateCheckInstanceMetadataReturnsNewMetadata(t *testing.T) {
 	(*md)[metadataKey] = "a-different-metadata-value"
 
 	assert.NotEqual(t, checkMetadata[checkID].CheckInstanceMetadata[metadataKey], (*md)[metadataKey])
-}
-
-func testGeneric[T any](cfgName, invName string, input, output T) func(*testing.T) {
-	cfg := config.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	return func(t *testing.T) {
-		cfg.Set(cfgName, input)
-		initializeConfig(cfg)
-		require.Equal(t, output, agentMetadata[AgentMetadataName(invName)].(T))
-	}
-}
-
-// Test the `initializeConfig` function and especially its scrubbing of secret values.
-func TestInitializeConfig(t *testing.T) {
-	t.Run("language detection enabled", testGeneric[bool](
-		"language_detection.enabled",
-		"feature_process_language_detection_enabled",
-		true,
-		true,
-	))
-
-	t.Run("config_apm_dd_url", testGeneric[string](
-		"apm_config.apm_dd_url",
-		"config_apm_dd_url",
-		"http://name:sekrit@someintake.example.com/",
-		"http://name:********@someintake.example.com/",
-	))
-
-	t.Run("config_dd_url", testGeneric[string](
-		"dd_url",
-		"config_dd_url",
-		"http://name:sekrit@someintake.example.com/",
-		"http://name:********@someintake.example.com/",
-	))
-
-	t.Run("config_logs_dd_url", testGeneric[string](
-		"logs_config.logs_dd_url",
-		"config_logs_dd_url",
-		"http://name:sekrit@someintake.example.com/",
-		"http://name:********@someintake.example.com/",
-	))
-
-	t.Run("config_logs_socks5_proxy_address", testGeneric[string](
-		"logs_config.socks5_proxy_address",
-		"config_logs_socks5_proxy_address",
-		"http://name:sekrit@proxy.example.com/",
-		"http://name:********@proxy.example.com/",
-	))
-
-	t.Run("config_no_proxy", testGeneric[[]string](
-		"proxy.no_proxy",
-		"config_no_proxy",
-		[]string{"http://noprox.example.com", "http://name:sekrit@proxy.example.com/"},
-		[]string{"http://noprox.example.com", "http://name:********@proxy.example.com/"},
-	))
-
-	t.Run("config_no_proxy-nil", testGeneric[[]string](
-		"proxy.no_proxy",
-		"config_no_proxy",
-		nil,
-		[]string{},
-	))
-
-	t.Run("config_process_dd_url", testGeneric[string](
-		"process_config.process_dd_url",
-		"config_process_dd_url",
-		"http://name:sekrit@someintake.example.com/",
-		"http://name:********@someintake.example.com/",
-	))
-
-	t.Run("config_proxy_http", testGeneric[string](
-		"proxy.http",
-		"config_proxy_http",
-		"http://name:sekrit@proxy.example.com/",
-		"http://name:********@proxy.example.com/",
-	))
-
-	t.Run("config_proxy_https", testGeneric[string](
-		"proxy.https",
-		"config_proxy_https",
-		"https://name:sekrit@proxy.example.com/",
-		"https://name:********@proxy.example.com/",
-	))
 }

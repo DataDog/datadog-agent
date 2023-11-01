@@ -43,8 +43,40 @@ var (
 
 // StackManager handles
 type StackManager struct {
+	stacks *safeStackMap
+}
+
+type safeStackMap struct {
 	stacks map[string]*auto.Stack
 	lock   sync.RWMutex
+}
+
+func newSafeStackMap() *safeStackMap {
+	return &safeStackMap{stacks: map[string]*auto.Stack{}, lock: sync.RWMutex{}}
+}
+
+func (s *safeStackMap) Get(key string) (*auto.Stack, bool) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	stack, ok := s.stacks[key]
+	return stack, ok
+}
+
+func (s *safeStackMap) Set(key string, value *auto.Stack) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	s.stacks[key] = value
+}
+
+func (s *safeStackMap) Range(f func(string, *auto.Stack)) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	for key, value := range s.stacks {
+		f(key, value)
+	}
 }
 
 // GetStackManager returns a stack manager, initialising on first call
@@ -52,7 +84,7 @@ func GetStackManager() *StackManager {
 	initStackManager.Do(func() {
 		var err error
 
-		stackManager, err = newStackManager(context.Background())
+		stackManager, err = newStackManager()
 		if err != nil {
 			panic(fmt.Sprintf("Got an error during StackManager singleton init, err: %v", err))
 		}
@@ -61,16 +93,14 @@ func GetStackManager() *StackManager {
 	return stackManager
 }
 
-func newStackManager(ctx context.Context) (*StackManager, error) {
+func newStackManager() (*StackManager, error) {
 	return &StackManager{
-		stacks: make(map[string]*auto.Stack),
+		stacks: newSafeStackMap(),
 	}, nil
 }
 
 // GetStack creates or return a stack based on stack name and config, if error occurs during stack creation it destroy all the resources created
 func (sm *StackManager) GetStack(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
-	sm.lock.Lock()
-	defer sm.lock.Unlock()
 
 	stack, upResult, err := sm.getStack(ctx, name, config, deployFunc, failOnMissing)
 
@@ -86,18 +116,14 @@ func (sm *StackManager) GetStack(ctx context.Context, name string, config runner
 
 // GetStackNoDeleteOnFailure creates or return a stack based on stack name and config, if error occurs during stack creation, it will not destroy the created resources. Using this can lead to resource leaks.
 func (sm *StackManager) GetStackNoDeleteOnFailure(ctx context.Context, name string, config runner.ConfigMap, deployFunc pulumi.RunFunc, failOnMissing bool) (*auto.Stack, auto.UpResult, error) {
-	sm.lock.Lock()
-	defer sm.lock.Unlock()
 
 	return sm.getStack(ctx, name, config, deployFunc, failOnMissing)
 }
 
 // DeleteStack safely deletes a stack
 func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
-	sm.lock.Lock()
-	defer sm.lock.Unlock()
 
-	stack, ok := sm.stacks[name]
+	stack, ok := sm.stacks.Get(name)
 	if !ok {
 		// Build configuration from profile
 		profile := runner.GetProfile()
@@ -121,10 +147,8 @@ func (sm *StackManager) DeleteStack(ctx context.Context, name string) error {
 // ForceRemoveStackConfiguration removes the configuration files pulumi creates for managing a stack.
 // It DOES NOT perform any cleanup of the resources created by the stack. Call `DeleteStack` for correct cleanup.
 func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name string) error {
-	sm.lock.Lock()
-	defer sm.lock.Unlock()
 
-	stack, ok := sm.stacks[name]
+	stack, ok := sm.stacks.Get(name)
 	if !ok {
 		return fmt.Errorf("unable to remove stack %s: stack not present", name)
 	}
@@ -136,17 +160,15 @@ func (sm *StackManager) ForceRemoveStackConfiguration(ctx context.Context, name 
 
 // Cleanup delete any existing stack
 func (sm *StackManager) Cleanup(ctx context.Context) []error {
-	sm.lock.Lock()
-	defer sm.lock.Unlock()
 
 	var errors []error
 
-	for stackID, stack := range sm.stacks {
+	sm.stacks.Range(func(stackID string, stack *auto.Stack) {
 		err := sm.deleteStack(ctx, stackID, stack)
 		if err != nil {
 			errors = append(errors, err)
 		}
-	}
+	})
 
 	return errors
 }
@@ -180,8 +202,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 	if err != nil {
 		return nil, auto.UpResult{}, err
 	}
-
-	stack := sm.stacks[name]
+	stack, _ := sm.stacks.Get(name)
 	if stack == nil {
 		workspace, err := buildWorkspace(ctx, profile, stackName, deployFunc)
 		if err != nil {
@@ -197,7 +218,7 @@ func (sm *StackManager) getStack(ctx context.Context, name string, config runner
 		}
 
 		stack = &newStack
-		sm.stacks[name] = stack
+		sm.stacks.Set(name, stack)
 	} else {
 		stack.Workspace().SetProgram(deployFunc)
 	}
@@ -259,4 +280,18 @@ func runFuncWithRecover(f pulumi.RunFunc) pulumi.RunFunc {
 
 		return f(ctx)
 	}
+}
+
+// GetPulumiStackName returns the Pulumi stack name
+// The internal Pulumi stack name should normally remain hidden as all the Pulumi interactions
+// should be done via the StackManager.
+// The only use case for getting the internal Pulumi stack name is to interact directly with Pulumi for debug purposes.
+func (sm *StackManager) GetPulumiStackName(name string) (string, error) {
+
+	stack, ok := sm.stacks.Get(name)
+	if !ok {
+		return "", fmt.Errorf("stack %s not present", name)
+	}
+
+	return stack.Name(), nil
 }

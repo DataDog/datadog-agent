@@ -30,7 +30,7 @@ func TestIsParentDiscarder(t *testing.T) {
 
 	var evalOpts eval.Opts
 	evalOpts.
-		WithConstants(model.SECLConstants).
+		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields).
 		WithVariables(model.SECLVariables)
 
@@ -228,7 +228,7 @@ func TestIsGrandParentDiscarder(t *testing.T) {
 
 	var evalOpts eval.Opts
 	evalOpts.
-		WithConstants(model.SECLConstants).
+		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields)
 
 	var opts rules.Opts
@@ -360,7 +360,7 @@ func TestIsDiscarderOverride(t *testing.T) {
 
 	var evalOpts eval.Opts
 	evalOpts.
-		WithConstants(model.SECLConstants).
+		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields)
 
 	var opts rules.Opts
@@ -407,7 +407,7 @@ func BenchmarkParentDiscarder(b *testing.B) {
 
 	var evalOpts eval.Opts
 	evalOpts.
-		WithConstants(model.SECLConstants).
+		WithConstants(model.SECLConstants()).
 		WithLegacyFields(model.SECLLegacyFields)
 
 	var opts rules.Opts

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -196,6 +197,12 @@ func GetDCAStatus(verbose bool) (map[string]interface{}, error) {
 			stats["clusterchecks"] = cchecks
 		}
 	}
+
+	stats["adEnabledFeatures"] = config.GetDetectedFeatures()
+	if common.AC != nil {
+		stats["adConfigErrors"] = common.AC.GetAutodiscoveryErrors()
+	}
+	stats["filterErrors"] = containers.GetFilterErrors()
 
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		if apiErr != nil {
@@ -460,6 +467,8 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	}
 
 	stats["snmpTrapsStats"] = traps.GetStatus()
+
+	stats["netflowStats"] = netflowServer.GetStatus()
 
 	complianceVar := expvar.Get("compliance")
 	if complianceVar != nil {

@@ -48,7 +48,7 @@ func container1(testTime time.Time) Container {
 	}
 }
 
-func container2(testTime time.Time) Container {
+func container2(testTime time.Time) Container { //nolint:revive // TODO fix revive unused-parameter
 	return Container{
 		EntityID: EntityID{
 			Kind: KindContainer,

@@ -11,14 +11,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNodeParser_Parse(t *testing.T) {
@@ -34,7 +33,7 @@ func TestNodeParser_Parse(t *testing.T) {
 		},
 	}
 	node := &corev1.Node{
-		ObjectMeta: v1.ObjectMeta{
+		ObjectMeta: metav1.ObjectMeta{
 			Name:   expected.ID,
 			Labels: expected.Labels,
 		},

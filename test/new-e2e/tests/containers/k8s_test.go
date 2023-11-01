@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/agent-payload/v5/gogen"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/suite"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -31,64 +30,109 @@ import (
 var GitCommit string
 
 type k8sSuite struct {
-	suite.Suite
+	baseSuite
 
 	AgentLinuxHelmInstallName   string
 	AgentWindowsHelmInstallName string
 
-	Fakeintake *fakeintake.Client
-	K8sConfig  *restclient.Config
-	K8sClient  *kubernetes.Clientset
+	K8sConfig *restclient.Config
+	K8sClient *kubernetes.Clientset
 }
 
-func (suite *k8sSuite) TestAgent() {
+// Once pulumi has finished to create a stack, it can still take some time for the images to be pulled,
+// for the containers to be started, for the agent collectors to collect workload information
+// and to feed workload meta and the tagger.
+//
+// We could increase the timeout of all tests to cope with the agent tagger warmup time.
+// But in case of a single bug making a single tag missing from every metric,
+// all the tests would time out and that would be a waste of time.
+//
+// It’s better to have the first test having a long timeout to wait for the agent to warmup,
+// and to have the following tests with a smaller timeout.
+//
+// Inside a testify test suite, tests are executed in alphabetical order.
+// The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready
+// is run first.
+func (suite *k8sSuite) Test00UpAndRunning() {
 	ctx := context.Background()
 
 	suite.Run("agent pods are ready and not restarting", func() {
-		linuxNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
-		})
-		suite.NoError(err)
+		suite.EventuallyWithTf(func(collect *assert.CollectT) {
 
-		windowsNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "windows").String(),
-		})
-		suite.NoError(err)
+			linuxNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
+			})
+			if err != nil {
+				collect.Errorf("Failed to list Linux nodes: %w", err)
+				return
+			}
 
-		linuxPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog").String(),
-		})
-		suite.NoError(err)
+			windowsNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "windows").String(),
+			})
+			if err != nil {
+				collect.Errorf("Failed to list Windows nodes: %w", err)
+				return
+			}
 
-		windowsPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", suite.AgentWindowsHelmInstallName+"-datadog").String(),
-		})
-		suite.NoError(err)
+			linuxPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog").String(),
+			})
+			if err != nil {
+				collect.Errorf("Failed to list Linux datadog agent pods: %w", err)
+				return
+			}
 
-		clusterAgentPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-cluster-agent").String(),
-		})
-		suite.NoError(err)
+			windowsPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentWindowsHelmInstallName+"-datadog").String(),
+			})
+			if err != nil {
+				collect.Errorf("Failed to list Windows datadog agent pods: %w", err)
+				return
+			}
 
-		clusterChecksPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
-			LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-clusterchecks").String(),
-		})
-		suite.NoError(err)
+			clusterAgentPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-cluster-agent").String(),
+			})
+			if err != nil {
+				collect.Errorf("Failed to list datadog cluster agent pods: %w", err)
+				return
+			}
 
-		suite.Equalf(len(linuxNodes.Items), len(linuxPods.Items), "There isn’t exactly one Linux pod per Linux node.")
-		suite.Equalf(len(windowsNodes.Items), len(windowsPods.Items), "There isn’t exactly one Windows pod per Windows node.")
-		suite.Greaterf(len(clusterAgentPods.Items), 0, "There isn’t any cluster agent pod.")
-		suite.Greaterf(len(clusterChecksPods.Items), 0, "There isn’t any cluster checks worker pod.")
+			clusterChecksPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-clusterchecks").String(),
+			})
+			if err != nil {
+				collect.Errorf("Failed to list datadog cluster checks runner pods: %w", err)
+				return
+			}
 
-		for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods} {
-			for _, pod := range podList.Items {
-				for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
-					suite.Truef(containerStatus.Ready, "Container %s of pod %s isn’t ready", containerStatus.Name, pod.Name)
-					suite.EqualValuesf(containerStatus.RestartCount, 0, "Container %s of pod %s has restarted %d times.", containerStatus.Name, pod.Name, containerStatus.RestartCount)
+			if len(linuxPods.Items) != len(linuxNodes.Items) {
+				collect.Errorf("There is only %d Linux datadog agent pods for %d Linux nodes.", len(linuxPods.Items), len(linuxNodes.Items))
+			}
+			if len(windowsPods.Items) != len(windowsNodes.Items) {
+				collect.Errorf("There is only %d Windows datadog agent pods for %d Windows nodes.", len(windowsPods.Items), len(windowsNodes.Items))
+			}
+			if len(clusterAgentPods.Items) == 0 {
+				collect.Errorf("There isn’t any cluster agent pod.")
+			}
+			if len(clusterChecksPods.Items) == 0 {
+				collect.Errorf("There isn’t any cluster checks worker pod.")
+			}
+
+			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods} {
+				for _, pod := range podList.Items {
+					for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
+						if !containerStatus.Ready {
+							collect.Errorf("Container %s of pod %s isn’t ready.", containerStatus.Name, pod.Name)
+						}
+						if containerStatus.RestartCount > 0 {
+							collect.Errorf("Container %s of pod %s has restarted %d times.", containerStatus.Name, pod.Name, containerStatus.RestartCount)
+						}
+					}
 				}
 			}
-		}
-
+		}, 5*time.Minute, 10*time.Second, "Not all agents eventually became ready in time.")
 	})
 
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
@@ -329,31 +373,6 @@ func (suite *k8sSuite) TestPrometheus() {
 			regexp.MustCompile(`^short_image:apps-prometheus$`),
 		},
 	)
-}
-
-func (suite *k8sSuite) testMetric(metricName string, filterTags []string, expectedTags []*regexp.Regexp) {
-	suite.Run(fmt.Sprintf("%s{%s}", metricName, strings.Join(filterTags, ",")), func() {
-		suite.EventuallyWithTf(func(collect *assert.CollectT) {
-			metrics, err := suite.Fakeintake.FilterMetrics(
-				metricName,
-				fakeintake.WithTags[*aggregator.MetricSeries](filterTags),
-			)
-			if err != nil {
-				collect.Errorf("%w", err)
-				return
-			}
-			if len(metrics) == 0 {
-				collect.Errorf("No `%s{%s}` metrics yet", metricName, strings.Join(filterTags, ","))
-				return
-			}
-
-			// Check tags
-			if err := assertTags(metrics[len(metrics)-1].GetTags(), expectedTags); err != nil {
-				collect.Errorf("Tags mismatch on `%s`: %w", metricName, err)
-				return
-			}
-		}, 2*time.Minute, 10*time.Second, "Failed finding %s{%s} with proper tags", metricName, strings.Join(filterTags, ","))
-	})
 }
 
 func (suite *k8sSuite) testHPA(namespace, deployment string) {
