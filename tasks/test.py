@@ -616,15 +616,9 @@ def test(
     # Use stdout if no profile is set
     test_profiler = TestProfiler() if profile else None
 
-    race_opt = ""
+    race_opt = "-race" if race else ""
     covermode_opt = ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
-    if race:
-        # race doesn't appear to be supported on non-x64 platforms
-        if arch == "x86":
-            print("\n -- Warning... disabling race test, not supported on this platform --\n")
-        else:
-            race_opt = "-race"
 
     if coverage:
         if race:
