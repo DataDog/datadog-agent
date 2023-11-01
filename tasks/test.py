@@ -536,7 +536,6 @@ def test(
     arch="x64",
     cache=True,
     test_run_name="",
-    skip_linters=False,
     save_result_json=None,
     rerun_fails=None,
     go_mod="mod",
@@ -551,8 +550,6 @@ def test(
     If targets are provided but no module is set, the main module (".") is used.
 
     If no module or target is set the tests are run against all modules and targets.
-
-    Also runs linters on the same modules / targets, except if the --skip-linters option is passed.
 
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
@@ -574,21 +571,6 @@ def test(
     for env in os.environ:
         if env.startswith("DD_"):
             del os.environ[env]
-
-    # Run linters first
-
-    if not skip_linters:
-        modules_results_per_phase["lint"] = run_lint_go(
-            ctx=ctx,
-            module=module,
-            targets=targets,
-            flavors=flavors,
-            build_include=build_include,
-            build_exclude=build_exclude,
-            rtloader_root=rtloader_root,
-            arch=arch,
-            cpus=cpus,
-        )
 
     # Process input arguments
 
@@ -729,10 +711,7 @@ def test(
     success = process_module_results(modules_results_per_phase)
 
     if success:
-        if skip_linters:
-            print(color_message("All tests passed", "green"))
-        else:
-            print(color_message("All tests and linters passed", "green"))
+        print(color_message("All tests passed", "green"))
     else:
         # Exit if any of the modules failed on any phase
         raise Exit(code=1)
