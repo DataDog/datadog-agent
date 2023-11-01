@@ -5,7 +5,7 @@
 
 //go:build test
 
-package server
+package serverimpl
 
 import (
 	"testing"
@@ -17,10 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
+	configimpl "github.com/DataDog/datadog-agent/comp/snmptraps/config/impl"
+	formatterimpl "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/impl"
+	forwarderimpl "github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/impl"
+	listenerimpl "github.com/DataDog/datadog-agent/comp/snmptraps/listener/impl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	statusimpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
@@ -30,19 +32,19 @@ import (
 func TestStartStop(t *testing.T) {
 	freePort, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
-	server := fxutil.Test[Component](t,
+	server := fxutil.Test[server.Component](t,
 		log.MockModule,
-		config.MockModule,
-		formatter.MockModule,
+		configimpl.MockModule,
+		formatterimpl.MockModule,
 		fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
 			mockSender := mocksender.NewMockSender("mock-sender")
 			mockSender.SetupAcceptAll()
 			return mockSender, mockSender
 		}),
 		hostnameimpl.MockModule,
-		forwarder.Module,
-		status.MockModule,
-		listener.Module,
+		forwarderimpl.Module,
+		statusimpl.MockModule,
+		listenerimpl.Module,
 		Module,
 		fx.Replace(&config.TrapsConfig{
 			Enabled:          true,

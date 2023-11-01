@@ -3,18 +3,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package forwarder
+// Package forwarderimpl implements the forwarder component.
+package forwarderimpl
 
 import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(NewTrapForwarder),
 )
 
 // TrapForwarder consumes from a trapsIn channel, format traps and send them as EventPlatformEvents
@@ -38,7 +46,7 @@ type dependencies struct {
 }
 
 // NewTrapForwarder creates a simple TrapForwarder instance
-func NewTrapForwarder(dep dependencies) (Component, error) {
+func NewTrapForwarder(dep dependencies) (forwarder.Component, error) {
 	return &TrapForwarder{
 		trapsIn:   dep.Listener.Packets(),
 		formatter: dep.Formatter,

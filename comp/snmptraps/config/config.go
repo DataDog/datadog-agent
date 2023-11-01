@@ -19,6 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 )
 
+const (
+	defaultPort        = uint16(9162) // Standard UDP port for traps.
+	defaultStopTimeout = 5
+	packetsChanSize    = 100
+)
+
 // UserV3 contains the definition of one SNMPv3 user with its username and its auth
 // parameters.
 type UserV3 struct {

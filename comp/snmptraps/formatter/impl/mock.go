@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package formatter
+package formatterimpl
 
 import (
 	"bytes"
@@ -11,11 +11,19 @@ import (
 	"encoding/gob"
 	"encoding/hex"
 
+	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
+)
+
+// MockModule provides a dummy formatter that just hashes packets.
+var MockModule = fxutil.Component(
+	fx.Provide(newDummy),
 )
 
 // newDummy creates a new dummy formatter.
-func newDummy() Component {
+func newDummy() formatter.Component {
 	return &DummyFormatter{}
 }
 

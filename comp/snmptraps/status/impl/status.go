@@ -3,13 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package status
+// Package statusimpl implements the Status component.
+package statusimpl
 
 import (
 	"encoding/json"
 	"expvar"
 
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(New),
 )
 
 var (
@@ -23,8 +32,8 @@ func init() {
 	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
 }
 
-// New creates a New component
-func New() Component {
+// New creates a new component
+func New() status.Component {
 	return &manager{}
 }
 

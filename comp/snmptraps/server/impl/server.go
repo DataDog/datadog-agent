@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package server
+// Package serverimpl implements the traps server.
+package serverimpl
 
 import (
 	"context"
@@ -14,8 +15,15 @@ import (
 	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newServer),
 )
 
 // Server manages an SNMP trap listener.
@@ -38,7 +46,7 @@ type dependencies struct {
 }
 
 // newServer configures a netflow server.
-func newServer(lc fx.Lifecycle, deps dependencies) Component {
+func newServer(lc fx.Lifecycle, deps dependencies) server.Component {
 	conf := deps.Config.Get()
 
 	server := &Server{

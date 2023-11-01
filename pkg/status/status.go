@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
-	traps "github.com/DataDog/datadog-agent/comp/snmptraps/status"
+	traps "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"

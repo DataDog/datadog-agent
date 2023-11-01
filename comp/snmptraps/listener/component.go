@@ -9,8 +9,6 @@ package listener
 
 import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // team: network-device-monitoring
@@ -24,22 +22,3 @@ type Component interface {
 	// Packets returns the channel to which the listener publishes traps packets.
 	Packets() packet.PacketsChannel
 }
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(NewTrapListener),
-)
-
-// MockComponent just holds a channel to which tests can write.
-type MockComponent interface {
-	Component
-	Send(*packet.SnmpPacket)
-}
-
-// MockModule provides a MockComponent as the Component.
-var MockModule = fxutil.Component(
-	fx.Provide(
-		newMock,
-		func(m MockComponent) Component { return m },
-	),
-)

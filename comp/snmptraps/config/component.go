@@ -7,27 +7,9 @@
 // a component that provides it.
 package config
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
-)
-
 // team: network-device-monitoring
 
 // Component is the component type.
 type Component interface {
 	Get() *TrapsConfig
 }
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newService),
-)
-
-// MockModule provides the default config, and allows tests to override it by
-// providing `fx.Replace(&TrapsConfig{...})`; a value replaced this way will
-// have default values set sensibly if they aren't provided.
-var MockModule = fxutil.Component(
-	fx.Provide(newMockConfig),
-	fx.Supply(&TrapsConfig{}),
-)

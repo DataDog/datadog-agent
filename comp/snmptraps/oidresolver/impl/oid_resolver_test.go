@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package oidresolver
+package oidresolverimpl
 
 import (
 	"bytes"
@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
@@ -42,15 +43,15 @@ func (m MockedDirEntry) Type() fs.FileMode {
 	return 0
 }
 func TestDecoding(t *testing.T) {
-	trapDBFile := &TrapDBFileContent{
-		Traps: TrapSpec{
-			"foo": TrapMetadata{
+	trapDBFile := &oidresolver.TrapDBFileContent{
+		Traps: oidresolver.TrapSpec{
+			"foo": oidresolver.TrapMetadata{
 				Name:    "xx",
 				MIBName: "yy",
 			},
 		},
-		Variables: variableSpec{
-			"bar": VariableMetadata{
+		Variables: oidresolver.VariableSpec{
+			"bar": oidresolver.VariableMetadata{
 				Name:        "yy",
 				Description: "dummy description",
 				Enumeration: map[int]string{2: "test"},
@@ -106,11 +107,11 @@ func TestSortFiles(t *testing.T) {
 
 func TestResolverWithNonStandardOIDs(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
-	trapData := TrapDBFileContent{
-		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "netSnmpExampleHeartbeat", MIBName: "NET-SNMP-EXAMPLES-MIB"}},
-		Variables: variableSpec{
-			"1.3.6.1.4.1.8072.2.3.2.1": VariableMetadata{
+	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
+	trapData := oidresolver.TrapDBFileContent{
+		Traps: oidresolver.TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": oidresolver.TrapMetadata{Name: "netSnmpExampleHeartbeat", MIBName: "NET-SNMP-EXAMPLES-MIB"}},
+		Variables: oidresolver.VariableSpec{
+			"1.3.6.1.4.1.8072.2.3.2.1": oidresolver.VariableMetadata{
 				Name: "netSnmpExampleHeartbeatRate",
 			},
 		},
@@ -135,12 +136,12 @@ func TestResolverWithNonStandardOIDs(t *testing.T) {
 }
 func TestResolverWithConflictingTrapOID(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
-	trapDataA := TrapDBFileContent{
-		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "foo", MIBName: "FOO-MIB"}},
+	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
+	trapDataA := oidresolver.TrapDBFileContent{
+		Traps: oidresolver.TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": oidresolver.TrapMetadata{Name: "foo", MIBName: "FOO-MIB"}},
 	}
-	trapDataB := TrapDBFileContent{
-		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{Name: "bar", MIBName: "BAR-MIB"}},
+	trapDataB := oidresolver.TrapDBFileContent{
+		Traps: oidresolver.TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": oidresolver.TrapMetadata{Name: "bar", MIBName: "BAR-MIB"}},
 	}
 	updateResolverWithIntermediateJSONReader(t, resolver, trapDataA)
 	updateResolverWithIntermediateYAMLReader(t, resolver, trapDataB)
@@ -152,19 +153,19 @@ func TestResolverWithConflictingTrapOID(t *testing.T) {
 
 func TestResolverWithConflictingVariables(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
-	trapDataA := TrapDBFileContent{
-		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": TrapMetadata{}},
-		Variables: variableSpec{
-			"1.3.6.1.4.1.8072.2.3.2.1": VariableMetadata{
+	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
+	trapDataA := oidresolver.TrapDBFileContent{
+		Traps: oidresolver.TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": oidresolver.TrapMetadata{}},
+		Variables: oidresolver.VariableSpec{
+			"1.3.6.1.4.1.8072.2.3.2.1": oidresolver.VariableMetadata{
 				Name: "netSnmpExampleHeartbeatRate",
 			},
 		},
 	}
-	trapDataB := TrapDBFileContent{
-		Traps: TrapSpec{"1.3.6.1.4.1.8072.2.3.0.2": TrapMetadata{}},
-		Variables: variableSpec{
-			"1.3.6.1.4.1.8072.2.3.2.1": VariableMetadata{
+	trapDataB := oidresolver.TrapDBFileContent{
+		Traps: oidresolver.TrapSpec{"1.3.6.1.4.1.8072.2.3.0.2": oidresolver.TrapMetadata{}},
+		Variables: oidresolver.VariableSpec{
+			"1.3.6.1.4.1.8072.2.3.2.1": oidresolver.VariableMetadata{
 				Name: "netSnmpExampleHeartbeatRate2",
 			},
 		},
@@ -183,7 +184,7 @@ func TestResolverWithConflictingVariables(t *testing.T) {
 
 func TestResolverWithSuffixedVariable(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
+	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
 	updateResolverWithIntermediateJSONReader(t, resolver, dummyTrapDB)
 
 	data, err := resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.1.1")
@@ -205,15 +206,15 @@ func TestResolverWithSuffixedVariable(t *testing.T) {
 
 func TestResolverWithSuffixedVariableAndNodeConflict(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
-	trapDB := TrapDBFileContent{
-		Traps: TrapSpec{
-			"1.3.6.1.6.3.1.1.5.4": TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
+	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
+	trapDB := oidresolver.TrapDBFileContent{
+		Traps: oidresolver.TrapSpec{
+			"1.3.6.1.6.3.1.1.5.4": oidresolver.TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
 		},
-		Variables: variableSpec{
-			"1.3.6.1.2.1.2.2":     VariableMetadata{Name: "NodeConflict"},
-			"1.3.6.1.2.1.2.2.1.1": VariableMetadata{Name: "ifIndex"},
-			"1.3.6.1.2.1.2.3":     VariableMetadata{Name: "NotAConflict"},
+		Variables: oidresolver.VariableSpec{
+			"1.3.6.1.2.1.2.2":     oidresolver.VariableMetadata{Name: "NodeConflict"},
+			"1.3.6.1.2.1.2.2.1.1": oidresolver.VariableMetadata{Name: "ifIndex"},
+			"1.3.6.1.2.1.2.3":     oidresolver.VariableMetadata{Name: "NotAConflict"},
 		},
 	}
 	updateResolverWithIntermediateJSONReader(t, resolver, trapDB)
@@ -243,16 +244,16 @@ func TestResolverWithSuffixedVariableAndNodeConflict(t *testing.T) {
 
 func TestResolverWithNoMatchVariableShouldStopBeforeRoot(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(TrapSpec), logger: logger}
-	trapDB := TrapDBFileContent{
-		Traps: TrapSpec{
-			"1.3.6.1.6.3.1.1.5.4": TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
+	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
+	trapDB := oidresolver.TrapDBFileContent{
+		Traps: oidresolver.TrapSpec{
+			"1.3.6.1.6.3.1.1.5.4": oidresolver.TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
 		},
-		Variables: variableSpec{
-			"1":         VariableMetadata{Name: "should-not-resolve"},
-			"1.3":       VariableMetadata{Name: "should-not-resolve"},
-			"1.3.6.1":   VariableMetadata{Name: "should-not-resolve"},
-			"1.3.6.1.4": VariableMetadata{Name: "should-not-resolve"},
+		Variables: oidresolver.VariableSpec{
+			"1":         oidresolver.VariableMetadata{Name: "should-not-resolve"},
+			"1.3":       oidresolver.VariableMetadata{Name: "should-not-resolve"},
+			"1.3.6.1":   oidresolver.VariableMetadata{Name: "should-not-resolve"},
+			"1.3.6.1.4": oidresolver.VariableMetadata{Name: "should-not-resolve"},
 		},
 	}
 	updateResolverWithIntermediateJSONReader(t, resolver, trapDB)
@@ -273,7 +274,7 @@ func TestResolverWithNoMatchVariableShouldStopBeforeRoot(t *testing.T) {
 
 }
 
-func updateResolverWithIntermediateJSONReader(t *testing.T, oidResolver *MultiFilesOIDResolver, trapData TrapDBFileContent) {
+func updateResolverWithIntermediateJSONReader(t *testing.T, oidResolver *MultiFilesOIDResolver, trapData oidresolver.TrapDBFileContent) {
 	data, err := json.Marshal(trapData)
 	require.NoError(t, err)
 
@@ -282,7 +283,7 @@ func updateResolverWithIntermediateJSONReader(t *testing.T, oidResolver *MultiFi
 	require.NoError(t, err)
 }
 
-func updateResolverWithIntermediateYAMLReader(t *testing.T, oidResolver *MultiFilesOIDResolver, trapData TrapDBFileContent) {
+func updateResolverWithIntermediateYAMLReader(t *testing.T, oidResolver *MultiFilesOIDResolver, trapData oidresolver.TrapDBFileContent) {
 	data, err := yaml.Marshal(trapData)
 	require.NoError(t, err)
 

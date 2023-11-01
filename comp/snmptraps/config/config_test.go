@@ -6,10 +6,12 @@
 package config
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -64,9 +66,21 @@ func withConfig(t testing.TB, trapConfig *TrapsConfig, globalNamespace string) f
 	)
 }
 
+func buildConfig(conf config.Component, hnService hostname.Component) (*TrapsConfig, error) {
+	name, err := hnService.Get(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	c, err := ReadConfig(name, conf)
+	if err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
 // testOptions provides several fx options that multiple tests need
 var testOptions = fx.Options(
-	Module,
+	fx.Provide(buildConfig),
 	hostnameimpl.MockModule,
 	fx.Replace(hostnameimpl.MockHostname(mockedHostname)),
 	log.MockModule,
@@ -75,7 +89,7 @@ var testOptions = fx.Options(
 func TestFullConfig(t *testing.T) {
 	deps := fxutil.Test[struct {
 		fx.In
-		Config Component
+		Config *TrapsConfig
 		Logger log.Component
 	}](t,
 		testOptions,
@@ -96,7 +110,7 @@ func TestFullConfig(t *testing.T) {
 			Namespace:        "foo",
 		}, ""),
 	)
-	config := deps.Config.Get()
+	config := deps.Config
 	logger := deps.Logger
 	assert.Equal(t, uint16(1234), config.Port)
 	assert.Equal(t, 12, config.StopTimeout)
@@ -133,13 +147,13 @@ func TestFullConfig(t *testing.T) {
 func TestMinimalConfig(t *testing.T) {
 	deps := fxutil.Test[struct {
 		fx.In
-		Config Component
+		Config *TrapsConfig
 		Logger log.Component
 	}](t,
 		config.MockModule,
 		testOptions,
 	)
-	config := deps.Config.Get()
+	config := deps.Config
 	logger := deps.Logger
 	assert.Equal(t, uint16(9162), config.Port)
 	assert.Equal(t, 5, config.StopTimeout)
@@ -158,35 +172,35 @@ func TestMinimalConfig(t *testing.T) {
 }
 
 func TestDefaultUsers(t *testing.T) {
-	config := fxutil.Test[Component](t,
+	config := fxutil.Test[*TrapsConfig](t,
 		testOptions,
 		withConfig(t, &TrapsConfig{
 			CommunityStrings: []string{"public"},
 			StopTimeout:      11,
 		}, ""),
-	).Get()
+	)
 	assert.Equal(t, 11, config.StopTimeout)
 }
 
 func TestBuildAuthoritativeEngineID(t *testing.T) {
 	for name, engineID := range expectedEngineIDs {
-		config := fxutil.Test[Component](t,
+		config := fxutil.Test[*TrapsConfig](t,
 			config.MockModule,
-			Module,
+			fx.Provide(buildConfig),
 			hostnameimpl.MockModule,
 			fx.Replace(hostnameimpl.MockHostname(name)),
 		)
-		assert.Equal(t, engineID, config.Get().authoritativeEngineID)
+		assert.Equal(t, engineID, config.authoritativeEngineID)
 	}
 }
 
 func TestNamespaceIsNormalized(t *testing.T) {
-	config := fxutil.Test[Component](t,
+	config := fxutil.Test[*TrapsConfig](t,
 		testOptions,
 		withConfig(t, &TrapsConfig{
 			Namespace: "><\n\r\tfoo",
 		}, ""),
-	).Get()
+	)
 	assert.Equal(t, "--foo", config.Namespace)
 }
 
@@ -201,20 +215,20 @@ func TestInvalidNamespace(t *testing.T) {
 }
 
 func TestNamespaceSetGlobally(t *testing.T) {
-	config := fxutil.Test[Component](t,
+	config := fxutil.Test[*TrapsConfig](t,
 		testOptions,
 		withConfig(t, nil, "foo"),
-	).Get()
+	)
 	assert.Equal(t, "foo", config.Namespace)
 }
 
 func TestNamespaceSetBothGloballyAndLocally(t *testing.T) {
-	config := fxutil.Test[Component](t,
+	config := fxutil.Test[*TrapsConfig](t,
 		testOptions,
 		withConfig(t,
 			&TrapsConfig{Namespace: "bar"},
 			"foo"),
-	).Get()
+	)
 
 	assert.Equal(t, "bar", config.Namespace)
 }

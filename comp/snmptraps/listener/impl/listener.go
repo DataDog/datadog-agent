@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package listener
+// Package listenerimpl implements the Listener component.
+package listenerimpl
 
 import (
 	"errors"
@@ -12,13 +13,20 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/gosnmp/gosnmp"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(NewTrapListener),
 )
 
 // TrapListener opens an UDP socket and put all received traps in a channel
@@ -41,7 +49,7 @@ type dependencies struct {
 }
 
 // NewTrapListener creates a simple TrapListener instance but does not start it
-func NewTrapListener(dep dependencies) (Component, error) {
+func NewTrapListener(dep dependencies) (listener.Component, error) {
 	var err error
 	config := dep.Config.Get()
 	gosnmpListener := gosnmp.NewTrapListener()

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package forwarder
+package forwarderimpl
 
 import (
 	"net"
@@ -16,7 +16,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
+	formatterimpl "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/impl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
+	listenerimpl "github.com/DataDog/datadog-agent/comp/snmptraps/listener/impl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -31,7 +34,7 @@ type services struct {
 	Sender    *mocksender.MockSender
 	Formatter formatter.Component
 	Listener  listener.MockComponent
-	Forwarder Component
+	Forwarder forwarder.Component
 }
 
 func setUp(t *testing.T) *services {
@@ -43,8 +46,8 @@ func setUp(t *testing.T) *services {
 			mockSender.SetupAcceptAll()
 			return mockSender, mockSender
 		}),
-		formatter.MockModule,
-		listener.MockModule,
+		formatterimpl.MockModule,
+		listenerimpl.MockModule,
 		Module,
 	)
 	s.Forwarder.Start()

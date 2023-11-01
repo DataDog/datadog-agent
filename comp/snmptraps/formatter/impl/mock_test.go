@@ -3,11 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package formatter
+package formatterimpl
 
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -15,7 +16,7 @@ import (
 )
 
 func TestMockFormatter(t *testing.T) {
-	formatter := fxutil.Test[Component](t, MockModule)
+	formatter := fxutil.Test[formatter.Component](t, MockModule)
 	packet := packet.CreateTestV1GenericPacket()
 	// we don't check the value itself because it uses "encoding/gob", which
 	// produces different values depending on the platform.

@@ -7,11 +7,6 @@
 // component system.
 package status
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
-)
-
 // team: network-device-monitoring
 
 // Component is the component type.
@@ -21,13 +16,3 @@ type Component interface {
 	AddTrapsPacketsAuthErrors(int64)
 	GetTrapsPacketsAuthErrors() int64
 }
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(New),
-)
-
-// MockModule defines a fake Component
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)

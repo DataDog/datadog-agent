@@ -8,8 +8,6 @@ package formatter
 
 import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
 )
 
 // team: network-device-monitoring
@@ -18,13 +16,3 @@ import (
 type Component interface {
 	FormatPacket(packet *packet.SnmpPacket) ([]byte, error)
 }
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(NewJSONFormatter),
-)
-
-// MockModule provides a dummy formatter that just hashes packets.
-var MockModule = fxutil.Component(
-	fx.Provide(newDummy),
-)

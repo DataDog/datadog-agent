@@ -8,13 +8,13 @@
 package snmptraps
 
 import (
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
+	configimpl "github.com/DataDog/datadog-agent/comp/snmptraps/config/impl"
+	formatterimpl "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/impl"
+	forwarderimpl "github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/impl"
+	listenerimpl "github.com/DataDog/datadog-agent/comp/snmptraps/listener/impl"
+	oidresolverimpl "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/impl"
+	serverimpl "github.com/DataDog/datadog-agent/comp/snmptraps/server/impl"
+	statusimpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -22,11 +22,11 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
-	config.Module,
-	formatter.Module,
-	forwarder.Module,
-	listener.Module,
-	oidresolver.Module,
-	status.Module,
-	server.Module,
+	configimpl.Module,
+	formatterimpl.Module,
+	forwarderimpl.Module,
+	listenerimpl.Module,
+	oidresolverimpl.Module,
+	statusimpl.Module,
+	serverimpl.Module,
 )

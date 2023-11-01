@@ -9,29 +9,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 )
 
-type mockListener struct {
-	packets packet.PacketsChannel
-}
-
-func newMock() MockComponent {
-	return &mockListener{
-		packets: make(chan *packet.SnmpPacket, 100),
-	}
-}
-
-// Packets returns the packets channel to which the listener publishes.
-func (t *mockListener) Packets() packet.PacketsChannel {
-	return t.packets
-}
-
-// Start is a no-op
-func (t *mockListener) Start() error {
-	return nil
-}
-
-// Stop is a no-op
-func (t *mockListener) Stop() {}
-
-func (t *mockListener) Send(p *packet.SnmpPacket) {
-	t.packets <- p
+// MockComponent just holds a channel to which tests can write.
+type MockComponent interface {
+	Component
+	Send(*packet.SnmpPacket)
 }

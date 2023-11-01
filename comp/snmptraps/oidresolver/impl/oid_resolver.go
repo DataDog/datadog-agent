@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package oidresolver
+// Package oidresolverimpl implements the OID Resolver component.
+package oidresolverimpl
 
 import (
 	"compress/gzip"
@@ -17,10 +18,18 @@ import (
 	"strings"
 	"unicode"
 
+	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newResolver),
 )
 
 const ddTrapDBFileNamePrefix string = "dd_traps_db"
@@ -43,11 +52,11 @@ type unmarshaller func(data []byte, v interface{}) error
 // exist in a single file (after the previous conflict resolution), meaning that we get the variable
 // metadata from that same file.
 type MultiFilesOIDResolver struct {
-	traps  TrapSpec
+	traps  oidresolver.TrapSpec
 	logger log.Component
 }
 
-func newResolver(conf config.Component, logger log.Component) (Component, error) {
+func newResolver(conf config.Component, logger log.Component) (oidresolver.Component, error) {
 	return NewMultiFilesOIDResolver(conf.GetString("confd_path"), logger)
 }
 
@@ -55,7 +64,7 @@ func newResolver(conf config.Component, logger log.Component) (Component, error)
 // (optionnally gzipped) located in the directory snmp.d/traps_db/
 func NewMultiFilesOIDResolver(confdPath string, logger log.Component) (*MultiFilesOIDResolver, error) {
 	oidResolver := &MultiFilesOIDResolver{
-		traps:  make(TrapSpec),
+		traps:  make(oidresolver.TrapSpec),
 		logger: logger,
 	}
 	trapsDBRoot := filepath.Join(confdPath, "snmp.d", "traps_db")
@@ -77,11 +86,11 @@ func NewMultiFilesOIDResolver(confdPath string, logger log.Component) (*MultiFil
 }
 
 // GetTrapMetadata returns TrapMetadata for a given trapOID
-func (or *MultiFilesOIDResolver) GetTrapMetadata(trapOID string) (TrapMetadata, error) {
+func (or *MultiFilesOIDResolver) GetTrapMetadata(trapOID string) (oidresolver.TrapMetadata, error) {
 	trapOID = strings.TrimSuffix(NormalizeOID(trapOID), ".0")
 	trapData, ok := or.traps[trapOID]
 	if !ok {
-		return TrapMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
+		return oidresolver.TrapMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
 	}
 	return trapData, nil
 }
@@ -89,21 +98,21 @@ func (or *MultiFilesOIDResolver) GetTrapMetadata(trapOID string) (TrapMetadata, 
 // GetVariableMetadata returns VariableMetadata for a given variableOID and trapOID.
 // The trapOID should not be needed in theory but the Datadog Agent allows to define multiple variable names for the
 // same OID as long as they are defined in different file. The trapOID is used to differentiate between these files.
-func (or *MultiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID string) (VariableMetadata, error) {
+func (or *MultiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID string) (oidresolver.VariableMetadata, error) {
 	trapOID = strings.TrimSuffix(NormalizeOID(trapOID), ".0")
 	varOID = strings.TrimSuffix(NormalizeOID(varOID), ".0")
 	trapData, ok := or.traps[trapOID]
 	if !ok {
-		return VariableMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
+		return oidresolver.VariableMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
 	}
 
 	recreatedVarOID := varOID
 	for {
-		varData, ok := trapData.variableSpecPtr[recreatedVarOID]
+		varData, ok := trapData.VariableSpecPtr[recreatedVarOID]
 		if ok {
-			if varData.isIntermediateNode {
+			if varData.IsIntermediateNode {
 				// Found a known Node while climibing up the tree, no chance of finding a match higher
-				return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
+				return oidresolver.VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
 			}
 			return varData, nil
 
@@ -115,7 +124,7 @@ func (or *MultiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID stri
 		}
 		recreatedVarOID = varOID[:lastDot]
 	}
-	return VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
+	return oidresolver.VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOID)
 }
 
 func getSortedFileNames(files []fs.DirEntry, logger log.Component) []string {
@@ -177,7 +186,7 @@ func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMet
 	if err != nil {
 		return err
 	}
-	var trapData TrapDBFileContent
+	var trapData oidresolver.TrapDBFileContent
 	err = unmarshalMethod(fileContent, &trapData)
 	if err != nil {
 		return err
@@ -187,8 +196,8 @@ func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMet
 	return nil
 }
 
-func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB TrapDBFileContent) {
-	definedVariables := variableSpec{}
+func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB oidresolver.TrapDBFileContent) {
+	definedVariables := oidresolver.VariableSpec{}
 
 	allOIDs := make([]string, 0, len(trapDB.Variables))
 	for variableOID := range trapDB.Variables {
@@ -215,12 +224,12 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB TrapDBFileContent
 		}
 
 		variableData := trapDB.Variables[variableOID]
-		variableData.isIntermediateNode = isIntermediateNode
+		variableData.IsIntermediateNode = isIntermediateNode
 		definedVariables[variableOID] = variableData
 	}
 
 	for _, nodeOID := range nodesOIDThatShouldNeverMatch {
-		definedVariables[nodeOID] = VariableMetadata{Name: "unknown", isIntermediateNode: true}
+		definedVariables[nodeOID] = oidresolver.VariableMetadata{Name: "unknown", IsIntermediateNode: true}
 	}
 
 	for trapOID, trapData := range trapDB.Traps {
@@ -232,11 +241,11 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB TrapDBFileContent
 		if _, trapConflict := or.traps[trapOID]; trapConflict {
 			or.logger.Debugf("a trap with OID %s is defined in multiple traps db files", trapOID)
 		}
-		or.traps[trapOID] = TrapMetadata{
+		or.traps[trapOID] = oidresolver.TrapMetadata{
 			Name:            trapData.Name,
 			Description:     trapData.Description,
 			MIBName:         trapData.MIBName,
-			variableSpecPtr: definedVariables,
+			VariableSpecPtr: definedVariables,
 		}
 	}
 }

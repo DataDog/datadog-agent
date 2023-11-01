@@ -3,12 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package status
+package statusimpl
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
+)
+
+// MockModule defines a fake Component
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+)
 
 // newMock returns a Component that uses plain internal values instead of expvars
-func newMock() Component {
+func newMock() status.Component {
 	return &mockManager{}
 }
 

@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build !serverless
+//go:build test
 
-package listener
+package listenerimpl
 
 import (
 	"testing"

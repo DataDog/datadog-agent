@@ -6,11 +6,6 @@
 // Package oidresolver resolves OIDs
 package oidresolver
 
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
-)
-
 // team: network-device-monitoring
 
 // Component is a interface to get Trap and Variable metadata from OIDs
@@ -18,15 +13,3 @@ type Component interface {
 	GetTrapMetadata(trapOID string) (TrapMetadata, error)
 	GetVariableMetadata(trapOID string, varOID string) (VariableMetadata, error)
 }
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newResolver),
-)
-
-// MockModule provides a dummy resolver with canned data.
-// Set your own data with fx.Replace(&TrapDBFileContent{...})
-var MockModule = fxutil.Component(
-	fx.Provide(NewMockResolver),
-	fx.Supply(&dummyTrapDB),
-)

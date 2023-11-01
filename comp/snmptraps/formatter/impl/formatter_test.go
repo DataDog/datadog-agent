@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2020-present Datadog, Inc.
 
-package formatter
+package formatterimpl
 
 import (
 	"encoding/base64"
@@ -12,7 +12,9 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
+	oidresolverimpl "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/impl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -219,12 +221,12 @@ var testOptions = fx.Options(
 		mockSender.SetupAcceptAll()
 		return mockSender, mockSender
 	}),
-	oidresolver.MockModule,
+	oidresolverimpl.MockModule,
 	Module,
 )
 
 func TestFormatPacketV1Generic(t *testing.T) {
-	defaultFormatter := fxutil.Test[Component](t, testOptions)
+	defaultFormatter := fxutil.Test[formatter.Component](t, testOptions)
 
 	packet := packet.CreateTestV1GenericPacket()
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
@@ -269,7 +271,7 @@ func TestFormatPacketV1Generic(t *testing.T) {
 }
 
 func TestFormatPacketV1Specific(t *testing.T) {
-	defaultFormatter := fxutil.Test[Component](t, testOptions)
+	defaultFormatter := fxutil.Test[formatter.Component](t, testOptions)
 	packet := packet.CreateTestV1SpecificPacket()
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
 	require.NoError(t, err)
@@ -309,7 +311,7 @@ func TestFormatPacketV1Specific(t *testing.T) {
 }
 
 func TestFormatPacketToJSON(t *testing.T) {
-	defaultFormatter := fxutil.Test[Component](t, testOptions)
+	defaultFormatter := fxutil.Test[formatter.Component](t, testOptions)
 	packet := packet.CreateTestPacket(packet.NetSNMPExampleHeartbeatNotification)
 
 	formattedPacket, err := defaultFormatter.FormatPacket(packet)
@@ -342,7 +344,7 @@ func TestFormatPacketToJSON(t *testing.T) {
 }
 
 func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
-	defaultFormatter := fxutil.Test[Component](t, testOptions)
+	defaultFormatter := fxutil.Test[formatter.Component](t, testOptions)
 	packet := packet.CreateTestPacket(packet.NetSNMPExampleHeartbeatNotification)
 
 	packet.Content.Variables = []gosnmp.SnmpPDU{
@@ -371,7 +373,7 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 }
 
 func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
-	formatter := fxutil.Test[Component](t, testOptions)
+	formatter := fxutil.Test[formatter.Component](t, testOptions)
 	packet := packet.CreateTestPacket(packet.NetSNMPExampleHeartbeatNotification)
 	_, err := formatter.FormatPacket(packet)
 	require.NoError(t, err)
@@ -703,7 +705,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 		},
 	}
 
-	formatter := fxutil.Test[Component](t, testOptions)
+	formatter := fxutil.Test[formatter.Component](t, testOptions)
 	for _, d := range data {
 		t.Run(d.description, func(t *testing.T) {
 			packet := packet.CreateTestPacket(d.trap)
@@ -736,7 +738,7 @@ func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
 		"test130",
 	}
 
-	formatter := fxutil.Test[Component](t, testOptions)
+	formatter := fxutil.Test[formatter.Component](t, testOptions)
 	packet := packet.CreateTestV1GenericPacket()
 	data, err := formatter.FormatPacket(packet)
 	require.NoError(t, err)
@@ -1225,7 +1227,7 @@ func TestFormatterTelemetry(t *testing.T) {
 	}
 
 	var mockSender *mocksender.MockSender
-	formatter := fxutil.Test[Component](t,
+	formatter := fxutil.Test[formatter.Component](t,
 		testOptions,
 		fx.Populate(&mockSender),
 	)

@@ -8,18 +8,7 @@
 // reformats them, and sends the resulting data to the backend.
 package server
 
-import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-)
-
 // team: network-device-monitoring
 
 // Component is the component type.
 type Component interface{}
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newServer),
-)

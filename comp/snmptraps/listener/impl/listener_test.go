@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package listener
+package listenerimpl
 
 import (
 	"errors"
@@ -13,8 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
+	configimpl "github.com/DataDog/datadog-agent/comp/snmptraps/config/impl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	packetModule "github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
+	statusimpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -34,16 +37,16 @@ type services struct {
 	Config   config.Component
 	Sender   *mocksender.MockSender
 	Status   status.Component
-	Listener Component
+	Listener listener.Component
 	Logger   log.Component
 }
 
 func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
 	s := fxutil.Test[services](t,
 		log.MockModule,
-		config.MockModule,
+		configimpl.MockModule,
 		hostnameimpl.MockModule,
-		status.MockModule,
+		statusimpl.MockModule,
 		fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
 			mockSender := mocksender.NewMockSender("mock-sender")
 			mockSender.SetupAcceptAll()
@@ -180,7 +183,7 @@ func receivePacket(s *services, timeoutDuration time.Duration) (*packetModule.Sn
 	}
 }
 
-func assertNoPacketReceived(t *testing.T, listener Component) {
+func assertNoPacketReceived(t *testing.T, listener listener.Component) {
 	select {
 	case <-listener.Packets():
 		t.Error("Unexpectedly received an unauthorized packet")
