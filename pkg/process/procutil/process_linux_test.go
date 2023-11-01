@@ -659,8 +659,8 @@ func testParseStatus(t *testing.T, probeOptions ...Option) {
 		expCtxSwitches, err := expProc.NumCtxSwitches()
 		assert.NoError(t, err)
 
-		assert.Equal(t, expName, actual.name)
-		assert.Equal(t, expStatus, actual.status)
+		assert.Equal(t, expName, string(actual.name))
+		assert.Equal(t, expStatus, string(actual.status))
 		assert.EqualValues(t, expUIDs, actual.uids)
 		assert.EqualValues(t, expGIDs, actual.gids)
 		assert.Equal(t, expThreads, actual.numThreads)
