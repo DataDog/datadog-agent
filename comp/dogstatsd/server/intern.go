@@ -37,24 +37,47 @@ var (
 // helping to avoid GC runs because they're re-used many times instead of
 // created every time.
 type stringInterner struct {
-	strings    map[string]string
-	maxSize    int
-	curBytes   int
-	tlmEnabled bool
-	id         string
+	strings map[string]string
+	maxSize int
+	id      string
+
+	telemetry siTelemetry
+}
+
+type siTelemetry struct {
+	enabled  bool
+	curBytes int
+
+	resets telemetry.SimpleCounter
+	size   telemetry.SimpleGauge
+	bytes  telemetry.SimpleGauge
+	hits   telemetry.SimpleCounter
+	miss   telemetry.SimpleCounter
 }
 
 func newStringInterner(maxSize int, internerID int) *stringInterner {
 	i := &stringInterner{
-		strings:    make(map[string]string),
-		id:         fmt.Sprintf("interner_%d", internerID),
-		maxSize:    maxSize,
-		tlmEnabled: utils.IsTelemetryEnabled(),
+		strings: make(map[string]string),
+		id:      fmt.Sprintf("interner_%d", internerID),
+		maxSize: maxSize,
+		telemetry: siTelemetry{
+			enabled: utils.IsTelemetryEnabled(),
+		},
 	}
-	if i.tlmEnabled {
-		tlmSIRNew.Inc()
+
+	if i.telemetry.enabled {
+		i.prepareTelemetry()
 	}
+
 	return i
+}
+
+func (i *stringInterner) prepareTelemetry() {
+	i.telemetry.resets = tlmSIResets.WithValues(i.id)
+	i.telemetry.size = tlmSIRSize.WithValues(i.id)
+	i.telemetry.bytes = tlmSIRBytes.WithValues(i.id)
+	i.telemetry.hits = tlmSIRHits.WithValues(i.id)
+	i.telemetry.miss = tlmSIRMiss.WithValues(i.id)
 }
 
 // LoadOrStore always returns the string from the cache, adding it into the
@@ -68,17 +91,17 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	// for this string.
 	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
 	if s, found := i.strings[string(key)]; found {
-		if i.tlmEnabled {
-			tlmSIRHits.WithTags(map[string]string{"interner_id": i.id}).Inc()
+		if i.telemetry.enabled {
+			i.telemetry.hits.Inc()
 		}
 		return s
 	}
 	if len(i.strings) >= i.maxSize {
-		if i.tlmEnabled {
-			tlmSIResets.WithTags(map[string]string{"interner_id": i.id}).Inc()
-			tlmSIRBytes.WithTags(map[string]string{"interner_id": i.id}).Sub(float64(i.curBytes))
-			tlmSIRSize.WithTags(map[string]string{"interner_id": i.id}).Sub(float64(len(i.strings)))
-			i.curBytes = 0
+		if i.telemetry.enabled {
+			i.telemetry.resets.Inc()
+			i.telemetry.bytes.Sub(float64(i.telemetry.curBytes))
+			i.telemetry.size.Sub(float64(len(i.strings)))
+			i.telemetry.curBytes = 0
 		}
 
 		i.strings = make(map[string]string)
@@ -87,12 +110,12 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 	s := string(key)
 	i.strings[s] = s
 
-	if i.tlmEnabled {
-		tlmSIRMiss.WithTags(map[string]string{"interner_id": i.id}).Inc()
-		tlmSIRSize.WithTags(map[string]string{"interner_id": i.id}).Inc()
-		tlmSIRBytes.WithTags(map[string]string{"interner_id": i.id}).Add(float64(len(s)))
+	if i.telemetry.enabled {
+		i.telemetry.miss.Inc()
+		i.telemetry.size.Inc()
+		i.telemetry.bytes.Add(float64(len(s)))
 		tlmSIRStrBytes.Observe(float64(len(s)))
-		i.curBytes += len(s)
+		i.telemetry.curBytes += len(s)
 	}
 
 	return s
