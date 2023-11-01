@@ -24,7 +24,7 @@ type Component interface {
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(new),
+	fx.Provide(New),
 )
 
 // MockModule defines a fake Component

@@ -14,14 +14,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -33,8 +34,12 @@ func TestStartStop(t *testing.T) {
 		log.MockModule,
 		config.MockModule,
 		formatter.MockModule,
-		sender.MockModule,
-		hostname.MockModule,
+		fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
+			mockSender := mocksender.NewMockSender("mock-sender")
+			mockSender.SetupAcceptAll()
+			return mockSender, mockSender
+		}),
+		hostnameimpl.MockModule,
 		forwarder.Module,
 		status.MockModule,
 		listener.Module,

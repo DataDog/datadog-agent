@@ -10,18 +10,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	oidresolver "github.com/DataDog/datadog-agent/pkg/snmp/traps/oid_resolver"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
-
-	"github.com/gosnmp/gosnmp"
-
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/gosnmp/gosnmp"
-
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/gosnmp/gosnmp"
 )
 
 const (
@@ -36,9 +29,8 @@ type Formatter interface {
 
 // JSONFormatter is a Formatter implementation that transforms Traps into JSON
 type JSONFormatter struct {
-	oidResolver oidresolver.OIDResolver
-	sender      sender.Sender
 	oidResolver oidresolver.Component
+	sender      sender.Sender
 	logger      log.Component
 }
 
@@ -58,7 +50,7 @@ const (
 )
 
 // NewJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func NewJSONFormatter(oidResolver oidresolver.OIDResolver, sender sender.Sender, logger log.Component) (JSONFormatter, error) {
+func NewJSONFormatter(oidResolver oidresolver.Component, sender sender.Sender, logger log.Component) (Component, error) {
 	return JSONFormatter{oidResolver, sender, logger}, nil
 }
 

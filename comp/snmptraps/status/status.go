@@ -23,8 +23,8 @@ func init() {
 	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
 }
 
-// new creates a new component
-func new() Component {
+// New creates a New component
+func New() Component {
 	return &manager{}
 }
 

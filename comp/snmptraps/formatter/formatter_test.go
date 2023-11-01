@@ -12,9 +12,10 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 
@@ -213,7 +214,11 @@ var (
 
 var testOptions = fx.Options(
 	log.MockModule,
-	sender.MockModule,
+	fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
+		mockSender := mocksender.NewMockSender("mock-sender")
+		mockSender.SetupAcceptAll()
+		return mockSender, mockSender
+	}),
 	oidresolver.MockModule,
 	Module,
 )
@@ -1219,7 +1224,7 @@ func TestFormatterTelemetry(t *testing.T) {
 		},
 	}
 
-	var mockSender sender.MockComponent
+	var mockSender *mocksender.MockSender
 	formatter := fxutil.Test[Component](t,
 		testOptions,
 		fx.Populate(&mockSender),

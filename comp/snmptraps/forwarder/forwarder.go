@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"go.uber.org/fx"
 )
@@ -24,7 +24,7 @@ import (
 type TrapForwarder struct {
 	trapsIn   packet.PacketsChannel
 	formatter formatter.Component
-	sender    sender.Component
+	sender    sender.Sender
 	stopChan  chan struct{}
 	logger    log.Component
 }
@@ -32,7 +32,7 @@ type TrapForwarder struct {
 type dependencies struct {
 	fx.In
 	Formatter formatter.Component
-	Sender    sender.Component
+	Sender    sender.Sender
 	Listener  listener.Component
 	Logger    log.Component
 }

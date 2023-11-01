@@ -35,7 +35,7 @@ type TrapListener struct {
 type dependencies struct {
 	fx.In
 	Config config.Component
-	sender sender.Sender
+	Sender sender.Sender
 	Logger log.Component
 	Status status.Component
 }

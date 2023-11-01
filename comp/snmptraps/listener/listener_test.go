@@ -10,12 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	packetModule "github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 
@@ -31,7 +32,7 @@ const defaultTimeout = 1 * time.Second
 type services struct {
 	fx.In
 	Config   config.Component
-	Sender   sender.MockComponent
+	Sender   *mocksender.MockSender
 	Status   status.Component
 	Listener Component
 	Logger   log.Component
@@ -40,10 +41,14 @@ type services struct {
 func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
 	s := fxutil.Test[services](t,
 		log.MockModule,
-		sender.MockModule,
 		config.MockModule,
-		hostname.MockModule,
+		hostnameimpl.MockModule,
 		status.MockModule,
+		fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
+			mockSender := mocksender.NewMockSender("mock-sender")
+			mockSender.SetupAcceptAll()
+			return mockSender, mockSender
+		}),
 		Module,
 		fx.Replace(conf),
 	)
@@ -59,7 +64,7 @@ func TestListenV1GenericTrap(t *testing.T) {
 	s := listenerTestSetup(t, config)
 
 	sendTestV1GenericTrap(t, s.Config.Get(), "public")
-	packet, err := receivePacket(t, s, defaultTimeout)
+	packet, err := receivePacket(s, defaultTimeout)
 	require.NoError(t, err)
 	packet.Content.SnmpTrap.Variables = packet.Content.Variables
 	assert.Equal(t, packetModule.LinkDownv1GenericTrap, packet.Content.SnmpTrap)
@@ -72,7 +77,7 @@ func TestServerV1SpecificTrap(t *testing.T) {
 	s := listenerTestSetup(t, config)
 
 	sendTestV1SpecificTrap(t, config, "public")
-	packet, err := receivePacket(t, s, defaultTimeout)
+	packet, err := receivePacket(s, defaultTimeout)
 	require.NoError(t, err)
 	packet.Content.SnmpTrap.Variables = packet.Content.Variables
 	assert.Equal(t, packetModule.AlarmActiveStatev1SpecificTrap, packet.Content.SnmpTrap)
@@ -85,7 +90,7 @@ func TestServerV2(t *testing.T) {
 	s := listenerTestSetup(t, config)
 
 	sendTestV2Trap(t, config, "public")
-	packet, err := receivePacket(t, s, defaultTimeout)
+	packet, err := receivePacket(s, defaultTimeout)
 	require.NoError(t, err)
 	assertIsValidV2Packet(t, packet, config)
 	assertVariables(t, packet)
@@ -98,7 +103,7 @@ func TestServerV2BadCredentials(t *testing.T) {
 	s := listenerTestSetup(t, config)
 
 	sendTestV2Trap(t, config, "wrong-community")
-	_, err2 := receivePacket(t, s, defaultTimeout)
+	_, err2 := receivePacket(s, defaultTimeout)
 	require.EqualError(t, err2, "invalid packet")
 
 	s.Sender.AssertMetric(t, "Count", "datadog.snmp_traps.received", 1, "", []string{"snmp_device:127.0.0.1", "device_namespace:totoro", "snmp_version:2"})
@@ -120,7 +125,7 @@ func TestServerV3(t *testing.T) {
 		PrivacyPassphrase:        "password",
 		PrivacyProtocol:          gosnmp.AES,
 	})
-	packet, err := receivePacket(t, s, defaultTimeout)
+	packet, err := receivePacket(s, defaultTimeout)
 	require.NoError(t, err)
 	assertVariables(t, packet)
 }
@@ -150,12 +155,12 @@ func TestListenerTrapsReceivedTelemetry(t *testing.T) {
 	s := listenerTestSetup(t, config)
 
 	sendTestV1GenericTrap(t, config, "public")
-	_, err2 := receivePacket(t, s, defaultTimeout) // Wait fot
+	_, err2 := receivePacket(s, defaultTimeout) // Wait fot
 	require.NoError(t, err2)
 	s.Sender.AssertMetric(t, "Count", "datadog.snmp_traps.received", 1, "", []string{"snmp_device:127.0.0.1", "device_namespace:totoro", "snmp_version:1"})
 }
 
-func receivePacket(t *testing.T, s *services, timeoutDuration time.Duration) (*packetModule.SnmpPacket, error) {
+func receivePacket(s *services, timeoutDuration time.Duration) (*packetModule.SnmpPacket, error) {
 	timeout := time.After(timeoutDuration)
 	ticker := time.NewTicker(20 * time.Millisecond)
 	defer ticker.Stop()

@@ -11,10 +11,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"go.uber.org/fx"
 )
 
@@ -32,7 +32,7 @@ type dependencies struct {
 	Config    trapsconf.Component
 	Listener  listener.Component
 	Logger    log.Component
-	Sender    sender.Component
+	Sender    sender.Sender
 	Forwarder forwarder.Component
 	Hostname  hostname.Component
 }

@@ -15,10 +15,11 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -27,7 +28,7 @@ var simpleUDPAddr = &net.UDPAddr{IP: net.IPv4(1, 1, 1, 1), Port: 161}
 
 type services struct {
 	fx.In
-	Sender    sender.MockComponent
+	Sender    *mocksender.MockSender
 	Formatter formatter.Component
 	Listener  listener.MockComponent
 	Forwarder Component
@@ -37,7 +38,11 @@ func setUp(t *testing.T) *services {
 	t.Helper()
 	s := fxutil.Test[services](t,
 		log.MockModule,
-		sender.MockModule,
+		fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
+			mockSender := mocksender.NewMockSender("mock-sender")
+			mockSender.SetupAcceptAll()
+			return mockSender, mockSender
+		}),
 		formatter.MockModule,
 		listener.MockModule,
 		Module,
