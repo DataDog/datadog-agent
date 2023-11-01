@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/pkg/util/stats_tracker
+module github.com/DataDog/datadog-agent/pkg/util/statstracker
 
 go 1.20
 

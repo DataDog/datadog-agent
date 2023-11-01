@@ -1,4 +1,4 @@
-module github.com/DataDog/datadog-agent/pkg/util/go_routines
+module github.com/DataDog/datadog-agent/pkg/util/goroutines
 
 go 1.20
 

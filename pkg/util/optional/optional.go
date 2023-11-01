@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package optional has optional types and functions used by Agent.
 package optional
 
 // Optional represents an optional type.

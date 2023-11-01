@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package stats_tracker
+// Package statstracker keeps track of simple stats in the Agent.
+package statstracker
 
 import (
 	"fmt"

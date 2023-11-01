@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/util/go_routines"
+	"github.com/DataDog/datadog-agent/pkg/util/goroutines"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -194,4 +194,5 @@ func GetJSONSerializableMap(m interface{}) interface{} {
 
 }
 
-var GetGoRoutinesDump = go_routines.GetGoRoutinesDump
+// GetGoRoutinesDump alias
+var GetGoRoutinesDump = goroutines.GetGoRoutinesDump

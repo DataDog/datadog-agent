@@ -46,14 +46,14 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil/
-	github.com/DataDog/datadog-agent/pkg/util/go_routines => ./pkg/util/go_routines
+	github.com/DataDog/datadog-agent/pkg/util/goroutines => ./pkg/util/goroutines
 	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/optional => ./pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/retry => ./pkg/util/retry/
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
-	github.com/DataDog/datadog-agent/pkg/util/stats_tracker => ./pkg/util/stats_tracker
+	github.com/DataDog/datadog-agent/pkg/util/statstracker => ./pkg/util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ./pkg/util/system/socket/
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
@@ -592,7 +592,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/go_routines v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/goroutines v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/json v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/retry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.0.0-00010101000000-000000000000

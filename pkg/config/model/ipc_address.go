@@ -5,6 +5,7 @@ import (
 	"net"
 )
 
+// IsLocalAddress returns the given address if it is local or an error if it is not
 func IsLocalAddress(address string) (string, error) {
 	if address == "localhost" {
 		return address, nil
