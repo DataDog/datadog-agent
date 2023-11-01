@@ -1698,19 +1698,22 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	require.NoError(t, err)
 
 	buf := make([]byte, 6)
-	n, _, err := syscall.Recvfrom(int(f.Fd()), buf, syscall.MSG_WAITALL)
-	require.NoError(t, err)
-
-	assert.Equal(t, 6, n)
+	read := 0
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		n, _, err := syscall.Recvfrom(int(f.Fd()), buf, syscall.MSG_WAITALL)
+		require.NoError(collect, err)
+		read += n
+		assert.Equal(t, 6, read)
+	}, 3*time.Second, 100*time.Millisecond, "failed to receive expected bytes")
 
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		var found bool
 		conn, found = findConnection(c.(*net.TCPConn).LocalAddr(), c.(*net.TCPConn).RemoteAddr(), getConnections(t, tr))
 		return found
-	}, 3*time.Second, 500*time.Millisecond)
+	}, 3*time.Second, 100*time.Millisecond)
 
-	assert.Equal(t, uint64(n), conn.Monotonic.RecvBytes)
+	assert.Equal(t, uint64(read), conn.Monotonic.RecvBytes)
 }
 
 func (s *TracerSuite) TestPreexistingConnectionDirection() {
