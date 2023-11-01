@@ -3,17 +3,17 @@ module github.com/DataDog/datadog-agent/pkg/util/go_routines
 go 1.20
 
 replace (
-	github.com/DataDog/datadog-agent/pkg/conf => ../../conf
+	github.com/DataDog/datadog-agent/pkg/config/model => ../../config/model
 	github.com/DataDog/datadog-agent/pkg/util/log => ../log
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../system/socket
 	github.com/DataDog/datadog-agent/pkg/version => ../../version
 )
 
-require github.com/DataDog/datadog-agent/pkg/conf v0.0.0-00010101000000-000000000000
+require github.com/DataDog/datadog-agent/pkg/config/model v0.0.0-00010101000000-000000000000
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.48.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.2 // indirect
 	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect

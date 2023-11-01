@@ -7,12 +7,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/conf"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // GetGoRoutinesDump returns the stack trace of every Go routine of a running Agent.
-func GetGoRoutinesDump(cfg conf.ConfigReader) (string, error) {
-	ipcAddress, err := conf.GetIPCAddress(cfg)
+func GetGoRoutinesDump(cfg pkgconfigmodel.Reader) (string, error) {
+	ipcAddress, err := pkgconfigmodel.GetIPCAddress(cfg)
 	if err != nil {
 		return "", err
 	}
