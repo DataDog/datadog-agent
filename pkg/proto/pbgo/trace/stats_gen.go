@@ -940,6 +940,12 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 					return
 				}
 			}
+		case "SplitPayload":
+			z.SplitPayload, err = dc.ReadBool()
+			if err != nil {
+				err = msgp.WrapError(err, "SplitPayload")
+				return
+			}
 		default:
 			err = dc.Skip()
 			if err != nil {
@@ -954,8 +960,8 @@ func (z *ClientStatsPayload) DecodeMsg(dc *msgp.Reader) (err error) {
 // EncodeMsg implements msgp.Encodable
 func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 	// omitempty: check for empty values
-	zb0001Len := uint32(12)
-	var zb0001Mask uint16 /* 12 bits */
+	zb0001Len := uint32(13)
+	var zb0001Mask uint16 /* 13 bits */
 	if z.Stats == nil {
 		zb0001Len--
 		zb0001Mask |= 0x8
@@ -1111,6 +1117,16 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 			return
 		}
 	}
+	// write "SplitPayload"
+	err = en.Append(0xac, 0x53, 0x70, 0x6c, 0x69, 0x74, 0x50, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64)
+	if err != nil {
+		return
+	}
+	err = en.WriteBool(z.SplitPayload)
+	if err != nil {
+		err = msgp.WrapError(err, "SplitPayload")
+		return
+	}
 	return
 }
 
@@ -1118,8 +1134,8 @@ func (z *ClientStatsPayload) EncodeMsg(en *msgp.Writer) (err error) {
 func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	o = msgp.Require(b, z.Msgsize())
 	// omitempty: check for empty values
-	zb0001Len := uint32(12)
-	var zb0001Mask uint16 /* 12 bits */
+	zb0001Len := uint32(13)
+	var zb0001Mask uint16 /* 13 bits */
 	if z.Stats == nil {
 		zb0001Len--
 		zb0001Mask |= 0x8
@@ -1181,6 +1197,9 @@ func (z *ClientStatsPayload) MarshalMsg(b []byte) (o []byte, err error) {
 	for za0002 := range z.Tags {
 		o = msgp.AppendString(o, z.Tags[za0002])
 	}
+	// string "SplitPayload"
+	o = append(o, 0xac, 0x53, 0x70, 0x6c, 0x69, 0x74, 0x50, 0x61, 0x79, 0x6c, 0x6f, 0x61, 0x64)
+	o = msgp.AppendBool(o, z.SplitPayload)
 	return
 }
 
@@ -1311,6 +1330,12 @@ func (z *ClientStatsPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					return
 				}
 			}
+		case "SplitPayload":
+			z.SplitPayload, bts, err = msgp.ReadBoolBytes(bts)
+			if err != nil {
+				err = msgp.WrapError(err, "SplitPayload")
+				return
+			}
 		default:
 			bts, err = msgp.Skip(bts)
 			if err != nil {
@@ -1337,6 +1362,7 @@ func (z *ClientStatsPayload) Msgsize() (s int) {
 	for za0002 := range z.Tags {
 		s += msgp.StringPrefixSize + len(z.Tags[za0002])
 	}
+	s += 13 + msgp.BoolSize
 	return
 }
 
