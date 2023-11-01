@@ -171,7 +171,6 @@ def clean(ctx, locks=True, stacks=False):
 def _clean_locks():
     print("🧹 Clean up lock files")
     lock_dir = os.path.join(Path.home(), ".pulumi", "locks")
-
     for entry in os.listdir(Path(lock_dir)):
         subdir = os.path.join(lock_dir, entry)
         if os.path.isdir(subdir):

@@ -26,7 +26,7 @@ var _ VM = (*VMClient)(nil)
 // VMClient is a type that implements [VM] interface to interact with a remote VM.
 type VMClient struct {
 	client *ssh.Client
-	osType componentos.Type
+	OSType componentos.Type
 	t      *testing.T
 }
 
@@ -55,7 +55,7 @@ func NewVMClient(t *testing.T, connection *utils.Connection, osType componentos.
 		2*time.Second, 5)
 	return &VMClient{
 		client: client,
-		osType: osType,
+		OSType: osType,
 		t:      t,
 	}, err
 }
@@ -97,7 +97,7 @@ func (vmClient *VMClient) CopyFolder(srcFolder string, dstFolder string) {
 func (vmClient *VMClient) setEnvVariables(command string, envVar executeparams.EnvVar) string {
 
 	cmd := ""
-	if vmClient.osType == componentos.WindowsType {
+	if vmClient.OSType == componentos.WindowsType {
 		envVarSave := map[string]string{}
 		for envName, envValue := range envVar {
 			previousEnvVar, err := vmClient.ExecuteWithError(fmt.Sprintf("$env:%s", envName))
