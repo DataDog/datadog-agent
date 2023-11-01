@@ -617,17 +617,9 @@ def test(
     test_profiler = TestProfiler() if profile else None
 
     race_opt = "-race" if race else ""
-    covermode_opt = ""
+    # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
+    covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
     build_cpus_opt = f"-p {cpus}" if cpus else ""
-
-    if coverage:
-        if race:
-            # atomic is quite expensive but it's the only way to run
-            # both the coverage and the race detector at the same time
-            # without getting false positives from the cover counter
-            covermode_opt = "-covermode=atomic"
-        else:
-            covermode_opt = "-covermode=count"
 
     coverprofile = f"-coverprofile={PROFILE_COV}" if coverage else ""
 
