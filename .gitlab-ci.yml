@@ -988,3 +988,4 @@ workflow:
 .except_mergequeue:
   - <<: *if_mergequeue
     when: never
+  - when: on_success
