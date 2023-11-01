@@ -588,6 +588,10 @@ func (d *AgentDemultiplexer) GetMetricSamplePool() *metrics.MetricSamplePool {
 	return d.statsd.metricSamplePool
 }
 
+// DumpDogstatsdContexts writes the current state of the context resolver to dest.
+//
+// This blocks metrics processing, so dest is expected to be reasonably fast and not block for too
+// long.
 func (d *AgentDemultiplexer) DumpDogstatsdContexts(dest io.Writer) error {
 	for _, w := range d.statsd.workers {
 		err := w.dumpContexts(dest)
