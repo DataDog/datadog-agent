@@ -53,6 +53,7 @@ type Concentrator struct {
 }
 
 var defaultPeerTags []string = []string{
+	"_dd.base.service",
 	"_dd.cluster.name",
 	"_dd.first.configured.host",
 	"bucketname",
