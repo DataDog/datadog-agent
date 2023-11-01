@@ -972,7 +972,7 @@ service_monitoring_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(208))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
 	})
 }
 
@@ -1047,7 +1047,7 @@ service_monitoring_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(208))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
 	})
 }
 

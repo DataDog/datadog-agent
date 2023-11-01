@@ -40,7 +40,9 @@ func adjustUSM(cfg config.Config) {
 	applyDefault(cfg, smNS("http_notification_threshold"), 512)
 	// http_max_request_fragment
 	deprecateInt64(cfg, netNS("http_max_request_fragment"), smNS("http_max_request_fragment"))
-	applyDefault(cfg, smNS("http_max_request_fragment"), 208)
+	// set the default to be the max allowed by the driver.  So now the config will allow us to
+	// shorten the allowed path, but not lengthen it.
+	applyDefault(cfg, smNS("http_max_request_fragment"), maxHTTPFrag)
 	applyDefault(cfg, smNS("max_concurrent_requests"), cfg.GetInt(spNS("max_tracked_connections")))
 
 	if cfg.GetBool(dsmNS("enabled")) {
