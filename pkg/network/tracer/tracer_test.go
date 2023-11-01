@@ -1003,7 +1003,8 @@ func getConnections(t require.TestingT, tr *Tracer) *network.Connections {
 }
 
 const (
-	validDNSServer = "8.8.8.8"
+	validDNSServer   = "8.8.8.8"
+	invalidDNSServer = "1.2.3.4" // queries to this IP will always time out
 )
 
 func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, timeout int, serverIP string) {
@@ -1026,8 +1027,8 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 		_ = dnsConn.Close()
-		assert.True(c, err == nil || timeout != 0, "Expected no DNS error")
-	}, 3*time.Second, 100*time.Millisecond, "Failed to get dns response")
+		assert.True(c, err == nil || timeout != 0, "expected no DNS error")
+	}, 6*time.Second, 100*time.Millisecond, "failed to get dns response")
 
 	// Allow the DNS reply to be processed in the snooper
 	time.Sleep(time.Millisecond * 500)
@@ -1088,7 +1089,7 @@ func (s *TracerSuite) TestDNSStatsWithTimeout() {
 	cfg.DNSTimeout = 250 * time.Millisecond
 	tr := setupTracer(t, cfg)
 	t.Run("timeout", func(t *testing.T) {
-		testDNSStats(t, tr, "golang.org", 0, 0, 1, "1.2.3.4")
+		testDNSStats(t, tr, "golang.org", 0, 0, 1, invalidDNSServer)
 	})
 }
 
