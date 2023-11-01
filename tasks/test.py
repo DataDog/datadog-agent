@@ -610,10 +610,8 @@ def test(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
+        race=race,
     )
-
-    if sys.platform == 'win32':
-        env['CGO_LDFLAGS'] += ' -Wl,--allow-multiple-definition'
 
     if profile:
         test_profiler = TestProfiler()
@@ -631,11 +629,6 @@ def test(
             print("\n -- Warning... disabling race test, not supported on this platform --\n")
         else:
             race_opt = "-race"
-
-        # Needed to fix an issue when using -race + gcc 10.x on Windows
-        # https://github.com/bazelbuild/rules_go/issues/2614
-        if sys.platform == 'win32':
-            ldflags += " -linkmode=external"
 
     if coverage:
         if race:
