@@ -1020,7 +1020,9 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	var dnsClientAddr *net.UDPAddr
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-		assert.Nil(c, err)
+		if !assert.NoError(c, err) {
+			return
+		}
 		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
 		_ = dnsConn.Close()
@@ -1070,7 +1072,7 @@ func (s *TracerSuite) TestDNSStats() {
 	t := s.T()
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
-	cfg.DNSTimeout = 1 * time.Second
+	cfg.DNSTimeout = 5 * time.Second
 	tr := setupTracer(t, cfg)
 	t.Run("valid domain", func(t *testing.T) {
 		testDNSStats(t, tr, "golang.org", 1, 0, 0, validDNSServer)
@@ -1078,6 +1080,14 @@ func (s *TracerSuite) TestDNSStats() {
 	t.Run("invalid domain", func(t *testing.T) {
 		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, validDNSServer)
 	})
+}
+
+func (s *TracerSuite) TestDNSStatsWithTimeout() {
+	t := s.T()
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	tr := setupTracer(t, cfg)
 	t.Run("timeout", func(t *testing.T) {
 		testDNSStats(t, tr, "golang.org", 0, 0, 1, "1.2.3.4")
 	})
