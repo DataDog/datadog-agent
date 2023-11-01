@@ -74,7 +74,7 @@ func (c *Check) init() error {
 	}
 	c.cdbName = d.Name
 	tags = append(tags, fmt.Sprintf("cdb:%s", c.cdbName))
-	tags = append(tags, fmt.Sprintf("dd.internal.resource:database_instance:%s/%s", c.dbHostname, c.cdbName))
+	tags = append(tags, fmt.Sprintf("dd.internal.resource:database_instance:%s", c.dbHostname))
 	isMultitenant := true
 	if d.Cdb == "NO" {
 		isMultitenant = false
