@@ -16,6 +16,13 @@ type Filter struct {
 	includePauseContainers bool
 }
 
+type FilterParams struct {
+	Kinds                  []Kind
+	Source                 Source
+	EventType              EventType
+	IncludePauseContainers bool
+}
+
 // NewFilter creates a new filter for subscribing to workloadmeta events.
 //
 // Only events for entities with one of the given kinds will be delivered.  If
@@ -30,8 +37,9 @@ type Filter struct {
 //
 // Only events of the given type will be delivered. Use EventTypeAll to collect
 // data from all the event types.
-func NewFilter(kinds []Kind, source Source, eventType EventType, includePauseContainers bool) *Filter {
+func NewFilter(filterParams FilterParams) *Filter {
 	var kindSet map[Kind]struct{}
+	kinds := filterParams.Kinds
 	if len(kinds) > 0 {
 		kindSet = make(map[Kind]struct{})
 		for _, k := range kinds {
@@ -41,9 +49,9 @@ func NewFilter(kinds []Kind, source Source, eventType EventType, includePauseCon
 
 	return &Filter{
 		kinds:                  kindSet,
-		source:                 source,
-		eventType:              eventType,
-		includePauseContainers: includePauseContainers,
+		source:                 filterParams.Source,
+		eventType:              filterParams.EventType,
+		includePauseContainers: filterParams.IncludePauseContainers,
 	}
 }
 
