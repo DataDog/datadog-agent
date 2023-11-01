@@ -59,7 +59,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.1
-	github.com/DataDog/appsec-internal-go v1.0.1-0.20230723140106-7cb513f54ce1
+	github.com/DataDog/appsec-internal-go v1.0.1
 	github.com/DataDog/datadog-agent/pkg/gohai v0.49.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.49.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.49.0-rc.2
@@ -613,7 +613,7 @@ require (
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
-	github.com/DataDog/go-sqllexer v0.0.7 // indirect
+	github.com/DataDog/go-sqllexer v0.0.8 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect

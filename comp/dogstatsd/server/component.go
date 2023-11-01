@@ -7,6 +7,8 @@
 package server
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -30,7 +32,7 @@ type Component interface {
 	UdsListenerRunning() bool
 
 	// ServerlessFlush flushes all the data to the aggregator to them send it to the Datadog intake.
-	ServerlessFlush()
+	ServerlessFlush(time.Duration)
 
 	// SetExtraTags sets extra tags. All metrics sent to the DogstatsD will be tagged with them.
 	SetExtraTags(tags []string)

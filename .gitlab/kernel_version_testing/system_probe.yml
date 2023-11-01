@@ -302,10 +302,17 @@ kernel_matrix_testing_setup_env:
     - inv -e system-probe.start-microvms --provision --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$CI_PIPELINE_ID
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
+  after_script:
+    - export AWS_PROFILE=agent-qa-ci
+    - !reference [.shared_filters_and_queries]
     - mkdir -p $CI_PROJECT_DIR/libvirt/log/x86_64 $CI_PROJECT_DIR/libvirt/log/arm64
-    - X64_INSTANCE_IP=$(grep x86_64-instance-ip $CI_PROJECT_DIR/stack.outputs | cut -d ' ' -f 2)
+    - INSTANCE_TYPE=m5d.metal
+    - !reference [.get_instance_ip_by_type]
+    - X64_INSTANCE_IP=$INSTANCE_IP
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$X64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/x86_64/
-    - ARM64_INSTANCE_IP=$(grep arm64-instance-ip $CI_PROJECT_DIR/stack.outputs | cut -d ' ' -f 2)
+    - INSTANCE_TYPE=m6gd.metal
+    - !reference [.get_instance_ip_by_type]
+    - ARM64_INSTANCE_IP=$INSTANCE_IP
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$ARM64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/arm64/
   artifacts:
     when: always

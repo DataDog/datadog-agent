@@ -113,7 +113,9 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]str
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
 	config.Datadog.Set("use_v2_api.series", false)
-	metricAgent := &metrics.ServerlessMetricAgent{}
+	metricAgent := &metrics.ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 0,
+	}
 	// we don't want to add the container_id tag to metrics for cardinality reasons
 	tags = tag.WithoutContainerID(tags)
 	tagArray := tag.GetBaseTagsArrayWithMetadataTags(tags)
