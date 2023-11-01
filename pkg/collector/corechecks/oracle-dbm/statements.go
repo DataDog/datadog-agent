@@ -578,7 +578,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			if sendFqtAndPlan {
 				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
-					sendFqtAndPlan = true
+					sendFqtAndPlan = false
 				}
 				if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
 					FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
