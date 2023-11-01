@@ -1072,7 +1072,6 @@ func (s *TracerSuite) TestDNSStats() {
 	t := s.T()
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
-	cfg.DNSTimeout = 5 * time.Second
 	tr := setupTracer(t, cfg)
 	t.Run("valid domain", func(t *testing.T) {
 		testDNSStats(t, tr, "golang.org", 1, 0, 0, validDNSServer)
@@ -1086,7 +1085,7 @@ func (s *TracerSuite) TestDNSStatsWithTimeout() {
 	t := s.T()
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
-	cfg.DNSTimeout = 1 * time.Second
+	cfg.DNSTimeout = 250 * time.Millisecond
 	tr := setupTracer(t, cfg)
 	t.Run("timeout", func(t *testing.T) {
 		testDNSStats(t, tr, "golang.org", 0, 0, 1, "1.2.3.4")
