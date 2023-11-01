@@ -113,6 +113,7 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_limitrange":                               limitrangeTransformer,
 		"kube_persistentvolume_status_phase":            pvPhaseTransformer,
 		"kube_service_spec_type":                        serviceTypeTransformer,
+		"kube_ingress_tls":                              removeSecret,
 	}
 }
 
@@ -533,4 +534,23 @@ func pvPhaseTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, 
 // serviceTypeTransformer generates metrics per service, namespace, and type from the kube_service_spec_type metric
 func serviceTypeTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitActiveMetric(s, ksmMetricPrefix+"service.type", metric, hostname, tags)
+}
+
+// remove secret removes the secret tag from the kube_ingress_tls metric
+func removeSecret(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	if len(tags) > 0 {
+		log.Errorf("All Tags for ingress metric are here: %+v", tags)
+		if len(tags) > 0 {
+			for i, s := range tags {
+				if strings.Contains(s, "secret:") {
+					tags[i] = ""
+				}
+			}
+		}
+		log.Errorf("New Tags for ingress metric are here: %+v", tags)
+		for _, s := range metric.Labels {
+			log.Errorf("ingress label is: %+v", s)
+		}
+	}
+	s.Gauge(ksmMetricPrefix+"ingress.tls", metric.Val, hostname, tags)
 }
