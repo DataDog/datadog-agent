@@ -82,10 +82,14 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
 			cardinality = tag[len(CardinalityTagPrefix):]
 		} else if strings.HasPrefix(tag, jmxTagPrefix) {
-			metricSource = metrics.MetricSourceJmxCustom
+			// metricSource = metrics.MetricSourceJmxCustom
+			tags[n] = tag
+			n++
 		} else if strings.HasPrefix(tag, jmxCheckNamePrefix) {
 			checkName := tag[len(jmxCheckNamePrefix):]
+			metricSource = metrics.CheckNameToMetricSource(checkName)
 			fmt.Println("jmx_check_name:", checkName)
+			fmt.Println("metricSource:", metricSource)
 		} else {
 			tags[n] = tag
 			n++

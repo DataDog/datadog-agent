@@ -72,3 +72,44 @@ func (ms MetricSource) String() string {
 
 	}
 }
+
+func CheckNameToMetricSource(name string) MetricSource {
+	switch name {
+	case "dogstatsd":
+		return MetricSourceDogstatsd
+	case "jmx-custom-check":
+		return MetricSourceJmxCustom
+	case "activemq":
+		return MetricSourceActivemq
+	case "cassandra":
+		return MetricSourceCassandra
+	case "confluent_platform":
+		return MetricSourceConfluentPlatform
+	case "hazelcast":
+		return MetricSourceHazelcast
+	case "hive":
+		return MetricSourceHive
+	case "hivemq":
+		return MetricSourceHivemq
+	case "hudi":
+		return MetricSourceHudi
+	case "ignite":
+		return MetricSourceIgnite
+	case "jboss_wildfly":
+		return MetricSourceJbossWildfly
+	case "kafka":
+		return MetricSourceKafka
+	case "presto":
+		return MetricSourcePresto
+	case "solr":
+		return MetricSourceSolr
+	case "sonarqube":
+		return MetricSourceSonarqube
+	case "tomcat":
+		return MetricSourceTomcat
+	case "weblogic":
+		return MetricSourceWeblogic
+	default:
+		return MetricSourceJmxCustom
+	}
+}
