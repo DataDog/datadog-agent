@@ -179,6 +179,10 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 		} else {
 			delete(k.configErrors, serviceID)
 		}
+		log.Errorf("parseServiceAnnotations was called 1")
+		for _, err := range errors {
+			log.Errorf("Cannot parse service template for service %s/%s: %s", svc.Namespace, svc.Name, err)
+		}
 
 		ignoreADTags := ignoreADTagsFromAnnotations(svc.GetAnnotations(), kubeServiceAnnotationPrefix)
 
@@ -188,7 +192,6 @@ func (k *KubeServiceConfigProvider) parseServiceAnnotations(services []*v1.Servi
 			svcConf[i].Source = "kube_services:" + serviceID
 			svcConf[i].IgnoreAutodiscoveryTags = ignoreADTags
 		}
-
 		configs = append(configs, svcConf...)
 	}
 
