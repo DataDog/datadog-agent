@@ -2361,7 +2361,8 @@ func Test_removeSecret(t *testing.T) {
 				metric: ksmstore.DDMetric{
 					Val: 1,
 				},
-				tags: []string{"secret:foo", "tls_host:foo"},
+				tags:     []string{"secret:foo", "tls_host:foo"},
+				hostname: "foo",
 			},
 			expected: &metricsExpected{
 				name: "kubernetes_state.ingress.tls",
@@ -2375,9 +2376,10 @@ func Test_removeSecret(t *testing.T) {
 		s.SetupAcceptAll()
 		t.Run(tt.name, func(t *testing.T) {
 			currentTime := time.Now()
-			removeSecret(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
+			removeSecretTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
-				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.args.tags)
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
+				s.AssertMetricNotTaggedWith(t, "Gauge", tt.expected.name, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
 			} else {
 				s.AssertNotCalled(t, "Gauge")
