@@ -250,7 +250,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "http_notification_threshold"))
 	cfg.BindEnv(join(smNS, "http_notification_threshold"))
-	// Default value (160) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
 	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
 
