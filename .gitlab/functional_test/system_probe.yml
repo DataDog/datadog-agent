@@ -71,7 +71,6 @@ kitchen_test_system_probe_linux_x64_ec2:
     - .kitchen_test_system_probe_linux
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  rules: !reference [.except_mergequeue]
   needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64" ]
   retry: 0
   variables:
@@ -134,7 +133,6 @@ kitchen_test_system_probe_linux_arm64:
     - .kitchen_test_system_probe_linux
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  rules: !reference [.except_mergequeue]
   needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64", "generate_minimized_btfs_arm64" ]
   retry: 0
   variables:
@@ -190,7 +188,6 @@ kitchen_test_system_probe_windows_x64:
     - .kitchen_test_system_probe
     - .kitchen_azure_x64
     - .kitchen_azure_location_north_central_us
-  rules: !reference [.except_mergequeue]
   needs: [ "tests_windows_sysprobe_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
