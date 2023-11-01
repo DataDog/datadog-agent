@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -155,24 +156,25 @@ func TestReadInitialUDPState(t *testing.T) {
 		require.NoError(t, err)
 		for _, p := range ports[:2] {
 			if _, ok := initialPorts[PortMapping{testRootNs, p}]; !ok {
-				t.Errorf("PortMapping(testRootNs, p) returned false for port %d", p)
+				t.Logf("PortMapping(testRootNs, p) returned false for port %d", p)
 				return false
 			}
 		}
 		for _, p := range ports[2:] {
 			if _, ok := initialPorts[PortMapping{nsIno, p}]; !ok {
-				t.Errorf("PortMapping(nsIno, p) returned false for port %d", p)
+				t.Logf("PortMapping(nsIno, p) returned false for port %d", p)
 				return false
 			}
 		}
-
-		if _, ok := initialPorts[PortMapping{testRootNs, 999}]; ok {
-			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
-			return false
-		}
-		if _, ok := initialPorts[PortMapping{nsIno, 999}]; ok {
-			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
-			return false
+		if isUnusedUDPPort(t, 999) {
+			if _, ok := initialPorts[PortMapping{testRootNs, 999}]; ok {
+				t.Logf("expected IsListening(testRootNs, 999) to return false, but returned true")
+				return false
+			}
+			if _, ok := initialPorts[PortMapping{nsIno, 999}]; ok {
+				t.Logf("expected IsListening(testRootNs, 999) to return false, but returned true")
+				return false
+			}
 		}
 
 		return true
@@ -189,4 +191,12 @@ func getPort(t *testing.T, listener net.Listener) uint16 {
 
 func getPortUDP(_ *testing.T, udpConn *net.UDPConn) uint16 {
 	return uint16(udpConn.LocalAddr().(*net.UDPAddr).Port)
+}
+
+func isUnusedUDPPort(_ *testing.T, port int) bool {
+	_, err := net.ListenUDP("udp", &net.UDPAddr{Port: port})
+	if err != nil && strings.Contains(err.Error(), "address already in use") {
+		return false
+	}
+	return true
 }
