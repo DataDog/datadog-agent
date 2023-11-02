@@ -265,9 +265,11 @@ func (c *client) send(ctx context.Context, data *pbgo.ParentLanguageAnnotationRe
 		c.telemetry.Requests.Inc(statusError)
 		return err
 	}
-	c.freshlyUpdatedPods = make(map[string]struct{})
 	c.telemetry.Latency.Observe(time.Since(t).Seconds())
 	c.telemetry.Requests.Inc(statusSuccess)
+	c.mutex.Lock()
+	c.freshlyUpdatedPods = make(map[string]struct{})
+	c.mutex.Unlock()
 	return nil
 }
 

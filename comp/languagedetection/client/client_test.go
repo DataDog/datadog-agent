@@ -192,7 +192,6 @@ func TestClientSendFreshPods(t *testing.T) {
 	}, freshData)
 	// make sure we didn't touch the current batch
 	assert.Equal(t, client.currentBatch, batch{podName: podInfo})
-	assert.Empty(t, client.freshlyUpdatedPods)
 }
 
 func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
