@@ -45,8 +45,8 @@ func TestConfigure(t *testing.T) {
 	aggregatesBk := config.Datadog.GetStringSlice("histogram_aggregates")
 	percentilesBk := config.Datadog.GetStringSlice("histogram_percentiles")
 	defer func() {
-		mockConfig.Set("histogram_aggregates", aggregatesBk)
-		mockConfig.Set("histogram_percentiles", percentilesBk)
+		mockConfig.SetWithoutSource("histogram_aggregates", aggregatesBk)
+		mockConfig.SetWithoutSource("histogram_percentiles", percentilesBk)
 		defaultAggregates = nil
 		defaultPercentiles = nil
 	}()
@@ -54,8 +54,8 @@ func TestConfigure(t *testing.T) {
 	defaultAggregates = nil
 	defaultPercentiles = nil
 	aggregates := []string{"max", "min", "test"}
-	mockConfig.Set("histogram_aggregates", aggregates)
-	mockConfig.Set("histogram_percentiles", []string{"0.50", "0.30", "0.98"})
+	mockConfig.SetWithoutSource("histogram_aggregates", aggregates)
+	mockConfig.SetWithoutSource("histogram_percentiles", []string{"0.50", "0.30", "0.98"})
 
 	hist := NewHistogram(10)
 	assert.Equal(t, aggregates, hist.aggregates)

@@ -112,7 +112,7 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]str
 }
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
-	config.Datadog.Set("use_v2_api.series", false)
+	config.Datadog.SetWithoutSource("use_v2_api.series", false)
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
 	}

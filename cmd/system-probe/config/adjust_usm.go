@@ -44,14 +44,14 @@ func adjustUSM(cfg config.Config) {
 
 	if cfg.GetBool(dsmNS("enabled")) {
 		// DSM infers USM
-		cfg.Set(smNS("enabled"), true)
+		cfg.SetWithoutSource(smNS("enabled"), true)
 	}
 
 	if cfg.GetBool(smNS("process_service_inference", "enabled")) &&
 		!cfg.GetBool(smNS("enabled")) &&
 		!cfg.GetBool(dsmNS("enabled")) {
 		log.Info("universal service monitoring and data streams monitoring are disabled, disabling process service inference")
-		cfg.Set(smNS("process_service_inference", "enabled"), false)
+		cfg.SetWithoutSource(smNS("process_service_inference", "enabled"), false)
 	}
 
 	validateInt(cfg, smNS("http_notification_threshold"), cfg.GetInt(smNS("max_tracked_http_connections"))/2, func(v int) error {

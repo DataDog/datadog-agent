@@ -133,9 +133,9 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
 	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
-	defer mockConfig.Set("exclude_gce_tags", defaultExclude)
+	defer mockConfig.SetWithoutSource("exclude_gce_tags", defaultExclude)
 
-	mockConfig.Set("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
+	mockConfig.SetWithoutSource("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
 
 	server := mockMetadataRequest(t)
 	defer server.Close()

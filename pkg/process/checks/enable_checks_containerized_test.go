@@ -95,8 +95,8 @@ func TestDisableRealTime(t *testing.T) {
 			assert := assert.New(t)
 
 			mockConfig := config.Mock(t)
-			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
-			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
+			mockConfig.SetWithoutSource("process_config.disable_realtime_checks", tc.disableRealtime)
+			mockConfig.SetWithoutSource("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 			config.SetFeatures(t, config.Docker)
 
 			enabledChecks := getEnabledChecks(t, mockConfig, config.MockSystemProbe(t))

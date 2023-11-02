@@ -20,18 +20,18 @@ func TestGetSyslogURI(t *testing.T) {
 
 	mockConfig := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 
-	mockConfig.Set("log_to_syslog", true)
-	mockConfig.Set("syslog_uri", "")
+	"log_to_syslog", true)
+	"syslog_uri", "")
 
 	assert.Equal(GetSyslogURI(mockConfig), defaultSyslogURI)
 
-	mockConfig.Set("syslog_uri", "tcp://localhost:514")
+	"syslog_uri", "tcp://localhost:514")
 	assert.Equal(GetSyslogURI(mockConfig), "tcp://localhost:514")
 
-	mockConfig.Set("log_to_syslog", false)
+	"log_to_syslog", false)
 	assert.Equal(GetSyslogURI(mockConfig), "")
 
-	mockConfig.Set("syslog_uri", "")
+	"syslog_uri", "")
 	assert.Equal(GetSyslogURI(mockConfig), "")
 }
 

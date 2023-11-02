@@ -6,10 +6,11 @@
 package profile
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"os"
 	"path/filepath"
 	"regexp"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 )
@@ -48,7 +49,7 @@ func SetConfdPathAndCleanProfiles() {
 	if !pathExists(file) {
 		file, _ = filepath.Abs(filepath.Join(".", "internal", "test", "conf.d"))
 	}
-	config.Datadog.Set("confd_path", file)
+	config.Datadog.SetWithoutSource("confd_path", file)
 }
 
 // pathExists returns true if the given path exists

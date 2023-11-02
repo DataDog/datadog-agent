@@ -198,7 +198,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 
 	// Setup expvar server
 	port := config.GetString("security_agent.expvar_port")
-	pkgconfig.Datadog.Set("expvar_port", port)
+	pkgconfig.Datadog.SetWithoutSource("expvar_port", port)
 	if config.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}

@@ -89,7 +89,7 @@ func (c *cfg) SetHandler() http.Handler {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}
-				pkgconfig.Datadog.Set("log_level", lvl)
+				pkgconfig.Datadog.SetWithoutSource("log_level", lvl)
 				log.Infof("Switched log level to %s", lvl)
 			default:
 				log.Infof("Unsupported config change requested (key: %q).", key)

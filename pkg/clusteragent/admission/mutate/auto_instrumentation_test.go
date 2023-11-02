@@ -474,7 +474,7 @@ func TestExtractLibInfo(t *testing.T) {
 					image: "registry/dd-lib-ruby-init:latest",
 				},
 			},
-			setupConfig: func() { mockConfig.Set("apm_config.instrumentation.enabled", false) },
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
 		},
 		{
 			name:              "single step instrumentation with no pinned versions",
@@ -502,7 +502,7 @@ func TestExtractLibInfo(t *testing.T) {
 					image: "registry/dd-lib-ruby-init:latest",
 				},
 			},
-			setupConfig: func() { mockConfig.Set("apm_config.instrumentation.enabled", true) },
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 		},
 		{
 			name:              "single step instrumentation with pinned java version",
@@ -531,8 +531,8 @@ func TestExtractLibInfo(t *testing.T) {
 				},
 			},
 			setupConfig: func() {
-				mockConfig.Set("apm_config.instrumentation.enabled", true)
-				mockConfig.Set("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0"})
 			},
 		},
 		{
@@ -562,8 +562,8 @@ func TestExtractLibInfo(t *testing.T) {
 				},
 			},
 			setupConfig: func() {
-				mockConfig.Set("apm_config.instrumentation.enabled", true)
-				mockConfig.Set("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0", "python": "v1.19.0"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0", "python": "v1.19.0"})
 			},
 		},
 		{
@@ -593,16 +593,16 @@ func TestExtractLibInfo(t *testing.T) {
 				},
 			},
 			setupConfig: func() {
-				mockConfig.Set("apm_config.instrumentation.enabled", true)
-				mockConfig.Set("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0"})
-				mockConfig.Set("admission_controller.mutate_unlabelled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.lib_versions", map[string]string{"java": "v1.20.0"})
+				mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig = config.Mock(t)
-			mockConfig.Set("admission_controller.mutate_unlabelled", true)
+			mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
 			if tt.setupConfig != nil {
 				tt.setupConfig()
 			}
@@ -1286,7 +1286,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				},
 			}...),
 			wantErr:     false,
-			setupConfig: func() { mockConfig.Set("apm_config.instrumentation.enabled", true) },
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 		},
 		{
 			name: "Single Step Instrumentation: disable with label",
@@ -1297,7 +1297,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}, []corev1.EnvVar{}, "replicaset", "test-deployment-123"),
 			expectedEnvs: []corev1.EnvVar{},
 			wantErr:      false,
-			setupConfig:  func() { mockConfig.Set("apm_config.instrumentation.enabled", true) },
+			setupConfig:  func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 		},
 		{
 			name: "Single Step Instrumentation: default service name for ReplicaSet",
@@ -1307,7 +1307,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				Value: "test-deployment",
 			}),
 			wantErr:     false,
-			setupConfig: func() { mockConfig.Set("apm_config.instrumentation.enabled", true) },
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 		},
 		{
 			name: "Single Step Instrumentation: default service name for StatefulSet",
@@ -1317,14 +1317,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				Value: "test-statefulset-123",
 			}),
 			wantErr:     false,
-			setupConfig: func() { mockConfig.Set("apm_config.instrumentation.enabled", true) },
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 		},
 		{
 			name:         "Single Step Instrumentation: default service name (disabled)",
 			pod:          fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-deployment-123"),
 			expectedEnvs: []corev1.EnvVar{},
 			wantErr:      false,
-			setupConfig:  func() { mockConfig.Set("apm_config.instrumentation.enabled", false) },
+			setupConfig:  func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
 		},
 		{
 			name:         "Single Step Instrumentation: disabled namespaces should not be instrumented",
@@ -1332,8 +1332,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			expectedEnvs: []corev1.EnvVar{},
 			wantErr:      false,
 			setupConfig: func() {
-				mockConfig.Set("apm_config.instrumentation.enabled", true)
-				mockConfig.Set("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
 			},
 		},
 		{
@@ -1345,8 +1345,8 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			}),
 			wantErr: false,
 			setupConfig: func() {
-				mockConfig.Set("apm_config.instrumentation.enabled", false)
-				mockConfig.Set("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)
+				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled_namespaces", []string{"ns"})
 			},
 		},
 	}

@@ -174,7 +174,7 @@ func load() (*Config, error) {
 
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
-	cfg.Set(spNS("enabled"), c.Enabled)
+	cfg.SetWithoutSource(spNS("enabled"), c.Enabled)
 
 	return c, nil
 }

@@ -70,7 +70,7 @@ const (
 
 func main() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
-	config.Datadog.Set("use_v2_api.series", false)
+	config.Datadog.SetWithoutSource("use_v2_api.series", false)
 	stopCh := make(chan struct{})
 
 	// Disable remote configuration for now as it just spams the debug logs

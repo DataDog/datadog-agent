@@ -183,8 +183,8 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 		if pkgconfig.Datadog.IsSet("integration_tracing_exhaustive") {
 			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
 		}
-		pkgconfig.Datadog.Set("integration_tracing", true)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true)
+		pkgconfig.Datadog.SetWithoutSource("integration_tracing", true)
+		pkgconfig.Datadog.SetWithoutSource("integration_tracing_exhaustive", true)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -497,8 +497,8 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 	}
 
 	if cliParams.generateIntegrationTraces {
-		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive)
+		pkgconfig.Datadog.SetWithoutSource("integration_tracing", previousIntegrationTracing)
+		pkgconfig.Datadog.SetWithoutSource("integration_tracing_exhaustive", previousIntegrationTracingExhaustive)
 	}
 
 	return nil

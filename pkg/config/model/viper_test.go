@@ -30,7 +30,7 @@ func TestConcurrencySetGet(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for n := 0; n <= 1000; n++ {
-			config.Set("foo", "bar")
+			config.SetWithoutSource("foo", "bar")
 		}
 	}()
 
@@ -189,4 +189,56 @@ test:
 	config.Set("yetanothertest_key", "value")
 	res = config.IsSectionSet("yetanothertest")
 	assert.Equal(t, false, res)
+}
+
+func TestSet(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.Set("foo", "bar", SourceFile)
+	config.Set("foo", "baz", SourceEnvVar)
+	config.Set("foo", "qux", SourceAgentRuntime)
+	config.Set("foo", "quux", SourceRC)
+	config.Set("foo", "corge", SourceCLI)
+
+	assert.Equal(t, config.AllFileSettingsWithoutDefault(), map[string]interface{}{"foo": "bar"})
+	assert.Equal(t, config.AllEnvVarSettingsWithoutDefault(), map[string]interface{}{"foo": "baz"})
+	assert.Equal(t, config.AllAgentRuntimeSettingsWithoutDefault(), map[string]interface{}{"foo": "qux"})
+	assert.Equal(t, config.AllRemoteSettingsWithoutDefault(), map[string]interface{}{"foo": "quux"})
+	assert.Equal(t, config.AllCliSettingsWithoutDefault(), map[string]interface{}{"foo": "corge"})
+
+	assert.Equal(t, config.Get("foo"), "corge")
+}
+
+func TestGetSource(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.Set("foo", "bar", SourceFile)
+	config.Set("foo", "baz", SourceEnvVar)
+	assert.Equal(t, SourceEnvVar, config.GetSource("foo"))
+}
+
+func TestIsSet(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	assert.False(t, config.IsSetForSource("foo", SourceFile))
+	config.Set("foo", "bar", SourceFile)
+	assert.True(t, config.IsSetForSource("foo", SourceFile))
+}
+
+func TestUnsetForSource(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.Set("foo", "bar", SourceFile)
+	config.UnsetForSource("foo", SourceFile)
+	assert.False(t, config.IsSetForSource("foo", SourceFile))
+}
+
+func TestAllFileSettingsWithoutDefault(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	config.Set("foo", "bar", SourceFile)
+	config.Set("baz", "qux", SourceFile)
+	config.UnsetForSource("foo", SourceFile)
+	assert.Equal(
+		t,
+		map[string]interface{}{
+			"baz": "qux",
+		},
+		config.AllFileSettingsWithoutDefault(),
+	)
 }
