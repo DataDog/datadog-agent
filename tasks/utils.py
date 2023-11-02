@@ -181,7 +181,7 @@ def get_build_flags(
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
 
     if sys.platform == 'win32':
-        env['CGO_LDFLAGS'] += ' -Wl,--allow-multiple-definition'
+        env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
 
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
     if rtloader_headers:
