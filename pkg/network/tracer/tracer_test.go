@@ -25,6 +25,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
+
 	"github.com/cihub/seelog"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
@@ -1002,10 +1004,6 @@ func getConnections(t require.TestingT, tr *Tracer) *network.Connections {
 	return connections
 }
 
-const (
-	validDNSServer = "8.8.8.8"
-)
-
 func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, timeout int, serverIP string) {
 	tr.removeClient(clientID)
 	initTracerState(t, tr)
@@ -1027,7 +1025,7 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	}, 3*time.Second, 100*time.Millisecond, "Failed to get dns response")
 
 	// Allow the DNS reply to be processed in the snooper
-	time.Sleep(time.Millisecond * 500)
+	time.Sleep(5 * time.Second)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
@@ -1060,9 +1058,9 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	failedResponses := total - successfulResponses
 
 	// DNS Stats
-	assert.Equal(t, uint32(success), successfulResponses)
+	assert.Equal(t, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses)
 	assert.Equal(t, uint32(failure), failedResponses)
-	assert.Equal(t, uint32(timeout), timeouts)
+	assert.Equal(t, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts)
 }
 
 func (s *TracerSuite) TestDNSStats() {
@@ -1072,10 +1070,10 @@ func (s *TracerSuite) TestDNSStats() {
 	cfg.DNSTimeout = 1 * time.Second
 	tr := setupTracer(t, cfg)
 	t.Run("valid domain", func(t *testing.T) {
-		testDNSStats(t, tr, "golang.org", 1, 0, 0, validDNSServer)
+		testDNSStats(t, tr, "good.com", 1, 0, 0, testdns.GetServerIP(t).String())
 	})
 	t.Run("invalid domain", func(t *testing.T) {
-		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, validDNSServer)
+		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, testdns.GetServerIP(t).String())
 	})
 	t.Run("timeout", func(t *testing.T) {
 		testDNSStats(t, tr, "golang.org", 0, 0, 1, "1.2.3.4")
