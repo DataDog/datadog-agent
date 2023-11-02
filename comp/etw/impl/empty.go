@@ -12,4 +12,5 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
+// Module defines the fx options for this component.
 var Module = fxutil.Component()
