@@ -161,9 +161,9 @@ func TestReadInitialUDPState(t *testing.T) {
 		for _, p := range ports[2:] {
 			assert.Contains(c, initialPorts, PortMapping{nsIno, p}, fmt.Sprintf("PortMapping(nsIno, p) returned false for port %d", p))
 		}
-		if isUnusedUDPPort(t, 53) {
-			assert.NotContains(c, initialPorts, PortMapping{testRootNs, 53}, "expected IsListening(testRootNs, 999) to return false, but returned true")
-			assert.NotContains(c, initialPorts, PortMapping{nsIno, 53}, "expected IsListening(nsIno, 999) to return false, but returned true")
+		if isUnusedUDPPort(t, 999) {
+			assert.NotContains(c, initialPorts, PortMapping{testRootNs, 999}, "expected IsListening(testRootNs, 999) to return false, but returned true")
+			assert.NotContains(c, initialPorts, PortMapping{nsIno, 999}, "expected IsListening(nsIno, 999) to return false, but returned true")
 		}
 	}, 3*time.Second, time.Second, "udp/udp6 ports are listening")
 }
