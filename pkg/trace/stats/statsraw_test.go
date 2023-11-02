@@ -156,14 +156,26 @@ func TestGrainWithSynthetics(t *testing.T) {
 }
 
 func BenchmarkHandleSpanRandom(b *testing.B) {
-	sb := NewRawBucket(0, 1e9)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for i := 0; i < b.N; i++ {
-		for _, span := range benchSpans {
-			sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d"}, true, nil)
+	b.Run("no_peer_tags", func(b *testing.B) {
+		sb := NewRawBucket(0, 1e9)
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			for _, span := range benchSpans {
+				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d"}, false, nil)
+			}
 		}
-	}
+	})
+	b.Run("peer_tags", func(b *testing.B) {
+		sb := NewRawBucket(0, 1e9)
+		b.ResetTimer()
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			for _, span := range benchSpans {
+				sb.HandleSpan(span, 1, true, "", PayloadAggregationKey{"a", "b", "c", "d"}, true, defaultPeerTags)
+			}
+		}
+	})
 }
 
 var benchSpans = []*pb.Span{
