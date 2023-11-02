@@ -54,7 +54,7 @@ func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
 		}
 		pc = pc.Ancestor
 	}
-	return false, &ErrProcessWrongParentNode{PID: ppid}
+	return false, &ErrProcessMissingParentNode{PID: ppid}
 }
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
