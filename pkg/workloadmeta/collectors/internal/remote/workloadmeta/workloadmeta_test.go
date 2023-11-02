@@ -155,6 +155,7 @@ func TestCollection(t *testing.T) {
 		err := grpcServer.Serve(lis)
 		require.NoError(t, err)
 	}()
+	defer grpcServer.Stop()
 
 	_, portStr, err := net.SplitHostPort(lis.Addr().String())
 	require.NoError(t, err)
@@ -171,6 +172,11 @@ func TestCollection(t *testing.T) {
 
 	mockClientStore := workloadmeta.NewMockStore()
 	ctx, cancel := context.WithCancel(context.TODO())
+	// Subscribe to the mockStore and wait for the initial event
+	ch := mockClientStore.Subscribe("dummy", workloadmeta.NormalPriority, nil)
+	<-ch
+
+	// Start collecting entities
 	err = collector.Start(ctx, mockClientStore)
 	require.NoError(t, err)
 
@@ -213,8 +219,10 @@ func TestCollection(t *testing.T) {
 		},
 	)
 
-	time.Sleep(2 * time.Second)
+	<-ch
+
 	cancel()
+	mockClientStore.Unsubscribe(ch)
 
 	container, err := mockClientStore.GetContainer("ctr-id")
 	require.NoError(t, err)

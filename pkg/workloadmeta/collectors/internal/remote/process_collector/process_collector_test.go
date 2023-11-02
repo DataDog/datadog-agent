@@ -249,6 +249,7 @@ func TestCollection(t *testing.T) {
 				err := grpcServer.Serve(lis)
 				require.NoError(t, err)
 			}()
+			defer grpcServer.Stop()
 
 			_, portStr, err := net.SplitHostPort(lis.Addr().String())
 			require.NoError(t, err)
@@ -271,7 +272,6 @@ func TestCollection(t *testing.T) {
 
 			// Subscribe to the mockStore
 			ch := mockStore.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
-			doneCh := make(chan struct{})
 
 			<-ch // Wait that the initial empty events are sent
 
@@ -281,17 +281,11 @@ func TestCollection(t *testing.T) {
 
 			numberOfEvents := len(test.serverResponses)
 
-			go func() {
-				for i := 0; i < numberOfEvents; i++ {
-					bundle := <-ch
-					close(bundle.Ch)
-				}
-				close(doneCh)
-				mockStore.Unsubscribe(ch)
-			}()
-
-			<-doneCh
-
+			for i := 0; i < numberOfEvents; i++ {
+				bundle := <-ch
+				close(bundle.Ch)
+			}
+			mockStore.Unsubscribe(ch)
 			cancel()
 
 			// Verify final state
