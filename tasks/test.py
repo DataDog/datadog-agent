@@ -513,6 +513,16 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
     return success
 
 
+def sanitize_env_vars():
+    """
+    Sanitizes environment variables
+    We want to ignore all `DD_` variables, as they will interfere with the behavior of some unit tests
+    """
+    for env in os.environ:
+        if env.startswith("DD_"):
+            del os.environ[env]
+
+
 @task(iterable=['flavors'])
 def test(
     ctx,
@@ -559,21 +569,9 @@ def test(
         inv test --module=. --race
     """
 
-    # Format:
-    # {
-    #     "phase1": {
-    #         "flavor1": [module_result1, module_result2],
-    #         "flavor2": [module_result3, module_result4],
-    #     }
-    # }
     modules_results_per_phase = defaultdict(dict)
 
-    # Sanitize environment variables
-    # We want to ignore all `DD_` variables, as they will interfere with the behavior
-    # of some unit tests
-    for env in os.environ:
-        if env.startswith("DD_"):
-            del os.environ[env]
+    sanitize_env_vars()
 
     # Run linters first
 
@@ -589,8 +587,6 @@ def test(
             arch=arch,
             cpus=cpus,
         )
-
-    # Process input arguments
 
     modules, flavors = process_input_args(module, targets, flavors)
 
