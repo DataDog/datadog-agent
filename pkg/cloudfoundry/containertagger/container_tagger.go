@@ -68,7 +68,7 @@ func (c *ContainerTagger) Start(ctx context.Context) {
 			Source:    workloadmeta.SourceClusterOrchestrator,
 			EventType: workloadmeta.EventTypeAll,
 		}
-		filter := workloadmeta.NewFilter(filterParams)
+		filter := workloadmeta.NewFilter(&filterParams)
 
 		ch := c.store.Subscribe(componentName, workloadmeta.NormalPriority, filter)
 		defer c.store.Unsubscribe(ch)

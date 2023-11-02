@@ -175,7 +175,7 @@ func (c *Check) Run() error {
 	imgEventsCh := c.workloadmetaStore.Subscribe(
 		checkName,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(filterParams),
+		workloadmeta.NewFilter(&filterParams),
 	)
 
 	// Trigger an initial scan on host

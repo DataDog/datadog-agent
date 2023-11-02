@@ -402,7 +402,7 @@ func WorkloadmetaFilterFromProtoFilter(protoFilter *pb.WorkloadmetaFilter) (*wor
 			Source:    workloadmeta.SourceAll,
 			EventType: workloadmeta.EventTypeAll,
 		}
-		return workloadmeta.NewFilter(filterParams), nil
+		return workloadmeta.NewFilter(&filterParams), nil
 	}
 
 	var kinds []workloadmeta.Kind
@@ -431,7 +431,7 @@ func WorkloadmetaFilterFromProtoFilter(protoFilter *pb.WorkloadmetaFilter) (*wor
 		Source:    source,
 		EventType: eventType,
 	}
-	return workloadmeta.NewFilter(filterParams), nil
+	return workloadmeta.NewFilter(&filterParams), nil
 }
 
 // WorkloadmetaEventFromProtoEvent converts the given protobuf workloadmeta event into a workloadmeta.Event

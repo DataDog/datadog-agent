@@ -44,7 +44,7 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 	imgEventsCh := c.store.Subscribe(
 		"SBOM collector",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(filterParams),
+		workloadmeta.NewFilter(&filterParams),
 	)
 	resultChan := make(chan sbom.ScanResult, 2000)
 	go func() {

@@ -141,7 +141,7 @@ func (c *Check) Run() error {
 	imgEventsCh := c.workloadmetaStore.Subscribe(
 		checkName,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(filterParams),
+		workloadmeta.NewFilter(&filterParams),
 	)
 
 	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)

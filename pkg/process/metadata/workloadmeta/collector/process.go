@@ -66,7 +66,7 @@ func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		Source:    workloadmeta.SourceAll,
 		EventType: workloadmeta.EventTypeAll,
 	}
-	filter := workloadmeta.NewFilter(filterParams)
+	filter := workloadmeta.NewFilter(&filterParams)
 	containerEvt := store.Subscribe(collectorId, workloadmeta.NormalPriority, filter)
 
 	go c.run(ctx, store, containerEvt, collectionTicker)

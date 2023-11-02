@@ -101,7 +101,7 @@ func (c *Check) Run() error {
 	contEventsCh := c.workloadmetaStore.Subscribe(
 		checkName+"-cont",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(containerFilterParams),
+		workloadmeta.NewFilter(&containerFilterParams),
 	)
 
 	podFilterParams := workloadmeta.FilterParams{
@@ -112,7 +112,7 @@ func (c *Check) Run() error {
 	podEventsCh := c.workloadmetaStore.Subscribe(
 		checkName+"-pod",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(podFilterParams),
+		workloadmeta.NewFilter(&podFilterParams),
 	)
 
 	pollInterval := time.Duration(c.instance.PollInterval) * time.Second

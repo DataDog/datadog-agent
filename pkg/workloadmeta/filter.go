@@ -16,6 +16,7 @@ type Filter struct {
 	includePauseContainers bool
 }
 
+// FilterParams are the parameters used to create a Filter
 type FilterParams struct {
 	Kinds                  []Kind
 	Source                 Source
@@ -37,7 +38,7 @@ type FilterParams struct {
 //
 // Only events of the given type will be delivered. Use EventTypeAll to collect
 // data from all the event types.
-func NewFilter(filterParams FilterParams) *Filter {
+func NewFilter(filterParams *FilterParams) *Filter {
 	var kindSet map[Kind]struct{}
 	kinds := filterParams.Kinds
 	if len(kinds) > 0 {

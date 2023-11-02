@@ -152,7 +152,7 @@ func TestSubscribe(t *testing.T) {
 			// if the filter has type "EventTypeUnset", it does not receive
 			// events for entities that are currently in the store.
 			name: "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
-			filter: NewFilter(FilterParams{
+			filter: NewFilter(&FilterParams{
 				Source:    fooSource,
 				EventType: EventTypeUnset,
 			}),
@@ -173,7 +173,7 @@ func TestSubscribe(t *testing.T) {
 			// that don't match the filter at all should not
 			// generate an event.
 			name: "receive events for entities in the store pre-subscription with filter",
-			filter: NewFilter(FilterParams{
+			filter: NewFilter(&FilterParams{
 				Source:    fooSource,
 				EventType: EventTypeAll,
 			}),
@@ -340,7 +340,7 @@ func TestSubscribe(t *testing.T) {
 			// unsetting from only one (that matches the filter)
 			// correctly generates an unset event
 			name: "sets and unsets an entity with source filters",
-			filter: NewFilter(FilterParams{
+			filter: NewFilter(&FilterParams{
 				Source:    fooSource,
 				EventType: EventTypeAll,
 			}),
@@ -507,7 +507,7 @@ func TestSubscribe(t *testing.T) {
 		},
 		{
 			name: "filters by event type",
-			filter: NewFilter(FilterParams{
+			filter: NewFilter(&FilterParams{
 				Source:    SourceAll,
 				EventType: EventTypeUnset,
 			}),

@@ -19,7 +19,7 @@ func ExampleStore_Subscribe() {
 		Source:    SourceRuntime,
 		EventType: EventTypeAll,
 	}
-	filter := NewFilter(filterParams)
+	filter := NewFilter(&filterParams)
 
 	ch := GetGlobalStore().Subscribe("test", NormalPriority, filter)
 

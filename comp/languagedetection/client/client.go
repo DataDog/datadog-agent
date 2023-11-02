@@ -152,7 +152,7 @@ func (c *client) run() {
 	eventCh := c.store.Subscribe(
 		subscriber,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(filterParams),
+		workloadmeta.NewFilter(&filterParams),
 	)
 	defer c.store.Unsubscribe(eventCh)
 

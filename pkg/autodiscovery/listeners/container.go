@@ -44,7 +44,7 @@ func NewContainerListener(Config) (ServiceListener, error) {
 		Source:    workloadmeta.SourceRuntime,
 		EventType: workloadmeta.EventTypeAll,
 	}
-	f := workloadmeta.NewFilter(filterParams)
+	f := workloadmeta.NewFilter(&filterParams)
 
 	var err error
 	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.createContainerService)

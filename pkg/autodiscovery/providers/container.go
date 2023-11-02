@@ -62,7 +62,7 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 		EventType: workloadmeta.EventTypeAll,
 	}
 
-	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, workloadmeta.NewFilter(filterParams))
+	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, workloadmeta.NewFilter(&filterParams))
 
 	go func() {
 		for {
