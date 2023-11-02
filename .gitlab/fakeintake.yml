@@ -6,8 +6,8 @@
 docker_build_fakeintake:
   stage: container_build
   rules:
-    - <<: *on_fakeintake_changes
     - !reference [.except_mergequeue]
+    - <<: *on_fakeintake_changes
   needs: []
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/docker:20.10-py3
   tags: ["arch:amd64"]
