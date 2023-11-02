@@ -35,7 +35,7 @@ jobs:
       - name: Install python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9.12"
+          python-version-file: .python3-version
           cache: "pip"
       - name: Install python requirements.txt
         run: python3 -m pip install -r requirements.txt
