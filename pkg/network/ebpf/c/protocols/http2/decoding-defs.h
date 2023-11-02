@@ -12,7 +12,7 @@
 #define HTTP2_MAX_FRAMES_TO_FILTER  100
 
 // A limit of max headers which we process in the request/response.
-#define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 156
+#define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 210
 
 // Per request or response we have fewer headers than HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING that are interesting us.
 // For request - those are method, path, and soon to be content type. For response - status code.
