@@ -75,16 +75,18 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, hostTagPrefix) {
 			host = tag[len(hostTagPrefix):]
+			continue
 		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
 			originFromTag = tag[len(entityIDTagPrefix):]
+			continue
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
 			cardinality = tag[len(CardinalityTagPrefix):]
+			continue
 		} else if strings.HasPrefix(tag, jmxTagPrefix) {
 			metricSource = metrics.MetricSourceJmxCustom
-		} else {
-			tags[n] = tag
-			n++
 		}
+		tags[n] = tag
+		n++
 	}
 	tags = tags[:n]
 
@@ -159,7 +161,7 @@ func tsToFloatForSamples(ts time.Time) float64 {
 	return float64(ts.Unix())
 }
 
-func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, conf enrichConfig) []metrics.MetricSample {
+func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSample, origin string, listenerID string, conf enrichConfig) []metrics.MetricSample {
 	metricName := ddSample.name
 	tags, hostnameFromTags, udsOrigin, clientOrigin, cardinality, metricSource := extractTagsMetadata(ddSample.tags, origin, ddSample.containerID, conf)
 
@@ -194,6 +196,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 					Timestamp:        tsToFloatForSamples(ddSample.ts),
 					OriginFromUDS:    udsOrigin,
 					OriginFromClient: clientOrigin,
+					ListenerID:       listenerID,
 					Cardinality:      cardinality,
 					Source:           metricSource,
 				})
@@ -213,6 +216,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 		Timestamp:        tsToFloatForSamples(ddSample.ts),
 		OriginFromUDS:    udsOrigin,
 		OriginFromClient: clientOrigin,
+		ListenerID:       listenerID,
 		Cardinality:      cardinality,
 		Source:           metricSource,
 	})

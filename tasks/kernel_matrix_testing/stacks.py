@@ -11,8 +11,8 @@ try:
 except ImportError:
     libvirt = None
 
-X86_INSTANCE_TYPE = "m5.metal"
-ARM_INSTANCE_TYPE = "m6g.metal"
+X86_INSTANCE_TYPE = "m5d.metal"
+ARM_INSTANCE_TYPE = "m6gd.metal"
 
 
 def stack_exists(stack):
@@ -148,9 +148,13 @@ def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
         check_env(ctx)
         local = "--local"
 
+    provision = ""
+    if remote_vms_in_config(vm_config):
+        provision = "--provision"
+
     env_vars = ' '.join(env)
     ctx.run(
-        f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack} {local}"
+        f"{env_vars} {prefix} inv -e system-probe.start-microvms {provision} --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack} {local}"
     )
 
     info(f"[+] Stack {stack} successfully setup")

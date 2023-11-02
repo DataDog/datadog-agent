@@ -257,6 +257,30 @@ func TestEnrichInferredSpanWithAPIGatewayHTTPEvent(t *testing.T) {
 	assert.Equal(t, "GET /httpapi/get", span.Meta[resourceNames])
 }
 
+func TestEnrichInferredSpanWithLambdaFunctionURLEventt(t *testing.T) {
+	var apiGatewayHTTPEvent events.LambdaFunctionURLRequest
+	_ = json.Unmarshal(getEventFromFile("http-api.json"), &apiGatewayHTTPEvent)
+	inferredSpan := mockInferredSpan()
+	inferredSpan.EnrichInferredSpanWithLambdaFunctionURLEvent(apiGatewayHTTPEvent)
+
+	span := inferredSpan.Span
+	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
+	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
+	assert.Equal(t, int64(1631212283738000000), span.Start)
+	assert.Equal(t, "x02yirxc7a.execute-api.sa-east-1.amazonaws.com", span.Service)
+	assert.Equal(t, "aws.lambda.url", span.Name)
+	assert.Equal(t, "GET /httpapi/get", span.Resource)
+	assert.Equal(t, "http", span.Type)
+	assert.Equal(t, "GET", span.Meta[httpMethod])
+	assert.Equal(t, "HTTP/1.1", span.Meta[httpProtocol])
+	assert.Equal(t, "38.122.226.210", span.Meta[httpSourceIP])
+	assert.Equal(t, "x02yirxc7a.execute-api.sa-east-1.amazonaws.com/httpapi/get", span.Meta[httpURL])
+	assert.Equal(t, "curl/7.64.1", span.Meta[httpUserAgent])
+	assert.Equal(t, "aws.lambda.url", span.Meta[operationName])
+	assert.Equal(t, "FaHnXjKCGjQEJ7A=", span.Meta[requestID])
+	assert.Equal(t, "GET /httpapi/get", span.Meta[resourceNames])
+}
+
 func TestRemapsSpecificInferredSpanServiceNamesFromAPIGatewayHTTPAPIEvent(t *testing.T) {
 	// Load the original event
 	var apiGatewayHTTPAPIEvent events.APIGatewayV2HTTPRequest

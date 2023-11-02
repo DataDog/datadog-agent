@@ -6,6 +6,7 @@
 package daemon
 
 import (
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net/http"
@@ -97,14 +98,29 @@ func (e *EndInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 400)
 		return
 	}
+
+	errorMsg := r.Header.Get(invocationlifecycle.InvocationErrorMsgHeader)
+	errorType := r.Header.Get(invocationlifecycle.InvocationErrorTypeHeader)
+	errorStack := r.Header.Get(invocationlifecycle.InvocationErrorStackHeader)
+	if decodedStack, err := base64.StdEncoding.DecodeString(errorStack); err != nil {
+		log.Debug("Could not decode error stack header")
+	} else {
+		errorStack = string(decodedStack)
+	}
+	// If any error metadata is received, always mark the span as an error
+	isError := r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true" || len(errorMsg) > 0 || len(errorType) > 0 || len(errorStack) > 0
+
 	var endDetails = invocationlifecycle.InvocationEndDetails{
 		EndTime:            endTime,
-		IsError:            r.Header.Get(invocationlifecycle.InvocationErrorHeader) == "true",
+		IsError:            isError,
 		RequestID:          ecs.LastRequestID,
 		ResponseRawPayload: responseBody,
 		ColdStart:          coldStartTags.IsColdStart,
 		ProactiveInit:      coldStartTags.IsProactiveInit,
 		Runtime:            ecs.Runtime,
+		ErrorMsg:           errorMsg,
+		ErrorType:          errorType,
+		ErrorStack:         errorStack,
 	}
 	executionContext := e.daemon.InvocationProcessor.GetExecutionInfo()
 	if executionContext.TraceID == 0 {
