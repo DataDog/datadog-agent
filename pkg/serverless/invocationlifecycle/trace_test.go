@@ -312,7 +312,7 @@ func TestStartExecutionSpan(t *testing.T) {
 			propStyle:      "datadog",
 			expectCtx: &ExecutionStartInfo{
 				TraceID:          1,
-				parentID:         1,
+				parentID:         123, // parent is inferred span
 				SamplingPriority: sampler.SamplingPriority(1),
 			},
 		},
@@ -324,7 +324,10 @@ func TestStartExecutionSpan(t *testing.T) {
 			startTime := time.Now()
 			actualCtx := &ExecutionStartInfo{}
 			inferredSpan := &inferredspan.InferredSpan{
-				Span: &pb.Span{},
+				Span: &pb.Span{
+					SpanID: 123,
+					Start:  startTime.UnixNano() - 10,
+				},
 			}
 			lp := &LifecycleProcessor{
 				InferredSpansEnabled: tc.infSpanEnabled,
@@ -351,7 +354,7 @@ func TestStartExecutionSpan(t *testing.T) {
 
 			if tc.infSpanEnabled {
 				assert.Equal(tc.expectCtx.TraceID, inferredSpan.Span.TraceID)
-				assert.Equal(tc.expectCtx.parentID, inferredSpan.Span.ParentID)
+				assert.Equal(tc.expectCtx.TraceID, inferredSpan.Span.ParentID)
 			} else {
 				assert.Equal(uint64(0), inferredSpan.Span.TraceID)
 				assert.Equal(uint64(0), inferredSpan.Span.ParentID)
