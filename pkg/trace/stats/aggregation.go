@@ -17,10 +17,9 @@ import (
 )
 
 const (
-	tagStatusCode  = "http.status_code"
-	tagSynthetics  = "synthetics"
-	tagPeerService = "peer.service"
-	tagSpanKind    = "span.kind"
+	tagStatusCode = "http.status_code"
+	tagSynthetics = "synthetics"
+	tagSpanKind   = "span.kind"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics.
