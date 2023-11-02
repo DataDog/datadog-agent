@@ -70,7 +70,10 @@ func (l *UDSDatagramListener) Listen() {
 
 // Stop closes the UDS connection and stops listening
 func (l *UDSDatagramListener) Stop() {
-	_ = l.conn.Close()
+	err := l.conn.Close()
+	if err != nil {
+		log.Errorf("dogstatsd-uds: error closing connection: %s", err)
+	}
 	// FIXME close all currently running connections.
 	l.UDSListener.Stop()
 }

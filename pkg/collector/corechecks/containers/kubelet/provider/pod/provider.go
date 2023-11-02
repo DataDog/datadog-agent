@@ -76,7 +76,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	sender.Gauge(common.KubeletMetricsPrefix+"pods.expired", float64(pods.ExpiredCount), "", p.config.Tags)
 
 	for _, pod := range pods.Items {
-		p.podUtils.ComputePodTagsByPVC(pod)
+		p.podUtils.PopulateForPod(pod)
 		for _, cStatus := range pod.Status.Containers {
 			if cStatus.ID == "" {
 				// no container ID means we could not find the matching container status for this container, which will make fetching tags difficult.

@@ -148,7 +148,15 @@ Port: '%d'
 
 // GetDefaultObfuscatorOptions return default obfuscator options
 func GetDefaultObfuscatorOptions() obfuscate.SQLConfig {
-	return obfuscate.SQLConfig{DBMS: common.IntegrationName, TableNames: true, CollectCommands: true, CollectComments: true, ObfuscationMode: obfuscate.ObfuscateAndNormalize}
+	return obfuscate.SQLConfig{
+		DBMS:                          common.IntegrationName,
+		TableNames:                    true,
+		CollectCommands:               true,
+		CollectComments:               true,
+		ObfuscationMode:               obfuscate.ObfuscateAndNormalize,
+		RemoveSpaceBetweenParentheses: true,
+		KeepNull:                      true,
+	}
 }
 
 // NewCheckConfig builds a new check config.
