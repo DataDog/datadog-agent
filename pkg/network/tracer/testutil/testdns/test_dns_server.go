@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
 package testdns
 
 import (
@@ -10,10 +15,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var globalServer *Server
+var globalServer *server
 var globalServerError error
 var serverOnce sync.Once
 
+// GetServerIP returns the IP address of the test DNS server. The test DNS server returns canned responses for several
+// known domains that are used in integration tests.
+//
+// see server#start to see which domains are handled.
 func GetServerIP(t *testing.T) net.IP {
 	serverOnce.Do(func() {
 		globalServer, globalServerError = NewServer()
@@ -25,9 +34,9 @@ func GetServerIP(t *testing.T) net.IP {
 	return net.ParseIP("10.10.10.10")
 }
 
-type Server struct{}
+type server struct{}
 
-func NewServer() (*Server, error) {
+func NewServer() (*server, error) {
 	// ignore errors as device might not exist from prior test run
 	exec.Command("ip", "link", "del", "dev", "dnstestdummy").Run()
 
@@ -46,10 +55,10 @@ func NewServer() (*Server, error) {
 		return nil, err
 	}
 
-	return &Server{}, nil
+	return &server{}, nil
 }
 
-func (s *Server) Start(transport string) {
+func (s *server) Start(transport string) {
 	started := make(chan struct{}, 1)
 	srv := dns.Server{
 		Addr: "10.10.10.10:53",
