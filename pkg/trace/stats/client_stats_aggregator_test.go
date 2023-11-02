@@ -130,8 +130,6 @@ func agg2Counts(insertionTime time.Time, p *proto.ClientStatsPayload) *proto.Cli
 			if stat == nil {
 				continue
 			}
-			// NOTE: We do not expect the PeerService field to be set, since we now place its value in the PeerTags.
-			stat.PeerService = ""
 			stat.DBType = ""
 			stat.Hits *= 2
 			stat.Errors *= 2
@@ -513,7 +511,6 @@ func deepCopyGroupedStats(s []*proto.ClientGroupedStats) []*proto.ClientGroupedS
 			Duration:       b.GetDuration(),
 			Synthetics:     b.GetSynthetics(),
 			TopLevelHits:   b.GetTopLevelHits(),
-			PeerService:    b.GetPeerService(),
 			SpanKind:       b.GetSpanKind(),
 			PeerTags:       b.GetPeerTags(),
 		}
