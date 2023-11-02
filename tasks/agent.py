@@ -558,7 +558,7 @@ def get_omnibus_env(
     if int(major_version) > 6:
         env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
 
-    env_override = ['INTEGRATIONS_CORE_VERSION']
+    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
     for key in env_override:
         value = os.environ.get(key)
         # Only overrides the env var if the value is a non-empty string.
