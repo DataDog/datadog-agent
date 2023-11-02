@@ -463,7 +463,13 @@ func TestTailingMode(t *testing.T) {
 			tailer.Start(tt.cursor)
 
 			mockJournal.m.Lock()
-			assert.Equal(t, *tt.expectedJournalState, *mockJournal)
+			assert.Equal(t, tt.expectedJournalState.cursor, mockJournal.cursor)
+			assert.True(t, tt.expectedJournalState.next <= mockJournal.next) // .Next() is called again by the tail goroutine, so expect it to be at lesat 1
+			assert.Equal(t, tt.expectedJournalState.previous, mockJournal.previous)
+			assert.Equal(t, tt.expectedJournalState.seekHead, mockJournal.seekHead)
+			assert.Equal(t, tt.expectedJournalState.seekTail, mockJournal.seekTail)
+			assert.Equal(t, tt.expectedJournalState.entries, mockJournal.entries)
+
 			mockJournal.m.Unlock()
 
 			tailer.Stop()
