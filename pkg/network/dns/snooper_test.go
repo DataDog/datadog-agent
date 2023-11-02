@@ -15,14 +15,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/google/gopacket/layers"
 	"github.com/miekg/dns"
 	mdns "github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
+	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
 func checkSnooping(t *testing.T, destIP string, destName string, reverseDNS *dnsMonitor) {
