@@ -1687,7 +1687,7 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 		c.Write([]byte("foo"))
 	})
 
-	server.Run()
+	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
 
 	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
@@ -1698,12 +1698,16 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	require.NoError(t, err)
 
 	fd := int(f.Fd())
-	require.NoError(t, syscall.SetNonblock(fd, false), "could not set socket to blocking")
 
+	read := 0
 	buf := make([]byte, 6)
-	n, _, err := syscall.Recvfrom(fd, buf, syscall.MSG_WAITALL)
-	require.NoError(t, err)
-	require.Equal(t, 6, n)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		n, _, err := syscall.Recvfrom(fd, buf[read:], syscall.MSG_WAITALL)
+		require.NoError(c, err)
+		read += n
+		t.Logf("read %d", read)
+		assert.Equal(c, 6, read)
+	}, 10*time.Second, 100*time.Millisecond, "failed to get required bytes")
 
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
@@ -1712,7 +1716,7 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 		return found
 	}, 3*time.Second, 100*time.Millisecond)
 
-	assert.Equal(t, uint64(n), conn.Monotonic.RecvBytes)
+	assert.Equal(t, uint64(read), conn.Monotonic.RecvBytes)
 }
 
 func (s *TracerSuite) TestPreexistingConnectionDirection() {
