@@ -227,8 +227,10 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			assert.Nil(err)
 			startResp, err := client.Do(startReq)
 			assert.Nil(err)
+			var respHdr http.Header
 			if startResp != nil {
 				assert.Equal(startResp.StatusCode, 200)
+				respHdr = startResp.Header
 				startResp.Body.Close()
 			}
 
@@ -245,6 +247,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			// sort spans by start time
 			slices.SortFunc(spans, func(a, b *pb.Span) int { return int(a.Start - b.Start) })
 
+			// assert parenting of inferred and execution spans
 			rootSpan := spans[0]
 			parentID := rootSpan.ParentID
 			assert.Equal(tc.expSpans, len(spans))
@@ -257,6 +260,20 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 				parentID = span.SpanID
 			}
 			assert.Equal("aws.lambda", tailSpan.Name)
+
+			// assert parenting passed to tracer
+			if tailSpan.TraceID != 0 {
+				assert.Equal(fmt.Sprintf("%d", tailSpan.TraceID),
+					respHdr.Get("x-datadog-trace-id"))
+			} else {
+				assert.Equal("", respHdr.Get("x-datadog-trace-id"))
+			}
+			if tailSpan.SpanID != 0 {
+				assert.Equal(fmt.Sprintf("%d", tailSpan.SpanID),
+					respHdr.Get("x-datadog-parent-id"))
+			} else {
+				assert.Equal("", respHdr.Get("x-datadog-parent-id"))
+			}
 		})
 	}
 }
