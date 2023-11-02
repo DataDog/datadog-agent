@@ -81,14 +81,10 @@ func init() {
 	}
 
 	expvarcollector.RegisterExpvarReport("pyLoaderStats", func() (interface{}, error) {
-		pyLoaderData := expvar.Get("pyLoader")
-		pyLoaderStats := make(map[string]interface{})
-		if pyLoaderData != nil {
-			pyLoaderStatsJSON := []byte(pyLoaderData.String())
-			json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats) //nolint:errcheck
-
-		}
-		return pyLoaderStats, nil
+		stats := make(map[string]interface{})
+		pyLoaderStatsJSON := []byte(pyLoaderStats.String())
+		json.Unmarshal(pyLoaderStatsJSON, &stats) //nolint:errcheck
+		return stats, nil
 	})
 }
 

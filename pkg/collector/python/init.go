@@ -224,12 +224,11 @@ func init() {
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
 
 	expvarcollector.RegisterExpvarReport("pythonInit", func() (interface{}, error) {
-		pythonInitData := expvar.Get("pythonInit")
 		pythonInit := make(map[string]interface{})
-		if pythonInitData != nil {
-			pythonInitJSON := []byte(pythonInitData.String())
-			json.Unmarshal(pythonInitJSON, &pythonInit) //nolint:errcheck
-		}
+
+		pythonInitJSON := []byte(expvarPyInit.String())
+		json.Unmarshal(pythonInitJSON, &pythonInit) //nolint:errcheck
+
 		return pythonInit, nil
 	})
 }

@@ -51,7 +51,7 @@ func init() {
 	}))
 
 	expvarcollector.RegisterExpvarReport("checkSchedulerStats", func() (interface{}, error) {
-		checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
+		checkSchedulerStatsJSON := []byte(schedulerErrs.String())
 		checkSchedulerStats := make(map[string]interface{})
 		json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats) //nolint:errcheck
 		return checkSchedulerStats, nil

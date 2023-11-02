@@ -135,8 +135,8 @@ func init() {
 	expvarcollector.RegisterExpvarReport("remoteConfiguration", func() (interface{}, error) {
 		status := make(map[string]interface{})
 
-		if config.IsRemoteConfigEnabled(config.Datadog) && expvar.Get("remoteConfigStatus") != nil {
-			remoteConfigStatusJSON := expvar.Get("remoteConfigStatus").String()
+		if config.IsRemoteConfigEnabled(config.Datadog) {
+			remoteConfigStatusJSON := exportedMapStatus.String()
 			json.Unmarshal([]byte(remoteConfigStatusJSON), &status) //nolint:errcheck
 		} else {
 			if !config.Datadog.GetBool("remote_configuration.enabled") {

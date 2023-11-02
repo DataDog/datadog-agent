@@ -54,13 +54,10 @@ const (
 
 func init() {
 	expvarcollector.RegisterExpvarReport("complianceChecks", func() (interface{}, error) {
-		if status != nil {
-			complianceStatusJSON := []byte(status.String())
-			complianceStatus := make(map[string]interface{})
-			json.Unmarshal(complianceStatusJSON, &complianceStatus) //nolint:errcheck
-			return complianceStatus, nil
-		}
-		return nil, nil
+		complianceStatusJSON := []byte(status.String())
+		complianceStatus := make(map[string]interface{})
+		json.Unmarshal(complianceStatusJSON, &complianceStatus) //nolint:errcheck
+		return complianceStatus, nil
 	})
 }
 

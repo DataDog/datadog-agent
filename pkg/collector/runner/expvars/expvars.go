@@ -57,10 +57,10 @@ func init() {
 	}
 
 	expvarcollector.RegisterExpvarReport("runnerStats", func() (interface{}, error) {
-		runnerStatsJSON := []byte(expvar.Get(runnerExpvarKey).String())
-		runnerStats := make(map[string]interface{})
-		json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
-		return runnerStats, nil
+		runnerStatsJSON := []byte(runnerStats.String())
+		stats := make(map[string]interface{})
+		json.Unmarshal(runnerStatsJSON, &stats) //nolint:errcheck
+		return stats, nil
 	})
 }
 

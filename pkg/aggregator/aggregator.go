@@ -200,7 +200,7 @@ func init() {
 	aggregatorExpvars.Set("MetricTags", expvar.Func(expMetricTags))
 
 	expvarcollector.RegisterExpvarReport("aggregator", func() (interface{}, error) {
-		aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
+		aggregatorStatsJSON := []byte(aggregatorExpvars.String())
 		aggregatorStats := make(map[string]interface{})
 		json.Unmarshal(aggregatorStatsJSON, &aggregatorStats) //nolint:errcheck
 		s, err := checkstats.TranslateEventPlatformEventTypes(aggregatorStats)

@@ -28,7 +28,7 @@ func init() {
 	}))
 
 	expvarcollector.RegisterExpvarReport("autoConfigStats", func() (interface{}, error) {
-		autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
+		autoConfigStatsJSON := []byte(acErrors.String())
 		autoConfigStats := make(map[string]interface{})
 		json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck
 		return autoConfigStats, nil

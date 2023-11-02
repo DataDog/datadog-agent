@@ -42,6 +42,18 @@ var (
 		nil, "Ntp offset")
 )
 
+func init() {
+	core.RegisterCheck(ntpCheckName, ntpFactory)
+
+	expvarcollector.RegisterExpvarReport("ntpOffset", func() (interface{}, error) {
+		if ntpExpVar.String() != "" {
+			result, err := strconv.ParseFloat(ntpExpVar.String(), 64)
+			return result, err
+		}
+		return nil, nil
+	})
+}
+
 // NTPCheck only has sender and config
 type NTPCheck struct {
 	core.CheckBase
@@ -246,17 +258,4 @@ func ntpFactory() check.Check {
 	return &NTPCheck{
 		CheckBase: core.NewCheckBaseWithInterval(ntpCheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
 	}
-}
-
-func init() {
-	core.RegisterCheck(ntpCheckName, ntpFactory)
-
-	expvarcollector.RegisterExpvarReport("ntpOffset", func() (interface{}, error) {
-		ntpOffset := expvar.Get("ntpOffset")
-		if ntpOffset != nil && ntpOffset.String() != "" {
-			result, err := strconv.ParseFloat(ntpOffset.String(), 64)
-			return result, err
-		}
-		return nil, nil
-	})
 }

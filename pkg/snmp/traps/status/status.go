@@ -27,7 +27,7 @@ func init() {
 	expvarcollector.RegisterExpvarReport("snmpTrapsStats", func() (interface{}, error) {
 		status := make(map[string]interface{})
 
-		metricsJSON := []byte(expvar.Get("snmp_traps").String())
+		metricsJSON := []byte(trapsExpvars.String())
 		metrics := make(map[string]interface{})
 		json.Unmarshal(metricsJSON, &metrics) //nolint:errcheck
 		if dropped := getDroppedPackets(); dropped > 0 {

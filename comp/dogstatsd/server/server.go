@@ -150,24 +150,22 @@ func init() {
 	expvarcollector.RegisterExpvarReport("dogstatsdStats", func() (interface{}, error) {
 		dogstatsdStats := make(map[string]interface{})
 
-		if expvar.Get("dogstatsd") != nil {
-			dogstatsdStatsJSON := []byte(expvar.Get("dogstatsd").String())
-			dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
-			dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
-			json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats) //nolint:errcheck
-			dogstatsdUdsStats := make(map[string]interface{})
-			json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats) //nolint:errcheck
-			for name, value := range dogstatsdUdsStats {
-				dogstatsdStats["Uds"+name] = value
-			}
-			dogstatsdUDPStats := make(map[string]interface{})
-			json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats) //nolint:errcheck
-			for name, value := range dogstatsdUDPStats {
-				dogstatsdStats["Udp"+name] = value
-			}
-			return dogstatsdStats, nil
+		dogstatsdStatsJSON := []byte(dogstatsdExpvars.String())
+		dogstatsdUdsStatsJSON := []byte(expvar.Get("dogstatsd-uds").String())
+		dogstatsdUDPStatsJSON := []byte(expvar.Get("dogstatsd-udp").String())
+		json.Unmarshal(dogstatsdStatsJSON, &dogstatsdStats) //nolint:errcheck
+		dogstatsdUdsStats := make(map[string]interface{})
+		json.Unmarshal(dogstatsdUdsStatsJSON, &dogstatsdUdsStats) //nolint:errcheck
+		for name, value := range dogstatsdUdsStats {
+			dogstatsdStats["Uds"+name] = value
+		}
+		dogstatsdUDPStats := make(map[string]interface{})
+		json.Unmarshal(dogstatsdUDPStatsJSON, &dogstatsdUDPStats) //nolint:errcheck
+		for name, value := range dogstatsdUDPStats {
+			dogstatsdStats["Udp"+name] = value
 		}
 		return dogstatsdStats, nil
+
 	})
 }
 
