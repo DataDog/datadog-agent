@@ -7,17 +7,54 @@ package metadata
 
 import (
 	"context"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
+
+func init() {
+	expvarcollector.RegisterExpvarReport("inventories", func() (interface{}, error) {
+		inventories := expvar.Get("inventories")
+		var inventoriesStats map[string]interface{}
+		if inventories != nil {
+			inventoriesStatsJSON := []byte(inventories.String())
+			json.Unmarshal(inventoriesStatsJSON, &inventoriesStats) //nolint:errcheck
+		}
+
+		checkMetadata := map[string]map[string]string{}
+		if data, ok := inventoriesStats["check_metadata"]; ok {
+			for _, instances := range data.(map[string]interface{}) {
+				for _, instance := range instances.([]interface{}) {
+					metadata := map[string]string{}
+					checkHash := ""
+					for k, v := range instance.(map[string]interface{}) {
+						if vStr, ok := v.(string); ok {
+							if k == "config.hash" {
+								checkHash = vStr
+							} else if k != "config.provider" {
+								metadata[k] = vStr
+							}
+						}
+					}
+					if checkHash != "" && len(metadata) != 0 {
+						checkMetadata[checkHash] = metadata
+					}
+				}
+			}
+		}
+
+		return checkMetadata, nil
+	})
+}
 
 const (
 	// defaultInventoriesMinInterval is the default value for inventories_min_interval, in seconds

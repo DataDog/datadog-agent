@@ -309,7 +309,8 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 // It gets the status elements common to all Agent flavors.
 func getCommonStatus() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
-	stats, errors := expvarStats(stats)
+	stats, errors := expvarcollector.Report(stats)
+
 	if len(errors) > 0 {
 		log.Errorf("Error Getting ExpVar Stats: %v", errors)
 	}
@@ -327,47 +328,6 @@ func getCommonStatus() (map[string]interface{}, error) {
 	stats["netflowStats"] = netflowServer.GetStatus()
 
 	return stats, nil
-}
-
-func expvarStats(stats map[string]interface{}) (map[string]interface{}, []error) {
-	stats, errors := expvarcollector.Report(stats)
-
-	inventories := expvar.Get("inventories")
-	var inventoriesStats map[string]interface{}
-	if inventories != nil {
-		inventoriesStatsJSON := []byte(inventories.String())
-		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats) //nolint:errcheck
-	}
-
-	checkMetadata := map[string]map[string]string{}
-	if data, ok := inventoriesStats["check_metadata"]; ok {
-		for _, instances := range data.(map[string]interface{}) {
-			for _, instance := range instances.([]interface{}) {
-				metadata := map[string]string{}
-				checkHash := ""
-				for k, v := range instance.(map[string]interface{}) {
-					if vStr, ok := v.(string); ok {
-						if k == "config.hash" {
-							checkHash = vStr
-						} else if k != "config.provider" {
-							metadata[k] = vStr
-						}
-					}
-				}
-				if checkHash != "" && len(metadata) != 0 {
-					checkMetadata[checkHash] = metadata
-				}
-			}
-		}
-	}
-	stats["inventories"] = checkMetadata
-	if data, ok := inventoriesStats["agent_metadata"]; ok {
-		stats["agent_metadata"] = data
-	} else {
-		stats["agent_metadata"] = map[string]string{}
-	}
-
-	return stats, errors
 }
 
 // GetExpvarRunnerStats grabs the status of the runner from expvar
