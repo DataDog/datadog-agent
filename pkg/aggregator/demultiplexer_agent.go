@@ -491,20 +491,11 @@ func (d *AgentDemultiplexer) flushToSerializer(start time.Time, waitForSerialize
 		}
 	}
 
+	d.log.Infof("Flushing retentions except %s", sketchTag)
 	for k, retainer := range d.retentions {
-		switch k {
-		case sketchTag:
-			fallthrough
-		case statsTag:
-			// let it build up to localize faults.
-		case retTag:
-			fallthrough
-		case seriesTag:
-			fallthrough
-		case checkTag:
-			retainer.ReleaseAll()
-		}
-
+		//if k != sketchTag {
+		retainer.ReleaseAll()
+		//}
 	}
 
 	series, sketches := createIterableMetrics(d.aggregator.flushAndSerializeInParallel, d.sharedSerializer, d.retentions[seriesTag],

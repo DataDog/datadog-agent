@@ -128,7 +128,7 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 		Points:     points,
 		ContextKey: ck,
 	}
-	ss.Name = s.interner.LoadOrStoreString(ctx.Name, cache.OriginTimeSampler+".Name", &ss.References)
+	ss.Name = ctx.Name // s.interner.LoadOrStoreString(ctx.Name, cache.OriginTimeSampler+".Name", &ss.References)
 	ss.Tags = ctx.Tags().Apply(func(tag string) string {
 		return s.interner.LoadOrStoreString(tag, cache.OriginTimeSampler+".Tags", &ss.References)
 	})

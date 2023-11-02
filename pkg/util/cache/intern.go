@@ -66,6 +66,7 @@ func newStringInterner(origin string, maxSize int, tmpPath string, closeOnReleas
 	if tmpPath != "" {
 		backing, err = newMmapHash(origin, int64(maxSize*backingBytesPerInCoreEntry), tmpPath, closeOnRelease)
 		if err != nil {
+			log.Errorf("Failed to create MMAP hash file: %v", err)
 			return nil
 		}
 	}
@@ -123,11 +124,17 @@ func (i *stringInterner) used() int64 {
 	return used
 }
 
+func (i *stringInterner) Retain(n int32) {
+	i.refcountLock.Lock()
+	defer i.refcountLock.Unlock()
+	i.refcount += n
+}
+
 func (i *stringInterner) Release(n int32) {
 	i.refcountLock.Lock()
 	defer i.refcountLock.Unlock()
 	if i.refcount < 1 {
-		log.Infof("Dead stringInterner begin released!  refcount=%d", i.refcount)
+		log.Infof("Dead stringInterner being released!  refcount=%d", i.refcount)
 		return
 	}
 	if i.refcount > 0 && i.refcount-n < 1 {
@@ -257,9 +264,12 @@ func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRe
 		// The only way the interner won't return a string is if it's full.  Make a new bigger one and
 		// start using that. We'll eventually migrate all the in-use strings to this from this container.
 		log.Infof("Failed interning string.  Adding new interner for key %v, length %v", string(key), len(key))
-		Report()
 		replacementInterner := newStringInterner(origin, int(math.Ceil(float64(interner.maxSize)*growthFactor)), i.tmpPath, i.closeOnRelease)
-
+		if replacementInterner == nil {
+			// We couldn't intern the string nor create a new interner, so just heap allocate.  newStringInterner
+			// will log errors when it fails like this.
+			return string(key)
+		}
 		// We have one retention on the interner upon creation, to keep it available for ongoing use.
 		// Release that now.
 		i.interners.Add(origin, replacementInterner)

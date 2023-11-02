@@ -38,6 +38,9 @@ const MaxValueSize = hashPageSize - 16
 // MaxProbes is the maximum number of probes going into the hash table.
 const MaxProbes = 8
 
+const maxFailedPointers = 2000000
+const maxFailedPointersToPrint = 50
+
 // containerSummaryPattern will help abbreviate the name of the container.
 var containerSummaryPattern = regexp.MustCompile("^container_id://[0-9a-f]{60}([0-9a-f]{4})")
 
@@ -112,18 +115,25 @@ type mmapHash struct {
 	lock       sync.Mutex
 }
 
+type failedPointer struct {
+	origin string
+	count  int
+}
+
 // mmapAllRecord holds every mmapHash created.  This isn't for permanent use,
 // just debugging and validation.
 type mmapAllRecord struct {
 	// When we actually delete, make this nil.
-	hashes  []*mmapHash
-	origins map[string]int
-	lock    sync.Mutex
+	hashes   []*mmapHash
+	origins  map[string]int
+	pointers map[uintptr]failedPointer
+	lock     sync.Mutex
 }
 
 var allMmaps = mmapAllRecord{
-	hashes:  make([]*mmapHash, 0, 1),
-	origins: make(map[string]int),
+	hashes:   make([]*mmapHash, 0, 1),
+	origins:  make(map[string]int),
+	pointers: make(map[uintptr]failedPointer),
 }
 
 func normalizeOrigin(origin string) string {
@@ -326,6 +336,19 @@ func isMapped(s string) (int, bool, bool) {
 			// Found it.
 			active := !t.finalized()
 			safe := t.accessible()
+			if !active {
+				if entry, ok := allMmaps.pointers[mapAddr]; !ok {
+					if len(allMmaps.pointers) < maxFailedPointers {
+						allMmaps.pointers[mapAddr] = failedPointer{
+							origin: t.Name(),
+							count:  1,
+						}
+					}
+				} else {
+					entry.count += 1
+					allMmaps.pointers[mapAddr] = entry
+				}
+			}
 			t.lock.Unlock()
 			return n, active, safe
 		}
@@ -388,22 +411,41 @@ func Report() {
 	defer allMmaps.lock.Unlock()
 	p := message.NewPrinter(language.English)
 	nrHashes := len(allMmaps.hashes)
+	type originData struct {
+		name                                 string
+		totalValues                          uint64
+		totalActiveAllocated, totalAllocated int64
+	}
+
+	mapData := make(map[string]originData)
 	for n, t := range allMmaps.hashes {
 		var status string
+		name := t.Name()
+		data := mapData[name]
+		data.name = name
+		data.totalValues += t.valueCount
+		data.totalAllocated += t.capacity
 		if t.finalized() {
 			status = "INACTIVE"
 		} else {
+			data.totalActiveAllocated += t.capacity
 			status = "ACTIVE"
 		}
+		mapData[name] = data
+
 		mean, variance := t.stats()
-		log.Info(p.Sprintf("> %d/%d: %8s Origin=\"%s\" mmap range starting at %p: %v bytes.", n+1, nrHashes, status,
-			t.Name(), unsafe.Pointer(unsafe.SliceData(t.mapping)), len(t.mapping)))
-		log.Info(p.Sprintf("  %d/%d:   used: %11d, capacity: %11d.  Utilization: %4.1f%%. Mean len: %4.2f, "+
-			"Var len: %4.2f. Lookup depth: %10d %6d %5d %5d %3d %2d %2d %d",
-			n+1, nrHashes, t.used, t.capacity, 100.0*float64(t.used)/float64(t.capacity), mean, variance,
+		log.Debug(p.Sprintf("> %d/%d: %8s Origin=\"%s\" mmap range starting at %p: %v bytes."+
+			" Used: %11d, capacity: %11d.  Utilization: %4.1f%%. Mean len: %4.2f, "+
+			"Stddev len: %4.2f. Lookup depth: %10d %6d %5d %5d %3d %2d %2d %d", n+1, nrHashes, status,
+			t.Name(), unsafe.Pointer(unsafe.SliceData(t.mapping)), len(t.mapping),
+			t.used, t.capacity, 100.0*float64(t.used)/float64(t.capacity), mean, math.Sqrt(variance),
 			t.seedHist[0], t.seedHist[1], t.seedHist[2], t.seedHist[3],
-			t.seedHist[4], t.seedHist[5], t.seedHist[6], t.seedHist[7],
-		))
+			t.seedHist[4], t.seedHist[5], t.seedHist[6], t.seedHist[7]))
+	}
+
+	for k, v := range mapData {
+		log.Info(p.Sprintf("* %40s: Total Values: %d, Active Bytes Allocated: %d, Total Bytes Allocated: %d",
+			k, v.totalValues, v.totalActiveAllocated, v.totalAllocated))
 	}
 
 	nrChecks := len(allMmaps.origins)
@@ -415,4 +457,12 @@ func Report() {
 		count += 1
 	}
 	log.Info(p.Sprintf("Failed Checks Total %d on %d different locations", totalFailedChecks, len(allMmaps.origins)))
+
+	if len(allMmaps.pointers) < maxFailedPointersToPrint {
+		for ptr, entry := range allMmaps.pointers {
+			log.Info(p.Sprintf("Address %p in %s: %d hits", unsafe.Pointer(ptr), entry.origin, entry.count))
+		}
+	} else {
+		log.Info(p.Sprintf("Too many (%d) pointers saved.", len(allMmaps.pointers)))
+	}
 }

@@ -10,6 +10,7 @@ import (
 // Refcounted tracks references.  The interface doesn't provide a reference construction
 // mechanism, use the per-type implementation functions for that.
 type Refcounted interface {
+	Retain(n int32)
 	Release(n int32)
 	Name() string
 }
@@ -79,6 +80,7 @@ func (s *SmallRetainer) ReleaseAll() {
 
 func (s *SmallRetainer) CopyTo(dest InternRetainer) {
 	for n, o := range s.origins {
+		o.Retain(s.counts[n])
 		dest.ReferenceN(o, s.counts[n])
 	}
 }
@@ -140,6 +142,7 @@ func (r *RetainerBlock) Import(other InternRetainer) {
 func (r *RetainerBlock) CopyTo(other InternRetainer) {
 	r.lock.Lock()
 	for k, v := range r.retentions {
+		k.Retain(v)
 		other.ReferenceN(k, v)
 	}
 	r.lock.Unlock()
