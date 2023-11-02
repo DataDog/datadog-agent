@@ -58,8 +58,8 @@ type Telemetry struct {
 	endOfStreamEOS *libtelemetry.Gauge
 	endOfStreamRST *libtelemetry.Gauge
 	//strLenGraterThenFrameLoc *libtelemetry.Gauge
-	//strLenTooBigMid          *libtelemetry.Gauge
-	//strLenTooBigLarge        *libtelemetry.Gauge
+	largePathInDelta      *libtelemetry.Gauge
+	largePathOutsideDelta *libtelemetry.Gauge
 	//frameRemainder           *libtelemetry.Gauge
 	//framesInPacket           *libtelemetry.Gauge
 
@@ -100,8 +100,8 @@ func NewTelemetry(protocol string) *Telemetry {
 		endOfStreamEOS: metricGroup.NewGauge("endOfStreamEOS", libtelemetry.OptStatsd),
 		endOfStreamRST: metricGroup.NewGauge("endOfStreamRST", libtelemetry.OptStatsd),
 		//strLenGraterThenFrameLoc: metricGroup.NewGauge("strLenGraterThenFrameLoc", libtelemetry.OptPrometheus),
-		//strLenTooBigMid:          metricGroup.NewGauge("strLenTooBigMid", libtelemetry.OptPrometheus),
-		//strLenTooBigLarge:        metricGroup.NewGauge("strLenTooBigLarge", libtelemetry.OptPrometheus),
+		largePathInDelta:      metricGroup.NewGauge("largePathInDelta", libtelemetry.OptStatsd),
+		largePathOutsideDelta: metricGroup.NewGauge("largePathOutsideDelta", libtelemetry.OptStatsd),
 		//frameRemainder:           metricGroup.NewGauge("frameRemainder", libtelemetry.OptPrometheus),
 		//framesInPacket:           metricGroup.NewGauge("framesInPacket", libtelemetry.OptPrometheus),
 
@@ -178,15 +178,15 @@ func (t *Telemetry) Update(mgr *manager.Manager) error {
 			return nil
 		}
 
-		t.http2requests.Set(int64(http2Telemetry.Request_seen))
-		t.http2responses.Set(int64(http2Telemetry.Response_seen))
+		//t.http2requests.Set(int64(http2Telemetry.Request_seen))
+		//t.http2responses.Set(int64(http2Telemetry.Response_seen))
 		t.endOfStreamEOS.Set(int64(http2Telemetry.End_of_stream_eos))
 		t.endOfStreamRST.Set(int64(http2Telemetry.End_of_stream_rst))
 		//t.strLenGraterThenFrameLoc.Set(int64(http2Telemetry.Str_len_greater_then_frame_loc))
 		//t.frameRemainder.Set(int64(http2Telemetry.Frame_remainder))
 		//t.framesInPacket.Set(int64(http2Telemetry.Max_frames_in_packet))
-		//t.strLenTooBigMid.Set(int64(http2Telemetry.Str_len_too_big_mid))
-		//t.strLenTooBigLarge.Set(int64(http2Telemetry.Str_len_too_big_large))
+		t.largePathInDelta.Set(int64(http2Telemetry.Large_path_in_delta))
+		t.largePathOutsideDelta.Set(int64(http2Telemetry.Large_path_outside_delta))
 
 		time.Sleep(10 * time.Second)
 	}
