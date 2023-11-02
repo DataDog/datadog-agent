@@ -8,9 +8,9 @@ package daemon
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -170,11 +170,11 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 		}
 	}
 
-	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
-		ProcessTrace:         processTrace,
-		InferredSpansEnabled: true,
-		DetectLambdaLibrary:  func() bool { return false },
+	processor := &invocationlifecycle.LifecycleProcessor{
+		ProcessTrace:        processTrace,
+		DetectLambdaLibrary: func() bool { return false },
 	}
+	d.InvocationProcessor = processor
 
 	client := &http.Client{Timeout: 1 * time.Second}
 	startURL := fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port)
@@ -182,43 +182,43 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 
 	testcases := []struct {
 		name        string
-		payload     io.Reader
-		expSpans    int
+		payload     string
+		expInfSpans int
 		expTraceID  uint64
 		expParentID uint64
 	}{
 		{
 			name:        "empty-payload",
-			payload:     bytes.NewBuffer([]byte("{}")),
-			expSpans:    1,
+			payload:     "{}",
+			expInfSpans: 0,
 			expTraceID:  0,
 			expParentID: 0,
 		},
 		{
 			name:        "api-gateway",
 			payload:     getEventFromFile("api-gateway.json"),
-			expSpans:    2,
+			expInfSpans: 1,
 			expTraceID:  12345,
 			expParentID: 67890,
 		},
 		{
 			name:        "sqs",
 			payload:     getEventFromFile("sqs.json"),
-			expSpans:    2,
+			expInfSpans: 1,
 			expTraceID:  2684756524522091840,
 			expParentID: 7431398482019833808,
 		},
 		{
 			name:        "sqs-batch",
 			payload:     getEventFromFile("sqs-batch.json"),
-			expSpans:    2,
+			expInfSpans: 1,
 			expTraceID:  2684756524522091840,
 			expParentID: 7431398482019833808,
 		},
 		{
 			name:        "sqs_no_dd_context",
 			payload:     getEventFromFile("sqs_no_dd_context.json"),
-			expSpans:    2,
+			expInfSpans: 1,
 			expTraceID:  0,
 			expParentID: 0,
 		},
@@ -226,90 +226,88 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			// NOTE: sns trace extraction not implemented yet
 			name:        "sns",
 			payload:     getEventFromFile("sns.json"),
-			expSpans:    2,
+			expInfSpans: 1,
 			expTraceID:  0,
 			expParentID: 0,
 		},
 		{
 			name:        "sns-sqs",
 			payload:     getEventFromFile("snssqs.json"),
-			expSpans:    3,
+			expInfSpans: 2,
 			expTraceID:  1728904347387697031,
 			expParentID: 353722510835624345,
 		},
-		// TODO: test inferred spans disabled
 	}
 
 	for _, tc := range testcases {
-		t.Run(tc.name, func(t *testing.T) {
-			assert := assert.New(t)
-			spans = []*pb.Span{}
+		for _, infEnabled := range []int{0, 1} {
+			t.Run(tc.name+fmt.Sprintf("-%v", infEnabled), func(t *testing.T) {
+				assert := assert.New(t)
+				spans = []*pb.Span{}
+				processor.InferredSpansEnabled = infEnabled == 1
 
-			// start-invocation
-			startReq, err := http.NewRequest(http.MethodPost, startURL, tc.payload)
-			assert.Nil(err)
-			startResp, err := client.Do(startReq)
-			assert.Nil(err)
-			var respHdr http.Header
-			if startResp != nil {
-				assert.Equal(startResp.StatusCode, 200)
-				respHdr = startResp.Header
-				startResp.Body.Close()
-			}
+				// start-invocation
+				startReq, err := http.NewRequest(http.MethodPost, startURL, strings.NewReader(tc.payload))
+				assert.Nil(err)
+				startResp, err := client.Do(startReq)
+				assert.Nil(err)
+				var respHdr http.Header
+				if startResp != nil {
+					assert.Equal(startResp.StatusCode, 200)
+					respHdr = startResp.Header
+					startResp.Body.Close()
+				}
 
-			// end-invocation
-			endReq, err := http.NewRequest(http.MethodPost, endURL, nil)
-			assert.Nil(err)
-			endResp, err := client.Do(endReq)
-			assert.Nil(err)
-			if endResp != nil {
-				assert.Equal(endResp.StatusCode, 200)
-				endResp.Body.Close()
-			}
+				// end-invocation
+				endReq, err := http.NewRequest(http.MethodPost, endURL, nil)
+				assert.Nil(err)
+				endResp, err := client.Do(endReq)
+				assert.Nil(err)
+				if endResp != nil {
+					assert.Equal(endResp.StatusCode, 200)
+					endResp.Body.Close()
+				}
 
-			// sort spans by start time
-			slices.SortFunc(spans, func(a, b *pb.Span) int { return int(a.Start - b.Start) })
+				// sort spans by start time
+				slices.SortFunc(spans, func(a, b *pb.Span) int { return int(a.Start - b.Start) })
 
-			// assert parenting of inferred and execution spans
-			rootSpan := spans[0]
-			parentID := rootSpan.ParentID
-			assert.Equal(tc.expSpans, len(spans))
-			assert.Equal(tc.expParentID, parentID)
-			var tailSpan *pb.Span
-			for _, span := range spans {
-				tailSpan = span
-				assert.Equal(tc.expTraceID, span.TraceID)
-				assert.Equal(parentID, span.ParentID)
-				parentID = span.SpanID
-			}
-			assert.Equal("aws.lambda", tailSpan.Name)
+				// assert parenting of inferred and execution spans
+				rootSpan := spans[0]
+				parentID := rootSpan.ParentID
+				assert.Equal(1+tc.expInfSpans*infEnabled, len(spans))
+				assert.Equal(tc.expParentID, parentID)
+				var tailSpan *pb.Span
+				for _, span := range spans {
+					tailSpan = span
+					assert.Equal(tc.expTraceID, span.TraceID)
+					assert.Equal(parentID, span.ParentID)
+					parentID = span.SpanID
+				}
+				assert.Equal("aws.lambda", tailSpan.Name)
 
-			// assert parenting passed to tracer
-			if tailSpan.TraceID != 0 {
-				assert.Equal(fmt.Sprintf("%d", tailSpan.TraceID),
-					respHdr.Get("x-datadog-trace-id"))
-			} else {
-				assert.Equal("", respHdr.Get("x-datadog-trace-id"))
-			}
-			if tailSpan.SpanID != 0 {
-				assert.Equal(fmt.Sprintf("%d", tailSpan.SpanID),
-					respHdr.Get("x-datadog-parent-id"))
-			} else {
-				assert.Equal("", respHdr.Get("x-datadog-parent-id"))
-			}
-		})
+				// assert parenting passed to tracer
+				if tailSpan.TraceID != 0 {
+					assert.Equal(fmt.Sprintf("%d", tailSpan.TraceID),
+						respHdr.Get("x-datadog-trace-id"))
+				} else {
+					assert.Equal("", respHdr.Get("x-datadog-trace-id"))
+				}
+				if tailSpan.SpanID != 0 {
+					assert.Equal(fmt.Sprintf("%d", tailSpan.SpanID),
+						respHdr.Get("x-datadog-parent-id"))
+				} else {
+					assert.Equal("", respHdr.Get("x-datadog-parent-id"))
+				}
+			})
+		}
 	}
 }
 
 // Helper function for reading test file
-func getEventFromFile(filename string) io.Reader {
+func getEventFromFile(filename string) string {
 	event, err := os.ReadFile("../trace/testdata/event_samples/" + filename)
 	if err != nil {
 		panic(err)
 	}
-	var buf bytes.Buffer
-	buf.WriteString("a5a")
-	buf.Write(event)
-	buf.WriteString("0")
-	return &buf
+	return "a5a" + string(event) + "0"
 }
