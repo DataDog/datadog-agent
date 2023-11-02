@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/api"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/languagedetection"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/gorilla/mux"
 	"google.golang.org/protobuf/proto"
