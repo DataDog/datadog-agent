@@ -192,7 +192,9 @@ func TestClientSendFreshPods(t *testing.T) {
 	}, freshData)
 	// make sure we didn't touch the current batch
 	assert.Equal(t, client.currentBatch, batch{podName: podInfo})
-	// make sure `freshlyUpdatedPods` is emptied
+
+	// clear the freshlyUpdatedPods list
+	client.clearFreshlyUpdatedPods()
 	assert.Empty(t, client.freshlyUpdatedPods)
 }
 
@@ -324,7 +326,7 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 
 	mockStore.Notify(collectorEvents)
 
-	client.processEvent(eventBundle)
+	client.handleEvent(eventBundle)
 
 	assert.NotEmpty(t, client.currentBatch)
 	assert.Equal(t,
@@ -363,7 +365,7 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 		Ch: make(chan struct{}),
 	}
 
-	client.processEvent(unsetPodEventBundle)
+	client.handleEvent(unsetPodEventBundle)
 	assert.Empty(t, client.currentBatch)
 	assert.Empty(t, client.freshlyUpdatedPods)
 }
@@ -493,7 +495,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 	mockStore.Notify(collectorEvents)
 
 	// process the events
-	client.processEvent(eventBundle)
+	client.handleEvent(eventBundle)
 
 	// make sure the current batch is not updated
 	assert.Empty(t, client.currentBatch)
@@ -549,7 +551,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 		Ch: make(chan struct{}),
 	}
 
-	client.processEvent(unsetPodEventBundle)
+	client.handleEvent(unsetPodEventBundle)
 	assert.Empty(t, client.currentBatch)
 	assert.Empty(t, client.freshlyUpdatedPods)
 }

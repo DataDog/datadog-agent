@@ -58,7 +58,7 @@ func TestGetContainersLanguagesFromPodDetail(t *testing.T) {
 		ContainerDetails: containerDetails,
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Id:   "dummyId",
-			Kind: "replicaset",
+			Kind: "ReplicaSet",
 			Name: "dummyrs-2342347",
 		},
 	}
@@ -120,7 +120,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 		},
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Id:   "dummyId-1",
-			Kind: "replicaset",
+			Kind: "ReplicaSet",
 			Name: "dummyrs-1-2342347",
 		},
 	}
@@ -163,7 +163,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 		},
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Id:   "dummyId-2",
-			Kind: "replicaset",
+			Kind: "ReplicaSet",
 			Name: "dummyrs-2-2342347",
 		},
 	}
@@ -190,8 +190,8 @@ func TestGetOwnersLanguages(t *testing.T) {
 	expectedContainersLanguagesB.GetOrInitializeLanguageset("init.container-8").Parse("java,python")
 
 	expectedOwnersLanguages := &OwnersLanguages{
-		NewNamespacedOwnerReference("apps/v1", "deployment", "dummyrs-1", "dummyId-1", "default"): expectedContainersLanguagesA,
-		NewNamespacedOwnerReference("apps/v1", "deployment", "dummyrs-2", "dummyId-2", "custom"):  expectedContainersLanguagesB,
+		NewNamespacedOwnerReference("apps/v1", "Deployment", "dummyrs-1", "dummyId-1", "default"): expectedContainersLanguagesA,
+		NewNamespacedOwnerReference("apps/v1", "Deployment", "dummyrs-2", "dummyId-2", "custom"):  expectedContainersLanguagesB,
 	}
 
 	actualOwnersLanguages := lp.getOwnersLanguages(mockRequestData)
@@ -264,7 +264,7 @@ func TestPatchOwner(t *testing.T) {
 	ns := "test-namespace"
 	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 
-	namespacedOwnerReference := NewNamespacedOwnerReference("apps/v1", "deployment", deploymentName, "uid-dummy", ns)
+	namespacedOwnerReference := NewNamespacedOwnerReference("apps/v1", "Deployment", deploymentName, "uid-dummy", ns)
 
 	mockContainersLanguages := util.NewContainersLanguages()
 	mockContainersLanguages.GetOrInitializeLanguageset("container-1").Parse("cpp,java,python")
@@ -362,7 +362,7 @@ func TestPatchAllOwners(t *testing.T) {
 		},
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Id:   "dummyId-1",
-			Kind: "replicaset",
+			Kind: "ReplicaSet",
 			Name: "test-deployment-A-2342347",
 		},
 	}
@@ -403,7 +403,7 @@ func TestPatchAllOwners(t *testing.T) {
 		},
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Id:   "dummyId-2",
-			Kind: "replicaset",
+			Kind: "ReplicaSet",
 			Name: "test-deployment-B-2342347",
 		},
 	}

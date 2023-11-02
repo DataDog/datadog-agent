@@ -167,7 +167,7 @@ func (c *client) run() {
 	for {
 		select {
 		case eventBundle := <-eventCh:
-			c.processEvent(eventBundle)
+			c.handleEvent(eventBundle)
 		case <-cleanupProcessesWithoutPodCleanupTicker.C:
 			c.cleanUpProcesssesWithoutPod(time.Now())
 		case <-c.ctx.Done():
@@ -186,8 +186,8 @@ func (c *client) cleanUpProcesssesWithoutPod(now time.Time) {
 	}
 }
 
-// processEvent processes events from workloadmeta
-func (c *client) processEvent(evBundle workloadmeta.EventBundle) {
+// handleEvent handles events from workloadmeta
+func (c *client) handleEvent(evBundle workloadmeta.EventBundle) {
 	close(evBundle.Ch)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -229,40 +229,47 @@ func (c *client) startStreaming() {
 		// frequently send only fresh updates
 		case <-freshUpdateTimer.C:
 			data := c.getFreshBatchProto()
-			c.send(ctx, data)
+			err := c.send(ctx, data)
+			if err != nil {
+				c.logger.Errorf("failed to send fresh update %v", err)
+			} else {
+				c.clearFreshlyUpdatedPods()
+			}
 		// less frequently, send the entire batch
 		case <-periodicFlushTimer.C:
 			data := c.getCurrentBatchProto()
-			c.send(ctx, data)
+			err := c.send(ctx, data)
+			if err != nil {
+				c.logger.Errorf("failed to send entire batch %v", err)
+			}
 		}
 	}
 }
 
 // send sends the data to the cluster-agent. It doesn't implement a retry mechanism because if the dca is available
 // then the data will eventually be transmitted by the periodic flush mechanism.
-func (c *client) send(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) {
+func (c *client) send(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error {
 	if data == nil {
-		return
+		return nil
 	}
 	if c.langDetectionCl == nil {
 		// TODO: modify GetClusterAgentClient to accept a context with a deadline. If this
 		// functions hangs forever, the component will be unhealthy and crash.
 		dcaClient, err := clusteragent.GetClusterAgentClient()
 		if err != nil {
-			c.logger.Debugf("failed to get dca client %s, not sending batch", err)
-			return
+			return err
 		}
 		c.langDetectionCl = dcaClient
 	}
 	t := time.Now()
 	err := c.langDetectionCl.PostLanguageMetadata(ctx, data)
 	if err != nil {
-		c.logger.Errorf("failed to post language metadata %v", err)
 		c.telemetry.Requests.Inc(statusError)
-		return
+		return err
 	}
 	c.telemetry.Latency.Observe(time.Since(t).Seconds())
 	c.telemetry.Requests.Inc(statusSuccess)
+	return nil
 }
 
 // retryProcessEventsWithoutPod processes a second time process events for which the associated
@@ -288,38 +295,45 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	}
 
 	process := processEvent.Entity.(*workloadmeta.Process)
-	if process.Language == nil {
-		c.logger.Tracef("no language detected for process %s", process.ID)
+	if process.Language == nil || process.Language.Name == "" {
+		c.logger.Debugf("no language detected for process %s", process.ID)
+		return
+	}
+
+	if process.ContainerID == "" {
+		c.logger.Debugf("no container id detected for process %s", process.ID)
 		return
 	}
 
 	pod, err := c.store.GetKubernetesPodForContainer(process.ContainerID)
 	if err != nil {
-		c.logger.Debugf("no pod found for process %s, err: %v", process.ID, err)
+		c.logger.Debugf("no pod found for process %s and containerID %s", process.ID, process.ContainerID)
 		if !isRetry {
 			c.telemetry.ProcessWithoutPod.Inc()
 			evs, found := c.processesWithoutPod[process.ContainerID]
 			if found {
 				evs.events = append(evs.events, processEvent)
-			} else {
-				c.processesWithoutPod[process.ContainerID] = &eventsToRetry{
-					expirationTime: time.Now().Add(c.processesWithoutPodTTL),
-					events:         []workloadmeta.Event{processEvent},
-				}
+				return
+			}
+			c.processesWithoutPod[process.ContainerID] = &eventsToRetry{
+				expirationTime: time.Now().Add(c.processesWithoutPodTTL),
+				events:         []workloadmeta.Event{processEvent},
 			}
 		}
 		return
 	}
+
 	if !podHasOwner(pod) {
 		c.logger.Debugf("pod %s has no owner, skipping %s", pod.Name, process.ID)
 		return
 	}
+
 	containerName, isInitcontainer, ok := getContainerInfoFromPod(process.ContainerID, pod)
 	if !ok {
 		c.logger.Debugf("container name not found for %s", process.ContainerID)
 		return
 	}
-	c.logger.Debugf("correctly processed event for process %s", process.ID) // TODO: remove
+
 	podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
 	added := containerInfo.Add(string(process.Language.Name))
@@ -368,11 +382,16 @@ func (c *client) getFreshBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 		}
 	}
 
-	c.freshlyUpdatedPods = make(map[string]struct{}, 0)
-
 	if len(batch) > 0 {
 		return batch.toProto()
 	}
 
 	return nil
+}
+
+// clearFreshlyUpdatedPods clears freshly updated pods map. They should be cleared only after the batch is successfully sent
+func (c *client) clearFreshlyUpdatedPods() {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.freshlyUpdatedPods = make(map[string]struct{})
 }
