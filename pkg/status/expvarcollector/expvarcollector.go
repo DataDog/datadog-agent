@@ -27,3 +27,8 @@ func Report(stats map[string]interface{}) (map[string]interface{}, []error) {
 	}
 	return stats, errors
 }
+
+// ResetExpvarRegistry reset expvarRegistry. Use for testing
+func ResetExpvarRegistry() {
+	expvarRegistry = map[string]func() (interface{}, error){}
+}
