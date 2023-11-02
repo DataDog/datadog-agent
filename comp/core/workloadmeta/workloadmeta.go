@@ -59,8 +59,7 @@ func newWorkloadMeta(deps dependencies) Component {
 
 	candidates := make(map[string]Collector)
 	for _, c := range deps.Catalog {
-		// TODO(components): the catalog should only get the expected collectors
-		if c.GetTargetCatalog() != deps.Params.AgentType {
+		if c.GetTargetCatalog() == deps.Params.AgentType {
 			candidates[c.GetID()] = c
 		}
 	}
