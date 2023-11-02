@@ -462,7 +462,10 @@ func TestTailingMode(t *testing.T) {
 			tailer := NewTailer(source, nil, mockJournal, true)
 			tailer.Start(tt.cursor)
 
+			mockJournal.m.Lock()
 			assert.Equal(t, *tt.expectedJournalState, *mockJournal)
+			mockJournal.m.Unlock()
+
 			tailer.Stop()
 		})
 	}
