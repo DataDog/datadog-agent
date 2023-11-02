@@ -21,6 +21,7 @@ import (
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
@@ -333,10 +334,12 @@ func (c *Check) initSubscription() error {
 			evtbookmark.WithWindowsEventLogAPI(c.evtapi),
 			evtbookmark.FromXML(bookmarkXML))
 		if err != nil {
-			return err
+			log.Errorf("error loading bookmark, will start at %s events: %v", *c.config.instance.Start, err)
+		} else {
+			opts = append(opts, evtsubscribe.WithStartAfterBookmark(bookmark))
 		}
-		opts = append(opts, evtsubscribe.WithStartAfterBookmark(bookmark))
-	} else {
+	}
+	if bookmark == nil {
 		// new bookmark
 		bookmark, err = evtbookmark.New(evtbookmark.WithWindowsEventLogAPI(c.evtapi))
 		if err != nil {
