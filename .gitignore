@@ -206,3 +206,5 @@ test/fakeintake/build/*
 # Allow Single Machine Performance material to ignore excludes
 !test/regression/**
 !test/workload-checks/**
+
+kmt-deps/

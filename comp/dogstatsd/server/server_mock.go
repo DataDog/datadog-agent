@@ -44,6 +44,6 @@ func (s *serverMock) UDPLocalAddr() string {
 	return ""
 }
 
-func (s *serverMock) ServerlessFlush() {}
+func (s *serverMock) ServerlessFlush(time.Duration) {}
 
 func (s *serverMock) SetExtraTags(tags []string) {}

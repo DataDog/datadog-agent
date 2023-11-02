@@ -11,9 +11,11 @@ import (
 	"context"
 	"fmt"
 
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/client-go/dynamic"
@@ -21,11 +23,12 @@ import (
 )
 
 // OwnersLanguages maps an owner to the detected languages of each container
-type OwnersLanguages map[NamespacedOwnerReference]ContainersLanguages
+type OwnersLanguages map[NamespacedOwnerReference]langUtil.ContainersLanguages
 
 // LanguagePatcher defines an object that patches kubernetes resources with language annotations
 type LanguagePatcher struct {
 	k8sClient dynamic.Interface
+	store     workloadmeta.Store
 }
 
 // NewLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
@@ -42,8 +45,8 @@ func NewLanguagePatcher() (*LanguagePatcher, error) {
 	}, nil
 }
 
-func (lp *LanguagePatcher) getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails) ContainersLanguages {
-	containerslanguages := NewContainersLanguages()
+func (lp *LanguagePatcher) getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails) langUtil.ContainersLanguages {
+	containerslanguages := langUtil.NewContainersLanguages()
 
 	for _, containerLanguageDetails := range podDetail.ContainerDetails {
 		container := containerLanguageDetails.ContainerName
@@ -83,15 +86,49 @@ func (lp *LanguagePatcher) getOwnersLanguages(requestData *pbgo.ParentLanguageAn
 	return &ownerslanguages
 }
 
+func (lp *LanguagePatcher) detectedNewLanguages(namespacedOwnerRef *NamespacedOwnerReference, detectedLanguages langUtil.ContainersLanguages) bool {
+	// Currently we only support deployment owners
+	id := fmt.Sprintf("%s/%s", namespacedOwnerRef.namespace, namespacedOwnerRef.Name)
+	owner, err := lp.store.GetKubernetesDeployment(id)
+
+	if err != nil {
+		return true
+	}
+
+	existingContainersLanguages := langUtil.NewContainersLanguages()
+
+	for container, languages := range owner.ContainerLanguages {
+		for _, language := range languages {
+			existingContainersLanguages.GetOrInitializeLanguageset(container).Add(string(language.Name))
+		}
+	}
+
+	for container, languages := range owner.InitContainerLanguages {
+		for _, language := range languages {
+			existingContainersLanguages.GetOrInitializeLanguageset(fmt.Sprintf("init.%s", container)).Add(string(language.Name))
+		}
+	}
+
+	for container, languages := range detectedLanguages {
+		for language := range languages {
+			if _, found := existingContainersLanguages.GetOrInitializeLanguageset(container)[language]; !found {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 // Updates the existing annotations based on the detected languages.
 // Currently we only add languages to the annotations.
-func (lp *LanguagePatcher) getUpdatedOwnerAnnotations(currentAnnotations map[string]string, containerslanguages ContainersLanguages) (map[string]string, int) {
+func (lp *LanguagePatcher) getUpdatedOwnerAnnotations(currentAnnotations map[string]string, containerslanguages langUtil.ContainersLanguages) (map[string]string, int) {
 	if currentAnnotations == nil {
 		currentAnnotations = make(map[string]string)
 	}
 
 	// Add the existing language annotations into containers languages object
-	existingContainersLanguages := NewContainersLanguages()
+	existingContainersLanguages := langUtil.NewContainersLanguages()
 	existingContainersLanguages.ParseAnnotations(currentAnnotations)
 
 	// Append the potentially new languages to the containers languages object
@@ -113,10 +150,15 @@ func (lp *LanguagePatcher) getUpdatedOwnerAnnotations(currentAnnotations map[str
 }
 
 // patches the owner with the corresponding language annotations
-func (lp *LanguagePatcher) patchOwner(namespacedOwnerRef *NamespacedOwnerReference, containerslanguages ContainersLanguages) error {
+func (lp *LanguagePatcher) patchOwner(namespacedOwnerRef *NamespacedOwnerReference, containerslanguages langUtil.ContainersLanguages) error {
 	ownerGVR, err := getGVR(namespacedOwnerRef)
 	if err != nil {
 		return err
+	}
+
+	if !lp.detectedNewLanguages(namespacedOwnerRef, containerslanguages) {
+		// No need to patch
+		return nil
 	}
 
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {

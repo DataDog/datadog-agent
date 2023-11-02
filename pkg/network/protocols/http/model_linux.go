@@ -139,7 +139,3 @@ func requestFragment(fragment []byte) [BufferSize]byte {
 	copy(b[:], fragment)
 	return b
 }
-
-func isEncrypted(tx Transaction) bool {
-	return (tx.StaticTags() & (GnuTLS | OpenSSL | TLS | Java | Go)) > 0
-}

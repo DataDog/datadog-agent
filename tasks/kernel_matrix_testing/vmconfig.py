@@ -390,7 +390,7 @@ def generate_vm_config(vm_config, vms, vcpu, memory):
 
     keys_to_remove = list()
     # detect if the requested VM falls in an already existing vmset
-    for set_id in kernels.keys():
+    for set_id in kernels:
         if modify_existing_vmsets(vm_config, set_id, kernels[set_id]):
             keys_to_remove.append(set_id)
 
@@ -399,7 +399,7 @@ def generate_vm_config(vm_config, vms, vcpu, memory):
         del kernels[key]
 
     # this loop generates vmsets which do not already exist
-    for set_id in kernels.keys():
+    for set_id in kernels:
         vm_config["vmsets"].append(build_new_vmset(set_id, kernels[set_id]))
 
     # Modify the vcpu and memory configuration of all sets.
