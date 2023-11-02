@@ -6,7 +6,8 @@ variables:
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   timeout: 1h
   rules:
-    - !reference [.except_mergequeue]
+    - if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: always
     - when: manual
