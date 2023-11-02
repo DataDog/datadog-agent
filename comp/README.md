@@ -18,6 +18,16 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package diagnosesendermanager defines the sender manager for the local diagnose check
 
+## [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/apm/etwtracer) (Component Bundle)
+
+*Datadog Team*: windows-agent
+
+
+
+### [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/apm/etwtracer)
+
+Package apmetwtracer provides ETW events to the .Net tracer
+
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -82,6 +92,16 @@ Package server implements a component to run the dogstatsd server
 ### [comp/dogstatsd/serverDebug](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/serverDebug)
 
 Package serverdebug implements a component to run the dogstatsd server debug
+
+## [comp/etw](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/etw) (Component Bundle)
+
+*Datadog Team*: windows-agent
+
+
+
+### [comp/etw](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/etw)
+
+Package etw provides an ETW tracing interface
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder) (Component Bundle)
 

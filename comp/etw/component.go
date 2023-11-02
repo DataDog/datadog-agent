@@ -6,6 +6,7 @@
 
 //go:build windows
 
+// Package etw provides an ETW tracing interface
 package etw
 
 import (
