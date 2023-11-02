@@ -48,7 +48,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 	e2e.Run(t, &LinuxVMFakeintakeSuite{}, logsExampleStackDef())
 }
 
-func (s *LinuxVMFakeintakeSuite) BeforeTest(_, testName string) {
+func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
 	// Flush server and reset aggregators before the test is ran
 	if s.DevMode {
 		s.cleanUp()
@@ -66,15 +66,15 @@ func (s *LinuxVMFakeintakeSuite) TearDownSuite() {
 
 func (s *LinuxVMFakeintakeSuite) TestLinuxLogTailing() {
 	// Run test cases
-	s.T().Run("LogCollection", func(t *testing.T) {
+	s.Run("LogCollection", func() {
 		s.LogCollection()
 	})
 
-	s.T().Run("LogPermission", func(t *testing.T) {
+	s.Run("LogPermission", func() {
 		s.LogPermission()
 	})
 
-	s.T().Run("LogRotation", func(t *testing.T) {
+	s.Run("LogRotation", func() {
 		s.LogRotation()
 	})
 }
@@ -89,14 +89,16 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 	// Part 1: Ensure no logs are present in fakeintake
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		logs, err := fakeintake.FilterLogs("hello")
-		require.NoError(t, err, "Unable to filter logs by the service 'hello'.")
-		require.Empty(t, logs, "Logs were found when none were expected.")
+		if !assert.NoError(c, err, "Unable to filter logs by the service 'hello'.") {
+			return
+		}
+		assert.Empty(c, logs, "Logs were found when none were expected.")
 
 		// If logs are found, print their content for debugging
 		if len(logs) != 0 {
 			cat, _ := s.Env().VM.ExecuteWithError("cat /var/log/hello-world.log")
 			t.Logf("Logs detected when none were expected: %v", cat)
-			require.Empty(t, logs, "Logs were found when none were expected.")
+			require.Empty(c, logs, "Logs were found when none were expected.")
 		}
 	}, 5*time.Minute, 10*time.Second)
 
@@ -112,20 +114,22 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 }
 
 func (s *LinuxVMFakeintakeSuite) LogPermission() {
-	t := s.T()
 
 	// Part 4: Block permission and check the Agent status
 	s.Env().VM.Execute("sudo chmod 000 /var/log/hello-world.log")
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		// Check the Agent status
 		statusOutput, err := s.Env().VM.ExecuteWithError("sudo datadog-agent status | grep -A 10 'custom_logs'")
-		require.NoError(t, err, "Issue running agent status: %s", err)
-
-		if strings.Contains(statusOutput, "Status: OK") {
-			require.Fail(t, "log file is unexpectedly accessible")
+		if !assert.NoError(c, err, "Issue running agent status: %s", err) {
+			return
 		}
 
-		require.Contains(t, statusOutput, "denied", "Log file is correctly inaccessible")
+		if strings.Contains(statusOutput, "Status: OK") {
+			assert.Fail(c, "log file is unexpectedly accessible")
+			return
+		}
+
+		require.Contains(c, statusOutput, "denied", "Log file is correctly inaccessible")
 	}, 3*time.Minute, 10*time.Second)
 
 	// Part 5: Restore permissions
@@ -139,8 +143,8 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 	// Check the Agent status
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		statusOutput, err := s.Env().VM.ExecuteWithError("sudo datadog-agent status | grep -A 10 'custom_logs'")
-		require.NoError(t, err, "Issue running agent status: %s", err)
-		require.Contains(t, statusOutput, "Status: OK", "Expecting log file to be accessible but it is inaccessible instead")
+		require.NoError(c, err, "Issue running agent status: %s", err)
+		require.Contains(c, statusOutput, "Status: OK", "Expecting log file to be accessible but it is inaccessible instead")
 	}, 5*time.Minute, 2*time.Second)
 }
 

@@ -13,7 +13,6 @@ import (
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // generateLog generates and verifies log contents.
@@ -49,7 +48,7 @@ func generateLog(s *LinuxVMFakeintakeSuite, content string) {
 		if strings.Contains(output, content) {
 			t.Logf("Finished generating %s log.", os)
 		} else {
-			require.Fail(t, "Log not yet generated.")
+			assert.Fail(c, "Log not yet generated.")
 		}
 	}, 5*time.Minute, 2*time.Second)
 }
@@ -57,20 +56,25 @@ func generateLog(s *LinuxVMFakeintakeSuite, content string) {
 // checkLogs checks and verifies logs inside the intake.
 func checkLogs(suite *LinuxVMFakeintakeSuite, service, content string) {
 	client := suite.Env().Fakeintake
-	t := suite.T()
 
 	suite.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()
-		assert.NoErrorf(t, err, "Error found: %s", err)
+		if !assert.NoErrorf(c, err, "Error found: %s", err) {
+			return
+		}
 
 		if len(names) > 0 {
 			logs, err := client.FilterLogs(service)
-			assert.NoErrorf(t, err, "Error found: %s", err)
-			assert.NotEmpty(t, logs, "No logs with service matching '%s' found, instead got '%s'", service, names)
+			if !assert.NoErrorf(c, err, "Error found: %s", err) {
+				return
+			}
+			if !assert.NotEmpty(c, logs, "No logs with service matching '%s' found, instead got '%s'", service, names) {
+				return
+			}
 
 			logs, err = client.FilterLogs(service, fi.WithMessageContaining(content))
-			assert.NoErrorf(t, err, "Error found: %s", err)
-			assert.True(t, len(logs) > 0, "Expected at least 1 log with content: '%s', but received %v logs.", content, len(logs))
+			assert.NoErrorf(c, err, "Error found: %s", err)
+			assert.True(c, len(logs) > 0, "Expected at least 1 log with content: '%s', but received %v logs.", content, len(logs))
 		}
 	}, 10*time.Minute, 10*time.Second)
 
@@ -100,18 +104,9 @@ func (s *LinuxVMFakeintakeSuite) cleanUp() {
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		output, err := s.Env().VM.ExecuteWithError(checkCmd)
 		if err != nil {
-			require.NoErrorf(t, err, "Having issue cleaning log %s files, retrying... %s", os, output)
+			assert.NoErrorf(c, err, "Having issue cleaning log %s files, retrying... %s", os, output)
 		} else {
 			t.Log("Successfully cleaned up.")
 		}
 	}, 5*time.Minute, 2*time.Second)
 }
-
-// func (s *LinuxVMFakeintakeSuite) getOSType() (string, error) {
-// 	output, err := s.Env().VM.ExecuteWithError("cat /etc/os-release")
-// 	if err == nil && strings.Contains(output, "ID=ubuntu") {
-// 		return "linux", nil
-// 	} else {
-// 		return "windows", nil
-// 	}
-// }
