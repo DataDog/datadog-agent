@@ -8,4 +8,8 @@
 // Package etwimpl has no implementation on non-Windows platforms
 package etwimpl
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
 var Module = fxutil.Component()

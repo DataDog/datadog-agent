@@ -8,4 +8,8 @@
 // Package apmetwtracerimpl has no implementation on non-Windows platforms
 package apmetwtracerimpl
 
+import (
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
 var Module = fxutil.Component()
