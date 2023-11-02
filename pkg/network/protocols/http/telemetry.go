@@ -95,10 +95,10 @@ func NewTelemetry(protocol string) *Telemetry {
 		nonPrintableCharacters: metricGroup.NewCounter("malformed", "type:non-printable-char", libtelemetry.OptStatsd),
 
 		// http2 metrics which supposed to move to the HTTP/2 package
-		http2requests:  metricGroup.NewGauge("http2requests", libtelemetry.OptPrometheus),
-		http2responses: metricGroup.NewGauge("http2responses", libtelemetry.OptPrometheus),
-		endOfStreamEOS: metricGroup.NewGauge("endOfStreamEOS", libtelemetry.OptPrometheus),
-		endOfStreamRST: metricGroup.NewGauge("endOfStreamRST", libtelemetry.OptPrometheus),
+		http2requests:  metricGroup.NewGauge("http2requests", libtelemetry.OptStatsd),
+		http2responses: metricGroup.NewGauge("http2responses", libtelemetry.OptStatsd),
+		endOfStreamEOS: metricGroup.NewGauge("endOfStreamEOS", libtelemetry.OptStatsd),
+		endOfStreamRST: metricGroup.NewGauge("endOfStreamRST", libtelemetry.OptStatsd),
 		//strLenGraterThenFrameLoc: metricGroup.NewGauge("strLenGraterThenFrameLoc", libtelemetry.OptPrometheus),
 		//strLenTooBigMid:          metricGroup.NewGauge("strLenTooBigMid", libtelemetry.OptPrometheus),
 		//strLenTooBigLarge:        metricGroup.NewGauge("strLenTooBigLarge", libtelemetry.OptPrometheus),
