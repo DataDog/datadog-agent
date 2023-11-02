@@ -46,6 +46,7 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 	executionContext := lp.GetExecutionInfo()
 	executionContext.requestPayload = rawPayload
 	executionContext.startTime = startDetails.StartTime
+	inferredSpan := lp.GetInferredSpan()
 
 	traceContext, err := lp.Extractor.Extract(event, rawPayload)
 	if err != nil {
@@ -56,16 +57,17 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 		executionContext.TraceID = traceContext.TraceID
 		executionContext.parentID = traceContext.ParentID
 		executionContext.SamplingPriority = traceContext.SamplingPriority
-		inferredSpan := lp.GetInferredSpan()
 		if lp.InferredSpansEnabled && inferredSpan.Span.Start != 0 {
 			inferredSpan.Span.TraceID = traceContext.TraceID
 			inferredSpan.Span.ParentID = traceContext.ParentID
-			executionContext.parentID = inferredSpan.Span.SpanID
 		}
 	} else {
 		executionContext.TraceID = 0
 		executionContext.parentID = 0
 		executionContext.SamplingPriority = sampler.PriorityNone
+	}
+	if lp.InferredSpansEnabled && inferredSpan.Span.Start != 0 {
+		executionContext.parentID = inferredSpan.Span.SpanID
 	}
 }
 

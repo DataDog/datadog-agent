@@ -209,12 +209,35 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expParentID: 7431398482019833808,
 		},
 		{
+			name:        "sqs-batch",
+			payload:     getEventFromFile("sqs-batch.json"),
+			expSpans:    2,
+			expTraceID:  2684756524522091840,
+			expParentID: 7431398482019833808,
+		},
+		{
+			name:        "sqs_no_dd_context",
+			payload:     getEventFromFile("sqs_no_dd_context.json"),
+			expSpans:    2,
+			expTraceID:  0,
+			expParentID: 0,
+		},
+		{
+			// NOTE: sns trace extraction not implemented yet
+			name:        "sns",
+			payload:     getEventFromFile("sns.json"),
+			expSpans:    2,
+			expTraceID:  0,
+			expParentID: 0,
+		},
+		{
 			name:        "sns-sqs",
 			payload:     getEventFromFile("snssqs.json"),
 			expSpans:    3,
 			expTraceID:  1728904347387697031,
 			expParentID: 353722510835624345,
 		},
+		// TODO: test inferred spans disabled
 	}
 
 	for _, tc := range testcases {
