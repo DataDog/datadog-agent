@@ -127,12 +127,17 @@ var (
 
 	tlmFlush = telemetry.NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
+
+	tlmChannelSize = telemetry.NewGauge("aggregator", "channel_size",
+		[]string{"shard"}, "Size of the aggregator channel")
 	tlmProcessed = telemetry.NewCounter("aggregator", "processed",
-		[]string{"data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
+		[]string{"shard", "data_type"}, "Amount of metrics/services_checks/events processed by the aggregator")
+	tlmDogstatsdTimeBuckets = telemetry.NewGauge("aggregator", "dogstatsd_time_buckets",
+		[]string{"shard"}, "Number of time buckets in the dogstatsd sampler")
 	tlmDogstatsdContexts = telemetry.NewGauge("aggregator", "dogstatsd_contexts",
-		nil, "Count the number of dogstatsd contexts in the aggregator")
+		[]string{"shard"}, "Count the number of dogstatsd contexts in the aggregator")
 	tlmDogstatsdContextsByMtype = telemetry.NewGauge("aggregator", "dogstatsd_contexts_by_mtype",
-		[]string{"metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
+		[]string{"shard", "metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
 
 	// Hold series to be added to aggregated series on each flush
 	recurrentSeries     metrics.Series
@@ -388,7 +393,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 	defer agg.mu.Unlock()
 
 	aggregatorChecksMetricSample.Add(1)
-	tlmProcessed.Inc("metrics")
+	tlmProcessed.Inc("", "metrics")
 
 	if checkSampler, ok := agg.checkSamplers[ss.id]; ok {
 		if ss.commit {
@@ -407,7 +412,7 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 	defer agg.mu.Unlock()
 
 	aggregatorCheckHistogramBucketMetricSample.Add(1)
-	tlmProcessed.Inc("histogram_bucket")
+	tlmProcessed.Inc("", "histogram_bucket")
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
 		checkBucket.bucket.Tags = util.SortUniqInPlace(checkBucket.bucket.Tags)
@@ -421,7 +426,7 @@ func (agg *BufferedAggregator) handleEventPlatformEvent(event senderEventPlatfor
 	if agg.eventPlatformForwarder == nil {
 		return errors.New("event platform forwarder not initialized")
 	}
-	m := &message.Message{Content: event.rawEvent}
+	m := message.NewMessage(event.rawEvent, nil, "", 0)
 	// eventPlatformForwarder is threadsafe so no locking needed here
 	return agg.eventPlatformForwarder.SendEventPlatformEvent(m, event.eventType)
 }
@@ -725,21 +730,21 @@ func (agg *BufferedAggregator) run() {
 			checkItem.handle(agg)
 		case event := <-agg.eventIn:
 			aggregatorEvent.Add(1)
-			tlmProcessed.Inc("events")
+			tlmProcessed.Inc("", "events")
 			agg.addEvent(event)
 		case serviceCheck := <-agg.serviceCheckIn:
 			aggregatorServiceCheck.Add(1)
-			tlmProcessed.Inc("service_checks")
+			tlmProcessed.Inc("", "service_checks")
 			agg.addServiceCheck(serviceCheck)
 		case serviceChecks := <-agg.bufferedServiceCheckIn:
 			aggregatorServiceCheck.Add(int64(len(serviceChecks)))
-			tlmProcessed.Add(float64(len(serviceChecks)), "service_checks")
+			tlmProcessed.Add(float64(len(serviceChecks)), "", "service_checks")
 			for _, serviceCheck := range serviceChecks {
 				agg.addServiceCheck(*serviceCheck)
 			}
 		case events := <-agg.bufferedEventIn:
 			aggregatorEvent.Add(int64(len(events)))
-			tlmProcessed.Add(float64(len(events)), "events")
+			tlmProcessed.Add(float64(len(events)), "", "events")
 			for _, event := range events {
 				agg.addEvent(*event)
 			}
@@ -765,7 +770,7 @@ func (agg *BufferedAggregator) run() {
 			agg.addOrchestratorManifest(&orchestratorManifest)
 		case event := <-agg.eventPlatformIn:
 			state := stateOk
-			tlmProcessed.Add(1, event.eventType)
+			tlmProcessed.Inc("", event.eventType)
 			aggregatorEventPlatformEvents.Add(event.eventType, 1)
 			err := agg.handleEventPlatformEvent(event)
 			if err != nil {

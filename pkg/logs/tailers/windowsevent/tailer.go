@@ -15,13 +15,16 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/cenkalti/backoff"
+	"github.com/clbanning/mxj"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
-	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/windowsevent"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -46,6 +49,46 @@ const (
 type Config struct {
 	ChannelPath string
 	Query       string
+	// See LogsConfig.ShouldProcessRawMessage() comment.
+	ProcessRawMessage bool
+}
+
+// eventContext links go and c
+type eventContext struct {
+	id int
+}
+
+// WindowsEventMessage is used by the tailer to store the structured log information.
+// The message from the log is in the "message" key.
+type WindowsEventMessage struct { //nolint:revive
+	data mxj.Map
+}
+
+// Render renders the structured log information into JSON, for further encoding before
+// being sent to the intake.
+func (m *WindowsEventMessage) Render() ([]byte, error) {
+	data, err := m.data.Json(false)
+	if err != nil {
+		return nil, err
+	}
+	log.Trace("Rendered JSON in structured message:", string(data))
+	return replaceTextKeyToValue(data), nil
+}
+
+// GetContent returns the content part of the structured log.
+func (m *WindowsEventMessage) GetContent() []byte {
+	if message, exists := m.data["message"]; exists {
+		return []byte(message.(string))
+	}
+	log.Error("WindowsEventMessage not containing any message")
+	return []byte{}
+}
+
+// SetContent sets the content part of the structured log.
+func (m *WindowsEventMessage) SetContent(content []byte) {
+	// we want to store it typed as a string for the json
+	// marshaling to properly marshal it as a string.
+	_ = m.data.SetValueForPath(string(content), "message")
 }
 
 // richEvent carries rendered information to create a richer log
@@ -79,11 +122,19 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 		evtapi = winevtapi.New()
 	}
 
+	if len(source.Config.ProcessingRules) > 0 && config.ProcessRawMessage {
+		log.Warn("Log processing rules with the Windows Events collection will change in a future version of the Agent:")
+		log.Warn("The processing will soon apply on the message content only instead of on the structured log (e.g. on the internal JSON).")
+		log.Warn("In order to immediately switch to this new behaviour, set 'process_raw_message' to 'false' in your logs integration config.")
+		log.Warn("Please reach Datadog support if you have more questions.")
+		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, 1, []string{"tailer:windowsevent"})
+	}
+
 	return &Tailer{
 		evtapi:     evtapi,
 		source:     source,
 		config:     config,
-		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), windowsevent.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
+		decoder:    decoder.NewDecoderWithFraming(sources.NewReplaceableSource(source), noop.New(), framer.NoFraming, nil, status.NewInfoRegistry()),
 		outputChan: outputChan,
 	}
 }
@@ -99,11 +150,7 @@ func (t *Tailer) Identifier() string {
 }
 
 func (t *Tailer) toMessage(re *richEvent) (*message.Message, error) {
-	jsonEvent, err := eventToJSON(re)
-	if err != nil {
-		return &message.Message{}, err
-	}
-	return message.NewMessageWithSource([]byte(jsonEvent), message.StatusInfo, t.source, time.Now().UnixNano()), nil
+	return eventToMessage(re, t.source, t.config.ProcessRawMessage)
 }
 
 // Start starts tailing the event log.
@@ -130,7 +177,7 @@ func (t *Tailer) Stop() {
 
 func (t *Tailer) forwardMessages() {
 	for decodedMessage := range t.decoder.OutputChan {
-		if len(decodedMessage.Content) > 0 {
+		if len(decodedMessage.GetContent()) > 0 {
 			t.outputChan <- decodedMessage
 		}
 	}
@@ -283,7 +330,7 @@ func (t *Tailer) handleEvent(eventRecordHandle evtapi.EventRecordHandle) {
 		log.Warnf("Failed to render bookmark: %v for event %s", err, richEvt.xmlEvent)
 	}
 
-	t.source.RecordBytes(int64(len(msg.Content)))
+	t.source.RecordBytes(int64(len(msg.GetContent())))
 	t.decoder.InputChan <- msg
 }
 

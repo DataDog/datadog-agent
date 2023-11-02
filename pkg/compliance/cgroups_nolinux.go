@@ -7,10 +7,10 @@
 
 package compliance
 
-func getProcessContainerID(pid int32) (string, bool) {
+func getProcessContainerID(pid int32) (string, bool) { //nolint:revive // TODO fix revive unused-parameter
 	return "", false
 }
 
-func getProcessRootPath(pid int32) (string, bool) {
+func getProcessRootPath(pid int32) (string, bool) { //nolint:revive // TODO fix revive unused-parameter
 	return "", false
 }

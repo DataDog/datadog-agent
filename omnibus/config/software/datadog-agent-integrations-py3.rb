@@ -45,38 +45,41 @@ excluded_packages = Array.new
 excluded_packages.push(/^snowflake-connector-python==/)
 excluded_packages.push(/^confluent-kafka==/)
 
-if suse?
+if suse_target?
   # Temporarily exclude Aerospike until builder supports new dependency
   excluded_packages.push(/^aerospike==/)
   excluded_folders.push('aerospike')
 end
 
-if osx?
+if osx_target?
   # Temporarily exclude Aerospike until builder supports new dependency
   excluded_packages.push(/^aerospike==/)
   excluded_folders.push('aerospike')
   excluded_folders.push('teradata')
 end
 
-if arm?
+if arm_target?
   # This doesn't build on ARM
   excluded_folders.push('ibm_ace')
   excluded_folders.push('ibm_mq')
   excluded_packages.push(/^pymqi==/)
 end
 
-if redhat? && !arm?
+# We explicitly check for redhat builder, not target
+# Our centos/redhat builder uses glibc 2.12 while pydantic
+# requires glibc 2.17
+if redhat? && !arm_target?
   excluded_packages.push(/^pydantic-core==/)
 end
 
 # _64_bit checks the kernel arch.  On windows, the builder is 64 bit
 # even when doing a 32 bit build.  Do a specific check for the 32 bit
 # build
-if arm? || !_64_bit? || (windows? && windows_arch_i386?)
+if arm_target? || !_64_bit? || (windows_target? && windows_arch_i386?)
   excluded_packages.push(/^orjson==/)
 end
 
-if linux?
+if linux_target?
   excluded_packages.push(/^oracledb==/)
 end
 
@@ -90,7 +93,7 @@ build do
   license_file "./LICENSE"
 
   # The dir for confs
-  if osx?
+  if osx_target?
     conf_dir = "#{install_dir}/etc/conf.d"
   else
     conf_dir = "#{install_dir}/etc/datadog-agent/conf.d"
@@ -98,7 +101,7 @@ build do
   mkdir conf_dir
 
   # aliases for pip
-  if windows?
+  if windows_target?
     python = "#{windows_safe_path(python_3_embedded)}\\python.exe"
   else
     python = "#{install_dir}/embedded/bin/python3"
@@ -112,7 +115,7 @@ build do
 
   # Install the checks along with their dependencies
   block do
-    if windows?
+    if windows_target?
       wheel_build_dir = "#{windows_safe_path(project_dir)}\\.wheels"
       build_deps_dir = "#{windows_safe_path(project_dir)}\\.build_deps"
     else
@@ -154,12 +157,12 @@ build do
     # don't have precompiled MacOS wheels. When building C extensions, the CFLAGS variable is added to
     # the command-line parameters, even when compiling C++ code, where -std=c99 is invalid.
     # See: https://github.com/python/cpython/blob/v3.8.8/Lib/distutils/sysconfig.py#L227
-    if linux? || windows?
+    if linux_target? || windows_target?
       nix_build_env["CFLAGS"] += " -std=c99"
     end
 
     # We only have gcc 10.4.0 on linux for now
-    if linux?
+    if linux_target?
       nix_build_env["CC"] = "/opt/gcc-#{gcc_version}/bin/gcc"
       nix_build_env["CXX"] = "/opt/gcc-#{gcc_version}/bin/g++"
     end
@@ -167,13 +170,15 @@ build do
     # Some libraries (looking at you, aerospike-client-python) need EXT_CFLAGS instead of CFLAGS.
     nix_specific_build_env = {
       "aerospike" => nix_build_env.merge({"EXT_CFLAGS" => nix_build_env["CFLAGS"] + " -std=gnu99"}),
+      # Always build pyodbc from source to link to the embedded version of libodbc
+      "pyodbc" => nix_build_env.merge({"PIP_NO_BINARY" => "pyodbc"}),
     }
 
     win_specific_build_env = {}
 
     # We need to explicitly specify RUSTFLAGS for libssl and libcrypto
     # See https://github.com/pyca/cryptography/issues/8614#issuecomment-1489366475
-    if redhat? && !arm?
+    if redhat_target? && !arm_target?
         nix_specific_build_env["cryptography"] = nix_build_env.merge(
             {
                 "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
@@ -192,7 +197,7 @@ build do
     # We don't use the .in file provided by the base check directly because we
     # want to filter out things before installing.
     #
-    if windows?
+    if windows_target?
       static_reqs_in_file = "#{windows_safe_path(project_dir)}\\datadog_checks_base\\datadog_checks\\base\\data\\#{agent_requirements_in}"
       static_reqs_out_folder = "#{windows_safe_path(project_dir)}\\"
       static_reqs_out_file = static_reqs_out_folder + filtered_agent_requirements_in
@@ -210,13 +215,13 @@ build do
     # Creating a hash containing the requirements and requirements file path associated to every lib
     requirements_custom = Hash.new()
 
-    specific_build_env = windows? ? win_specific_build_env : nix_specific_build_env
-    build_env = windows? ? win_build_env : nix_build_env
-    cwd_base = windows? ? "#{windows_safe_path(project_dir)}\\datadog_checks_base" : "#{project_dir}/datadog_checks_base"
-    cwd_downloader = windows? ? "#{windows_safe_path(project_dir)}\\datadog_checks_downloader" : "#{project_dir}/datadog_checks_downloader"
+    specific_build_env = windows_target? ? win_specific_build_env : nix_specific_build_env
+    build_env = windows_target? ? win_build_env : nix_build_env
+    cwd_base = windows_target? ? "#{windows_safe_path(project_dir)}\\datadog_checks_base" : "#{project_dir}/datadog_checks_base"
+    cwd_downloader = windows_target? ? "#{windows_safe_path(project_dir)}\\datadog_checks_downloader" : "#{project_dir}/datadog_checks_downloader"
 
     specific_build_env.each do |lib, env|
-      lib_compiled_req_file_path = (windows? ? "#{windows_safe_path(install_dir)}\\" : "#{install_dir}/") + "agent_#{lib}_requirements-py3.txt"
+      lib_compiled_req_file_path = (windows_target? ? "#{windows_safe_path(install_dir)}\\" : "#{install_dir}/") + "agent_#{lib}_requirements-py3.txt"
       requirements_custom[lib] = {
         "req_lines" => Array.new,
         "req_file_path" => static_reqs_out_folder + lib + "-py3.in",
@@ -228,7 +233,7 @@ build do
       next if excluded_packages.any? { |package_regex| line.match(package_regex) }
 
       # on non windows OS, we use the c version of the psycopg installation
-      if line.start_with?('psycopg[binary]') && !windows?
+      if line.start_with?('psycopg[binary]') && !windows_target?
         line.sub! 'psycopg[binary]', 'psycopg[c]'
       end
       # Keeping the custom env requirements lines apart to install them with a specific env
@@ -300,7 +305,7 @@ build do
     # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
     command "#{python} -m pip freeze > #{install_dir}/#{final_constraints_file}"
 
-    if windows?
+    if windows_target?
         cached_wheels_dir = "#{windows_safe_path(wheel_build_dir)}\\.cached"
     else
         cached_wheels_dir = "#{wheel_build_dir}/.cached"
@@ -350,7 +355,7 @@ build do
     cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
     cache_branch = `cd .. && inv release.get-release-json-value base_branch`.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-    awscli = if windows? then '"c:\Program files\python39\scripts\aws"' else 'aws' end
+    awscli = if windows_target? then '"c:\Program files\python39\scripts\aws"' else 'aws' end
     if cache_bucket != ''
       mkdir cached_wheels_dir
       command "inv -e agent.get-integrations-from-cache " \
@@ -363,7 +368,7 @@ build do
         :cwd => tasks_dir_in
 
       # install all wheels from cache in one pip invocation to speed things up
-      if windows?
+      if windows_target?
         command "#{python} -m pip install --no-deps --no-index " \
           " --find-links #{windows_safe_path(cached_wheels_dir)} -r #{windows_safe_path(cached_wheels_dir)}\\found.txt"
       else
@@ -444,7 +449,7 @@ build do
           next
         end
 
-        if windows?
+        if windows_target?
           command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
         else
           command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
@@ -473,7 +478,7 @@ build do
       # from the last block
 
       # Patch applies to only one file: set it explicitly as a target, no need for -p
-      if windows?
+      if windows_target?
         patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_3_embedded}/Lib/site-packages/psutil/__init__.py"
       else
         patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.9/site-packages/psutil/__init__.py"
@@ -485,7 +490,7 @@ build do
 
     block do
       # Removing tests that don't need to be shipped in the embedded folder
-      if windows?
+      if windows_target?
         delete "#{python_3_embedded}/Lib/site-packages/Cryptodome/SelfTest/"
       else
         delete "#{install_dir}/embedded/lib/python3.9/site-packages/Cryptodome/SelfTest/"

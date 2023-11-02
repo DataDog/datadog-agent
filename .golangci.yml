@@ -85,16 +85,23 @@ linters:
 
 linters-settings:
   depguard:
-    include-go-root: true
-    packages-with-error-message:
-      - sync/atomic: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
-      - io/ioutil: "Deprecated since Go 1.16. Use package io or os instead."
-      - github.com/golang/glog: "Crashes Windows nanoserver and significantly delays Agent startup on Windows Domain Controllers."
-      # IDE auto-imports often import `gotest.tools/assert` instead of `testify/assert` by default
-      # feel free to remove the following line if you really need it in several files as opposed to testify/assert
-      # note that if it's just for a single file, you can just add `//nolint:depguard` before the import
-      # the goal is just to limit the risk of accidental imports
-      - gotest.tools/assert: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert"
+    rules:
+      main:
+        files:
+          - $all
+        deny:
+          - pkg: "sync/atomic"
+            desc: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
+          - pkg: "io/ioutil"
+            desc: "Deprecated since Go 1.16. Use package io or os instead."
+          - pkg: "github.com/golang/glog"
+            desc: "Crashes Windows nanoserver and significantly delays Agent startup on Windows Domain Controllers."
+            # IDE auto-imports often import `gotest.tools/assert` instead of `testify/assert` by default
+            # feel free to remove the following line if you really need it in several files as opposed to testify/assert
+            # note that if it's just for a single file, you can just add `//nolint:depguard` before the import
+            # the goal is just to limit the risk of accidental imports
+          - pkg: "gotest.tools/assert"
+            desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert"
 
   errcheck:
     # Disable warnings for `fmt`, `log` and `seelog` packages. Also ignore `Write` functions from `net/http` package.
@@ -119,3 +126,37 @@ linters-settings:
           - github.com/DataDog/datadog-agent/pkg/util/log.Printf
           - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
           - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+  revive:
+    # in order to change revive config, the default configuration must be explicitly defined
+    # https://github.com/mgechev/revive/blob/master/defaults.toml
+    ignoreGeneratedHeader: false
+    severity: "warning"
+    confidence: 0.8
+    errorCode: 0
+    warningCode: 0
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: empty-block
+      - name: error-naming
+      - name: error-return
+      - name: error-strings
+      - name: errorf
+      - name: exported
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: redefines-builtin-id
+      - name: superfluous-else
+      - name: time-naming
+      - name: unexported-return
+      - name: unreachable-code
+      - name: unused-parameter
+      - name: var-declaration
+      - name: var-naming
+      # non-default rules:
+      - name: duplicated-imports

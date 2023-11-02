@@ -13,8 +13,6 @@ updates:
       # They are ignored since bumping them would have no effect on the build.
       # To update them automatically, it is necessary to remove the `replace` directive.
       - dependency-name: k8s.io/*
-      - dependency-name: github.com/grpc-ecosystem/grpc-gateway
-      - dependency-name: google.golang.org/grpc
       - dependency-name: github.com/cihub/seelog
       - dependency-name: github.com/containerd/cgroups
       - dependency-name: github.com/containerd/containerd
@@ -28,7 +26,6 @@ updates:
       - dependency-name: github.com/prometheus/client_golang
       - dependency-name: github.com/spf13/cast
       - dependency-name: github.com/ugorji/go
-      - dependency-name: github.com/DataDog/nikos
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
     schedule:
@@ -124,6 +121,37 @@ updates:
     ignore:
       # Ignore internal modules
       - dependency-name: github.com/DataDog/datadog-agent/*
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 100
+  - package-ecosystem: gomod
+    directory: /test/new-e2e
+    labels:
+      - dependencies
+      - dependencies-go
+      - team/agent-e2e-test
+      - changelog/no-changelog
+      - qa/skip-qa
+      - dev/testing
+    milestone: 22
+    ignore:
+      # Ignore test-infra-definitions because bumping the GO package inside `go.mod`
+      # requires to also bump `TEST_INFRA_DEFINITIONS_BUILDIMAGES` inside `.gitlab-ci.yml`
+      # and dependabot isn’t able to keep those two synchronized.
+      - dependency-name: github.com/DataDog/test-infra-definitions
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 100
+  - package-ecosystem: gomod
+    directory: /test/fakeintake
+    labels:
+      - dependencies
+      - dependencies-go
+      - team/agent-e2e-test
+      - changelog/no-changelog
+      - qa/skip-qa
+      - dev/testing
+    milestone: 22
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
