@@ -22,32 +22,46 @@ type DDGUID struct {
 	Data4 [8]uint8
 }
 
-type DDEtwEvent struct {
-	Pad1       [12]int8
-	Pid        uint32
-	TimeStamp  uint64
-	ProviderId DDGUID
-	Id         uint16
-	Version    uint8
-	Channel    uint8
-	Level      uint8
-	Opcode     uint8
-	Task       uint16
-	Keyword    uint64
-	Pad2       [8]uint8
-	ActivityId DDGUID
+type DDEventDescriptor struct {
+	Id      uint16
+	Version uint8
+	Channel uint8
+	Level   uint8
+	Opcode  uint8
+	Task    uint16
+	Keyword uint64
 }
 
-type DDEtwEventWithUserData struct {
-	DDEtwEvent
-	Pad3           [6]uint8
-	UserDataLength uint16
-	Pad4           [8]uint8
-	UserData       *uint8
+type DDEventHeader struct {
+	Size            uint16
+	HeaderType      uint16
+	Flags           uint16
+	EventProperty   uint16
+	ThreadId        uint32
+	ProcessId       uint32
+	TimeStamp       uint64
+	ProviderId      DDGUID
+	EventDescriptor DDEventDescriptor
+	Pad             [8]uint8
+	ActivityId      DDGUID
+}
+
+type DDETWBufferContext struct {
+	Pad      [2]uint8
+	LoggerId uint16
+}
+
+type DDEventRecord struct {
+	EventHeader       DDEventHeader
+	BufferContext     DDETWBufferContext
+	ExtendedDataCount uint16
+	UserDataLength    uint16
+	Pad               [8]uint8
+	UserData          *uint8
 }
 
 // EventCallback is a function that will be called when an ETW event is received
-type EventCallback func(e *DDEtwEvent)
+type EventCallback func(e *DDEventRecord)
 
 // TraceLevel A value that indicates the maximum level of events that you want the provider to write.
 // The provider typically writes an event if the event's level is less than or equal to this value,

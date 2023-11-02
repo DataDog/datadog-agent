@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 	"github.com/Microsoft/go-winio"
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
@@ -89,7 +90,9 @@ type header struct {
 
 type clrEvent struct {
 	header
-	event etw.DDEtwEvent
+	EventHeader    etw.DDEventHeader
+	UserDataLength uint16
+	UserData       []byte
 }
 
 const (
@@ -173,7 +176,7 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 			a.log.Infof("Unsupported command %d", h.CommandResponse)
 		}
 		h.Size = headerSize
-		
+
 		err = binary.Write(c, binary.LittleEndian, &h)
 
 		// Client disconnected
@@ -220,9 +223,9 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 	startTracingErrorChan := make(chan error)
 	go func() {
 		// StartTracing blocks the caller
-		startTracingErr := a.session.StartTracing(func(e *etw.DDEtwEvent) {
-			a.log.Infof("received event %d for PID %d", e.Id, e.Pid)
-			pid := uint64(e.Pid)
+		startTracingErr := a.session.StartTracing(func(e *etw.DDEventRecord) {
+			a.log.Infof("received event %d for PID %d", e.EventHeader.EventDescriptor.Id, e.EventHeader.ProcessId)
+			pid := uint64(e.EventHeader.ProcessId)
 			var pidCtx pidContext
 			var ok bool
 			if pidCtx, ok = a.pids[pid]; !ok {
@@ -236,10 +239,12 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 					Magic:           a.magic,
 					CommandResponse: ClrEventResponse,
 				},
-				event: *e,
+				EventHeader:    e.EventHeader,
+				UserData:       etwutil.GoBytes(unsafe.Pointer(e.UserData), int(e.UserDataLength)),
+				UserDataLength: e.UserDataLength,
 			}
-			ev.header.Size = uint16(unsafe.Sizeof(ev))
-			writeErr := binary.Write(pidCtx.conn, binary.LittleEndian, ev)
+			ev.header.Size = uint16(unsafe.Sizeof(ev)) + e.UserDataLength
+			_, writeErr := pidCtx.conn.Write(etwutil.GoBytes(unsafe.Pointer(&ev), int(ev.header.Size)))
 			if writeErr != nil {
 				a.log.Warnf("could not write ETW event for PID %d, %v", pid, writeErr)
 			}
