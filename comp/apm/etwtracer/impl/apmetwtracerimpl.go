@@ -54,7 +54,7 @@ func newApmEtwTracerImpl(deps dependencies) (apmetwtracer.Component, error) {
 
 	apmEtwTracer := &apmetwtracerimpl{
 		pids:                      make(pidMap),
-		dotNetRuntimeProviderGuid: guid,
+		dotNetRuntimeProviderGUID: guid,
 		log:                       deps.Log,
 		etw:                       deps.Etw,
 		stopGarbageCollector:      make(chan struct{}),
@@ -71,7 +71,7 @@ func newApmEtwTracerImpl(deps dependencies) (apmetwtracer.Component, error) {
 
 type apmetwtracerimpl struct {
 	session                   etw.Session
-	dotNetRuntimeProviderGuid windows.GUID
+	dotNetRuntimeProviderGUID windows.GUID
 
 	pids pidMap
 
@@ -114,7 +114,9 @@ type win32MessageBytePipe interface {
 func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 	// calls https://github.com/microsoft/go-winio/blob/e6aebd619a7278545b11188a0e21babea6b94182/pipe.go#L147
 	// which closes a pipe in message-mode
-	defer c.(win32MessageBytePipe).CloseWrite()
+	defer func(pipe win32MessageBytePipe) {
+		_ = pipe.CloseWrite()
+	}(c.(win32MessageBytePipe))
 
 	a.log.Debugf("client connected [%s]", c.RemoteAddr().Network())
 	for {
@@ -161,7 +163,6 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 			} else {
 				h.CommandResponse = OkResponse
 			}
-			break
 		case UnregisterCommand:
 			a.log.Infof("Unregistering process with ID %d", pid)
 			err = a.RemovePID(pid)
@@ -171,7 +172,6 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 			} else {
 				h.CommandResponse = OkResponse
 			}
-			break
 		default:
 			a.log.Infof("Unsupported command %d", h.CommandResponse)
 		}
@@ -224,8 +224,8 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 	go func() {
 		// StartTracing blocks the caller
 		startTracingErr := a.session.StartTracing(func(e *etw.DDEventRecord) {
-			a.log.Infof("received event %d for PID %d", e.EventHeader.EventDescriptor.Id, e.EventHeader.ProcessId)
-			pid := uint64(e.EventHeader.ProcessId)
+			a.log.Infof("received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
+			pid := uint64(e.EventHeader.ProcessID)
 			var pidCtx pidContext
 			var ok bool
 			if pidCtx, ok = a.pids[pid]; !ok {
@@ -249,7 +249,7 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 				a.log.Warnf("could not write ETW event for PID %d, %v", pid, writeErr)
 			}
 		})
-		// This error will be returned to the caller if it happens withing 100ms
+		// This error will be returned to the caller if it happens within 100ms
 		// otherwise we assume StartTracing worked and whatever error message is
 		// returned here will be lost.
 		// That's ok because StartTracing should only return when StopTracing is called
@@ -271,8 +271,11 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 					if now.Sub(pidCtx.lastSeen) > time.Minute {
 						// No events received for more than 1 minute,
 						// remove this PID
-						a.log.Infof("removing PID %d for being idle for > 1 minute", pid)
-						a.RemovePID(pid)
+						a.log.Infof("Removing PID %d for being idle for > 1 minute", pid)
+						removeErr := a.RemovePID(pid)
+						if removeErr != nil {
+							a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v", pid, removeErr)
+						}
 					}
 				}
 			}
@@ -309,7 +312,7 @@ func (a *apmetwtracerimpl) AddPID(pid uint64) error {
 	}
 	a.reconfigureProvider()
 	if len(a.pids) > 0 {
-		return a.session.EnableProvider(a.dotNetRuntimeProviderGuid)
+		return a.session.EnableProvider(a.dotNetRuntimeProviderGUID)
 	}
 	return nil
 }
@@ -324,13 +327,13 @@ func (a *apmetwtracerimpl) RemovePID(pid uint64) error {
 	delete(a.pids, pid)
 	a.reconfigureProvider()
 	if len(a.pids) <= 0 {
-		return a.session.DisableProvider(a.dotNetRuntimeProviderGuid)
+		return a.session.DisableProvider(a.dotNetRuntimeProviderGUID)
 	}
 	return nil
 }
 
 func (a *apmetwtracerimpl) reconfigureProvider() {
-	a.session.ConfigureProvider(a.dotNetRuntimeProviderGuid, func(cfg *etw.ProviderConfiguration) {
+	a.session.ConfigureProvider(a.dotNetRuntimeProviderGUID, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
 		cfg.MatchAnyKeyword = 0x40004001
 		pidsList := make([]uint64, 0, len(a.pids))

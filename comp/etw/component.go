@@ -15,6 +15,7 @@ import (
 
 // team: windows-agent
 
+// DDGUID represents a GUID
 type DDGUID struct {
 	Data1 uint32
 	Data2 uint16
@@ -22,8 +23,10 @@ type DDGUID struct {
 	Data4 [8]uint8
 }
 
+// DDEventDescriptor contains information (metadata) about an ETW event.
+// see https://learn.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_descriptor
 type DDEventDescriptor struct {
-	Id      uint16
+	ID      uint16
 	Version uint8
 	Channel uint8
 	Level   uint8
@@ -32,32 +35,30 @@ type DDEventDescriptor struct {
 	Keyword uint64
 }
 
+// DDEventHeader defines information about an ETW event.
+// see https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_header
 type DDEventHeader struct {
 	Size            uint16
 	HeaderType      uint16
 	Flags           uint16
 	EventProperty   uint16
-	ThreadId        uint32
-	ProcessId       uint32
+	ThreadID        uint32
+	ProcessID       uint32
 	TimeStamp       uint64
-	ProviderId      DDGUID
+	ProviderID      DDGUID
 	EventDescriptor DDEventDescriptor
 	Pad             [8]uint8
-	ActivityId      DDGUID
+	ActivityID      DDGUID
 }
 
-type DDETWBufferContext struct {
-	Pad      [2]uint8
-	LoggerId uint16
-}
-
+// DDEventRecord defines the layout of an event that Event Tracing for Windows (ETW) delivers.
+// see https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_record
 type DDEventRecord struct {
-	EventHeader       DDEventHeader
-	BufferContext     DDETWBufferContext
-	ExtendedDataCount uint16
-	UserDataLength    uint16
-	Pad               [8]uint8
-	UserData          *uint8
+	EventHeader    DDEventHeader
+	Pad1           [6]uint8
+	UserDataLength uint16
+	Pad2           [8]uint8
+	UserData       *uint8
 }
 
 // EventCallback is a function that will be called when an ETW event is received
@@ -69,7 +70,7 @@ type EventCallback func(e *DDEventRecord)
 // See https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-enabletraceex2
 type TraceLevel uint8
 
-//nolint:golint,stylecheck // Keep the Microsoft naming-style
+//revive:disable:var-naming Keep the Microsoft naming-style
 const (
 	TRACE_LEVEL_CRITICAL    = TraceLevel(1)
 	TRACE_LEVEL_ERROR       = TraceLevel(2)
@@ -78,6 +79,9 @@ const (
 	TRACE_LEVEL_VERBOSE     = TraceLevel(5)
 )
 
+//revive:enable:var-naming
+
+// ProviderConfiguration is a structure containing all the configuration options for an ETW provider
 type ProviderConfiguration struct {
 	// TraceLevel is a value that indicates the maximum level of events that you want the provider to write.
 	// The provider typically writes an event if the event's level is less than or equal to this value.
@@ -97,6 +101,7 @@ type ProviderConfiguration struct {
 	PIDs []uint64
 }
 
+// ProviderConfigurationFunc is a function used to configure a provider
 type ProviderConfigurationFunc func(cfg *ProviderConfiguration)
 
 // Session represents an ETW session. A session can have multiple tracing providers enabled.

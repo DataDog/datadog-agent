@@ -7,7 +7,6 @@
 
 package etwimpl
 
-import "C"
 import (
 	"errors"
 	"fmt"
@@ -117,10 +116,10 @@ func (e *etwSession) StartTracing(callback etw.EventCallback) error {
 }
 
 func (e *etwSession) StopTracing() error {
-	var globalError error = nil
+	var globalError error
 	for guid, _ := range e.providers {
 		// nil errors are discarded
-		errors.Join(globalError, e.DisableProvider(guid))
+		globalError = errors.Join(globalError, e.DisableProvider(guid))
 	}
 
 	ret := windows.Errno(C.ControlTraceW(
@@ -135,9 +134,9 @@ func (e *etwSession) StopTracing() error {
 	return globalError
 }
 
-// DeleteEtwSession deletes an ETW session by name, typically after a crash since we don't have access to the session
+// deleteEtwSession deletes an ETW session by name, typically after a crash since we don't have access to the session
 // handle anymore.
-func DeleteEtwSession(name string) error {
+func deleteEtwSession(name string) error {
 	utf16SessionName, err := windows.UTF16FromString(name)
 	if err != nil {
 		return fmt.Errorf("incorrect session name; %w", err)
@@ -159,13 +158,12 @@ func DeleteEtwSession(name string) error {
 	if ret == windows.ERROR_MORE_DATA ||
 		ret == windows.ERROR_SUCCESS {
 		return nil
-	} else {
-		return ret
 	}
+	return ret
 }
 
-func CreateEtwSession(name string) (*etwSession, error) {
-	DeleteEtwSession(name)
+func createEtwSession(name string) (*etwSession, error) {
+	_ = deleteEtwSession(name)
 
 	utf16SessionName, err := windows.UTF16FromString(name)
 	s := &etwSession{

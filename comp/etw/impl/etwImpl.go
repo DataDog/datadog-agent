@@ -27,7 +27,7 @@ type etwImpl struct {
 }
 
 func (s *etwImpl) NewSession(sessionName string) (etw.Session, error) {
-	session, err := CreateEtwSession(sessionName)
+	session, err := createEtwSession(sessionName)
 	if err != nil {
 		return nil, err
 	}
