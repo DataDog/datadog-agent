@@ -22,19 +22,23 @@ type DDGUID struct {
 }
 
 type DDEtwEvent struct {
-	Pad1           [12]int8
-	Pid            uint32
-	TimeStamp      uint64
-	ProviderId     DDGUID
-	Id             uint16
-	Version        uint8
-	Channel        uint8
-	Level          uint8
-	Opcode         uint8
-	Task           uint16
-	Keyword        uint64
-	Pad2           [8]uint8
-	ActivityId     DDGUID
+	Pad1       [12]int8
+	Pid        uint32
+	TimeStamp  uint64
+	ProviderId DDGUID
+	Id         uint16
+	Version    uint8
+	Channel    uint8
+	Level      uint8
+	Opcode     uint8
+	Task       uint16
+	Keyword    uint64
+	Pad2       [8]uint8
+	ActivityId DDGUID
+}
+
+type DDEtwEventWithUserData struct {
+	DDEtwEvent
 	Pad3           [6]uint8
 	UserDataLength uint16
 	Pad4           [8]uint8

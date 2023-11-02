@@ -9,7 +9,6 @@ package etwimpl
 
 import "C"
 import (
-	"context"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
@@ -20,19 +19,11 @@ var Module = fxutil.Component(
 	fx.Provide(newEtw),
 )
 
-type dependencies struct {
-	fx.In
-	Lc fx.Lifecycle
-}
-
-func newEtw(deps dependencies) (etw.Component, error) {
-	etw := &etwImpl{}
-	deps.Lc.Append(fx.Hook{OnStart: etw.start, OnStop: etw.stop})
-	return etw, nil
+func newEtw() (etw.Component, error) {
+	return &etwImpl{}, nil
 }
 
 type etwImpl struct {
-	sessions []*etwSession
 }
 
 func (s *etwImpl) NewSession(sessionName string) (etw.Session, error) {
@@ -40,19 +31,5 @@ func (s *etwImpl) NewSession(sessionName string) (etw.Session, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.sessions = append(s.sessions, session)
 	return session, nil
-}
-
-func (s *etwImpl) start(_ context.Context) error {
-	// Nothing to do
-	return nil
-}
-
-func (s *etwImpl) stop(_ context.Context) error {
-	for _, session := range s.sessions {
-		session.StopTracing()
-		DeleteEtwSession(session.Name)
-	}
-	return nil
 }

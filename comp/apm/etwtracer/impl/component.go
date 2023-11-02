@@ -11,6 +11,7 @@ package apmetwtracerimpl
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/apm/etwtracer"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -22,6 +23,7 @@ import (
 	"io"
 	"net"
 	"time"
+	"unsafe"
 )
 
 // Module defines the fx options for this component.
@@ -36,15 +38,30 @@ type dependencies struct {
 	Etw etw.Component
 }
 
+// pidContext wraps a named-pipe connection and a last-seen
+// timestamp for a given PID.
+type pidContext struct {
+	conn     net.Conn
+	lastSeen time.Time
+}
+
+type pidMap = map[uint64]pidContext
+
 func newApmEtwTracerImpl(deps dependencies) (apmetwtracer.Component, error) {
 	// Microsoft-Windows-DotNETRuntime
 	guid, _ := windows.GUIDFromString("{E13C0D23-CCBC-4E12-931B-D9CC2EEE27E4}")
 
 	apmEtwTracer := &apmetwtracerimpl{
-		pids:                      make(map[uint64]struct{}),
+		pids:                      make(pidMap),
 		dotNetRuntimeProviderGuid: guid,
 		log:                       deps.Log,
 		etw:                       deps.Etw,
+		stopGarbageCollector:      make(chan struct{}),
+	}
+
+	// Cache the magic header
+	for idx := range magicHeaderString {
+		apmEtwTracer.magic[idx] = magicHeaderString[idx]
 	}
 
 	deps.Lc.Append(fx.Hook{OnStart: apmEtwTracer.start, OnStop: apmEtwTracer.stop})
@@ -55,13 +72,13 @@ type apmetwtracerimpl struct {
 	session                   etw.Session
 	dotNetRuntimeProviderGuid windows.GUID
 
-	// PIDs contains the list of PIDs we are interested in
-	// We use a map it's more appropriate for frequent add / remove and because struct{} occupies 0 bytes
-	pids map[uint64]struct{}
+	pids pidMap
 
-	pipeListener net.Listener
-	log          log.Component
-	etw          etw.Component
+	pipeListener         net.Listener
+	log                  log.Component
+	etw                  etw.Component
+	magic                [14]byte
+	stopGarbageCollector chan struct{}
 }
 
 type header struct {
@@ -70,18 +87,32 @@ type header struct {
 	CommandResponse uint8
 }
 
+type clrEvent struct {
+	header
+	event etw.DDEtwEvent
+}
+
 const (
-	namedPipePath = "\\\\.\\pipe\\DD_ETW_DISPATCHER"
-	bufSize       = 25
-	Register      = 1
-	Unregister    = 2
-	ClrEvent      = 16
+	magicHeaderString   = "DD_ETW_IPC_V1"
+	serverNamedPipePath = "\\\\.\\pipe\\DD_ETW_DISPATCHER"
+	clientNamedPipePath = "\\\\.\\pipe\\DD_ETW_CLIENT_%d"
+	headerSize          = 17
+	OkResponse          = 0
+	Register            = 1
+	Unregister          = 2
+	ClrEvent            = 16
 )
 
-func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
-	defer c.Close()
+type win32MessageBytePipe interface {
+	CloseWrite() error
+}
 
-	a.log.Debugf("client connected [%s]\n", c.RemoteAddr().Network())
+func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
+	// calls https://github.com/microsoft/go-winio/blob/e6aebd619a7278545b11188a0e21babea6b94182/pipe.go#L147
+	// which closes a pipe in message-mode
+	defer c.(win32MessageBytePipe).CloseWrite()
+
+	a.log.Debugf("client connected [%s]", c.RemoteAddr().Network())
 	for {
 		h := header{}
 		err := binary.Read(c, binary.LittleEndian, &h)
@@ -92,13 +123,13 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		}
 
 		if err != nil {
-			a.log.Errorf("Read error: %v\n", err)
+			a.log.Errorf("Read error: %v", err)
 			return
 		}
 
 		magicStr := string(h.Magic[:13]) // Don't count last byte
-		if magicStr != "DD_ETW_IPC_V1" {
-			a.log.Errorf("Invalid header: %s\n", magicStr)
+		if magicStr != magicHeaderString {
+			a.log.Errorf("Invalid header: %s", magicStr)
 			return
 		}
 
@@ -112,31 +143,31 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		}
 
 		if err != nil {
-			a.log.Errorf("Read error: %v\n", err)
+			a.log.Errorf("Read error: %v", err)
 			return
 		}
 
 		switch h.CommandResponse {
 		case Register:
-			a.log.Infof("Registering process with ID %d\n", pid)
+			a.log.Infof("Registering process with ID %d", pid)
 			err = a.AddPID(pid)
 			if err != nil {
-				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v\n", pid, err)
+				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v", pid, err)
 				return
 			}
 			break
 		case Unregister:
-			a.log.Infof("Unregistering process with ID %d\n", pid)
+			a.log.Infof("Unregistering process with ID %d", pid)
 			err = a.RemovePID(pid)
 			if err != nil {
-				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v\n", pid, err)
+				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v", pid, err)
 				return
 			}
 			break
 		}
 
-		h.CommandResponse = 0 // ok
-		h.Size = 17           // header = 17
+		h.CommandResponse = OkResponse
+		h.Size = headerSize
 
 		err = binary.Write(c, binary.LittleEndian, &h)
 
@@ -146,7 +177,7 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		}
 
 		if err != nil {
-			a.log.Errorf("Read error: %v\n", err)
+			a.log.Errorf("Read error: %v", err)
 			return
 		}
 	}
@@ -161,9 +192,11 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 		return fmt.Errorf("failed to create the ETW session '%s': %v", etwSessionName, err)
 	}
 
-	a.pipeListener, err = winio.ListenPipe(namedPipePath, nil)
+	a.pipeListener, err = winio.ListenPipe(serverNamedPipePath, &winio.PipeConfig{
+		MessageMode: true,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to listen to named pipe '%s': %v", namedPipePath, err)
+		return fmt.Errorf("failed to listen to named pipe '%s': %v", serverNamedPipePath, err)
 	}
 	go func() {
 		for {
@@ -183,7 +216,28 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 	go func() {
 		// StartTracing blocks the caller
 		startTracingErr := a.session.StartTracing(func(e *etw.DDEtwEvent) {
-			a.log.Infof("received event %d from %v\n", e.Id, e.ProviderId)
+			a.log.Infof("received event %d for PID %d", e.Id, e.Pid)
+			pid := uint64(e.Pid)
+			var pidCtx pidContext
+			var ok bool
+			if pidCtx, ok = a.pids[pid]; !ok {
+				// We may still be receiving events a few moments
+				// after a process un-registers itself, no need to log anything here.
+				return
+			}
+			pidCtx.lastSeen = time.Now()
+			ev := clrEvent{
+				header: header{
+					Magic:           a.magic,
+					CommandResponse: ClrEvent,
+				},
+				event: *e,
+			}
+			ev.header.Size = uint16(unsafe.Sizeof(ev))
+			writeErr := binary.Write(pidCtx.conn, binary.LittleEndian, ev)
+			if writeErr != nil {
+				a.log.Warnf("could not write ETW event for PID %d, %v", pid, writeErr)
+			}
 		})
 		// This error will be returned to the caller if it happens withing 100ms
 		// otherwise we assume StartTracing worked and whatever error message is
@@ -191,6 +245,28 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 		// That's ok because StartTracing should only return when StopTracing is called
 		// at the end of the program execution.
 		startTracingErrorChan <- startTracingErr
+	}()
+
+	// Start a garbage collection goroutine to cleanup periodically processes
+	// that might have crashed without unregistering themselves.
+	go func() {
+		for {
+			select {
+			case <-a.stopGarbageCollector:
+				return
+			case <-time.After(10 * time.Second):
+				// Every 10 seconds, check if any PID has become a zombie
+				now := time.Now()
+				for pid, pidCtx := range a.pids {
+					if now.Sub(pidCtx.lastSeen) > time.Minute {
+						// No events received for more than 1 minute,
+						// remove this PID
+						a.log.Infof("removing PID %d for being idle for > 1 minute", pid)
+						a.RemovePID(pid)
+					}
+				}
+			}
+		}
 	}()
 
 	// Since we can only know if StartTracing failed after calling it,
@@ -206,14 +282,21 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 
 func (a *apmetwtracerimpl) stop(_ context.Context) error {
 	a.log.Infof("Stopping Datadog APM ETW tracer component")
-	// No need to stop the tracing session, it's going to be automatically cleaned up
-	// when the ETW component stops
-	a.pipeListener.Close()
-	return nil
+	a.stopGarbageCollector <- struct{}{}
+	err := a.session.StopTracing()
+	err = errors.Join(err, a.pipeListener.Close())
+	return err
 }
 
 func (a *apmetwtracerimpl) AddPID(pid uint64) error {
-	a.pids[pid] = struct{}{}
+	c, err := winio.DialPipe(fmt.Sprintf(clientNamedPipePath, pid), nil)
+	if err != nil {
+		return err
+	}
+	a.pids[pid] = pidContext{
+		conn:     c,
+		lastSeen: time.Now(),
+	}
 	a.reconfigureProvider()
 	if len(a.pids) > 0 {
 		return a.session.EnableProvider(a.dotNetRuntimeProviderGuid)
@@ -222,6 +305,12 @@ func (a *apmetwtracerimpl) AddPID(pid uint64) error {
 }
 
 func (a *apmetwtracerimpl) RemovePID(pid uint64) error {
+	var pidCtx pidContext
+	var ok bool
+	if pidCtx, ok = a.pids[pid]; !ok {
+		return fmt.Errorf("could not find PID %d in PID list", pid)
+	}
+	pidCtx.conn.Close()
 	delete(a.pids, pid)
 	a.reconfigureProvider()
 	if len(a.pids) <= 0 {
