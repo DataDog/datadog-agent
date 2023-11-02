@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -772,7 +773,7 @@ fips:
 
 	expectedHTTPURL = "https://" + expectedURL
 	testConfig = SetupConfFromYAML(datadogYamlFips)
-	testConfig.SetWithoutSource("skip_ssl_validation", false) // should be overridden by fips.tls_verify
+	testConfig.Set("skip_ssl_validation", false, model.SourceAgentRuntime) // should be overridden by fips.tls_verify
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -785,8 +786,8 @@ fips:
 	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
 	assert.Nil(t, testConfig.GetProxies())
 
-	testConfig.SetWithoutSource("skip_ssl_validation", true) // should be overridden by fips.tls_verify
-	testConfig.SetWithoutSource("fips.tls_verify", true)
+	testConfig.Set("skip_ssl_validation", true, model.SourceAgentRuntime) // should be overridden by fips.tls_verify
+	testConfig.Set("fips.tls_verify", true, model.SourceAgentRuntime)
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)

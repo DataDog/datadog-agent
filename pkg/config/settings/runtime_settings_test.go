@@ -72,7 +72,7 @@ func TestLogLevel(t *testing.T) {
 	cleanRuntimeSetting()
 	config.SetupLogger("TEST", "debug", "", "", true, true, true)
 
-	ll := LogLevelRuntimeSetting{}
+	ll := LogLevelRuntimeSetting{ConfigKey: "log_level"}
 	assert.Equal(t, "log_level", ll.Name())
 
 	err := ll.Set("off", model.SourceDefault)

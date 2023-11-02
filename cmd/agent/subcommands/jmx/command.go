@@ -230,7 +230,7 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, diagnos
 	// This prevents log-spam from "pkg/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
-	pkgconfig.Datadog.Set("language_detection.enabled", "false")
+	pkgconfig.Datadog.SetWithoutSource("language_detection.enabled", "false")
 
 	err := pkgconfig.SetupJMXLogger(cliParams.logFile, "", false, true, false)
 	if err != nil {

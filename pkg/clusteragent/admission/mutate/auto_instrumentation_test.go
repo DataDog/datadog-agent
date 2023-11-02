@@ -738,10 +738,10 @@ func TestInjectLibInitContainer(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := config.Mock(t)
 			if tt.cpu != "" {
-				conf.Set("admission_controller.auto_instrumentation.init_resources.cpu", tt.cpu)
+				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.cpu", tt.cpu)
 			}
 			if tt.mem != "" {
-				conf.Set("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
+				conf.SetWithoutSource("admission_controller.auto_instrumentation.init_resources.memory", tt.mem)
 			}
 			err := injectLibInitContainer(tt.pod, tt.image, tt.lang)
 			if (err != nil) != tt.wantErr {
