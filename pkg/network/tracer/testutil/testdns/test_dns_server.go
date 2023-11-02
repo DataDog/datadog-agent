@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package testdns contains a DNS server for use in testing
 package testdns
 
 import (
@@ -25,7 +26,7 @@ var serverOnce sync.Once
 // see server#start to see which domains are handled.
 func GetServerIP(t *testing.T) net.IP {
 	serverOnce.Do(func() {
-		globalServer, globalServerError = NewServer()
+		globalServer, globalServerError = newServer()
 		globalServer.Start("tcp")
 		globalServer.Start("udp")
 	})
@@ -36,9 +37,9 @@ func GetServerIP(t *testing.T) net.IP {
 
 type server struct{}
 
-func NewServer() (*server, error) {
+func newServer() (*server, error) {
 	// ignore errors as device might not exist from prior test run
-	exec.Command("ip", "link", "del", "dev", "dnstestdummy").Run()
+	_ = exec.Command("ip", "link", "del", "dev", "dnstestdummy").Run()
 
 	err := exec.Command("ip", "link", "add", "dnstestdummy", "type", "dummy").Run()
 	if err != nil {
@@ -77,24 +78,26 @@ func (s *server) Start(transport string) {
 				resp := &dns.Msg{}
 				resp.SetReply(msg)
 				resp.Rcode = dns.RcodeNameError
-				writer.WriteMsg(resp)
+				_ = writer.WriteMsg(resp)
 			case "missingdomain.com.":
 				resp := &dns.Msg{}
 				resp.SetReply(msg)
 				resp.Rcode = dns.RcodeNameError
-				writer.WriteMsg(resp)
+				_ = writer.WriteMsg(resp)
 			default:
 				resp := &dns.Msg{}
 				resp.SetReply(msg)
 				resp.Rcode = dns.RcodeServerFailure
-				writer.WriteMsg(resp)
+				_ = writer.WriteMsg(resp)
 			}
 		}),
 		NotifyStartedFunc: func() {
 			started <- struct{}{}
 		},
 	}
-	go srv.ListenAndServe()
+	go func() {
+		_ = srv.ListenAndServe()
+	}()
 	<-started
 }
 
@@ -107,5 +110,5 @@ func respond(req *dns.Msg, writer dns.ResponseWriter, record string) {
 		panic(err)
 	}
 	resp.Answer = []dns.RR{rr}
-	writer.WriteMsg(resp)
+	_ = writer.WriteMsg(resp)
 }
