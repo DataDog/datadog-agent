@@ -43,10 +43,10 @@ type ExecutionStartInfo struct {
 // startExecutionSpan records information from the start of the invocation.
 // It should be called at the start of the invocation.
 func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload []byte, startDetails *InvocationStartDetails) {
+	inferredSpan := lp.GetInferredSpan()
 	executionContext := lp.GetExecutionInfo()
 	executionContext.requestPayload = rawPayload
 	executionContext.startTime = startDetails.StartTime
-	inferredSpan := lp.GetInferredSpan()
 
 	traceContext, err := lp.Extractor.Extract(event, rawPayload)
 	if err != nil {
