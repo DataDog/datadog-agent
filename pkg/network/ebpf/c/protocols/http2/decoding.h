@@ -51,14 +51,11 @@ static __always_inline bool read_var_int_with_given_current_char(struct __sk_buf
         return true;
     }
 
-    if (skb_info->data_off <= skb_info->data_end) {
-        __u8 next_char = 0;
-        bpf_skb_load_bytes(skb, skb_info->data_off, &next_char, sizeof(next_char));
-        if ((next_char & 128) == 0) {
-            skb_info->data_off++;
-            *out = current_char_as_number + next_char & 127;
-            return true;
-        }
+    __u8 next_char = 0;
+    if (bpf_skb_load_bytes(skb, skb_info->data_off, &next_char, sizeof(next_char)) >=0 && (next_char & 128) == 0) {
+        skb_info->data_off++;
+        *out = current_char_as_number + next_char & 127;
+        return true;
     }
 
     return false;
@@ -72,11 +69,10 @@ static __always_inline bool read_var_int_with_given_current_char(struct __sk_buf
 //
 // The returned remain buffer is either a smaller suffix of p, or err != nil.
 static __always_inline bool read_var_int(struct __sk_buff *skb, skb_info_t *skb_info, __u8 max_number_for_bits, __u8 *out) {
-    if (skb_info->data_off > skb_info->data_end) {
+    __u8 current_char_as_number = 0;
+    if (bpf_skb_load_bytes(skb, skb_info->data_off, &current_char_as_number, sizeof(current_char_as_number)) < 0) {
         return false;
     }
-    __u8 current_char_as_number = 0;
-    bpf_skb_load_bytes(skb, skb_info->data_off, &current_char_as_number, sizeof(current_char_as_number));
     skb_info->data_off++;
 
     return read_var_int_with_given_current_char(skb, skb_info, current_char_as_number, max_number_for_bits, out);
