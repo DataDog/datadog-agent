@@ -144,14 +144,14 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         }
         goto end;
     }
-//    if (str_len > 180) {
-//        increment_telemetry_count(str_len_too_big_large);
-//        goto end;
-//    }
-//    if (str_len > HTTP2_MAX_PATH_LEN) {
-//        increment_telemetry_count(str_len_too_big_mid);
-//        goto end;
-//    }
+    if (str_len > 180) {
+        increment_telemetry_count(large_path_outside_delta);
+        goto end;
+    }
+    if (str_len > HTTP2_MAX_PATH_LEN) {
+        increment_telemetry_count(large_path_in_delta);
+        goto end;
+    }
     if ((str_len > HTTP2_MAX_PATH_LEN) || index != kIndexPath || headers_to_process == NULL) {
         goto end;
     }
@@ -631,6 +631,8 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
     // to the maximum number of frames we can process. For that we are checking if the iteration context already exists.
     // If not, creating a new one to be used for further processing
     http2_tail_call_state_t *tail_call_state = bpf_map_lookup_elem(&http2_iterations, &dispatcher_args_copy);
+
+
     if (tail_call_state == NULL) {
         // We didn't find the cached context, aborting.
         return 0;
