@@ -28,9 +28,9 @@ publish_fakeintake:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
+    - !reference [.except_mergequeue]
     - <<: *on_fakeintake_changes
       if: $CI_COMMIT_BRANCH == "main"
-    - !reference [.except_mergequeue]
     - <<: *on_fakeintake_changes
       when: manual
       allow_failure: true
@@ -47,9 +47,9 @@ publish_fakeintake_latest:
   extends: .docker_publish_job_definition
   stage: dev_container_deploy
   rules:
+    - !reference [.except_mergequeue]
     - <<: *on_fakeintake_changes
       if: $CI_COMMIT_BRANCH == "main"
-    - !reference [.except_mergequeue]
   needs:
     - job: docker_build_fakeintake
       optional: false
