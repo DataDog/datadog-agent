@@ -73,13 +73,9 @@ func (ms MetricSource) String() string {
 	}
 }
 
-// CheckNameToMetricSource returns a MetricSource given the checkName
-func CheckNameToMetricSource(name string) MetricSource {
+// JMXCheckNameToMetricSource returns a MetricSource given the checkName
+func JMXCheckNameToMetricSource(name string) MetricSource {
 	switch name {
-	case "dogstatsd":
-		return MetricSourceDogstatsd
-	case "jmx-custom-check":
-		return MetricSourceJmxCustom
 	case "activemq":
 		return MetricSourceActivemq
 	case "cassandra":

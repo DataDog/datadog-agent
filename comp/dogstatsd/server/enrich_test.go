@@ -1359,3 +1359,51 @@ func TestEnrichTags(t *testing.T) {
 		}
 	}
 }
+
+func TestEnrichTagsWithJMXCheckName(t *testing.T) {
+	tests := []struct {
+		name               string
+		jmxCheckName       string
+		tags               []string
+		wantedTags         []string
+		wantedMetricSource metrics.MetricSource
+	}{
+		{
+			name:               "jmx_check_name:kafka, should give MetricSourceKafka",
+			jmxCheckName:       "jmx_check_name:kafka",
+			tags:               []string{"env:prod", "jmx_check_name:kafka"},
+			wantedTags:         []string{"env:prod"},
+			wantedMetricSource: metrics.MetricSourceKafka,
+		},
+		{
+			name:               "jmx_check_name:cassandra, should give MetricSourceCassandra",
+			jmxCheckName:       "jmx_check_name:cassandra",
+			tags:               []string{"foo", "jmx_check_name:cassandra"},
+			wantedTags:         []string{"foo"},
+			wantedMetricSource: metrics.MetricSourceCassandra,
+		},
+		{
+			name:               "jmx_check_name:tomcat, with jmx_domain tag should still set MetricSource",
+			jmxCheckName:       "jmx_check_name:tomcat",
+			tags:               []string{"foo", "jmx_domain:testdomain", "jmx_check_name:tomcat"},
+			wantedTags:         []string{"foo", "jmx_domain:testdomain"},
+			wantedMetricSource: metrics.MetricSourceTomcat,
+		},
+		{
+			name:               "jmx_check_name:thisisacustomcheck, should give MetricSourceJmxCustom",
+			jmxCheckName:       "jmx_check_name:thisisacustomcheck",
+			tags:               []string{"env:prod", "jmx_check_name:thisisacustomcheck"},
+			wantedTags:         []string{"env:prod"},
+			wantedMetricSource: metrics.MetricSourceJmxCustom,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tags, _, _, _, _, metricSource := extractTagsMetadata(tt.tags, "", []byte{}, enrichConfig{})
+			assert.Equal(t, tt.wantedTags, tags)
+			assert.Equal(t, tt.wantedMetricSource, metricSource)
+			assert.NotContains(t, tags, tt.jmxCheckName)
+		})
+
+	}
+}
