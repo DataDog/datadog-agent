@@ -8,13 +8,18 @@ package daemon
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
 )
 
@@ -148,4 +153,123 @@ func TestTraceContext(t *testing.T) {
 		assert.Equal(res.Header.Get("x-datadog-trace-id"), fmt.Sprintf("%v", d.InvocationProcessor.GetExecutionInfo().TraceID))
 		assert.Equal(res.Header.Get("x-datadog-span-id"), fmt.Sprintf("%v", d.InvocationProcessor.GetExecutionInfo().SpanID))
 	}
+}
+
+func TestStartEndInvocationSpanParenting(t *testing.T) {
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
+	defer d.Stop()
+
+	var spans []*pb.Span
+	processTrace := func(p *api.Payload) {
+		for _, c := range p.TracerPayload.Chunks {
+			for _, span := range c.Spans {
+				spans = append(spans, span)
+			}
+		}
+	}
+
+	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
+		ProcessTrace:         processTrace,
+		InferredSpansEnabled: true,
+		DetectLambdaLibrary:  func() bool { return false },
+	}
+
+	client := &http.Client{Timeout: 1 * time.Second}
+	startURL := fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port)
+	endURL := fmt.Sprintf("http://127.0.0.1:%d/lambda/end-invocation", port)
+
+	testcases := []struct {
+		name        string
+		payload     io.Reader
+		expSpans    int
+		expTraceID  uint64
+		expParentID uint64
+	}{
+		{
+			name:        "empty-payload",
+			payload:     bytes.NewBuffer([]byte("{}")),
+			expSpans:    1,
+			expTraceID:  0,
+			expParentID: 0,
+		},
+		{
+			name:        "api-gateway",
+			payload:     getEventFromFile("api-gateway.json"),
+			expSpans:    2,
+			expTraceID:  12345,
+			expParentID: 67890,
+		},
+		{
+			name:        "sqs",
+			payload:     getEventFromFile("sqs.json"),
+			expSpans:    2,
+			expTraceID:  2684756524522091840,
+			expParentID: 7431398482019833808,
+		},
+		{
+			name:        "sns-sqs",
+			payload:     getEventFromFile("snssqs.json"),
+			expSpans:    3,
+			expTraceID:  1728904347387697031,
+			expParentID: 353722510835624345,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert := assert.New(t)
+			spans = []*pb.Span{}
+
+			// start-invocation
+			startReq, err := http.NewRequest(http.MethodPost, startURL, tc.payload)
+			assert.Nil(err)
+			startResp, err := client.Do(startReq)
+			assert.Nil(err)
+			if startResp != nil {
+				assert.Equal(startResp.StatusCode, 200)
+				startResp.Body.Close()
+			}
+
+			// end-invocation
+			endReq, err := http.NewRequest(http.MethodPost, endURL, nil)
+			assert.Nil(err)
+			endResp, err := client.Do(endReq)
+			assert.Nil(err)
+			if endResp != nil {
+				assert.Equal(endResp.StatusCode, 200)
+				endResp.Body.Close()
+			}
+
+			// sort spans by start time
+			slices.SortFunc(spans, func(a, b *pb.Span) int { return int(a.Start - b.Start) })
+
+			rootSpan := spans[0]
+			parentID := rootSpan.ParentID
+			assert.Equal(tc.expSpans, len(spans))
+			assert.Equal(tc.expParentID, parentID)
+			var tailSpan *pb.Span
+			for _, span := range spans {
+				tailSpan = span
+				assert.Equal(tc.expTraceID, span.TraceID)
+				assert.Equal(parentID, span.ParentID)
+				parentID = span.SpanID
+			}
+			assert.Equal("aws.lambda", tailSpan.Name)
+		})
+	}
+}
+
+// Helper function for reading test file
+func getEventFromFile(filename string) io.Reader {
+	event, err := os.ReadFile("../trace/testdata/event_samples/" + filename)
+	if err != nil {
+		panic(err)
+	}
+	var buf bytes.Buffer
+	buf.WriteString("a5a")
+	buf.Write(event)
+	buf.WriteString("0")
+	return &buf
 }

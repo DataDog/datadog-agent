@@ -56,10 +56,11 @@ func (lp *LifecycleProcessor) startExecutionSpan(event interface{}, rawPayload [
 		executionContext.TraceID = traceContext.TraceID
 		executionContext.parentID = traceContext.ParentID
 		executionContext.SamplingPriority = traceContext.SamplingPriority
-		if lp.InferredSpansEnabled {
-			inferredSpan := lp.GetInferredSpan()
+		inferredSpan := lp.GetInferredSpan()
+		if lp.InferredSpansEnabled && inferredSpan.Span.Start != 0 {
 			inferredSpan.Span.TraceID = traceContext.TraceID
 			inferredSpan.Span.ParentID = traceContext.ParentID
+			executionContext.parentID = inferredSpan.Span.SpanID
 		}
 	} else {
 		executionContext.TraceID = 0
