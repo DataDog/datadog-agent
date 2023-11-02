@@ -36,26 +36,22 @@ type mockServer struct {
 
 	responses     []*pbgo.ProcessStreamResponse
 	errorResponse bool // first response is an error
-
-	currentResponse int
 }
 
-func (s *mockServer) StreamEntities(req *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error { //nolint:revive // TODO fix revive unused-parameter
+// StreamEntities sends the responses back to the client
+func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
 	// Handle error response for the first request
 	if s.errorResponse {
 		s.errorResponse = false // Reset error response for subsequent requests
 		return xerrors.New("dummy first error")
 	}
 
-	if s.currentResponse >= len(s.responses) {
-		return nil
+	for _, response := range s.responses {
+		err := out.Send(response)
+		if err != nil {
+			panic(err)
+		}
 	}
-
-	err := out.Send(s.responses[s.currentResponse])
-	if err != nil {
-		panic(err)
-	}
-	s.currentResponse++
 
 	return nil
 }
@@ -240,9 +236,8 @@ func TestCollection(t *testing.T) {
 			mockConfig.Set("language_detection.enabled", true)
 			// remote process collector server (process agent)
 			server := &mockServer{
-				responses:       test.serverResponses,
-				errorResponse:   test.errorResponse,
-				currentResponse: 0,
+				responses:     test.serverResponses,
+				errorResponse: test.errorResponse,
 			}
 			grpcServer := grpc.NewServer()
 			pbgo.RegisterProcessEntityStreamServer(grpcServer, server)
@@ -273,19 +268,21 @@ func TestCollection(t *testing.T) {
 			mockStore.Notify(test.preEvents)
 
 			ctx, cancel := context.WithCancel(context.TODO())
-			// Start collection
-			err = collector.Start(ctx, mockStore)
-			require.NoError(t, err)
 
+			// Subscribe to the mockStore
 			ch := mockStore.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
 			doneCh := make(chan struct{})
 
-			numberOfReponse := len(test.serverResponses)
-			if test.errorResponse {
-				numberOfReponse++
-			}
+			<-ch // Wait that the initial empty events are sent
+
+			// Collect process data
+			err = collector.Start(ctx, mockStore)
+			require.NoError(t, err)
+
+			numberOfEvents := len(test.serverResponses)
+
 			go func() {
-				for i := 0; i < numberOfReponse; i++ {
+				for i := 0; i < numberOfEvents; i++ {
 					bundle := <-ch
 					close(bundle.Ch)
 				}
@@ -295,13 +292,7 @@ func TestCollection(t *testing.T) {
 
 			<-doneCh
 
-			// wait that the store gets populated
-			time.Sleep(time.Second)
-
 			cancel()
-
-			// wait that the stream goroutine terminates
-			time.Sleep(time.Second)
 
 			// Verify final state
 			for i := range test.expectedProcesses {
