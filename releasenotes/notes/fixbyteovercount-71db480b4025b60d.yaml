@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fixes bug on Windows in which NPM displays byte overcounts.
+    Fixes a bug in the Windows NPM driver where NPM displays byte overcounts.
