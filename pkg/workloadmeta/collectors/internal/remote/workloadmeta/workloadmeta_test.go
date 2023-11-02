@@ -174,7 +174,6 @@ func TestCollection(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.TODO())
 	// Subscribe to the mockStore and wait for the initial event
 	ch := mockClientStore.Subscribe("dummy", workloadmeta.NormalPriority, nil)
-	<-ch
 
 	// Start collecting entities
 	err = collector.Start(ctx, mockClientStore)
