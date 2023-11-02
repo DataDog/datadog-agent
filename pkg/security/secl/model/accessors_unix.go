@@ -876,7 +876,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exec.envs":
 		return &eval.StringArrayEvaluator{
@@ -885,7 +885,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exec.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -1658,7 +1658,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exit.envs":
 		return &eval.StringArrayEvaluator{
@@ -1667,7 +1667,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exit.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -3976,7 +3976,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.envs":
 		return &eval.StringArrayEvaluator{
@@ -3997,7 +3997,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -5478,7 +5478,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.envs":
 		return &eval.StringArrayEvaluator{
@@ -5487,7 +5487,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -6230,7 +6230,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.envs":
 		return &eval.StringArrayEvaluator{
@@ -6242,7 +6242,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -7390,7 +7390,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.envs":
 		return &eval.StringArrayEvaluator{
@@ -7411,7 +7411,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -8892,7 +8892,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.PTrace.Tracee.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.envs":
 		return &eval.StringArrayEvaluator{
@@ -8901,7 +8901,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.PTrace.Tracee.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -9644,7 +9644,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.PTrace.Tracee.Parent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.envs":
 		return &eval.StringArrayEvaluator{
@@ -9656,7 +9656,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.PTrace.Tracee.Parent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -11940,7 +11940,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.envs":
 		return &eval.StringArrayEvaluator{
@@ -11961,7 +11961,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.envs_truncated":
 		return &eval.BoolArrayEvaluator{
@@ -13442,7 +13442,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.Signal.Target.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.envs":
 		return &eval.StringArrayEvaluator{
@@ -13451,7 +13451,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.Signal.Target.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.envs_truncated":
 		return &eval.BoolEvaluator{
@@ -14194,7 +14194,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Signal.Target.Parent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.envs":
 		return &eval.StringArrayEvaluator{
@@ -14206,7 +14206,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Signal.Target.Parent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.envs_truncated":
 		return &eval.BoolEvaluator{

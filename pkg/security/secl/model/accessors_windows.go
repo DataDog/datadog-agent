@@ -104,7 +104,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exec.envs":
 		return &eval.StringArrayEvaluator{
@@ -113,7 +113,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exec.file.name":
 		return &eval.StringEvaluator{
@@ -230,7 +230,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exit.envs":
 		return &eval.StringArrayEvaluator{
@@ -239,7 +239,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "exit.file.name":
 		return &eval.StringEvaluator{
@@ -447,7 +447,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.envs":
 		return &eval.StringArrayEvaluator{
@@ -468,7 +468,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 100 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
@@ -648,7 +648,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.envs":
 		return &eval.StringArrayEvaluator{
@@ -657,7 +657,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.file.name":
 		return &eval.StringEvaluator{
@@ -741,7 +741,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.envs":
 		return &eval.StringArrayEvaluator{
@@ -753,7 +753,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 100 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.file.name":
 		return &eval.StringEvaluator{

@@ -350,7 +350,7 @@ func TestParseStatusLine(t *testing.T) {
 		{
 			line: []byte("Name:\tpostgres"),
 			expected: &statusInfo{
-				name:        "postgres",
+				name:        []byte("postgres"),
 				memInfo:     &MemoryInfoStat{},
 				ctxSwitches: &NumCtxSwitchesStat{},
 			},
@@ -358,7 +358,7 @@ func TestParseStatusLine(t *testing.T) {
 		{
 			line: []byte("Name:\t\t  \t\t\t  postgres"),
 			expected: &statusInfo{
-				name:        "postgres",
+				name:        []byte("postgres"),
 				memInfo:     &MemoryInfoStat{},
 				ctxSwitches: &NumCtxSwitchesStat{},
 			},
@@ -366,7 +366,7 @@ func TestParseStatusLine(t *testing.T) {
 		{
 			line: []byte("State:\tS (sleeping)"),
 			expected: &statusInfo{
-				status:      "S",
+				status:      []byte("S"),
 				memInfo:     &MemoryInfoStat{},
 				ctxSwitches: &NumCtxSwitchesStat{},
 			},
@@ -374,7 +374,7 @@ func TestParseStatusLine(t *testing.T) {
 		{
 			line: []byte("State:\tR (running)"),
 			expected: &statusInfo{
-				status:      "R",
+				status:      []byte("R"),
 				memInfo:     &MemoryInfoStat{},
 				ctxSwitches: &NumCtxSwitchesStat{},
 			},
@@ -479,6 +479,149 @@ func TestParseStatusLine(t *testing.T) {
 	}
 }
 
+func BenchmarkParseStatusLine(b *testing.B) {
+	probe := getProbeWithPermission()
+	defer probe.Close()
+
+	testCases := []struct {
+		line     []byte
+		expected *statusInfo
+	}{
+		{
+			line: []byte("Name:\tpostgres"),
+			expected: &statusInfo{
+				name:        []byte("postgres"),
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("Name:\t\t  \t\t\t  postgres"),
+			expected: &statusInfo{
+				name:        []byte("postgres"),
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("State:\tS (sleeping)"),
+			expected: &statusInfo{
+				status:      []byte("S"),
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("State:\tR (running)"),
+			expected: &statusInfo{
+				status:      []byte("R"),
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("Uid:\t112\t112\t112\t112"),
+			expected: &statusInfo{
+				uids:        []int32{112, 112, 112, 112},
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("Gid:\t1000\t1000\t1000\t1000"),
+			expected: &statusInfo{
+				gids:        []int32{1000, 1000, 1000, 1000},
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("NSpid:\t123"),
+			expected: &statusInfo{
+				nspid:       123,
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("NSpid:\t123\t456"),
+			expected: &statusInfo{
+				nspid:       456,
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("Threads:\t1"),
+			expected: &statusInfo{
+				numThreads:  1,
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("voluntary_ctxt_switches:\t3"),
+			expected: &statusInfo{
+				memInfo: &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{
+					Voluntary: 3,
+				},
+			},
+		},
+		{
+			line: []byte("nonvoluntary_ctxt_switches:\t411"),
+			expected: &statusInfo{
+				memInfo: &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{
+					Involuntary: 411,
+				},
+			},
+		},
+		{
+			line: []byte("bad status line"), // bad status
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("Name:\t"), // edge case for parsing failure
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("VmRSS:\t712 kB"),
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{RSS: 712 * 1024},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("VmSize:\t14652 kB"),
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{VMS: 14652 * 1024},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+		{
+			line: []byte("VmSwap:\t3 kB"),
+			expected: &statusInfo{
+				memInfo:     &MemoryInfoStat{Swap: 3 * 1024},
+				ctxSwitches: &NumCtxSwitchesStat{},
+			},
+		},
+	}
+
+	for i := 0; i < b.N; i++ {
+		for _, tc := range testCases {
+			result := &statusInfo{memInfo: &MemoryInfoStat{}, ctxSwitches: &NumCtxSwitchesStat{}}
+			probe.parseStatusLine(tc.line, result)
+		}
+	}
+}
+
 func TestParseStatusTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	testParseStatus(t, WithProcFSRoot("resources/test_procfs/proc/"))
@@ -516,8 +659,8 @@ func testParseStatus(t *testing.T, probeOptions ...Option) {
 		expCtxSwitches, err := expProc.NumCtxSwitches()
 		assert.NoError(t, err)
 
-		assert.Equal(t, expName, actual.name)
-		assert.Equal(t, expStatus, actual.status)
+		assert.Equal(t, expName, string(actual.name))
+		assert.Equal(t, expStatus, string(actual.status))
 		assert.EqualValues(t, expUIDs, actual.uids)
 		assert.EqualValues(t, expGIDs, actual.gids)
 		assert.Equal(t, expThreads, actual.numThreads)

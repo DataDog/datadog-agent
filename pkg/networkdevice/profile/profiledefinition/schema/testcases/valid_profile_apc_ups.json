@@ -1,6 +1,7 @@
 {
   "profile_definition": {
     "name": "apc-ups",
+    "version": 10,
     "extends": [
       "apc.yaml"
     ],

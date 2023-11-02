@@ -22,6 +22,7 @@ BPF_ARRAY_MAP(open_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(selinux_enforce_status, u16, 2)
 BPF_ARRAY_MAP(splice_entry_flags_approvers, u32, 1)
 BPF_ARRAY_MAP(splice_exit_flags_approvers, u32, 1)
+BPF_ARRAY_MAP(syscalls_stats_enabled, u32, 1)
 
 BPF_HASH_MAP(activity_dumps_config, u64, struct activity_dump_config, 1) // max entries will be overridden at runtime
 BPF_HASH_MAP(activity_dump_config_defaults, u32, struct activity_dump_config, 1)
@@ -60,12 +61,12 @@ BPF_LRU_MAP(veth_device_name_to_ifindex, struct device_name_t, struct device_ifi
 BPF_LRU_MAP(exec_file_cache, u64, struct file_t, 4096)
 BPF_LRU_MAP(syscall_monitor, u32, struct syscall_monitor_entry_t, 2048)
 BPF_LRU_MAP(syscall_table, struct syscall_table_key_t, u8, 50)
+BPF_LRU_MAP(kill_list, u32, u32, 32)
 
 BPF_LRU_MAP_FLAGS(tasks_in_coredump, u64, u8, 64, BPF_F_NO_COMMON_LRU)
 BPF_LRU_MAP_FLAGS(syscalls, u64, struct syscall_cache_t, 1, BPF_F_NO_COMMON_LRU) // max entries will be overridden at runtime
 
 BPF_PERCPU_ARRAY_MAP(dr_erpc_state, u32, struct dr_erpc_state_t, 1)
-BPF_PERCPU_ARRAY_MAP(syscalls_stats, u32, u32, EVENT_MAX)
 BPF_PERCPU_ARRAY_MAP(cgroup_tracing_event_gen, u32, struct cgroup_tracing_event_t, EVENT_GEN_SIZE)
 BPF_PERCPU_ARRAY_MAP(fb_discarder_stats, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
 BPF_PERCPU_ARRAY_MAP(bb_discarder_stats, u32, struct discarder_stats_t, EVENT_LAST_DISCARDER)
@@ -80,6 +81,7 @@ BPF_PERCPU_ARRAY_MAP(dns_event, u32, struct dns_event_t, 1)
 BPF_PERCPU_ARRAY_MAP(packets, u32, struct packet_t, 1)
 BPF_PERCPU_ARRAY_MAP(selinux_write_buffer, u32, struct selinux_write_buffer_t, 1)
 BPF_PERCPU_ARRAY_MAP(is_new_kthread, u32, u32, 1)
+BPF_PERCPU_ARRAY_MAP(syscalls_stats, u32, struct syscalls_stats_t, EVENT_MAX)
 
 BPF_PROG_ARRAY(args_envs_progs, 3)
 BPF_PROG_ARRAY(dentry_resolver_kprobe_or_fentry_callbacks, EVENT_MAX)
