@@ -31,11 +31,11 @@ type FilterParams struct {
 // delivered, and the entities in the events will contain data only from that
 // source.  For example, if source is SourceRuntime, then only events from the
 // runtime will be delivered, and they will not contain any additional metadata
-// from orchestrators or cluster orchestrators.  Use SourceAll to collect data
-// from all sources.
+// from orchestrators or cluster orchestrators. Use SourceAll to collect data
+// from all sources. SourceAll is the default.
 //
 // Only events of the given type will be delivered. Use EventTypeAll to collect
-// data from all the event types.
+// data from all the event types. EventTypeAll is the default.
 func NewFilter(filterParams *FilterParams) *Filter {
 	var kindSet map[Kind]struct{}
 	kinds := filterParams.Kinds
@@ -44,6 +44,11 @@ func NewFilter(filterParams *FilterParams) *Filter {
 		for _, k := range kinds {
 			kindSet[k] = struct{}{}
 		}
+	}
+
+	// This is enforced in the matching functions, but putting here for clarity
+	if filterParams.Source == "" {
+		filterParams.Source = SourceAll
 	}
 
 	return &Filter{
