@@ -186,7 +186,7 @@ test:
 	res = config.IsSectionSet("othertest")
 	assert.Equal(t, true, res)
 
-	config.Set("yetanothertest_key", "value")
+	config.SetWithoutSource("yetanothertest_key", "value")
 	res = config.IsSectionSet("yetanothertest")
 	assert.Equal(t, false, res)
 }

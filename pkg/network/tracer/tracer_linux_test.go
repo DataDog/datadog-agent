@@ -612,8 +612,8 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		cloud = m
 
 		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
-		ddconfig.Datadog.Set("cloud_provider_metadata", []string{})
-		defer ddconfig.Datadog.Set("cloud_provider_metadata", clouds)
+		ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
+		defer ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
