@@ -513,6 +513,19 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
     return success
 
 
+def deprecating_skip_linters_flag():
+    """
+    We're deprecating the --skip-linters flag in the test invoke task
+
+    Displays a warning when user is running inv -e test --skip-linters
+    Also displays the command the user should run to
+    """
+    deprecation_msg = """Warning: the --skip-linters is deprecated for the test invoke task.
+If you want to run the linters, please run inv -e lint-go instead.
+"""
+    print(deprecation_msg, file=sys.stderr)
+
+
 @task(iterable=['flavors'])
 def test(
     ctx,
@@ -573,11 +586,8 @@ def test(
         if env.startswith("DD_"):
             del os.environ[env]
 
-    if skip_linters:
-        deprecation_msg = """Warning: the --skip-linters is deprecated for the test invoke task.
-If you want to run the linters, please run inv -e lint-go instead.
-"""
-        print(deprecation_msg, file=sys.stderr)
+    if not skip_linters:
+        deprecating_skip_linters_flag()
 
     # Process input arguments
 
