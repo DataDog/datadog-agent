@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package native
+package etw
 
 import (
 	"syscall"

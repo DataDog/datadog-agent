@@ -125,7 +125,6 @@ package http
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/DataDog/datadog-agent/comp/etw/native"
 	"net/url"
 	"os"
 	"strconv"
@@ -177,11 +176,11 @@ type ConnOpen struct {
 	ssl bool
 
 	// http link
-	httpPendingBackLinks map[native.DDGUID]struct{}
+	httpPendingBackLinks map[etw.DDGUID]struct{}
 }
 
 type HttpConnLink struct {
-	connActivityId native.DDGUID
+	connActivityId etw.DDGUID
 
 	http WinHttpTransaction
 
@@ -217,8 +216,8 @@ var (
 
 var (
 	httpServiceSubscribed bool = false
-	connOpened            map[native.DDGUID]*ConnOpen
-	http2openConn         map[native.DDGUID]*HttpConnLink
+	connOpened            map[etw.DDGUID]*ConnOpen
+	http2openConn         map[etw.DDGUID]*HttpConnLink
 	httpCache             map[string]*HttpCache
 
 	completedHttpTxMux      sync.Mutex
@@ -251,20 +250,20 @@ func init() {
 
 }
 
-func cleanupActivityIdViaConnOpen(connOpen *ConnOpen, activityId native.DDGUID) {
+func cleanupActivityIdViaConnOpen(connOpen *ConnOpen, activityId etw.DDGUID) {
 	// Clean it up related containers
 	delete(http2openConn, activityId)
 	delete(connOpen.httpPendingBackLinks, activityId)
 }
 
-func cleanupActivityIdViaConnActivityId(connActivityId native.DDGUID, activityId native.DDGUID) {
+func cleanupActivityIdViaConnActivityId(connActivityId etw.DDGUID, activityId etw.DDGUID) {
 	connOpen, connFound := connOpened[connActivityId]
 	if connFound {
 		cleanupActivityIdViaConnOpen(connOpen, activityId)
 	}
 }
 
-func getConnOpen(activityId native.DDGUID) (*ConnOpen, bool) {
+func getConnOpen(activityId etw.DDGUID) (*ConnOpen, bool) {
 	connOpen, connFound := connOpened[activityId]
 	if !connFound {
 		if captureHTTPS || HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
@@ -279,7 +278,7 @@ func getConnOpen(activityId native.DDGUID) (*ConnOpen, bool) {
 	return connOpen, connFound
 }
 
-func getHttpConnLink(activityId native.DDGUID) (*HttpConnLink, bool) {
+func getHttpConnLink(activityId etw.DDGUID) (*HttpConnLink, bool) {
 	httpConnLink, found := http2openConn[activityId]
 	if !found {
 		if captureHTTPS || HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
@@ -295,7 +294,7 @@ func getHttpConnLink(activityId native.DDGUID) (*HttpConnLink, bool) {
 	return httpConnLink, found
 }
 
-func completeReqRespTracking(eventInfo *native.DDEtwEventInfo, httpConnLink *HttpConnLink) {
+func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpConnLink) {
 
 	// Get connection
 	connOpen, connFound := connOpened[httpConnLink.connActivityId]
@@ -389,7 +388,7 @@ func completeReqRespTracking(eventInfo *native.DDEtwEventInfo, httpConnLink *Htt
 
 // -----------------------------------------------------------
 // HttpService ETW Event #21 (HTTPConnectionTraceTaskConnConn)
-func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -493,7 +492,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *native.DDEtwEventI
 	connOpen.conn.connected = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
 
 	// Http back links (to cleanup on closure)
-	connOpen.httpPendingBackLinks = make(map[native.DDGUID]struct{}, 10)
+	connOpen.httpPendingBackLinks = make(map[etw.DDGUID]struct{}, 10)
 
 	// Save to the map
 	connOpened[eventInfo.Event.ActivityId] = &connOpen
@@ -511,7 +510,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *native.DDEtwEventI
 
 // -------------------------------------------------------------
 // HttpService ETW Event #23 (HTTPConnectionTraceTaskConnClose)
-func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -552,7 +551,7 @@ func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *native.DDEtwEvent
 
 // -----------------------------------------------------------
 // HttpService ETW Event #1 (HTTPRequestTraceTaskRecvReq)
-func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -642,7 +641,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *native.DDEtwEventInfo)
 
 // -----------------------------------------------------------
 // HttpService ETW Event #2 (HTTPRequestTraceTaskParse)
-func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -720,7 +719,7 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *native.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #3 (HTTPRequestTraceTaskDeliver)
-func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -803,7 +802,7 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *native.DDEtwEventInfo)
 
 // -----------------------------------------------------------
 // HttpService ETW Event #4, #8 (HTTPRequestTraceTaskFastResp, HTTPRequestTraceTaskRecvResp)
-func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -860,7 +859,7 @@ func httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo *native.DDEtwEventInfo
 
 // -----------------------------------------------------------
 // HttpService ETW Event #16-17 (HTTPRequestTraceTaskSrvdFrmCache, HTTPRequestTraceTaskCachedNotModified)
-func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *etw.DDEtwEventInfo) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -931,7 +930,7 @@ func httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo *native.DDEtwEvent
 
 // -----------------------------------------------------------
 // HttpService ETW Event #25 (HTTPCacheTraceTaskAddedCacheEntry)
-func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *etw.DDEtwEventInfo) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -1011,7 +1010,7 @@ func httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo *native.DDEtwEven
 
 // -----------------------------------------------------------
 // HttpService ETW Event #26 (HTTPCacheTraceTaskFlushedCache)
-func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *etw.DDEtwEventInfo) {
 
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
@@ -1069,7 +1068,7 @@ func httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo *native.DDEtwEventIn
 
 // -----------------------------------------------------------
 // HttpService ETW Event #10-14 (HTTPRequestTraceTaskXXXSendXXX)
-func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *etw.DDEtwEventInfo) {
 
 	// We probably should use this event as a last event for a particular activity and use
 	// it to better measure duration is http procesing
@@ -1088,7 +1087,7 @@ func httpCallbackOnHTTPRequestTraceTaskSend(eventInfo *native.DDEtwEventInfo) {
 
 // -----------------------------------------------------------
 // HttpService ETW Event #34 (EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent)
-func httpCallbackOnHttpSslConnEvent(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHttpSslConnEvent(eventInfo *etw.DDEtwEventInfo) {
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, true)
 	}
@@ -1112,7 +1111,7 @@ func httpCallbackOnHttpSslConnEvent(eventInfo *native.DDEtwEventInfo) {
 		}
 	}
 }
-func reportHttpCallbackEvents(eventInfo *native.DDEtwEventInfo, willBeProcessed bool) {
+func reportHttpCallbackEvents(eventInfo *etw.DDEtwEventInfo, willBeProcessed bool) {
 	var processingStatus string
 	if willBeProcessed {
 		processingStatus = "processing"
@@ -1126,7 +1125,7 @@ func reportHttpCallbackEvents(eventInfo *native.DDEtwEventInfo, willBeProcessed 
 		eventCount)
 }
 
-func httpCallbackOnHttpServiceNonProcessedEvents(eventInfo *native.DDEtwEventInfo) {
+func httpCallbackOnHttpServiceNonProcessedEvents(eventInfo *etw.DDEtwEventInfo) {
 	notHandledEventsCount++
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		reportHttpCallbackEvents(eventInfo, false)
@@ -1171,7 +1170,7 @@ func etwHttpServiceSummary() {
 	*/
 }
 
-func (hei *EtwInterface) OnEvent(eventInfo *native.DDEtwEventInfo) {
+func (hei *EtwInterface) OnEvent(eventInfo *etw.DDEtwEventInfo) {
 
 	// Total number of bytes transferred to kernel from HTTP.sys driver. 0x68 is ETW header size
 	transferedETWBytesTotal += (uint64(eventInfo.Event.UserDataLength) + 0x68)
@@ -1181,59 +1180,59 @@ func (hei *EtwInterface) OnEvent(eventInfo *native.DDEtwEventInfo) {
 
 	switch eventInfo.Event.Id {
 	// #21
-	case native.EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn:
+	case etw.EVENT_ID_HttpService_HTTPConnectionTraceTaskConnConn:
 		httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo)
 
 	// #23
-	case native.EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose:
+	case etw.EVENT_ID_HttpService_HTTPConnectionTraceTaskConnClose:
 		httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo)
 
 	// #1
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskRecvReq:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskRecvReq:
 		httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo)
 
 	// #2
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskParse:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskParse:
 		httpCallbackOnHTTPRequestTraceTaskParse(eventInfo)
 
 	// #3
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskDeliver:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskDeliver:
 		httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo)
 
 	// #4, #8
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskRecvResp:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskRecvResp:
 		fallthrough
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskFastResp:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskFastResp:
 		httpCallbackOnHTTPRequestTraceTaskRecvResp(eventInfo)
 
 	// #16, #17
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskSrvdFrmCache:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskSrvdFrmCache:
 		fallthrough
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskCachedNotModified:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskCachedNotModified:
 		httpCallbackOnHTTPRequestTraceTaskSrvdFrmCache(eventInfo)
 
 	// #25
-	case native.EVENT_ID_HttpService_HTTPCacheTraceTaskAddedCacheEntry:
+	case etw.EVENT_ID_HttpService_HTTPCacheTraceTaskAddedCacheEntry:
 		httpCallbackOnHTTPCacheTraceTaskAddedCacheEntry(eventInfo)
 
 	// #27
-	case native.EVENT_ID_HttpService_HTTPCacheTraceTaskFlushedCache:
+	case etw.EVENT_ID_HttpService_HTTPCacheTraceTaskFlushedCache:
 		httpCallbackOnHTTPCacheTraceTaskFlushedCache(eventInfo)
 
 	// #34
-	case native.EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent:
+	case etw.EVENT_ID_HttpService_HTTPSSLTraceTaskSslConnEvent:
 		httpCallbackOnHttpSslConnEvent(eventInfo)
 
 	// #10-14
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskSendComplete:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskSendComplete:
 		fallthrough
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskCachedAndSend:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskCachedAndSend:
 		fallthrough
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskFastSend:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskFastSend:
 		fallthrough
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskZeroSend:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskZeroSend:
 		fallthrough
-	case native.EVENT_ID_HttpService_HTTPRequestTraceTaskLastSndError:
+	case etw.EVENT_ID_HttpService_HTTPRequestTraceTaskLastSndError:
 		httpCallbackOnHTTPRequestTraceTaskSend(eventInfo)
 
 	default:
@@ -1250,8 +1249,8 @@ func (hei *EtwInterface) OnEvent(eventInfo *native.DDEtwEventInfo) {
 
 // can be called multiple times
 func initializeEtwHttpServiceSubscription() {
-	connOpened = make(map[native.DDGUID]*ConnOpen)
-	http2openConn = make(map[native.DDGUID]*HttpConnLink)
+	connOpened = make(map[etw.DDGUID]*ConnOpen)
+	http2openConn = make(map[etw.DDGUID]*HttpConnLink)
 	httpCache = make(map[string]*HttpCache, 100)
 
 	summaryCount = 0

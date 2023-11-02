@@ -5,7 +5,7 @@
 
 //go:build windows && npm
 
-package native
+package etw
 
 import (
 	"bytes"
