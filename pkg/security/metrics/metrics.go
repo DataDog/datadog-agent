@@ -78,6 +78,15 @@ var (
 	// Tags: event_type
 	MetricSyscallsInFlight = newRuntimeMetric(".syscalls_map.event_inflight")
 
+	// bpf maps metrics
+
+	// MetricBPFMapHits is the number of eBPF LRU map cache hits
+	// Tags: map_name
+	MetricBPFMapHits = newRuntimeMetric(".bpf_maps.hits")
+	// MetricBPFMapMiss is the number of eBPF LRU map cache miss
+	// Tags: map_name
+	MetricBPFMapMiss = newRuntimeMetric(".bpf_maps.miss")
+
 	// Perf buffer metrics
 
 	// MetricPerfBufferLostWrite is the name of the metric used to count the number of lost events, as reported by a

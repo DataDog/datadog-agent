@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/bpfmap"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -1631,6 +1632,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, bpfmap.MonitoredMapConstants()...)
 
 	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
 	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace

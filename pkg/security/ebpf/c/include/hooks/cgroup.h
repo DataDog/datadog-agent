@@ -1,6 +1,8 @@
 #ifndef _HOOKS_CGROUP_H_
 #define _HOOKS_CGROUP_H_
 
+#include "bpf_map_monitoring.h"
+
 #include "constants/custom.h"
 #include "constants/offsets/filesystem.h"
 #include "helpers/process.h"
@@ -32,7 +34,7 @@ static __attribute__((always_inline)) int trace__cgroup_write(ctx_t *ctx) {
     u64 cookie = 0;
 
     // Retrieve the cookie of the process
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &pid);
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_lru_map_lookup_elem_with_telemetry(pid_cache, &pid, 1);
     if (pid_entry) {
         cookie = pid_entry->cookie;
         // Select the old cache entry

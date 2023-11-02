@@ -1,6 +1,8 @@
 #ifndef _HOOKS_EXEC_H_
 #define _HOOKS_EXEC_H_
 
+#include "bpf_map_monitoring.h"
+
 #include "constants/syscall_macro.h"
 #include "constants/offsets/filesystem.h"
 #include "helpers/filesystem.h"
@@ -219,7 +221,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         return 0;
     }
 
-    struct pid_cache_t *parent_pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &ppid);
+    struct pid_cache_t *parent_pid_entry = (struct pid_cache_t *)bpf_lru_map_lookup_elem_with_telemetry(pid_cache, &ppid, 1);
     if (parent_pid_entry) {
         // ensure pid and ppid point to the same cookie
         event->pid_entry.cookie = parent_pid_entry->cookie;
@@ -283,7 +285,7 @@ int hook_do_exit(ctx_t *ctx) {
         expire_pid_discarder(tgid);
 
         // update exit time
-        struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+        struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_lru_map_lookup_elem_with_telemetry(pid_cache, &tgid, 1);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
         }
@@ -653,7 +655,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
 
     // select the previous cookie entry in cache of the current process
     // (this entry was created by the fork of the current process)
-    struct pid_cache_t *fork_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+    struct pid_cache_t *fork_entry = (struct pid_cache_t *)bpf_lru_map_lookup_elem_with_telemetry(pid_cache, &tgid, 1);
     if (fork_entry) {
         // Fetch the parent proc cache entry
         u64 parent_cookie = fork_entry->cookie;
@@ -680,7 +682,7 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
             .cookie = cookie,
         };
         bpf_map_update_elem(&pid_cache, &tgid, &new_pid_entry, BPF_ANY);
-        fork_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+        fork_entry = (struct pid_cache_t *)bpf_lru_map_lookup_elem_with_telemetry(pid_cache, &tgid, 1);
         if (fork_entry == NULL) {
             // should never happen, ignore
             return 0;

@@ -1,6 +1,8 @@
 #ifndef _HELPERS_PROCESS_H_
 #define _HELPERS_PROCESS_H_
 
+#include "bpf_map_monitoring.h"
+
 #include "constants/custom.h"
 #include "constants/enums.h"
 #include "constants/offsets/process.h"
@@ -46,11 +48,11 @@ struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u64 coo
         return NULL;
     }
 
-    return bpf_map_lookup_elem(&proc_cache, &cookie);
+    return bpf_lru_map_lookup_elem_with_telemetry(proc_cache, &cookie, 1);
 }
 
 struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_lru_map_lookup_elem_with_telemetry(pid_cache, &tgid, 1);
     if (!pid_entry) {
         return NULL;
     }
