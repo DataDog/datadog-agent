@@ -25,8 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
-
 	"github.com/cihub/seelog"
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
@@ -38,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
