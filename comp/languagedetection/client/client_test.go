@@ -192,9 +192,6 @@ func TestClientSendFreshPods(t *testing.T) {
 	}, freshData)
 	// make sure we didn't touch the current batch
 	assert.Equal(t, client.currentBatch, batch{podName: podInfo})
-
-	// clear the freshlyUpdatedPods list
-	client.clearFreshlyUpdatedPods()
 	assert.Empty(t, client.freshlyUpdatedPods)
 }
 
@@ -747,7 +744,7 @@ func TestCleanUpProcesssesWithoutPod(t *testing.T) {
 func TestRun(t *testing.T) {
 	mockStore := workloadmeta.NewMockStore()
 	client, respCh := newTestClient(t, mockStore)
-	client.newUpdatePeriod = 50 * time.Millisecond
+	client.freshDataPeriod = 50 * time.Millisecond
 	client.periodicalFlushPeriod = 1 * time.Second
 	client.processesWithoutPodCleanupPeriod = 100 * time.Millisecond
 

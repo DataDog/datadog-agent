@@ -75,9 +75,9 @@ type client struct {
 	currentBatch batch
 
 	// The client must send freshly updated PodDetails as soon as possible however,
-	// waiting `newUpdatePeriod` allows to wait until every process of a pod is scanned,
-	// limiting the number of messages that need to be sent
-	newUpdatePeriod    time.Duration
+	// streaming every update to the cluster-agent could be costly. Thus we wait for
+	// `freshDataPeriod` before sending fresh updates.
+	freshDataPeriod    time.Duration
 	freshlyUpdatedPods map[string]struct{}
 
 	// There is a race between the process check and the kubelet. If the process check detects a language
@@ -106,7 +106,7 @@ func newClient(
 		ctx:                              ctx,
 		cancel:                           cancel,
 		logger:                           deps.Log,
-		newUpdatePeriod:                  deps.Config.GetDuration("language_detection.client_period"),
+		freshDataPeriod:                  deps.Config.GetDuration("language_detection.client_period"),
 		mutex:                            sync.Mutex{},
 		telemetry:                        newComponentTelemetry(deps.Telemetry),
 		currentBatch:                     make(batch),
@@ -205,7 +205,7 @@ func (c *client) handleEvent(evBundle workloadmeta.EventBundle) {
 
 // startStreaming retrieves the language detection client (= the DCA Client) and periodically sends data to the Cluster-Agent
 func (c *client) startStreaming() {
-	freshUpdateTimer := time.NewTicker(c.newUpdatePeriod)
+	freshUpdateTimer := time.NewTicker(c.freshDataPeriod)
 	defer freshUpdateTimer.Stop()
 
 	periodicFlushTimer := time.NewTicker(c.periodicalFlushPeriod)
@@ -232,8 +232,6 @@ func (c *client) startStreaming() {
 			err := c.send(ctx, data)
 			if err != nil {
 				c.logger.Errorf("failed to send fresh update %v", err)
-			} else {
-				c.clearFreshlyUpdatedPods()
 			}
 		// less frequently, send the entire batch
 		case <-periodicFlushTimer.C:
@@ -267,6 +265,7 @@ func (c *client) send(ctx context.Context, data *pbgo.ParentLanguageAnnotationRe
 		c.telemetry.Requests.Inc(statusError)
 		return err
 	}
+	c.freshlyUpdatedPods = make(map[string]struct{})
 	c.telemetry.Latency.Observe(time.Since(t).Seconds())
 	c.telemetry.Requests.Inc(statusSuccess)
 	return nil
@@ -387,11 +386,4 @@ func (c *client) getFreshBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 	}
 
 	return nil
-}
-
-// clearFreshlyUpdatedPods clears freshly updated pods map. They should be cleared only after the batch is successfully sent
-func (c *client) clearFreshlyUpdatedPods() {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	c.freshlyUpdatedPods = make(map[string]struct{})
 }
