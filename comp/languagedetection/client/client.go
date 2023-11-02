@@ -289,6 +289,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 
 	process := processEvent.Entity.(*workloadmeta.Process)
 	if process.Language == nil {
+		c.logger.Tracef("no language detected for process %s", process.ID)
 		return
 	}
 
@@ -318,6 +319,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 		c.logger.Debugf("container name not found for %s", process.ContainerID)
 		return
 	}
+	c.logger.Debugf("correctly processed event for process %s", process.ID) // TODO: remove
 	podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
 	added := containerInfo.Add(string(process.Language.Name))

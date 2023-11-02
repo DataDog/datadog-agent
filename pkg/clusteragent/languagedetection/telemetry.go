@@ -49,7 +49,7 @@ var (
 		"skipped_patch",
 		[]string{},
 		"Tracks the number of times a patch was skipped because no new languages are detected",
-		commonOpts
+		commonOpts,
 	)
 
 	// OkResponses tracks the number the request was processed successfully
