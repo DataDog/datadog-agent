@@ -10,16 +10,18 @@ package workloadmeta
 //
 // A nil filter matches all events.
 type Filter struct {
-	kinds     map[Kind]struct{}
-	source    Source
-	eventType EventType
+	kinds                  map[Kind]struct{}
+	source                 Source
+	eventType              EventType
+	includePauseContainers bool
 }
 
 // FilterParams are the parameters used to create a Filter
 type FilterParams struct {
-	Kinds     []Kind
-	Source    Source
-	EventType EventType
+	Kinds                  []Kind
+	Source                 Source
+	EventType              EventType
+	IncludePauseContainers bool
 }
 
 // NewFilter creates a new filter for subscribing to workloadmeta events.
@@ -52,9 +54,10 @@ func NewFilter(filterParams *FilterParams) *Filter {
 	}
 
 	return &Filter{
-		kinds:     kindSet,
-		source:    filterParams.Source,
-		eventType: filterParams.EventType,
+		kinds:                  kindSet,
+		source:                 filterParams.Source,
+		eventType:              filterParams.EventType,
+		includePauseContainers: filterParams.IncludePauseContainers,
 	}
 }
 
@@ -82,6 +85,12 @@ func (f *Filter) MatchEventType(eventType EventType) bool {
 	return f.EventType() == EventTypeAll || f.EventType() == eventType
 }
 
+// MatchIncludePauseContainers returns true if the filter has the includePauseContainers param set to true. If the filter
+// is nil, it does not match.
+func (f *Filter) MatchIncludePauseContainers() bool {
+	return f.IncludePauseContainer()
+}
+
 // Source returns the source this filter is filtering by. If the filter is nil,
 // returns SourceAll.
 func (f *Filter) Source() Source {
@@ -100,4 +109,14 @@ func (f *Filter) EventType() EventType {
 	}
 
 	return f.eventType
+}
+
+// IncludePauseContainer returns whether the filter allows pause containers through. If the filter
+// is nil, it returns false.
+func (f *Filter) IncludePauseContainer() bool {
+	if f == nil {
+		return false
+	}
+
+	return f.includePauseContainers
 }
