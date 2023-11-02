@@ -558,10 +558,12 @@ def get_omnibus_env(
     if int(major_version) > 6:
         env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
 
-    integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
-    # Only overrides the env var if the value is a non-empty string.
-    if integrations_core_version:
-        env['INTEGRATIONS_CORE_VERSION'] = integrations_core_version
+    env_override = ['INTEGRATIONS_CORE_VERSION']
+    for key in env_override:
+        value = os.environ.get(key)
+        # Only overrides the env var if the value is a non-empty string.
+        if value:
+            env[key] = value
 
     if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
         # get certificate and password from ssm
