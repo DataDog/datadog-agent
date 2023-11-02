@@ -11,9 +11,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cilium/ebpf"
-
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/features"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
@@ -265,6 +265,15 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			&manager.ProbeSelector{
 				ProbeIdentificationPair: probeIdentifier,
 			})
+	}
+
+	//fmt.Println(mgrOpts)
+	//fmt.Println(buf)
+
+	if features.HaveMapType(ebpf.RingBuf) == nil {
+		for _, buf := range m.RingBuffers {
+			buf
+		}
 	}
 
 	if err := m.InitWithOptions(buf, mgrOpts); err != nil {

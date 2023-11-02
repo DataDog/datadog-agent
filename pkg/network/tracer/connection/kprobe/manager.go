@@ -16,8 +16,6 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
-	cws "github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
@@ -104,15 +102,9 @@ func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebp
 		mgr.RingBuffers = []*manager.RingBuffer{
 			{
 				Map: manager.Map{Name: probes.ConnCloseEventMapRing},
-				RingBufferOptions: manager.RingBufferOptions{
-					RingBufferSize: int(cws.ComputeDefaultEventsRingBufferSize()),
-				},
 			},
 		}
-		err := mgr.RingBuffers[0].Start()
-		if err != nil {
-			return err
-		}
+		buf := make(RingBuffer)
 	} else {
 		mgr.PerfMaps = []*manager.PerfMap{
 			{
