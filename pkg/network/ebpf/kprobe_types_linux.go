@@ -55,7 +55,6 @@ type Telemetry struct {
 	Udp_sends_missed    uint64
 	Udp_dropped_conns   uint64
 }
-
 type HTTP2Telemetry struct {
 	End_of_stream_eos              uint64
 	End_of_stream_rst              uint64

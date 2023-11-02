@@ -144,21 +144,21 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         }
         goto end;
     }
-    if (str_len > 180) {
-        increment_telemetry_count(str_len_too_big_large);
-        goto end;
-    }
-    if (str_len > HTTP2_MAX_PATH_LEN) {
-        increment_telemetry_count(str_len_too_big_mid);
-        goto end;
-    }
-    if (index != kIndexPath || headers_to_process == NULL) {
+//    if (str_len > 180) {
+//        increment_telemetry_count(str_len_too_big_large);
+//        goto end;
+//    }
+//    if (str_len > HTTP2_MAX_PATH_LEN) {
+//        increment_telemetry_count(str_len_too_big_mid);
+//        goto end;
+//    }
+    if ((str_len > HTTP2_MAX_PATH_LEN) || index != kIndexPath || headers_to_process == NULL) {
         goto end;
     }
 
     __u32 final_size = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
     if (skb_info->data_off + final_size > skb_info->data_end) {
-        increment_telemetry_count(str_len_greater_then_frame_loc);
+//        increment_telemetry_count(str_len_greater_then_frame_loc);
         goto end;
     }
 
@@ -259,7 +259,7 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method = *static_value;
-                increment_telemetry_count(request_seen);
+//                increment_telemetry_count(request_seen);
             } else if (current_header->index >= k200 && current_header->index <= k500) {
                 current_stream->response_status_code = *static_value;
             } else if (current_header->index == kEmptyPath) {
@@ -301,7 +301,7 @@ static __always_inline void handle_end_of_stream(http2_stream_t *current_stream,
     // response end of stream;
     current_stream->response_last_seen = bpf_ktime_get_ns();
     current_stream->tup = http2_stream_key_template->tup;
-    increment_telemetry_count(response_seen);
+//    increment_telemetry_count(response_seen);
 
     // enqueue
     http2_batch_enqueue(current_stream);
@@ -483,7 +483,7 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
     if (frame_state->remainder > 0) {
-        increment_telemetry_count(frame_remainder);
+//        increment_telemetry_count(frame_remainder);
         skb_info->data_off += frame_state->remainder;
         // The remainders "ends" the current packet. No interesting frames were found.
         if (skb_info->data_off == skb_info->data_end) {
@@ -522,7 +522,7 @@ valid_frame:
             break;
         }
         if (interesting_frame_index >= HTTP2_MAX_FRAMES_ITERATIONS) {
-            increment_telemetry_count(max_frames_in_packet);
+//            increment_telemetry_count(max_frames_in_packet);
             break;
         }
 

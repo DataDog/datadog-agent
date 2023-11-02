@@ -170,7 +170,8 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	return
 }
 
-func (p *protocol) PostStart(_ *manager.Manager) error {
+func (p *protocol) PostStart(mgr *manager.Manager) error {
+	go p.telemetry.Update(mgr)
 	return nil
 }
 

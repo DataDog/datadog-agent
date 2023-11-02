@@ -9,6 +9,12 @@ package http
 
 import (
 	"fmt"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cihub/seelog"
+	"time"
+	"unsafe"
 
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -46,6 +52,17 @@ type Telemetry struct {
 	emptyPath, unknownMethod, invalidLatency, nonPrintableCharacters *libtelemetry.Counter // this happens when the request doesn't have the expected format
 	aggregations                                                     *libtelemetry.Counter
 
+	// http2 telemetry - which should be moved its own file
+	http2requests  *libtelemetry.Gauge
+	http2responses *libtelemetry.Gauge
+	endOfStreamEOS *libtelemetry.Gauge
+	endOfStreamRST *libtelemetry.Gauge
+	//strLenGraterThenFrameLoc *libtelemetry.Gauge
+	//strLenTooBigMid          *libtelemetry.Gauge
+	//strLenTooBigLarge        *libtelemetry.Gauge
+	//frameRemainder           *libtelemetry.Gauge
+	//framesInPacket           *libtelemetry.Gauge
+
 	joiner telemetryJoiner
 }
 
@@ -77,6 +94,17 @@ func NewTelemetry(protocol string) *Telemetry {
 		invalidLatency:         metricGroup.NewCounter("malformed", "type:invalid-latency", libtelemetry.OptStatsd),
 		nonPrintableCharacters: metricGroup.NewCounter("malformed", "type:non-printable-char", libtelemetry.OptStatsd),
 
+		// http2 metrics which supposed to move to the HTTP/2 package
+		http2requests:  metricGroup.NewGauge("http2requests", libtelemetry.OptPrometheus),
+		http2responses: metricGroup.NewGauge("http2responses", libtelemetry.OptPrometheus),
+		endOfStreamEOS: metricGroup.NewGauge("endOfStreamEOS", libtelemetry.OptPrometheus),
+		endOfStreamRST: metricGroup.NewGauge("endOfStreamRST", libtelemetry.OptPrometheus),
+		//strLenGraterThenFrameLoc: metricGroup.NewGauge("strLenGraterThenFrameLoc", libtelemetry.OptPrometheus),
+		//strLenTooBigMid:          metricGroup.NewGauge("strLenTooBigMid", libtelemetry.OptPrometheus),
+		//strLenTooBigLarge:        metricGroup.NewGauge("strLenTooBigLarge", libtelemetry.OptPrometheus),
+		//frameRemainder:           metricGroup.NewGauge("frameRemainder", libtelemetry.OptPrometheus),
+		//framesInPacket:           metricGroup.NewGauge("framesInPacket", libtelemetry.OptPrometheus),
+
 		joiner: telemetryJoiner{
 			requests:         metricGroupJoiner.NewCounter("requests", libtelemetry.OptPrometheus),
 			responses:        metricGroupJoiner.NewCounter("responses", libtelemetry.OptPrometheus),
@@ -107,4 +135,59 @@ func (t *Telemetry) Count(tx Transaction) {
 
 func (t *Telemetry) Log() {
 	log.Debugf("%s stats summary: %s", t.protocol, t.metricGroup.Summary())
+}
+
+func (t *Telemetry) getHTTP2EBPFTelemetry(mgr *manager.Manager) *netebpf.HTTP2Telemetry {
+	var zero uint64
+	mp, _, err := mgr.GetMap(probes.HTTP2TelemetryMap)
+	if err != nil {
+		log.Warnf("error retrieving http2 telemetry map: %s", err)
+		return nil
+	}
+
+	http2Telemetry := &netebpf.HTTP2Telemetry{}
+	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+		// This can happen if we haven't initialized the telemetry object yet
+		// so let's just use a trace log
+		if log.ShouldLog(seelog.TraceLvl) {
+			log.Tracef("error retrieving the http2 telemetry struct: %s", err)
+		}
+		return nil
+	}
+	return http2Telemetry
+}
+
+// Update should be moved to the HTTP/2 part as well
+func (t *Telemetry) Update(mgr *manager.Manager) error {
+	var zero uint64
+
+	for {
+		mp, _, err := mgr.GetMap(probes.HTTP2TelemetryMap)
+		if err != nil {
+			log.Warnf("error retrieving http2 telemetry map: %s", err)
+			return nil
+		}
+
+		http2Telemetry := &netebpf.HTTP2Telemetry{}
+		if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+			// This can happen if we haven't initialized the telemetry object yet
+			// so let's just use a trace log
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("error retrieving the http2 telemetry struct: %s", err)
+			}
+			return nil
+		}
+
+		t.http2requests.Set(int64(http2Telemetry.Request_seen))
+		t.http2responses.Set(int64(http2Telemetry.Response_seen))
+		t.endOfStreamEOS.Set(int64(http2Telemetry.End_of_stream_eos))
+		t.endOfStreamRST.Set(int64(http2Telemetry.End_of_stream_rst))
+		//t.strLenGraterThenFrameLoc.Set(int64(http2Telemetry.Str_len_greater_then_frame_loc))
+		//t.frameRemainder.Set(int64(http2Telemetry.Frame_remainder))
+		//t.framesInPacket.Set(int64(http2Telemetry.Max_frames_in_packet))
+		//t.strLenTooBigMid.Set(int64(http2Telemetry.Str_len_too_big_mid))
+		//t.strLenTooBigLarge.Set(int64(http2Telemetry.Str_len_too_big_large))
+
+		time.Sleep(10 * time.Second)
+	}
 }
