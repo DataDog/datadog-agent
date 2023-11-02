@@ -2,6 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
+
 //go:build windows
 
 // Package evtlog defines a check that reads the Windows Event Log and submits Events
@@ -50,7 +51,7 @@ type Check struct {
 	sub                 evtsubscribe.PullSubscription
 	evtapi              evtapi.API
 	systemRenderContext evtapi.EventRenderContextHandle
-	bookmark            evtbookmark.Bookmark
+	bookmarkSaver       *bookmarkSaver
 }
 
 // Run executes the check
@@ -67,7 +68,7 @@ func (c *Check) Run() error {
 		return err
 	}
 
-	err = c.fetchEvents(sender)
+	err = c.fetchEventsLoop(sender)
 	if err != nil {
 		// An error occurred fetching events, stop the subscription
 		c.sub.Stop()
@@ -78,62 +79,64 @@ func (c *Check) Run() error {
 	return nil
 }
 
-func (c *Check) fetchEvents(sender sender.Sender) error {
-	var lastEvent *evtapi.EventRecord
-	eventsSinceLastBookmark := 0
-
-	// Update the bookmark at the end of the check, regardless of the bookmark_frequency
+func (c *Check) fetchEventsLoop(sender sender.Sender) error {
+	// Save the bookmark at the end of the check, regardless of the bookmarkFrequency
 	defer func() {
-		if lastEvent != nil {
-			if eventsSinceLastBookmark > 0 {
-				err := c.updateBookmark(lastEvent)
-				if err != nil {
-					c.Warnf("failed to save bookmark: %v", err)
-				}
-			}
-			evtapi.EvtCloseRecord(c.evtapi, lastEvent.EventRecordHandle)
+		err := c.bookmarkSaver.saveLastBookmark()
+		if err != nil {
+			c.Warnf(err.Error())
 		}
 	}()
-
 	// Fetch new events
 	for {
-		events, err := c.sub.GetEvents()
+		stop, err := c.fetchEvents(sender)
 		if err != nil {
 			return err
 		}
-		if events == nil {
-			// no more events
-			break
+		if stop {
+			return nil
 		}
-		for i, event := range events {
+	}
+}
+
+func (c *Check) fetchEvents(sender sender.Sender) (bool, error) {
+	// Use time.NewTimer instead of time.After so we don't leak a background task each
+	// loop iteration. see https://pkg.go.dev/time#After
+	timeout := time.NewTimer(time.Duration(*c.config.instance.Timeout) * time.Second)
+	defer timeout.Stop()
+
+	select {
+	case <-timeout.C:
+		// Waited for timeout for did not receive any new events, end the check
+		return true, nil
+	case events, ok := <-c.sub.GetEvents():
+		if !ok {
+			// The channel is closed, this indicates an error or that sub.Stop() was called
+			// Use sub.Error() to get the error, if any.
+			err := c.sub.Error()
+			if err != nil {
+				// If there is an error, you must stop the subscription. It is possible to resume
+				// the subscription by calling sub.Start() again.
+				c.sub.Stop()
+				return true, err
+			}
+			return true, nil
+		}
+		for _, event := range events {
 			// Submit Datadog Event
 			_ = c.submitEvent(sender, event)
 
-			// Update bookmark according to bookmark_frequency config
-			eventsSinceLastBookmark++
-			if *c.config.instance.BookmarkFrequency > 0 && eventsSinceLastBookmark >= *c.config.instance.BookmarkFrequency {
-				err = c.updateBookmark(event)
-				if err != nil {
-					c.Warnf("failed to save bookmark: %v", err)
-				}
-				eventsSinceLastBookmark = 0
+			// bookmarkSaver manages whether or not to save/persist the bookmark
+			err := c.bookmarkSaver.updateBookmark(event)
+			if err != nil {
+				c.Warnf(err.Error())
 			}
 
-			// Close the event handle when we are done with it.
-			// If this is the last event in the batch, we may need to use it to update
-			// the bookmark so save it until the check finishes.
-			if i == len(events)-1 {
-				if lastEvent != nil {
-					evtapi.EvtCloseRecord(c.evtapi, lastEvent.EventRecordHandle)
-				}
-				lastEvent = event
-			} else {
-				evtapi.EvtCloseRecord(c.evtapi, event.EventRecordHandle)
-			}
+			// Must close event handle when we are done with it
+			evtapi.EvtCloseRecord(c.evtapi, event.EventRecordHandle)
 		}
+		return false, nil
 	}
-
-	return nil
 }
 
 func (c *Check) submitEvent(sender sender.Sender, event *evtapi.EventRecord) error {
@@ -163,28 +166,6 @@ func (c *Check) submitEvent(sender sender.Sender, event *evtapi.EventRecord) err
 
 func (c *Check) bookmarkPersistentCacheKey() string {
 	return fmt.Sprintf("%s_%s", c.ID(), "bookmark")
-}
-
-// update the bookmark handle to point to event, add the bookmark to the subscription, and then update the persistent cache
-func (c *Check) updateBookmark(event *evtapi.EventRecord) error {
-	err := c.bookmark.Update(event.EventRecordHandle)
-	if err != nil {
-		return fmt.Errorf("failed to update bookmark: %v", err)
-	}
-
-	c.sub.SetBookmark(c.bookmark)
-
-	bookmarkXML, err := c.bookmark.Render()
-	if err != nil {
-		return fmt.Errorf("failed to render bookmark XML: %v", err)
-	}
-
-	err = persistentcache.Write(c.bookmarkPersistentCacheKey(), bookmarkXML)
-	if err != nil {
-		return fmt.Errorf("failed to persist bookmark: %v", err)
-	}
-
-	return nil
 }
 
 func alertTypeFromLevel(level uint64) (agentEvent.EventAlertType, error) {
@@ -365,7 +346,18 @@ func (c *Check) initSubscription() error {
 			opts = append(opts, evtsubscribe.WithStartAtOldestRecord())
 		}
 	}
-	c.bookmark = bookmark
+
+	c.bookmarkSaver = &bookmarkSaver{
+		bookmark:          bookmark,
+		bookmarkFrequency: *c.config.instance.BookmarkFrequency,
+		saveBookmark: func(bookmarkXML string) error {
+			err := persistentcache.Write(c.bookmarkPersistentCacheKey(), bookmarkXML)
+			if err != nil {
+				return fmt.Errorf("failed to persist bookmark: %v", err)
+			}
+			return nil
+		},
+	}
 
 	// Batch count
 	opts = append(opts, evtsubscribe.WithEventBatchCount(uint(*c.config.instance.PayloadSize)))
@@ -381,6 +373,10 @@ func (c *Check) initSubscription() error {
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to events: %v", err)
 	}
+
+	// Connect bookmark to subscription now in case we didn't load a bookmark when the
+	// subscription was created.
+	c.sub.SetBookmark(bookmark)
 
 	// Create a render context for System event values
 	c.systemRenderContext, err = c.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
@@ -474,8 +470,8 @@ func (c *Check) Cancel() {
 		c.sub.Stop()
 	}
 
-	if c.bookmark != nil {
-		c.bookmark.Close()
+	if c.bookmarkSaver != nil && c.bookmarkSaver.bookmark != nil {
+		c.bookmarkSaver.bookmark.Close()
 	}
 
 	if c.systemRenderContext != evtapi.EventRenderContextHandle(0) {

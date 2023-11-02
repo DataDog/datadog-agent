@@ -3,5 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
+//go:build !windows
+
 // Package evtlog is not implemented on non-Windows platforms
 package evtlog
