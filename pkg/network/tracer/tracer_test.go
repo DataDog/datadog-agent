@@ -1025,7 +1025,7 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	}, 3*time.Second, 100*time.Millisecond, "Failed to get dns response")
 
 	// Allow the DNS reply to be processed in the snooper
-	time.Sleep(5 * time.Second)
+	time.Sleep(time.Millisecond * 500)
 
 	// Iterate through active connections until we find connection created above, and confirm send + recv counts
 	connections := getConnections(t, tr)
