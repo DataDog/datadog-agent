@@ -47,6 +47,16 @@ func (m *StatsPayload) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.SplitPayload {
+		i--
+		if m.SplitPayload {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x30
+	}
 	if m.ClientComputed {
 		i--
 		if m.ClientComputed {
@@ -444,6 +454,9 @@ func (m *StatsPayload) SizeVT() (n int) {
 	if m.ClientComputed {
 		n += 2
 	}
+	if m.SplitPayload {
+		n += 2
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -783,6 +796,26 @@ func (m *StatsPayload) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.ClientComputed = bool(v != 0)
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SplitPayload", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.SplitPayload = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])

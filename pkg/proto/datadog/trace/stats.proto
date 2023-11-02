@@ -14,6 +14,9 @@ message StatsPayload {
 	repeated ClientStatsPayload stats = 3;
 	string agentVersion = 4;
 	bool clientComputed = 5;
+	// splitPayload indicates if the payload is actually one of several payloads split out from a larger payload.
+	// This field can be used in the backend to signal if re-aggregation is necessary.
+	bool splitPayload = 6;
 }
 
 // ClientStatsPayload is the first layer of span stats aggregation. It is also
