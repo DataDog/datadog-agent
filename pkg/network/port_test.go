@@ -154,19 +154,16 @@ func TestReadInitialUDPState(t *testing.T) {
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		initialPorts, err := ReadInitialState("/proc", UDP, true)
-		require.NoError(t, err)
+		require.NoError(c, err)
 		for _, p := range ports[:2] {
-			assert.Contains(t, initialPorts, PortMapping{testRootNs, p}, fmt.Sprintf("PortMapping (testRootNs, p) returned false for port %d", p))
+			assert.Contains(c, initialPorts, PortMapping{testRootNs, p}, fmt.Sprintf("PortMapping (testRootNs, p) returned false for port %d", p))
 		}
 		for _, p := range ports[2:] {
-			assert.Contains(t, initialPorts, PortMapping{nsIno, p}, fmt.Sprintf("PortMapping(nsIno, p) returned false for port %d", p))
+			assert.Contains(c, initialPorts, PortMapping{nsIno, p}, fmt.Sprintf("PortMapping(nsIno, p) returned false for port %d", p))
 		}
-		if isUnusedUDPPort(t, 999) {
-			_, ok := initialPorts[PortMapping{testRootNs, 999}]
-			assert.False(t, ok, "expected IsListening(testRootNs, 999) to return false, but returned true")
-
-			_, ok = initialPorts[PortMapping{nsIno, 999}]
-			assert.False(t, ok, "expected IsListening(nsIno, 999) to return false, but returned true")
+		if isUnusedUDPPort(t, 53) {
+			assert.NotContains(c, initialPorts, PortMapping{testRootNs, 53}, "expected IsListening(testRootNs, 999) to return false, but returned true")
+			assert.NotContains(c, initialPorts, PortMapping{nsIno, 53}, "expected IsListening(nsIno, 999) to return false, but returned true")
 		}
 	}, 3*time.Second, time.Second, "udp/udp6 ports are listening")
 }
