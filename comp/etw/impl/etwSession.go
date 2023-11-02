@@ -9,6 +9,7 @@ package etwimpl
 
 import "C"
 import (
+	"errors"
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/etw"
 	"golang.org/x/sys/windows"
@@ -29,22 +30,22 @@ type etwSession struct {
 	utf16name     []uint16
 }
 
-func (e *etwSession) ConfigureProvider(providerGUID windows.GUID, configurations ...etw.ProviderConfigurationFunc) error {
+func (e *etwSession) ConfigureProvider(providerGUID windows.GUID, configurations ...etw.ProviderConfigurationFunc) {
 	cfg := etw.ProviderConfiguration{}
 	for _, configuration := range configurations {
 		configuration(&cfg)
 	}
 	e.providers[providerGUID] = cfg
-	return e.enableProvider(providerGUID)
 }
 
-func (e *etwSession) enableProvider(providerGUID windows.GUID) error {
-	cfg := e.providers[providerGUID]
-	params := C.ENABLE_TRACE_PARAMETERS{
-		Version: 2, // ENABLE_TRACE_PARAMETERS_VERSION_2
+func (e *etwSession) EnableProvider(providerGUID windows.GUID) error {
+	if _, ok := e.providers[providerGUID]; !ok {
+		// ConfigureProvider was not called prior, set the default configuration
+		e.ConfigureProvider(providerGUID, nil)
 	}
 
-	ret := windows.Errno(C.EnableTraceEx2(
+	cfg := e.providers[providerGUID]
+	ret := windows.Errno(C.DDEnableTrace(
 		e.hSession,
 		(*C.GUID)(unsafe.Pointer(&providerGUID)),
 		C.EVENT_CONTROL_CODE_ENABLE_PROVIDER,
@@ -52,7 +53,11 @@ func (e *etwSession) enableProvider(providerGUID windows.GUID) error {
 		C.ULONGLONG(cfg.MatchAnyKeyword),
 		C.ULONGLONG(cfg.MatchAllKeyword),
 		0,
-		&params,
+		// We can't pass to C-code Go pointers containing themselves
+		// Go pointers, so we have to list all event filter descriptors here
+		// and re-assemble them in C-land using our helper DDEnableTrace.
+		(*C.ULONGLONG)(unsafe.Pointer(&cfg.PIDs[0])),
+		C.ULONG(len(cfg.PIDs)),
 	))
 
 	if ret != windows.ERROR_SUCCESS {
@@ -61,7 +66,7 @@ func (e *etwSession) enableProvider(providerGUID windows.GUID) error {
 	return nil
 }
 
-func (e *etwSession) disableProvider(providerGUID windows.GUID) error {
+func (e *etwSession) DisableProvider(providerGUID windows.GUID) error {
 	ret := windows.Errno(C.EnableTraceEx2(
 		e.hSession,
 		(*C.GUID)(unsafe.Pointer(&providerGUID)),
@@ -73,7 +78,8 @@ func (e *etwSession) disableProvider(providerGUID windows.GUID) error {
 		nil))
 
 	if ret == windows.ERROR_MORE_DATA ||
-		ret == windows.ERROR_NOT_FOUND {
+		ret == windows.ERROR_NOT_FOUND ||
+		ret == windows.ERROR_SUCCESS {
 		return nil
 	} else {
 		return ret
@@ -90,7 +96,7 @@ func etwCallbackC(eventRecord C.PEVENT_RECORD) {
 func (e *etwSession) StartTracing(callback etw.EventCallback) error {
 	handle := cgo.NewHandle(callback)
 	defer handle.Delete()
-	traceHandle := C.StartTracing(
+	traceHandle := C.DDStartTracing(
 		(C.LPWSTR)(unsafe.Pointer(&e.utf16name[0])),
 		(C.uintptr_t)(handle),
 	)
@@ -110,12 +116,11 @@ func (e *etwSession) StartTracing(callback etw.EventCallback) error {
 	return ret
 }
 
-func (e *etwSession) StopTracing() {
+func (e *etwSession) StopTracing() error {
+	var globalError error = nil
 	for guid, _ := range e.providers {
-		err := e.disableProvider(guid)
-		if err != nil {
-			// TODO: log error
-		}
+		// nil errors are discarded
+		errors.Join(globalError, e.DisableProvider(guid))
 	}
 
 	ret := windows.Errno(C.ControlTraceW(
@@ -125,8 +130,9 @@ func (e *etwSession) StopTracing() {
 		C.EVENT_TRACE_CONTROL_STOP))
 	if !(ret == windows.ERROR_MORE_DATA ||
 		ret == windows.ERROR_SUCCESS) {
-		// TODO: log error
+		return errors.Join(ret, globalError)
 	}
+	return globalError
 }
 
 // DeleteEtwSession deletes an ETW session by name, typically after a crash since we don't have access to the session

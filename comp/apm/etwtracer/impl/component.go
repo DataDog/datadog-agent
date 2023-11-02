@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sys/windows"
 	"io"
 	"net"
+	"time"
 )
 
 // Module defines the fx options for this component.
@@ -40,9 +41,10 @@ func newApmEtwTracerImpl(deps dependencies) (apmetwtracer.Component, error) {
 	guid, _ := windows.GUIDFromString("{E13C0D23-CCBC-4E12-931B-D9CC2EEE27E4}")
 
 	apmEtwTracer := &apmetwtracerimpl{
+		pids:                      make(map[uint64]struct{}),
+		dotNetRuntimeProviderGuid: guid,
 		log:                       deps.Log,
 		etw:                       deps.Etw,
-		dotNetRuntimeProviderGuid: guid,
 	}
 
 	deps.Lc.Append(fx.Hook{OnStart: apmEtwTracer.start, OnStop: apmEtwTracer.stop})
@@ -76,14 +78,8 @@ const (
 	ClrEvent      = 16
 )
 
-type win32MessageBytePipe interface {
-	CloseWrite() error
-}
-
 func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
-	// calls https://github.com/microsoft/go-winio/blob/e6aebd619a7278545b11188a0e21babea6b94182/pipe.go#L147
-	// which closes a pipe in message-mode
-	defer c.(win32MessageBytePipe).CloseWrite()
+	defer c.Close()
 
 	a.log.Debugf("client connected [%s]\n", c.RemoteAddr().Network())
 	for {
@@ -122,7 +118,7 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 
 		switch h.CommandResponse {
 		case Register:
-			a.log.Debugf("Registering process with ID %d\n", pid)
+			a.log.Infof("Registering process with ID %d\n", pid)
 			err = a.AddPID(pid)
 			if err != nil {
 				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v\n", pid, err)
@@ -130,7 +126,7 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 			}
 			break
 		case Unregister:
-			a.log.Debugf("Unregistering process with ID %d\n", pid)
+			a.log.Infof("Unregistering process with ID %d\n", pid)
 			err = a.RemovePID(pid)
 			if err != nil {
 				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v\n", pid, err)
@@ -157,6 +153,7 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 }
 
 func (a *apmetwtracerimpl) start(_ context.Context) error {
+	a.log.Infof("Starting Datadog APM ETW tracer component")
 	var err error
 	etwSessionName := "Datadog APM ETW tracer"
 	a.session, err = a.etw.NewSession(etwSessionName)
@@ -172,23 +169,43 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 		for {
 			conn, err := a.pipeListener.Accept()
 			if err != nil {
-				a.log.Warnf("could not accept new client:", err)
+				// net.ErrClosed is returned when pipeListener is Close()'d
+				if err != net.ErrClosed {
+					a.log.Warnf("could not accept new client:", err)
+				}
+				return
 			}
 			go a.handleConnection(conn)
 		}
 	}()
 
-	err = a.reconfigureProvider()
-	if err != nil {
-		return err
-	}
+	startTracingErrorChan := make(chan error)
+	go func() {
+		// StartTracing blocks the caller
+		startTracingErr := a.session.StartTracing(func(e *etw.DDEtwEvent) {
+			a.log.Infof("received event %d from %v\n", e.Id, e.ProviderId)
+		})
+		// This error will be returned to the caller if it happens withing 100ms
+		// otherwise we assume StartTracing worked and whatever error message is
+		// returned here will be lost.
+		// That's ok because StartTracing should only return when StopTracing is called
+		// at the end of the program execution.
+		startTracingErrorChan <- startTracingErr
+	}()
 
-	return a.session.StartTracing(func(e *etw.DDEtwEvent) {
-		a.log.Infof("received event %d from %v\n", e.Id, e.ProviderId)
-	})
+	// Since we can only know if StartTracing failed after calling it,
+	// and it is a blocking call, we wait for 100ms to see if it failed.
+	// Otherwise, we don't want to block the start method for longer than that.
+	select {
+	case err = <-startTracingErrorChan:
+		return err
+	case <-time.After(100 * time.Millisecond):
+		return nil
+	}
 }
 
 func (a *apmetwtracerimpl) stop(_ context.Context) error {
+	a.log.Infof("Stopping Datadog APM ETW tracer component")
 	// No need to stop the tracing session, it's going to be automatically cleaned up
 	// when the ETW component stops
 	a.pipeListener.Close()
@@ -197,16 +214,24 @@ func (a *apmetwtracerimpl) stop(_ context.Context) error {
 
 func (a *apmetwtracerimpl) AddPID(pid uint64) error {
 	a.pids[pid] = struct{}{}
-	return a.reconfigureProvider()
+	a.reconfigureProvider()
+	if len(a.pids) > 0 {
+		return a.session.EnableProvider(a.dotNetRuntimeProviderGuid)
+	}
+	return nil
 }
 
 func (a *apmetwtracerimpl) RemovePID(pid uint64) error {
 	delete(a.pids, pid)
-	return a.reconfigureProvider()
+	a.reconfigureProvider()
+	if len(a.pids) <= 0 {
+		return a.session.DisableProvider(a.dotNetRuntimeProviderGuid)
+	}
+	return nil
 }
 
-func (a *apmetwtracerimpl) reconfigureProvider() error {
-	err := a.session.ConfigureProvider(a.dotNetRuntimeProviderGuid, func(cfg *etw.ProviderConfiguration) {
+func (a *apmetwtracerimpl) reconfigureProvider() {
+	a.session.ConfigureProvider(a.dotNetRuntimeProviderGuid, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
 		cfg.MatchAnyKeyword = 0x40004001
 		pidsList := make([]uint64, 0, len(a.pids))
@@ -215,8 +240,4 @@ func (a *apmetwtracerimpl) reconfigureProvider() error {
 		}
 		cfg.PIDs = pidsList
 	})
-	if err != nil {
-		return fmt.Errorf("failed to configure the Microsoft-Windows-DotNETRuntime provider: %v", err)
-	}
-	return nil
 }

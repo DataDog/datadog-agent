@@ -66,7 +66,7 @@ type ProviderConfiguration struct {
 	TraceLevel TraceLevel
 
 	// MatchAnyKeyword is a 64-bit bitmask of keywords that determine the categories of events that you want the
-	// provider to write
+	// provider to write.
 	// See https://learn.microsoft.com/en-us/windows/win32/api/evntrace/nf-evntrace-enabletraceex2
 	MatchAnyKeyword uint64
 
@@ -83,14 +83,23 @@ type ProviderConfigurationFunc func(cfg *ProviderConfiguration)
 // Session represents an ETW session. A session can have multiple tracing providers enabled.
 type Session interface {
 	// ConfigureProvider configures a particular ETW provider identified by its GUID for this session.
-	ConfigureProvider(providerGUID windows.GUID, configurations ...ProviderConfigurationFunc) error
+	// After calling this function, call EnableProvider to apply the configuration.
+	ConfigureProvider(providerGUID windows.GUID, configurations ...ProviderConfigurationFunc)
+
+	// EnableProvider enables the given provider. If ConfigureProvider was not called prior to calling this
+	// function, then a default provider configuration is applied.
+	EnableProvider(providerGUID windows.GUID) error
+
+	// DisableProvider disables the given provider.
+	DisableProvider(providerGUID windows.GUID) error
 
 	// StartTracing starts tracing with the given callback.
+	// This function blocks until StopTracing is called.
 	StartTracing(callback EventCallback) error
 
 	// StopTracing stops all tracing activities.
 	// It's not possible to use the session anymore after a call to StopTracing.
-	StopTracing()
+	StopTracing() error
 }
 
 // Component offers a way to create ETW tracing sessions with a given name.
