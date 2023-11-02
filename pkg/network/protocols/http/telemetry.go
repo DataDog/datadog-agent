@@ -9,7 +9,6 @@ package http
 
 import (
 	"fmt"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cihub/seelog"
@@ -137,7 +136,7 @@ func (t *Telemetry) Log() {
 	log.Debugf("%s stats summary: %s", t.protocol, t.metricGroup.Summary())
 }
 
-func (t *Telemetry) getHTTP2EBPFTelemetry(mgr *manager.Manager) *netebpf.HTTP2Telemetry {
+func (t *Telemetry) getHTTP2EBPFTelemetry(mgr *manager.Manager) *HTTP2Telemetry {
 	var zero uint64
 	mp, _, err := mgr.GetMap(probes.HTTP2TelemetryMap)
 	if err != nil {
@@ -145,7 +144,7 @@ func (t *Telemetry) getHTTP2EBPFTelemetry(mgr *manager.Manager) *netebpf.HTTP2Te
 		return nil
 	}
 
-	http2Telemetry := &netebpf.HTTP2Telemetry{}
+	http2Telemetry := &HTTP2Telemetry{}
 	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
 		// This can happen if we haven't initialized the telemetry object yet
 		// so let's just use a trace log
@@ -168,7 +167,7 @@ func (t *Telemetry) Update(mgr *manager.Manager) error {
 			return nil
 		}
 
-		http2Telemetry := &netebpf.HTTP2Telemetry{}
+		http2Telemetry := &HTTP2Telemetry{}
 		if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
 			// This can happen if we haven't initialized the telemetry object yet
 			// so let's just use a trace log

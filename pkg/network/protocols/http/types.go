@@ -11,6 +11,7 @@ package http
 #include "../../ebpf/c/protocols/tls/tags-types.h"
 #include "../../ebpf/c/protocols/http/types.h"
 #include "../../ebpf/c/protocols/classification/defs.h"
+#include "../../ebpf/c/protocols/http2/decoding-defs.h"
 */
 import "C"
 
@@ -20,6 +21,9 @@ type SslReadArgs C.ssl_read_args_t
 
 type EbpfEvent C.http_event_t
 type EbpfTx C.http_transaction_t
+
+// should move to the HTTP/2 package - wip
+type HTTP2Telemetry C.http2_telemetry_t
 
 const (
 	BufferSize = C.HTTP_BUFFER_SIZE
