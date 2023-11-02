@@ -69,7 +69,7 @@ namespace WixSetup.Datadog
                 // Use 2 LaunchConditions, one for server versions,
                 // one for client versions.
                 MinimumSupportedWindowsVersion.WindowsServer2016 |
-                MinimumSupportedWindowsVersion.Windows8_1,
+                MinimumSupportedWindowsVersion.Windows10,
                 new Property("MsiLogging", "iwearucmop!"),
                 new Property("MSIRESTARTMANAGERCONTROL", "Disable"),
                 new Property("APIKEY")
