@@ -273,17 +273,23 @@ func TestCollection(t *testing.T) {
 			// Subscribe to the mockStore
 			ch := mockStore.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
 
-			<-ch // Wait that the initial empty events are sent
-
 			// Collect process data
 			err = collector.Start(ctx, mockStore)
 			require.NoError(t, err)
 
-			numberOfEvents := len(test.serverResponses)
+			// Number of events expected. Each response can hold multiple events, either Set or Unset
+			numberOfEvents := len(test.preEvents)
+			for _, ev := range test.serverResponses {
+				numberOfEvents += len(ev.SetEvents) + len(ev.UnsetEvents)
+			}
 
-			for i := 0; i < numberOfEvents; i++ {
+			// Keep listening to workloadmeta until enough events are received. It is possible that the
+			// first bundle does not hold any events. Thus, it is required to look at the number of events
+			// in the bundle.
+			for i := 0; i < numberOfEvents; {
 				bundle := <-ch
 				close(bundle.Ch)
+				i += len(bundle.Events)
 			}
 			mockStore.Unsubscribe(ch)
 			cancel()

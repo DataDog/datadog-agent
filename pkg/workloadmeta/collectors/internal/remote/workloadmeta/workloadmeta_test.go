@@ -209,20 +209,29 @@ func TestCollection(t *testing.T) {
 		},
 	}
 
-	mockServerStore.Notify(
-		[]workloadmeta.CollectorEvent{
-			{
-				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceAll,
-				Entity: expectedContainer,
-			},
+	collectorEvents := []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: expectedContainer,
 		},
-	)
+	}
 
-	<-ch
+	mockServerStore.Notify(collectorEvents)
 
-	cancel()
+	// Number of events expected. We expect one per collectorEvent.
+
+	numberOfEvents := len(collectorEvents)
+	// Keep listening to workloadmeta until enough events are received. It is possible that the
+	// first bundle does not hold any events. Thus, it is required to look at the number of events
+	// in the bundle.
+	for i := 0; i < numberOfEvents; {
+		bundle := <-ch
+		close(bundle.Ch)
+		i += len(bundle.Events)
+	}
 	mockClientStore.Unsubscribe(ch)
+	cancel()
 
 	container, err := mockClientStore.GetContainer("ctr-id")
 	require.NoError(t, err)
