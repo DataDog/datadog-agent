@@ -132,7 +132,7 @@ func init() {
 	exportedMapStatus.Set("apiKeyScoped", &exportedStatusKeyAuthorized)
 	exportedMapStatus.Set("lastError", &exportedLastUpdateErr)
 
-	expvarcollector.RegisterExpvarReport("remoteConfiguration", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("remoteConfiguration", func() (interface{}, error) {
 		status := make(map[string]interface{})
 
 		if config.IsRemoteConfigEnabled(config.Datadog) {

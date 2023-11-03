@@ -8,14 +8,14 @@ package expvarcollector
 
 var expvarRegistry = map[string]func() (interface{}, error){}
 
-// RegisterExpvarReport allow components to register the function to collect
+// RegisterExpvarCallback allow components to register the function to collect
 // expvar variables.
-func RegisterExpvarReport(key string, report func() (interface{}, error)) {
+func RegisterExpvarCallback(key string, report func() (interface{}, error)) {
 	expvarRegistry[key] = report
 }
 
 // Report iterates over the registered collect function and append the result into the stats map
-func Report(stats map[string]interface{}) (map[string]interface{}, []error) {
+func Collect(stats map[string]interface{}) (map[string]interface{}, []error) {
 	errors := []error{}
 	for key, report := range expvarRegistry {
 		result, err := report()

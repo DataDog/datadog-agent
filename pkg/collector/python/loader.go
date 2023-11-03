@@ -80,7 +80,7 @@ func init() {
 		}
 	}
 
-	expvarcollector.RegisterExpvarReport("pyLoaderStats", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("pyLoaderStats", func() (interface{}, error) {
 		stats := make(map[string]interface{})
 		pyLoaderStatsJSON := []byte(pyLoaderStats.String())
 		json.Unmarshal(pyLoaderStatsJSON, &stats) //nolint:errcheck

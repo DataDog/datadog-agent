@@ -27,7 +27,7 @@ func init() {
 		return errorStats.getResolveWarnings()
 	}))
 
-	expvarcollector.RegisterExpvarReport("autoConfigStats", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("autoConfigStats", func() (interface{}, error) {
 		autoConfigStatsJSON := []byte(acErrors.String())
 		autoConfigStats := make(map[string]interface{})
 		json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck

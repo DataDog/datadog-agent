@@ -309,7 +309,7 @@ func getEndpointsInfos() (map[string]interface{}, error) {
 // It gets the status elements common to all Agent flavors.
 func getCommonStatus() (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
-	stats, errors := expvarcollector.Report(stats)
+	stats, errors := expvarcollector.Collect(stats)
 
 	if len(errors) > 0 {
 		log.Errorf("Error Getting ExpVar Stats: %v", errors)

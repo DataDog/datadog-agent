@@ -24,7 +24,7 @@ func init() {
 	trapsExpvars.Set("Packets", &trapsPackets)
 	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
 
-	expvarcollector.RegisterExpvarReport("snmpTrapsStats", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("snmpTrapsStats", func() (interface{}, error) {
 		status := make(map[string]interface{})
 
 		metricsJSON := []byte(trapsExpvars.String())

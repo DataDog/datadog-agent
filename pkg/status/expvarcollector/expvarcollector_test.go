@@ -10,17 +10,17 @@ import (
 	"testing"
 )
 
-func TestReport(t *testing.T) {
-	RegisterExpvarReport("testing_no_error", func() (interface{}, error) {
+func TestCollect(t *testing.T) {
+	RegisterExpvarCallback("testing_no_error", func() (interface{}, error) {
 		return "foo", nil
 	})
 
-	RegisterExpvarReport("testing_with_error", func() (interface{}, error) {
+	RegisterExpvarCallback("testing_with_error", func() (interface{}, error) {
 		return nil, fmt.Errorf("testin the error case")
 	})
 
 	stats := make(map[string]interface{})
-	stats, errors := Report(stats)
+	stats, errors := Collect(stats)
 
 	if len(errors) != 1 {
 		t.Errorf("Expected to have one error got %d", len(errors))

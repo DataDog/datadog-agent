@@ -223,7 +223,7 @@ func init() {
 	expvarPyInit = expvar.NewMap("pythonInit")
 	expvarPyInit.Set("Errors", expvar.Func(expvarPythonInitErrors))
 
-	expvarcollector.RegisterExpvarReport("pythonInit", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("pythonInit", func() (interface{}, error) {
 		pythonInit := make(map[string]interface{})
 
 		pythonInitJSON := []byte(expvarPyInit.String())

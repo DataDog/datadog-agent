@@ -162,7 +162,7 @@ func init() {
 	TransactionsExpvars.Set("HTTPErrors", &transactionsHTTPErrors)
 	TransactionsExpvars.Set("HTTPErrorsByCode", &transactionsHTTPErrorsByCode)
 
-	expvarcollector.RegisterExpvarReport("forwarderStats", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("forwarderStats", func() (interface{}, error) {
 		forwarderStatsJSON := []byte(ForwarderExpvars.String())
 		forwarderStats := make(map[string]interface{})
 		json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck

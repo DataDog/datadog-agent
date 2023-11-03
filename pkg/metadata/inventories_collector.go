@@ -22,7 +22,7 @@ import (
 )
 
 func init() {
-	expvarcollector.RegisterExpvarReport("inventories", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("inventories", func() (interface{}, error) {
 		inventories := expvar.Get("inventories")
 		var inventoriesStats map[string]interface{}
 		if inventories != nil {

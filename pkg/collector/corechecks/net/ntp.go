@@ -45,7 +45,7 @@ var (
 func init() {
 	core.RegisterCheck(ntpCheckName, ntpFactory)
 
-	expvarcollector.RegisterExpvarReport("ntpOffset", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("ntpOffset", func() (interface{}, error) {
 		if ntpExpVar.String() != "" {
 			result, err := strconv.ParseFloat(ntpExpVar.String(), 64)
 			return result, err

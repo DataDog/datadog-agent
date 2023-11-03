@@ -56,7 +56,7 @@ func init() {
 		stats: make(map[string]map[checkid.ID]*checkstats.Stats),
 	}
 
-	expvarcollector.RegisterExpvarReport("runnerStats", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("runnerStats", func() (interface{}, error) {
 		runnerStatsJSON := []byte(runnerStats.String())
 		stats := make(map[string]interface{})
 		json.Unmarshal(runnerStatsJSON, &stats) //nolint:errcheck

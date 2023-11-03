@@ -147,7 +147,7 @@ type server struct {
 }
 
 func init() {
-	expvarcollector.RegisterExpvarReport("dogstatsdStats", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("dogstatsdStats", func() (interface{}, error) {
 		dogstatsdStats := make(map[string]interface{})
 
 		dogstatsdStatsJSON := []byte(dogstatsdExpvars.String())

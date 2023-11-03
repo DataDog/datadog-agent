@@ -34,7 +34,7 @@ func init() {
 	hostnameExpvars.Set("provider", &hostnameProvider)
 	hostnameExpvars.Set("errors", &hostnameErrors)
 
-	expvarcollector.RegisterExpvarReport("hostnameStats", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("hostnameStats", func() (interface{}, error) {
 		hostnameStatsJSON := []byte(expvar.Get("hostname").String())
 		hostnameStats := make(map[string]interface{})
 		json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck

@@ -53,7 +53,7 @@ const (
 )
 
 func init() {
-	expvarcollector.RegisterExpvarReport("complianceChecks", func() (interface{}, error) {
+	expvarcollector.RegisterExpvarCallback("complianceChecks", func() (interface{}, error) {
 		complianceStatusJSON := []byte(status.String())
 		complianceStatus := make(map[string]interface{})
 		json.Unmarshal(complianceStatusJSON, &complianceStatus) //nolint:errcheck
