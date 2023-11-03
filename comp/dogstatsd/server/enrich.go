@@ -75,16 +75,18 @@ func extractTagsMetadata(tags []string, originFromUDS string, originFromMsg []by
 	for _, tag := range tags {
 		if strings.HasPrefix(tag, hostTagPrefix) {
 			host = tag[len(hostTagPrefix):]
+			continue
 		} else if strings.HasPrefix(tag, entityIDTagPrefix) {
 			originFromTag = tag[len(entityIDTagPrefix):]
+			continue
 		} else if strings.HasPrefix(tag, CardinalityTagPrefix) {
 			cardinality = tag[len(CardinalityTagPrefix):]
+			continue
 		} else if strings.HasPrefix(tag, jmxTagPrefix) {
 			metricSource = metrics.MetricSourceJmxCustom
-		} else {
-			tags[n] = tag
-			n++
 		}
+		tags[n] = tag
+		n++
 	}
 	tags = tags[:n]
 

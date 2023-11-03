@@ -486,8 +486,7 @@ func eventWithNoProcessContext(eventType model.EventType) bool {
 	return eventType == model.DNSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
-// UnmarshalProcessCacheEntry unmarshal a Process
-func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
+func (p *Probe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
 	entry := p.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
 	ev.ProcessCacheEntry = entry
 
@@ -496,6 +495,7 @@ func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, e
 		return n, err
 	}
 	entry.Process.ContainerID = ev.ContainerContext.ID
+	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
 }
@@ -636,7 +636,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	switch eventType {
 	case model.ForkEventType:
-		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -651,7 +651,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
-		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
