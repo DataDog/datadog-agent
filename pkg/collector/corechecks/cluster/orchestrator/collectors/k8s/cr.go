@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -54,7 +54,7 @@ func NewCRCollector(name string, groupVersion string) (*CRCollector, error) {
 			IsMetadataProducer:        false,
 			SupportsManifestBuffering: false,
 			Name:                      name,
-			NodeType:                  orchestrator.K8sCR,
+			NodeType:                  pkgorchestratormodel.K8sCR,
 			Version:                   groupVersion,
 		},
 		gvr:       gv.WithResource(name),

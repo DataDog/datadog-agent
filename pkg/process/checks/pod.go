@@ -16,6 +16,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -103,7 +104,7 @@ func (c *PodCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, erro
 		Cfg:                c.config,
 		HostName:           c.hostInfo.HostName,
 		MsgGroupID:         groupID,
-		NodeType:           orchestrator.K8sPod,
+		NodeType:           pkgorchestratormodel.K8sPod,
 		ApiGroupVersionTag: fmt.Sprintf("kube_api_version:%s", "v1"),
 	}
 
@@ -117,7 +118,7 @@ func (c *PodCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, erro
 	// Split the messages during forwarding.
 	metadataMessages := append(processResult.MetadataMessages, processResult.ManifestMessages...)
 
-	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
+	pkgorchestratormodel.SetCacheStats(len(podList), processed, ctx.NodeType, orchestrator.KubernetesResourceCache)
 
 	return StandardRunResult(metadataMessages), nil
 }

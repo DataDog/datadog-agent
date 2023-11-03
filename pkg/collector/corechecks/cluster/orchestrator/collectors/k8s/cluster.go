@@ -10,7 +10,7 @@ package k8s
 import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
@@ -44,7 +44,7 @@ func NewClusterCollector() *ClusterCollector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "clusters",
-			NodeType:                  orchestrator.K8sCluster,
+			NodeType:                  pkgorchestratormodel.K8sCluster,
 		},
 		processor: k8sProcessors.NewClusterProcessor(),
 	}

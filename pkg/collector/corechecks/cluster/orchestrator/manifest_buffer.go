@@ -18,15 +18,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
 	bufferExpVars           = expvar.NewMap("orchestrator-manifest-buffer")
-	bufferedManifest        = map[orchestrator.NodeType]*expvar.Int{}
+	bufferedManifest        = map[pkgorchestratormodel.NodeType]*expvar.Int{}
 	manifestFlushed         = &expvar.Int{}
 	bufferFlushedTotal      = &expvar.Int{}
 	tlmBufferedManifest     = telemetry.NewCounter("orchestrator", "manifest_buffered", []string{"orchestrator", "resource"}, "Number of manifest buffered")
@@ -128,7 +128,7 @@ func (cb *ManifestBuffer) Start(sender sender.Sender) {
 			select {
 			case msg, ok := <-cb.ManifestChan:
 				if !ok {
-					log.Warnc("Fail to read orchestrator manifest from channel", orchestrator.ExtraLogContext...)
+					log.Warnc("Fail to read orchestrator manifest from channel", pkgorchestratormodel.ExtraLogContext...)
 					continue
 				}
 				cb.appendManifest(msg, sender)
@@ -168,7 +168,7 @@ func setManifestStats(manifests []interface{}) {
 	tlmManifestFlushedTotal.Inc()
 	// Number of manifests flushed per resource in total
 	for _, m := range manifests {
-		nodeType := orchestrator.NodeType(m.(*model.Manifest).Type)
+		nodeType := pkgorchestratormodel.NodeType(m.(*model.Manifest).Type)
 		if _, ok := bufferedManifest[nodeType]; !ok {
 			bufferedManifest[nodeType] = &expvar.Int{}
 			bufferExpVars.Set(nodeType.String(), bufferedManifest[nodeType])

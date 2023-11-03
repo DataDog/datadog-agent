@@ -22,6 +22,7 @@ import (
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	oconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -135,7 +136,7 @@ func (c *Check) Run() error {
 		Cfg:                c.config,
 		HostName:           c.hostName,
 		MsgGroupID:         groupID,
-		NodeType:           orchestrator.K8sPod,
+		NodeType:           pkgorchestratormodel.K8sPod,
 		ApiGroupVersionTag: "kube_api_version:v1",
 	}
 
@@ -144,9 +145,9 @@ func (c *Check) Run() error {
 		return fmt.Errorf("unable to process pods: a panic occurred")
 	}
 
-	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
+	pkgorchestratormodel.SetCacheStats(len(podList), processed, ctx.NodeType, orchestrator.KubernetesResourceCache)
 
-	c.sender.OrchestratorMetadata(processResult.MetadataMessages, c.clusterID, int(orchestrator.K8sPod))
+	c.sender.OrchestratorMetadata(processResult.MetadataMessages, c.clusterID, int(pkgorchestratormodel.K8sPod))
 	c.sender.OrchestratorManifest(processResult.ManifestMessages, c.clusterID)
 
 	return nil

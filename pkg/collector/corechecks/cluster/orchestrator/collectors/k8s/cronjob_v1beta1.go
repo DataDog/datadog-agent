@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 
 	"k8s.io/apimachinery/pkg/labels"
 	batchv1Informers "k8s.io/client-go/informers/batch/v1beta1"
@@ -37,7 +37,7 @@ func NewCronJobV1Beta1Collector() *CronJobV1Beta1Collector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "cronjobs",
-			NodeType:                  orchestrator.K8sCronJob,
+			NodeType:                  pkgorchestratormodel.K8sCronJob,
 			Version:                   "batch/v1beta1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CronJobV1Beta1Handlers)),

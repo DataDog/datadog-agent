@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	orchcfg "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -44,7 +44,7 @@ const (
 )
 
 func init() {
-	core.RegisterCheck(orchestrator.CheckName, OrchestratorFactory)
+	core.RegisterCheck(pkgorchestratormodel.CheckName, OrchestratorFactory)
 }
 
 // OrchestratorInstance is the config of the orchestrator check instance.
@@ -96,7 +96,7 @@ func newOrchestratorCheck(base core.CheckBase, instance *OrchestratorInstance) *
 // OrchestratorFactory returns the orchestrator check
 func OrchestratorFactory() check.Check {
 	return newOrchestratorCheck(
-		core.NewCheckBase(orchestrator.CheckName),
+		core.NewCheckBase(pkgorchestratormodel.CheckName),
 		&OrchestratorInstance{},
 	)
 }
@@ -130,7 +130,7 @@ func (o *OrchestratorCheck) Configure(senderManager sender.SenderManager, integr
 	// load instance level config
 	err = o.instance.parse(config)
 	if err != nil {
-		_ = log.Errorc("could not parse check instance config", orchestrator.ExtraLogContext...)
+		_ = log.Errorc("could not parse check instance config", pkgorchestratormodel.ExtraLogContext...)
 		return err
 	}
 
@@ -173,7 +173,7 @@ func (o *OrchestratorCheck) Run() error {
 	if !o.isCLCRunner || !o.instance.LeaderSkip {
 		// Only run if Leader Election is enabled.
 		if !config.Datadog.GetBool("leader_election") {
-			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", orchestrator.ExtraLogContext...)
+			return log.Errorc("Leader Election not enabled. The cluster-agent will not run the check.", pkgorchestratormodel.ExtraLogContext...)
 		}
 
 		leader, errLeader := cluster.RunLeaderElection()
@@ -198,7 +198,7 @@ func (o *OrchestratorCheck) Run() error {
 
 // Cancel cancels the orchestrator check
 func (o *OrchestratorCheck) Cancel() {
-	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), orchestrator.ExtraLogContext...)
+	log.Infoc(fmt.Sprintf("Shutting down informers used by the check '%s'", o.ID()), pkgorchestratormodel.ExtraLogContext...)
 	close(o.stopCh)
 }
 

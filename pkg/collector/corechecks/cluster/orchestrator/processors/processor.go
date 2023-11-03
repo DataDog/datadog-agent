@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,7 +31,7 @@ type ProcessorContext struct {
 	ClusterID          string
 	HostName           string
 	MsgGroupID         int32
-	NodeType           orchestrator.NodeType
+	NodeType           pkgorchestratormodel.NodeType
 	ApiGroupVersionTag string
 }
 
@@ -151,7 +152,7 @@ func (p *Processor) Process(ctx *ProcessorContext, list interface{}) (processRes
 		// Marshal the resource to generate the YAML field.
 		yaml, err := json.Marshal(resource)
 		if err != nil {
-			log.Warnc(newMarshallingError(err).Error(), orchestrator.ExtraLogContext...)
+			log.Warnc(newMarshallingError(err).Error(), pkgorchestratormodel.ExtraLogContext...)
 			continue
 		}
 
