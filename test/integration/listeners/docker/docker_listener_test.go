@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package listeners
 
 import (
@@ -20,6 +22,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
@@ -34,7 +37,7 @@ import (
 
 type DockerListenerTestSuite struct {
 	suite.Suite
-	store      workloadmeta.Mock
+	store      workloadmeta.Component
 	compose    utils.ComposeConf
 	listener   listeners.ServiceListener
 	dockerutil *docker.DockerUtil
@@ -62,22 +65,21 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		"ac_exclude": []string{"image:datadog/docker-library:redis.*"},
 	}
 
-	suite.store = fxutil.Test[workloadmeta.Mock](t, fx.Options(
+	var err error
+	suite.store = fxutil.Test[workloadmeta.Component](suite.T(), fx.Options(
 		core.MockBundle,
-		fx.Replace(core.MockParams{
+		fx.Replace(compcfg.MockParams{
 			Overrides: overrides,
 			Features:  []config.Feature{config.Docker},
 		}),
-		fx.Provide(collectors.GetCatalog()),
-		fx.Supply(workloadmeta.Params{AgentType: workloadmeta.NodeAgent}),
-		fx.Supply(context.Background()),
-		workloadmeta.MockModuleV2,
+		fx.Supply(workloadmeta.NewParams()),
+		collectors.GetCatalog(),
+		workloadmeta.Module,
 	))
 
 	tagger.SetDefaultTagger(local.NewTagger(suite.store))
 	tagger.Init(context.Background())
 
-	var err error
 	suite.dockerutil, err = docker.GetDockerUtil()
 	require.Nil(suite.T(), err, "can't connect to docker")
 
