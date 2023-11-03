@@ -1071,13 +1071,15 @@ func testDNSStats(t *testing.T, tr *Tracer, domain, outcome string, serverIP str
 
 		failedResponses := total - successfulResponses
 
+		assert.Equal(t, queryMsg.Len(), int(conn.Last.SentBytes))
+
 		switch outcome {
 		case "success":
-			assert.NotZero(t, uint32(1), successfulResponses, "expected a successful response")
+			assert.Equal(t, uint32(1), successfulResponses, "expected a successful response")
 		case "failure":
-			assert.NotZero(t, uint32(1), failedResponses, "expected a failed response")
+			assert.Equal(t, uint32(1), failedResponses, "expected a failed response")
 		case "timeout":
-			assert.NotZero(t, uint32(1), timeouts, "expected a timeout")
+			assert.Equal(t, uint32(1), timeouts, "expected a timeout")
 		}
 	}, 3*time.Second, 100*time.Millisecond)
 }
