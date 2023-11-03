@@ -115,7 +115,7 @@ func TestFetchEc2TagsFromIMDS(t *testing.T) {
 	defer resetPackageVars()
 
 	confMock := config.Mock(t)
-	confMock.Set("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
+	confMock.SetWithoutSource("exclude_ec2_tags", []string{"ExcludedTag", "OtherExcludedTag2"})
 
 	tags, err := fetchEc2TagsFromIMDS(ctx)
 	require.Nil(t, err)
