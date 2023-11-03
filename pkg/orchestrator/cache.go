@@ -12,6 +12,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"k8s.io/apimachinery/pkg/types"
 
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -29,11 +30,11 @@ const (
 var (
 	// cache hit
 	cacheExpVars = expvar.NewMap("orchestrator-cache")
-	cacheHits    = map[NodeType]*expvar.Int{}
+	cacheHits    = map[pkgorchestratormodel.NodeType]*expvar.Int{}
 
 	// cache miss, send to backend
 	sendExpVars = expvar.NewMap("orchestrator-sends")
-	cacheMiss   = map[NodeType]*expvar.Int{}
+	cacheMiss   = map[pkgorchestratormodel.NodeType]*expvar.Int{}
 
 	// KubernetesResourceCache provides an in-memory key:value store similar to memcached for kubernetes resources.
 	KubernetesResourceCache = cache.New(defaultExpire, defaultPurge)
@@ -44,7 +45,7 @@ var (
 )
 
 func init() {
-	for _, nodeType := range NodeTypes() {
+	for _, nodeType := range pkgorchestratormodel.NodeTypes() {
 		cacheHits[nodeType] = &expvar.Int{}
 		cacheMiss[nodeType] = &expvar.Int{}
 		cacheExpVars.Set(nodeType.String(), cacheHits[nodeType])
@@ -55,7 +56,7 @@ func init() {
 // SkipKubernetesResource checks with a global kubernetes cache whether the resource was already reported.
 // It will return true in case the UID is in the cache and the resourceVersion did not change. Else it will return false.
 // 0 == defaultDuration
-func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType NodeType) bool {
+func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType pkgorchestratormodel.NodeType) bool {
 	cacheKey := string(uid)
 	value, hit := KubernetesResourceCache.Get(cacheKey)
 
@@ -73,7 +74,7 @@ func SkipKubernetesResource(uid types.UID, resourceVersion string, nodeType Node
 	}
 }
 
-func incCacheHit(nodeType NodeType) {
+func incCacheHit(nodeType pkgorchestratormodel.NodeType) {
 	if nodeType.String() == "" {
 		log.Errorf("Unknown NodeType %v will not update cache hits", nodeType)
 		return
@@ -83,7 +84,7 @@ func incCacheHit(nodeType NodeType) {
 	tlmCacheHits.Inc(nodeType.TelemetryTags()...)
 }
 
-func incCacheMiss(nodeType NodeType) {
+func incCacheMiss(nodeType pkgorchestratormodel.NodeType) {
 	if nodeType.String() == "" {
 		log.Errorf("Unknown NodeType %v will not update cache misses", nodeType)
 		return
