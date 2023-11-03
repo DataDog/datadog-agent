@@ -162,7 +162,7 @@ int hook__do_fork(ctx_t *ctx) {
 
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
-    u32 pid = 0, parent_pid = 0;;
+    u32 pid = 0, parent_pid = 0;
     bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
     bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->parent_pid);
     // ignore the rest if kworker
