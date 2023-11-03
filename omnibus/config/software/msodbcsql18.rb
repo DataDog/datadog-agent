@@ -10,6 +10,6 @@ build do
   if debian_target? && !arm_target?
     command "mkdir -p #{install_dir}/embedded/msodbcsql"
     command "dpkg-deb -R #{project_dir}/#{name}-#{name}_#{version}_amd64.deb #{project_dir}/#{relative_path}"
-    move "#{project_dir}/#{relative_path}/*" "#{install_dir}/embedded/msodbcsql/" :force => true
+    move "#{project_dir}/#{relative_path}/*", "#{install_dir}/embedded/msodbcsql/", :force=>true
   end
 end
