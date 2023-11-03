@@ -461,12 +461,6 @@ retry:
 		}
 		return "", err
 	}
-	err = ec2client.WaitUntilSnapshotCompletedWithContext(ctx, &ec2.DescribeSnapshotsInput{
-		SnapshotIds: []*string{result.SnapshotId},
-	})
-	if err != nil {
-		return "", err
-	}
 	return *result.SnapshotId, nil
 }
 
@@ -567,6 +561,19 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		log.Debugf("starting volume snapshotting %q", scan.VolumeID)
 		snapshotID, err = createEBSSnapshot(ctx, ec2client, scan)
 		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			log.Debugf("deleting snapshot %q", snapshotID)
+			deleteEBSSnapshot(ctx, ec2client, snapshotID)
+		}()
+		err = ec2client.WaitUntilSnapshotCompletedWithContext(ctx, &ec2.DescribeSnapshotsInput{
+			SnapshotIds: []*string{&snapshotID},
+		})
+		if err != nil {
+			return nil, err
+		}
+		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				if aerr.Code() == "InvalidVolume.NotFound" {
 					statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagNotFound(tags), 1.0)
@@ -580,10 +587,6 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		log.Debugf("volume snapshotting finished sucessfully %q (took %s)", snapshotID, snapshotDuration)
 		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(tags), 1.0)
 		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tags, 1.0)
-		defer func() {
-			log.Debugf("deleting snapshot %q", snapshotID)
-			deleteEBSSnapshot(ctx, ec2client, snapshotID)
-		}()
 	}
 
 	log.Infof("start EBS scanning %s", scan)
