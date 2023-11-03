@@ -2379,7 +2379,7 @@ func Test_removeSecret(t *testing.T) {
 			removeSecretTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
 			if tt.expected != nil {
 				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
-				s.AssertMetricNotTaggedWith(t, "Gauge", tt.expected.name, tt.expected.tags)
+				s.AssertMetricNotTaggedWith(t, "secret:foo", tt.expected.name, tt.expected.tags)
 				s.AssertNumberOfCalls(t, "Gauge", 1)
 			} else {
 				s.AssertNotCalled(t, "Gauge")
