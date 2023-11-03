@@ -10,13 +10,13 @@ go 1.20
 replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+incompatible
 
 require (
-	github.com/DataDog/datadog-agent/pkg/obfuscate v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/proto v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/log v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.49.0-rc.1
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/obfuscate v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/proto v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.1.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.0
 	github.com/DataDog/sketches-go v1.4.2
@@ -26,7 +26,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.3
 	github.com/google/gofuzz v1.2.0
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.3.1
 	github.com/shirou/gopsutil/v3 v3.23.8
 	github.com/stretchr/testify v1.8.4
 	github.com/tinylib/msgp v1.1.8
@@ -36,12 +36,13 @@ require (
 	go.uber.org/atomic v1.11.0
 	golang.org/x/sys v0.11.0
 	golang.org/x/time v0.3.0
-	google.golang.org/grpc v1.56.2
+	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
 	k8s.io/apimachinery v0.25.5
 )
 
 require (
+	github.com/DataDog/go-sqllexer v0.0.8 // indirect
 	github.com/DataDog/go-tuf v1.0.2-0.5.2 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/containerd/cgroups/v3 v3.0.2 // indirect
@@ -71,11 +72,11 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/mod v0.11.0 // indirect
-	golang.org/x/net v0.12.0 // indirect
-	golang.org/x/text v0.11.0 // indirect
+	golang.org/x/net v0.14.0 // indirect
+	golang.org/x/text v0.12.0 // indirect
 	golang.org/x/tools v0.9.1 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230822172742-b8732ec3820d // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

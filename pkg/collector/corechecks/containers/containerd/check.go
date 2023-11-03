@@ -161,6 +161,11 @@ func toSnakeCase(s string) string {
 }
 
 func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error {
+
+	if c.instance.OpenmetricsEndpoint == "" {
+		return nil
+	}
+
 	openmetricsEndpoint := fmt.Sprintf("%s/v1/metrics", c.instance.OpenmetricsEndpoint)
 	resp, err := c.httpClient.Get(openmetricsEndpoint)
 	if err != nil {
@@ -179,23 +184,25 @@ func (c *ContainerdCheck) scrapeOpenmetricsEndpoint(sender sender.Sender) error 
 		return err
 	}
 
-	for _, sample := range parsedMetrics {
-		if sample == nil {
-			continue
-		}
+	for _, mf := range parsedMetrics {
+		for _, sample := range mf.Samples {
+			if sample == nil {
+				continue
+			}
 
-		metric := sample.Metric
+			metric := sample.Metric
 
-		metricName, ok := metric["__name__"]
+			metricName, ok := metric["__name__"]
 
-		if !ok {
-			continue
-		}
+			if !ok {
+				continue
+			}
 
-		transform, found := defaultContainerdOpenmetricsTransformers[string(metricName)]
+			transform, found := defaultContainerdOpenmetricsTransformers[string(metricName)]
 
-		if found {
-			transform(sender, string(metricName), *sample)
+			if found {
+				transform(sender, string(metricName), *sample)
+			}
 		}
 	}
 

@@ -30,7 +30,7 @@ namespace WixSetup
 
         private static void Main()
         {
-            string cabcachedir = "cabcache";
+            var cabcachedir = "cabcache";
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("AGENT_MSI_OUTDIR")))
             {
                 // Set custom output directory (WixSharp defaults to current directory)

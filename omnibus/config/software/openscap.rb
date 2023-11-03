@@ -3,8 +3,6 @@
 # This product includes software developed at Datadog (https:#www.datadoghq.com/).
 # Copyright 2016-present Datadog, Inc.
 
-require './lib/cmake.rb'
-
 name 'openscap'
 default_version '1.3.9'
 
@@ -17,7 +15,6 @@ ship_source_offer true
 
 source url: "https://github.com/OpenSCAP/openscap/releases/download/#{version}/openscap-#{version}.tar.gz"
 
-dependency 'apt'
 dependency 'attr'
 dependency 'bzip2'
 dependency 'curl'
@@ -54,12 +51,19 @@ build do
 
   patch source: "010_perlpm_install_fix.patch", env: env # fix build of perl bindings
   patch source: "dpkginfo-cacheconfig.patch", env: env # work around incomplete pkgcache path
+  patch source: "dpkginfo-config-arch.patch", env: env # work around empty list of architectures
   patch source: "dpkginfo-cache-fixes.patch", env: env # reduce memory footprint of dpkginfo probe
   patch source: "fsdev-ignore-host.patch", env: env # ignore /host directory in fsdev probe
   patch source: "systemd-dbus-address.patch", env: env # fix dbus address in systemd probe
   patch source: "rpm-verbosity-err.patch", env: env # decrease rpmlog verbosity level to ERR
   patch source: "session-print-syschar.patch", env: env # add a function to print system characteristics
   patch source: "memusage-cgroup.patch", env: env # consider cgroup when determining memory usage
+
+  patch source: "1001-Fix-probe_reset.patch", env: env # fix probe_reset
+  patch source: "dpkginfo-cache-close.patch", env: env # close cache at the end of dpkginfo_get_by_name
+  patch source: "dpkginfo-cache-no-close.patch", env: env # work around memory leak in libapt
+  patch source: "dpkginfo-no-apt.patch", env: env # rewrite dpkginfo probe without using apt
+  patch source: "oval_probe_session_reset.patch", env: env # use oval_probe_session_reset instead of oval_probe_session_reinit
 
   patch source: "oscap-io.patch", env: env # add new oscap-io tool
 
@@ -75,8 +79,6 @@ build do
     "-DENABLE_TESTS=OFF",
     "-DACL_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DACL_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libacl.so",
-    "-DAPTPKG_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
-    "-DAPTPKG_LIBRARIES:FILEPATH=#{install_dir}/embedded/lib/libapt-pkg.so",
     "-DBLKID_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",
     "-DBLKID_LIBRARY:FILEPATH=#{install_dir}/embedded/lib/libblkid.so",
     "-DBZIP2_INCLUDE_DIR:PATH=#{install_dir}/embedded/include",

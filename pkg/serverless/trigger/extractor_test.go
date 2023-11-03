@@ -60,6 +60,24 @@ func TestExtractAPIGatewayWebSocketEventARN(t *testing.T) {
 	assert.Equal(t, "arn:aws:apigateway:us-east-1::/restapis/test-id/stages/test-stage", arn)
 }
 
+func TestExtractAPIGatewayCustomAuthorizerEventARN(t *testing.T) {
+	methodArn := "arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/GET/some/resource/path"
+	event := events.APIGatewayCustomAuthorizerRequest{
+		MethodArn: methodArn,
+	}
+	arn := ExtractAPIGatewayCustomAuthorizerEventARN(event)
+	assert.Equal(t, methodArn, arn)
+}
+
+func TestExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(t *testing.T) {
+	methodArn := "arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/GET/some/resource/path"
+	event := events.APIGatewayCustomAuthorizerRequestTypeRequest{
+		MethodArn: methodArn,
+	}
+	arn := ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event)
+	assert.Equal(t, methodArn, arn)
+}
+
 func TestExtractAlbEventARN(t *testing.T) {
 	event := events.ALBTargetGroupRequest{
 		RequestContext: events.ALBTargetGroupRequestContext{
@@ -275,6 +293,35 @@ func TestGetTagsFromAPIGatewayV2HTTPRequestNoReferer(t *testing.T) {
 		"http.url":              "domain-name",
 		"http.url_details.path": "path",
 		"http.method":           "http-method",
+	}, httpTags)
+}
+
+func TestGetTagsFromAPIGatewayCustomAuthorizerEvent(t *testing.T) {
+	event := events.APIGatewayCustomAuthorizerRequest{
+		MethodArn: "arn:aws:execute-api:us-east-1:123456789012:abcdef123/test/GET/path/to/resource",
+	}
+
+	httpTags := GetTagsFromAPIGatewayCustomAuthorizerEvent(event)
+
+	assert.Equal(t, map[string]string{
+		"http.method":           "GET",
+		"http.url_details.path": "/path/to/resource",
+	}, httpTags)
+}
+
+func TestGetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(t *testing.T) {
+	event := events.APIGatewayCustomAuthorizerRequestTypeRequest{
+		HTTPMethod: "GET",
+		RequestContext: events.APIGatewayCustomAuthorizerRequestTypeRequestContext{
+			Path: "/path/to/resource",
+		},
+	}
+
+	httpTags := GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event)
+
+	assert.Equal(t, map[string]string{
+		"http.method":           "GET",
+		"http.url_details.path": "/path/to/resource",
 	}, httpTags)
 }
 

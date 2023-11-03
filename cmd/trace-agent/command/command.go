@@ -17,9 +17,9 @@ import (
 
 // MakeRootCommand is the root command for the trace-agent
 // Please note that the trace-agent can be launched directly
-// by the root command, unlike other agents which are managed
+// by the root command, unlike other agents that are managed
 // with subcommands.
-func MakeRootCommand(defaultLogFile string) *cobra.Command {
+func MakeRootCommand() *cobra.Command {
 	globalParams := subcommands.GlobalParams{
 		ConfigName: "datadog-trace",
 	}

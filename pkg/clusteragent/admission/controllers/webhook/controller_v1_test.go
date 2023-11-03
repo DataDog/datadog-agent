@@ -445,6 +445,16 @@ func TestGenerateTemplatesV1(t *testing.T) {
 								Key:      "control-plane",
 								Operator: metav1.LabelSelectorOpDoesNotExist,
 							},
+							{
+								Key:      "control-plane",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"true"},
+							},
+							{
+								Key:      "kubernetes.azure.com/managedby",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"aks"},
+							},
 						},
 					},
 				)
@@ -476,6 +486,16 @@ func TestGenerateTemplatesV1(t *testing.T) {
 							{
 								Key:      "control-plane",
 								Operator: metav1.LabelSelectorOpDoesNotExist,
+							},
+							{
+								Key:      "control-plane",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"true"},
+							},
+							{
+								Key:      "kubernetes.azure.com/managedby",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"aks"},
 							},
 						},
 					},
@@ -628,7 +648,7 @@ func (f *fixtureV1) createController() (*ControllerV1, informers.SharedInformerF
 	), factory
 }
 
-func (f *fixtureV1) run(t *testing.T) *ControllerV1 {
+func (f *fixtureV1) run(_ *testing.T) *ControllerV1 {
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 

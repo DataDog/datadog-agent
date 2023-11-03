@@ -52,7 +52,11 @@ func (fs *containerFS) Open(filename string) (fs.File, error) {
 	for _, rootCandidatePID := range fs.cgroup.GetPIDs() {
 		file, err := os.Open(filepath.Join(utils.ProcRootPath(rootCandidatePID), filename))
 		if err != nil {
-			seclog.Errorf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ID, err)
+			if os.IsNotExist(err) {
+				seclog.Tracef("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ID, err)
+			} else {
+				seclog.Debugf("failed to read %s for pid %d of container %s: %s", filename, rootCandidatePID, fs.cgroup.ID, err)
+			}
 			continue
 		}
 
@@ -65,7 +69,7 @@ func (fs *containerFS) Open(filename string) (fs.File, error) {
 type hostFS struct{}
 
 // Open implements the fs.FS interface for hosts
-func (fs *hostFS) Open(name string) (fs.File, error) {
+func (fs *hostFS) Open(name string) (fs.File, error) { //nolint:revive // TODO fix revive unused-parameter
 	passwdPath := "/etc/passwd"
 	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
 		passwdPath = filepath.Join(hostRoot, passwdPath)

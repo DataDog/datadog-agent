@@ -1,17 +1,17 @@
 .pull_test_dockers:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   needs: []
-  tags: ["runner:docker"]
+  tags: ["arch:amd64"]
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
   stage: kernel_matrix_testing
   script:
     # DockerHub login for build to limit rate limit when pulling base images
     - DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | docker login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
+    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text | crane auth login --username "$DOCKER_REGISTRY_LOGIN" --password-stdin "$DOCKER_REGISTRY_URL"
     # Pull base images
     - mkdir $KITCHEN_DOCKERS
-    - inv -e system-probe.save-test-dockers --output-dir $KITCHEN_DOCKERS --arch $ARCH
+    - inv -e system-probe.save-test-dockers --use-crane --output-dir $KITCHEN_DOCKERS --arch $ARCH
   artifacts:
     expire_in: 1 day
     paths:
@@ -53,12 +53,23 @@ pull_test_dockers_arm64:
     sleep 10
 
 .write_ssh_key_file:
-    - set +x
-    - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key --with-decryption --query "Parameter.Value" --out text > $AWS_EC2_SSH_KEY_FILE
-    - set -x
-    # Without the newline ssh silently fails and moves on to try other auth methods
-    - echo "" >> $AWS_EC2_SSH_KEY_FILE
-    - chmod 600 $AWS_EC2_SSH_KEY_FILE
+  - set +x
+  - aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.ssh_key --with-decryption --query "Parameter.Value" --out text > $AWS_EC2_SSH_KEY_FILE
+  - set -x
+  # Without the newline ssh silently fails and moves on to try other auth methods
+  - echo "" >> $AWS_EC2_SSH_KEY_FILE
+  - chmod 600 $AWS_EC2_SSH_KEY_FILE
+
+# needs variables: ARCH, INSTANCE_TYPE
+.get_instance_ip_by_type:
+  - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE "Name=instance-type,Values=${INSTANCE_TYPE}" --output text --query $QUERY_PRIVATE_IPS)
+  - echo "$ARCH-instance-ip" $INSTANCE_IP
+
+# needs variables: INSTANCE_IP, AWS_EC2_SSH_KEY_FILE
+.setup_ssh_config:
+  - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+  - echo -e "Host metal_instance\nHostname $INSTANCE_IP\nUser ubuntu\nStrictHostKeyChecking no\nIdentityFile $AWS_EC2_SSH_KEY_FILE\n" | tee -a ~/.ssh/config
+  - chmod 600 ~/.ssh/config
 
 .package_dependencies:
   stage: kernel_matrix_testing
@@ -85,9 +96,9 @@ pull_test_dockers_arm64:
     - popd
     # upload tests
     - !reference [.wait_for_instances]
-    - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE "Name=instance-type,Values=${INSTANCE_TYPE}" --output text --query $QUERY_PRIVATE_IPS)
-    - echo "$ARCH-istance-ip" $INSTANCE_IP
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing/
+    - !reference [.get_instance_ip_by_type]
+    - !reference [.setup_ssh_config]
+    - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/dependencies
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
@@ -100,7 +111,7 @@ upload_dependencies_x64:
   variables:
     ARCHIVE_NAME: dependencies-x86_64.tar.gz
     ARCH: amd64
-    INSTANCE_TYPE: m5.metal
+    INSTANCE_TYPE: m5d.metal
 
 upload_dependencies_arm64:
   extends:
@@ -109,13 +120,11 @@ upload_dependencies_arm64:
   variables:
     ARCHIVE_NAME: dependencies-arm64.tar.gz
     ARCH: arm64
-    INSTANCE_TYPE: m6g.metal
+    INSTANCE_TYPE: m6gd.metal
 
 .upload_system_probe_tests:
   stage: kernel_matrix_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   allow_failure: true
-  tags: ["arch:amd64"]
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
   before_script:
@@ -151,9 +160,15 @@ upload_dependencies_arm64:
     - popd
     # upload tests
     - !reference [.wait_for_instances]
-    - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE "Name=instance-type,Values=${INSTANCE_TYPE}" --output text --query $QUERY_PRIVATE_IPS)
-    - echo "$ARCH-istance-ip" $INSTANCE_IP
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing/
+    - !reference [.get_instance_ip_by_type]
+    - !reference [.setup_ssh_config]
+    - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
+    # build connector
+    - pushd $CI_PROJECT_DIR/test/new-e2e
+    - go build -o $CI_PROJECT_DIR/connector-${ARCH} $CI_PROJECT_DIR/test/new-e2e/system-probe/connector/main.go
+    - popd
+    # upload connector to metal instance
+    - scp $CI_PROJECT_DIR/connector-${ARCH} metal_instance:/home/ubuntu/connector
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/tests
     EMBEDDED_BIN: opt/datadog-agent/embedded/bin
@@ -166,26 +181,32 @@ upload_dependencies_arm64:
     SYSTEM_PROBE_TESTS: opt/system-probe-tests
     KITCHEN_TESTS: $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/default/tests/pkg
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
+  artifacts:
+    when: always
+    paths:
+      - $CI_PROJECT_DIR/connector-${ARCH}
 
 upload_system_probe_tests_x64:
   extends:
     - .upload_system_probe_tests
   needs: ["go_deps", "prepare_ebpf_functional_tests_x64", "tests_ebpf_x64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
   variables:
     ARCHIVE_NAME: tests-x86_64.tar.gz
     ARCH: x86_64
-    GOARCH: amd64
-    INSTANCE_TYPE: m5.metal
+    INSTANCE_TYPE: m5d.metal
 
 upload_system_probe_tests_arm64:
   extends:
     - .upload_system_probe_tests
   needs: ["go_deps", "prepare_ebpf_functional_tests_arm64", "tests_ebpf_arm64"]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
   variables:
     ARCHIVE_NAME: tests-arm64.tar.gz
     ARCH: arm64
-    GOARCH: arm64
-    INSTANCE_TYPE: m6g.metal
+    INSTANCE_TYPE: m6gd.metal
 
 .upload_minimized_btfs:
   stage: kernel_matrix_testing
@@ -200,7 +221,7 @@ upload_system_probe_tests_arm64:
     - pushd $DEPENDENCIES
     # download and copy btf files
     - mkdir -p $BTF_DIR
-    - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${BTFS_ARCH}.tar.xz $BTF_DIR/minimized-btfs.tar.xz
+    - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz $BTF_DIR/minimized-btfs.tar.xz
     # package all the dependencies
     - ls -la $DEPENDENCIES
     - pushd $DD_AGENT_TESTING_DIR/$ARCH
@@ -212,9 +233,9 @@ upload_system_probe_tests_arm64:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
     - !reference [.wait_for_instances]
-    - INSTANCE_IP=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_STATE $FILTER_PIPELINE "Name=instance-type,Values=${INSTANCE_TYPE}" --output text --query $QUERY_PRIVATE_IPS)
-    - echo "$ARCH-istance-ip" $INSTANCE_IP
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME ubuntu@$INSTANCE_IP:/opt/kernel-version-testing/
+    - !reference [.get_instance_ip_by_type]
+    - !reference [.setup_ssh_config]
+    - scp $DD_AGENT_TESTING_DIR/$ARCHIVE_NAME metal_instance:/opt/kernel-version-testing/
   variables:
     DEPENDENCIES: $DD_AGENT_TESTING_DIR/$ARCH/btfs
     BTF_DIR: opt/system-probe-tests/pkg/ebpf/bytecode/build/co-re/btf
@@ -227,8 +248,7 @@ upload_minimized_btfs_x64:
   variables:
     ARCHIVE_NAME: btfs-x86_64.tar.gz
     ARCH: x86_64
-    BTFS_ARCH: amd64
-    INSTANCE_TYPE: m5.metal
+    INSTANCE_TYPE: m5d.metal
 
 upload_minimized_btfs_arm64:
   extends:
@@ -237,8 +257,7 @@ upload_minimized_btfs_arm64:
   variables:
     ARCHIVE_NAME: btfs-arm64.tar.gz
     ARCH: arm64
-    BTFS_ARCH: arm64
-    INSTANCE_TYPE: m6g.metal
+    INSTANCE_TYPE: m6gd.metal
 
 .kernel_matrix_testing_new_profile:
   - mkdir -p ~/.aws
@@ -253,12 +272,12 @@ kernel_matrix_testing_setup_env:
   stage: kernel_matrix_testing
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
   variables:
-    EC2_X86_INSTANCE_TYPE: "m5.metal"
-    EC2_ARM_INSTANCE_TYPE: "m6g.metal"
+    EC2_X86_INSTANCE_TYPE: "m5d.metal"
+    EC2_ARM_INSTANCE_TYPE: "m6gd.metal"
     X86_AMI_ID: $KERNEL_MATRIX_TESTING_X86_AMI_ID
     ARM_AMI_ID: $KERNEL_MATRIX_TESTING_ARM_AMI_ID
     AWS_REGION: us-east-1
@@ -280,9 +299,21 @@ kernel_matrix_testing_setup_env:
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.start-microvms --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$CI_PIPELINE_ID
+    - inv -e system-probe.start-microvms --provision --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$CI_PIPELINE_ID
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
+  after_script:
+    - export AWS_PROFILE=agent-qa-ci
+    - !reference [.shared_filters_and_queries]
+    - mkdir -p $CI_PROJECT_DIR/libvirt/log/x86_64 $CI_PROJECT_DIR/libvirt/log/arm64
+    - INSTANCE_TYPE=m5d.metal
+    - !reference [.get_instance_ip_by_type]
+    - X64_INSTANCE_IP=$INSTANCE_IP
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$X64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/x86_64/
+    - INSTANCE_TYPE=m6gd.metal
+    - !reference [.get_instance_ip_by_type]
+    - ARM64_INSTANCE_IP=$INSTANCE_IP
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$ARM64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/arm64/
   artifacts:
     when: always
     paths:
@@ -292,18 +323,18 @@ kernel_matrix_testing_setup_env:
       - $LibvirtSSHKeyARM.pub
       - $STACK_DIR
       - $CI_PROJECT_DIR/stack.outputs
+      - $CI_PROJECT_DIR/libvirt
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
   allow_failure: true
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  tags: ["arch:amd64"]
   rules:
     !reference [ .on_system_probe_changes_or_manual ]
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
   before_script:
+    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
   script:
@@ -318,39 +349,46 @@ kernel_matrix_testing_setup_env:
     - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
     - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 1)
+    - GO_VERSION=$(inv go-version)
+    - !reference [.setup_ssh_config]
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GO_VERSION} ${RETRY} ${ARCH}'"
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit.tar.gz"
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "scp -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson.tar.gz"
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/testjson.tar.gz $DD_AGENT_TESTING_DIR/
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP:/home/ubuntu/junit.tar.gz $DD_AGENT_TESTING_DIR/
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE ubuntu@$INSTANCE_IP "ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@${MICRO_VM_IP} '/test-json-review'"
+    - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GO_VERSION} ${RETRY} ${ARCH}'"
+    - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}"
+    - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit.tar.gz"
+    - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson.tar.gz"
+    - scp metal_instance:/home/ubuntu/testjson.tar.gz $DD_AGENT_TESTING_DIR/
+    - scp metal_instance:/home/ubuntu/junit.tar.gz $DD_AGENT_TESTING_DIR/
+    - ssh metal_instance "ssh ${MICRO_VM_IP} '/test-json-review'"
 
 kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:amd64"]
   needs: ["kernel_matrix_testing_setup_env", "upload_dependencies_x64", "upload_system_probe_tests_x64", "upload_minimized_btfs_x64"]
   timeout: 3h
   variables:
     ARCH: "x86_64"
   parallel:
     matrix:
-      - TAG: ["bionic", "focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_35", "fedora_36", "fedora_37", "fedora_38"]
+      - TAG: ["ubuntu_18.04", "ubuntu_20.04", "ubuntu_22.04", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38", "debian_10", "debian_11"]
 
 kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
+  tags: ["arch:arm64"]
   needs: ["kernel_matrix_testing_setup_env", "upload_dependencies_arm64", "upload_system_probe_tests_arm64", "upload_minimized_btfs_arm64"]
   timeout: 3h
   variables:
     ARCH: "arm64"
   parallel:
     matrix:
-      - TAG: ["focal", "jammy", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_35", "fedora_36", "fedora_37", "fedora_38"]
+      - TAG: ["ubuntu_20.04", "ubuntu_22.04", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38"]
 
 kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   needs: ["kernel_matrix_testing_setup_env", "kernel_matrix_testing_run_tests_x64", "kernel_matrix_testing_run_tests_arm64"]
   when: always
   tags: ["arch:amd64"]

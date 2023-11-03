@@ -16,7 +16,6 @@ import (
 
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -61,7 +60,7 @@ var (
 )
 
 // GlobalProcessingRules returns the global processing rules to apply to all logs.
-func GlobalProcessingRules(coreConfig pkgConfig.ConfigReader) ([]*ProcessingRule, error) {
+func GlobalProcessingRules(coreConfig pkgConfig.Reader) ([]*ProcessingRule, error) {
 	var rules []*ProcessingRule
 	var err error
 	raw := coreConfig.Get("logs_config.processing_rules")
@@ -98,17 +97,17 @@ func HasMultiLineRule(rules []*ProcessingRule) bool {
 }
 
 // BuildEndpoints returns the endpoints to send logs.
-func BuildEndpoints(coreConfig pkgConfig.ConfigReader, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+func BuildEndpoints(coreConfig pkgConfig.Reader, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	return BuildEndpointsWithConfig(coreConfig, defaultLogsConfigKeys(coreConfig), httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
 // BuildEndpointsWithVectorOverride returns the endpoints to send logs and enforce Vector override config keys
-func BuildEndpointsWithVectorOverride(coreConfig pkgConfig.ConfigReader, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+func BuildEndpointsWithVectorOverride(coreConfig pkgConfig.Reader, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	return BuildEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), httpEndpointPrefix, httpConnectivity, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
 // BuildEndpointsWithConfig returns the endpoints to send logs.
-func BuildEndpointsWithConfig(coreConfig pkgConfig.ConfigReader, logsConfig *LogsConfigKeys, endpointPrefix string, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+func BuildEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, httpConnectivity HTTPConnectivity, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	if logsConfig.devModeNoSSL() {
 		log.Warnf("Use of illegal configuration parameter, if you need to send your logs to a proxy, "+
 			"please use '%s' and '%s' instead", logsConfig.getConfigKey("logs_dd_url"), logsConfig.getConfigKey("logs_no_ssl"))
@@ -124,21 +123,21 @@ func BuildEndpointsWithConfig(coreConfig pkgConfig.ConfigReader, logsConfig *Log
 }
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
-func BuildServerlessEndpoints(coreConfig pkgConfig.ConfigReader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol) (*Endpoints, error) {
+func BuildServerlessEndpoints(coreConfig pkgConfig.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol) (*Endpoints, error) {
 	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeys(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
 }
 
 // ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.
-func ExpectedTagsDuration(coreConfig pkgConfig.ConfigReader) time.Duration {
+func ExpectedTagsDuration(coreConfig pkgConfig.Reader) time.Duration {
 	return defaultLogsConfigKeys(coreConfig).expectedTagsDuration()
 }
 
 // IsExpectedTagsSet returns boolean showing if expected tags feature is enabled.
-func IsExpectedTagsSet(coreConfig pkgConfig.ConfigReader) bool {
+func IsExpectedTagsSet(coreConfig pkgConfig.Reader) bool {
 	return ExpectedTagsDuration(coreConfig) > 0
 }
 
-func buildTCPEndpoints(coreConfig pkgConfig.ConfigReader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
+func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) (*Endpoints, error) {
 	useProto := logsConfig.devModeUseProto()
 	proxyAddress := logsConfig.socks5ProxyAddress()
 	main := Endpoint{
@@ -178,23 +177,23 @@ func buildTCPEndpoints(coreConfig pkgConfig.ConfigReader, logsConfig *LogsConfig
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
 		additionals[i].ProxyAddress = proxyAddress
-		additionals[i].APIKey = configUtils.SanitizeAPIKey(additionals[i].APIKey)
+		additionals[i].APIKey = utils.SanitizeAPIKey(additionals[i].APIKey)
 	}
 	return NewEndpoints(main, additionals, useProto, false), nil
 }
 
 // BuildHTTPEndpoints returns the HTTP endpoints to send logs to.
-func BuildHTTPEndpoints(coreConfig pkgConfig.ConfigReader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+func BuildHTTPEndpoints(coreConfig pkgConfig.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeys(coreConfig), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
 // BuildHTTPEndpointsWithVectorOverride returns the HTTP endpoints to send logs to.
-func BuildHTTPEndpointsWithVectorOverride(coreConfig pkgConfig.ConfigReader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+func BuildHTTPEndpointsWithVectorOverride(coreConfig pkgConfig.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), httpEndpointPrefix, intakeTrackType, intakeProtocol, intakeOrigin)
 }
 
 // BuildHTTPEndpointsWithConfig uses two arguments that instructs it how to access configuration parameters, then returns the HTTP endpoints to send logs to. This function is able to default to the 'classic' BuildHTTPEndpoints() w ldHTTPEndpointsWithConfigdefault variables logsConfigDefaultKeys and httpEndpointPrefix
-func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.ConfigReader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
+func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys, endpointPrefix string, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol, intakeOrigin IntakeOrigin) (*Endpoints, error) {
 	// Provide default values for legacy settings when the configuration key does not exist
 	defaultNoSSL := logsConfig.logsNoSSL()
 
@@ -250,7 +249,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.ConfigReader, logsConfig 
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
 		additionals[i].UseSSL = main.UseSSL
-		additionals[i].APIKey = configUtils.SanitizeAPIKey(additionals[i].APIKey)
+		additionals[i].APIKey = utils.SanitizeAPIKey(additionals[i].APIKey)
 		additionals[i].UseCompression = main.UseCompression
 		additionals[i].CompressionLevel = main.CompressionLevel
 		additionals[i].BackoffBase = main.BackoffBase
@@ -337,16 +336,16 @@ func parseAddressAsHost(address string) (string, int, error) {
 }
 
 // TaggerWarmupDuration is used to configure the tag providers
-func TaggerWarmupDuration(coreConfig pkgConfig.ConfigReader) time.Duration {
+func TaggerWarmupDuration(coreConfig pkgConfig.Reader) time.Duration {
 	return defaultLogsConfigKeys(coreConfig).taggerWarmupDuration()
 }
 
 // AggregationTimeout is used when performing aggregation operations
-func AggregationTimeout(coreConfig pkgConfig.ConfigReader) time.Duration {
+func AggregationTimeout(coreConfig pkgConfig.Reader) time.Duration {
 	return defaultLogsConfigKeys(coreConfig).aggregationTimeout()
 }
 
 // MaxMessageSizeBytes is used to cap the maximum log message size in bytes
-func MaxMessageSizeBytes(coreConfig pkgConfig.ConfigReader) int {
+func MaxMessageSizeBytes(coreConfig pkgConfig.Reader) int {
 	return defaultLogsConfigKeys(coreConfig).maxMessageSizeBytes()
 }

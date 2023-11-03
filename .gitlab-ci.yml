@@ -10,11 +10,14 @@ include:
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
   - /.gitlab/cancel-prev-pipelines.yml
+  - /.gitlab/do_not_merge.yml
   - /.gitlab/integration_test.yml
   - /.gitlab/package_build.yml
   - /.gitlab/kitchen_deploy.yml
   - /.gitlab/kitchen_testing.yml
   - /.gitlab/kitchen_tests_upload.yml
+  - /.gitlab/new-e2e_testing.yml
+  - /.gitlab/new-e2e_common/testing.yml
   - /.gitlab/install_script_testing.yml
   - /.gitlab/pkg_metrics.yml
   - /.gitlab/container_build.yml
@@ -89,11 +92,10 @@ stages:
   - functional_test_cleanup
   - functional_test_junit_upload
   - internal_kubernetes_deploy
+  - check_merge
   - notify
 
 variables:
-  #Do not change this - must be the repository name for Kubernetes runners to work
-  KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: "datadog-agent"
   # Directory in which we execute the omnibus build.
   # For an unknown reason, it does not go well with
   # a ruby dependency if we build directly into $CI_PROJECT_DIR/.omnibus
@@ -120,7 +122,7 @@ variables:
   MACOS_S3_BUCKET: dd-agent-macostesting
   WIN_S3_BUCKET: dd-agent-mstesting
   PROCESS_S3_BUCKET: datad0g-process-agent
-  BUCKET_BRANCH: nightly # path inside the staging s3 buckets to release to: 'nightly', 'oldnightly', 'beta' or 'stable'
+  BUCKET_BRANCH: dev # path inside the staging s3 buckets to release to: 'dev', 'nightly', 'oldnightly', 'beta' or 'stable'
   DEB_TESTING_S3_BUCKET: apttesting.datad0g.com
   RPM_TESTING_S3_BUCKET: yumtesting.datad0g.com
   WINDOWS_TESTING_S3_BUCKET_A6: pipelines/A6/$CI_PIPELINE_ID
@@ -151,21 +153,24 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_BUILDIMAGES: v22284534-4d24e62
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_WINBUILDIMAGES: v22284534-4d24e62
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_ARMBUILDIMAGES: v22284534-4d24e62
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v22284534-4d24e62
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v22284534-4d24e62
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v19979316-3aa3d4b
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v22284534-4d24e62
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v19979316-3aa3d4b
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: cb9e86993fd5
-  DATADOG_AGENT_BUILDERS: v19474930-fe4bcd9
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v22284534-4d24e62
+  # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
+  # and check the job creating the image to make sure you have the right SHA prefix
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 8158a5b2c60e
+  DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
   DEB_GPG_KEY_ID: ad9589b7
@@ -188,8 +193,8 @@ variables:
   ARTIFACTORY_GEMS_PATH: artifactory/api/gems/agent-gems
   ARTIFACTORY_PYPI_PATH: artifactory/api/pypi/agent-pypi/simple
   CLANG_LLVM_VER: 12.0.1
-  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-098ea4991ff2d244c"
-  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-04493daab2918046c"
+  KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-00e807c0351f270b7"
+  KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0be4fd85ce146ab3b"
 
 #
 # Condition mixins for simplification of rules
@@ -226,6 +231,9 @@ variables:
 
 .if_not_nightly_repo_branch: &if_not_nightly_repo_branch
   if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly"
+
+.if_not_nightly_or_dev_repo_branch: &if_not_nightly_or_dev_repo_branch
+  if: $BUCKET_BRANCH != "nightly" && $BUCKET_BRANCH != "oldnightly" && $BUCKET_BRANCH != "dev"
 
 .if_not_stable_or_beta_repo_branch: &if_not_stable_or_beta_repo_branch
   if: $BUCKET_BRANCH != "beta" && $BUCKET_BRANCH != "stable"
@@ -392,6 +400,12 @@ workflow:
     when: never
   - <<: *if_deploy
 
+.on_deploy_a6_failure:
+  - <<: *if_not_version_6
+    when: never
+  - <<: *if_deploy
+    when: on_failure
+
 .on_deploy_a6_rc:
   - <<: *if_not_version_6
     when: never
@@ -474,6 +488,12 @@ workflow:
   - <<: *if_not_version_7
     when: never
   - <<: *if_deploy
+
+.on_deploy_a7_failure:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_deploy
+    when: on_failure
 
 .on_deploy_a7_rc:
   - <<: *if_not_version_7
@@ -612,14 +632,14 @@ workflow:
 .on_deploy_nightly_repo_branch_a6:
   - <<: *if_not_version_6
     when: never
-  - <<: *if_not_nightly_repo_branch
+  - <<: *if_not_nightly_or_dev_repo_branch
     when: never
   - <<: *if_deploy
 
 .on_deploy_nightly_repo_branch_a7:
   - <<: *if_not_version_7
     when: never
-  - <<: *if_not_nightly_repo_branch
+  - <<: *if_not_nightly_or_dev_repo_branch
     when: never
   - <<: *if_deploy
 
@@ -749,7 +769,6 @@ workflow:
     when: never
   - <<: *if_release_branch
     when: never
-  - when: on_success
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
@@ -832,6 +851,14 @@ workflow:
   - <<: *if_default_kitchen
     variables:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
+
+.on_default_new-e2e_tests_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_kitchen
+  - <<: *if_default_kitchen
+    variables:
+      E2E_OSVERS: $E2E_BRANCH_OSVERS
 
 .on_default_kitchen_tests_a7_always:
   - <<: *if_not_version_7

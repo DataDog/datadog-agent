@@ -56,6 +56,7 @@ func newTelemetry() Component {
 	}
 }
 
+// GetCompatComponent returns a component wrapping telemetry global variables
 // TODO (components): Remove this when all telemetry is migrated to the component
 func GetCompatComponent() Component {
 	return newTelemetry()

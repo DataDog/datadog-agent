@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -84,12 +84,16 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []profiledefinitio
 	var globalTags []string
 
 	for _, metricTag := range metricTags {
-		// TODO: Support extract value see II-635
-		value, err := values.GetScalarValue(metricTag.OID)
+		value, err := values.GetScalarValue(metricTag.Symbol.OID)
 		if err != nil {
 			continue
 		}
-		strValue, err := value.ToString()
+		newValue, err := processValueUsingSymbolConfig(value, profiledefinition.SymbolConfig(metricTag.Symbol))
+		if err != nil {
+			log.Debugf("error processing value using symbol config (%#v) to string : %v", value, err)
+			continue
+		}
+		strValue, err := newValue.ToString()
 		if err != nil {
 			log.Debugf("error converting value (%#v) to string : %v", value, err)
 			continue

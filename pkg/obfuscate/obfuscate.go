@@ -102,6 +102,15 @@ type StatsClient interface {
 	Gauge(name string, value float64, tags []string, rate float64) error
 }
 
+// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+type ObfuscationMode string
+
+// ObfuscationMode valid values
+const (
+	ObfuscateOnly         = ObfuscationMode("obfuscate_only")
+	ObfuscateAndNormalize = ObfuscationMode("obfuscate_and_normalize")
+)
+
 // SQLConfig holds the config for obfuscating SQL.
 type SQLConfig struct {
 	// DBMS identifies the type of database management system (e.g. MySQL, Postgres, and SQL Server).
@@ -118,6 +127,9 @@ type SQLConfig struct {
 	// CollectComments specifies whether the obfuscator should extract and return comments as SQL metadata when obfuscating.
 	CollectComments bool `json:"collect_comments" yaml:"collect_comments"`
 
+	// CollectProcedures specifies whether the obfuscator should extract and return procedure names as SQL metadata when obfuscating.
+	CollectProcedures bool `json:"collect_procedures" yaml:"collect_procedures"`
+
 	// ReplaceDigits specifies whether digits in table names and identifiers should be obfuscated.
 	ReplaceDigits bool `json:"replace_digits" yaml:"replace_digits"`
 
@@ -130,6 +142,28 @@ type SQLConfig struct {
 	//
 	// https://www.postgresql.org/docs/current/sql-syntax-lexical.html#SQL-SYNTAX-DOLLAR-QUOTING
 	DollarQuotedFunc bool `json:"dollar_quoted_func"`
+
+	// ObfuscationMode specifies the obfuscation mode to use for go-sqllexer pkg.
+	// When specified, obfuscator will attempt to use go-sqllexer pkg to obfuscate (and normalize) SQL queries.
+	// Valid values are "obfuscate_only", "obfuscate_and_normalize"
+	ObfuscationMode ObfuscationMode `json:"obfuscation_mode" yaml:"obfuscation_mode"`
+
+	// RemoveSpaceBetweenParentheses specifies whether to remove spaces between parentheses.
+	// By default, spaces are inserted between parentheses during normalization.
+	// This option is only valid when ObfuscationMode is "obfuscate_and_normalize".
+	RemoveSpaceBetweenParentheses bool `json:"remove_space_between_parentheses" yaml:"remove_space_between_parentheses"`
+
+	// KeepNull specifies whether to disable obfuscate NULL value with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepNull bool `json:"keep_null" yaml:"keep_null"`
+
+	// KeepBoolean specifies whether to disable obfuscate boolean value with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepBoolean bool `json:"keep_boolean" yaml:"keep_boolean"`
+
+	// KeepPositionalParameter specifies whether to disable obfuscate positional parameter with ?.
+	// This option is only valid when ObfuscationMode is "obfuscate_only" or "obfuscate_and_normalize".
+	KeepPositionalParameter bool `json:"keep_positional_parameter" yaml:"keep_positional_parameter"`
 
 	// Cache reports whether the obfuscator should use a LRU look-up cache for SQL obfuscations.
 	Cache bool
@@ -147,6 +181,8 @@ type SQLMetadata struct {
 	Commands []string `json:"commands"`
 	// Comments holds comments in an SQL statement.
 	Comments []string `json:"comments"`
+	// Procedures holds procedure names in an SQL statement.
+	Procedures []string `json:"procedures"`
 }
 
 // HTTPConfig holds the configuration settings for HTTP obfuscation.

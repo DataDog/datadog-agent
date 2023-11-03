@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/CycloneDX/cyclonedx-go"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/docker"
@@ -41,14 +42,15 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 		return fmt.Errorf("error retrieving global SBOM scanner")
 	}
 
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeSet,
+	}
 	imgEventsCh := c.store.Subscribe(
 		"SBOM collector",
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
-			workloadmeta.SourceAll,
-			workloadmeta.EventTypeSet,
-		),
+		workloadmeta.NewFilter(&filterParams),
 	)
 
 	resultChan := make(chan sbom.ScanResult, 2000)
@@ -82,6 +84,10 @@ func (c *collector) startSBOMCollection(ctx context.Context) error {
 
 	go func() {
 		for result := range resultChan {
+			if result.ImgMeta == nil {
+				log.Errorf("Scan result does not hold the image identifier. Error: %s", result.Error)
+				continue
+			}
 			status := workloadmeta.Success
 			reportedError := ""
 			var report *cyclonedx.BOM

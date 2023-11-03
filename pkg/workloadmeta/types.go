@@ -76,6 +76,10 @@ type Store interface {
 	// when the pod actually exists.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
 
+	// GetKubernetesPodByName returns the first pod whose name and namespace matches those passed in
+	// to this function.
+	GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error)
+
 	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
 	// the entity with kind KindKubernetesNode and the given ID.
 	GetKubernetesNode(id string) (*KubernetesNode, error)
@@ -781,7 +785,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 				}
 				_, _ = langSb.WriteString(string(lang.Name))
 			}
-			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]", ctype, container, langSb.String())
+			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
 		}
 	}
 	langPrinter(d.InitContainerLanguages, "InitContainer")
@@ -1011,7 +1015,7 @@ func (p *Process) Merge(e Entity) error {
 }
 
 // String implements Entity#String.
-func (p Process) String(verbose bool) string {
+func (p Process) String(verbose bool) string { //nolint:revive // TODO fix revive unused-parameter
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")

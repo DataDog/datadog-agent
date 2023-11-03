@@ -38,7 +38,7 @@ type NamedPipeListener struct {
 
 // NewNamedPipeListener returns an named pipe Statsd listener
 func NewNamedPipeListener(pipeName string, packetOut chan packets.Packets,
-	sharedPacketPoolManager *packets.PoolManager, cfg config.ConfigReader, capture replay.Component) (*NamedPipeListener, error) {
+	sharedPacketPoolManager *packets.PoolManager, cfg config.Reader, capture replay.Component) (*NamedPipeListener, error) {
 
 	bufferSize := cfg.GetInt("dogstatsd_buffer_size")
 	return newNamedPipeListener(
@@ -189,7 +189,7 @@ func (l *NamedPipeListener) listenConnection(conn net.Conn, buffer []byte) {
 		}
 
 		t2 = time.Now()
-		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "named_pipe")
+		tlmListener.Observe(float64(t2.Sub(t1).Nanoseconds()), "named_pipe", "named_pipe", "named_pipe")
 	}
 	l.connections.connToClose <- conn
 }
