@@ -52,7 +52,7 @@ type Concentrator struct {
 	peerTagKeys            []string // keys for supplementary tags that describe peer.service entities
 }
 
-var defaultPeerTags []string = []string{
+var defaultPeerTags = []string{
 	"_dd.base.service",
 	"_dd.cluster.name",
 	"_dd.first.configured.host",
