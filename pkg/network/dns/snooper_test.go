@@ -268,7 +268,7 @@ func TestDNSOverTCPSuccessfulResponseCount(t *testing.T) {
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
 		return hasDomains(allStats[key], domains...)
-	}, 10*time.Second, 100*time.Millisecond, "missing DNS data for domains %+v", domains)
+	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for domains %+v", domains)
 
 	// Exactly one rcode (0, success) is expected
 	for _, d := range domains {
@@ -338,7 +338,9 @@ func TestDNSOverNonPort53(t *testing.T) {
 	domains := []string{
 		"nonexistent.net.com",
 	}
-	port := 8765
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	port := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close()
 	serverIP := testdns.GetServerIP(t, port)
 
 	queryIP, queryPort, reps := sendDNSQueriesOnPort(t, domains, serverIP, strconv.Itoa(port), "udp")
