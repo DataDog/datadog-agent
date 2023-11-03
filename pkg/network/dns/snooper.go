@@ -129,7 +129,6 @@ func (s *socketFilterSnooper) GetDNSStats() StatsByKeyByNameByType {
 }
 
 func (s *socketFilterSnooper) WaitDomain(domain string) error {
-	fmt.Println("wait domain", domain)
 	timeout := time.After(s.statKeeper.expirationPeriod)
 	tick := time.NewTicker(time.Millisecond * 10)
 	defer tick.Stop()
@@ -140,16 +139,14 @@ func (s *socketFilterSnooper) WaitDomain(domain string) error {
 		case <-tick.C:
 			s.statKeeper.mux.Lock()
 			for _, byDomain := range s.statKeeper.stats {
-				for d, _ := range byDomain {
+				for d := range byDomain {
 					if d.Get() == domain {
-						fmt.Println("got it!")
 						s.statKeeper.mux.Unlock()
 						return nil
 					}
 				}
 			}
 			s.statKeeper.mux.Unlock()
-			fmt.Println("here")
 		}
 
 	}

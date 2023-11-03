@@ -1044,11 +1044,8 @@ func testDNSStats(t *testing.T, tr *Tracer, domain, outcome string, serverIP str
 		connections := getConnections(t, tr)
 		conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
 		if !assert.True(t, ok) {
-			fmt.Println("no conn")
 			return
 		}
-
-		fmt.Println("checking ", conn)
 
 		dnsKey, _ := network.DNSKey(conn)
 		assert.Equal(t, os.Getpid(), int(conn.Pid))
@@ -1056,7 +1053,6 @@ func testDNSStats(t *testing.T, tr *Tracer, domain, outcome string, serverIP str
 
 		dnsStats, ok := connections.DNSStats[dnsKey]
 		if !assert.True(t, ok) {
-			fmt.Println("no DNS stats")
 			return
 		}
 
@@ -1075,7 +1071,6 @@ func testDNSStats(t *testing.T, tr *Tracer, domain, outcome string, serverIP str
 
 		failedResponses := total - successfulResponses
 
-		fmt.Println(total, successfulResponses, failedResponses)
 		switch outcome {
 		case "success":
 			assert.NotZero(t, uint32(1), successfulResponses, "expected a successful response")
