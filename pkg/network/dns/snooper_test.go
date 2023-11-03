@@ -338,7 +338,7 @@ func TestDNSOverNonPort53(t *testing.T) {
 	domains := []string{
 		"nonexistent.net.com",
 	}
-	ln, _ := net.Listen("udp", "127.0.0.1:0")
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	port := ln.Addr().(*net.TCPAddr).Port
 	_ = ln.Close()
 	serverIP := testdns.GetServerIP(t, port)

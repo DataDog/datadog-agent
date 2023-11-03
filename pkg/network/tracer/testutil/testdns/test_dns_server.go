@@ -36,6 +36,7 @@ func GetServerIPPort53(t *testing.T) net.IP {
 func GetServerIP(t *testing.T, port int) net.IP {
 	if port != 53 {
 		non53ServerOnce.Do(func() {
+			globalServer.Start("tcp", port)
 			globalServer.Start("udp", port)
 		})
 	}
