@@ -223,7 +223,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expParentID: 0,
 		},
 		{
-			// NOTE: sns trace extraction not implemented yet
+			// NOTE: sns trace extraction not yet implemented
 			name:        "sns",
 			payload:     getEventFromFile("sns.json"),
 			expInfSpans: 1,
