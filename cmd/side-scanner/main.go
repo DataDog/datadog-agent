@@ -571,9 +571,6 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 			SnapshotIds: []*string{&snapshotID},
 		})
 		if err != nil {
-			return nil, err
-		}
-		if err != nil {
 			if aerr, ok := err.(awserr.Error); ok {
 				if aerr.Code() == "InvalidVolume.NotFound" {
 					statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagNotFound(tags), 1.0)
