@@ -918,7 +918,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 		if ruleDefs != nil && logStatusMetrics {
 			t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
-			t.Logf("%s entry eBPF map stats: %s\n", t.Name(), GetBPFMapMetrics(testMod.probe))
+			t.Logf("%s entry eBPF map stats: %s\n", t.Name(), GetBPFMapsMetrics(testMod.probe))
 		}
 		return testMod, nil
 	} else if testMod != nil {
@@ -1212,7 +1212,7 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	return out.String()
 }
 
-func GetBPFMapMetrics(probe *sprobe.Probe) string {
+func GetBPFMapsMetrics(probe *sprobe.Probe) string {
 	if probe == nil {
 		return ""
 	}
@@ -1227,8 +1227,8 @@ func GetBPFMapMetrics(probe *sprobe.Probe) string {
 		return ""
 	}
 
-	mapStats := bpfMapMonitor.GetMapStats()
-	data, _ := json.Marshal(mapStats)
+	mapsStats := bpfMapMonitor.GetMapsStats()
+	data, _ := json.Marshal(mapsStats)
 	var out bytes.Buffer
 	_ = json.Indent(&out, data, "", "\t")
 
@@ -1251,7 +1251,7 @@ func (tm *testModule) NewTimeoutError() ErrTimeout {
 	msg.WriteString("timeout, details: ")
 	msg.WriteString(GetStatusMetrics(tm.probe))
 	msg.WriteString(spew.Sdump(ddebpf.GetProbeStats()))
-	msg.WriteString(GetBPFMapMetrics(tm.probe))
+	msg.WriteString(GetBPFMapsMetrics(tm.probe))
 
 	events := tm.ruleEngine.StopEventCollector()
 	if len(events) != 0 {
@@ -1662,7 +1662,7 @@ func (tm *testModule) Close() {
 
 	if logStatusMetrics {
 		tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetStatusMetrics(tm.probe))
-		tm.t.Logf("%s exit eBPF map stats: %s\n", tm.t.Name(), GetBPFMapMetrics(testMod.probe))
+		tm.t.Logf("%s exit eBPF map stats: %s\n", tm.t.Name(), GetBPFMapsMetrics(testMod.probe))
 	}
 
 	if withProfile {
