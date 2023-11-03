@@ -215,7 +215,7 @@ func countDNSResponses(statsByDomain map[Hostname]map[QueryType]Stats) int {
 }
 
 func TestDNSOverTCPSuccessfulResponseCountWithoutDomain(t *testing.T) {
-	reverseDNS := initDNSTests(t, false, false)
+	reverseDNS := initDNSTests(t, true, false)
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper
 	domains := []string{

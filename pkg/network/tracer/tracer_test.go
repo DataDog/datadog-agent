@@ -1067,6 +1067,7 @@ func (s *TracerSuite) TestDNSStats() {
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
 	cfg.DNSTimeout = 1 * time.Second
+	cfg.CollectLocalDNS = true
 	tr := setupTracer(t, cfg)
 	t.Run("valid domain", func(t *testing.T) {
 		testDNSStats(t, tr, "good.com", 1, 0, 0, testdns.GetServerIP(t).String())
