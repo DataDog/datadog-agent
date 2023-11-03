@@ -669,8 +669,9 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		}
 
 		if _, err := entry.HasValidLineage(); err != nil {
+			// check if the node belongs to the container
 			var mn *model.ErrProcessMissingParentNode
-			if errors.As(err, &mn) && mn.ContainerID != "" {
+			if !errors.As(err, &mn) || mn.ContainerID != "" {
 				return
 			}
 		}

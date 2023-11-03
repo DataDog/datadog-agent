@@ -145,7 +145,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 
 	tests := []testIteration{
 
-		// check process with broken lineage (parent with pid != 1)
+		// check process with broken lineage (parent with pid != 1 && containerID != "")
 		{
 			testName:              "broken_lineage",
 			resetActivityTree:     true,
@@ -153,6 +153,7 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			processPath:           "/bin/bar",
 			completeLineage:       false,
 			resultNodeShouldBeNil: true,
+			granpaInsideContainer: true,
 			resultNewProcessNode:  false,
 			resultErr:             activity_tree.ErrBrokenLineage,
 			resultTree:            map[string][]string{},

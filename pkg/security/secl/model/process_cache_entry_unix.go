@@ -23,38 +23,41 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 		pc.Ancestor.Release()
 	}
 
-	pc.hasCompleteLineage = nil
+	pc.hasValidLineage = nil
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
 	parent.Retain()
 }
 
 func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
-	var ppid uint32
+	var pid, ppid uint32
+	var ctrId string
 
 	for pc != nil {
 		if pc.hasValidLineage != nil {
 			return *pc.hasValidLineage, pc.lineageError
 		}
 
+		pid, ctrId = pc.Pid, pc.ContainerID
+
 		if ppid != 0 && pc.Pid != ppid && pc.PPid != ppid {
-			return false, &ErrProcessMissingParentNode{PID: pc.Pid, PPID: ppid, ContainerID: pc.ContainerID}
+			return false, &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: ctrId}
 		}
 		ppid = pc.PPid
 
 		if pc.IsParentMissing {
-			return false, &ErrProcessWrongParentNode{PID: pc.Pid, PPID: ppid, ContainerID: pc.ContainerID}
+			return false, &ErrProcessWrongParentNode{PID: pid, PPID: ppid, ContainerID: ctrId}
 		}
 
 		if pc.Pid == 1 {
 			if pc.Ancestor == nil {
 				return true, nil
 			}
-			return false, &ErrProcessWrongParentNode{PID: pc.Pid, PPID: pc.Ancestor.Pid, ContainerID: pc.ContainerID}
+			return false, &ErrProcessWrongParentNode{PID: pid, PPID: pc.Ancestor.Pid, ContainerID: ctrId}
 		}
 		pc = pc.Ancestor
 	}
-	return false, &ErrProcessMissingParentNode{PID: ppid}
+	return false, &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: ctrId}
 }
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent

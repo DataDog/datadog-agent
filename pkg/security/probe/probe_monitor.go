@@ -170,7 +170,6 @@ func (m *Monitors) ProcessEvent(event *model.Event) {
 		m.probe.DispatchCustomEvent(
 			NewAbnormalEvent(events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, m.probe, pathErr.Err),
 		)
-		return
 	}
 
 	var processContextErr *model.ErrNoProcessContext
@@ -178,7 +177,6 @@ func (m *Monitors) ProcessEvent(event *model.Event) {
 		m.probe.DispatchCustomEvent(
 			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, m.probe, event.Error),
 		)
-		return
 	}
 
 	var brokenLineageErr *model.ErrProcessBrokenLineage
@@ -186,6 +184,5 @@ func (m *Monitors) ProcessEvent(event *model.Event) {
 		m.probe.DispatchCustomEvent(
 			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, m.probe, event.Error),
 		)
-		return
 	}
 }

@@ -77,8 +77,7 @@ func (e *ErrNoProcessContext) Unwrap() error {
 
 // ErrProcessBrokenLineage returned when a process lineage is broken
 type ErrProcessBrokenLineage struct {
-	PIDContext PIDContext
-	Err        error
+	Err error
 }
 
 // Unwrap implements the error interface
@@ -88,5 +87,5 @@ func (e *ErrProcessBrokenLineage) Unwrap() error {
 
 // Error implements the error interface
 func (e *ErrProcessBrokenLineage) Error() string {
-	return fmt.Sprintf("broken process lineage, ctx: %v, error: %v", e.PIDContext, e.Err)
+	return fmt.Sprintf("broken process lineage: %v", e.Err)
 }
