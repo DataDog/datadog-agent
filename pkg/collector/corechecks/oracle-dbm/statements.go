@@ -401,7 +401,7 @@ func (c *Check) StatementMetrics() (int, error) {
 		defer o.Stop()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
-		sendFqtAndPlan := true
+		sendPlan := true
 		for i, statementMetricRow := range statementMetricsAll {
 			var trace bool
 			for _, t := range c.config.QueryMetrics.Trackers {
@@ -576,9 +576,9 @@ func (c *Check) StatementMetrics() (int, error) {
 				c.fqtEmitted = getFqtEmittedCache()
 			}
 
-			if sendFqtAndPlan {
+			if sendPlan {
 				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
-					sendFqtAndPlan = false
+					sendPlan = false
 				}
 				if _, found := c.fqtEmitted.Get(queryRow.QuerySignature); !found {
 					FQTDBMetadata := FQTDBMetadata{Tables: queryRow.Tables, Commands: queryRow.Commands}
