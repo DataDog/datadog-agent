@@ -28,7 +28,7 @@ namespace WixSetup.Datadog
             Condition clientOrServer)
         {
             Name = name;
-            _condition = Condition.Create($"(VersionNT64 >= {versionNt} AND WindowsBuild >= {windowsBuild})") &
+            _condition = Condition.Create($"(VersionNT64 >= {versionNt} AND DDAGENT_WINDOWSBUILD >= {windowsBuild})") &
                          clientOrServer;
         }
 
