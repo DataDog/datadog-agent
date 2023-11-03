@@ -100,11 +100,11 @@ const (
 	serverNamedPipePath = "\\\\.\\pipe\\DD_ETW_DISPATCHER"
 	clientNamedPipePath = "\\\\.\\pipe\\DD_ETW_CLIENT_%d"
 	headerSize          = 17
-	OkResponse          = 0
-	RegisterCommand     = 1
-	UnregisterCommand   = 2
-	ClrEventResponse    = 16
-	ErrorResponse       = 255
+	okResponse          = 0
+	registerCommand     = 1
+	unregisterCommand   = 2
+	clrEventResponse    = 16
+	errorResponse       = 255
 )
 
 type win32MessageBytePipe interface {
@@ -154,23 +154,23 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		}
 
 		switch h.CommandResponse {
-		case RegisterCommand:
+		case registerCommand:
 			a.log.Infof("Registering process with ID %d", pid)
 			err = a.AddPID(pid)
 			if err != nil {
 				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v", pid, err)
-				h.CommandResponse = ErrorResponse
+				h.CommandResponse = errorResponse
 			} else {
-				h.CommandResponse = OkResponse
+				h.CommandResponse = okResponse
 			}
-		case UnregisterCommand:
+		case unregisterCommand:
 			a.log.Infof("Unregistering process with ID %d", pid)
 			err = a.RemovePID(pid)
 			if err != nil {
 				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v", pid, err)
-				h.CommandResponse = ErrorResponse
+				h.CommandResponse = errorResponse
 			} else {
-				h.CommandResponse = OkResponse
+				h.CommandResponse = okResponse
 			}
 		default:
 			a.log.Infof("Unsupported command %d", h.CommandResponse)
@@ -237,7 +237,7 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 			ev := clrEvent{
 				header: header{
 					Magic:           a.magic,
-					CommandResponse: ClrEventResponse,
+					CommandResponse: clrEventResponse,
 				},
 				EventHeader:    e.EventHeader,
 				UserData:       etwutil.GoBytes(unsafe.Pointer(e.UserData), int(e.UserDataLength)),

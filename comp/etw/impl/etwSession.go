@@ -80,9 +80,8 @@ func (e *etwSession) DisableProvider(providerGUID windows.GUID) error {
 		ret == windows.ERROR_NOT_FOUND ||
 		ret == windows.ERROR_SUCCESS {
 		return nil
-	} else {
-		return ret
 	}
+	return ret
 }
 
 //export etwCallbackC
@@ -117,7 +116,7 @@ func (e *etwSession) StartTracing(callback etw.EventCallback) error {
 
 func (e *etwSession) StopTracing() error {
 	var globalError error
-	for guid, _ := range e.providers {
+	for guid := range e.providers {
 		// nil errors are discarded
 		globalError = errors.Join(globalError, e.DisableProvider(guid))
 	}
