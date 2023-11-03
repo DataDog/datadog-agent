@@ -15,13 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/util/containerd/fake"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
 func TestIgnoreContainer(t *testing.T) {
-	pauseFilter, err := containers.GetPauseContainerFilter()
-	assert.NoError(t, err)
-
 	containerID := "123"
 
 	container := mockedContainer{
@@ -74,8 +70,7 @@ func TestIgnoreContainer(t *testing.T) {
 			}
 
 			containerdCollector := collector{
-				containerdClient:       &client,
-				filterPausedContainers: pauseFilter,
+				containerdClient: &client,
 			}
 
 			ignored, err := containerdCollector.ignoreContainer("default", test.container)

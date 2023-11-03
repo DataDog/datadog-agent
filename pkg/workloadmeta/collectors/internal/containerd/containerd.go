@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom/scanner"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
-	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -80,11 +79,10 @@ type exitInfo struct {
 }
 
 type collector struct {
-	store                  workloadmeta.Store
-	containerdClient       cutil.ContainerdItf
-	filterPausedContainers *containers.Filter
-	eventsChan             <-chan *containerdevents.Envelope
-	errorsChan             <-chan error
+	store            workloadmeta.Store
+	containerdClient cutil.ContainerdItf
+	eventsChan       <-chan *containerdevents.Envelope
+	errorsChan       <-chan error
 
 	// Container exit info (mainly exit code and exit timestamp) are attached to the corresponding task events.
 	// contToExitInfo caches the exit info of a task to enrich the container deletion event when it's received later.
@@ -127,11 +125,6 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 	}
 
 	if err = c.startSBOMCollection(ctx); err != nil {
-		return err
-	}
-
-	c.filterPausedContainers, err = containers.GetPauseContainerFilter()
-	if err != nil {
 		return err
 	}
 

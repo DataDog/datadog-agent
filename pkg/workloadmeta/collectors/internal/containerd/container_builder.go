@@ -78,7 +78,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	}
 
 	isPauseContainer := false
-	if containers.IsPauseContainer(info.Labels) {
+	if containers.IsPauseContainer(info.Labels) { // TODO: Is this sufficient or should we also use the pause container name regex list?
 		isPauseContainer = true
 	}
 
