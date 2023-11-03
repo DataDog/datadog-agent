@@ -88,10 +88,10 @@ func Test_updateSBOMMetadata(t *testing.T) {
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{
 							Properties: &[]cyclonedx.Property{
-								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag2"},
-								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest2"},
 								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
+								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag2"},
 								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest2"},
 							},
 						},
 					},
@@ -124,6 +124,70 @@ func Test_updateSBOMMetadata(t *testing.T) {
 						Component: &cyclonedx.Component{
 							Properties: &[]cyclonedx.Property{
 								{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
+								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "a tag is removed",
+			args: args{
+				sbom: &workloadmeta.SBOM{
+					Status: workloadmeta.Success,
+					CycloneDXBOM: &cyclonedx.BOM{
+						Metadata: &cyclonedx.Metadata{
+							Component: &cyclonedx.Component{
+								Properties: &[]cyclonedx.Property{
+									{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
+									{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+								},
+							},
+						},
+					},
+				},
+				repoDigests: []string{"digest1"},
+			},
+			want: &workloadmeta.SBOM{
+				Status: workloadmeta.Success,
+				CycloneDXBOM: &cyclonedx.BOM{
+					Metadata: &cyclonedx.Metadata{
+						Component: &cyclonedx.Component{
+							Properties: &[]cyclonedx.Property{
+								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "other properties are not touched",
+			args: args{
+				sbom: &workloadmeta.SBOM{
+					Status: workloadmeta.Success,
+					CycloneDXBOM: &cyclonedx.BOM{
+						Metadata: &cyclonedx.Metadata{
+							Component: &cyclonedx.Component{
+								Properties: &[]cyclonedx.Property{
+									{Name: "prop1", Value: "tag1"},
+									{Name: trivydx.Namespace + trivydx.PropertyRepoTag, Value: "tag1"},
+									{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
+								},
+							},
+						},
+					},
+				},
+				repoDigests: []string{"digest1"},
+			},
+			want: &workloadmeta.SBOM{
+				Status: workloadmeta.Success,
+				CycloneDXBOM: &cyclonedx.BOM{
+					Metadata: &cyclonedx.Metadata{
+						Component: &cyclonedx.Component{
+							Properties: &[]cyclonedx.Property{
+								{Name: "prop1", Value: "tag1"},
 								{Name: trivydx.Namespace + trivydx.PropertyRepoDigest, Value: "digest1"},
 							},
 						},

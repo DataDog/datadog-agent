@@ -21,6 +21,11 @@ import (
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 )
 
+const (
+	repoTagPropertyKey    = trivydx.Namespace + trivydx.PropertyRepoTag
+	repoDigestPropertyKey = trivydx.Namespace + trivydx.PropertyRepoDigest
+)
+
 func sbomCollectionIsEnabled() bool {
 	return imageMetadataCollectionIsEnabled() && config.Datadog.GetBool("sbom.container_image.enabled")
 }
@@ -147,40 +152,36 @@ func updateSBOMMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []string)
 	}
 
 	properties := *sbom.CycloneDXBOM.Metadata.Component.Properties
-	propertySet := buildPropertySet(properties)
+	properties = removeOldRepoProperties(properties)
 
-	properties = appendMissingProperties(properties, propertySet, repoTags, trivydx.PropertyRepoTag)
-	properties = appendMissingProperties(properties, propertySet, repoDigests, trivydx.PropertyRepoDigest)
+	properties = appendMissingProperties(properties, repoTags, repoTagPropertyKey)
+	properties = appendMissingProperties(properties, repoDigests, repoDigestPropertyKey)
 
 	sbom.CycloneDXBOM.Metadata.Component.Properties = &properties
 
 	return sbom
 }
 
-// buildPropertySet generates a set of properties.
-func buildPropertySet(properties []cyclonedx.Property) map[cyclonedx.Property]struct{} {
-	propertySet := make(map[cyclonedx.Property]struct{})
-	for _, property := range properties {
-		propertySet[property] = struct{}{}
-	}
-	return propertySet
-}
+// removeOldRepoProperties returns an array without repodigests and repoTags
+func removeOldRepoProperties(properties []cyclonedx.Property) []cyclonedx.Property {
+	res := make([]cyclonedx.Property, 0, len(properties))
 
-// containsProperty function checks if a specified property is present in the property set.
-func containsProperty(propertySet map[cyclonedx.Property]struct{}, property cyclonedx.Property) bool {
-	_, ok := propertySet[property]
-	return ok
+	for _, prop := range properties {
+		if prop.Name == repoTagPropertyKey || prop.Name == repoDigestPropertyKey {
+			continue
+		}
+		res = append(res, prop)
+	}
+
+	return res
 }
 
 // appendMissingProperties function updates the list of properties along with the property set,
 // if the given repoValues are not already present in the set.
-func appendMissingProperties(properties []cyclonedx.Property, propertySet map[cyclonedx.Property]struct{}, repoValues []string, propertyKeyType string) []cyclonedx.Property {
+func appendMissingProperties(properties []cyclonedx.Property, repoValues []string, propertyKeyType string) []cyclonedx.Property {
 	for _, repoValue := range repoValues {
 		prop := cdxProperty(propertyKeyType, repoValue)
-		if !containsProperty(propertySet, prop) {
-			properties = append(properties, prop)
-			propertySet[prop] = struct{}{}
-		}
+		properties = append(properties, prop)
 	}
 	return properties
 }
@@ -188,7 +189,7 @@ func appendMissingProperties(properties []cyclonedx.Property, propertySet map[cy
 // cdxProperty function generates a trivy-specific cycloneDX Property.
 func cdxProperty(key, value string) cyclonedx.Property {
 	return cyclonedx.Property{
-		Name:  trivydx.Namespace + key,
+		Name:  key,
 		Value: value,
 	}
 }
