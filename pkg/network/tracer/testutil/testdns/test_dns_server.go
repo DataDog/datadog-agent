@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build test
+//go:build linux && test
 
 // Package testdns contains a DNS server for use in testing
 package testdns
