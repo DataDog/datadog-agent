@@ -337,6 +337,155 @@ func (suite *k8sSuite) TestRedis() {
 	suite.testHPA("workload-redis", "redis")
 }
 
+func (suite *k8sSuite) TestCPU() {
+	// Test CPU metrics
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				"kube_deployment:stress-ng",
+				"kube_namespace:workload-cpustress",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:stress-ng$`,
+				`^display_container_name:stress-ng`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
+				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:stress-ng$`,
+				`^kube_deployment:stress-ng$`,
+				`^kube_namespace:workload-cpustress$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+				`^kube_qos:Guaranteed$`,
+				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^runtime:containerd$`,
+				`^short_image:stress-ng$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 155000000,
+				Min: 145000000,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.limit",
+			Tags: []string{
+				"kube_deployment:stress-ng",
+				"kube_namespace:workload-cpustress",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:stress-ng$`,
+				`^display_container_name:stress-ng`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
+				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:stress-ng$`,
+				`^kube_deployment:stress-ng$`,
+				`^kube_namespace:workload-cpustress$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+				`^kube_qos:Guaranteed$`,
+				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^runtime:containerd$`,
+				`^short_image:stress-ng$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 200000000,
+				Min: 200000000,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes.cpu.usage.total",
+			Tags: []string{
+				"kube_deployment:stress-ng",
+				"kube_namespace:workload-cpustress",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:stress-ng$`,
+				`^display_container_name:stress-ng`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
+				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:stress-ng$`,
+				`^kube_deployment:stress-ng$`,
+				`^kube_namespace:workload-cpustress$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+				`^kube_qos:Guaranteed$`,
+				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:stress-ng$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 200000000,
+				Min: 100000000,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes.cpu.limits",
+			Tags: []string{
+				"kube_deployment:stress-ng",
+				"kube_namespace:workload-cpustress",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:stress-ng$`,
+				`^display_container_name:stress-ng`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
+				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:stress-ng$`,
+				`^kube_deployment:stress-ng$`,
+				`^kube_namespace:workload-cpustress$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+				`^kube_qos:Guaranteed$`,
+				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:stress-ng$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 0.2,
+				Min: 0.2,
+			},
+		},
+	})
+}
+
 func (suite *k8sSuite) TestDogstatsd() {
 	// Test dogstatsd origin detection with UDS
 	suite.testMetric(&testMetricArgs{
