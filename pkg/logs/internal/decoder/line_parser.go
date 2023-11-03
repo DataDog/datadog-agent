@@ -65,15 +65,20 @@ func (p *SingleLineParser) process(input *message.Message, rawDataLen int) {
 
 // MultiLineParser makes sure that chunked lines are properly put together.
 type MultiLineParser struct {
-	outputFn     func(*message.Message)
-	buffer       *bytes.Buffer
+	outputFn func(*message.Message)
+
+	// used to reconstruct the message
+
+	bufferedMsg *message.Message
+	buffer      *bytes.Buffer
+	rawDataLen  int
+
+	// configuration attributes
+
 	flushTimeout time.Duration
 	flushTimer   *time.Timer
 	parser       parsers.Parser
-	rawDataLen   int
 	lineLimit    int
-	status       string
-	timestamp    string
 }
 
 // NewMultiLineParser returns a new MultiLineParser.
@@ -86,6 +91,7 @@ func NewMultiLineParser(
 	return &MultiLineParser{
 		outputFn:     outputFn,
 		buffer:       bytes.NewBuffer(nil),
+		bufferedMsg:  nil,
 		flushTimeout: flushTimeout,
 		flushTimer:   nil,
 		lineLimit:    lineLimit,
@@ -119,9 +125,8 @@ func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
 	// track the raw data length and the timestamp so that the agent tails
 	// from the right place at restart
 	p.rawDataLen += rawDataLen
-	p.timestamp = msg.ParsingExtra.Timestamp
-	p.status = msg.Status
-	p.buffer.Write(msg.Content)
+	p.buffer.Write(msg.GetContent())
+	p.bufferedMsg = msg
 
 	if !msg.ParsingExtra.IsPartial || p.buffer.Len() >= p.lineLimit {
 		// the current chunk marks the end of an aggregated line
@@ -141,12 +146,19 @@ func (p *MultiLineParser) process(input *message.Message, rawDataLen int) {
 func (p *MultiLineParser) sendLine() {
 	defer func() {
 		p.buffer.Reset()
+		p.bufferedMsg = nil
 		p.rawDataLen = 0
 	}()
+
+	if p.bufferedMsg == nil || p.buffer.Len() == 0 {
+		return
+	}
 
 	content := make([]byte, p.buffer.Len())
 	copy(content, p.buffer.Bytes())
 	if len(content) > 0 || p.rawDataLen > 0 {
-		p.outputFn(NewMessage(content, p.status, p.rawDataLen, p.timestamp))
+		p.bufferedMsg.RawDataLen = p.rawDataLen
+		p.bufferedMsg.SetContent(content)
+		p.outputFn(p.bufferedMsg)
 	}
 }

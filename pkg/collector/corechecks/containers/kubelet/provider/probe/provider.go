@@ -10,8 +10,6 @@
 package probe
 
 import (
-	"github.com/prometheus/common/model"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
@@ -20,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -54,66 +53,47 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 	return provider, nil
 }
 
-func (p *Provider) proberProbeTotal(metric *model.Sample, sender sender.Sender) {
+func (p *Provider) proberProbeTotal(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricSuffix := ""
 
-	probeType := metric.Metric["probe_type"]
-	switch probeType {
-	case "Liveness":
-		metricSuffix = "liveness_probe"
-	case "Readiness":
-		metricSuffix = "readiness_probe"
-	case "Startup":
-		metricSuffix = "startup_probe"
-	default:
-		log.Debugf("Unsupported probe type %s", probeType)
-		return
-	}
-
-	result := metric.Metric["result"]
-	switch result {
-	case "successful":
-		metricSuffix += ".success.total"
-	case "failed":
-		metricSuffix += ".failure.total"
-	case "unknown":
-		metricSuffix += ".unknown.total"
-	default:
-		log.Debugf("Unsupported probe result %s", result)
-		return
-	}
-
-	podUID := string(metric.Metric["pod_uid"])
-	containerName := string(metric.Metric["container"])
-	pod, err := p.store.GetKubernetesPod(podUID)
-	if err != nil {
-		return
-	}
-
-	var container *workloadmeta.OrchestratorContainer
-	for _, c := range pod.GetAllContainers() {
-		if c.Name == containerName {
-			container = &c
-			break
+	for _, metric := range metricFam.Samples {
+		probeType := metric.Metric["probe_type"]
+		switch probeType {
+		case "Liveness":
+			metricSuffix = "liveness_probe"
+		case "Readiness":
+			metricSuffix = "readiness_probe"
+		case "Startup":
+			metricSuffix = "startup_probe"
+		default:
+			log.Debugf("Unsupported probe type %s", probeType)
+			return
 		}
+
+		result := metric.Metric["result"]
+		switch result {
+		case "successful":
+			metricSuffix += ".success.total"
+		case "failed":
+			metricSuffix += ".failure.total"
+		case "unknown":
+			metricSuffix += ".unknown.total"
+		default:
+			log.Debugf("Unsupported probe result %s", result)
+			return
+		}
+
+		cID := common.GetContainerID(p.store, metric.Metric, p.filter)
+		if cID == "" {
+			return
+		}
+
+		tags, _ := tagger.Tag(cID, collectors.HighCardinality)
+		if len(tags) == 0 {
+			return
+		}
+		tags = utils.ConcatenateTags(tags, p.Config.Tags)
+
+		sender.Gauge(common.KubeletMetricsPrefix+metricSuffix, float64(metric.Value), "", tags)
 	}
-
-	if container == nil {
-		log.Debugf("container %s not found for pod with id %s", containerName, podUID)
-		return
-	}
-
-	if p.filter.IsExcluded(pod.EntityMeta.Annotations, container.Name, container.Image.Name, pod.Namespace) {
-		return
-	}
-
-	cID := containers.BuildTaggerEntityName(container.ID)
-
-	tags, _ := tagger.Tag(cID, collectors.HighCardinality)
-	if len(tags) == 0 {
-		return
-	}
-	tags = utils.ConcatenateTags(tags, p.Config.Tags)
-
-	sender.Gauge(common.KubeletMetricsPrefix+metricSuffix, float64(metric.Value), "", tags)
 }

@@ -52,50 +52,56 @@ class FailedJobReason(Enum):
     EC2_SPOT = 8
 
 
+class FailedJobs:
+    def __init__(self):
+        self.mandatory_job_failures = []
+        self.optional_job_failures = []
+        self.mandatory_infra_job_failures = []
+        self.optional_infra_job_failures = []
+
+    def add_failed_job(self, job):
+        if job["failure_type"] == FailedJobType.INFRA_FAILURE and job["allow_failure"]:
+            self.optional_infra_job_failures.append(job)
+        elif job["failure_type"] == FailedJobType.INFRA_FAILURE and not job["allow_failure"]:
+            self.mandatory_infra_job_failures.append(job)
+        elif job["allow_failure"]:
+            self.optional_job_failures.append(job)
+        else:
+            self.mandatory_job_failures.append(job)
+
+    def all_non_infra_failures(self):
+        return self.mandatory_job_failures + self.optional_job_failures
+
+    def all_mandatory_failures(self):
+        return self.mandatory_job_failures + self.mandatory_infra_job_failures
+
+
 class SlackMessage:
     JOBS_SECTION_HEADER = "Failed jobs:"
-    INFRA_FAILURES_SECTION_HEADER = "Infrastructure failures:"
+    OPTIONAL_JOBS_SECTION_HEADER = "Failed jobs (allowed to fail):"
+    INFRA_SECTION_HEADER = "Infrastructure failures:"
+    OPTIONAL_INFRA_SECTION_HEADER = "Infrastructure failures (allowed to fail):"
     TEST_SECTION_HEADER = "Failed unit tests:"
     MAX_JOBS_PER_TEST = 2
 
-    def __init__(self, base="", jobs=None):
-        jobs = jobs if jobs else []
+    def __init__(self, base: str = "", jobs: FailedJobs = None):
+        jobs = jobs if jobs else FailedJobs()
         self.base_message = base
-        self.failed_jobs = [job for job in jobs if job["failure_type"] == FailedJobType.JOB_FAILURE]
-        self.infra_failed_jobs = [job for job in jobs if job["failure_type"] == FailedJobType.INFRA_FAILURE]
+        self.failed_jobs = jobs
         self.failed_tests = defaultdict(list)
         self.coda = ""
 
     def add_test_failure(self, test, job):
         self.failed_tests[test.key].append(job)
 
-    def __render_jobs_section(self, buffer):
-        print(self.JOBS_SECTION_HEADER, file=buffer)
+    def __render_jobs_section(self, header: str, jobs: list, buffer: io.StringIO):
+        if not jobs:
+            return
+
+        print(header, file=buffer)
 
         jobs_per_stage = defaultdict(list)
-        for job in self.failed_jobs:
-            jobs_per_stage[job["stage"]].append(job)
-
-        for stage, jobs in jobs_per_stage.items():
-            jobs_info = []
-            for job in jobs:
-                num_retries = len(job["retry_summary"]) - 1
-                job_info = f"<{job['url']}|{job['name']}>"
-                if num_retries > 0:
-                    job_info += f" ({num_retries} retries)"
-
-                jobs_info.append(job_info)
-
-            print(
-                f"- {', '.join(jobs_info)} (`{stage}` stage)",
-                file=buffer,
-            )
-
-    def __render_infra_jobs_section(self, buffer):
-        print(self.INFRA_FAILURES_SECTION_HEADER, file=buffer)
-
-        jobs_per_stage = defaultdict(list)
-        for job in self.infra_failed_jobs:
+        for job in jobs:
             jobs_per_stage[job["stage"]].append(job)
 
         for stage, jobs in jobs_per_stage.items():
@@ -125,10 +131,26 @@ class SlackMessage:
         buffer = io.StringIO()
         if self.base_message:
             print(self.base_message, file=buffer)
-        if self.failed_jobs:
-            self.__render_jobs_section(buffer)
-        if self.infra_failed_jobs:
-            self.__render_infra_jobs_section(buffer)
+        self.__render_jobs_section(
+            self.JOBS_SECTION_HEADER,
+            self.failed_jobs.mandatory_job_failures,
+            buffer,
+        )
+        self.__render_jobs_section(
+            self.OPTIONAL_JOBS_SECTION_HEADER,
+            self.failed_jobs.optional_job_failures,
+            buffer,
+        )
+        self.__render_jobs_section(
+            self.INFRA_SECTION_HEADER,
+            self.failed_jobs.mandatory_infra_job_failures,
+            buffer,
+        )
+        self.__render_jobs_section(
+            self.OPTIONAL_INFRA_SECTION_HEADER,
+            self.failed_jobs.optional_infra_job_failures,
+            buffer,
+        )
         if self.failed_tests:
             self.__render_tests_section(buffer)
         if self.coda:
@@ -138,4 +160,5 @@ class SlackMessage:
 
 class TeamMessage(SlackMessage):
     JOBS_SECTION_HEADER = "Failed jobs you own:"
+    OPTIONAL_JOBS_SECTION_HEADER = "Failed jobs (allowed to fail) you own:"
     TEST_SECTION_HEADER = "Failed unit tests you own:"

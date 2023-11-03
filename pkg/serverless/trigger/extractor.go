@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 )
 
 // GetAWSPartitionByRegion parses an AWS region and returns an AWS partition
@@ -41,6 +42,16 @@ func ExtractAPIGatewayV2EventARN(event events.APIGatewayV2HTTPRequest, region st
 func ExtractAPIGatewayWebSocketEventARN(event events.APIGatewayWebsocketProxyRequest, region string) string {
 	requestContext := event.RequestContext
 	return fmt.Sprintf("arn:%v:apigateway:%v::/restapis/%v/stages/%v", GetAWSPartitionByRegion(region), region, requestContext.APIID, requestContext.Stage)
+}
+
+// ExtractAPIGatewayCustomAuthorizerEventARN returns an ARN from an APIGatewayCustomAuthorizerRequest
+func ExtractAPIGatewayCustomAuthorizerEventARN(event events.APIGatewayCustomAuthorizerRequest) string {
+	return event.MethodArn
+}
+
+// ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN returns an ARN from an APIGatewayCustomAuthorizerRequestTypeRequest
+func ExtractAPIGatewayCustomAuthorizerRequestTypeEventARN(event events.APIGatewayCustomAuthorizerRequestTypeRequest) string {
+	return event.MethodArn
 }
 
 // ExtractAlbEventARN returns an ARN from an ALBTargetGroupRequest
@@ -124,6 +135,40 @@ func GetTagsFromAPIGatewayV2HTTPRequest(event events.APIGatewayV2HTTPRequest) ma
 		if ua := event.Headers["user-agent"]; ua != "" {
 			httpTags["http.useragent"] = ua
 		}
+	}
+	return httpTags
+}
+
+// GetTagsFromAPIGatewayCustomAuthorizerEvent returns a tagset containing http tags from an
+// APIGatewayCustomAuthorizerRequest
+func GetTagsFromAPIGatewayCustomAuthorizerEvent(event events.APIGatewayCustomAuthorizerRequest) map[string]string {
+	httpTags := make(map[string]string, 2)
+
+	if methodArn, err := arn.Parse(event.MethodArn); err == nil {
+		// Format is: api-id/stage/http-verb/path...
+		parts := strings.SplitN(methodArn.Resource, "/", 4)
+		if len(parts) != 4 {
+			return nil
+		}
+
+		httpTags["http.method"] = parts[2]
+		httpTags["http.url_details.path"] = "/" + parts[3]
+	}
+
+	return httpTags
+}
+
+// GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent returns a tagset containing http tags from an
+// APIGatewayCustomAuthorizerRequestTypeRequest
+func GetTagsFromAPIGatewayCustomAuthorizerRequestTypeEvent(event events.APIGatewayCustomAuthorizerRequestTypeRequest) map[string]string {
+	httpTags := make(map[string]string)
+	httpTags["http.url_details.path"] = event.RequestContext.Path
+	httpTags["http.method"] = event.HTTPMethod
+	if referer := event.Headers["Referer"]; referer != "" {
+		httpTags["http.referer"] = referer
+	}
+	if ua := event.Headers["User-Agent"]; ua != "" {
+		httpTags["http.useragent"] = ua
 	}
 	return httpTags
 }

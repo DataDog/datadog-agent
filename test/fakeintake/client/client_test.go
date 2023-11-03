@@ -8,16 +8,19 @@ package client
 import (
 	_ "embed"
 
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
+	"github.com/DataDog/datadog-agent/test/fakeintake/api"
+	"github.com/DataDog/datadog-agent/test/fakeintake/fixtures"
 )
 
 //go:embed fixtures/api_v2_series_response
@@ -123,7 +126,7 @@ func TestClient(t *testing.T) {
 		assert.NotEmpty(t, metrics)
 	})
 
-	t.Run("getChekRun", func(t *testing.T) {
+	t.Run("getCheckRun", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV1CheckRunResponse)
 		}))
@@ -233,5 +236,80 @@ func TestClient(t *testing.T) {
 		assert.Equal(t, flare.GetEmail(), "test")
 		assert.Equal(t, flare.GetAgentVersion(), "7.45.1+commit.102cdaf")
 		assert.Equal(t, flare.GetHostname(), "test-hostname")
+	})
+
+	t.Run("getProcesses", func(t *testing.T) {
+		payload := fixtures.CollectorProcPayload(t)
+		response := fmt.Sprintf(
+			`{
+				"payloads": [
+					{
+						"timestamp": "2023-07-12T11:05:20.847091908Z",
+						"data": "%s",
+						"encoding": "protobuf"
+					}
+				]
+			}`, base64.StdEncoding.EncodeToString(payload))
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(response))
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getProcesses()
+		require.NoError(t, err)
+		assert.True(t, client.processAggregator.ContainsPayloadName("i-078e212"))
+		assert.False(t, client.processAggregator.ContainsPayloadName("totoro"))
+	})
+
+	t.Run("getContainers", func(t *testing.T) {
+		payload := fixtures.CollectorContainerPayload(t)
+		response := fmt.Sprintf(
+			`{
+				"payloads": [
+					{
+						"timestamp": "2023-07-12T11:05:20.847091908Z",
+						"data": "%s",
+						"encoding": "protobuf"
+					}
+				]
+			}`, base64.StdEncoding.EncodeToString(payload))
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(response))
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getContainers()
+		require.NoError(t, err)
+		assert.True(t, client.containerAggregator.ContainsPayloadName("i-078e212"))
+		assert.False(t, client.containerAggregator.ContainsPayloadName("totoro"))
+	})
+
+	t.Run("getProcessDiscoveries", func(t *testing.T) {
+		payload := fixtures.CollectorProcDiscoveryPayload(t)
+		response := fmt.Sprintf(
+			`{
+				"payloads": [
+					{
+						"timestamp": "2023-07-12T11:05:20.847091908Z",
+						"data": "%s",
+						"encoding": "protobuf"
+					}
+				]
+			}`, base64.StdEncoding.EncodeToString(payload))
+
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(response))
+		}))
+		defer ts.Close()
+
+		client := NewClient(ts.URL)
+		err := client.getProcessDiscoveries()
+		require.NoError(t, err)
+		assert.True(t, client.processDiscoveryAggregator.ContainsPayloadName("i-078e212"))
+		assert.False(t, client.processDiscoveryAggregator.ContainsPayloadName("totoro"))
 	})
 }

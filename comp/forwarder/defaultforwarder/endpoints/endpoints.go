@@ -17,7 +17,7 @@ var (
 	// V1IntakeEndpoint is a v1 endpoint, used by Agent v.5, still used for metadata
 	V1IntakeEndpoint = transaction.Endpoint{Route: "/intake/", Name: "intake"}
 	// V1SketchSeriesEndpoint is a v1 endpoint used to send sketches
-	V1SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/v1/sketches", Name: "sketches_v1"} // nolint unused for now
+	V1SketchSeriesEndpoint = transaction.Endpoint{Route: "/api/v1/sketches", Name: "sketches_v1"} //nolint unused for now
 	// V1ValidateEndpoint is a v1 endpoint used to validate API keys
 	V1ValidateEndpoint = transaction.Endpoint{Route: "/api/v1/validate", Name: "validate_v1"}
 	// V1MetadataEndpoint is a v1 endpoint used for metadata (only used for inventory metadata for now)

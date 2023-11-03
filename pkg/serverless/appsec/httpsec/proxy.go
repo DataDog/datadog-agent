@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trigger"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
@@ -72,6 +73,10 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 		event = &events.APIGatewayV2HTTPRequest{}
 	case trigger.APIGatewayWebsocketEvent:
 		event = &events.APIGatewayWebsocketProxyRequest{}
+	case trigger.APIGatewayLambdaAuthorizerTokenEvent:
+		event = &events.APIGatewayCustomAuthorizerRequest{}
+	case trigger.APIGatewayLambdaAuthorizerRequestParametersEvent:
+		event = &events.APIGatewayCustomAuthorizerRequestTypeRequest{}
 	case trigger.ALBEvent:
 		event = &events.ALBTargetGroupRequest{}
 	case trigger.LambdaFunctionURLEvent:
@@ -95,7 +100,18 @@ func (lp *ProxyLifecycleProcessor) OnInvokeEnd(_ *invocationlifecycle.Invocation
 }
 
 func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.TraceChunk, s *pb.Span) {
-	// Add appsec tags to the aws lambda function service entry span
+	// Add relevant standalone tags to the chunk (TODO: remove per span tagging once backend handles chunk tags)
+	if config.IsStandalone() {
+		if chunk.Tags == nil {
+			chunk.Tags = make(map[string]string)
+		}
+		chunk.Tags["_dd.apm.enabled"] = "0"
+		// By the spec, only the service entry span needs to be tagged.
+		// We play it safe by tagging everything in case the service entry span gets changed by the agent
+		for _, s := range chunk.Spans {
+			(*spanWrapper)(s).SetMetricsTag("_dd.apm.enabled", 0)
+		}
+	}
 	if s.Name != "aws.lambda" || s.Type != "serverless" {
 		return
 	}
@@ -128,6 +144,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayV2HTTPRequest:
@@ -139,6 +156,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.APIGatewayWebsocketProxyRequest:
@@ -150,6 +168,32 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			event.PathParameters,
 			event.RequestContext.Identity.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
+		)
+
+	case *events.APIGatewayCustomAuthorizerRequest:
+		makeContext(
+			&ctx,
+			nil,
+			// NOTE: The header name could have been different (depends on API GW configuration)
+			map[string][]string{"Authorization": {event.AuthorizationToken}},
+			nil,
+			nil,
+			"", // Not provided by API Gateway
+			nil,
+			false,
+		)
+
+	case *events.APIGatewayCustomAuthorizerRequestTypeRequest:
+		makeContext(
+			&ctx,
+			&event.Path,
+			event.MultiValueHeaders,
+			event.MultiValueQueryStringParameters,
+			event.PathParameters,
+			event.RequestContext.Identity.SourceIP,
+			nil,
+			false,
 		)
 
 	case *events.ALBTargetGroupRequest:
@@ -161,6 +205,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			nil,
 			"",
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 
 	case *events.LambdaFunctionURLRequest:
@@ -172,6 +217,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 			nil,
 			event.RequestContext.HTTP.SourceIP,
 			&event.Body,
+			event.IsBase64Encoded,
 		)
 	}
 
@@ -219,10 +265,16 @@ func (lp *ProxyLifecycleProcessor) WrapSpanModifier(ctx ExecutionContext, modify
 type spanWrapper pb.Span
 
 func (s *spanWrapper) SetMetaTag(tag string, value string) {
+	if s.Meta == nil {
+		s.Meta = make(map[string]string)
+	}
 	s.Meta[tag] = value
 }
 
 func (s *spanWrapper) SetMetricsTag(tag string, value float64) {
+	if s.Metrics == nil {
+		s.Metrics = make(map[string]float64)
+	}
 	s.Metrics[tag] = value
 }
 

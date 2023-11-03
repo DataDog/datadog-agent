@@ -45,7 +45,7 @@ func (s *MockSerializer) SendSketch(sketches metrics.SketchesSource) error {
 	return s.Called(sketches).Error(0)
 }
 
-// AreSeriesEnabled returns whether sketches are enabled for serialization
+// AreSketchesEnabled returns whether sketches are enabled for serialization
 func (s *MockSerializer) AreSketchesEnabled() bool { return true }
 
 // SendMetadata serializes a metadata payload and sends it to the forwarder

@@ -472,6 +472,41 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if install_deps:
         deps(ctx)
 
+    if sys.platform == 'win32':
+        return _windows_integration_tests(ctx, race=race, go_mod=go_mod, arch=arch)
+    else:
+        # TODO: See if these will function on Windows
+        return _linux_integration_tests(ctx, race=race, remote_docker=remote_docker, go_mod=go_mod, arch=arch)
+
+
+def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
+    test_args = {
+        "go_mod": go_mod,
+        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "race_opt": "-race" if race else "",
+        "exec_opts": "",
+    }
+
+    go_cmd = 'go test -mod={go_mod} {race_opt} -tags "{go_build_tags}" {exec_opts}'.format(**test_args)  # noqa: FS002
+
+    tests = [
+        {
+            # Run eventlog tests with the Windows API, which depend on the EventLog service
+            'prefix': './pkg/util/winutil/eventlog/...',
+            'extra_args': '-evtapi Windows',
+        },
+        {
+            # Run eventlog tailer tests with the Windows API, which depend on the EventLog service
+            'prefix': './pkg/logs/tailers/windowsevent/...',
+            'extra_args': '-evtapi Windows',
+        },
+    ]
+
+    for test in tests:
+        ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
+
+
+def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     test_args = {
         "go_mod": go_mod,
         "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
@@ -855,7 +890,15 @@ def clean(ctx):
 
 
 @task
-def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_version='7', version_cached=False):
+def version(
+    ctx,
+    url_safe=False,
+    omnibus_format=False,
+    git_sha_length=7,
+    major_version='7',
+    version_cached=False,
+    pipeline_id=None,
+):
     """
     Get the agent version.
     url_safe: get the version that is able to be addressed as a url
@@ -877,6 +920,7 @@ def version(ctx, url_safe=False, omnibus_format=False, git_sha_length=7, major_v
         git_sha_length=git_sha_length,
         major_version=major_version,
         include_pipeline_id=True,
+        pipeline_id=pipeline_id,
     )
     if omnibus_format:
         # See: https://github.com/DataDog/omnibus-ruby/blob/datadog-5.5.0/lib/omnibus/packagers/deb.rb#L599

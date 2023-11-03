@@ -1938,20 +1938,6 @@ api_key:
 
 {{ end -}}
 
-{{- if .DataStreamsModule }}
-
-#############################################
-## System Probe Data Streams Configuration ##
-#############################################
-
-# data_streams_config:
-  ## @param enabled - boolean - optional - default: false
-  ## Set to true to enable the Data Streams Module of the System Probe
-  #
-  # enabled: false
-
-{{ end -}}
-
 {{- if .SecurityModule }}
 
 ##########################################
@@ -2099,10 +2085,17 @@ api_key:
   #
   # enabled: false
 
+{{- if (eq .OS "windows")}}
+  ## @param socket - string - optional - default: localhost:3334
+  ## The local address and port where the security runtime module is accessed
+  #
+  # socket: localhost:3334
+{{else}}
   ## @param socket - string - optional - default: /opt/datadog-agent/run/runtime-security.sock
   ## The full path to the location of the unix socket where security runtime module is accessed.
   #
   # socket: /opt/datadog-agent/run/runtime-security.sock
+{{ end }}
 
 ##########################################
 ## Compliance monitoring configuration  ##

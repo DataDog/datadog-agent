@@ -97,6 +97,10 @@ var (
 	Kernel6_2 = kernel.VersionCode(6, 2, 0)
 	// Kernel6_3 is the KernelVersion representation of kernel version 6.3
 	Kernel6_3 = kernel.VersionCode(6, 3, 0)
+	// Kernel6_5 is the KernelVersion representation of kernel version 6.5
+	Kernel6_5 = kernel.VersionCode(6, 5, 0)
+	// Kernel6_6 is the KernelVersion representation of kernel version 6.6
+	Kernel6_6 = kernel.VersionCode(6, 6, 0)
 )
 
 // Version defines a kernel version helper
@@ -335,4 +339,9 @@ func (k *Version) HaveFentrySupport() bool {
 	defer link.Close()
 
 	return true
+}
+
+// SupportBPFSendSignal returns true if the eBPF function bpf_send_signal is available
+func (k *Version) SupportBPFSendSignal() bool {
+	return k.Code != 0 && k.Code >= Kernel5_3
 }

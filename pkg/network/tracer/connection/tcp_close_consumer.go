@@ -27,7 +27,7 @@ var closerConsumerTelemetry = struct {
 	perfLost     telemetry.Counter
 }{
 	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_received", []string{}, "Counter measuring the number of closed connections received"),
-	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_lost", []string{}, "Counter measuring the number of connections lost (were transmitted from ebpf but never received)"),
+	telemetry.NewCounter(closeConsumerModuleName, "closed_conn_polling_lost", []string{}, "Counter measuring the number of closed connection batches lost (were transmitted from ebpf but never received)"),
 }
 
 type tcpCloseConsumer struct {
@@ -93,9 +93,9 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 	}
 
 	var (
-		then        time.Time = time.Now()
-		closedCount uint64
-		lostCount   uint64
+		then             = time.Now()
+		closedCount      uint64
+		lostSamplesCount uint64
 	)
 
 	go func() {
@@ -129,8 +129,8 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				if !ok {
 					return
 				}
-				closerConsumerTelemetry.perfLost.Add(float64(lc * netebpf.BatchSize))
-				lostCount += lc * netebpf.BatchSize
+				closerConsumerTelemetry.perfLost.Add(float64(lc))
+				lostSamplesCount += lc
 			case request := <-c.requests:
 				oneTimeBuffer := network.NewConnectionBuffer(32, 32)
 				c.batchManager.GetPendingConns(oneTimeBuffer)
@@ -142,14 +142,14 @@ func (c *tcpCloseConsumer) Start(callback func([]network.ConnectionStats)) {
 				elapsed := now.Sub(then)
 				then = now
 				log.Debugf(
-					"tcp close summary: closed_count=%d elapsed=%s closed_rate=%.2f/s lost_count=%d",
+					"tcp close summary: closed_count=%d elapsed=%s closed_rate=%.2f/s lost_samples_count=%d",
 					closedCount,
 					elapsed,
 					float64(closedCount)/elapsed.Seconds(),
-					lostCount,
+					lostSamplesCount,
 				)
 				closedCount = 0
-				lostCount = 0
+				lostSamplesCount = 0
 			}
 		}
 	}()

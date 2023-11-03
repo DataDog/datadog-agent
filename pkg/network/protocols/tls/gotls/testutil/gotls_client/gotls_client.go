@@ -54,7 +54,7 @@ func main() {
 			log.Fatalf("could not do HTTPS request: %s", err)
 		}
 
-		_, err = io.ReadAll(resp.Body)
+		_, err = io.Copy(io.Discard, resp.Body)
 		if err != nil {
 			log.Fatalf("could not read response body: %s", err)
 		}

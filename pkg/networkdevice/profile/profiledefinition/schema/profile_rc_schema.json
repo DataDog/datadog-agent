@@ -67,14 +67,8 @@
         "index": {
           "type": "integer"
         },
-        "column": {
-          "$ref": "#/$defs/SymbolConfig"
-        },
-        "OID": {
-          "type": "string"
-        },
         "symbol": {
-          "type": "string"
+          "$ref": "#/$defs/SymbolConfigCompat"
         },
         "index_transform": {
           "items": {
@@ -162,12 +156,16 @@
         },
         "device": {
           "$ref": "#/$defs/DeviceMeta"
+        },
+        "version": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "name"
+        "name",
+        "version"
       ]
     },
     "StringArray": {
@@ -177,6 +175,33 @@
       "type": "array"
     },
     "SymbolConfig": {
+      "properties": {
+        "OID": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "extract_value": {
+          "type": "string"
+        },
+        "scale_factor": {
+          "type": "number"
+        },
+        "format": {
+          "type": "string"
+        },
+        "constant_value_one": {
+          "type": "boolean"
+        },
+        "metric_type": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object"
+    },
+    "SymbolConfigCompat": {
       "properties": {
         "OID": {
           "type": "string"

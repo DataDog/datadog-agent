@@ -29,8 +29,6 @@ import (
 //	    Timestamp: "2019-06-06T16:35:55.930852911Z",
 //	    IsPartial: false,
 //	}
-//
-// XXX(remy): refactor this comment
 func New() parsers.Parser {
 	return &dockerFileFormat{}
 }
@@ -46,7 +44,7 @@ type dockerFileFormat struct{}
 // Parse implements Parser#Parse
 func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error) {
 	var log *logLine
-	err := json.Unmarshal(msg.Content, &log)
+	err := json.Unmarshal(msg.GetContent(), &log)
 	if err != nil {
 		msg.Status = message.StatusInfo
 		return msg, fmt.Errorf("cannot parse docker message, invalid JSON: %v", err)
@@ -72,7 +70,7 @@ func (p *dockerFileFormat) Parse(msg *message.Message) (*message.Message, error)
 			partial = true
 		}
 	}
-	msg.Content = content
+	msg.SetContent(content)
 	msg.Status = status
 	msg.ParsingExtra.IsPartial = partial
 	msg.ParsingExtra.Timestamp = log.Time
