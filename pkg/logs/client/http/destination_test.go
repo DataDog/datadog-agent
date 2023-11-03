@@ -11,7 +11,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 
@@ -323,12 +322,4 @@ func TestBackoffDelayDisabled(t *testing.T) {
 
 	assert.Equal(t, 0, server.Destination.nbErrors)
 	server.Stop()
-}
-
-func TestBackoffShouldBeConstantServerless(t *testing.T) {
-	dest := NewDestination(config.Endpoint{
-		Origin: "lambda-extension",
-	}, "", nil, 0, true, "")
-
-	assert.Equal(t, dest.backoff.GetBackoffDuration(0), coreConfig.Datadog.GetDuration("serverless.constant_backoff_interval"))
 }

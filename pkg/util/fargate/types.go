@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package fargate implements functions to interact with fargate
 package fargate
 
 // OrchestratorName covers the possible platform names where Fargate can run

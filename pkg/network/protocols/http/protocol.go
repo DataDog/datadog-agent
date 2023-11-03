@@ -22,6 +22,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,9 +37,11 @@ type protocol struct {
 }
 
 const (
-	inFlightMap    = "http_in_flight"
-	filterTailCall = "socket__http_filter"
-	eventStream    = "http"
+	inFlightMap            = "http_in_flight"
+	filterTailCall         = "socket__http_filter"
+	tlsProcessTailCall     = "uprobe__http_process"
+	tlsTerminationTailCall = "uprobe__http_termination"
+	eventStream            = "http"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -52,6 +55,20 @@ var Spec = &protocols.ProtocolSpec{
 			Key:           uint32(protocols.ProgramHTTP),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTPProcess),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsProcessTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTPTermination),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsTerminationTailCall,
 			},
 		},
 	},
@@ -90,7 +107,7 @@ func (p *protocol) Name() string {
 // We also configure the http event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	utils.EnableOption(opts, "http_monitoring_enabled")
@@ -139,7 +156,7 @@ func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key netebpf.ConnTuple
-		var value Transaction
+		var value EbpfTx
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -147,7 +164,7 @@ func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 }
 
 func (p *protocol) processHTTP(data []byte) {
-	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
+	tx := (*EbpfEvent)(unsafe.Pointer(&data[0]))
 	p.telemetry.Count(tx)
 	p.statkeeper.Process(tx)
 }
@@ -171,11 +188,11 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 			return false
 		}
 
-		if updated := int64(httpTxn.ResponseLastSeen()); updated > 0 {
+		if updated := int64(httpTxn.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(httpTxn.RequestStarted())
+		started := int64(httpTxn.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 
@@ -191,4 +208,9 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 		Type:  protocols.HTTP,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
+}
+
+// IsBuildModeSupported returns always true, as http module is supported by all modes.
+func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
+	return true
 }

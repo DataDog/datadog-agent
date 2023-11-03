@@ -18,8 +18,8 @@ type histogramNoOp struct{}
 
 func (h histogramNoOp) Observe(_ float64, _ ...string)                                    {}
 func (h histogramNoOp) Delete(_ ...string)                                                {}
-func (h histogramNoOp) WithValues(tagsValue ...string) telemetryComponent.SimpleHistogram { return nil }
-func (h histogramNoOp) WithTags(tags map[string]string) telemetryComponent.SimpleHistogram {
+func (h histogramNoOp) WithValues(tagsValue ...string) telemetryComponent.SimpleHistogram { return nil } //nolint:revive // TODO fix revive unused-parameter
+func (h histogramNoOp) WithTags(tags map[string]string) telemetryComponent.SimpleHistogram { //nolint:revive // TODO fix revive unused-parameter
 	return nil
 }
 

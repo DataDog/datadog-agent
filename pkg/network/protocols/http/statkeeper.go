@@ -19,11 +19,14 @@ import (
 
 type StatKeeper struct {
 	mux                         sync.Mutex
+	cfg                         *config.Config
 	stats                       map[Key]*RequestStats
 	incomplete                  *incompleteBuffer
 	maxEntries                  int
+	quantizer                   *URLQuantizer
 	telemetry                   *Telemetry
 	enableStatusCodeAggregation bool
+	enableQuantization          bool
 
 	// replace rules for HTTP path
 	replaceRules []*config.ReplaceRule
@@ -31,22 +34,23 @@ type StatKeeper struct {
 	// http path buffer
 	buffer []byte
 
-	// map containing interned path strings
-	// this is rotated  with the stats map
-	interned map[string]string
-
 	oversizedLogLimit *util.LogLimit
 }
 
 func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
+	// For now we're only enabling path quantization for HTTP/1 traffic
+	enableQuantization := c.EnableUSMQuantization && telemetry.protocol == "http"
+
 	return &StatKeeper{
+		cfg:                         c,
 		stats:                       make(map[Key]*RequestStats),
 		incomplete:                  newIncompleteBuffer(c, telemetry),
 		maxEntries:                  c.MaxHTTPStatsBuffered,
+		quantizer:                   NewURLQuantizer(),
 		replaceRules:                c.HTTPReplaceRules,
 		enableStatusCodeAggregation: c.EnableHTTPStatsByStatusCode,
+		enableQuantization:          enableQuantization,
 		buffer:                      make([]byte, getPathBufferSize(c)),
-		interned:                    make(map[string]string),
 		telemetry:                   telemetry,
 		oversizedLogLimit:           util.NewLogLimit(10, time.Minute*10),
 	}
@@ -74,7 +78,6 @@ func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 
 	ret := h.stats // No deep copy needed since `h.stats` gets reset
 	h.stats = make(map[Key]*RequestStats)
-	h.interned = make(map[string]string)
 	return ret
 }
 
@@ -88,6 +91,13 @@ func (h *StatKeeper) add(tx Transaction) {
 		h.telemetry.emptyPath.Add(1)
 		return
 	}
+
+	// Quantize HTTP path
+	// (eg. this turns /orders/123/view` into `/orders/*/view`)
+	if h.enableQuantization {
+		rawPath = h.quantizer.Quantize(rawPath)
+	}
+
 	path, rejected := h.processHTTPPath(tx, rawPath)
 	if rejected {
 		return
@@ -110,7 +120,7 @@ func (h *StatKeeper) add(tx Transaction) {
 		return
 	}
 
-	key := h.newKey(tx, path, fullPath)
+	key := NewKeyWithConnection(tx.ConnTuple(), path, fullPath, tx.Method())
 	stats, ok := h.stats[key]
 	if !ok {
 		if len(h.stats) >= h.maxEntries {
@@ -125,17 +135,6 @@ func (h *StatKeeper) add(tx Transaction) {
 	stats.AddRequest(tx.StatusCode(), latency, tx.StaticTags(), tx.DynamicTags())
 }
 
-func (h *StatKeeper) newKey(tx Transaction, path string, fullPath bool) Key {
-	return Key{
-		ConnectionKey: tx.ConnTuple(),
-		Path: Path{
-			Content:  path,
-			FullPath: fullPath,
-		},
-		Method: tx.Method(),
-	}
-}
-
 func pathIsMalformed(fullPath []byte) bool {
 	for _, r := range fullPath {
 		if !strconv.IsPrint(rune(r)) {
@@ -145,14 +144,14 @@ func pathIsMalformed(fullPath []byte) bool {
 	return false
 }
 
-func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) (pathStr string, rejected bool) {
+func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) ([]byte, bool) {
 	match := false
 	for _, r := range h.replaceRules {
 		if r.Re.Match(path) {
 			if r.Repl == "" {
 				// this is a "drop" rule
 				h.telemetry.rejected.Add(1)
-				return "", true
+				return nil, true
 			}
 
 			path = r.Re.ReplaceAll(path, []byte(r.Repl))
@@ -164,19 +163,10 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) (pathStr strin
 	// Otherwise, we don't want the custom path to be rejected by our path formatting check.
 	if !match && pathIsMalformed(path) {
 		if h.oversizedLogLimit.ShouldLog() {
-			log.Debugf("http path malformed: %+v %s", h.newKey(tx, "", false).ConnectionKey, tx.String())
+			log.Debugf("http path malformed: %+v %s", tx.ConnTuple(), tx.String())
 		}
 		h.telemetry.nonPrintableCharacters.Add(1)
-		return "", true
+		return nil, true
 	}
-	return h.intern(path), false
-}
-
-func (h *StatKeeper) intern(b []byte) string {
-	v, ok := h.interned[string(b)]
-	if !ok {
-		v = string(b)
-		h.interned[v] = v
-	}
-	return v
+	return path, false
 }

@@ -29,4 +29,6 @@ BPF_PROG_ARRAY(dispatcher_classification_progs, DISPATCHER_PROG_MAX)
 // A per-cpu array to share conn_tuple and skb_info between the dispatcher and the tail-calls.
 BPF_PERCPU_ARRAY_MAP(dispatcher_arguments, __u32, dispatcher_arguments_t, 1)
 
+BPF_PERCPU_ARRAY_MAP(tls_dispatcher_arguments, __u32, tls_dispatcher_arguments_t, 1)
+
 #endif

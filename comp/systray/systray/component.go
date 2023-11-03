@@ -4,25 +4,18 @@
 // Copyright 2016-present Datadog, Inc.
 //go:build windows
 
-// Package systray
+// Package systray provides a component for the system tray application
 package systray
-
-import (
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"go.uber.org/fx"
-)
 
 // team: windows-agent
 
+// Params for ddtray component
 type Params struct {
 	LaunchGuiFlag      bool
 	LaunchElevatedFlag bool
 	LaunchCommand      string
 }
 
+// Component for ddtray
 type Component interface {
 }
-
-var Module = fxutil.Component(
-	fx.Provide(newSystray),
-)

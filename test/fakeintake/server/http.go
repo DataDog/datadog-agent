@@ -13,6 +13,7 @@ import (
 type httpResponse struct {
 	contentType string
 	statusCode  int
+	data        interface{}
 	body        []byte
 }
 
@@ -27,27 +28,26 @@ func writeHTTPResponse(w http.ResponseWriter, response httpResponse) {
 }
 
 func buildErrorResponse(responseError error) httpResponse {
-	resp := errorResponseBody{Errors: []string{responseError.Error()}}
-	return buildResponse(resp, http.StatusBadRequest, "application/json")
+	return updateResponseFromData(httpResponse{
+		statusCode:  http.StatusBadRequest,
+		contentType: "application/json",
+		data:        errorResponseBody{Errors: []string{responseError.Error()}},
+	})
 }
 
-func buildSuccessResponse(body interface{}) httpResponse {
-	return buildResponse(body, http.StatusOK, "application/json")
-}
-
-func buildResponse(body interface{}, statusCode int, contentType string) httpResponse {
-	resp := httpResponse{contentType: contentType, statusCode: statusCode}
-
-	bodyJSON, err := json.Marshal(body)
-
-	if err != nil {
-		return httpResponse{
-			statusCode:  http.StatusInternalServerError,
-			contentType: "text/plain",
-			body:        []byte(err.Error()),
+func updateResponseFromData(r httpResponse) httpResponse {
+	if r.contentType == "application/json" {
+		bodyJSON, err := json.Marshal(r.data)
+		if err != nil {
+			return httpResponse{
+				statusCode:  http.StatusInternalServerError,
+				contentType: "text/plain",
+				body:        []byte(err.Error()),
+			}
 		}
+		r.body = bodyJSON
+	} else {
+		r.body = r.data.([]byte)
 	}
-
-	resp.body = bodyJSON
-	return resp
+	return r
 }

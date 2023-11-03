@@ -25,8 +25,9 @@ const (
 	smNS                         = "service_monitoring_config"
 	dsNS                         = "data_streams_config"
 	evNS                         = "event_monitoring_config"
-	smjtNS                       = smNS + ".java_tls"
+	smjtNS                       = smNS + ".tls.java"
 	diNS                         = "dynamic_instrumentation"
+	wcdNS                        = "windows_crash_detection"
 	defaultConnsMessageBatchSize = 600
 
 	// defaultSystemProbeBPFDir is the default path for eBPF programs
@@ -67,9 +68,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("sbom.host.analyzers", []string{"os"})
 	cfg.BindEnvAndSetDefault("sbom.cache_directory", filepath.Join(defaultRunPath, "sbom-sysprobe"))
 	cfg.BindEnvAndSetDefault("sbom.clear_cache_on_exit", false)
-	cfg.BindEnvAndSetDefault("sbom.cache.enabled", false)
+	cfg.BindEnvAndSetDefault("sbom.cache.enabled", true)
 	cfg.BindEnvAndSetDefault("sbom.cache.max_disk_size", 1000*1000*100) // used by custom cache: max disk space used by cached objects. Not equal to max disk usage
-	cfg.BindEnvAndSetDefault("sbom.cache.max_cache_entries", 10000)     // used by custom cache keys stored in memory
 	cfg.BindEnvAndSetDefault("sbom.cache.clean_interval", "30m")        // used by custom cache.
 
 	// Auto exit configuration
@@ -91,6 +91,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("log_to_syslog", false)
 	cfg.BindEnvAndSetDefault("log_to_console", true)
 	cfg.BindEnvAndSetDefault("log_format_json", false)
+	cfg.BindEnvAndSetDefault("log_file_max_size", "10Mb")
+	cfg.BindEnvAndSetDefault("log_file_max_rolls", 1)
 
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
@@ -201,12 +203,16 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "enable_http_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING")
 	cfg.BindEnv(join(smNS, "enable_http_monitoring"))
 
+	// For backward compatibility
 	cfg.BindEnv(join(netNS, "enable_https_monitoring"), "DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTPS_MONITORING")
+	cfg.BindEnv(join(smNS, "tls", "native", "enabled"))
 
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_go_tls_support"), false)
+	// For backward compatibility
+	cfg.BindEnv(join(smNS, "enable_go_tls_support"))
+	cfg.BindEnv(join(smNS, "tls", "go", "enabled"))
 
 	cfg.BindEnvAndSetDefault(join(smNS, "enable_http2_monitoring"), false)
-	cfg.BindEnvAndSetDefault(join(smNS, "enable_istio_monitoring"), false)
+	cfg.BindEnvAndSetDefault(join(smNS, "tls", "istio", "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "enabled"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "debug"), false)
 	cfg.BindEnvAndSetDefault(join(smjtNS, "args"), defaultServiceMonitoringJavaAgentArgs)
@@ -219,6 +225,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnv(join(netNS, "max_http_stats_buffered"), "DD_SYSTEM_PROBE_NETWORK_MAX_HTTP_STATS_BUFFERED")
 	cfg.BindEnv(join(smNS, "max_http_stats_buffered"))
 	cfg.BindEnvAndSetDefault(join(smNS, "max_kafka_stats_buffered"), 100000)
+	cfg.BindEnv(join(smNS, "max_concurrent_requests"))
+	cfg.BindEnv(join(smNS, "enable_quantization"))
 
 	oldHTTPRules := join(netNS, "http_replace_rules")
 	newHTTPRules := join(smNS, "http_replace_rules")
@@ -256,6 +264,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// oom_kill module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_oom_kill"), false)
+
 	// tcp_queue_length module
 	cfg.BindEnvAndSetDefault(join(spNS, "enable_tcp_queue_length"), false)
 	// process module
@@ -307,6 +316,7 @@ func InitSystemProbeConfig(cfg Config) {
 	eventMonitorBindEnv(cfg, join(evNS, "runtime_compilation.compiled_constants_enabled"))
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "syscalls_monitor.enabled"), false)
 	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
 	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 
@@ -315,6 +325,9 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// enable/disable use of root net namespace
 	cfg.BindEnvAndSetDefault(join(netNS, "enable_root_netns"), true)
+
+	// Windows crash detection
+	cfg.BindEnvAndSetDefault(join(wcdNS, "enabled"), false)
 
 	initCWSSystemProbeConfig(cfg)
 }

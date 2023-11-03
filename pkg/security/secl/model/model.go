@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run golang.org/x/tools/cmd/stringer -type=HashState -linecomment -output model_string.go
+//go:generate stringer -type=HashState -linecomment -output model_string.go
 
 // Package model holds model related files
 package model
@@ -166,7 +166,7 @@ type BaseEvent struct {
 	Type         uint32         `field:"-"`
 	Flags        uint32         `field:"-"`
 	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
-	Timestamp    time.Time      `field:"-"`
+	Timestamp    time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events

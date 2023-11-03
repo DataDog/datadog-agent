@@ -50,8 +50,16 @@ issues:
       text: "name will be used as .* by other packages, and that stutters"
     - path: pkg/util/containerd
       text: "name will be used as .* by other packages, and that stutters"
-    # TODO: Needs manual update
-    - text: "package github.com/golang/protobuf/proto is deprecated: .*"
+    # Should be replaced by google.golang.org/protobuf but is not a drop-in replacement
+    - text: "\"github.com/golang/protobuf/proto\" is deprecated"
+      linters: [staticcheck]
+    # Can't rely on getting the same elements after calling Seed because dependencies could be using
+    # it too. Should be replaced by using a local source, but there are too many uses in the repo.
+    - text: "rand.Seed has been deprecated since Go 1.20"
+      linters: [staticcheck]
+    # net.Error.Temporary() isn't properly defined and was thus deprecated.
+    # We are using it and it's not clear how to replace it.
+    - text: "Temporary has been deprecated since Go 1.18"
       linters: [staticcheck]
 
   # We're enabling the revive and the gosimple linters on the whole codebase
@@ -77,16 +85,23 @@ linters:
 
 linters-settings:
   depguard:
-    include-go-root: true
-    packages-with-error-message:
-      - sync/atomic: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
-      - io/ioutil: "Deprecated since Go 1.16. Use package io or os instead."
-      - github.com/golang/glog: "Crashes Windows nanoserver and significantly delays Agent startup on Windows Domain Controllers."
-      # IDE auto-imports often import `gotest.tools/assert` instead of `testify/assert` by default
-      # feel free to remove the following line if you really need it in several files as opposed to testify/assert
-      # note that if it's just for a single file, you can just add `//nolint:depguard` before the import
-      # the goal is just to limit the risk of accidental imports
-      - gotest.tools/assert: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert"
+    rules:
+      main:
+        files:
+          - $all
+        deny:
+          - pkg: "sync/atomic"
+            desc: "Use go.uber.org/atomic instead; see docs/dev/atomics.md"
+          - pkg: "io/ioutil"
+            desc: "Deprecated since Go 1.16. Use package io or os instead."
+          - pkg: "github.com/golang/glog"
+            desc: "Crashes Windows nanoserver and significantly delays Agent startup on Windows Domain Controllers."
+            # IDE auto-imports often import `gotest.tools/assert` instead of `testify/assert` by default
+            # feel free to remove the following line if you really need it in several files as opposed to testify/assert
+            # note that if it's just for a single file, you can just add `//nolint:depguard` before the import
+            # the goal is just to limit the risk of accidental imports
+          - pkg: "gotest.tools/assert"
+            desc: "Not really forbidden to use, but it is usually imported by mistake instead of github.com/stretchr/testify/assert"
 
   errcheck:
     # Disable warnings for `fmt`, `log` and `seelog` packages. Also ignore `Write` functions from `net/http` package.
@@ -99,7 +114,7 @@ linters-settings:
              # Actual issues that should be fixed eventually
              "-SA6002", # TODO: Fix sync.Pools
              "-SA4025", # TODO: Fix trace unit test
-             "-SA1019", "-SA4011", "-SA4031" # Disabling these to re-enable golanci-lint default tests
+             "-SA4011", "-SA4031" # Disabling these to re-enable golanci-lint default tests
             ]
   govet:
     settings:
@@ -111,3 +126,37 @@ linters-settings:
           - github.com/DataDog/datadog-agent/pkg/util/log.Printf
           - github.com/DataDog/datadog-agent/pkg/util/log.Warnf
           - github.com/DataDog/datadog-agent/pkg/util/log.Errorf
+  revive:
+    # in order to change revive config, the default configuration must be explicitly defined
+    # https://github.com/mgechev/revive/blob/master/defaults.toml
+    ignoreGeneratedHeader: false
+    severity: "warning"
+    confidence: 0.8
+    errorCode: 0
+    warningCode: 0
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: empty-block
+      - name: error-naming
+      - name: error-return
+      - name: error-strings
+      - name: errorf
+      - name: exported
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: redefines-builtin-id
+      - name: superfluous-else
+      - name: time-naming
+      - name: unexported-return
+      - name: unreachable-code
+      - name: unused-parameter
+      - name: var-declaration
+      - name: var-naming
+      # non-default rules:
+      - name: duplicated-imports

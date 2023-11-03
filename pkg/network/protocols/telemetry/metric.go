@@ -72,8 +72,8 @@ func (g *Gauge) base() *metricBase {
 
 type metricBase struct {
 	name  string
-	tags  sets.String
-	opts  sets.String
+	tags  sets.Set[string]
+	opts  sets.Set[string]
 	value *atomic.Int64
 }
 
@@ -90,7 +90,7 @@ func newMetricBase(name string, tagsAndOptions []string) *metricBase {
 
 // Name of the `Metric` (including tags)
 func (m *metricBase) Name() string {
-	return strings.Join(append([]string{m.name}, m.tags.List()...), ",")
+	return strings.Join(append([]string{m.name}, sets.List(m.tags)...), ",")
 }
 
 // Get value atomically

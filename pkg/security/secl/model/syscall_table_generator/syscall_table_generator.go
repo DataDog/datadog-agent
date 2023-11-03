@@ -20,6 +20,9 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func main() {
@@ -204,10 +207,10 @@ func generateEnumCode(syscalls []*syscallDefinition) (string, error) {
 
 func snakeToCamelCase(snake string) string {
 	parts := strings.Split(snake, "_")
-
+	caser := cases.Title(language.English)
 	var b strings.Builder
 	for _, part := range parts {
-		b.WriteString(strings.Title(part))
+		b.WriteString(caser.String(part))
 	}
 
 	return b.String()

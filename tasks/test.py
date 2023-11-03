@@ -74,7 +74,7 @@ def environ(env):
     original_environ = os.environ.copy()
     os.environ.update(env)
     yield
-    for var in env.keys():
+    for var in env:
         if var in original_environ:
             os.environ[var] = original_environ[var]
         else:
@@ -158,20 +158,24 @@ def test_core(
     module_class: GoModule,
     operation_name: str,
     command,
-    skip_module_class=False,
+    skip_module_class: bool = False,
+    headless_mode: bool = False,
 ):
     """
     Run the command function on each module of the modules list.
     """
     modules_results = []
-    print(f"--- Flavor {flavor.name}: {operation_name}")
+    if not headless_mode:
+        print(f"--- Flavor {flavor.name}: {operation_name}")
     for module in modules:
         module_result = None
         if not skip_module_class:
             module_result = module_class(path=module.full_path())
-        print(f"----- Module '{module.full_path()}'")
+        if not headless_mode:
+            print(f"----- Module '{module.full_path()}'")
         if not module.condition():
-            print("----- Skipped")
+            if not headless_mode:
+                print("----- Skipped")
             continue
 
         command(modules_results, module, module_result)
@@ -257,7 +261,7 @@ class ModuleTestResult(ModuleResult):
 
                             if action == "fail":
                                 failed_packages.add(package)
-                            elif action == "pass" and package in failed_tests.keys():
+                            elif action == "pass" and package in failed_tests:
                                 # The package was retried and fully succeeded, removing from the list of packages to report
                                 failed_packages.remove(package)
 
@@ -297,6 +301,7 @@ def lint_flavor(
     concurrency: int,
     timeout=None,
     golangci_lint_kwargs: str = "",
+    headless_mode: bool = False,
 ):
     """
     Runs linters for given flavor, build tags, and modules.
@@ -306,6 +311,7 @@ def lint_flavor(
         with ctx.cd(module.full_path()):
             lint_results = run_golangci_lint(
                 ctx,
+                module_path=module.path,
                 targets=module.lint_targets,
                 rtloader_root=rtloader_root,
                 build_tags=build_tags,
@@ -313,6 +319,7 @@ def lint_flavor(
                 concurrency=concurrency,
                 timeout=timeout,
                 golangci_lint_kwargs=golangci_lint_kwargs,
+                headless_mode=headless_mode,
             )
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
@@ -320,7 +327,7 @@ def lint_flavor(
                     module_result.failed = True
         module_results.append(module_result)
 
-    return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command)
+    return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode)
 
 
 def build_stdlib(
@@ -453,7 +460,7 @@ def codecov_flavor(
     return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
 
-def process_input_args(input_module, input_targets, input_flavors):
+def process_input_args(input_module, input_targets, input_flavors, headless_mode=False):
     """
     Takes the input module, targets and flavors arguments from inv test and inv codecov,
     sets default values for them & casts them to the expected types.
@@ -468,7 +475,8 @@ def process_input_args(input_module, input_targets, input_flavors):
     elif isinstance(input_targets, str):
         modules = [GoModule(".", targets=input_targets.split(','))]
     else:
-        print("Using default modules and targets")
+        if not headless_mode:
+            print("Using default modules and targets")
         modules = DEFAULT_MODULES.values()
 
     if not input_flavors:
@@ -493,8 +501,8 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
     """
 
     success = True
-    for phase in module_results.keys():
-        for flavor in module_results[phase].keys():
+    for phase in module_results:
+        for flavor in module_results[phase]:
             for module_result in module_results[phase][flavor]:
                 if module_result is not None:
                     module_failed, failure_string = module_result.get_failure(flavor)
@@ -563,7 +571,7 @@ def test(
     # Sanitize environment variables
     # We want to ignore all `DD_` variables, as they will interfere with the behavior
     # of some unit tests
-    for env in os.environ.keys():
+    for env in os.environ:
         if env.startswith("DD_"):
             del os.environ[env]
 
@@ -701,7 +709,7 @@ def test(
     # Output
     if junit_tar:
         junit_files = []
-        for flavor in modules_results_per_phase["test"].keys():
+        for flavor in modules_results_per_phase["test"]:
             for module_test_result in modules_results_per_phase["test"][flavor]:
                 if module_test_result.junit_file_path:
                     junit_files.append(module_test_result.junit_file_path)
@@ -744,8 +752,9 @@ def run_lint_go(
     cpus=None,
     timeout=None,
     golangci_lint_kwargs="",
+    headless_mode=False,
 ):
-    modules, flavors = process_input_args(module, targets, flavors)
+    modules, flavors = process_input_args(module, targets, flavors, headless_mode)
 
     linter_tags = {
         f: build_tags
@@ -754,8 +763,6 @@ def run_lint_go(
         )
         for f in flavors
     }
-
-    # Lint
 
     modules_lint_results_per_flavor = {flavor: [] for flavor in flavors}
 
@@ -770,6 +777,7 @@ def run_lint_go(
             concurrency=cpus,
             timeout=timeout,
             golangci_lint_kwargs=golangci_lint_kwargs,
+            headless_mode=headless_mode,
         )
 
     return modules_lint_results_per_flavor
@@ -790,6 +798,7 @@ def lint_go(
     cpus=None,
     timeout: int = None,
     golangci_lint_kwargs="",
+    headless_mode=False,
 ):
     """
     Run go linters on the given module and targets.
@@ -802,6 +811,7 @@ def lint_go(
     If no module or target is set the tests are run against all modules and targets.
 
     --timeout is the number of minutes after which the linter should time out.
+    --headless-mode allows you to output the result in a single json file.
 
     Example invokation:
         inv lint-go --targets=./pkg/collector/check,./pkg/aggregator
@@ -831,12 +841,14 @@ def lint_go(
         cpus=cpus,
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
+        headless_mode=headless_mode,
     )
 
     success = process_module_results(modules_results_per_phase)
 
     if success:
-        print(color_message("All linters passed", "green"))
+        if not headless_mode:
+            print(color_message("All linters passed", "green"))
     else:
         # Exit if any of the modules failed on any phase
         raise Exit(code=1)
@@ -1018,14 +1030,24 @@ def lint_filenames(ctx):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, debug=False):
     """
     Run all the available integration tests
     """
-    agent_integration_tests(ctx, install_deps, race, remote_docker)
-    dsd_integration_tests(ctx, install_deps, race, remote_docker)
-    dca_integration_tests(ctx, install_deps, race, remote_docker)
-    trace_integration_tests(ctx, install_deps, race)
+    tests = [
+        lambda: agent_integration_tests(ctx, install_deps, race, remote_docker),
+        lambda: dsd_integration_tests(ctx, install_deps, race, remote_docker),
+        lambda: dca_integration_tests(ctx, install_deps, race, remote_docker),
+        lambda: trace_integration_tests(ctx, install_deps, race),
+    ]
+    for t in tests:
+        try:
+            t()
+        except Exit as e:
+            if e.code != 0:
+                raise
+            elif debug:
+                print(e.message)
 
 
 @task

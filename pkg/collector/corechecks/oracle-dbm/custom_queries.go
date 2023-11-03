@@ -9,10 +9,12 @@ package oracle
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	godror "github.com/godror/godror"
 	"reflect"
 	"strconv"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	godror "github.com/godror/godror"
 )
 
 type Method func(string, float64, string, []string)
@@ -24,7 +26,7 @@ type metricRow struct {
 	tags   []string
 }
 
-func concatenateTypeError(input error, prefix string, expectedType string, column string, value interface{}, query string, err error) error {
+func concatenateTypeError(input error, prefix string, expectedType string, column string, value interface{}, query string, err error) error { //nolint:revive // TODO fix revive unused-parameter
 	return fmt.Errorf(
 		`Custom query %s encountered a type error during execution. A %s was expected for the column %s, but the query results returned the value "%v" of type %s. Query was: "%s". Error: %w`,
 		prefix, expectedType, column, value, reflect.TypeOf(value), query, err,
@@ -32,7 +34,7 @@ func concatenateTypeError(input error, prefix string, expectedType string, colum
 }
 
 func concatenateError(input error, new string) error {
-	return fmt.Errorf("%w\n%s", input, new)
+	return fmt.Errorf("%w %s", input, new)
 }
 
 func (c *Check) CustomQueries() error {
@@ -68,7 +70,25 @@ func (c *Check) CustomQueries() error {
 		"historate":       sender.Historate,
 	}
 	var allErrors error
-	for _, q := range c.config.CustomQueries {
+	var customQueries []config.CustomQuery
+
+	if len(c.config.InstanceConfig.CustomQueries) > 0 {
+		customQueries = append(customQueries, c.config.InstanceConfig.CustomQueries...)
+	}
+	if len(c.config.InitConfig.CustomQueries) > 0 {
+		switch c.config.UseGlobalCustomQueries {
+		case "true":
+			customQueries = make([]config.CustomQuery, len(c.config.InitConfig.CustomQueries))
+			copy(customQueries, c.config.InitConfig.CustomQueries)
+		case "false":
+		case "extend":
+			customQueries = append(customQueries, c.config.InitConfig.CustomQueries...)
+		default:
+			return fmt.Errorf(`Wrong value "%s" for the config parameter use_global_custom_queries. Valid values are "true", "false" and "extend"`, c.config.UseGlobalCustomQueries)
+		}
+	}
+
+	for _, q := range customQueries {
 		var errInQuery bool
 		metricPrefix := q.MetricPrefix
 
@@ -76,7 +96,7 @@ func (c *Check) CustomQueries() error {
 			allErrors = concatenateError(allErrors, "Undefined metric_prefix for a custom query")
 			continue
 		}
-		log.Debugf("custom query configuration %v", q)
+		log.Debugf("%s custom query configuration %v", c.logPrompt, q)
 		var pdb string
 		if !c.connectedToPdb {
 			pdb = q.Pdb
@@ -165,7 +185,7 @@ func (c *Check) CustomQueries() error {
 			if len(q.Tags) > 0 {
 				tags = append(tags, q.Tags...)
 			}
-			log.Debugf("Appended queried tags to check tags %v", tags)
+			log.Debugf("%s Appended queried tags to check tags %v", c.logPrompt, tags)
 			for i := range metricsFromSingleRow {
 				metricsFromSingleRow[i].tags = make([]string, len(tags))
 				copy(metricsFromSingleRow[i].tags, tags)
@@ -177,7 +197,7 @@ func (c *Check) CustomQueries() error {
 			continue
 		}
 		for _, m := range metricRows {
-			log.Debugf("send metric %+v", m)
+			log.Debugf("%s send metric %+v", c.logPrompt, m)
 			m.method(m.name, m.value, "", m.tags)
 		}
 		sender.Commit()

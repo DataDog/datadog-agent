@@ -5,6 +5,7 @@
 
 //go:build containerd
 
+// Package containerd implements the containerd Workloadmeta collector.
 package containerd
 
 import (
@@ -99,8 +100,8 @@ type collector struct {
 	handleImagesMut sync.Mutex
 
 	// SBOM Scanning
-	sbomScanner *scanner.Scanner // nolint: unused
-	scanOptions sbom.ScanOptions // nolint: unused
+	sbomScanner *scanner.Scanner //nolint: unused
+	scanOptions sbom.ScanOptions //nolint: unused
 }
 
 func init() {

@@ -3,6 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-// package builder includes a metric store builder.
-
+// Package builder includes a metric store builder.
 package builder

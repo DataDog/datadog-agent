@@ -32,10 +32,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/devicecheck"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/discovery"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/session"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
@@ -59,7 +60,7 @@ func createDeps(t *testing.T) deps {
 
 func Test_Run_simpleCase(t *testing.T) {
 	deps := createDeps(t)
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -338,7 +339,7 @@ tags:
 
 func Test_Run_customIfSpeed(t *testing.T) {
 	deps := createDeps(t)
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -476,7 +477,7 @@ metrics:
 }
 
 func TestSupportedMetricTypes(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -554,7 +555,7 @@ func TestProfile(t *testing.T) {
 	deps := createDeps(t)
 	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -919,6 +920,13 @@ profiles:
       "prefixlen": 24
     }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "default:1.2.3.4",
+      "diagnoses": null
+    }
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -932,7 +940,7 @@ profiles:
 }
 
 func TestServiceCheckFailures(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -968,7 +976,7 @@ community_string: public
 }
 
 func TestCheckID(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	check1 := snmpFactory()
 	check2 := snmpFactory()
 	check3 := snmpFactory()
@@ -1179,7 +1187,7 @@ func TestCheck_Run(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			checkconfig.SetConfdPathAndCleanProfiles()
+			profile.SetConfdPathAndCleanProfiles()
 			sess := session.CreateMockSession()
 			sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 				return sess, nil
@@ -1229,7 +1237,7 @@ namespace: '%s'
 }
 
 func TestCheck_Run_sessionCloseError(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1277,7 +1285,7 @@ func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 
 	deps := createDeps(t)
 	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1553,6 +1561,19 @@ tags:
       "prefixlen": 24
     }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "default:1.2.3.4",
+      "diagnoses": [
+        {
+          "severity": "error",
+          "message": "Agent failed to detect a profile for this network device.",
+          "code": "SNMP_FAILED_TO_DETECT_PROFILE"
+        }
+      ]
+    }
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -1570,7 +1591,7 @@ func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	deps := createDeps(t)
 	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -1643,6 +1664,24 @@ tags:
       "subnet": "127.0.0.0/30"
     }
   ],
+  "diagnoses": [
+	{
+	  "resource_type": "device",
+	  "resource_id": "default:1.2.3.5",
+	  "diagnoses": [
+		{
+		  "severity": "error",
+		  "message": "Agent failed to poll this network device. Check the authentication method and ensure the agent can ping it.",
+		  "code": "SNMP_FAILED_TO_POLL_DEVICE"
+		},
+		{
+		  "severity": "error",
+		  "message": "Agent failed to detect a profile for this network device.",
+		  "code": "SNMP_FAILED_TO_DETECT_PROFILE"
+		}
+	  ]
+	}
+  ],
   "collect_timestamp":946684800
 }
 `, version.AgentVersion))
@@ -1658,7 +1697,7 @@ tags:
 func TestDiscovery(t *testing.T) {
 	deps := createDeps(t)
 	timeNow = common.MockTimeNow
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -1972,9 +2011,16 @@ metric_tags:
       "prefixlen": 24
     }
   ],
+  "diagnoses": [
+    {
+      "resource_type": "device",
+      "resource_id": "%s",
+      "diagnoses": null
+    }
+  ],
   "collect_timestamp":946684800
 }
-`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
+`, deviceData.deviceID, deviceData.ipAddress, version.AgentVersion, deviceData.ipAddress, deviceData.ipAddress, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID, deviceData.deviceID))
 		compactEvent := new(bytes.Buffer)
 		err = json.Compact(compactEvent, event)
 		assert.NoError(t, err)
@@ -1990,7 +2036,7 @@ metric_tags:
 
 func TestDiscovery_CheckError(t *testing.T) {
 	deps := createDeps(t)
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -2067,7 +2113,7 @@ func TestDeviceIDAsHostname(t *testing.T) {
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -2258,7 +2304,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	deps := createDeps(t)
 	cache.Cache.Delete(cache.BuildAgentKey("hostname")) // clean existing hostname cache
 	timeNow = common.MockTimeNow
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
@@ -2463,7 +2509,7 @@ metrics:
 
 func TestCheckCancel(t *testing.T) {
 	deps := createDeps(t)
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil

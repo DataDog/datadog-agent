@@ -25,7 +25,7 @@ import (
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
-type Monitor struct {
+type Monitors struct {
 	probe *Probe
 
 	eventStreamMonitor *eventstream.Monitor
@@ -36,15 +36,15 @@ type Monitor struct {
 	syscallsMonitor    *syscalls.Monitor
 }
 
-// NewMonitor returns a new instance of a ProbeMonitor
-func NewMonitor(p *Probe) *Monitor {
-	return &Monitor{
+// NewMonitors returns a new instance of a ProbeMonitor
+func NewMonitors(p *Probe) *Monitors {
+	return &Monitors{
 		probe: p,
 	}
 }
 
 // Init initializes the monitor
-func (m *Monitor) Init() error {
+func (m *Monitors) Init() error {
 	var err error
 	p := m.probe
 
@@ -66,9 +66,12 @@ func (m *Monitor) Init() error {
 	if err != nil {
 		return fmt.Errorf("couldn't create the approver monitor: %w", err)
 	}
-	m.syscallsMonitor, err = syscalls.NewSyscallsMonitor(p.Manager, p.StatsdClient)
-	if err != nil {
-		return fmt.Errorf("couldn't create the approver monitor: %w", err)
+
+	if p.Opts.SyscallsMonitorEnabled {
+		m.syscallsMonitor, err = syscalls.NewSyscallsMonitor(p.Manager, p.StatsdClient)
+		if err != nil {
+			return fmt.Errorf("couldn't create the approver monitor: %w", err)
+		}
 	}
 
 	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
@@ -77,12 +80,12 @@ func (m *Monitor) Init() error {
 }
 
 // GetEventStreamMonitor returns the perf buffer monitor
-func (m *Monitor) GetEventStreamMonitor() *eventstream.Monitor {
+func (m *Monitors) GetEventStreamMonitor() *eventstream.Monitor {
 	return m.eventStreamMonitor
 }
 
 // SendStats sends statistics about the probe to Datadog
-func (m *Monitor) SendStats() error {
+func (m *Monitors) SendStats() error {
 	// delay between two send in order to reduce the statsd pool presure
 	const delay = time.Second
 	time.Sleep(delay)
@@ -137,15 +140,21 @@ func (m *Monitor) SendStats() error {
 		return fmt.Errorf("failed to send evaluation set stats: %w", err)
 	}
 
-	if err := m.syscallsMonitor.SendStats(); err != nil {
-		return fmt.Errorf("failed to send evaluation set stats: %w", err)
+	if m.probe.Opts.SyscallsMonitorEnabled {
+		if err := m.syscallsMonitor.SendStats(); err != nil {
+			return fmt.Errorf("failed to send evaluation set stats: %w", err)
+		}
 	}
 
 	return nil
 }
 
 // ProcessEvent processes an event through the various monitors and controllers of the probe
-func (m *Monitor) ProcessEvent(event *model.Event) {
+func (m *Monitors) ProcessEvent(event *model.Event) {
+	if !m.probe.Config.RuntimeSecurity.InternalMonitoringEnabled {
+		return
+	}
+
 	// handle event errors
 	if event.Error == nil {
 		return

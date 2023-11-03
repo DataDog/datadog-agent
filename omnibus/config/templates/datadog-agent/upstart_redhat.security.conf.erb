@@ -13,7 +13,7 @@ script
   # Logging to console from the agent is disabled since the agent already logs using file or
   # syslog depending on its configuration. We then redirect the stdout/stderr of the agent process
   # to log panic/crashes.
-  exec <%= install_dir %>/embedded/bin/security-agent start -c <%= etc_dir %>/datadog.yaml -c <%= etc_dir %>/security-agent.yaml -p <%= install_dir %>/run/security-agent.pid &>> /var/log/datadog/security-errors.log
+  exec <%= install_dir %>/embedded/bin/security-agent start -c <%= etc_dir %>/datadog.yaml -c <%= etc_dir %>/security-agent.yaml --sysprobe-config <%= etc_dir %>/system-probe.yaml -p <%= install_dir %>/run/security-agent.pid &>> /var/log/datadog/security-errors.log
 end script
 
 pre-start script

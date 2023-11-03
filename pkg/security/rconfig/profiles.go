@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	proto "github.com/DataDog/agent-payload/v5/cws/dumpsv1"
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -127,6 +128,11 @@ func (r *RCProfileProvider) UpdateWorkloadSelectors(selectors []cgroupModel.Work
 // SetOnNewProfileCallback sets the onNewProfileCallback function
 func (r *RCProfileProvider) SetOnNewProfileCallback(onNewProfileCallback func(selector cgroupModel.WorkloadSelector, profile *proto.SecurityProfile)) {
 	r.onNewProfileCallback = onNewProfileCallback
+}
+
+// SendStats sends the metrics of the directory provider
+func (r *RCProfileProvider) SendStats(_ statsd.ClientInterface) error {
+	return nil
 }
 
 // NewRCProfileProvider returns a new Remote Config based policy provider

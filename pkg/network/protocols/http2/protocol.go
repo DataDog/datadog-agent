@@ -19,11 +19,11 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
@@ -67,6 +67,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: "http2_headers_to_process",
+		},
+		{
+			Name: "http2_frames_to_process",
 		},
 		{
 			Name: "http2_stream_heap",
@@ -125,7 +128,7 @@ const (
 // We also configure the http2 event stream with the manager and its options.
 func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options) {
 	opts.MapSpecEditors[inFlightMap] = manager.MapSpecEditor{
-		MaxEntries: p.cfg.MaxTrackedConnections,
+		MaxEntries: p.cfg.MaxUSMConcurrentRequests,
 		EditorFlag: manager.EditMaxEntries,
 	}
 
@@ -185,8 +188,16 @@ func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 	if mapName == inFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
-		var key netebpf.ConnTuple
-		var value http.Transaction
+		var key http2StreamKey
+		var value EbpfTx
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			output.WriteString(spew.Sdump(key, value))
+		}
+	} else if mapName == dynamicTable {
+		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
+		iter := currentMap.Iterate()
+		var key http2DynamicTableIndex
+		var value http2DynamicTableEntry
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -283,4 +294,9 @@ func (p *protocol) createStaticTable(mgr *manager.Manager) error {
 		}
 	}
 	return nil
+}
+
+// IsBuildModeSupported returns always true, as http2 module is supported by all modes.
+func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
+	return true
 }

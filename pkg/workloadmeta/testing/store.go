@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package testing provides helpers used for testing the Workloadmeta component.
 package testing
 
 import (
@@ -110,6 +111,21 @@ func (s *Store) GetKubernetesPod(id string) (*workloadmeta.KubernetesPod, error)
 	return entity.(*workloadmeta.KubernetesPod), nil
 }
 
+// GetKubernetesPodByName implements Store#GetKubernetesPodByName
+func (s *Store) GetKubernetesPodByName(podName, podNamespace string) (*workloadmeta.KubernetesPod, error) {
+	entities := s.listEntitiesByKind(workloadmeta.KindKubernetesPod)
+
+	// Not very efficient
+	for k := range entities {
+		entity := entities[k].(*workloadmeta.KubernetesPod)
+		if entity.Name == podName && entity.Namespace == podNamespace {
+			return entity, nil
+		}
+	}
+
+	return nil, errors.NewNotFound(podName)
+}
+
 // GetKubernetesPodForContainer returns a KubernetesPod that contains the
 // specified containerID.
 func (s *Store) GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error) {
@@ -146,12 +162,22 @@ func (s *Store) GetKubernetesPodForContainer(containerID string) (*workloadmeta.
 
 // GetKubernetesNode returns metadata about a Kubernetes node.
 func (s *Store) GetKubernetesNode(id string) (*workloadmeta.KubernetesNode, error) {
-	entity, err := s.getEntityByKind(workloadmeta.KindKubernetesPod, id)
+	entity, err := s.getEntityByKind(workloadmeta.KindKubernetesNode, id)
 	if err != nil {
 		return nil, err
 	}
 
 	return entity.(*workloadmeta.KubernetesNode), nil
+}
+
+// GetKubernetesDeployment implements Store#GetKubernetesDeployment
+func (s *Store) GetKubernetesDeployment(id string) (*workloadmeta.KubernetesDeployment, error) {
+	entity, err := s.getEntityByKind(workloadmeta.KindKubernetesDeployment, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*workloadmeta.KubernetesDeployment), nil
 }
 
 // GetECSTask returns metadata about an ECS task.
@@ -215,36 +241,37 @@ func (s *Store) Unset(entity workloadmeta.Entity) {
 }
 
 // Start is not implemented in the testing store.
-func (s *Store) Start(ctx context.Context) {
+func (s *Store) Start(context.Context) {
 	panic("not implemented")
 }
 
 // Subscribe is not implemented in the testing store.
-func (s *Store) Subscribe(name string, _ workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
+func (s *Store) Subscribe(name string, _ workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle { //nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 
 // Unsubscribe is not implemented in the testing store.
-func (s *Store) Unsubscribe(ch chan workloadmeta.EventBundle) {
+func (s *Store) Unsubscribe(chan workloadmeta.EventBundle) {
 	panic("not implemented")
 }
 
 // Notify is not implemented in the testing store.
-func (s *Store) Notify(events []workloadmeta.CollectorEvent) {
+func (s *Store) Notify([]workloadmeta.CollectorEvent) {
 	panic("not implemented")
 }
 
 // Dump is not implemented in the testing store.
-func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse {
+func (s *Store) Dump(verbose bool) workloadmeta.WorkloadDumpResponse { //nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 
 // Reset is not implemented in the testing store.
-func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) {
+func (s *Store) Reset(newEntities []workloadmeta.Entity, source workloadmeta.Source) { //nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 
-func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) {
+// ResetProcesses is not implemented in the testing store.
+func (s *Store) ResetProcesses(newProcesses []workloadmeta.Entity, source workloadmeta.Source) { //nolint:revive // TODO fix revive unused-parameter
 	panic("not implemented")
 }
 

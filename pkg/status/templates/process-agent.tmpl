@@ -60,4 +60,14 @@ Process Agent
     Event Bytes enqueued: {{.expvars.event_queue_bytes}}
     Pod Bytes enqueued: {{.expvars.pod_queue_bytes}}
     Drop Check Payloads: {{.expvars.drop_check_payloads}}
+
+  ==========
+  Extractors
+  ==========
+
+    Workloadmeta
+    ============
+      Cache size: {{.expvars.workloadmeta_extractor_cache_size}}
+      Stale diffs discarded: {{.expvars.workloadmeta_extractor_stale_diffs}}
+      Diffs dropped: {{.expvars.workloadmeta_extractor_diffs_dropped}}
 {{- end }}

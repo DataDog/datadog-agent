@@ -53,7 +53,6 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 		span.Resource = o.QuantizeRedisString(span.Resource)
 		if a.conf.Obfuscation.Redis.Enabled {
 			if span.Meta == nil || span.Meta[tagRedisRawCommand] == "" {
-				// nothing to do
 				return
 			}
 			if a.conf.Obfuscation.Redis.RemoveAllArgs {
@@ -63,34 +62,34 @@ func (a *Agent) obfuscateSpan(span *pb.Span) {
 			span.Meta[tagRedisRawCommand] = o.ObfuscateRedisString(span.Meta[tagRedisRawCommand])
 		}
 	case "memcached":
-		if a.conf.Obfuscation.Memcached.Enabled {
-			v, ok := span.Meta[tagMemcachedCommand]
-			if span.Meta == nil || !ok {
-				return
-			}
-			span.Meta[tagMemcachedCommand] = o.ObfuscateMemcachedString(v)
+		if !a.conf.Obfuscation.Memcached.Enabled {
+			return
 		}
+		if span.Meta == nil || span.Meta[tagMemcachedCommand] == "" {
+			return
+		}
+		span.Meta[tagMemcachedCommand] = o.ObfuscateMemcachedString(span.Meta[tagMemcachedCommand])
 	case "web", "http":
-		if span.Meta == nil {
+		if span.Meta == nil || span.Meta[tagHTTPURL] == "" {
 			return
 		}
-		v, ok := span.Meta[tagHTTPURL]
-		if !ok || v == "" {
-			return
-		}
-		span.Meta[tagHTTPURL] = o.ObfuscateURLString(v)
+		span.Meta[tagHTTPURL] = o.ObfuscateURLString(span.Meta[tagHTTPURL])
 	case "mongodb":
-		v, ok := span.Meta[tagMongoDBQuery]
-		if span.Meta == nil || !ok {
+		if !a.conf.Obfuscation.Mongo.Enabled {
 			return
 		}
-		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(v)
+		if span.Meta == nil || span.Meta[tagMongoDBQuery] == "" {
+			return
+		}
+		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(span.Meta[tagMongoDBQuery])
 	case "elasticsearch":
-		v, ok := span.Meta[tagElasticBody]
-		if span.Meta == nil || !ok {
+		if !a.conf.Obfuscation.ES.Enabled {
 			return
 		}
-		span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(v)
+		if span.Meta == nil || span.Meta[tagElasticBody] == "" {
+			return
+		}
+		span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(span.Meta[tagElasticBody])
 	}
 }
 

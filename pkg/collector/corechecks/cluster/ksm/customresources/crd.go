@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	basemetrics "k8s.io/component-base/metrics"
 
 	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/metric"
@@ -48,10 +49,11 @@ type crdFactory struct {
 
 func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	return []generator.FamilyGenerator{
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descCustomResourceDefinitionAnnotationsName,
 			descCustomResourceDefinitionAnnotationsHelp,
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
 				annotationKeys, annotationValues := createPrometheusLabelKeysValues("annotation", c.Annotations, allowAnnotationsList)
@@ -66,10 +68,11 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			descCustomResourceDefinitionLabelsName,
 			descCustomResourceDefinitionLabelsHelp,
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
 				labelKeys, labelValues := createPrometheusLabelKeysValues("label", c.Labels, allowLabelsList)
@@ -84,10 +87,11 @@ func (f *crdFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsLis
 				}
 			}),
 		),
-		*generator.NewFamilyGenerator(
+		*generator.NewFamilyGeneratorWithStability(
 			"kube_customresourcedefinition_status_condition",
 			"The condition of this custom resource definition.",
 			metric.Gauge,
+			basemetrics.ALPHA,
 			"",
 			wrapCustomResourceDefinition(func(c *crd.CustomResourceDefinition) *metric.Family {
 				ms := make([]*metric.Metric, 0, len(c.Status.Conditions)*len(conditionStatusesExtensionV1))

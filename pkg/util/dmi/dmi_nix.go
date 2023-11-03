@@ -5,6 +5,7 @@
 
 //go:build !windows && !serverless
 
+// Package dmi provides helper functions to interact with DMI
 package dmi
 
 import (

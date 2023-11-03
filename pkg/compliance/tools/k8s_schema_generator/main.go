@@ -106,12 +106,11 @@ func main() {
 		if !ok {
 			log.Fatal("bad schema: missing K8sNodeConfig definition")
 		}
-		cs, ok := n.Properties.Get("components")
+		c, ok := n.Properties.Get("components")
 		if !ok {
 			log.Fatal("bad schema: missing components properties")
 		}
 		n.Properties.Delete("manifests")
-		c := cs.(*jsonschema.Schema)
 		c.Properties.Delete("kubeControllerManager")
 		c.Properties.Delete("kubeApiserver")
 		c.Properties.Delete("kubeScheduler")

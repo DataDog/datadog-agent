@@ -13,12 +13,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff"
+
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta/telemetry"
-	"github.com/cenkalti/backoff"
 )
 
 var (
@@ -276,6 +277,24 @@ func (s *store) GetKubernetesPod(id string) (*KubernetesPod, error) {
 	return entity.(*KubernetesPod), nil
 }
 
+// GetKubernetesPodByName implements Store#GetKubernetesPodByName
+func (s *store) GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error) {
+	entities := s.listEntitiesByKind(KindKubernetesPod)
+
+	// TODO race condition with statefulsets
+	// If a statefulset pod is recreated, the pod name and namespace would be identical, but the pod UID would be
+	// different. There is the possibility that the new pod is added to the workloadmeta store before the old one is
+	// removed, so there is a chance that the wrong pod is returned.
+	for k := range entities {
+		entity := entities[k].(*KubernetesPod)
+		if entity.Name == podName && entity.Namespace == podNamespace {
+			return entity, nil
+		}
+	}
+
+	return nil, errors.NewNotFound(podName)
+}
+
 // GetProcess implements Store#GetProcess.
 func (s *store) GetProcess(pid int32) (*Process, error) {
 	id := strconv.Itoa(int(pid))
@@ -357,6 +376,16 @@ func (s *store) GetKubernetesNode(id string) (*KubernetesNode, error) {
 	}
 
 	return entity.(*KubernetesNode), nil
+}
+
+// GetKubernetesDeployment implements Store#GetKubernetesDeployment
+func (s *store) GetKubernetesDeployment(id string) (*KubernetesDeployment, error) {
+	entity, err := s.getEntityByKind(KindKubernetesDeployment, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*KubernetesDeployment), nil
 }
 
 // GetECSTask implements Store#GetECSTask

@@ -15,12 +15,12 @@ import (
 // The return value will be:
 // {"tag:a", "tag:b", "tag:c"}
 // {"_opt1", "_opt2", "_opt3"}
-func splitTagsAndOptions(all []string) (tags, opts sets.String) {
+func splitTagsAndOptions(all []string) (tags, opts sets.Set[string]) {
 	if len(all) == 0 {
 		return
 	}
-	tags = sets.NewString()
-	opts = sets.NewString()
+	tags = sets.New[string]()
+	opts = sets.New[string]()
 
 	for _, s := range all {
 		if strings.HasPrefix(s, optPrefix) {

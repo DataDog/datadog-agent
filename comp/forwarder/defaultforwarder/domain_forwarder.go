@@ -73,7 +73,7 @@ func newDomainForwarder(
 func (f *domainForwarder) retryTransactions(retryBefore time.Time) {
 	// In case it takes more that flushInterval to sort and retry
 	// transactions we skip a retry.
-	if !f.isRetrying.CAS(false, true) {
+	if !f.isRetrying.CompareAndSwap(false, true) {
 		f.log.Errorf("The forwarder is still retrying Transaction: this should never happens, you might want to lower the 'forwarder_retry_queue_payloads_max_size'")
 		return
 	}

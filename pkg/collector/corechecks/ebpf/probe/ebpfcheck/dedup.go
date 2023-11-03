@@ -12,18 +12,21 @@ import (
 	"strings"
 
 	"golang.org/x/exp/slices"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 )
 
-func (stats EBPFStats) deduplicateProgramNames() {
-	slices.SortStableFunc(stats.Programs, func(a, b EBPFProgramStats) bool {
+// deduplicateProgramNames disambiguates ebpf programs by adding a numeric ID if necessary
+func deduplicateProgramNames(stats *model.EBPFStats) {
+	slices.SortStableFunc(stats.Programs, func(a, b model.EBPFProgramStats) int {
 		x := strings.Compare(a.Name, b.Name)
 		if x == 0 {
 			x = strings.Compare(a.Module, b.Module)
 			if x == 0 {
-				return a.id < b.id
+				return int(a.ID - b.ID)
 			}
 		}
-		return x == -1
+		return x
 	})
 	// if program name is a duplicate, we need to disambiguate by adding a numeric ID
 	for i := 0; i < len(stats.Programs)-1; {
@@ -44,24 +47,22 @@ func (stats EBPFStats) deduplicateProgramNames() {
 	}
 }
 
-func (stats EBPFStats) deduplicateMapNames() {
-	allMaps := make([]*EBPFMapStats, 0, len(stats.Maps)+len(stats.PerfBuffers))
+// deduplicateMapNames disambiguates ebpf maps by adding a numeric ID if necessary
+func deduplicateMapNames(stats *model.EBPFStats) {
+	allMaps := make([]*model.EBPFMapStats, 0, len(stats.Maps))
 	for i := range stats.Maps {
 		allMaps = append(allMaps, &stats.Maps[i])
 	}
-	for i := range stats.PerfBuffers {
-		allMaps = append(allMaps, &stats.PerfBuffers[i].EBPFMapStats)
-	}
 
-	cmpFunc := func(a, b *EBPFMapStats) bool {
+	cmpFunc := func(a, b *model.EBPFMapStats) int {
 		x := strings.Compare(a.Name, b.Name)
 		if x == 0 {
 			x = strings.Compare(a.Module, b.Module)
 			if x == 0 {
-				return a.id < b.id
+				return int(a.ID - b.ID)
 			}
 		}
-		return x == -1
+		return x
 	}
 	slices.SortStableFunc(allMaps, cmpFunc)
 

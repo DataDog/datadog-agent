@@ -44,6 +44,19 @@ HOOK_SYSCALL_ENTRY4(execveat, int, fd, const char *, filename, const char **, ar
     return trace__sys_execveat(ctx, argv, env);
 }
 
+int __attribute__((always_inline)) handle_execve_exit() {
+    pop_syscall(EVENT_EXEC);
+    return 0;
+}
+
+HOOK_SYSCALL_EXIT(execve) {
+    return handle_execve_exit();
+}
+
+HOOK_SYSCALL_EXIT(execveat) {
+    return handle_execve_exit();
+}
+
 int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *interpreter_inode;
     bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
@@ -94,9 +107,12 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
     LOAD_CONSTANT("do_fork_input", input);
 
     if (input == DO_FORK_STRUCT_INPUT) {
+        u64 exit_signal_offset;
+        LOAD_CONSTANT("kernel_clone_args_exit_signal_offset", exit_signal_offset);
+
         void *args = (void *)CTX_PARM1(ctx);
         int exit_signal;
-        bpf_probe_read(&exit_signal, sizeof(int), (void *)args + 32);
+        bpf_probe_read(&exit_signal, sizeof(int), (void *)args + exit_signal_offset);
 
         if (exit_signal == SIGCHLD) {
             syscall.fork.is_thread = 0;
@@ -156,6 +172,9 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         u32 value = 1;
         // mark as ignored fork not from syscall, ex: kworkers
         bpf_map_update_elem(&pid_ignored, &pid, &value, BPF_ANY);
+        if (syscall) {
+            pop_syscall(EVENT_FORK);
+        }
         return 0;
     }
 
@@ -623,12 +642,14 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
                 },
                 .flags = syscall->exec.file.flags
             },
-            .exec_timestamp = bpf_ktime_get_ns(),
+            .exec_timestamp = now,
         },
         .container = {},
     };
     fill_file(syscall->exec.dentry, &pc.entry.executable);
     bpf_get_current_comm(&pc.entry.comm, sizeof(pc.entry.comm));
+
+    u64 parent_inode = 0;
 
     // select the previous cookie entry in cache of the current process
     // (this entry was created by the fork of the current process)
@@ -638,6 +659,8 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
         u64 parent_cookie = fork_entry->cookie;
         struct proc_cache_t *parent_pc = get_proc_from_cookie(parent_cookie);
         if (parent_pc) {
+            parent_inode = parent_pc->entry.executable.path_key.ino;
+
             // inherit the parent container context
             fill_container_context(parent_pc, &pc.container);
             dec_mount_ref(ctx, parent_pc->entry.executable.path_key.mount_id);
@@ -679,6 +702,9 @@ int __attribute__((always_inline)) send_exec_event(ctx_t *ctx) {
     // add pid / tid context
     struct process_context_t *on_stack_process = &event->process;
     fill_process_context(on_stack_process);
+
+    // override the pid context inode with the parent inode so that we can compare
+    on_stack_process->inode = parent_inode;
 
     copy_span_context(&syscall->exec.span_context, &event->span);
     fill_args_envs(event, syscall);

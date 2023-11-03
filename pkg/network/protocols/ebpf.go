@@ -86,5 +86,8 @@ func toProtocolType(protoNum uint8, layerBit uint16) ProtocolType {
 type TLSProgramType C.tls_prog_t
 
 const (
-// Add TLS prog constants here
+	// ProgramTLSHTTPProcess is tail call to process http traffic.
+	ProgramTLSHTTPProcess ProgramType = C.TLS_HTTP_PROCESS
+	// ProgramTLSHTTPTermination is tail call to process http termination.
+	ProgramTLSHTTPTermination ProgramType = C.TLS_HTTP_TERMINATION
 )

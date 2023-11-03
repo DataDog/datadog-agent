@@ -8,18 +8,20 @@
 package ebpfcheck
 
 import (
-	"bytes"
-	"io"
+	"fmt"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/DataDog/gopsutil/process"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/perf"
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
+	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck/model"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -35,13 +37,9 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 		require.NoError(t, err)
 		nrcpus := uint64(cpus)
 
-		online, err := kernel.OnlineCPUs()
-		require.NoError(t, err)
-		onlineCPUs := uint64(len(online))
-
 		cfg := testConfig()
 
-		probe, err := NewEBPFProbe(cfg)
+		probe, err := NewProbe(cfg)
 		require.NoError(t, err)
 		t.Cleanup(probe.Close)
 
@@ -57,42 +55,118 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(func() { _ = rdr.Close() })
 
-		var result EBPFPerfBufferStats
+		var result model.EBPFMapStats
 		require.Eventually(t, func() bool {
 			stats := probe.GetAndFlush()
-			for _, s := range stats.PerfBuffers {
-				if s.Name == "ebpf_test_perf" {
+			for _, s := range stats.Maps {
+				if s.Type == ebpf.PerfEventArray && s.Name == "ebpf_test_perf" {
 					result = s
 					return true
 				}
 			}
-			for _, s := range stats.PerfBuffers {
+			for _, s := range stats.Maps {
 				t.Logf("%+v", s)
 			}
 			return false
 		}, 5*time.Second, 500*time.Millisecond, "failed to find perf buffer map")
 
+		// use number of CPUs from result
+		// this isn't as strict, but only way to ensure same number of CPUs is used
+		onlineCPUs := uint64(result.NumCPUs)
+
 		// 4 is value size, 1 extra page for metadata
-		expected := (onlineCPUs * uint64(pageSize) * uint64(numPages+1)) + nrcpus*4 + sizeofBpfArray
+		valueSize := uint64(roundUpPow2(4, 8))
+		expected := (onlineCPUs * uint64(pageSize) * uint64(numPages+1)) + nrcpus*valueSize + sizeofBpfArray
 		if result.MaxSize != expected {
 			t.Fatalf("expected perf buffer size %d got %d", expected, result.MaxSize)
 		}
+	})
+}
 
-		proc, err := process.NewProcess(int32(os.Getpid()))
-		require.NoError(t, err)
-		mmaps, err := proc.MemoryMaps(false)
-		require.NoError(t, err)
+func TestMinMapSize(t *testing.T) {
+	ebpftest.RequireKernelVersion(t, minimumKernelVersion)
+	err := rlimit.RemoveMemlock()
+	require.NoError(t, err)
 
-		for _, cpub := range result.CPUBuffers {
-			for _, mm := range *mmaps {
-				if mm.StartAddr == cpub.Addr {
-					exp := mm.Rss * 1024
-					if exp != cpub.RSS {
-						t.Fatalf("expected RSS %d got %d", exp, cpub.RSS)
-					}
-					break
+	cpus, err := kernel.PossibleCPUs()
+	require.NoError(t, err)
+	nrcpus := uint64(cpus)
+
+	ebpftest.TestBuildMode(t, ebpftest.CORE, "", func(t *testing.T) {
+		cfg := testConfig()
+		const keySize, valueSize, maxEntries = 50, 150, 1000
+
+		probe, err := NewProbe(cfg)
+		require.NoError(t, err)
+		t.Cleanup(probe.Close)
+
+		mapTypes := []*ebpf.MapSpec{
+			{Type: ebpf.Array, KeySize: 4},
+			{Type: ebpf.PerCPUArray, KeySize: 4},
+			{Type: ebpf.Hash, KeySize: keySize},
+			{Type: ebpf.LRUHash, KeySize: keySize},
+			{Type: ebpf.LRUCPUHash, KeySize: keySize},
+			{Type: ebpf.PerCPUHash, KeySize: keySize},
+			{Type: ebpf.LPMTrie, KeySize: 8, ValueSize: 8, Flags: unix.BPF_F_NO_PREALLOC},
+		}
+
+		// create all the maps
+		ids := make(map[ebpf.MapType]ebpf.MapID)
+		for _, mt := range mapTypes {
+			if mt.ValueSize == 0 {
+				mt.ValueSize = valueSize
+			}
+			if mt.MaxEntries == 0 {
+				mt.MaxEntries = maxEntries
+			}
+			mt.Name = fmt.Sprintf("et_%s", mt.Type)
+			testMap, err := ebpf.NewMap(mt)
+			require.NoError(t, err, mt.Type)
+			t.Cleanup(func() { _ = testMap.Close() })
+			info, err := testMap.Info()
+			require.NoError(t, err, mt.Type)
+			ids[mt.Type], _ = info.ID()
+		}
+
+		// wait until we have stats about all maps
+		var result []model.EBPFMapStats
+		require.Eventually(t, func() bool {
+			stats := probe.GetAndFlush()
+			for typ, id := range ids {
+				if !slices.ContainsFunc(stats.Maps, func(stats model.EBPFMapStats) bool {
+					return stats.ID == uint32(id)
+				}) {
+					t.Logf("missing type=%s id=%d", typ.String(), id)
+					return false
 				}
 			}
+			result = stats.Maps
+			return true
+		}, 5*time.Second, 500*time.Millisecond, "failed to find all maps")
+
+		// assert max size is at least the naive map size
+		for _, mt := range mapTypes {
+			idx := slices.IndexFunc(result, func(stats model.EBPFMapStats) bool {
+				return stats.ID == uint32(ids[mt.Type])
+			})
+			typStats := result[idx]
+
+			ks := uint64(mt.KeySize)
+			switch mt.Type {
+			case ebpf.Array, ebpf.PerCPUArray:
+				// array types don't use space for the indexes
+				ks = 1
+			}
+
+			minSize := uint64(0)
+			if isPerCPU(mt.Type) {
+				// hash of key -> ~per-cpu array
+				minSize = (ks * uint64(mt.MaxEntries)) + (uint64(mt.ValueSize) * uint64(mt.MaxEntries) * nrcpus)
+			} else {
+				minSize = (ks + uint64(mt.ValueSize)) * uint64(mt.MaxEntries)
+			}
+			t.Logf("type: %s min: %d val: %d", mt.Type, minSize, typStats.MaxSize)
+			assert.GreaterOrEqual(t, typStats.MaxSize, minSize, "map type: %s", mt.Type)
 		}
 	})
 }
@@ -100,32 +174,4 @@ func TestEBPFPerfBufferLength(t *testing.T) {
 func testConfig() *ddebpf.Config {
 	cfg := ddebpf.NewConfig()
 	return cfg
-}
-
-func BenchmarkMatchProcessRSS(b *testing.B) {
-	pid := os.Getpid()
-	addrs := []uintptr{}
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := matchProcessRSS(pid, addrs)
-		require.NoError(b, err)
-	}
-}
-
-func BenchmarkMatchRSS(b *testing.B) {
-	data, err := os.ReadFile("./testdata/smaps.out")
-	require.NoError(b, err)
-	rdr := bytes.NewReader(data)
-	addrs := []uintptr{}
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := rdr.Seek(0, io.SeekStart)
-		require.NoError(b, err)
-		_, err = matchRSS(rdr, addrs)
-		require.NoError(b, err)
-	}
 }

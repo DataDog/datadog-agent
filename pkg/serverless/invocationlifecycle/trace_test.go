@@ -89,11 +89,16 @@ func TestInjectSpanIDWithContext(t *testing.T) {
 
 func TestStartExecutionSpanWithoutPayload(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+		},
+	}
 	startDetails := &InvocationStartDetails{
 		StartTime:          timeNow(),
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, []byte(""), startDetails, false)
+	lp.startExecutionSpan([]byte(""), startDetails)
 	assert.Equal(t, currentExecutionInfo.startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(0), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.SpanID)
@@ -104,11 +109,16 @@ func TestStartExecutionSpanWithPayload(t *testing.T) {
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := timeNow()
 	currentExecutionInfo := &ExecutionStartInfo{}
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+		},
+	}
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+	lp.startExecutionSpan([]byte(testString), startDetails)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
@@ -118,6 +128,11 @@ func TestStartExecutionSpanWithPayload(t *testing.T) {
 
 func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+		},
+	}
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
 	lambdaInvokeContext := LambdaInvokeEventHeaders{
 		TraceID:          "5736943178450432258",
@@ -130,7 +145,7 @@ func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 		StartTime:          startTime,
 		InvokeEventHeaders: lambdaInvokeContext,
 	}
-	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+	lp.startExecutionSpan([]byte(testString), startDetails)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
@@ -140,13 +155,18 @@ func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
 
 func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+		},
+	}
 	invalidTestString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"INVALID","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"INVALID"}}`
 	startTime := timeNow()
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, []byte(invalidTestString), startDetails, false)
+	lp.startExecutionSpan([]byte(invalidTestString), startDetails)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.NotEqual(t, 9, currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
@@ -169,7 +189,14 @@ func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
 		SpanID:  1304592378509342580,
 		Start:   startTime.UnixNano(),
 	}
-	startExecutionSpan(currentExecutionInfo, inferredSpan, []byte(testString), startDetails, true)
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			inferredSpans: [2]*inferredspan.InferredSpan{inferredSpan},
+		},
+		InferredSpansEnabled: true,
+	}
+	lp.startExecutionSpan([]byte(testString), startDetails)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(2350923428932752492), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
@@ -189,7 +216,14 @@ func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 		SpanID: 1304592378509342580,
 		Start:  startTime.UnixNano(),
 	}
-	startExecutionSpan(currentExecutionInfo, inferredSpan, []byte(testString), startDetails, true)
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			inferredSpans: [2]*inferredspan.InferredSpan{inferredSpan},
+		},
+		InferredSpansEnabled: true,
+	}
+	lp.startExecutionSpan([]byte(testString), startDetails)
 	assert.Equal(t, startTime, currentExecutionInfo.startTime)
 	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
 	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
@@ -199,8 +233,129 @@ func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
 
 	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
 }
+
+func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
+	currentExecutionInfo := &ExecutionStartInfo{}
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
+	startTime := time.Now()
+	var tracePayload *api.Payload
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
+	}
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+
+	lp.startExecutionSpan([]byte("[]"), startDetails)
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte("{}"),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
+	}
+
+	lp.endExecutionSpan(endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectingResultMetaMap := map[string]string{
+		"request_id":        "test-request-id",
+		"cold_start":        "true",
+		"function.request":  "[]", // []byte("{}") => empty list in JSON => "[]"
+		"function.response": "{}", // []byte("{}") => empty map in JSON => "{}"
+		"language":          "dotnet",
+	}
+	assert.Equal(t, executionSpan.Meta, expectingResultMetaMap)
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+}
+
+func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
+	currentExecutionInfo := &ExecutionStartInfo{}
+	t.Setenv(functionNameEnvVar, "TestFunction")
+	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
+	startTime := time.Now()
+	var tracePayload *api.Payload
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
+	}
+	startDetails := &InvocationStartDetails{
+		StartTime:          startTime,
+		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+	}
+
+	lp.startExecutionSpan(nil, startDetails)
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+
+	endDetails := &InvocationEndDetails{
+		EndTime:            endTime,
+		IsError:            false,
+		RequestID:          "test-request-id",
+		ResponseRawPayload: []byte(""),
+		ColdStart:          true,
+		ProactiveInit:      false,
+		Runtime:            "dotnet6",
+	}
+
+	lp.endExecutionSpan(endDetails)
+	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectingResultMetaMap := map[string]string{
+		"request_id":        "test-request-id",
+		"cold_start":        "true",
+		"function.request":  "", // nil => null in JSON => ""
+		"function.response": "", // []byte("") => null in JSON => ""
+		"language":          "dotnet",
+	}
+	assert.Equal(t, executionSpan.Meta, expectingResultMetaMap)
+	assert.Equal(t, "aws.lambda", executionSpan.Name)
+	assert.Equal(t, "aws.lambda", executionSpan.Service)
+	assert.Equal(t, "TestFunction", executionSpan.Resource)
+	assert.Equal(t, "serverless", executionSpan.Type)
+	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
+	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
+	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
+	assert.Equal(t, duration.Nanoseconds(), executionSpan.Duration)
+}
+
 func TestEndExecutionSpanWithNoError(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
+	}
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
@@ -210,14 +365,10 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		StartTime:          startTime,
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+	lp.startExecutionSpan([]byte(testString), startDetails)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
 
 	endDetails := &InvocationEndDetails{
 		EndTime:            endTime,
@@ -229,18 +380,27 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 		Runtime:            "dotnet6",
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	lp.endExecutionSpan(endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectingResultMetaMap := map[string]string{
+		"request_id":                "test-request-id",
+		"cold_start":                "true",
+		"function.request.resource": "/users/create",
+		"function.request.path":     "/users/create",
+		"function.request.headers.x-datadog-parent-id":         "1480558859903409531",
+		"function.request.headers.x-datadog-trace-id":          "5736943178450432258",
+		"function.request.headers.x-datadog-sampling-priority": "1",
+		"function.request.httpMethod":                          "GET",
+		"function.request.headers.Accept":                      "*/*",
+		"function.request.headers.Accept-Encoding":             "gzip",
+		"function.response.response":                           "test response payload",
+		"language":                                             "dotnet",
+	}
+	assert.Equal(t, executionSpan.Meta, expectingResultMetaMap)
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
 	assert.Equal(t, "TestFunction", executionSpan.Resource)
 	assert.Equal(t, "serverless", executionSpan.Type)
-	assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
-	assert.Equal(t, "true", executionSpan.Meta["cold_start"])
-	assert.Equal(t, "", executionSpan.Meta["proactive_initialization"])
-	assert.Equal(t, testString, executionSpan.Meta["function.request"])
-	assert.Equal(t, `{"response":"test response payload"}`, executionSpan.Meta["function.response"])
-	assert.Equal(t, "dotnet", executionSpan.Meta["language"])
 	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
 	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
@@ -249,6 +409,16 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 
 func TestEndExecutionSpanProactInit(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
+	}
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	t.Setenv("DD_CAPTURE_LAMBDA_PAYLOAD", "true")
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
@@ -258,14 +428,10 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 		StartTime:          startTime,
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+	lp.startExecutionSpan([]byte(testString), startDetails)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
 
 	endDetails := &InvocationEndDetails{
 		EndTime:            endTime,
@@ -276,17 +442,27 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 		ProactiveInit:      true,
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	lp.endExecutionSpan(endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	expectingResultMetaMap := map[string]string{
+		"request_id":                                           "test-request-id",
+		"cold_start":                                           "false",
+		"proactive_initialization":                             "true",
+		"function.request.resource":                            "/users/create",
+		"function.request.path":                                "/users/create",
+		"function.request.headers.x-datadog-parent-id":         "1480558859903409531",
+		"function.request.headers.x-datadog-trace-id":          "5736943178450432258",
+		"function.request.headers.x-datadog-sampling-priority": "1",
+		"function.request.httpMethod":                          "GET",
+		"function.request.headers.Accept":                      "*/*",
+		"function.request.headers.Accept-Encoding":             "gzip",
+		"function.response.response":                           "test response payload",
+	}
+	assert.Equal(t, executionSpan.Meta, expectingResultMetaMap)
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
 	assert.Equal(t, "TestFunction", executionSpan.Resource)
 	assert.Equal(t, "serverless", executionSpan.Type)
-	assert.Equal(t, "test-request-id", executionSpan.Meta["request_id"])
-	assert.Equal(t, "false", executionSpan.Meta["cold_start"])
-	assert.Equal(t, "true", executionSpan.Meta["proactive_initialization"])
-	assert.Equal(t, testString, executionSpan.Meta["function.request"])
-	assert.Equal(t, `{"response":"test response payload"}`, executionSpan.Meta["function.response"])
 	assert.Equal(t, currentExecutionInfo.TraceID, executionSpan.TraceID)
 	assert.Equal(t, currentExecutionInfo.SpanID, executionSpan.SpanID)
 	assert.Equal(t, startTime.UnixNano(), executionSpan.Start)
@@ -299,19 +475,24 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
+	}
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+	lp.startExecutionSpan([]byte(testString), startDetails)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
 
 	endDetails := &InvocationEndDetails{
 		EndTime:            endTime,
@@ -320,7 +501,7 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 		ResponseRawPayload: []byte(`{"response":"test response payload"}`),
 	}
 
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	lp.endExecutionSpan(endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, "aws.lambda", executionSpan.Name)
 	assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -337,6 +518,16 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 
 func TestEndExecutionSpanWithError(t *testing.T) {
 	currentExecutionInfo := &ExecutionStartInfo{}
+	var tracePayload *api.Payload
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: currentExecutionInfo,
+			triggerTags:   make(map[string]string),
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
+	}
 	t.Setenv(functionNameEnvVar, "TestFunction")
 	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
 	startTime := time.Now()
@@ -344,14 +535,10 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 		StartTime:          startTime,
 		InvokeEventHeaders: LambdaInvokeEventHeaders{},
 	}
-	startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+	lp.startExecutionSpan([]byte(testString), startDetails)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
 
 	endDetails := &InvocationEndDetails{
 		EndTime:            endTime,
@@ -359,7 +546,7 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 		RequestID:          "test-request-id",
 		ResponseRawPayload: []byte(`{}`),
 	}
-	endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+	lp.endExecutionSpan(endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, executionSpan.Error, int32(1))
 }
@@ -413,6 +600,16 @@ func TestLanguageTag(t *testing.T) {
 
 	for _, tc := range testCases {
 		currentExecutionInfo := &ExecutionStartInfo{}
+		var tracePayload *api.Payload
+		lp := &LifecycleProcessor{
+			requestHandler: &RequestHandler{
+				executionInfo: currentExecutionInfo,
+				triggerTags:   make(map[string]string),
+			},
+			ProcessTrace: func(payload *api.Payload) {
+				tracePayload = payload
+			},
+		}
 		t.Setenv(functionNameEnvVar, "TestFunction")
 		testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
 
@@ -421,14 +618,10 @@ func TestLanguageTag(t *testing.T) {
 			StartTime:          startTime,
 			InvokeEventHeaders: LambdaInvokeEventHeaders{},
 		}
-		startExecutionSpan(currentExecutionInfo, nil, []byte(testString), startDetails, false)
+		lp.startExecutionSpan([]byte(testString), startDetails)
 
 		duration := 1 * time.Second
 		endTime := startTime.Add(duration)
-		var tracePayload *api.Payload
-		mockProcessTrace := func(payload *api.Payload) {
-			tracePayload = payload
-		}
 
 		endDetails := &InvocationEndDetails{
 			EndTime:            endTime,
@@ -440,7 +633,7 @@ func TestLanguageTag(t *testing.T) {
 			Runtime:            tc.runtime, // add runtime
 		}
 
-		endExecutionSpan(currentExecutionInfo, make(map[string]string), nil, mockProcessTrace, endDetails)
+		lp.endExecutionSpan(endDetails)
 		executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 		assert.Equal(t, "aws.lambda", executionSpan.Name)
 		assert.Equal(t, "aws.lambda", executionSpan.Service)
@@ -454,4 +647,217 @@ func TestLanguageTag(t *testing.T) {
 
 		assert.Equal(t, tc.expectedTag, executionSpan.Meta["language"]) // expected tag from runtime
 	}
+}
+
+func TestCapturePayloadAsTags(t *testing.T) {
+	nestedMap := map[string]interface{}{
+		"key1": "value1",
+		"key2": map[string]interface{}{
+			"key3":    3,
+			"key4":    true,
+			"keylist": []interface{}{1, 2, 3, "four", 5.5, `{"keyInsideSlice":"val7","age":84}`},
+		},
+		"innerJSONString": `{"key5":"value5","age":42}`,
+		"innerJSONBytes":  []byte(`{"key6":"value6","age":21}`),
+	}
+	expectingResultMap := map[string]string{
+		"test.key1":                          "value1",
+		"test.key2.key3":                     "3",
+		"test.key2.key4":                     "true",
+		"test.key2.keylist.0":                "1",
+		"test.key2.keylist.1":                "2",
+		"test.key2.keylist.2":                "3",
+		"test.key2.keylist.3":                "four",
+		"test.key2.keylist.4":                "5.5",
+		"test.key2.keylist.5.keyInsideSlice": "val7",
+		"test.key2.keylist.5.age":            "84",
+		"test.innerJSONString.key5":          "value5",
+		"test.innerJSONString.age":           "42",
+		"test.innerJSONBytes.key6":           "value6",
+		"test.innerJSONBytes.age":            "21",
+	}
+	metaMap := make(map[string]string)
+	executionSpan := &pb.Span{
+		Meta: metaMap,
+	}
+	capturePayloadAsTags(nestedMap, executionSpan, "test", 0, 10)
+	assert.Equal(t, executionSpan.Meta, expectingResultMap)
+}
+
+func TestCapturePayloadAsTagsMaxDepth(t *testing.T) {
+	nestedMap := map[string]interface{}{
+		"key1": "value1",
+		"key2": map[string]interface{}{
+			"key3": map[string]interface{}{
+				"nestedKey": "nestedVal",
+			},
+			"key4": true,
+		},
+		"key5": "value5",
+	}
+	expectingResultMap := map[string]string{
+		"test.key1":      "value1",
+		"test.key2.key3": "{\"nestedKey\":\"nestedVal\"}",
+		"test.key2.key4": "true",
+		"test.key5":      "value5",
+	}
+	metaMap := make(map[string]string)
+	executionSpan := &pb.Span{
+		Meta: metaMap,
+	}
+	capturePayloadAsTags(nestedMap, executionSpan, "test", 0, 2)
+	assert.Equal(t, executionSpan.Meta, expectingResultMap)
+}
+
+func TestCapturePayloadAsTagsNilCases(t *testing.T) {
+	testMap := map[string]interface{}{
+		"key1": nil,
+		"key2": map[string]interface{}{
+			"key3": nil,
+			"key4": true,
+		},
+		"emptyMap":  map[string]interface{}{},
+		"emptyList": []interface{}{},
+	}
+	expectingResultMap := map[string]string{
+		"test.key1":      "",
+		"test.key2.key3": "",
+		"test.key2.key4": "true",
+		"test.emptyMap":  "{}",
+		"test.emptyList": "[]",
+	}
+	metaMap := make(map[string]string)
+	executionSpan := &pb.Span{
+		Meta: metaMap,
+	}
+	capturePayloadAsTags(testMap, executionSpan, "test", 0, 10)
+	assert.Equal(t, executionSpan.Meta, expectingResultMap)
+}
+
+func TestCompleteInferredSpanWithNoError(t *testing.T) {
+	inferredSpan := new(inferredspan.InferredSpan)
+	startTime := time.Now()
+
+	inferredSpan.GenerateInferredSpan(time.Now())
+	inferredSpan.Span.TraceID = 2350923428932752492
+	inferredSpan.Span.SpanID = 1304592378509342580
+	inferredSpan.Span.Start = startTime.UnixNano()
+	inferredSpan.Span.Name = "aws.mock"
+	inferredSpan.Span.Service = "aws.mock"
+	inferredSpan.Span.Resource = "test-function"
+	inferredSpan.Span.Type = "http"
+	inferredSpan.Span.Meta = map[string]string{
+		"stage": "dev",
+	}
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+	isError := false
+	var tracePayload *api.Payload
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{TraceID: 1234},
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
+	}
+
+	lp.completeInferredSpan(inferredSpan, endTime, isError)
+	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, "aws.mock", span.Name)
+	assert.Equal(t, "aws.mock", span.Service)
+	assert.Equal(t, "test-function", span.Resource)
+	assert.Equal(t, "http", span.Type)
+	assert.Equal(t, "dev", span.Meta["stage"])
+	assert.Equal(t, uint64(1234), span.TraceID)
+	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
+	assert.Equal(t, duration.Nanoseconds(), span.Duration)
+	assert.Equal(t, int32(0), inferredSpan.Span.Error)
+}
+
+func TestCompleteInferredSpanWithError(t *testing.T) {
+	inferredSpan := new(inferredspan.InferredSpan)
+	startTime := time.Now()
+
+	inferredSpan.GenerateInferredSpan(time.Now())
+	inferredSpan.Span.TraceID = 2350923428932752492
+	inferredSpan.Span.SpanID = 1304592378509342580
+	inferredSpan.Span.Start = startTime.UnixNano()
+	inferredSpan.Span.Name = "aws.mock"
+	inferredSpan.Span.Service = "aws.mock"
+	inferredSpan.Span.Resource = "test-function"
+	inferredSpan.Span.Type = "http"
+	inferredSpan.Span.Meta = map[string]string{
+		"stage": "dev",
+	}
+
+	duration := 1 * time.Second
+	endTime := startTime.Add(duration)
+	isError := true
+	var tracePayload *api.Payload
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{TraceID: 1234},
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
+	}
+
+	lp.completeInferredSpan(inferredSpan, endTime, isError)
+	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, "aws.mock", span.Name)
+	assert.Equal(t, "aws.mock", span.Service)
+	assert.Equal(t, "test-function", span.Resource)
+	assert.Equal(t, "http", span.Type)
+	assert.Equal(t, "dev", span.Meta["stage"])
+	assert.Equal(t, uint64(1234), span.TraceID)
+	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
+	assert.Equal(t, duration.Nanoseconds(), span.Duration)
+	assert.Equal(t, int32(1), inferredSpan.Span.Error)
+}
+
+func TestCompleteInferredSpanWithAsync(t *testing.T) {
+	inferredSpan := new(inferredspan.InferredSpan)
+	// Start of inferred span
+	startTime := time.Now()
+	duration := 2 * time.Second
+	// mock invocation end time
+	lambdaInvocationStartTime := startTime.Add(duration)
+	inferredSpan.GenerateInferredSpan(lambdaInvocationStartTime)
+	inferredSpan.IsAsync = true
+	inferredSpan.Span.TraceID = 2350923428932752492
+	inferredSpan.Span.SpanID = 1304592378509342580
+	inferredSpan.Span.Start = startTime.UnixNano()
+	inferredSpan.Span.Name = "aws.mock"
+	inferredSpan.Span.Service = "aws.mock"
+	inferredSpan.Span.Resource = "test-function"
+	inferredSpan.Span.Type = "http"
+	inferredSpan.Span.Meta = map[string]string{
+		"stage": "dev",
+	}
+	endTime := time.Now()
+	isError := false
+	var tracePayload *api.Payload
+	lp := &LifecycleProcessor{
+		requestHandler: &RequestHandler{
+			executionInfo: &ExecutionStartInfo{TraceID: 1234},
+		},
+		ProcessTrace: func(payload *api.Payload) {
+			tracePayload = payload
+		},
+	}
+
+	lp.completeInferredSpan(inferredSpan, endTime, isError)
+	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	assert.Equal(t, "aws.mock", span.Name)
+	assert.Equal(t, "aws.mock", span.Service)
+	assert.Equal(t, "test-function", span.Resource)
+	assert.Equal(t, "http", span.Type)
+	assert.Equal(t, "dev", span.Meta["stage"])
+	assert.Equal(t, uint64(1234), span.TraceID)
+	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
+	assert.Equal(t, duration.Nanoseconds(), span.Duration)
+	assert.Equal(t, int32(0), inferredSpan.Span.Error)
 }

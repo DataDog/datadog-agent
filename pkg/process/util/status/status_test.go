@@ -19,9 +19,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -67,6 +66,9 @@ func TestGetStatus(t *testing.T) {
 		PodQueueBytes:                   4 * 1024,
 		SystemProbeProcessModuleEnabled: true,
 		LanguageDetectionEnabled:        true,
+		WlmExtractorCacheSize:           36,
+		WlmExtractorStaleDiffs:          1,
+		WlmExtractorDiffsDropped:        2,
 	}
 
 	// Feature detection needs to run before host methods are called. During runtime, feature detection happens
@@ -75,14 +77,6 @@ func TestGetStatus(t *testing.T) {
 	ddconfig.SetFeatures(t)
 	cfg.Set("hostname", "test") // Prevents panic since feature detection has not run
 	cfg.Set("language_detection.enabled", true)
-
-	hostnameData, err := hostname.GetWithProvider(context.Background())
-	var metadata *host.Payload
-	if err != nil {
-		metadata = host.GetPayloadFromCache(context.Background(), hostname.Data{Hostname: "unknown", Provider: "unknown"})
-	} else {
-		metadata = host.GetPayloadFromCache(context.Background(), hostnameData)
-	}
 
 	expectedStatus := &Status{
 		Date: float64(testTime.UnixNano()),
@@ -93,7 +87,7 @@ func TestGetStatus(t *testing.T) {
 			Config: ConfigStatus{
 				LogLevel: cfg.GetString("log_level"),
 			},
-			Metadata: *metadata,
+			Metadata: *hostMetadataUtils.GetFromCache(context.Background(), cfg),
 		},
 		Expvars: expectedExpVars,
 	}

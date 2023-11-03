@@ -199,5 +199,59 @@ namespace Datadog.CustomActions
         {
             return new InstallStateCustomActions(new SessionWrapper(session)).WriteInstallState();
         }
+
+
+        /// <summary>
+        /// Uninstall CA that removes the changes from the WriteInstallState CA
+        /// </summary>
+        /// <remarks>
+        /// If these registry values are not removed then MSI won't remove the key.
+        /// </remarks>
+        public ActionResult UninstallWriteInstallState()
+        {
+            try
+            {
+                using var subkey =
+                    _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey,
+                        writable: true);
+                if (subkey == null)
+                {
+                    // registry key does not exist, nothing to do
+                    _session.Log(
+                        $"Registry key HKLM\\{Constants.DatadogAgentRegistryKey} does not exist, there are no values to remove.");
+                    return ActionResult.Success;
+                }
+
+                foreach (var value in new[]
+                         {
+                             "installedDomain",
+                             "installedUser"
+                         })
+                {
+                    try
+                    {
+                        subkey.DeleteValue(value);
+                    }
+                    catch (Exception e)
+                    {
+                        // Don't print stack trace as it may be seen as a terminal error by readers of the log.
+                        _session.Log($"Warning, cannot removing registry value: {e.Message}");
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Warning, could not access registry key {Constants.DatadogAgentRegistryKey}: {e}");
+                // This step can fail without failing the un-installation.
+            }
+
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult UninstallWriteInstallState(Session session)
+        {
+            return new InstallStateCustomActions(new SessionWrapper(session)).UninstallWriteInstallState();
+        }
     }
 }

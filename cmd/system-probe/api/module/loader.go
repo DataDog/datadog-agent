@@ -13,13 +13,11 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 
 	"github.com/gorilla/mux"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -66,8 +64,8 @@ func withModule(name config.ModuleName, fn func()) {
 // * Registering the HTTP endpoints of each module;
 // * Register the gRPC server;
 func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, factories []Factory) error {
-	if err := driver.Init(cfg); err != nil {
-		log.Warnf("Failed to load driver subsystem %v", err)
+	if err := preRegister(cfg); err != nil {
+		return fmt.Errorf("error in pre-register hook: %w", err)
 	}
 
 	for _, factory := range factories {
@@ -117,15 +115,10 @@ func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, 
 		log.Infof("module %s started", factory.Name)
 	}
 
-	if !driver.IsNeeded() {
-		// if running, shut it down
-		log.Debug("Shutting down the driver.  Upon successful initialization, it was not needed by the current configuration.")
-
-		// shut the driver down and  disable it
-		if err := driver.ForceStop(); err != nil {
-			log.Warnf("error stopping driver: %s", err)
-		}
+	if err := postRegister(cfg); err != nil {
+		return fmt.Errorf("error in post-register hook: %w", err)
 	}
+
 	l.cfg = cfg
 	if len(l.modules) == 0 {
 		return errors.New("no module could be loaded")
@@ -250,29 +243,16 @@ func (s *systemProbeGRPCServer) RegisterService(desc *grpc.ServiceDesc, impl int
 }
 
 // NameFromGRPCServiceName extracts a system-probe module name from the gRPC service name.
-// It expects a prefix of `datadog.agent.systemprobe.` and then the pascal cased version of the module name.
+// It expects a form of `datadog.agent.systemprobe.<module_name>.ServiceName`.
 func NameFromGRPCServiceName(service string) string {
 	prefix := "datadog.agent.systemprobe."
 	if !strings.HasPrefix(service, prefix) {
 		return ""
 	}
 	s := strings.TrimPrefix(service, prefix)
-	// we are expecting a pascal case service name, so convert it to snake case to match system-probe module names
-	return toSnakeCase(s)
-}
-
-func toSnakeCase(s string) string {
-	var sb strings.Builder
-	sb.Grow(len(s))
-	for i, r := range s {
-		if unicode.IsUpper(r) {
-			if i > 0 {
-				sb.WriteRune('_')
-			}
-			sb.WriteRune(unicode.ToLower(r))
-		} else {
-			sb.WriteRune(r)
-		}
+	mod, _, ok := strings.Cut(s, ".")
+	if !ok {
+		return ""
 	}
-	return sb.String()
+	return mod
 }

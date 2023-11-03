@@ -17,11 +17,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
+	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
-	easyjson "github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -29,6 +29,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	manager "github.com/DataDog/ebpf-manager"
+	"github.com/DataDog/ebpf-manager/tracefs"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -36,7 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
-	kernel "github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -61,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -89,7 +91,7 @@ type PlatformProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	monitor         *Monitor
+	monitors        *Monitors
 	profileManagers *SecurityProfileManagers
 
 	// Ring
@@ -108,11 +110,13 @@ type PlatformProbe struct {
 	// Approvers / discarders section
 	notifyDiscarderPushedCallbacksLock sync.Mutex
 
+	killListMap           *lib.Map
+	supportsBPFSendSignal bool
+
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
 	runtimeCompiled    bool
-
-	useFentry bool
+	useFentry          bool
 }
 
 func (p *Probe) detectKernelVersion() error {
@@ -125,16 +129,26 @@ func (p *Probe) detectKernelVersion() error {
 }
 
 // GetKernelVersion computes and returns the running kernel version
-func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
-	if err := p.detectKernelVersion(); err != nil {
-		return nil, err
-	}
-	return p.kernelVersion, nil
+func (p *Probe) GetKernelVersion() *kernel.Version {
+	return p.kernelVersion
 }
 
 // UseRingBuffers returns true if eBPF ring buffers are supported and used
 func (p *Probe) UseRingBuffers() bool {
-	return p.kernelVersion.HaveRingBuffers() && p.Config.Probe.EventStreamUseRingBuffer
+	return p.Config.Probe.EventStreamUseRingBuffer && p.kernelVersion.HaveRingBuffers()
+}
+
+func (p *Probe) selectFentryMode() {
+	if !p.Config.Probe.EventStreamUseFentry {
+		p.useFentry = false
+		return
+	}
+
+	supported := p.kernelVersion.HaveFentrySupport()
+	if !supported {
+		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+	}
+	p.useFentry = supported
 }
 
 func (p *Probe) sanityChecks() error {
@@ -258,7 +272,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	err = p.monitor.Init()
+	err = p.monitors.Init()
 	if err != nil {
 		return err
 	}
@@ -269,7 +283,12 @@ func (p *Probe) Init() error {
 	}
 	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
-	p.eventStream.SetMonitor(p.monitor.eventStreamMonitor)
+	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
+
+	p.killListMap, err = managerhelper.Map(p.Manager, "kill_list")
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -288,7 +307,9 @@ func (p *Probe) Setup() error {
 
 	p.applyDefaultFilterPolicies()
 
-	if err := p.updateProbes(defaultEventTypes, true); err != nil {
+	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
+
+	if err := p.updateProbes(defaultEventTypes, true, needRawSyscalls); err != nil {
 		return err
 	}
 
@@ -300,12 +321,12 @@ func (p *Probe) Setup() error {
 // Start plays the snapshot data and then start the event stream
 func (p *Probe) Start() error {
 	// Apply rules to the snapshotted data before starting the event stream to avoid concurrency issues
-	p.PlaySnapshot()
+	p.playSnapshot()
 	return p.eventStream.Start(&p.wg)
 }
 
-// PlaySnapshot plays a snapshot
-func (p *Probe) PlaySnapshot() {
+// playSnapshot plays a snapshot
+func (p *Probe) playSnapshot() {
 	// Get the snapshotted data
 	var events []*model.Event
 
@@ -364,14 +385,11 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		p.profileManagers.securityProfileManager.LookupEventInProfiles(event)
 	}
 
-	// send wildcard first
-	for _, handler := range p.eventHandlers[model.UnknownEventType] {
-		handler.HandleEvent(event)
-	}
-	// send specific event
-	for _, handler := range p.eventHandlers[event.GetEventType()] {
-		handler.HandleEvent(event)
-	}
+	// send event to wildcard handlers, like the CWS rule engine, first
+	p.sendEventToWildcardHandlers(event)
+
+	// send event to specific event handlers, like the event monitor consumers, subsequently
+	p.sendEventToSpecificEventTypeHandlers(event)
 
 	// handle anomaly detections
 	if event.IsAnomalyDetectionEvent() {
@@ -385,7 +403,19 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 			p.profileManagers.activityDumpManager.ProcessEvent(event)
 		}
 	}
-	p.monitor.ProcessEvent(event)
+	p.monitors.ProcessEvent(event)
+}
+
+func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
+	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
+		handler.HandleEvent(event)
+	}
+}
+
+func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
+	for _, handler := range p.eventHandlers[event.GetEventType()] {
+		handler.HandleEvent(handler.Copy(event))
+	}
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler
@@ -395,17 +425,14 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 		return eventJSON, event.GetEventType(), err
 	})
 
-	// send specific event
-	if p.Config.RuntimeSecurity.CustomEventEnabled {
-		// send wildcard first
-		for _, handler := range p.customEventHandlers[model.UnknownEventType] {
-			handler.HandleCustomEvent(rule, event)
-		}
+	// send wildcard first
+	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
+		handler.HandleCustomEvent(rule, event)
+	}
 
-		// send specific event
-		for _, handler := range p.customEventHandlers[event.GetEventType()] {
-			handler.HandleCustomEvent(rule, event)
-		}
+	// send specific event
+	for _, handler := range p.customEventHandlers[event.GetEventType()] {
+		handler.HandleCustomEvent(rule, event)
 	}
 }
 
@@ -431,17 +458,17 @@ func (p *Probe) SendStats() error {
 		return err
 	}
 
-	return p.monitor.SendStats()
+	return p.monitors.SendStats()
 }
 
-// GetMonitor returns the monitor of the probe
-func (p *Probe) GetMonitor() *Monitor {
-	return p.monitor
+// GetMonitors returns the monitor of the probe
+func (p *Probe) GetMonitors() *Monitors {
+	return p.monitors
 }
 
 // EventMarshallerCtor returns the event marshaller ctor
-func (p *Probe) EventMarshallerCtor(event *model.Event) func() easyjson.Marshaler {
-	return func() easyjson.Marshaler {
+func (p *Probe) EventMarshallerCtor(event *model.Event) func() events.EventMarshaler {
+	return func() events.EventMarshaler {
 		return serializers.NewEventSerializer(event, p.resolvers)
 	}
 }
@@ -459,8 +486,7 @@ func eventWithNoProcessContext(eventType model.EventType) bool {
 	return eventType == model.DNSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
-// UnmarshalProcessCacheEntry unmarshal a Process
-func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
+func (p *Probe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
 	entry := p.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
 	ev.ProcessCacheEntry = entry
 
@@ -469,19 +495,54 @@ func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, e
 		return n, err
 	}
 	entry.Process.ContainerID = ev.ContainerContext.ID
+	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
 }
 
 func (p *Probe) onEventLost(perfMapName string, perEvent map[string]uint64) {
-	p.DispatchCustomEvent(
-		NewEventLostWriteEvent(perfMapName, perEvent),
-	)
+	if p.Config.RuntimeSecurity.InternalMonitoringEnabled {
+		p.DispatchCustomEvent(
+			NewEventLostWriteEvent(perfMapName, perEvent),
+		)
+	}
 
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
 		p.profileManagers.SnapshotTracedCgroups()
 	}
+}
+
+// setProcessContext set the process context, should return false if the event shouldn't be dispatched
+func (p *Probe) setProcessContext(eventType model.EventType, event *model.Event) bool {
+	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
+	if !eventWithNoProcessContext(eventType) {
+		if !isResolved {
+			event.Error = &ErrNoProcessContext{Err: errors.New("process context not resolved")}
+		} else if !entry.HasValidLineage() {
+			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
+			p.resolvers.ProcessResolver.CountBrokenLineage()
+		}
+	}
+	event.ProcessCacheEntry = entry
+	if event.ProcessCacheEntry == nil {
+		panic("should always return a process cache entry")
+	}
+
+	// use ProcessCacheEntry process context as process context
+	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+	if event.ProcessContext == nil {
+		panic("should always return a process context")
+	}
+
+	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
+		return false
+	}
+
+	// flush exited process
+	p.resolvers.ProcessResolver.DequeueExited()
+
+	return true
 }
 
 func (p *Probe) handleEvent(CPU int, data []byte) {
@@ -498,7 +559,12 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	offset += read
 
 	eventType := event.GetEventType()
-	p.monitor.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
+	if eventType > model.MaxKernelEventType {
+		seclog.Errorf("unsupported event type %d", eventType)
+		return
+	}
+
+	p.monitors.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
 
 	// no need to dispatch events
 	switch eventType {
@@ -565,6 +631,47 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode Network Context")
 		}
 		offset += read
+	}
+
+	// handle exec and fork before process context resolution as they modify the process context resolution
+	switch eventType {
+	case model.ForkEventType:
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
+			return
+		}
+
+		if process.IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
+			return
+		}
+
+		p.resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
+		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
+
+		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
+	case model.ExecEventType:
+		// unmarshal and fill event.processCacheEntry
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
+			return
+		}
+
+		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
+			seclog.Debugf("failed to resolve new process cache entry context for pid %d: %s", event.PIDContext.Pid, err)
+
+			var errResolution *path.ErrPathResolution
+			if errors.As(err, &errResolution) {
+				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
+			}
+		} else {
+			p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
+		}
+
+		event.Exec.Process = &event.ProcessCacheEntry.Process
+	}
+
+	if !p.setProcessContext(eventType, event) {
+		return
 	}
 
 	switch eventType {
@@ -660,39 +767,6 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode removexattr event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
-	case model.ForkEventType:
-		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
-			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
-			return
-		}
-
-		if process.IsKThread(event.ProcessCacheEntry.PPid, event.ProcessCacheEntry.Pid) {
-			return
-		}
-
-		p.resolvers.ProcessResolver.ApplyBootTime(event.ProcessCacheEntry)
-		event.ProcessCacheEntry.SetSpan(event.SpanContext.SpanID, event.SpanContext.TraceID)
-
-		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry)
-	case model.ExecEventType:
-		// unmarshal and fill event.processCacheEntry
-		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
-			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
-			return
-		}
-
-		if err = p.resolvers.ProcessResolver.ResolveNewProcessCacheEntry(event.ProcessCacheEntry, event.ContainerContext); err != nil {
-			seclog.Debugf("failed to resolve new process cache entry context for pid %d: %s", event.PIDContext.Pid, err)
-
-			var errResolution *path.ErrPathResolution
-			if errors.As(err, &errResolution) {
-				event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, err)
-			}
-		} else {
-			p.resolvers.ProcessResolver.AddExecEntry(event.ProcessCacheEntry)
-		}
-
-		event.Exec.Process = &event.ProcessCacheEntry.Process
 	case model.ExitEventType:
 		if _, err = event.Exit.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode exit event: %s (offset %d, len %d)", err, offset, len(data))
@@ -715,18 +789,33 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		// update mount pid mapping
 		p.resolvers.MountResolver.DelPid(event.Exit.Pid)
 	case model.SetuidEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error != nil {
+			break
+		}
+
 		if _, err = event.SetUID.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode setuid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateUID(event.PIDContext.Pid, event)
 	case model.SetgidEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error != nil {
+			break
+		}
+
 		if _, err = event.SetGID.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode setgid event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
 		defer p.resolvers.ProcessResolver.UpdateGID(event.PIDContext.Pid, event)
 	case model.CapsetEventType:
+		// the process context may be incorrect, do not modify it
+		if event.Error != nil {
+			break
+		}
+
 		if _, err = event.Capset.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode capset event: %s (offset %d, len %d)", err, offset, len(data))
 			return
@@ -753,7 +842,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			pce = p.resolvers.ProcessResolver.Resolve(event.PTrace.PID, event.PTrace.PID, 0, false)
 		}
 		if pce == nil {
-			pce = model.NewEmptyProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
+			pce = model.NewPlaceholderProcessCacheEntry(event.PTrace.PID, event.PTrace.PID, false)
 		}
 		event.PTrace.Tracee = &pce.ProcessContext
 	case model.MMapEventType:
@@ -798,7 +887,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			pce = p.resolvers.ProcessResolver.Resolve(event.Signal.PID, event.Signal.PID, 0, false)
 		}
 		if pce == nil {
-			pce = model.NewEmptyProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
+			pce = model.NewPlaceholderProcessCacheEntry(event.Signal.PID, event.Signal.PID, false)
 		}
 		event.Signal.Target = &pce.ProcessContext
 	case model.SpliceEventType:
@@ -845,47 +934,16 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 			seclog.Errorf("failed to decode anomaly detection for syscall event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
-	default:
-		seclog.Errorf("unsupported event type %d", eventType)
-		return
-	}
-
-	// resolve the process cache entry
-	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
-	if !eventWithNoProcessContext(eventType) {
-		if !isResolved {
-			event.Error = &ErrNoProcessContext{Err: errors.New("process context not resolved")}
-		} else if !entry.HasCompleteLineage() {
-			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
-			p.resolvers.ProcessResolver.CountBrokenLineage()
-		}
-	}
-	event.ProcessCacheEntry = entry
-	if event.ProcessCacheEntry == nil {
-		panic("should always return a process cache entry")
 	}
 
 	// resolve the container context
 	event.ContainerContext, _ = p.fieldHandlers.ResolveContainerContext(event)
 
-	// use ProcessCacheEntry process context as process context
-	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
-	if event.ProcessContext == nil {
-		panic("should always return a process context")
-	}
-
-	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
-		return
-	}
-
-	if eventType == model.ExitEventType {
-		defer p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, p.fieldHandlers.ResolveEventTime(event))
-	}
-
 	p.DispatchEvent(event)
 
-	// flush exited process
-	p.resolvers.ProcessResolver.DequeueExited()
+	if eventType == model.ExitEventType {
+		p.resolvers.ProcessResolver.DeleteEntry(event.ProcessContext.Pid, p.fieldHandlers.ResolveEventTime(event))
+	}
 }
 
 // AddNewNotifyDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
@@ -1048,7 +1106,7 @@ func (p *Probe) validEventTypeForConfig(eventType string) bool {
 
 // updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes bool) error {
+func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes, needRawSyscalls bool) error {
 	// event types enabled either by event handlers or by rules
 	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
 	eventTypes = append(eventTypes, ruleEventTypes...)
@@ -1079,12 +1137,16 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes 
 
 	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
-	// ActivityDumps
-	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
-			if e == model.SyscallsEventType {
-				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
-				break
+	if needRawSyscalls {
+		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+	} else {
+		// ActivityDumps
+		if p.Config.RuntimeSecurity.ActivityDumpEnabled {
+			for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
+				if e == model.SyscallsEventType {
+					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+					break
+				}
 			}
 		}
 	}
@@ -1095,7 +1157,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes 
 		for _, id := range selector.GetProbesIdentificationPairList() {
 			var exists bool
 			for _, selectedID := range selectedIDs {
-				if selectedID.Matches(id) {
+				if selectedID == id {
 					exists = true
 				}
 			}
@@ -1196,9 +1258,16 @@ func (p *Probe) FlushDiscarders() error {
 	return bumpDiscardersRevision(p.Erpc)
 }
 
+// RefreshUserCache refreshes the user cache
+func (p *Probe) RefreshUserCache(containerID string) error {
+	return p.GetResolvers().UserGroupResolver.RefreshCache(containerID)
+}
+
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
+	// the snapshot for the read of a lot of file which can allocate a lot of memory.
+	defer runtime.GC()
 	return p.resolvers.Snapshot()
 }
 
@@ -1335,6 +1404,12 @@ func (p *Probe) applyDefaultFilterPolicies() {
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	if p.Opts.SyscallsMonitorEnabled {
+		if err := p.monitors.syscallsMonitor.Disable(); err != nil {
+			return nil, err
+		}
+	}
+
 	ars, err := kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
 	if err != nil {
 		return nil, err
@@ -1349,12 +1424,31 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		}
 	}
 
-	if err := p.FlushDiscarders(); err != nil {
-		return nil, fmt.Errorf("failed to flush discarders: %w", err)
+	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
+	if !needRawSyscalls {
+		// Add syscall monitor probes if it's either activated or
+		// there is an 'kill' action in the ruleset
+		for _, rule := range rs.GetRules() {
+			for _, action := range rule.Definition.Actions {
+				if action.Kill != nil {
+					needRawSyscalls = true
+					break
+				}
+			}
+		}
 	}
 
-	if err := p.updateProbes(rs.GetEventTypes(), false); err != nil {
+	if err := p.updateProbes(rs.GetEventTypes(), false, needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
+	}
+
+	if p.Opts.SyscallsMonitorEnabled {
+		if err := p.monitors.syscallsMonitor.Flush(); err != nil {
+			return nil, err
+		}
+		if err := p.monitors.syscallsMonitor.Enable(); err != nil {
+			return nil, err
+		}
 	}
 
 	return ars, nil
@@ -1384,7 +1478,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Erpc:               nerpc,
 			erpcRequest:        &erpc.Request{},
 			isRuntimeDiscarded: !opts.DontDiscardRuntime,
-			useFentry:          config.Probe.EventStreamUseFentry,
 		},
 	}
 
@@ -1405,14 +1498,18 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		seclog.Warnf("the current environment may be misconfigured: %v", err)
 	}
 
+	p.selectFentryMode()
+
 	useRingBuffers := p.UseRingBuffers()
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers, p.useFentry)
 
+	p.supportsBPFSendSignal = p.kernelVersion.SupportBPFSendSignal()
+
 	p.ensureConfigDefaults()
 
-	p.monitor = NewMonitor(p)
+	p.monitors = NewMonitors(p)
 
 	numCPU, err := utils.NumCPU()
 	if err != nil {
@@ -1520,7 +1617,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "send_signal",
-			Value: isBPFSendSignalHelperAvailable(p.kernelVersion),
+			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
 		},
 		manager.ConstantEditor{
 			Name:  "anomaly_syscalls",
@@ -1528,7 +1625,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "monitor_syscalls_map_enabled",
-			Value: utils.BoolTouint64(opts.SyscallsMapMonitorEnabled),
+			Value: utils.BoolTouint64(opts.SyscallsMonitorEnabled),
 		},
 	)
 
@@ -1602,6 +1699,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		PathResolutionEnabled: opts.PathResolutionEnabled,
 		TagsResolver:          opts.TagsResolver,
 		UseRingBuffer:         useRingBuffers,
+		TTYFallbackEnabled:    opts.TTYFallbackEnabled,
 	}
 	p.resolvers, err = resolvers.NewResolvers(config, p.Manager, p.StatsdClient, p.scrubber, p.Erpc, resolversOpts)
 	if err != nil {
@@ -1686,6 +1784,11 @@ func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 }
 
 func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
+	// https://github.com/torvalds/linux/commit/0af950f57fefabab628f1963af881e6b9bfe7f38
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_5 {
+		return 2
+	}
+
 	// https://github.com/torvalds/linux/commit/ffa5723c6d259b3191f851a50a98d0352b345b39
 	// changes a bit how the lower dentry/inode is stored in `ovl_inode`. To check if we
 	// are in this configuration we first probe the kernel version, then we check for the
@@ -1709,14 +1812,6 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 	return 0
 }
 
-// isBPFSendSignalHelperAvailable returns true if the bpf_send_signal helper is available in the current kernel
-func isBPFSendSignalHelperAvailable(kernelVersion *kernel.Version) uint64 {
-	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_3 {
-		return uint64(1)
-	}
-	return uint64(0)
-}
-
 // getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel
 // space
 func getCGroupWriteConstants() manager.ConstantEditor {
@@ -1737,22 +1832,14 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 // GetOffsetConstants returns the offsets and struct sizes constants
 func (p *Probe) GetOffsetConstants() (map[string]uint64, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
-	kv, err := p.GetKernelVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
-	}
-	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetResults()
 }
 
 // GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
 func (p *Probe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
-	kv, err := p.GetKernelVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
-	}
-	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetStatus()
 }
 
@@ -1769,6 +1856,10 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
+	if kv.Code >= kernel.Kernel5_3 {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
+	}
+
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
@@ -1834,5 +1925,32 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// iouring
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
+	}
+}
+
+// HandleActions executes the actions of a triggered rule
+func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
+	ev := event.(*model.Event)
+	for _, action := range rule.Definition.Actions {
+		switch {
+		case action.InternalCallbackDefinition != nil && rule.ID == events.RefreshUserCacheRuleID:
+			_ = p.RefreshUserCache(ev.ContainerContext.ID)
+
+		case action.Kill != nil:
+			if pid := ev.ProcessContext.Pid; pid > 1 && pid != utils.Getpid() {
+				log.Debugf("Requesting signal %s to be sent to %d", action.Kill.Signal, pid)
+				sig := model.SignalConstants[action.Kill.Signal]
+
+				var err error
+				if p.supportsBPFSendSignal {
+					err = p.killListMap.Put(uint32(pid), uint32(sig))
+				} else {
+					err = syscall.Kill(int(pid), syscall.Signal(sig))
+				}
+				if err != nil {
+					seclog.Warnf("failed to kill process %d: %s", pid, err)
+				}
+			}
+		}
 	}
 }

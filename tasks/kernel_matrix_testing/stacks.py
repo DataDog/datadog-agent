@@ -11,8 +11,8 @@ try:
 except ImportError:
     libvirt = None
 
-X86_INSTANCE_TYPE = "m5.metal"
-ARM_INSTANCE_TYPE = "m6g.metal"
+X86_INSTANCE_TYPE = "m5d.metal"
+ARM_INSTANCE_TYPE = "m6gd.metal"
 
 
 def stack_exists(stack):
@@ -142,15 +142,19 @@ def launch_stack(ctx, stack, ssh_key, x86_ami, arm_ami):
     prefix = ""
     local = ""
     if remote_vms_in_config(vm_config):
-        prefix = "aws-vault exec sandbox-account-admin --"
+        prefix = "aws-vault exec sso-sandbox-account-admin --"
 
     if local_vms_in_config(vm_config):
         check_env(ctx)
         local = "--local"
 
+    provision = ""
+    if remote_vms_in_config(vm_config):
+        provision = "--provision"
+
     env_vars = ' '.join(env)
     ctx.run(
-        f"{env_vars} {prefix} inv -e system-probe.start-microvms --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack} {local}"
+        f"{env_vars} {prefix} inv -e system-probe.start-microvms {provision} --instance-type-x86={X86_INSTANCE_TYPE} --instance-type-arm={ARM_INSTANCE_TYPE} --x86-ami-id={x86_ami} --arm-ami-id={arm_ami} --ssh-key-name={ssh_key} --infra-env=aws/sandbox --vmconfig={vm_config} --stack-name={stack} {local}"
     )
 
     info(f"[+] Stack {stack} successfully setup")
@@ -176,7 +180,7 @@ def destroy_stack_pulumi(ctx, stack, ssh_key):
     vm_config = f"{stack_dir}/{VMCONFIG}"
     prefix = ""
     if remote_vms_in_config(vm_config):
-        prefix = "aws-vault exec sandbox-account-admin --"
+        prefix = "aws-vault exec sso-sandbox-account-admin --"
 
     env_vars = ' '.join(env)
     ctx.run(
@@ -190,7 +194,7 @@ def is_ec2_ip_entry(entry):
 
 def ec2_instance_ids(ctx, ip_list):
     ip_addresses = ','.join(ip_list)
-    list_instances_cmd = f"aws-vault exec sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
+    list_instances_cmd = f"aws-vault exec sso-sandbox-account-admin -- aws ec2 describe-instances --filter \"Name=private-ip-address,Values={ip_addresses}\" \"Name=tag:team,Values=ebpf-platform\" --query 'Reservations[].Instances[].InstanceId' --output text"
 
     res = ctx.run(list_instances_cmd, warn=True)
     if not res.ok:
@@ -226,7 +230,7 @@ def destroy_ec2_instances(ctx, stack):
 
     ids = ' '.join(instance_ids)
     res = ctx.run(
-        f"aws-vault exec sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
+        f"aws-vault exec sso-sandbox-account-admin -- aws ec2 terminate-instances --instance-ids {ids}", warn=True
     )
     if not res.ok:
         error(f"[-] Failed to terminate instances {ids}. Use console to terminate instances")

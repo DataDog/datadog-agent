@@ -22,7 +22,7 @@ func TestGroupByConnection(t *testing.T) {
 		util.AddressFromString("2.2.2.2"),
 		60000,
 		80,
-		"/connection-1-path-1",
+		[]byte("/connection-1-path-1"),
 		true,
 		http.MethodGet,
 	)
@@ -34,7 +34,7 @@ func TestGroupByConnection(t *testing.T) {
 		util.AddressFromString("2.2.2.2"),
 		60000,
 		80,
-		"/connection-1-path-2",
+		[]byte("/connection-1-path-2"),
 		true,
 		http.MethodGet,
 	)
@@ -47,7 +47,7 @@ func TestGroupByConnection(t *testing.T) {
 		util.AddressFromString("4.4.4.4"),
 		60000,
 		80,
-		"/connection-2-path-1",
+		[]byte("/connection-2-path-1"),
 		true,
 		http.MethodGet,
 	)
@@ -59,7 +59,7 @@ func TestGroupByConnection(t *testing.T) {
 		util.AddressFromString("4.4.4.4"),
 		60000,
 		80,
-		"/connection-2-path-2",
+		[]byte("/connection-2-path-2"),
 		true,
 		http.MethodGet,
 	)

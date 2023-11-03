@@ -16,14 +16,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -61,16 +62,21 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: checkconfig.MetadataConfig{
+		Profile:            "my-profile",
+		ProfileDef: &profiledefinition.ProfileDefinition{
+			Name:    "my-profile",
+			Version: 10,
+		},
+		Metadata: profiledefinition.MetadataConfig{
 			"device": {
-				Fields: map[string]checkconfig.MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"name": {
 						// Should use value from Symbol `1.3.6.1.2.1.1.5.0`
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.1.5.0",
 							Name: "sysName",
 						},
-						Symbols: []checkconfig.SymbolConfig{
+						Symbols: []profiledefinition.SymbolConfig{
 							{
 								OID:  "1.2.99",
 								Name: "doesNotExist",
@@ -79,11 +85,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 					},
 					"description": {
 						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.9999",
 							Name: "doesNotExist",
 						},
-						Symbols: []checkconfig.SymbolConfig{
+						Symbols: []profiledefinition.SymbolConfig{
 							{
 								OID:  "1.3.6.1.2.1.1.1.0",
 								Name: "sysDescr",
@@ -92,11 +98,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 					},
 					"location": {
 						// Should use value from first element in Symbols `1.3.6.1.2.1.1.1.0`
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.9999",
 							Name: "doesNotExist",
 						},
-						Symbols: []checkconfig.SymbolConfig{
+						Symbols: []profiledefinition.SymbolConfig{
 							{
 								OID:  "1.888",
 								Name: "doesNotExist2",
@@ -120,7 +126,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil)
 
 	// language=json
 	event := []byte(`
@@ -142,6 +148,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "name": "my-sys-name",
             "description": "my-sys-descr",
             "location": "my-sys-location",
+            "profile": "my-profile",
+            "profile_version": 10,
             "subnet": "127.0.0.0/29"
         }
     ],
@@ -161,7 +169,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_profileDeviceVendorFallback(t *testing.T) {
-	checkconfig.SetConfdPathAndCleanProfiles()
+	profile.SetConfdPathAndCleanProfiles()
 
 	var storeWithoutIfName = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
@@ -197,7 +205,7 @@ profiles:
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+	ms.ReportNetworkDeviceMetadata(config, storeWithoutIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil)
 
 	// language=json
 	event := []byte(`
@@ -232,7 +240,7 @@ profiles:
 	sender.AssertEventPlatformEvent(t, compactEvent.Bytes(), "network-devices-metadata")
 }
 
-func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) {
+func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagnoses(t *testing.T) {
 	var storeWithIfName = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{
 			"1.3.6.1.2.1.31.1.1.1.1": {
@@ -276,37 +284,37 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: checkconfig.MetadataConfig{
+		Metadata: profiledefinition.MetadataConfig{
 			"interface": {
-				Fields: map[string]checkconfig.MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"name": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "ifName",
 						},
 					},
 					"alias": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.31.1.1.1.18",
 							Name: "ifAlias",
 						},
 					},
 					"admin_status": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.7",
 							Name: "ifAdminStatus",
 						},
 					},
 					"oper_status": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.3.6.1.2.1.2.2.1.8",
 							Name: "ifOperStatus",
 						},
 					},
 				},
-				IDTags: checkconfig.MetricTagConfigList{
-					checkconfig.MetricTagConfig{
-						Column: checkconfig.SymbolConfig{
+				IDTags: profiledefinition.MetricTagConfigList{
+					profiledefinition.MetricTagConfig{
+						Symbol: profiledefinition.SymbolConfigCompat{
 							OID:  "1.3.6.1.2.1.31.1.1.1.1",
 							Name: "interface",
 						},
@@ -317,11 +325,17 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 		},
 	}
 
+	diagnosis := []metadata.DiagnosisMetadata{{ResourceType: "device", ResourceID: "1234", Diagnoses: []metadata.Diagnosis{{
+		Severity: "warn",
+		Code:     "TEST_DIAGNOSIS",
+		Message:  "Test",
+	}}}}
+
 	layout := "2006-01-02 15:04:05"
 	str := "2014-11-12 11:45:26"
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
-	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+	ms.ReportNetworkDeviceMetadata(config, storeWithIfName, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, diagnosis)
 
 	ifTags1 := []string{"tag1", "tag2", "status:down", "interface:21", "interface_alias:ifAlias1", "interface_index:1", "oper_status:up", "admin_status:down"}
 	ifTags2 := []string{"tag1", "tag2", "status:off", "interface:22", "interface_index:2", "oper_status:down", "admin_status:down", "muted", "someKey:someValue"}
@@ -371,6 +385,19 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaces(t *testing.T) 
 			"oper_status": 2
         }
     ],
+    "diagnoses": [
+      {
+        "resource_type": "device",
+        "resource_id": "1234",
+        "diagnoses": [
+          {
+            "severity": "warn",
+            "message": "Test",
+            "code": "TEST_DIAGNOSIS"
+          }
+        ]
+      }
+    ],
     "collect_timestamp":1415792726
 }
 `)
@@ -398,11 +425,11 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 		DeviceIDTags:       []string{"device_name:127.0.0.1"},
 		ResolvedSubnetName: "127.0.0.0/29",
 		Namespace:          "my-ns",
-		Metadata: checkconfig.MetadataConfig{
+		Metadata: profiledefinition.MetadataConfig{
 			"device": {
-				Fields: map[string]checkconfig.MetadataField{
+				Fields: map[string]profiledefinition.MetadataField{
 					"name": {
-						Symbol: checkconfig.SymbolConfig{
+						Symbol: profiledefinition.SymbolConfig{
 							OID:  "1.999",
 							Name: "doesNotExist",
 						},
@@ -417,7 +444,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 	collectTime, err := time.Parse(layout, str)
 	assert.NoError(t, err)
 
-	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable)
+	ms.ReportNetworkDeviceMetadata(config, emptyMetadataStore, []string{"tag1", "tag2"}, collectTime, metadata.DeviceStatusReachable, nil)
 
 	// language=json
 	event := []byte(`
@@ -452,57 +479,57 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 
 func TestComputeInterfaceStatus(t *testing.T) {
 	type testCase struct {
-		ifAdminStatus common.IfAdminStatus
-		ifOperStatus  common.IfOperStatus
-		status        common.InterfaceStatus
+		ifAdminStatus metadata.IfAdminStatus
+		ifOperStatus  metadata.IfOperStatus
+		status        metadata.InterfaceStatus
 	}
 
 	// Test the method with only valid input for ifAdminStatus and ifOperStatus
 	allTests := []testCase{
 		// Valid test cases
-		{common.AdminStatus_Up, common.OperStatus_Up, common.InterfaceStatus_Up},
-		{common.AdminStatus_Up, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{common.AdminStatus_Up, common.OperStatus_Testing, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{common.AdminStatus_Down, common.OperStatus_Down, common.InterfaceStatus_Off},
-		{common.AdminStatus_Down, common.OperStatus_Testing, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Up, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{common.AdminStatus_Testing, common.OperStatus_Testing, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Unknown, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_Dormant, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_NotPresent, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, common.OperStatus_LowerLayerDown, common.InterfaceStatus_Warning},
+		{metadata.AdminStatusUp, metadata.OperStatusUp, metadata.InterfaceStatusUp},
+		{metadata.AdminStatusUp, metadata.OperStatusDown, metadata.InterfaceStatusDown},
+		{metadata.AdminStatusUp, metadata.OperStatusTesting, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, metadata.OperStatusUnknown, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, metadata.OperStatusDormant, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, metadata.OperStatusNotPresent, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, metadata.OperStatusLowerLayerDown, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, metadata.OperStatusUp, metadata.InterfaceStatusDown},
+		{metadata.AdminStatusDown, metadata.OperStatusDown, metadata.InterfaceStatusOff},
+		{metadata.AdminStatusDown, metadata.OperStatusTesting, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, metadata.OperStatusUnknown, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, metadata.OperStatusDormant, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, metadata.OperStatusNotPresent, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, metadata.OperStatusLowerLayerDown, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusUp, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusDown, metadata.InterfaceStatusDown},
+		{metadata.AdminStatusTesting, metadata.OperStatusTesting, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusUnknown, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusDormant, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusNotPresent, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, metadata.OperStatusLowerLayerDown, metadata.InterfaceStatusWarning},
 
 		// Invalid ifOperStatus
-		{common.AdminStatus_Up, 0, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, 8, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Up, 100, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, 0, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, 8, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Down, 100, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, 0, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, 8, common.InterfaceStatus_Warning},
-		{common.AdminStatus_Testing, 100, common.InterfaceStatus_Warning},
+		{metadata.AdminStatusUp, 0, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, 8, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusUp, 100, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, 0, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, 8, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusDown, 100, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, 0, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, 8, metadata.InterfaceStatusWarning},
+		{metadata.AdminStatusTesting, 100, metadata.InterfaceStatusWarning},
 
 		// Invalid ifAdminStatus
-		{0, common.OperStatus_Unknown, common.InterfaceStatus_Down},
-		{0, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{0, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{4, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{4, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{4, common.OperStatus_Testing, common.InterfaceStatus_Down},
-		{100, common.OperStatus_Up, common.InterfaceStatus_Down},
-		{100, common.OperStatus_Down, common.InterfaceStatus_Down},
-		{100, common.OperStatus_Testing, common.InterfaceStatus_Down},
+		{0, metadata.OperStatusUnknown, metadata.InterfaceStatusDown},
+		{0, metadata.OperStatusDown, metadata.InterfaceStatusDown},
+		{0, metadata.OperStatusUp, metadata.InterfaceStatusDown},
+		{4, metadata.OperStatusUp, metadata.InterfaceStatusDown},
+		{4, metadata.OperStatusDown, metadata.InterfaceStatusDown},
+		{4, metadata.OperStatusTesting, metadata.InterfaceStatusDown},
+		{100, metadata.OperStatusUp, metadata.InterfaceStatusDown},
+		{100, metadata.OperStatusDown, metadata.InterfaceStatusDown},
+		{100, metadata.OperStatusTesting, metadata.InterfaceStatusDown},
 	}
 	for _, test := range allTests {
 		assert.Equal(t, test.status, computeInterfaceStatus(test.ifAdminStatus, test.ifOperStatus))
@@ -693,4 +720,33 @@ func Test_buildInterfaceIndexByIDType(t *testing.T) {
 		},
 	}
 	assert.Equal(t, expectedInterfaceIndexByIDType, interfaceIndexByIDType)
+}
+
+func Test_getProfileVersion(t *testing.T) {
+	tests := []struct {
+		name                   string
+		config                 checkconfig.CheckConfig
+		expectedProfileVersion uint64
+	}{
+		{
+			name: "profile definition is present",
+			config: checkconfig.CheckConfig{
+				ProfileDef: &profiledefinition.ProfileDefinition{
+					Name:    "my-profile",
+					Version: 42,
+				},
+			},
+			expectedProfileVersion: 42,
+		},
+		{
+			name:                   "profile definition not present",
+			config:                 checkconfig.CheckConfig{},
+			expectedProfileVersion: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedProfileVersion, getProfileVersion(&tt.config))
+		})
+	}
 }

@@ -5,6 +5,7 @@
 
 //go:build docker
 
+// Package docker implements the docker check.
 package docker
 
 import (

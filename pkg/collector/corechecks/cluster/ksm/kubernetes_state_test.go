@@ -543,6 +543,158 @@ func TestProcessMetrics(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:   "node nvidia gpu capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "nvidia_com_gpu", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:nvidia_com_gpu", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
+		{
+			name:   "node amd gpu capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "amd_com_gpu", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:amd_com_gpu", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
+		{
+			name:   "node intel gpu capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "gpu_intel_com_i915", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:gpu_intel_com_i915", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
+		{
+			name:   "node nvidia mig capacity",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), LabelJoins: defaultLabelJoins()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_status_capacity": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_status_capacity",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "resource": "nvidia_com_mig_2c_4g_20gb", "unit": "integer"},
+								Val:    4,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet: []ksmstore.DDMetricsFam{
+				{
+					Name:        "kube_node_info",
+					ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{"node": "nodename", "container_runtime_version": "docker://19.3.15", "kernel_version": "5.4.109+", "kubelet_version": "v1.18.20-gke.901", "os_image": "Container-Optimized OS from Google"}}},
+				},
+			},
+			metricTransformers: defaultMetricTransformers(),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.gpu_capacity",
+					val:      4,
+					tags:     []string{"node:nodename", "resource:nvidia_com_mig_2c_4g_20gb", "unit:integer", "container_runtime_version:docker://19.3.15", "kernel_version:5.4.109+", "kubelet_version:v1.18.20-gke.901", "os_image:Container-Optimized OS from Google", "mig_profile:2c-4g-20gb"},
+					hostname: "nodename",
+				},
+				{
+					name: "kubernetes_state.node.gpu_capacity.total",
+					val:  4,
+					tags: []string{},
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(kubeStateMetricsCheckName), test.config)

@@ -16,6 +16,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_default_build_tags
 from .go import run_golangci_lint
 from .libs.ninja_syntax import NinjaWriter
+from .process_agent import TempDir
 from .system_probe import (
     CURRENT_ARCH,
     build_cws_object_files,
@@ -35,6 +36,7 @@ from .utils import (
     get_gopath,
     get_version,
 )
+from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
@@ -73,6 +75,22 @@ def build(
         "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
     }
 
+    ## build windows resources
+    # generate windows resources
+    if sys.platform == 'win32':
+        if arch == "x86":
+            env["GOARCH"] = "386"
+
+        build_messagetable(ctx, arch=arch)
+        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
+        build_rc(
+            ctx,
+            "cmd/security-agent/windows_resources/security-agent.rc",
+            arch=arch,
+            vars=vars,
+            out="cmd/security-agent/rsrc.syso",
+        )
+
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
     build_tags += get_default_build_tags(
         build="security-agent"
@@ -101,6 +119,50 @@ def build(
         if not os.path.exists(dist_folder):
             os.makedirs(dist_folder)
         shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
+
+
+@task
+def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest", include_agent_binary=False):
+    """
+    Build a dev image of the security-agent based off an existing datadog-agent image
+
+    image: the image name used to tag the image
+    push: if true, run a docker push on the image
+    base_image: base the docker image off this already build image (default: datadog/agent:latest)
+    include_agent_binary: if true, use the agent binary in bin/agent/agent as opposite to the base image's binary
+    """
+    if image is None:
+        raise Exit(message="image was not specified")
+
+    with TempDir() as docker_context:
+        ctx.run(f"cp tools/ebpf/Dockerfiles/Dockerfile-security-agent-dev {docker_context + '/Dockerfile'}")
+
+        ctx.run(f"cp bin/security-agent/security-agent {docker_context + '/security-agent'}")
+        ctx.run(f"cp bin/system-probe/system-probe {docker_context + '/system-probe'}")
+        if include_agent_binary:
+            ctx.run(f"cp bin/agent/agent {docker_context + '/agent'}")
+            core_agent_dest = "/opt/datadog-agent/bin/agent/agent"
+        else:
+            # this is necessary so that the docker build doesn't fail while attempting to copy the agent binary
+            ctx.run(f"touch {docker_context}/agent")
+            core_agent_dest = "/dev/null"
+
+        ctx.run(f"cp pkg/ebpf/bytecode/build/*.o {docker_context}")
+        ctx.run(f"mkdir {docker_context}/co-re")
+        ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
+        ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
+        ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
+        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+
+        with ctx.cd(docker_context):
+            # --pull in the build will force docker to grab the latest base image
+            ctx.run(
+                f"docker build --pull --tag {image} --build-arg AGENT_BASE={base_image} --build-arg CORE_AGENT_DEST={core_agent_dest} ."
+            )
+
+    if push:
+        ctx.run(f"docker push {image}")
 
 
 @task()
@@ -163,6 +225,7 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
     syscall_tester_c_dir = os.path.join("pkg", "security", "tests", "syscall_tester", "c")
     syscall_tester_c_file = os.path.join(syscall_tester_c_dir, f"{file_name}.c")
     syscall_tester_exe_file = os.path.join(build_dir, file_name)
+    uname_m = os.uname().machine
 
     if static:
         flags.append("-static")
@@ -174,6 +237,7 @@ def ninja_c_syscall_tester_common(nw, file_name, build_dir, flags=None, libs=Non
         variables={
             "exeflags": flags,
             "exelibs": libs,
+            "flags": [f"-D__{uname_m}__", f"-isystem/usr/include/{uname_m}-linux-gnu"],
         },
     )
     return syscall_tester_exe_file
@@ -302,7 +366,7 @@ def build_functional_tests(
 
     if not skip_linters:
         targets = ['./pkg/security/tests']
-        results = run_golangci_lint(ctx, targets=targets, build_tags=build_tags, arch=arch)
+        results = run_golangci_lint(ctx, module_path="", targets=targets, build_tags=build_tags, arch=arch)
         for result in results:
             # golangci exits with status 1 when it finds an issue
             if result.exited != 0:
@@ -510,7 +574,7 @@ RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
     cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
     cmd += '-v /etc/passwd:/etc/passwd '
     cmd += '-v /etc/group:/etc/group '
-    cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
+    cmd += '-v ./pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
         "GOPATH": get_gopath(ctx),
@@ -552,15 +616,19 @@ def generate_cws_documentation(ctx, go_generate=False):
 
 @task
 def cws_go_generate(ctx):
+    ctx.run("go install golang.org/x/tools/cmd/stringer")
+    ctx.run("go install github.com/mailru/easyjson/easyjson")
     with ctx.cd("./pkg/security/secl"):
+        ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors")
+        ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/operators")
+        if sys.platform == "linux":
+            ctx.run("GOOS=windows go generate ./...")
+        # Disable cross generation from windows for now. Need to fix the stringer issue.
+        # elif sys.platform == "win32":
+        #     ctx.run("set GOOS=linux && go generate ./...")
         ctx.run("go generate ./...")
 
-    if sys.platform == "win32":
-        shutil.copy(
-            "./pkg/security/serializers/serializers_windows_easyjson.mock",
-            "./pkg/security/serializers/serializers_windows_easyjson.go",
-        )
-    else:
+    if sys.platform == "linux":
         shutil.copy(
             "./pkg/security/serializers/serializers_linux_easyjson.mock",
             "./pkg/security/serializers/serializers_linux_easyjson.go",
@@ -604,7 +672,7 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
     output_path = "./pkg/security/probe/constantfetch/btfhub/constants.json"
     force_refresh_opt = "-force-refresh" if force_refresh else ""
     ctx.run(
-        f"go run ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
+        f"go run -tags linux_bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path} {force_refresh_opt}",
     )
 
 
@@ -640,7 +708,7 @@ def generate_cws_proto(ctx):
 
 
 def get_git_dirty_files():
-    dirty_stats = check_output(["git", "status", "--porcelain=v1"]).decode('utf-8')
+    dirty_stats = check_output(["git", "status", "--porcelain=v1", "untracked-files=no"]).decode('utf-8')
     paths = []
 
     # see https://git-scm.com/docs/git-status#_short_format for format documentation

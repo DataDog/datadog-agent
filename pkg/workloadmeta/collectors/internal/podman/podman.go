@@ -5,6 +5,7 @@
 
 //go:build podman
 
+// Package podman implements the podman Workloadmeta collector.
 package podman
 
 import (
