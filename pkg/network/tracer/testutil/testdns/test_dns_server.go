@@ -76,8 +76,8 @@ func (s *server) Start(transport string) {
 				_ = writer.WriteMsg(resp)
 			case "nestedcname.com.":
 				fmt.Println("hit nestedcname.com")
-				answer := new(dns.Msg)
-				answer.SetReply(msg)
+				resp := &dns.Msg{}
+				resp.SetReply(msg)
 				top := new(dns.CNAME)
 				top.Hdr = dns.RR_Header{Name: "nestedcname.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 3600}
 				top.Target = "www.nestedcname.com."
@@ -88,9 +88,9 @@ func (s *server) Start(transport string) {
 				ip.Hdr = dns.RR_Header{Name: "www2.nestedcname.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 3600}
 				ip.A = net.ParseIP("127.0.0.1")
 
-				answer.Answer = append(answer.Answer, top, nested, ip)
-				answer.SetRcode(msg, dns.RcodeSuccess)
-				_ = writer.WriteMsg(answer)
+				resp.Answer = append(resp.Answer, top, nested, ip)
+				resp.SetRcode(msg, dns.RcodeSuccess)
+				_ = writer.WriteMsg(resp)
 			default:
 				fmt.Println("hit default")
 				resp := &dns.Msg{}

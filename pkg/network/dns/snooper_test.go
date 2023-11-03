@@ -433,23 +433,20 @@ func TestDNSOverIPv6(t *testing.T) {
 	reverseDNS := initDNSTestsWithDomainCollection(t, true)
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper
+	domain := "missingdomain.com"
+	serverIP := testdns.GetServerIP(t)
 
-	// This DNS server is set up so it always returns a NXDOMAIN answer
-	serverIP := net.IPv6loopback.String()
-	closeFn, _ := newTestServer(t, serverIP, 53, "udp", nxDomainHandler)
-	defer closeFn()
-
-	queryIP, queryPort, reps := sendDNSQueries(t, []string{"nxdomain-123.com"}, net.ParseIP(serverIP), "udp")
+	queryIP, queryPort, reps := sendDNSQueries(t, []string{domain}, serverIP, "udp")
 	require.NotNil(t, reps[0])
 
-	key := getKey(queryIP, queryPort, serverIP, syscall.IPPROTO_UDP)
+	key := getKey(queryIP, queryPort, serverIP.String(), syscall.IPPROTO_UDP)
 	var allStats StatsByKeyByNameByType
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
 
-	stats := allStats[key][ToHostname("nxdomain-123.com")][TypeA]
+	stats := allStats[key][ToHostname(domain)][TypeA]
 	assert.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNXDomain)])
 }
