@@ -277,8 +277,6 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	imageID := manifest.Config.Digest.String()
 
 	c.knownImages.addReference(imageName, imageID)
-	repoTags := c.knownImages.getRepoTags(imageID)
-	repoDigests := c.knownImages.getRepoDigests(imageID)
 
 	sbom := newSBOM
 
@@ -311,14 +309,6 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		}
 	}
 
-	// SBOMs are generated only once. However, when they are generated it is possible that
-	// not every RepoDigest and RepoTags are attached to the image. In that case, the SBOM
-	// will also miss metadata and will not be re-generated when new metadata is detected.
-	// Because this metadata is essential for processing, it is important to inject new metadata
-	// to the existing SBOM. Generating a new SBOM can be a more robust solution but can also be
-	// costly.
-	sbom = updateSBOMMetadata(sbom, repoTags, repoDigests)
-
 	totalSizeBytes := manifest.Config.Size
 	for _, layer := range manifest.Layers {
 		totalSizeBytes += layer.Size
@@ -343,8 +333,8 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 			Namespace: namespace,
 			Labels:    labels,
 		},
-		RepoTags:     repoTags,
-		RepoDigests:  repoDigests,
+		RepoTags:     c.knownImages.getRepoTags(imageID),
+		RepoDigests:  c.knownImages.getRepoDigests(imageID),
 		MediaType:    manifest.MediaType,
 		SizeBytes:    totalSizeBytes,
 		OS:           os,
