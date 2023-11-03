@@ -121,10 +121,13 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 				LogParams:    command.DaemonLogParams,
 			},
 		),
-		// Populate dependencies required for initialization in this function.
+		// Populate dependencies required for initialization in this function
 		fx.Populate(&appInitDeps),
 
-		// Provide process agent bundle so fx knows where to find components.
+		// Provide core components
+		core.Bundle,
+
+		// Provide process agent bundle so fx knows where to find components
 		process.Bundle,
 
 		// Provide remote config client module
