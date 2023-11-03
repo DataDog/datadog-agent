@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -442,8 +443,8 @@ func TestReplace(t *testing.T) {
 	ms.mutex.RUnlock()
 
 	// Verify that our test is setup correctly and that both metrics are in place
-	assert.Contains(t, metrics, types.UID("bec19172-8abf-11ea-8546-42010a80022c"))
-	assert.Contains(t, metrics, types.UID("8b136387-8a51-11ea-8546-42010a80022c"))
+	require.Contains(t, metrics, types.UID("bec19172-8abf-11ea-8546-42010a80022c"))
+	require.Contains(t, metrics, types.UID("8b136387-8a51-11ea-8546-42010a80022c"))
 
 	// Create a smaller set of metrics to replace the existing metrics with. We want to make sure that metrics which
 	// are not defined in the new set are removed.
