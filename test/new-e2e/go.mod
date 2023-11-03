@@ -38,11 +38,12 @@ require (
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.15.0
 	github.com/DataDog/test-infra-definitions v0.0.0-20231027164033-8158a5b2c60e
-	github.com/docker/cli v24.0.6+incompatible
-	github.com/docker/docker v24.0.6+incompatible
+	github.com/docker/cli v24.0.7+incompatible
+	github.com/docker/docker v24.0.7+incompatible
 	github.com/google/uuid v1.3.1
 	github.com/kr/pretty v0.3.1
 	github.com/pkg/sftp v1.13.6
+	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
 	k8s.io/api v0.28.3
 	k8s.io/apimachinery v0.28.3
 	k8s.io/cli-runtime v0.28.3
@@ -188,6 +189,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
 	github.com/zclconf/go-cty v1.13.2 // indirect
+	github.com/zorkian/go-datadog-api v2.30.0+incompatible // indirect
 	go.starlark.net v0.0.0-20230525235612-a134d8f9ddca // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230725093048-515e97ebf090 // indirect
@@ -205,7 +207,7 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools/v3 v3.5.0 // indirect
 	k8s.io/component-base v0.28.3 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
