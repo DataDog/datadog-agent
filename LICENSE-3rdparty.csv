@@ -881,6 +881,15 @@ core,github.com/gobwas/glob/syntax/ast,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/syntax/lexer,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/runes,MIT,Copyright (c) 2016 Sergey Kamardin
 core,github.com/gobwas/glob/util/strings,MIT,Copyright (c) 2016 Sergey Kamardin
+core,github.com/goccy/go-json,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/decoder,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm_color,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm_color_indent,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/encoder/vm_indent,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/errors,MIT,Copyright (c) 2020 Masaaki Goshima
+core,github.com/goccy/go-json/internal/runtime,MIT,Copyright (c) 2020 Masaaki Goshima
 core,github.com/gocomply/scap/pkg/scap/constants,CC0-1.0,CC0 1.0 Universal
 core,github.com/gocomply/scap/pkg/scap/models/cdf,CC0-1.0,CC0 1.0 Universal
 core,github.com/gocomply/scap/pkg/scap/models/cpe,CC0-1.0,CC0 1.0 Universal
