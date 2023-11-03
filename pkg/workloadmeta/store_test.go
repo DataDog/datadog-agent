@@ -108,6 +108,15 @@ func TestSubscribe(t *testing.T) {
 		},
 	}
 
+	// Pause containers are in the store but are not sent to subscribers unless specifically requested
+	pauseContainer := &Container{
+		EntityID: EntityID{
+			Kind: KindContainer,
+			ID:   "isPauseContainer",
+		},
+		IsPauseContainer: true,
+	}
+
 	tests := []struct {
 		name       string
 		preEvents  []CollectorEvent
@@ -136,6 +145,11 @@ func TestSubscribe(t *testing.T) {
 					Source: fooSource,
 					Entity: barContainer,
 				},
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: pauseContainer,
+				},
 			},
 			expected: []EventBundle{
 				{
@@ -161,6 +175,11 @@ func TestSubscribe(t *testing.T) {
 					Type:   EventTypeSet,
 					Source: fooSource,
 					Entity: fooContainer,
+				},
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: pauseContainer,
 				},
 			},
 			expected: []EventBundle{
@@ -213,6 +232,13 @@ func TestSubscribe(t *testing.T) {
 					Type:   EventTypeSet,
 					Source: barSource,
 					Entity: bazContainer,
+				},
+
+				// Pause containers are in the store but are not sent to subscribers unless specifically requested
+				{
+					Type:   EventTypeSet,
+					Source: fooSource,
+					Entity: pauseContainer,
 				},
 			},
 			expected: []EventBundle{
@@ -567,6 +593,76 @@ func TestSubscribe(t *testing.T) {
 					Events: []Event{
 						{
 							Type:   EventTypeSet,
+							Entity: fooContainer,
+						},
+					},
+				},
+			},
+		},
+		{
+			name:      "subscribing to pause containers",
+			preEvents: []CollectorEvent{},
+			postEvents: [][]CollectorEvent{
+				{
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: fooContainer,
+					},
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: pauseContainer,
+					},
+				},
+			},
+			filter: NewFilter(&FilterParams{
+				IncludePauseContainers: true,
+			}),
+			expected: []EventBundle{
+				{},
+				{
+					Events: []Event{
+						{
+							Type:   EventTypeSet,
+							Entity: fooContainer,
+						},
+						{
+							Type:   EventTypeSet,
+							Entity: pauseContainer,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "filters by event type",
+			filter: NewFilter(&FilterParams{
+				Source:    SourceAll,
+				EventType: EventTypeUnset,
+			}),
+			postEvents: [][]CollectorEvent{
+				{
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: fooContainer,
+					},
+				},
+				{
+					{
+						Type:   EventTypeUnset,
+						Source: fooSource,
+						Entity: fooContainer,
+					},
+				},
+			},
+			expected: []EventBundle{
+				{},
+				{
+					Events: []Event{
+						{
+							Type:   EventTypeUnset,
 							Entity: fooContainer,
 						},
 					},
