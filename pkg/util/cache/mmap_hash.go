@@ -286,8 +286,15 @@ func (table *mmapHash) finalize() {
 
 	table.pages = nil
 	address := unsafe.SliceData(table.mapping)
-	_ = log.Warnf(fmt.Sprintf("finalize(%s): Invalidating address %p-%p.",
-		table.Name(), address, unsafe.Add(unsafe.Pointer(address), len(table.mapping))))
+	var closeOnRelease string
+	if table.closeOnRelease {
+		closeOnRelease = "YES"
+	} else {
+		closeOnRelease = "NO"
+	}
+	_ = log.Warnf(fmt.Sprintf("finalize(%s): Invalidating address %p-%p.  Close-on-release=%s",
+		table.Name(), address, unsafe.Add(unsafe.Pointer(address), len(table.mapping)),
+		closeOnRelease))
 	// Make the segment read-only, worry about actual deletion after we have
 	// better debugging around page faults.
 	var err error
@@ -317,7 +324,7 @@ func (table *mmapHash) finalized() bool {
 }
 
 func (table *mmapHash) accessible() bool {
-	return table.fd != nil
+	return !table.finalized() || !table.closeOnRelease
 }
 
 // isMapped returns (index, active, safe) for the string s.  If the address is mapped,
@@ -369,10 +376,11 @@ func logFailedCheck(index int, safe bool, callsite, tag string) string {
 			strings.Replace(file, "/go/src/github.com/DataDog/datadog-agent/pkg", "PKG", 1), line)
 	}
 	if _, found := allMmaps.origins[location]; !found {
+		addr := unsafe.StringData(tag)
 		if safe {
-			_ = log.Errorf("mmap_hash.%v: Found tag (%s) from dead region, called from %v", callsite, tag, location)
+			_ = log.Errorf("mmap_hash.%v: %p: Found tag (%s) from dead region, called from %v", callsite, addr, tag, location)
 		} else {
-			_ = log.Errorf("mmap_hash.%v: Found tag (INACCESSIBLE) from dead region, called from %v", callsite, location)
+			_ = log.Errorf("mmap_hash.%v: %p: Found tag (INACCESSIBLE) from dead region, called from %v", callsite, addr, location)
 		}
 	}
 	allMmaps.origins[location] += 1
@@ -390,6 +398,7 @@ func Check(tag string) bool {
 	index, active, safe := isMapped(tag)
 	if index >= 0 && !active {
 		logFailedCheck(index, safe, "Check", tag)
+		return false
 	}
 	return safe
 }
