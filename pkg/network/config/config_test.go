@@ -22,6 +22,12 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// variables for testing config options
+const (
+	driverDefaultNotificationThreshold = 512
+	driverMaxFragmentLimit = 512
+)
+
 func TestDisablingDNSInspection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
@@ -823,7 +829,7 @@ service_monitoring_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 }
 
@@ -835,7 +841,7 @@ func TestHTTPNotificationThresholdOverLimit(t *testing.T) {
 network_config:
   http_notification_threshold: 1025
 `)
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
@@ -844,7 +850,7 @@ network_config:
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
@@ -853,7 +859,7 @@ network_config:
 service_monitoring_config:
   http_notification_threshold: 1025
 `)
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
@@ -862,7 +868,7 @@ service_monitoring_config:
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
@@ -871,7 +877,7 @@ service_monitoring_config:
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
@@ -880,7 +886,7 @@ service_monitoring_config:
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("Both enabled", func(t *testing.T) {
@@ -891,14 +897,14 @@ service_monitoring_config:
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("Not enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 }
 
@@ -972,7 +978,7 @@ service_monitoring_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 }
 
@@ -984,7 +990,7 @@ func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 network_config:
   http_max_request_fragment: 600
 `)
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
@@ -993,7 +999,7 @@ network_config:
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
@@ -1002,7 +1008,7 @@ network_config:
 service_monitoring_config:
   http_max_request_fragment: 600
 `)
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
@@ -1011,7 +1017,7 @@ service_monitoring_config:
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
@@ -1029,7 +1035,7 @@ service_monitoring_config:
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("Both enabled", func(t *testing.T) {
@@ -1040,14 +1046,14 @@ service_monitoring_config:
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("Not enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 }
 

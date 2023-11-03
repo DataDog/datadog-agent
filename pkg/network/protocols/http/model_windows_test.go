@@ -8,8 +8,6 @@
 package http
 
 import (
-	//"runtime"
-	//"strings"
 	"strings"
 	"testing"
 
