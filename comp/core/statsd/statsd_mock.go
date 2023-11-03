@@ -1,0 +1,56 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
+//go:build test
+
+package statsd
+
+import (
+	"go.uber.org/fx"
+
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// MockModule defines the fx options for the mock component.
+// Injecting MockModule will provide the hostname 'my-hostname';
+// override this with fx.Replace(statsd.MockClient(client)).
+var MockModule = fxutil.Component(
+	fx.Provide(
+		newMock,
+	),
+	fx.Supply(fx.Annotate(&ddgostatsd.NoOpClient{}, fx.As(new(MockClient)))),
+)
+
+type mockService struct {
+	client ddgostatsd.ClientInterface
+}
+
+// Get returns a pre-configured statsd client
+func (m *mockService) Get(options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	return m.client, nil
+}
+
+// GetForAddr returns a pre-configured statsd client that defaults to `addr` if no env var is set
+func (m *mockService) GetForAddr(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	return m.client, nil
+}
+
+// GetForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
+func (m *mockService) GetForHostPort(host string, port int, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	return m.client, nil
+}
+
+var _ Mock = (*mockService)(nil)
+
+// MockClient is an alias for injecting a mock client.
+// Usage: fx.Replace(fx.Annotate(client, fx.As(new(MockClient)))
+type MockClient ddgostatsd.ClientInterface
+
+func newMock(client MockClient) (Component, Mock) {
+	mock := &mockService{client}
+	return mock, mock
+}

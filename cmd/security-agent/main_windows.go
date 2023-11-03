@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/statsd"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -69,12 +70,12 @@ func (s *service) Run(svcctx context.Context) error {
 
 	params := &cliParams{}
 	err := fxutil.OneShot(
-		func(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component,
+		func(log log.Component, config config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component,
 			telemetry telemetry.Component, params *cliParams, demultiplexer demultiplexer.Component) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
-			err := start.RunAgent(ctx, log, config, sysprobeconfig, telemetry, "", demultiplexer)
+			err := start.RunAgent(ctx, log, config, statsd, sysprobeconfig, telemetry, "", demultiplexer)
 			if err != nil {
 				return err
 			}
