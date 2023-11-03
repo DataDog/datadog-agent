@@ -1,4 +1,4 @@
-name "msodbcsq18"
+name "msodbcsql18"
 default_version "18.3.2.1-1"
 
 source url: "https://packages.microsoft.com/debian/12/prod/pool/main/m/msodbcsql18/#{name}_#{version}_amd64.deb"
