@@ -2,7 +2,7 @@ name "msodbcsq18"
 default_version "18.3.2.1-1"
 
 source url: "https://packages.microsoft.com/debian/12/prod/pool/main/m/msodbcsql18/#{name}_#{version}_amd64.deb"
-       sha256: "ae8eea58236e46c3f4eae05823cf7f0531ac58f12d90bc24245830b847c052ee"
+source sha256: "ae8eea58236e46c3f4eae05823cf7f0531ac58f12d90bc24245830b847c052ee"
 
 relative_path "msodbcsql18-#{version}"
 
