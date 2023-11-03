@@ -629,6 +629,7 @@ def cws_go_generate(ctx):
         # elif sys.platform == "win32":
         #     ctx.run("set GOOS=linux && go generate ./...")
         ctx.run("go generate ./...")
+        ctx.run("go generate -tags ebpfless ./...")
 
     if sys.platform == "linux":
         shutil.copy(

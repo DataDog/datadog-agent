@@ -5,7 +5,6 @@
 // Code generated - DO NOT EDIT.
 
 //go:build windows
-// +build windows
 
 package model
 

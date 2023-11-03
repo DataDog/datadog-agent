@@ -4,8 +4,7 @@
 // Copyright 2022-present Datadog, Inc.
 // Code generated - DO NOT EDIT.
 
-//go:build unix
-// +build unix
+//go:build unix && !ebpfless
 
 package model
 

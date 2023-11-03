@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build unix && !ebpfless
+//go:build unix && ebpfless
 
 // Package model holds model related files
 package model
@@ -22,47 +22,9 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 		pc.Ancestor.Release()
 	}
 
-	pc.hasValidLineage = nil
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
 	parent.Retain()
-}
-
-func hasValidLineage(pc *ProcessCacheEntry) (bool, error) {
-	var (
-		pid, ppid uint32
-		ctrID     string
-		err       error
-	)
-
-	for pc != nil {
-		if pc.hasValidLineage != nil {
-			return *pc.hasValidLineage, pc.lineageError
-		}
-
-		pid, ppid, ctrID = pc.Pid, pc.PPid, pc.ContainerID
-
-		if pc.IsParentMissing {
-			err = &ErrProcessMissingParentNode{PID: pid, PPID: ppid, ContainerID: ctrID}
-		}
-
-		if pc.Pid == 1 {
-			if pc.Ancestor == nil {
-				return err == nil, err
-			}
-			return false, &ErrProcessWrongParentNode{PID: pid, PPID: pc.Ancestor.Pid, ContainerID: ctrID}
-		}
-		pc = pc.Ancestor
-	}
-
-	return false, &ErrProcessIncompleteLineage{PID: pid, PPID: ppid, ContainerID: ctrID}
-}
-
-// HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent
-func (pc *ProcessCacheEntry) HasValidLineage() (bool, error) {
-	res, err := hasValidLineage(pc)
-	pc.hasValidLineage, pc.lineageError = &res, err
-	return res, err
 }
 
 // Exit a process
@@ -82,18 +44,12 @@ func copyProcessContext(parent, child *ProcessCacheEntry) {
 	}
 }
 
-// ApplyExecTimeOf replace previous entry values by the given one
-func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
-	pc.ExecTime = entry.ExecTime
-}
-
 // Exec replace a process
 func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	entry.SetAncestor(pc)
 
 	// use exec time as exit time
 	pc.Exit(entry.ExecTime)
-	entry.Process.IsExecChild = !pc.IsThread
 
 	// keep some context
 	copyProcessContext(pc, entry)
@@ -106,20 +62,14 @@ func (pc *ProcessCacheEntry) SetParentOfForkChild(parent *ProcessCacheEntry) {
 		pc.ArgsEntry = parent.ArgsEntry
 		pc.EnvsEntry = parent.EnvsEntry
 	}
-	pc.IsThread = true
 }
 
 // Fork returns a copy of the current ProcessCacheEntry
 func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 	childEntry.PPid = pc.Pid
-	childEntry.TTYName = pc.TTYName
-	childEntry.Comm = pc.Comm
 	childEntry.FileEvent = pc.FileEvent
 	childEntry.ContainerID = pc.ContainerID
 	childEntry.ExecTime = pc.ExecTime
-	childEntry.Credentials = pc.Credentials
-	childEntry.LinuxBinprm = pc.LinuxBinprm
-	childEntry.Cookie = pc.Cookie
 
 	childEntry.SetParentOfForkChild(pc)
 }
@@ -127,28 +77,16 @@ func (pc *ProcessCacheEntry) Fork(childEntry *ProcessCacheEntry) {
 // Equals returns whether process cache entries share the same values for file and args/envs
 func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 	return (pc.FileEvent.Equals(&entry.FileEvent) &&
-		pc.Credentials.Equals(&entry.Credentials) &&
 		pc.ArgsEntry.Equals(entry.ArgsEntry) &&
 		pc.EnvsEntry.Equals(entry.EnvsEntry))
 }
 
-func (pc *ProcessCacheEntry) markFileEventAsResolved() {
-	// mark file path as resolved
-	pc.FileEvent.SetPathnameStr("")
-	pc.FileEvent.SetBasenameStr("")
-
-	// mark interpreter as resolved too
-	pc.LinuxBinprm.FileEvent.SetPathnameStr("")
-	pc.LinuxBinprm.FileEvent.SetBasenameStr("")
-}
-
 // NewPlaceholderProcessCacheEntry returns a new empty process cache entry for failed process resolutions
-func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+func NewPlaceholderProcessCacheEntry(pid uint32) *ProcessCacheEntry {
 	entry := &ProcessCacheEntry{
 		ProcessContext: ProcessContext{
 			Process: Process{
-				PIDContext: PIDContext{Pid: pid, Tid: tid, IsKworker: isKworker},
-				Source:     ProcessCacheEntryFromPlaceholder,
+				PIDContext: PIDContext{Pid: pid},
 			},
 		},
 	}
@@ -156,11 +94,13 @@ func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *Pr
 	return entry
 }
 
-var processContextZero = ProcessCacheEntry{}
+var processContextZero = ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{Source: ProcessCacheEntryFromPlaceholder}}}
 
 // GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
 func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
 	processContextZero.Pid = pid
+	processContextZero.Tid = tid
+	processContextZero.IsKworker = isKworker
 	processContextZero.markFileEventAsResolved()
 	return &processContextZero
 }

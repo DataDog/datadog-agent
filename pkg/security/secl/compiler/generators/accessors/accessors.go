@@ -718,14 +718,7 @@ func parseFile(modelFile string, typesFile string, pkgName string) (*common.Modu
 }
 
 func formatBuildTags(buildTags string) []string {
-	splittedBuildTags := strings.Split(buildTags, ",")
-	var formattedBuildTags []string
-	for _, tag := range splittedBuildTags {
-		if tag != "" {
-			formattedBuildTags = append(formattedBuildTags, fmt.Sprintf("+build %s", tag))
-		}
-	}
-	return formattedBuildTags
+	return strings.Split(buildTags, ",")
 }
 
 func newField(allFields map[string]*common.StructField, field *common.StructField) string {
@@ -991,6 +984,7 @@ var funcMap = map[string]interface{}{
 	"NeedFiltered":             needFiltered,
 	"CombineFieldMaps":         combineFieldMaps,
 	"AddSuffixToFuncPrototype": addSuffixToFuncPrototype,
+	"Join":                     strings.Join,
 }
 
 //go:embed accessors.tmpl
