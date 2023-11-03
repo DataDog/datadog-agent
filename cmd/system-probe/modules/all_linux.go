@@ -23,6 +23,7 @@ var All = []module.Factory{
 	Process,
 	DynamicInstrumentation,
 	LanguageDetectionModule,
+	Pinger,
 }
 
 func inactivityEventLog(duration time.Duration) {

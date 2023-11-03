@@ -21,6 +21,7 @@ var All = []module.Factory{
 	NetworkTracer,
 	EventMonitor,
 	WinCrashProbe,
+	Pinger,
 }
 
 func inactivityEventLog(duration time.Duration) {

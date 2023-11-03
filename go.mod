@@ -600,6 +600,7 @@ require (
 	github.com/godror/godror v0.37.0
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
+	github.com/prometheus-community/pro-bing v0.3.0
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
 	github.com/sijms/go-ora/v2 v2.7.6
 	go.opentelemetry.io/collector/extension v0.87.0
