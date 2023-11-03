@@ -466,45 +466,23 @@ func TestDNSNestedCNAME(t *testing.T) {
 	domain := "nestedcname.com"
 
 	serverIP := testdns.GetServerIP(t)
-	/*	closeFn, _ := newTestServer(t, string(serverIP), 53, "udp", func(w dns.ResponseWriter, r *dns.Msg) {
-			answer := new(dns.Msg)
-			answer.SetReply(r)
-
-			top := new(dns.CNAME)
-			top.Hdr = dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 3600}
-			top.Target = "www.example.com."
-
-			nested := new(dns.CNAME)
-			nested.Hdr = dns.RR_Header{Name: "www.example.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 3600}
-			nested.Target = "www2.example.com."
-
-			ip := new(dns.A)
-			ip.Hdr = dns.RR_Header{Name: "www2.example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 3600}
-			ip.A = net.ParseIP("127.0.0.1")
-
-			answer.Answer = append(answer.Answer, top, nested, ip)
-			answer.SetRcode(r, dns.RcodeSuccess)
-			_ = w.WriteMsg(answer)
-		})
-		defer closeFn()*/
 
 	queryIP, queryPort, reps := sendDNSQueries(t, []string{domain}, serverIP, "udp")
 	require.NotNil(t, reps[0])
 
-	key := getKey(queryIP, queryPort, string(serverIP), syscall.IPPROTO_UDP)
-	fmt.Println("KEY: ", key)
+	key := getKey(queryIP, queryPort, serverIP.String(), syscall.IPPROTO_UDP)
+
 	var allStats StatsByKeyByNameByType
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
-		fmt.Println(allStats)
 		return allStats[key] != nil
-	}, 3*time.Second, 100*time.Millisecond, "missing DNS data for key %v", key)
+	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
 
 	stats := allStats[key][ToHostname(domain)][TypeA]
 	assert.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNoErr)])
 
-	checkSnooping(t, string(serverIP), domain, reverseDNS)
+	checkSnooping(t, serverIP.String(), domain, reverseDNS)
 }
 
 func newTestServer(t *testing.T, ip string, port uint16, protocol string, handler dns.HandlerFunc) (func(), uint16) {
