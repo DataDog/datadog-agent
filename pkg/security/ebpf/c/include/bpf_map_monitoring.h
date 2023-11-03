@@ -12,7 +12,7 @@ struct bpf_lru_stats_t {
     u32 miss;
 };
 
-BPF_ARRAY_MAP(bpf_lru_stats, struct bpf_lru_stats_t, 2)
+BPF_ARRAY_MAP(bpf_lru_stats, struct bpf_lru_stats_t, 1) // max entries will be overridden at runtime
 
 #define lru_map_lookup_with_telemetry(fn, map, key, expected)   \
     ({                                                          \
