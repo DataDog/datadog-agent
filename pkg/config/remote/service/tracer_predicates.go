@@ -47,9 +47,9 @@ func executeTracerPredicates(
 		if err != nil {
 			return nil, err
 		}
-		if configExpired(configMetadata.Expires) {
-			continue
-		}
+		// if configExpired(configMetadata.Expires) {
+		// 	continue
+		// }
 
 		tracerPredicates := configMetadata.Predicates
 		matched := false
