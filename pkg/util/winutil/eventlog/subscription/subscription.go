@@ -15,6 +15,7 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
 	"golang.org/x/sys/windows"
 )
 
@@ -82,6 +83,7 @@ type pullSubscription struct {
 	subscribeOriginFlag uint
 	subscribeFlags      uint
 	bookmark            evtbookmark.Bookmark
+	session             evtsession.Session
 }
 
 // PullSubscriptionOption type for option pattern for NewPullSubscription constructor
@@ -188,6 +190,12 @@ func WithSubscribeFlags(flags uint) PullSubscriptionOption {
 	}
 }
 
+func WithSession(session evtsession.Session) PullSubscriptionOption {
+	return func(q *pullSubscription) {
+		q.session = session
+	}
+}
+
 func (q *pullSubscription) Error() error {
 	return q.err
 }
@@ -215,12 +223,19 @@ func (q *pullSubscription) Start() error {
 		bookmarkHandle = q.bookmark.Handle()
 	}
 
+	// Get session handle, if one was provided
+	sessionHandle := evtapi.EventSessionHandle(0)
+	if q.session != nil {
+		sessionHandle = q.session.Handle()
+	}
+
 	// create subscription
 	hSubWait, err := newSubscriptionSignalEvent()
 	if err != nil {
 		return err
 	}
 	hSub, err := q.eventLogAPI.EvtSubscribe(
+		sessionHandle,
 		hSubWait,
 		q.channelPath,
 		q.query,

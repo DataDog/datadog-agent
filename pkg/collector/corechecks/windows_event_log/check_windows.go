@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 
 	"golang.org/x/sys/windows"
@@ -49,6 +50,7 @@ type Check struct {
 	eventPriority agentEvent.EventPriority
 
 	// event log
+	session             evtsession.Session
 	sub                 evtsubscribe.PullSubscription
 	evtapi              evtapi.API
 	systemRenderContext evtapi.EventRenderContextHandle
@@ -116,9 +118,6 @@ func (c *Check) fetchEvents(sender sender.Sender) (bool, error) {
 			// Use sub.Error() to get the error, if any.
 			err := c.sub.Error()
 			if err != nil {
-				// If there is an error, you must stop the subscription. It is possible to resume
-				// the subscription by calling sub.Start() again.
-				c.sub.Stop()
 				return true, err
 			}
 			return true, nil
@@ -365,6 +364,10 @@ func (c *Check) initSubscription() error {
 	// Batch count
 	opts = append(opts, evtsubscribe.WithEventBatchCount(uint(*c.config.instance.PayloadSize)))
 
+	// session
+	c.session = evtsession.New(c.evtapi)
+	opts = append(opts, evtsubscribe.WithSession(c.session))
+
 	// Create the subscription
 	c.sub = evtsubscribe.NewPullSubscription(
 		*c.config.instance.ChannelPath,
@@ -471,6 +474,10 @@ func (c *Check) validateConfig() error {
 func (c *Check) Cancel() {
 	if c.sub != nil {
 		c.sub.Stop()
+	}
+
+	if c.session != nil {
+		c.session.Close()
 	}
 
 	if c.bookmarkSaver != nil && c.bookmarkSaver.bookmark != nil {

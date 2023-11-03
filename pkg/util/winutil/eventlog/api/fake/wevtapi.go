@@ -26,6 +26,7 @@ import (
 // EvtSubscribe fake
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtsubscribe
 func (api *API) EvtSubscribe(
+	Session evtapi.EventSessionHandle,
 	SignalEvent evtapi.WaitEventHandle,
 	ChannelPath string,
 	Query string,
@@ -34,6 +35,10 @@ func (api *API) EvtSubscribe(
 
 	if Query != "" && Query != "*" {
 		return evtapi.EventResultSetHandle(0), fmt.Errorf("Fake API does not support query syntax")
+	}
+
+	if Session != evtapi.EventSessionHandle(0) {
+		return evtapi.EventResultSetHandle(0), fmt.Errorf("Fake API does not support remote sessions")
 	}
 
 	// ensure channel exists

@@ -54,6 +54,7 @@ func New() *API {
 // Must pass the returned handle to EvtClose when finished using the handle.
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtsubscribe
 func (api *API) EvtSubscribe(
+	Session evtapi.EventSessionHandle,
 	SignalEvent evtapi.WaitEventHandle,
 	ChannelPath string,
 	Query string,
@@ -72,7 +73,7 @@ func (api *API) EvtSubscribe(
 
 	// Call API
 	r1, _, lastErr := evtSubscribe.Call(
-		uintptr(0), // TODO: localhost only for now
+		uintptr(Session),
 		uintptr(SignalEvent),
 		uintptr(unsafe.Pointer(channelPath)),
 		uintptr(unsafe.Pointer(query)),

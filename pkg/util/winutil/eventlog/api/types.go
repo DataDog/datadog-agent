@@ -111,6 +111,9 @@ const (
 
 //revive:enable:var-naming
 
+// EventSessionHandle is a typed windows.Handle returned from EvtOpenSession
+type EventSessionHandle windows.Handle
+
 // EventResultSetHandle is a typed windows.Handle returned from EvtQuery and EvtSubscribe
 type EventResultSetHandle windows.Handle
 
@@ -136,6 +139,7 @@ type WaitEventHandle windows.Handle
 // https://learn.microsoft.com/en-us/windows/win32/wes/windows-event-log-functions
 type API interface {
 	EvtSubscribe(
+		Session EventSessionHandle,
 		SignalEvent WaitEventHandle,
 		ChannelPath string,
 		Query string,
@@ -228,6 +232,11 @@ type EvtVariantValues interface {
 //
 // Helpful wrappers for custom types
 //
+
+// EvtCloseSession closes EventSessionHandle
+func EvtCloseSession(api API, h EventSessionHandle) {
+	api.EvtClose(windows.Handle(h))
+}
 
 // EvtCloseResultSet closes EventResultSetHandle
 func EvtCloseResultSet(api API, h EventResultSetHandle) {
