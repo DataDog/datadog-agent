@@ -10,6 +10,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/stretchr/testify/assert"
@@ -243,10 +244,11 @@ func TestSnsSqsMessageCarrier(t *testing.T) {
 }
 
 func TestExtractTraceContextfromAWSTraceHeader(t *testing.T) {
-	ctx := func(trace, parent uint64) *TraceContext {
+	ctx := func(trace, parent, priority uint64) *TraceContext {
 		return &TraceContext{
-			TraceID:  trace,
-			ParentID: parent,
+			TraceID:          trace,
+			ParentID:         parent,
+			SamplingPriority: sampler.SamplingPriority(priority),
 		}
 	}
 
@@ -277,61 +279,103 @@ func TestExtractTraceContextfromAWSTraceHeader(t *testing.T) {
 		{
 			name:     "just root and parent",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000001",
-			expTc:    ctx(1, 1),
+			expTc:    ctx(1, 1, 0),
 			expNoErr: true,
 		},
 		{
 			name:     "trailing semi-colon",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;",
-			expTc:    ctx(1, 1),
+			expTc:    ctx(1, 1, 0),
 			expNoErr: true,
 		},
 		{
 			name:     "trailing semi-colons",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;;;",
-			expTc:    ctx(1, 1),
+			expTc:    ctx(1, 1, 0),
 			expNoErr: true,
 		},
 		{
 			name:     "parent first",
 			value:    "Parent=0000000000000009;Root=1-00000000-000000000000000000000001",
-			expTc:    ctx(1, 9),
+			expTc:    ctx(1, 9, 0),
 			expNoErr: true,
 		},
 		{
 			name:     "two roots",
 			value:    "Root=1-00000000-000000000000000000000005;Parent=0000000000000009;Root=1-00000000-000000000000000000000001",
-			expTc:    ctx(5, 9),
+			expTc:    ctx(5, 9, 0),
 			expNoErr: true,
 		},
 		{
 			name:     "two parents",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000009;Parent=0000000000000000",
-			expTc:    ctx(1, 9),
+			expTc:    ctx(1, 9, 0),
 			expNoErr: true,
 		},
 		{
-			name:     "sampled is ignored",
+			name:     "sampled 0",
+			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000002;Sampled=0",
+			expTc:    ctx(1, 2, 0),
+			expNoErr: true,
+		},
+		{
+			name:     "sampled 1",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000002;Sampled=1",
-			expTc:    ctx(1, 2),
+			expTc:    ctx(1, 2, 1),
+			expNoErr: true,
+		},
+		{
+			name:     "sampled too big",
+			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000002;Sampled=5",
+			expTc:    ctx(1, 2, 0),
+			expNoErr: true,
+		},
+		{
+			name:     "sampled first",
+			value:    "Sampled=1;Root=1-00000000-000000000000000000000001;Parent=0000000000000002",
+			expTc:    ctx(1, 2, 1),
+			expNoErr: true,
+		},
+		{
+			name:     "multiple sampled uses first 1",
+			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000002;Sampled=1;Sampled=0",
+			expTc:    ctx(1, 2, 1),
+			expNoErr: true,
+		},
+		{
+			name:     "multiple sampled uses first 0",
+			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000002;Sampled=0;Sampled=1",
+			expTc:    ctx(1, 2, 0),
+			expNoErr: true,
+		},
+		{
+			name:     "sampled empty",
+			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000002;Sampled=",
+			expTc:    ctx(1, 2, 0),
+			expNoErr: true,
+		},
+		{
+			name:     "sampled empty then sampled found",
+			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000002;Sampled=;Sampled=1",
+			expTc:    ctx(1, 2, 1),
 			expNoErr: true,
 		},
 		{
 			name:     "with lineage",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;Lineage=a87bd80c:1|68fd508a:5|c512fbe3:2",
-			expTc:    ctx(1, 1),
+			expTc:    ctx(1, 1, 0),
 			expNoErr: true,
 		},
 		{
 			name:     "root too long",
 			value:    "Root=1-00000000-0000000000000000000000010000;Parent=0000000000000001",
-			expTc:    ctx(65536, 1),
+			expTc:    ctx(65536, 1, 0),
 			expNoErr: true,
 		},
 		{
 			name:     "parent too long",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=00000000000000010000",
-			expTc:    ctx(1, 65536),
+			expTc:    ctx(1, 65536, 0),
 			expNoErr: true,
 		},
 		{
@@ -361,31 +405,31 @@ func TestExtractTraceContextfromAWSTraceHeader(t *testing.T) {
 		{
 			name:     "non-zero epoch",
 			value:    "Root=1-5759e988-00000000e1be46a994272793;Parent=53995c3f42cd8ad8",
-			expTc:    ctx(16266516598257821587, 6023947403358210776),
+			expTc:    ctx(16266516598257821587, 6023947403358210776, 0),
 			expNoErr: true,
 		},
 		{
 			name:     "unknown key/value",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;key=value",
-			expTc:    ctx(1, 1),
+			expTc:    ctx(1, 1, 0),
 			expNoErr: true,
 		},
 		{
 			name:     "key no value",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;key=",
-			expTc:    ctx(1, 1),
+			expTc:    ctx(1, 1, 0),
 			expNoErr: true,
 		},
 		{
 			name:     "value no key",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;=value",
-			expTc:    ctx(1, 1),
+			expTc:    ctx(1, 1, 0),
 			expNoErr: true,
 		},
 		{
 			name:     "extra chars suffix",
 			value:    "Root=1-00000000-000000000000000000000001;Parent=0000000000000001;value",
-			expTc:    ctx(1, 1),
+			expTc:    ctx(1, 1, 0),
 			expNoErr: true,
 		},
 		{

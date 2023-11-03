@@ -162,8 +162,10 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 	defer d.Stop()
 
 	var spans []*pb.Span
+	var priorities []int32
 	processTrace := func(p *api.Payload) {
 		for _, c := range p.TracerPayload.Chunks {
+			priorities = append(priorities, c.Priority)
 			for _, span := range c.Spans {
 				spans = append(spans, span)
 			}
@@ -186,6 +188,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 		expInfSpans int
 		expTraceID  uint64
 		expParentID uint64
+		expPriority int32
 	}{
 		{
 			name:        "empty-payload",
@@ -193,6 +196,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expInfSpans: 0,
 			expTraceID:  0,
 			expParentID: 0,
+			expPriority: -128,
 		},
 		{
 			name:        "api-gateway",
@@ -200,6 +204,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expInfSpans: 1,
 			expTraceID:  12345,
 			expParentID: 67890,
+			expPriority: 2,
 		},
 		{
 			name:        "sqs",
@@ -207,6 +212,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expInfSpans: 1,
 			expTraceID:  2684756524522091840,
 			expParentID: 7431398482019833808,
+			expPriority: 1,
 		},
 		{
 			name:        "sqs-batch",
@@ -214,6 +220,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expInfSpans: 1,
 			expTraceID:  2684756524522091840,
 			expParentID: 7431398482019833808,
+			expPriority: 1,
 		},
 		{
 			name:        "sqs_no_dd_context",
@@ -221,6 +228,15 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expInfSpans: 1,
 			expTraceID:  0,
 			expParentID: 0,
+			expPriority: -128,
+		},
+		{
+			name:        "sqs-aws-header",
+			payload:     getEventFromFile("sqs-aws-header.json"),
+			expInfSpans: 1,
+			expTraceID:  12297829382473034410,
+			expParentID: 13527612320720337851,
+			expPriority: 1,
 		},
 		{
 			// NOTE: sns trace extraction not yet implemented
@@ -229,6 +245,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expInfSpans: 1,
 			expTraceID:  0,
 			expParentID: 0,
+			expPriority: -128,
 		},
 		{
 			name:        "sns-sqs",
@@ -236,6 +253,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			expInfSpans: 2,
 			expTraceID:  1728904347387697031,
 			expParentID: 353722510835624345,
+			expPriority: 1,
 		},
 	}
 
@@ -244,6 +262,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 			t.Run(tc.name+fmt.Sprintf("-%v", infEnabled), func(t *testing.T) {
 				assert := assert.New(t)
 				spans = []*pb.Span{}
+				priorities = []int32{}
 				processor.InferredSpansEnabled = infEnabled == 1
 
 				// start-invocation
@@ -285,12 +304,19 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 				}
 				assert.Equal("aws.lambda", tailSpan.Name)
 
+				// assert sampling priorities
+				for _, priority := range priorities {
+					assert.Equal(tc.expPriority, priority)
+				}
+
 				// assert parenting passed to tracer
 				if tailSpan.TraceID != 0 {
 					assert.Equal(fmt.Sprintf("%d", tailSpan.TraceID),
 						respHdr.Get("x-datadog-trace-id"))
+					assert.Equal(fmt.Sprintf("%d", tc.expPriority), respHdr.Get("x-datadog-sampling-priority"))
 				} else {
 					assert.Equal("", respHdr.Get("x-datadog-trace-id"))
+					assert.Equal("", respHdr.Get("x-datadog-sampling-priority"))
 				}
 				if tailSpan.SpanID != 0 {
 					assert.Equal(fmt.Sprintf("%d", tailSpan.SpanID),
