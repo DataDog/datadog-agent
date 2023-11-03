@@ -20,6 +20,9 @@ type Agent interface {
 	// Config runs config command and returns the runtime agent config
 	Config(commandArgs ...AgentArgsOption) string
 
+	// Diagnose runs diagnose command and returns its ouput
+	Diagnose(commandArgs ...AgentArgsOption) string
+
 	// Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
 	Flare(commandArgs ...AgentArgsOption) string
 
