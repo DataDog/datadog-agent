@@ -17,8 +17,9 @@ BPF_ARRAY_MAP(bpf_lru_stats, struct bpf_lru_stats_t, 1) // max entries will be o
 #define lru_map_lookup_with_telemetry(fn, map, key, expected)   \
     ({                                                          \
         void *ret = fn(&map, key);                              \
-        u32 map_key;                                            \
-        LOAD_CONSTANT(MAKE_CONST_NAME(map), map_key);           \
+        u64 map_const;                                          \
+        LOAD_CONSTANT(MAKE_CONST_NAME(map), map_const);         \
+        u32 map_key = (u32)map_const;                           \
         struct bpf_lru_stats_t *stats =                         \
             bpf_map_lookup_elem(&bpf_lru_stats, &map_key);      \
         if (stats && !ret && expected) {                        \
