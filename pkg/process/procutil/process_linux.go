@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 	"unicode"
+	"unsafe"
 
 	"go.uber.org/atomic"
 
@@ -40,12 +41,23 @@ const (
 
 var (
 	// PageSize is the system's memory page size
-	PageSize = uint64(os.Getpagesize())
+	PageSize                    = uint64(os.Getpagesize())
+	keyName                     = []byte("Name")
+	keyState                    = []byte("State")
+	keyUID                      = []byte("Uid")
+	keyGid                      = []byte("Gid")
+	keyNSpid                    = []byte("NSpid")
+	keyThreads                  = []byte("Threads")
+	keyVoluntaryCtxtSwitches    = []byte("voluntary_ctxt_switches")
+	keyNonvoluntaryCtxtSwitches = []byte("nonvoluntary_ctxt_switches")
+	keyVMRSS                    = []byte("VmRSS")
+	keyVMSize                   = []byte("VmSize")
+	keyVMSwap                   = []byte("VmSwap")
 )
 
 type statusInfo struct {
-	name        string
-	status      string
+	name        []byte
+	status      []byte
 	uids        []int32
 	gids        []int32
 	nspid       int32
@@ -187,14 +199,14 @@ func (p *probe) StatsForPIDs(pids []int32, now time.Time) (map[int32]*Stats, err
 		memInfoEx := p.parseStatm(pathForPID)
 
 		stats := &Stats{
-			CreateTime:  statInfo.createTime,    // /proc/[pid]/stat
-			Status:      statusInfo.status,      // /proc/[pid]/status
-			Nice:        statInfo.nice,          // /proc/[pid]/stat
-			CPUTime:     statInfo.cpuStat,       // /proc/[pid]/stat
-			MemInfo:     statusInfo.memInfo,     // /proc/[pid]/status
-			MemInfoEx:   memInfoEx,              // /proc/[pid]/statm
-			CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
-			NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
+			CreateTime:  statInfo.createTime,       // /proc/[pid]/stat
+			Status:      string(statusInfo.status), // /proc/[pid]/status
+			Nice:        statInfo.nice,             // /proc/[pid]/stat
+			CPUTime:     statInfo.cpuStat,          // /proc/[pid]/stat
+			MemInfo:     statusInfo.memInfo,        // /proc/[pid]/status
+			MemInfoEx:   memInfoEx,                 // /proc/[pid]/statm
+			CtxSwitches: statusInfo.ctxSwitches,    // /proc/[pid]/status
+			NumThreads:  statusInfo.numThreads,     // /proc/[pid]/status
 		}
 		if p.elevatedPermissions {
 			stats.OpenFdCount = p.getFDCount(pathForPID) // /proc/[pid]/fd, requires permission checks
@@ -258,21 +270,21 @@ func (p *probe) ProcessesByPID(now time.Time, collectStats bool) (map[int32]*Pro
 			Ppid:    statInfo.ppid,                             // /proc/[pid]/stat
 			Cmdline: cmdline,                                   // /proc/[pid]/cmdline
 			Comm:    comm,                                      // /proc/[pid]/comm
-			Name:    statusInfo.name,                           // /proc/[pid]/status
+			Name:    string(statusInfo.name),                   // /proc/[pid]/status
 			Uids:    statusInfo.uids,                           // /proc/[pid]/status
 			Gids:    statusInfo.gids,                           // /proc/[pid]/status
 			Cwd:     p.getLinkWithAuthCheck(pathForPID, "cwd"), // /proc/[pid]/cwd, requires permission checks
 			Exe:     p.getLinkWithAuthCheck(pathForPID, "exe"), // /proc/[pid]/exe, requires permission checks
 			NsPid:   statusInfo.nspid,                          // /proc/[pid]/status
 			Stats: &Stats{
-				CreateTime:  statInfo.createTime,    // /proc/[pid]/stat
-				Status:      statusInfo.status,      // /proc/[pid]/status
-				Nice:        statInfo.nice,          // /proc/[pid]/stat
-				CPUTime:     statInfo.cpuStat,       // /proc/[pid]/stat
-				MemInfo:     statusInfo.memInfo,     // /proc/[pid]/status
-				MemInfoEx:   memInfoEx,              // /proc/[pid]/statm
-				CtxSwitches: statusInfo.ctxSwitches, // /proc/[pid]/status
-				NumThreads:  statusInfo.numThreads,  // /proc/[pid]/status
+				CreateTime:  statInfo.createTime,       // /proc/[pid]/stat
+				Status:      string(statusInfo.status), // /proc/[pid]/status
+				Nice:        statInfo.nice,             // /proc/[pid]/stat
+				CPUTime:     statInfo.cpuStat,          // /proc/[pid]/stat
+				MemInfo:     statusInfo.memInfo,        // /proc/[pid]/status
+				MemInfoEx:   memInfoEx,                 // /proc/[pid]/statm
+				CtxSwitches: statusInfo.ctxSwitches,    // /proc/[pid]/status
+				NumThreads:  statusInfo.numThreads,     // /proc/[pid]/status
 			},
 		}
 		if p.elevatedPermissions {
@@ -496,77 +508,85 @@ func (p *probe) parseStatusLine(line []byte, sInfo *statusInfo) {
 		if i+2 < len(line) && line[i] == ':' && unicode.IsSpace(rune(line[i+1])) {
 			key := line[0:i]
 			value := line[i+2:]
-			p.parseStatusKV(string(key), string(value), sInfo)
+			p.parseStatusKV(key, value, sInfo)
 			break
 		}
 	}
 }
 
-// parseStatusKV takes tokens parsed from each line in "status" file and populates statusInfo object
-func (p *probe) parseStatusKV(key, value string, sInfo *statusInfo) {
-	switch key {
-	case "Name":
-		sInfo.name = strings.Trim(value, " \t")
-	case "State":
-		sInfo.status = value[0:1]
-	case "Uid":
-		sInfo.uids = make([]int32, 0, 4)
-		for _, i := range strings.Split(value, "\t") {
-			v, err := strconv.ParseInt(i, 10, 32)
-			if err == nil {
-				sInfo.uids = append(sInfo.uids, int32(v))
+// parseStatusKV takes tokens parsed from each line in "status" file and
+// populates statusInfo object.
+//
+// Notes on Performance:
+// Passed key, value are byte slices and we attempt to avoid coercion
+// to string in this function: string allocation is expensive and this function
+// is called often in the operation of the process-agent. There are still some
+// functions in the call-stack here that allocate. It's possible that this
+// function could be made zero-copy with some more effort, should the need arise.
+func (p *probe) parseStatusKV(key, value []byte, sInfo *statusInfo) {
+	switch {
+	case bytes.Equal(key, keyName):
+		sInfo.name = bytes.Trim(value, " \t")
+	case bytes.Equal(key, keyState):
+		sInfo.status = value[:1]
+	case bytes.Equal(key, keyUID), bytes.Equal(key, keyGid):
+		values := bytes.Fields(value)
+		ints := make([]int32, 0, len(values))
+		for _, v := range values {
+			if i, err := parseBytesToInt(v, 10, 32); err == nil {
+				ints = append(ints, int32(i))
 			}
 		}
-	case "Gid":
-		sInfo.gids = make([]int32, 0, 4)
-		for _, i := range strings.Split(value, "\t") {
-			v, err := strconv.ParseInt(i, 10, 32)
-			if err == nil {
-				sInfo.gids = append(sInfo.gids, int32(v))
-			}
+		if key[0] == 'U' {
+			sInfo.uids = ints
+		} else {
+			sInfo.gids = ints
 		}
-	case "NSpid":
-		values := strings.Split(value, "\t")
+	case bytes.Equal(key, keyNSpid):
+		values := bytes.Split(value, []byte("\t"))
 		// only report process namespaced PID
-		v, err := strconv.ParseInt(values[len(values)-1], 10, 32)
-		if err == nil {
+		if v, err := parseBytesToInt(values[len(values)-1], 10, 32); err == nil {
 			sInfo.nspid = int32(v)
 		}
-	case "Threads":
-		v, err := strconv.ParseInt(value, 10, 32)
-		if err == nil {
+	case bytes.Equal(key, keyThreads):
+		if v, err := parseBytesToInt(value, 10, 32); err == nil {
 			sInfo.numThreads = int32(v)
 		}
-	case "voluntary_ctxt_switches":
-		v, err := strconv.ParseInt(value, 10, 64)
-		if err == nil {
-			sInfo.ctxSwitches.Voluntary = v
+	case bytes.Equal(key, keyVoluntaryCtxtSwitches), bytes.Equal(key, keyNonvoluntaryCtxtSwitches):
+		if v, err := parseBytesToInt(value, 10, 64); err == nil {
+			if key[0] == 'v' {
+				sInfo.ctxSwitches.Voluntary = v
+			} else {
+				sInfo.ctxSwitches.Involuntary = v
+			}
 		}
-	case "nonvoluntary_ctxt_switches":
-		v, err := strconv.ParseInt(value, 10, 64)
-		if err == nil {
-			sInfo.ctxSwitches.Involuntary = v
-		}
-	case "VmRSS":
-		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
-		value = strings.Trim(value, " ")
-		v, err := strconv.ParseUint(value, 10, 64)
-		if err == nil {
-			sInfo.memInfo.RSS = v * 1024
-		}
-	case "VmSize":
-		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
-		value = strings.Trim(value, " ")
-		v, err := strconv.ParseUint(value, 10, 64)
-		if err == nil {
-			sInfo.memInfo.VMS = v * 1024
-		}
-	case "VmSwap":
-		value := strings.TrimSuffix(value, "kB") // trim spaces and suffix "kB"
-		value = strings.Trim(value, " ")
-		v, err := strconv.ParseUint(value, 10, 64)
-		if err == nil {
-			sInfo.memInfo.Swap = v * 1024
+	case bytes.Equal(key, keyVMRSS), bytes.Equal(key, keyVMSize), bytes.Equal(key, keyVMSwap):
+		parseMemInfo(value, key, sInfo.memInfo)
+	}
+}
+
+func parseBytesToInt(buf []byte, base int, bitSize int) (int64, error) {
+	// Safety: We are not modifying the contents of the byte slice.
+	return strconv.ParseInt(*(*string)(unsafe.Pointer(&buf)), base, bitSize)
+}
+
+func parseBytesToUint(buf []byte, base int, bitSize int) (uint64, error) {
+	// Safety: We are not modifying the contents of the byte slice.
+	return strconv.ParseUint(*(*string)(unsafe.Pointer(&buf)), base, bitSize)
+}
+
+func parseMemInfo(value, key []byte, memInfo *MemoryInfoStat) {
+	value = bytes.TrimSuffix(value, []byte("kB"))
+	value = bytes.TrimSpace(value)
+	if v, err := parseBytesToUint(value, 10, 64); err == nil {
+		v *= 1024
+		switch key[3] { // Using the fourth byte to differentiate between RSS, Size, and Swap
+		case 'S': // VmRSS
+			memInfo.RSS = v
+		case 'i': // VmSize
+			memInfo.VMS = v
+		case 'w': // VmSwap
+			memInfo.Swap = v
 		}
 	}
 }

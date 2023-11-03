@@ -81,7 +81,7 @@ Package server implements a component to run the dogstatsd server
 
 ### [comp/dogstatsd/serverDebug](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/serverDebug)
 
-Package serverDebug implements a component to run the dogstatsd server debug
+Package serverdebug implements a component to run the dogstatsd server debug
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder) (Component Bundle)
 
@@ -92,6 +92,16 @@ Package forwarder implements the "forwarder" bundle
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder/defaultforwarder)
 
 Package defaultForwarder implements a component to send payloads to the backend
+
+## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/languagedetection) (Component Bundle)
+
+*Datadog Team*: container-integrations
+
+Package languagedetection implements the "languagedetection" bundle
+
+### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/languagedetection/client)
+
+Package client implements a component to send process metadata to the Cluster-Agent
 
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/logs) (Component Bundle)
 

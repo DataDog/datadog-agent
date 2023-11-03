@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -823,6 +824,27 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	}
 
 	return &ps
+}
+
+// ToJSON returns json
+func (e *EventSerializer) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
+// MarshalJSON returns json
+func (e *EventSerializer) MarshalJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
+// MarshalEvent marshal the event
+func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error) {
+	s := NewEventSerializer(event, probe)
+	return utils.MarshalEasyJSON(s)
+}
+
+// MarshalCustomEvent marshal the custom event
+func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
+	return event.MarshalJSON()
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
