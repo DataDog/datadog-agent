@@ -20,6 +20,249 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
+const (
+	hostname  string = "mockhost"
+	fullIndex string = "9"
+	ifSpeed   uint64 = 80 * (1e6)
+)
+
+func interfaceRateMapWithPrevious() *InterfaceRateMap {
+	interfaceID := hostname + fullIndex
+	return MockInterfaceRateMap(interfaceID, ifSpeed, ifSpeed, 30, 5, 15)
+}
+
+func interfaceRateMapWithConfig() *InterfaceRateMap {
+	interfaceID := hostname + fullIndex
+	return MockInterfaceRateMap(interfaceID, 160_000_000, 40_000_000, 20, 10, 15)
+}
+
+func Test_metricSender_calculateRate(t *testing.T) {
+	type Metric struct {
+		name  string
+		value float64
+	}
+	tests := []struct {
+		name             string
+		symbols          []profiledefinition.SymbolConfig
+		fullIndex        string
+		values           *valuestore.ResultValueStore
+		tags             []string
+		interfaceConfigs []snmpintegration.InterfaceConfig
+		expectedMetric   []Metric
+		usageValue       float64
+	}{
+		{
+			name:      "snmp.ifBandwidthOutUsage.Rate ifHCInOctets Gauge submitted",
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			fullIndex: "9",
+			tags:      []string{"abc"},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					// ifHCInOctets
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 5000000.0,
+						},
+					},
+					// ifHCOutOctets
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 1000000.0,
+						},
+					},
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 80.0,
+						},
+					},
+				},
+			},
+			expectedMetric: []Metric{
+				// current @ ts 30
+				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
+				// previous @ ts 15
+				// ((3000000 * 8) / (80 * 1000000)) * 100 = 30.0
+				// rate generated between ts 15 and 30
+				// (50 - 30) / (30 - 15)
+				{"snmp.ifBandwidthInUsage.rate", 20.0 / 15.0},
+			},
+			usageValue: 50,
+		},
+		{
+			name:      "snmp.ifBandwidthOutUsage.Rate ifHCOutOctets submitted",
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"}},
+			fullIndex: "9",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					// ifHCInOctets
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 5000000.0,
+						},
+					},
+					// ifHCOutOctets
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 1000000.0,
+						},
+					},
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 80.0,
+						},
+					},
+				},
+			},
+			expectedMetric: []Metric{
+				// current @ ts 30
+				// ((1000000 * 8) / (80 * 1000000)) * 100 = 10.0
+				// previous @ ts 15
+				// ((500000 * 8) / (80 * 1000000)) * 100 = 5.0
+				// rate generated between ts 15 and 30
+				// (10 - 5) / (30 - 15)
+				{"snmp.ifBandwidthOutUsage.rate", 5.0 / 15.0},
+			},
+			usageValue: 10,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			TimeNow = 30
+			ms := &MetricSender{
+				sender:           sender,
+				hostname:         hostname,
+				interfaceConfigs: tt.interfaceConfigs,
+				interfaceRateMap: interfaceRateMapWithPrevious(),
+			}
+
+			usageName := bandwidthMetricNameToUsage[tt.symbols[0].Name]
+			interfaceID := hostname + fullIndex + usageName
+			err := ms.calculateRate(interfaceID, ifSpeed, tt.usageValue, usageName, tt.tags)
+
+			// Expect no errors
+			assert.Nil(t, err)
+
+			// Expect rate to be submitted as Gauge with expected value
+			for _, metric := range tt.expectedMetric {
+				sender.AssertMetric(t, "Gauge", metric.name, metric.value, hostname, tt.tags)
+			}
+
+			// Check that the map was updated with current values for next check run
+			assert.Equal(t, ifSpeed, ms.interfaceRateMap.rates[interfaceID].ifSpeed)
+			assert.Equal(t, tt.usageValue, ms.interfaceRateMap.rates[interfaceID].previousSample)
+			assert.Equal(t, TimeNow, ms.interfaceRateMap.rates[interfaceID].previousTs)
+		})
+	}
+}
+
+func Test_metricSender_calculateRate_errors(t *testing.T) {
+	tests := []struct {
+		name             string
+		symbols          []profiledefinition.SymbolConfig
+		fullIndex        string
+		values           *valuestore.ResultValueStore
+		tags             []string
+		interfaceConfigs []snmpintegration.InterfaceConfig
+		expectedError    error
+		usageValue       float64
+	}{
+		{
+			name:      "snmp.ifBandwidthOutUsage.Rate ifHCInOctets Gauge submitted",
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			fullIndex: "9",
+			tags:      []string{"abc"},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					// ifHCInOctets
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 5000000.0,
+						},
+					},
+					// ifHCOutOctets
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 1000000.0,
+						},
+					},
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 80.0,
+						},
+					},
+				},
+			},
+			expectedError: fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "mockhost9ifBandwidthInUsage"),
+			// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
+			usageValue: 50,
+		},
+		{
+			name:      "snmp.ifBandwidthOutUsage.Rate ifHCOutOctets submitted",
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"}},
+			fullIndex: "9",
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					// ifHCInOctets
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 5000000.0,
+						},
+					},
+					// ifHCOutOctets
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 1000000.0,
+						},
+					},
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 80.0,
+						},
+					},
+				},
+			},
+			expectedError: fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "mockhost9ifBandwidthOutUsage"),
+			// ((1000000 * 8) / (80 * 1000000)) * 100 = 10.0
+			usageValue: 10,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			TimeNow = 30
+			ms := &MetricSender{
+				sender:           sender,
+				hostname:         hostname,
+				interfaceConfigs: tt.interfaceConfigs,
+				interfaceRateMap: interfaceRateMapWithPrevious(),
+			}
+			// conflicting ifSpeed from mocked saved state (80) in interfaceRateMap
+			newIfSpeed := uint64(100) * (1e6)
+
+			for _, symbol := range tt.symbols {
+				usageName := bandwidthMetricNameToUsage[symbol.Name]
+				interfaceID := hostname + fullIndex + usageName
+				err := ms.calculateRate(interfaceID, newIfSpeed, tt.usageValue, usageName, tt.tags)
+				assert.Equal(t, tt.expectedError, err)
+
+				// Check that the map was updated with current values for next check run
+				assert.Equal(t, newIfSpeed, ms.interfaceRateMap.rates[interfaceID].ifSpeed)
+				assert.Equal(t, tt.usageValue, ms.interfaceRateMap.rates[interfaceID].previousSample)
+				assert.Equal(t, TimeNow, ms.interfaceRateMap.rates[interfaceID].previousTs)
+			}
+		})
+	}
+}
+
 func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 	type Metric struct {
 		name  string
@@ -34,6 +277,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		interfaceConfigs []snmpintegration.InterfaceConfig
 		expectedMetric   []Metric
 		expectedError    error
+		rateMap          *InterfaceRateMap
 	}{
 		{
 			name:      "snmp.ifBandwidthInUsage.Rate submitted",
@@ -64,8 +308,9 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{
 				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
-				{"snmp.ifBandwidthInUsage.rate", 50.0},
+				{"snmp.ifBandwidthInUsage.rate", 20.0 / 15.0},
 			},
+			rateMap: interfaceRateMapWithPrevious(),
 		},
 		{
 			name:      "snmp.ifBandwidthOutUsage.Rate submitted",
@@ -95,8 +340,9 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{
 				// ((1000000 * 8) / (80 * 1000000)) * 100 = 10.0
-				{"snmp.ifBandwidthOutUsage.rate", 10.0},
+				{"snmp.ifBandwidthOutUsage.rate", 5.0 / 15.0},
 			},
+			rateMap: interfaceRateMapWithPrevious(),
 		},
 		{
 			name:      "not a bandwidth metric",
@@ -106,6 +352,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				ColumnValues: valuestore.ColumnResultValuesType{},
 			},
 			expectedMetric: []Metric{},
+			rateMap:        interfaceRateMapWithPrevious(),
 		},
 		{
 			name:      "missing ifHighSpeed",
@@ -129,6 +376,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{},
 			expectedError:  fmt.Errorf("bandwidth usage: missing `ifHighSpeed` metric, skipping metric. fullIndex=9"),
+			rateMap:        interfaceRateMapWithPrevious(),
 		},
 		{
 			name:      "missing ifHCInOctets",
@@ -152,6 +400,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{},
 			expectedError:  fmt.Errorf("bandwidth usage: missing `ifHCInOctets` metric, skipping this row. fullIndex=9"),
+			rateMap:        interfaceRateMapWithPrevious(),
 		},
 		{
 			name:      "missing ifHCOutOctets",
@@ -335,10 +584,15 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{
 				// ((5000000 * 8) / (160 * 1000000)) * 100 = 25.0
-				{"snmp.ifBandwidthInUsage.rate", 25.0},
+				// previous sample: 20
+				// (25 - 20) / (30 - 15)
+				{"snmp.ifBandwidthInUsage.rate", 5.0 / 15.0},
 				// ((1000000 * 8) / (40 * 1000000)) * 100 = 20.0
-				{"snmp.ifBandwidthOutUsage.rate", 20.0},
+				// previous sample: 10
+				// (20 - 10) / (30 / 15)
+				{"snmp.ifBandwidthOutUsage.rate", 10.0 / 15.0},
 			},
+			rateMap: interfaceRateMapWithConfig(),
 		},
 		{
 			name: "[custom speed] snmp.ifBandwidthIn/OutUsage.rate with custom interface speed matched by index",
@@ -383,20 +637,30 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{
 				// ((5000000 * 8) / (160 * 1000000)) * 100 = 25.0
-				{"snmp.ifBandwidthInUsage.rate", 25.0},
+				// previous sample: 20
+				// (25 - 20) / (30 - 15)
+				{"snmp.ifBandwidthInUsage.rate", 5.0 / 15.0},
 				// ((1000000 * 8) / (40 * 1000000)) * 100 = 20.0
-				{"snmp.ifBandwidthOutUsage.rate", 20.0},
+				// previous sample: 10
+				// (20 - 10) / (30 / 15)
+				{"snmp.ifBandwidthOutUsage.rate", 10.0 / 15.0},
 			},
+			rateMap: interfaceRateMapWithConfig(),
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+			TimeNow = 30
 
 			ms := &MetricSender{
 				sender:           sender,
 				interfaceConfigs: tt.interfaceConfigs,
+				interfaceRateMap: tt.rateMap,
+				hostname:         hostname,
 			}
 			for _, symbol := range tt.symbols {
 				err := ms.sendBandwidthUsageMetric(symbol, tt.fullIndex, tt.values, tt.tags)
@@ -404,7 +668,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			}
 
 			for _, metric := range tt.expectedMetric {
-				sender.AssertMetric(t, "Rate", metric.name, metric.value, "", tt.tags)
+				sender.AssertMetric(t, "Gauge", metric.name, metric.value, hostname, tt.tags)
 			}
 		})
 	}
@@ -565,6 +829,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 			ms := &MetricSender{
 				sender:           sender,
 				interfaceConfigs: tt.interfaceConfigs,
+				interfaceRateMap: NewInterfaceRateMap(),
 			}
 			ms.sendIfSpeedMetrics(tt.symbol, tt.fullIndex, tt.values, tt.tags)
 
@@ -616,8 +881,7 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 				},
 			},
 			[]Metric{
-				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
-				{"Rate", "snmp.ifBandwidthInUsage.rate", 50.0},
+				{"Gauge", "snmp.ifBandwidthInUsage.rate", 20.0 / 15.0},
 				{"Gauge", "snmp.ifInSpeed", 80_000_000},
 				{"Gauge", "snmp.ifOutSpeed", 80_000_000},
 			},
@@ -657,14 +921,17 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
+			TimeNow = 30
 			ms := &MetricSender{
-				sender: sender,
+				sender:           sender,
+				interfaceRateMap: interfaceRateMapWithPrevious(),
+				hostname:         hostname,
 			}
 			tags := []string{"foo:bar"}
 			ms.sendInterfaceVolumeMetrics(tt.symbol, tt.fullIndex, tt.values, tags)
 
 			for _, metric := range tt.expectedMetric {
-				sender.AssertMetric(t, metric.metricMethod, metric.name, metric.value, "", tags)
+				sender.AssertMetric(t, metric.metricMethod, metric.name, metric.value, hostname, tags)
 			}
 		})
 	}
