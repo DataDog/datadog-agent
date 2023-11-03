@@ -46,14 +46,7 @@ func hasCompleteLineageInner(pc *ProcessCacheEntry) bool {
 // HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
 func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
 	res := hasCompleteLineageInner(pc)
-
-	for pc != nil {
-		pc.hasCompleteLineage = &res
-		if pc.Pid == 1 {
-			break
-		}
-		pc = pc.Ancestor
-	}
+	pc.hasCompleteLineage = &res
 	return res
 }
 
