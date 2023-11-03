@@ -62,6 +62,7 @@ var defaultPeerTags = []string{
 	"db.hostname",
 	"db.instance",
 	"db.name",
+	"db.system",
 	"hazelcast.instance",
 	"messaging.kafka.bootstrap.servers",
 	"mongodb.db",
