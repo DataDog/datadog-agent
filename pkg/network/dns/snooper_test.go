@@ -160,7 +160,6 @@ func sendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port 
 	conn, err := dnsClient.Dial(dnsHost)
 	require.NoError(t, err)
 
-	var reps []*mdns.Msg
 	var queryPort int
 	if protocol == "tcp" {
 		queryPort = conn.Conn.(*net.TCPConn).LocalAddr().(*net.TCPAddr).Port
@@ -168,6 +167,7 @@ func sendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port 
 		queryPort = conn.Conn.(*net.UDPConn).LocalAddr().(*net.UDPAddr).Port
 	}
 
+	var reps []*mdns.Msg
 	for _, domain := range domains {
 		msg.SetQuestion(mdns.Fqdn(domain), mdns.TypeA)
 		rep, _, _ := dnsClient.ExchangeWithConn(msg, conn)
@@ -303,19 +303,12 @@ func TestDNSFailedResponseCount(t *testing.T) {
 	queryIP, queryPort, reps := sendDNSQueries(t, domains, testdns.GetServerIP(t), "tcp")
 	for _, rep := range reps {
 		require.NotNil(t, rep)
-		require.NotEqual(t, rep.Rcode, mdns.RcodeSuccess) // All the queries should have failed
+		require.Equal(t, rep.Rcode, mdns.RcodeNameError) // All the queries should have failed
 	}
-	key1 := getKey(queryIP, queryPort, testdns.GetServerIP(t).String(), syscall.IPPROTO_TCP)
 
-	h := handler{}
-	shutdown, _ := newTestServer(t, localhost, 53, "udp", h.ServeDNS)
-	defer shutdown()
-
-	// TODO?
-	queryIP, queryPort, _ = sendDNSQueries(t, domains, net.ParseIP(localhost), "udp")
 	var allStats StatsByKeyByNameByType
-
 	// First check the one sent over TCP. Expected error type: NXDomain
+	key1 := getKey(queryIP, queryPort, testdns.GetServerIP(t).String(), syscall.IPPROTO_TCP)
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
 		return hasDomains(allStats[key1], domains...)
@@ -323,6 +316,16 @@ func TestDNSFailedResponseCount(t *testing.T) {
 	for _, d := range domains {
 		require.Equal(t, 1, len(allStats[key1][ToHostname(d)][TypeA].CountByRcode))
 		assert.Equal(t, uint32(1), allStats[key1][ToHostname(d)][TypeA].CountByRcode[uint32(layers.DNSResponseCodeNXDomain)], "expected one NXDOMAIN for %s, got %v", d, allStats[key1][ToHostname(d)])
+	}
+
+	domains = []string{
+		"failedserver.com",
+		"failedservertoo.com",
+	}
+	queryIP, queryPort, reps = sendDNSQueries(t, domains, net.ParseIP(localhost), "udp")
+	for _, rep := range reps {
+		require.NotNil(t, rep)
+		require.Equal(t, rep.Rcode, mdns.RcodeServerFailure) // All the queries should have failed
 	}
 
 	// Next check the one sent over UDP. Expected error type: ServFail
@@ -343,7 +346,7 @@ func TestDNSOverNonPort53(t *testing.T) {
 	statKeeper := reverseDNS.statKeeper
 
 	domains := []string{
-		"nonexistent.com.net",
+		"nonexistent.net.com",
 	}
 	h := &handler{}
 	shutdown, port := newTestServer(t, localhost, 0, "udp", h.ServeDNS)
@@ -459,44 +462,49 @@ func TestDNSNestedCNAME(t *testing.T) {
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper
 
-	serverIP := "127.0.0.1"
-	closeFn, _ := newTestServer(t, serverIP, 53, "udp", func(w dns.ResponseWriter, r *dns.Msg) {
-		answer := new(dns.Msg)
-		answer.SetReply(r)
+	testdns.GetServerIP(t)
+	domain := "nestedcname.com"
 
-		top := new(dns.CNAME)
-		top.Hdr = dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 3600}
-		top.Target = "www.example.com."
+	serverIP := testdns.GetServerIP(t)
+	/*	closeFn, _ := newTestServer(t, string(serverIP), 53, "udp", func(w dns.ResponseWriter, r *dns.Msg) {
+			answer := new(dns.Msg)
+			answer.SetReply(r)
 
-		nested := new(dns.CNAME)
-		nested.Hdr = dns.RR_Header{Name: "www.example.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 3600}
-		nested.Target = "www2.example.com."
+			top := new(dns.CNAME)
+			top.Hdr = dns.RR_Header{Name: "example.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 3600}
+			top.Target = "www.example.com."
 
-		ip := new(dns.A)
-		ip.Hdr = dns.RR_Header{Name: "www2.example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 3600}
-		ip.A = net.ParseIP("127.0.0.1")
+			nested := new(dns.CNAME)
+			nested.Hdr = dns.RR_Header{Name: "www.example.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 3600}
+			nested.Target = "www2.example.com."
 
-		answer.Answer = append(answer.Answer, top, nested, ip)
-		answer.SetRcode(r, dns.RcodeSuccess)
-		_ = w.WriteMsg(answer)
-	})
-	defer closeFn()
+			ip := new(dns.A)
+			ip.Hdr = dns.RR_Header{Name: "www2.example.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 3600}
+			ip.A = net.ParseIP("127.0.0.1")
 
-	queryIP, queryPort, reps := sendDNSQueries(t, []string{"example.com"}, net.ParseIP(serverIP), "udp")
+			answer.Answer = append(answer.Answer, top, nested, ip)
+			answer.SetRcode(r, dns.RcodeSuccess)
+			_ = w.WriteMsg(answer)
+		})
+		defer closeFn()*/
+
+	queryIP, queryPort, reps := sendDNSQueries(t, []string{domain}, serverIP, "udp")
 	require.NotNil(t, reps[0])
 
-	key := getKey(queryIP, queryPort, serverIP, syscall.IPPROTO_UDP)
+	key := getKey(queryIP, queryPort, string(serverIP), syscall.IPPROTO_UDP)
+	fmt.Println("KEY: ", key)
 	var allStats StatsByKeyByNameByType
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
+		fmt.Println(allStats)
 		return allStats[key] != nil
-	}, 3*time.Second, 10*time.Millisecond, "missing DNS data for key %v", key)
+	}, 3*time.Second, 100*time.Millisecond, "missing DNS data for key %v", key)
 
-	stats := allStats[key][ToHostname("example.com")][TypeA]
+	stats := allStats[key][ToHostname(domain)][TypeA]
 	assert.Equal(t, 1, len(stats.CountByRcode))
 	assert.Equal(t, uint32(1), stats.CountByRcode[uint32(layers.DNSResponseCodeNoErr)])
 
-	checkSnooping(t, serverIP, "example.com", reverseDNS)
+	checkSnooping(t, string(serverIP), domain, reverseDNS)
 }
 
 func newTestServer(t *testing.T, ip string, port uint16, protocol string, handler dns.HandlerFunc) (func(), uint16) {

@@ -9,6 +9,7 @@
 package testdns
 
 import (
+	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -50,24 +51,48 @@ func (s *server) Start(transport string) {
 		Handler: dns.HandlerFunc(func(writer dns.ResponseWriter, msg *dns.Msg) {
 			switch msg.Question[0].Name {
 			case "good.com.":
+				fmt.Println("hit good.com")
 				respond(msg, writer, "good.com. 30 IN A  10.0.0.1")
 			case "golang.org.":
+				fmt.Println("hit golang.org")
 				respond(msg, writer, "golang.org. 30 IN A  10.0.0.2")
 			case "google.com.":
+				fmt.Println("hit google.com")
 				respond(msg, writer, "google.com. 30 IN A  10.0.0.3")
 			case "acm.org.":
+				fmt.Println("hit acm.org")
 				respond(msg, writer, "acm.org. 30 IN A  10.0.0.4")
 			case "nonexistenent.net.com.":
+				fmt.Println("hit nonexistent.net.com")
 				resp := &dns.Msg{}
 				resp.SetReply(msg)
 				resp.Rcode = dns.RcodeNameError
 				_ = writer.WriteMsg(resp)
 			case "missingdomain.com.":
+				fmt.Println("hit missingdomain.com")
 				resp := &dns.Msg{}
 				resp.SetReply(msg)
 				resp.Rcode = dns.RcodeNameError
 				_ = writer.WriteMsg(resp)
+			case "nestedcname.com.":
+				fmt.Println("hit nestedcname.com")
+				answer := new(dns.Msg)
+				answer.SetReply(msg)
+				top := new(dns.CNAME)
+				top.Hdr = dns.RR_Header{Name: "nestedcname.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 3600}
+				top.Target = "www.nestedcname.com."
+				nested := new(dns.CNAME)
+				nested.Hdr = dns.RR_Header{Name: "www.nestedcname.com.", Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: 3600}
+				nested.Target = "www2.nestedcname.com."
+				ip := new(dns.A)
+				ip.Hdr = dns.RR_Header{Name: "www2.nestedcname.com.", Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 3600}
+				ip.A = net.ParseIP("127.0.0.1")
+
+				answer.Answer = append(answer.Answer, top, nested, ip)
+				answer.SetRcode(msg, dns.RcodeSuccess)
+				_ = writer.WriteMsg(answer)
 			default:
+				fmt.Println("hit default")
 				resp := &dns.Msg{}
 				resp.SetReply(msg)
 				resp.Rcode = dns.RcodeServerFailure
