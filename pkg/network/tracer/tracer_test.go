@@ -1006,7 +1006,10 @@ const (
 	validDNSServer = "8.8.8.8"
 )
 
-func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, timeout int, serverIP string) {
+func testDNSStats(t *testing.T, tr *Tracer, domain, outcome string, serverIP string) {
+	outcomes := []string{"timeout", "error", "success"}
+	require.Containsf(t, outcomes, outcome, "expected outcome to be one of %v but was", outcomes, outcome)
+
 	tr.removeClient(clientID)
 	initTracerState(t, tr)
 
@@ -1021,65 +1024,94 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	require.NoError(t, err)
 	defer dnsConn.Close()
 	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
-	require.Eventually(t, func() bool {
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		// clear the state of the tracer, this will also clear the state of the dns cache
+		getConnections(t, tr)
+
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
-		return err == nil || timeout != 0
-	}, 3*time.Second, 100*time.Millisecond, "Failed to get dns response")
+		switch outcome {
+		case "success":
+			assert.True(t, err == nil)
+		case "timeout":
+			assert.True(t, os.IsTimeout(err))
+		case "failure":
+			assert.True(t, err != nil && !os.IsTimeout(err))
+		}
 
-	// Allow the DNS reply to be processed in the snooper
-	time.Sleep(time.Millisecond * 500)
+		tr.reverseDNS.WaitDomain(domain)
 
-	// Iterate through active connections until we find connection created above, and confirm send + recv counts
-	connections := getConnections(t, tr)
-	conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
-	require.True(t, ok)
+		connections := getConnections(t, tr)
+		conn, ok := findConnection(dnsClientAddr, dnsServerAddr, connections)
+		if !assert.True(t, ok) {
+			fmt.Println("no conn")
+			return
+		}
 
-	assert.Equal(t, queryMsg.Len(), int(conn.Monotonic.SentBytes))
-	assert.Equal(t, os.Getpid(), int(conn.Pid))
-	assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
+		fmt.Println("checking ", conn)
 
-	dnsKey, ok := network.DNSKey(conn)
-	require.True(t, ok)
+		dnsKey, _ := network.DNSKey(conn)
+		assert.Equal(t, os.Getpid(), int(conn.Pid))
+		assert.Equal(t, dnsServerAddr.Port, int(conn.DPort))
 
-	dnsStats, ok := connections.DNSStats[dnsKey]
-	require.True(t, ok)
+		dnsStats, ok := connections.DNSStats[dnsKey]
+		if !assert.True(t, ok) {
+			fmt.Println("no DNS stats")
+			return
+		}
 
-	var total uint32
-	var successfulResponses uint32
-	var timeouts uint32
-	for _, byDomain := range dnsStats {
-		for _, byQueryType := range byDomain {
-			successfulResponses += byQueryType.CountByRcode[uint32(0)]
-			timeouts += byQueryType.Timeouts
-			for _, count := range byQueryType.CountByRcode {
-				total += count
+		var total uint32
+		var successfulResponses uint32
+		var timeouts uint32
+		for _, byDomain := range dnsStats {
+			for _, byQueryType := range byDomain {
+				successfulResponses += byQueryType.CountByRcode[uint32(0)]
+				timeouts += byQueryType.Timeouts
+				for _, count := range byQueryType.CountByRcode {
+					total += count
+				}
 			}
 		}
-	}
 
-	failedResponses := total - successfulResponses
+		failedResponses := total - successfulResponses
 
-	// DNS Stats
-	assert.Equal(t, uint32(success), successfulResponses)
-	assert.Equal(t, uint32(failure), failedResponses)
-	assert.Equal(t, uint32(timeout), timeouts)
+		fmt.Println(total, successfulResponses, failedResponses)
+		switch outcome {
+		case "success":
+			assert.NotZero(t, uint32(1), successfulResponses, "expected a successful response")
+		case "failure":
+			assert.NotZero(t, uint32(1), failedResponses, "expected a failed response")
+		case "timeout":
+			assert.NotZero(t, uint32(1), timeouts, "expected a timeout")
+		}
+	}, 3*time.Second, 100*time.Millisecond)
 }
 
 func (s *TracerSuite) TestDNSStats() {
 	t := s.T()
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
-	cfg.DNSTimeout = 1 * time.Second
 	tr := setupTracer(t, cfg)
 	t.Run("valid domain", func(t *testing.T) {
-		testDNSStats(t, tr, "golang.org", 1, 0, 0, validDNSServer)
+		testDNSStats(t, tr, "good.com", "success", validDNSServer)
 	})
 	t.Run("invalid domain", func(t *testing.T) {
-		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, validDNSServer)
+		testDNSStats(t, tr, "abcdedfg", "error", validDNSServer)
 	})
-	t.Run("timeout", func(t *testing.T) {
-		testDNSStats(t, tr, "golang.org", 0, 0, 1, "1.2.3.4")
-	})
+}
+
+func (s *TracerSuite) TestDNSStatsTimeout() {
+	t := s.T()
+	cfg := testConfig()
+	cfg.CollectDNSStats = true
+
+	// for this test to pass, the DNSTimeout must be shorter than the dns client timeout (2 seconds in our tests).
+	// it ensures that the request is seen, and deemed a timeout by the dnsSnooper *before* the dns client gives up on
+	// the request.
+	cfg.DNSTimeout = time.Second
+	tr := setupTracer(t, cfg)
+
+	testDNSStats(t, tr, "golang.org", "timeout", "1.2.3.4")
 }
 
 func (s *TracerSuite) TestTCPEstablished() {

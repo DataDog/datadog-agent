@@ -1347,7 +1347,7 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	cfg.CollectDNSStats = true
 	cfg.DNSTimeout = 1 * time.Second
 	tr := setupTracer(t, cfg)
-	testDNSStats(t, tr, "golang.org", 1, 0, 0, "2.2.2.2")
+	testDNSStats(t, tr, "golang.org", "success", "2.2.2.2")
 }
 
 func iptablesWrapper(t *testing.T, f func()) {
