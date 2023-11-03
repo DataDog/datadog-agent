@@ -185,7 +185,6 @@ func (w *StatsWriter) buildPayloads(sp *pb.StatsPayload, maxEntriesPerPayload in
 		AgentEnv:       sp.AgentEnv,
 		AgentVersion:   sp.AgentVersion,
 		ClientComputed: sp.ClientComputed,
-		SplitPayload:   len(split) > 1,
 	}
 	var nbEntries, nbBuckets int
 	addPayload := func() {
@@ -201,7 +200,6 @@ func (w *StatsWriter) buildPayloads(sp *pb.StatsPayload, maxEntriesPerPayload in
 			AgentEnv:       sp.AgentEnv,
 			AgentVersion:   sp.AgentVersion,
 			ClientComputed: sp.ClientComputed,
-			SplitPayload:   true,
 		}
 	}
 	for _, p := range split {
@@ -218,6 +216,9 @@ func (w *StatsWriter) buildPayloads(sp *pb.StatsPayload, maxEntriesPerPayload in
 	}
 	if len(grouped) > 1 {
 		w.stats.Splits.Inc()
+		for _, g := range grouped {
+			g.SplitPayload = true
+		}
 	}
 	return grouped
 }
