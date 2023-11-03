@@ -25,6 +25,7 @@ var non53ServerOnce sync.Once
 
 const localhostAddr = "127.0.0.1"
 
+// GetServerIPPort53 is a helper that calls GetServerIP with port 53
 func GetServerIPPort53(t *testing.T) net.IP {
 	return GetServerIP(t, 53)
 }
