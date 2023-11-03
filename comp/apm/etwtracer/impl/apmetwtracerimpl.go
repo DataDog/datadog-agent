@@ -197,14 +197,18 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 	etwSessionName := "Datadog APM ETW tracer"
 	a.session, err = a.etw.NewSession(etwSessionName)
 	if err != nil {
-		return fmt.Errorf("failed to create the ETW session '%s': %v", etwSessionName, err)
+		a.log.Errorf("Failed to create the ETW session '%s': %v", etwSessionName, err)
+		// Don't fail the Agent startup
+		return nil
 	}
 
 	a.pipeListener, err = winio.ListenPipe(serverNamedPipePath, &winio.PipeConfig{
 		MessageMode: true,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to listen to named pipe '%s': %v", serverNamedPipePath, err)
+		a.log.Errorf("Failed to listen to named pipe '%s': %v", serverNamedPipePath, err)
+		// Don't fail the Agent startup
+		return nil
 	}
 	go func() {
 		for {
@@ -212,7 +216,7 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 			if err != nil {
 				// net.ErrClosed is returned when pipeListener is Close()'d
 				if err != net.ErrClosed {
-					a.log.Warnf("could not accept new client:", err)
+					a.log.Warnf("Could not accept new client:", err)
 				}
 				return
 			}
@@ -220,11 +224,10 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 		}
 	}()
 
-	startTracingErrorChan := make(chan error)
 	go func() {
 		// StartTracing blocks the caller
-		startTracingErr := a.session.StartTracing(func(e *etw.DDEventRecord) {
-			a.log.Infof("received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
+		_ = a.session.StartTracing(func(e *etw.DDEventRecord) {
+			a.log.Infof("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
 			pid := uint64(e.EventHeader.ProcessID)
 			var pidCtx pidContext
 			var ok bool
@@ -246,15 +249,9 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 			ev.header.Size = uint16(unsafe.Sizeof(ev)) + e.UserDataLength
 			_, writeErr := pidCtx.conn.Write(etwutil.GoBytes(unsafe.Pointer(&ev), int(ev.header.Size)))
 			if writeErr != nil {
-				a.log.Warnf("could not write ETW event for PID %d, %v", pid, writeErr)
+				a.log.Warnf("Could not write ETW event for PID %d, %v", pid, writeErr)
 			}
 		})
-		// This error will be returned to the caller if it happens within 100ms
-		// otherwise we assume StartTracing worked and whatever error message is
-		// returned here will be lost.
-		// That's ok because StartTracing should only return when StopTracing is called
-		// at the end of the program execution.
-		startTracingErrorChan <- startTracingErr
 	}()
 
 	// Start a garbage collection goroutine to cleanup periodically processes
@@ -282,15 +279,7 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 		}
 	}()
 
-	// Since we can only know if StartTracing failed after calling it,
-	// and it is a blocking call, we wait for 100ms to see if it failed.
-	// Otherwise, we don't want to block the start method for longer than that.
-	select {
-	case err = <-startTracingErrorChan:
-		return err
-	case <-time.After(100 * time.Millisecond):
-		return nil
-	}
+	return nil
 }
 
 func (a *apmetwtracerimpl) stop(_ context.Context) error {
