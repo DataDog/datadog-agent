@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -29,13 +30,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"go.uber.org/fx"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/lambda"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go"
 
 	// DataDog agent: SBOM + proto stuffs
 	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
@@ -391,7 +394,9 @@ func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan scanTask
 	if err != nil {
 		return err
 	}
-
+	if entity == nil {
+		return nil
+	}
 	sourceAgent := "agent"
 	if scan.Type == "lambda-scan" {
 		// FIXME: hack
@@ -430,46 +435,42 @@ func launchScan(ctx context.Context, scan scanTask) (*sbommodel.SBOMEntity, erro
 	}
 }
 
-func createEBSSnapshot(ctx context.Context, ec2client *ec2.EC2, scan ebsScan) (string, error) {
-	tagList := &ec2.TagSpecification{
-		Tags:         []*ec2.Tag{{Key: aws.String("source"), Value: aws.String("datadog-side-scanner")}},
-		ResourceType: aws.String(ec2.ResourceTypeSnapshot),
+func createEBSSnapshot(ctx context.Context, ec2client *ec2.Client, scan ebsScan) (string, error) {
+	tagList := ec2types.TagSpecification{
+		ResourceType: ec2types.ResourceTypeSnapshot,
+		Tags: []ec2types.Tag{
+			{Key: aws.String("source"), Value: aws.String("datadog-side-scanner")},
+		},
 	}
 	retries := 0
 retry:
-	result, err := ec2client.CreateSnapshotWithContext(ctx, &ec2.CreateSnapshotInput{
+	result, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
 		VolumeId:          aws.String(scan.VolumeID),
-		TagSpecifications: []*ec2.TagSpecification{tagList},
+		TagSpecifications: []ec2types.TagSpecification{tagList},
 	})
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			isRateExceededError := aerr.Code() == "SnapshotCreationPerVolumeRateExceeded"
-			if retries <= maxSnapshotRetries {
-				retries++
-				if isRateExceededError {
-					// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
-					// Wait at least 15 seconds between concurrent volume snapshots.
-					d := 15 * time.Second
-					log.Debugf("snapshot creation rate exceeded for volume %s; retrying after %v (%d/%d)", scan.VolumeID, d, retries, maxSnapshotRetries)
-					time.Sleep(d)
-					goto retry
-				}
-			}
+		var aerr smithy.APIError
+		var isRateExceededError bool
+		if errors.As(err, &aerr) && aerr.ErrorCode() == "SnapshotCreationPerVolumeRateExceeded" { // TODO(jinroh): validate the error code
+			isRateExceededError = true
+		}
+		if retries <= maxSnapshotRetries {
+			retries++
 			if isRateExceededError {
-				log.Debugf("snapshot creation rate exceeded for volume %s; skipping)", scan.VolumeID)
+				// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
+				// Wait at least 15 seconds between concurrent volume snapshots.
+				d := 15 * time.Second
+				log.Debugf("snapshot creation rate exceeded for volume %s; retrying after %v (%d/%d)", scan.VolumeID, d, retries, maxSnapshotRetries)
+				time.Sleep(d)
+				goto retry
 			}
+		}
+		if isRateExceededError {
+			log.Debugf("snapshot creation rate exceeded for volume %s; skipping)", scan.VolumeID)
 		}
 		return "", err
 	}
 	return *result.SnapshotId, nil
-}
-
-func deleteEBSSnapshot(ctx context.Context, ec2client *ec2.EC2, snapshotID string) error {
-	// do not use context here: we want to force snapshot deletion
-	_, err := ec2client.DeleteSnapshot(&ec2.DeleteSnapshotInput{
-		SnapshotId: &snapshotID,
-	})
-	return err
 }
 
 func tagNotFound(s []string) []string {
@@ -484,47 +485,41 @@ func tagSuccess(s []string) []string {
 	return append(s, fmt.Sprint("status:success"))
 }
 
-func newEC2Client(region string, assumedRoleARN *string) (*ec2.EC2, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:                        aws.String(region),
-		CredentialsChainVerboseErrors: aws.Bool(true),
-	})
+func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (aws.Config, error) {
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
-		return nil, err
+		return aws.Config{}, err
 	}
-	conf := &aws.Config{}
 	if assumedRoleARN != nil {
-		conf.WithCredentials(stscreds.NewCredentials(sess, *assumedRoleARN))
+		stsclient := sts.NewFromConfig(cfg)
+		cfg.Credentials = aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(stsclient, *assumedRoleARN))
 	}
-	return ec2.New(sess, conf), nil
+	return cfg, nil
 }
 
-func newLambdaClient(region string, assumedRoleARN *string) (*lambda.Lambda, error) {
-	sess, err := session.NewSession(&aws.Config{
-		Region:                        aws.String(region),
-		CredentialsChainVerboseErrors: aws.Bool(true),
-	})
+func newEC2Client(ctx context.Context, region string, assumedRoleARN *string) (*ec2.Client, error) {
+	cfg, err := newAWSConfig(ctx, region, assumedRoleARN)
 	if err != nil {
 		return nil, err
 	}
-	conf := &aws.Config{}
-	if assumedRoleARN != nil {
-		conf.WithCredentials(stscreds.NewCredentials(sess, *assumedRoleARN))
-	}
-	return lambda.New(sess, conf), nil
+	return ec2.NewFromConfig(cfg), nil
 }
 
-func getSelfEC2InstanceIndentity() (*ec2metadata.EC2InstanceIdentityDocument, error) {
-	sess, err := session.NewSession()
+func newLambdaClient(ctx context.Context, region string, assumedRoleARN *string) (*lambda.Client, error) {
+	cfg, err := newAWSConfig(ctx, region, assumedRoleARN)
 	if err != nil {
 		return nil, err
 	}
-	ec2metaclient := ec2metadata.New(sess)
-	self, err := ec2metaclient.GetInstanceIdentityDocument()
+	return lambda.NewFromConfig(cfg), nil
+}
+
+func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentityDocumentOutput, error) {
+	cfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return &self, nil
+	imdsclient := imds.NewFromConfig(cfg)
+	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
 }
 
 func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, err error) {
@@ -546,7 +541,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		return nil, err
 	}
 
-	ec2client, err := newEC2Client(scan.Region, scan.AssumedRole)
+	ec2client, err := newEC2Client(ctx, scan.Region, scan.AssumedRole)
 	if err != nil {
 		return nil, err
 	}
@@ -565,17 +560,25 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		}
 		defer func() {
 			log.Debugf("deleting snapshot %q", snapshotID)
-			deleteEBSSnapshot(ctx, ec2client, snapshotID)
+			// do not use context here: we want to force snapshot deletion
+			ec2client.DeleteSnapshot(context.Background(), &ec2.DeleteSnapshotInput{
+				SnapshotId: &snapshotID,
+			})
 		}()
-		err = ec2client.WaitUntilSnapshotCompletedWithContext(ctx, &ec2.DescribeSnapshotsInput{
-			SnapshotIds: []*string{&snapshotID},
-		})
+		waiter := ec2.NewSnapshotCompletedWaiter(ec2client)
+		err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{
+			SnapshotIds: []string{snapshotID},
+		}, 15*time.Minute)
 		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				if aerr.Code() == "InvalidVolume.NotFound" {
-					statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagNotFound(tags), 1.0)
-					return nil, err
-				}
+			var isVolumeNotFoundError bool
+			var aerr smithy.APIError
+			if errors.As(err, &aerr) && aerr.ErrorCode() == "InvalidVolume.NotFound" { // TODO(jinroh): validate the error code
+				isVolumeNotFoundError = true
+			}
+			if isVolumeNotFoundError {
+				tags = tagNotFound(tags)
+			} else {
+				tags = tagFailure(tags)
 			}
 			statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(tags), 1.0)
 			return nil, err
@@ -603,15 +606,15 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	trivyDisabledAnalyzers = append(trivyDisabledAnalyzers, analyzer.TypeLanguages...)
 	var trivyArtifact artifact.Artifact
 
-	self, err := getSelfEC2InstanceIndentity()
+	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if scan.AttachVolume || attachVolumes {
 		log.Debugf("creating new volume for snapshot %q in az %q", snapshotID, self.AvailabilityZone)
-		volume, err := ec2client.CreateVolumeWithContext(ctx, &ec2.CreateVolumeInput{
-			VolumeType:       aws.String("gp2"),
+		volume, err := ec2client.CreateVolume(ctx, &ec2.CreateVolumeInput{
+			VolumeType:       ec2types.VolumeTypeGp2,
 			AvailabilityZone: aws.String(self.AvailabilityZone),
 			SnapshotId:       aws.String(snapshotID),
 		})
@@ -619,15 +622,18 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 			return nil, fmt.Errorf("could not create volume from snapshot: %s", err)
 		}
 		defer func() {
+			deferctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
 			// do not use context here: we want to force deletion
 			log.Debugf("detaching volume %q", *volume.VolumeId)
-			ec2client.DetachVolume(&ec2.DetachVolumeInput{
+			ec2client.DetachVolume(deferctx, &ec2.DetachVolumeInput{
 				Force:    aws.Bool(true),
 				VolumeId: volume.VolumeId,
 			})
 			var errd error
 			for i := 0; i < 10; i++ {
-				_, errd = ec2client.DeleteVolume(&ec2.DeleteVolumeInput{
+				_, errd = ec2client.DeleteVolume(deferctx, &ec2.DeleteVolumeInput{
 					VolumeId: volume.VolumeId,
 				})
 				if errd == nil {
@@ -644,7 +650,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		device := nextDeviceName()
 		log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
 		for i := 0; i < 10; i++ {
-			_, err = ec2client.AttachVolumeWithContext(ctx, &ec2.AttachVolumeInput{
+			_, err = ec2client.AttachVolume(ctx, &ec2.AttachVolumeInput{
 				InstanceId: aws.String(self.InstanceID),
 				VolumeId:   volume.VolumeId,
 				Device:     aws.String(device),
@@ -767,6 +773,8 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 			OnlyDirs:          []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"},
 			AWSRegion:         scan.Region,
 		})
+		// trivyArtifactEBS := trivyArtifact.(*vm.EBS)
+		// trivyArtifactEBS.SetEBS(ebsclient)
 		if err != nil {
 			return nil, fmt.Errorf("unable to create artifact from image: %w", err)
 		}
@@ -850,12 +858,12 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 		fmt.Sprintf("type:%s", "lambda-scan"),
 	}
 
-	lambdaclient, err := newLambdaClient(scan.Region, scan.AssumedRole)
+	lambdaclient, err := newLambdaClient(ctx, scan.Region, scan.AssumedRole)
 	if err != nil {
 		return nil, err
 	}
 
-	lambdaFunc, err := lambdaclient.GetFunctionWithContext(ctx, &lambda.GetFunctionInput{
+	lambdaFunc, err := lambdaclient.GetFunction(ctx, &lambda.GetFunctionInput{
 		FunctionName: aws.String(scan.FunctionName()),
 	})
 	if err != nil {
