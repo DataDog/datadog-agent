@@ -69,6 +69,10 @@ type ReverseDNS interface {
 	GetDNSStats() StatsByKeyByNameByType
 	Start() error
 	Close()
+
+	// WaitDomain is only used for testing. It waits until the ReverseDNS has an entry for the given domain.
+	// This is used to synchronize a particular domain in tests.
+	WaitDomain(domain string) error
 }
 
 // Key is an identifier for a set of DNS connections

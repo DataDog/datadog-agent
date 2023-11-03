@@ -18,6 +18,10 @@ func NewNullReverseDNS() ReverseDNS {
 
 type nullReverseDNS struct{}
 
+func (d nullReverseDNS) WaitDomain(domain string) error {
+	return nil
+}
+
 func (nullReverseDNS) Resolve(_ map[util.Address]struct{}) map[util.Address][]Hostname {
 	return nil
 }

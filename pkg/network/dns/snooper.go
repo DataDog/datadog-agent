@@ -8,6 +8,7 @@
 package dns
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -123,7 +124,32 @@ func (s *socketFilterSnooper) GetDNSStats() StatsByKeyByNameByType {
 	if s.statKeeper == nil {
 		return nil
 	}
+
 	return s.statKeeper.GetAndResetAllStats()
+}
+
+func (s *socketFilterSnooper) WaitDomain(domain string) error {
+	timeout := time.After(s.statKeeper.expirationPeriod)
+	tick := time.NewTicker(time.Millisecond * 10)
+	defer tick.Stop()
+	for {
+		select {
+		case <-timeout:
+			return fmt.Errorf("did not see %s within %v", domain, s.statKeeper.expirationPeriod)
+		case <-tick.C:
+			s.statKeeper.mux.Lock()
+			for _, byDomain := range s.statKeeper.stats {
+				for d := range byDomain {
+					if d.Get() == domain {
+						s.statKeeper.mux.Unlock()
+						return nil
+					}
+				}
+			}
+			s.statKeeper.mux.Unlock()
+		}
+
+	}
 }
 
 // Start starts the snooper (no-op currently)
