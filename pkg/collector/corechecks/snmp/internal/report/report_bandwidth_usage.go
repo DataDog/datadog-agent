@@ -8,6 +8,7 @@ package report
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -98,16 +99,58 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	}
 	usageValue := ((octetsFloatValue * 8) / (float64(ifSpeed))) * 100.0
 
-	sample := MetricSample{
-		value:      valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeCounter, Value: usageValue},
-		tags:       tags,
-		symbol:     profiledefinition.SymbolConfig{Name: usageName + ".rate"},
-		forcedType: profiledefinition.ProfileMetricTypeCounter,
-		options:    profiledefinition.MetricsConfigOption{},
+	interfaceID := ms.hostname + fullIndex + usageName
+	err = ms.calculateRate(interfaceID, ifSpeed, usageValue, usageName, tags)
+	if err != nil {
+		return err
 	}
-
-	ms.sendMetric(sample)
 	return nil
+}
+
+func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageValue float64, usageName string, tags []string) error {
+	ms.interfaceRateMap.mu.Lock()
+	defer ms.interfaceRateMap.mu.Unlock()
+
+	interfaceRate, ok := ms.interfaceRateMap.rates[interfaceID]
+	// current data point has the same interface speed as last data point
+	if ok && interfaceRate.ifSpeed == ifSpeed {
+		// calculate the delta
+		currentTimestamp := TimeNow
+		delta := (usageValue - interfaceRate.previousSample) / (currentTimestamp - interfaceRate.previousTs)
+		// update the map previous as the current for next rate
+		interfaceRate.previousSample = usageValue
+		interfaceRate.previousTs = currentTimestamp
+		ms.interfaceRateMap.rates[interfaceID] = interfaceRate
+		// create the gauge metric sample
+		sample := MetricSample{
+			value:      valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeGauge, Value: delta},
+			tags:       tags,
+			symbol:     profiledefinition.SymbolConfig{Name: usageName + ".rate"},
+			forcedType: profiledefinition.ProfileMetricTypeGauge,
+			options:    profiledefinition.MetricsConfigOption{},
+		}
+		// send the metric
+		ms.sendMetric(sample)
+	} else {
+		// otherwise, no previous data point / different ifSpeed - make new entry for interface
+		ms.interfaceRateMap.rates[interfaceID] = InterfaceRate{
+			ifSpeed:        ifSpeed,
+			previousSample: usageValue,
+			previousTs:     TimeNow,
+		}
+		// do not send a sample to metrics, send error for ifSpeed change (previous entry conflicted)
+		if ok {
+			return fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", interfaceRate.ifSpeed, ifSpeed, interfaceID)
+		}
+	}
+	return nil
+}
+
+// TimeNow is the unix time to use for rate (delta) calculations
+var TimeNow = timeNowNano()
+
+func timeNowNano() float64 {
+	return float64(time.Now().UnixNano()) / float64(time.Second) // Unix time with nanosecond precision
 }
 
 func (ms *MetricSender) sendIfSpeedMetrics(symbol profiledefinition.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) {

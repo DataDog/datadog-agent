@@ -7,6 +7,7 @@ package report
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -26,6 +27,7 @@ type MetricSender struct {
 	hostname         string
 	submittedMetrics int
 	interfaceConfigs []snmpintegration.InterfaceConfig
+	interfaceRateMap *InterfaceRateMap
 }
 
 // MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
@@ -37,12 +39,31 @@ type MetricSample struct {
 	options    profiledefinition.MetricsConfigOption
 }
 
+// InterfaceRate tracks the interface's current ifSpeed and last seen sample to generate rate with
+type InterfaceRate struct {
+	ifSpeed        uint64
+	previousSample float64
+	previousTs     float64
+}
+
+// InterfaceRateMap holds state between runs to be able to calculate rate and know if the ifSpeed has changed
+type InterfaceRateMap struct {
+	rates map[string]InterfaceRate
+	mu    sync.RWMutex
+}
+
+// NewInterfaceRateMap creates a new InterfaceRateMap
+func NewInterfaceRateMap() *InterfaceRateMap {
+	return &InterfaceRateMap{rates: make(map[string]InterfaceRate)}
+}
+
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig) *MetricSender {
+func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceRateMap *InterfaceRateMap) *MetricSender {
 	return &MetricSender{
 		sender:           sender,
 		hostname:         hostname,
 		interfaceConfigs: interfaceConfigs,
+		interfaceRateMap: interfaceRateMap,
 	}
 }
 
