@@ -174,8 +174,11 @@ func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string, error) {
-	return map[string][]string{}, nil
+func (f *FakeDCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
+	return map[string][]string{
+		activeContainer.Handle():  []string{"container_name:active-container-app"},
+		stoppedContainer.Handle(): []string{"container_name:stopped-container-app"},
+	}, nil
 }
 
 func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLanguageAnnotationRequest) error {
@@ -328,4 +331,78 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 	assert.Equal(t, event1.Source, workloadmeta.SourceClusterOrchestrator)
 	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
 	assert.Equal(t, containerEntity.ID, activeContainer.Handle())
+}
+
+func TestPullAppNameWithDCA(t *testing.T) {
+	containers := []garden.Container{
+		&activeContainer,
+	}
+	fakeGardenUtil := FakeGardenUtil{
+		containers: containers,
+	}
+	fakeDCAClient := FakeDCAClient{}
+	workloadmetaStore := fakeWorkloadmetaStore{}
+
+	c := collector{
+		gardenUtil: &fakeGardenUtil,
+		store:      &workloadmetaStore,
+		dcaClient:  &fakeDCAClient,
+		dcaEnabled: true,
+	}
+
+	err := c.Pull(context.TODO())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
+
+	event0 := workloadmetaStore.notifiedEvents[0]
+
+	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
+	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
+
+	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
+	assert.True(t, ok)
+
+	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
+	assert.Equal(t, containerEntity.ID, activeContainer.Handle())
+	assert.Equal(t, containerEntity.State.Status, workloadmeta.ContainerStatusRunning)
+	assert.True(t, containerEntity.State.Running)
+	assert.NotEmpty(t, containerEntity.CollectorTags)
+	assert.Contains(t, containerEntity.CollectorTags, "container_name:active-container-app")
+}
+
+func TestPullAppNameWitoutDCA(t *testing.T) {
+	containers := []garden.Container{
+		&activeContainer,
+	}
+	fakeGardenUtil := FakeGardenUtil{
+		containers: containers,
+	}
+	fakeDCAClient := FakeDCAClient{}
+	workloadmetaStore := fakeWorkloadmetaStore{}
+
+	c := collector{
+		gardenUtil: &fakeGardenUtil,
+		store:      &workloadmetaStore,
+		dcaClient:  &fakeDCAClient,
+		dcaEnabled: false, // disabled DCA
+	}
+
+	err := c.Pull(context.TODO())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
+
+	event0 := workloadmetaStore.notifiedEvents[0]
+
+	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
+	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
+
+	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
+	assert.True(t, ok)
+
+	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
+	assert.Equal(t, containerEntity.ID, activeContainer.Handle())
+	assert.Equal(t, containerEntity.State.Status, workloadmeta.ContainerStatusRunning)
+	assert.True(t, containerEntity.State.Running)
+	assert.NotEmpty(t, containerEntity.CollectorTags)
+	assert.Contains(t, containerEntity.CollectorTags, fmt.Sprintf("container_name:%s", activeContainer.Handle()))
 }
