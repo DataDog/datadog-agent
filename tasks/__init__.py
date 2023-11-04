@@ -70,6 +70,7 @@ from .test import (
     test,
 )
 from .update_go import go_version, update_go
+from .update_python3 import python3_version, update_python3_gha
 from .utils import generate_config
 from .windows_resources import build_messagetable
 
@@ -99,6 +100,8 @@ ns.add_task(lint_go)
 ns.add_task(show_linters_issues)
 ns.add_task(go_version)
 ns.add_task(update_go)
+ns.add_task(python3_version)
+ns.add_task(update_python3_gha)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
 ns.add_task(e2e_tests)
