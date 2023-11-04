@@ -245,6 +245,7 @@ func TestPullActiveContainer(t *testing.T) {
 	assert.True(t, ok)
 
 	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
+	assert.Equal(t, containerEntity.Runtime, workloadmeta.ContainerRuntimeGarden)
 	assert.Equal(t, containerEntity.ID, activeContainer.Handle())
 	assert.Equal(t, containerEntity.State.Status, workloadmeta.ContainerStatusRunning)
 	assert.True(t, containerEntity.State.Running)
@@ -281,6 +282,7 @@ func TestPullStoppedContainer(t *testing.T) {
 	assert.True(t, ok)
 
 	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
+	assert.Equal(t, containerEntity.Runtime, workloadmeta.ContainerRuntimeGarden)
 	assert.Equal(t, containerEntity.ID, stoppedContainer.Handle())
 	assert.Equal(t, containerEntity.State.Status, workloadmeta.ContainerStatusStopped)
 	assert.False(t, containerEntity.State.Running)
