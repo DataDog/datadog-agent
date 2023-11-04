@@ -286,3 +286,49 @@ func TestPullStoppedContainer(t *testing.T) {
 	assert.False(t, containerEntity.State.Running)
 	assert.NotEmpty(t, containerEntity.CollectorTags)
 }
+
+func TestPullDetectsDeletedContainers(t *testing.T) {
+	containers := []garden.Container{
+		&activeContainer,
+	}
+	fakeGardenUtil := FakeGardenUtil{
+		containers: containers,
+	}
+	fakeDCAClient := FakeDCAClient{}
+	workloadmetaStore := fakeWorkloadmetaStore{}
+
+	c := collector{
+		gardenUtil: &fakeGardenUtil,
+		store:      &workloadmetaStore,
+		dcaClient:  &fakeDCAClient,
+		dcaEnabled: true,
+	}
+
+	err := c.Pull(context.TODO())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
+
+	// expect a set event of the active container
+	event0 := workloadmetaStore.notifiedEvents[0]
+
+	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
+	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
+
+	// remove containers
+	fakeGardenUtil.containers = nil
+
+	err = c.Pull(context.TODO())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
+
+	// expect an unset event of the previous active container
+	event1 := workloadmetaStore.notifiedEvents[1]
+	containerEntity, ok := event1.Entity.(*workloadmeta.Container)
+
+	assert.True(t, ok)
+
+	assert.Equal(t, event1.Type, workloadmeta.EventTypeUnset)
+	assert.Equal(t, event1.Source, workloadmeta.SourceClusterOrchestrator)
+	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
+	assert.Equal(t, containerEntity.ID, activeContainer.Handle())
+}
