@@ -195,15 +195,33 @@ func TestStart(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestPull(t *testing.T) {
-	containers := []garden.Container{
-		&activeContainer,
-	}
-
+func TestPullNoContainers(t *testing.T) {
+	containers := []garden.Container{}
 	fakeGardenUtil := FakeGardenUtil{
 		containers: containers,
 	}
+	fakeDCAClient := FakeDCAClient{}
+	workloadmetaStore := fakeWorkloadmetaStore{}
 
+	c := collector{
+		gardenUtil: &fakeGardenUtil,
+		store:      &workloadmetaStore,
+		dcaClient:  &fakeDCAClient,
+		dcaEnabled: true,
+	}
+
+	err := c.Pull(context.TODO())
+	assert.NoError(t, err)
+	assert.Empty(t, workloadmetaStore.notifiedEvents)
+}
+
+func TestPullActiveContainer(t *testing.T) {
+	containers := []garden.Container{
+		&activeContainer,
+	}
+	fakeGardenUtil := FakeGardenUtil{
+		containers: containers,
+	}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fakeWorkloadmetaStore{}
 
@@ -217,8 +235,54 @@ func TestPull(t *testing.T) {
 	err := c.Pull(context.TODO())
 	assert.NoError(t, err)
 	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
-	assert.Equal(t, workloadmetaStore.notifiedEvents[0].Type, workloadmeta.EventTypeSet)
-	assert.Equal(t, workloadmetaStore.notifiedEvents[0].Entity.GetID().Kind, workloadmeta.KindContainer)
-	assert.Equal(t, workloadmetaStore.notifiedEvents[0].Entity.GetID().ID, activeContainer.Handle())
-	assert.Equal(t, workloadmetaStore.notifiedEvents[0].Source, workloadmeta.SourceClusterOrchestrator)
+
+	event0 := workloadmetaStore.notifiedEvents[0]
+
+	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
+	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
+
+	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
+	assert.True(t, ok)
+
+	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
+	assert.Equal(t, containerEntity.ID, activeContainer.Handle())
+	assert.Equal(t, containerEntity.State.Status, workloadmeta.ContainerStatusRunning)
+	assert.True(t, containerEntity.State.Running)
+	assert.NotEmpty(t, containerEntity.CollectorTags)
+}
+
+func TestPullStoppedContainer(t *testing.T) {
+	containers := []garden.Container{
+		&stoppedContainer,
+	}
+	fakeGardenUtil := FakeGardenUtil{
+		containers: containers,
+	}
+	fakeDCAClient := FakeDCAClient{}
+	workloadmetaStore := fakeWorkloadmetaStore{}
+
+	c := collector{
+		gardenUtil: &fakeGardenUtil,
+		store:      &workloadmetaStore,
+		dcaClient:  &fakeDCAClient,
+		dcaEnabled: true,
+	}
+
+	err := c.Pull(context.TODO())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
+
+	event0 := workloadmetaStore.notifiedEvents[0]
+
+	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
+	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
+
+	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
+	assert.True(t, ok)
+
+	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
+	assert.Equal(t, containerEntity.ID, stoppedContainer.Handle())
+	assert.Equal(t, containerEntity.State.Status, workloadmeta.ContainerStatusStopped)
+	assert.False(t, containerEntity.State.Running)
+	assert.NotEmpty(t, containerEntity.CollectorTags)
 }
