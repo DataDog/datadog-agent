@@ -28,7 +28,7 @@ const (
 	driverMaxFragmentLimit             = 512
 	validNotificationThreshold         = 100
 	invalidNotificationThreshold       = 1200
-	invalidHttpRequestFragment         = 600
+	invalidHTTPRequestFragment         = 600
 )
 
 func makeYamlConfigString(section, entry string, val int) string {
@@ -982,14 +982,14 @@ service_monitoring_config:
 func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		cfg := configurationFromYAML(t, makeYamlConfigString("network_config", "http_max_request_fragment", invalidHttpRequestFragment))
+		cfg := configurationFromYAML(t, makeYamlConfigString("network_config", "http_max_request_fragment", invalidHTTPRequestFragment))
 
 		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHttpRequestFragment))
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment))
 
 		cfg := New()
 
@@ -998,14 +998,14 @@ func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		cfg := configurationFromYAML(t, makeYamlConfigString("service_monitoring_config", "http_max_request_fragment", invalidHttpRequestFragment))
+		cfg := configurationFromYAML(t, makeYamlConfigString("service_monitoring_config", "http_max_request_fragment", invalidHTTPRequestFragment))
 
 		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHttpRequestFragment))
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment))
 
 		cfg := New()
 
@@ -1014,7 +1014,7 @@ func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHttpRequestFragment))
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment))
 
 		cfg := New()
 
@@ -1023,7 +1023,7 @@ func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 
 	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHttpRequestFragment))
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment))
 
 		cfg := New()
 
@@ -1033,8 +1033,8 @@ func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 	t.Run("Both enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		// Setting a different value
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHttpRequestFragment))
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHttpRequestFragment+1))
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment))
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment+1))
 
 		cfg := New()
 
