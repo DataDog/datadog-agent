@@ -196,10 +196,7 @@ func TestStart(t *testing.T) {
 }
 
 func TestPullNoContainers(t *testing.T) {
-	containers := []garden.Container{}
-	fakeGardenUtil := FakeGardenUtil{
-		containers: containers,
-	}
+	fakeGardenUtil := FakeGardenUtil{containers: nil}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fakeWorkloadmetaStore{}
 
