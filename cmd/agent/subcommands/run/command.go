@@ -86,6 +86,7 @@ import (
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
+	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -300,10 +301,10 @@ func getSharedFxOption() fx.Option {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
 					// Main context passed to components
-					common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
+					mainCtx, _ := pkgcommon.GetMainCtxCancel()
 
 					// create and setup the Autoconfig instance
-					common.LoadComponents(common.MainCtx, demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
+					common.LoadComponents(mainCtx, demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -418,9 +419,10 @@ func startAgent(
 	}()
 
 	// Setup healthcheck port
+	ctx, _ := pkgcommon.GetMainCtxCancel()
 	healthPort := pkgconfig.Datadog.GetInt("health_port")
 	if healthPort > 0 {
-		err := healthprobe.Serve(common.MainCtx, healthPort)
+		err := healthprobe.Serve(ctx, healthPort)
 		if err != nil {
 			return log.Errorf("Error starting health port, exiting: %v", err)
 		}
@@ -435,7 +437,7 @@ func startAgent(
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), cliParams.pidfilePath)
 	}
 
-	err = manager.ConfigureAutoExit(common.MainCtx, pkgconfig.Datadog)
+	err = manager.ConfigureAutoExit(ctx, pkgconfig.Datadog)
 	if err != nil {
 		return log.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
@@ -483,7 +485,7 @@ func startAgent(
 		if err != nil {
 			log.Errorf("Failed to create Cloud Foundry container tagger: %v", err)
 		} else {
-			containerTagger.Start(common.MainCtx)
+			containerTagger.Start(ctx)
 		}
 	}
 
@@ -515,7 +517,7 @@ func startAgent(
 
 	// Create the Leader election engine without initializing it
 	if pkgconfig.Datadog.GetBool("leader_election") {
-		leaderelection.CreateGlobalLeaderEngine(common.MainCtx)
+		leaderelection.CreateGlobalLeaderEngine(ctx)
 	}
 
 	// start the GUI server
@@ -564,7 +566,7 @@ func startAgent(
 	}
 
 	// load and run all configs in AD
-	common.AC.LoadAndRun(common.MainCtx)
+	common.AC.LoadAndRun(ctx)
 
 	// check for common misconfigurations and report them to log
 	misconfig.ToLog(misconfig.CoreAgent)
@@ -634,7 +636,8 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 	os.Remove(cliParams.pidfilePath)
 
 	// gracefully shut down any component
-	common.MainCtxCancel()
+	_, cancel := pkgcommon.GetMainCtxCancel()
+	cancel()
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()

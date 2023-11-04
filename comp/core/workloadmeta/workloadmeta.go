@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/common"
 	"go.uber.org/fx"
 )
 
@@ -84,7 +85,9 @@ func newWorkloadMeta(deps dependencies) Component {
 		// Set global
 		SetGlobalStore(wm)
 
-		wm.Start(c)
+		// Main context passed to components
+		mainCtx, _ := common.GetMainCtxCancel()
+		wm.Start(mainCtx)
 		return nil
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
