@@ -117,10 +117,7 @@ func NewConcentrator(conf *config.AgentConfig, out chan *pb.StatsPayload, now ti
 		computeStatsBySpanKind: conf.ComputeStatsBySpanKind,
 	}
 	// NOTE: maintain backwards-compatibility with old peer service flag that will eventually be deprecated.
-	if conf.PeerServiceAggregation {
-		c.peerTagKeys = preparePeerTags(append([]string{"peer.service"}, conf.PeerTags...)...)
-	}
-	if conf.PeerTagsAggregation {
+	if conf.PeerServiceAggregation || conf.PeerTagsAggregation {
 		c.peerTagKeys = preparePeerTags(append(defaultPeerTags, conf.PeerTags...)...)
 	}
 	return &c

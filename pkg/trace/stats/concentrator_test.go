@@ -120,7 +120,7 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 		}
 		c := NewConcentrator(&cfg, nil, time.Now())
 		assert.True(c.peerTagsAggregation)
-		assert.Equal([]string{"peer.service"}, c.peerTagKeys)
+		assert.Equal(defaultPeerTags, c.peerTagKeys)
 	})
 	t.Run("deprecated peer service flag set + peer tags", func(t *testing.T) {
 		assert := assert.New(t)
@@ -130,11 +130,11 @@ func TestNewConcentratorPeerTags(t *testing.T) {
 			DefaultEnv:             "env",
 			Hostname:               "hostname",
 			PeerServiceAggregation: true,
-			PeerTags:               []string{"db.instance", "db.system"},
+			PeerTags:               []string{"zz_tag"},
 		}
 		c := NewConcentrator(&cfg, nil, time.Now())
 		assert.True(c.peerTagsAggregation)
-		assert.Equal([]string{"db.instance", "db.system", "peer.service"}, c.peerTagKeys)
+		assert.Equal(append(defaultPeerTags, "zz_tag"), c.peerTagKeys)
 	})
 	t.Run("deprecated peer service flag set + new peer tags aggregation flag", func(t *testing.T) {
 		assert := assert.New(t)
