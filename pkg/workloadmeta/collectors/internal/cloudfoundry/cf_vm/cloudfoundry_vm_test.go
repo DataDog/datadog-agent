@@ -2,23 +2,95 @@ package cloudfoundry_vm
 
 import (
 	"context"
+	"fmt"
+	"testing"
 
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden/gardenfakes"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/stretchr/testify/assert"
 )
 
-// type collector struct {
-// 	store workloadmeta.Store
-// 	seen  map[workloadmeta.EntityID]struct{}
+var activeContainer = gardenfakes.FakeContainer{
+	HandleStub: func() string {
+		return "container-handle-1"
+	},
+	InfoStub: func() (garden.ContainerInfo, error) {
+		return garden.ContainerInfo{
+			State:       "active",
+			Events:      nil,
+			HostIP:      "container-host-ip-1",
+			ContainerIP: "container-ip-1",
+			ExternalIP:  "container-external-ip-1",
+			Properties:  garden.Properties{},
+		}, nil
+	},
+}
 
-// 	gardenUtil cloudfoundry.GardenUtilInterface
-// 	nodeName   string
+var stoppedContainer = gardenfakes.FakeContainer{
+	HandleStub: func() string {
+		return "container-handle-2"
+	},
+	InfoStub: func() (garden.ContainerInfo, error) {
+		return garden.ContainerInfo{
+			State:       "stopped",
+			Events:      nil,
+			HostIP:      "container-host-ip-2",
+			ContainerIP: "container-ip-2",
+			ExternalIP:  "container-external-ip-2",
+			Properties:  garden.Properties{},
+		}, nil
+	},
+}
 
-// 	dcaClient  clusteragent.DCAClientInterface
-// 	dcaEnabled bool
-// }
+type fakeWorkloadmetaStore struct {
+	workloadmeta.Store
+	notifiedEvents []workloadmeta.CollectorEvent
+}
+
+func (store *fakeWorkloadmetaStore) Notify(events []workloadmeta.CollectorEvent) {
+	store.notifiedEvents = append(store.notifiedEvents, events...)
+}
+
+type FakeGardenUtil struct {
+	containers []garden.Container
+}
+
+func (f *FakeGardenUtil) ListContainers() ([]garden.Container, error) {
+	return f.containers, nil
+}
+func (f *FakeGardenUtil) GetContainersInfo(handles []string) (map[string]garden.ContainerInfoEntry, error) {
+	containersInfo := make(map[string]garden.ContainerInfoEntry)
+	for _, container := range f.containers {
+		handle := container.Handle()
+		info, err := container.Info()
+		entry := garden.ContainerInfoEntry{
+			Info: info,
+		}
+		if err != nil {
+			entry.Err = &garden.Error{Err: err}
+		}
+		containersInfo[handle] = entry
+	}
+	return containersInfo, nil
+}
+
+func (f *FakeGardenUtil) GetContainersMetrics(handles []string) (map[string]garden.ContainerMetricsEntry, error) {
+	return map[string]garden.ContainerMetricsEntry{}, nil
+
+}
+func (f *FakeGardenUtil) GetContainer(handle string) (garden.Container, error) {
+	for _, container := range f.containers {
+		if container.Handle() == handle {
+			return container, nil
+		}
+	}
+	return nil, fmt.Errorf("container '%s' not found", handle)
+}
 
 type FakeDCAClient struct {
 	LocalVersion                 version.Version
@@ -103,9 +175,50 @@ func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
 }
 
 func (f *FakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string, error) {
-	panic("implement me")
+	return map[string][]string{}, nil
 }
 
 func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLanguageAnnotationRequest) error {
 	panic("implement me")
+}
+
+func TestStart(t *testing.T) {
+	fakeGardenUtil := FakeGardenUtil{}
+
+	workloadmetaStore := fakeWorkloadmetaStore{}
+	c := collector{
+		gardenUtil: &fakeGardenUtil,
+		store:      &workloadmetaStore,
+	}
+
+	err := c.Start(context.TODO(), &workloadmetaStore)
+	assert.Error(t, err)
+}
+
+func TestPull(t *testing.T) {
+	containers := []garden.Container{
+		&activeContainer,
+	}
+
+	fakeGardenUtil := FakeGardenUtil{
+		containers: containers,
+	}
+
+	fakeDCAClient := FakeDCAClient{}
+	workloadmetaStore := fakeWorkloadmetaStore{}
+
+	c := collector{
+		gardenUtil: &fakeGardenUtil,
+		store:      &workloadmetaStore,
+		dcaClient:  &fakeDCAClient,
+		dcaEnabled: true,
+	}
+
+	err := c.Pull(context.TODO())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
+	assert.Equal(t, workloadmetaStore.notifiedEvents[0].Type, workloadmeta.EventTypeSet)
+	assert.Equal(t, workloadmetaStore.notifiedEvents[0].Entity.GetID().Kind, workloadmeta.KindContainer)
+	assert.Equal(t, workloadmetaStore.notifiedEvents[0].Entity.GetID().ID, activeContainer.Handle())
+	assert.Equal(t, workloadmetaStore.notifiedEvents[0].Source, workloadmeta.SourceClusterOrchestrator)
 }
