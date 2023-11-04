@@ -51,3 +51,25 @@ func compileRegexPatterns(patterns []string) ([]*regexp.Regexp, error) {
 	}
 	return res, nil
 }
+
+func serverIsLocal(server *string) bool {
+	return server == nil ||
+		len(*server) == 0 ||
+		*server == "localhost" ||
+		*server == "127.0.0.1"
+}
+
+func evtRPCFlagsFromString(flags string) (uint, error) {
+	switch flags {
+	case "default":
+		return evtapi.EvtRpcLoginAuthDefault, nil
+	case "negotiate":
+		return evtapi.EvtRpcLoginAuthNegotiate, nil
+	case "kerberos":
+		return evtapi.EvtRpcLoginAuthKerberos, nil
+	case "ntlm":
+		return evtapi.EvtRpcLoginAuthNTLM, nil
+	default:
+		return 0, fmt.Errorf("invalid RPC auth type: '%s', must be one of default, negotiate, kerberos, ntlm", flags)
+	}
+}

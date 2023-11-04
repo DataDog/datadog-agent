@@ -23,6 +23,7 @@ const (
 	defaultConfigTagEventID    = false
 	defaultConfigTagSID        = false
 	defaultConfigEventPriority = "normal"
+	defaultConfigAuthType      = "default"
 )
 
 // Config represents the Windows Event Log check configuration and its yaml marshalling
@@ -45,6 +46,11 @@ type instanceConfig struct {
 	Filters           *filtersConfig `yaml:"filters"`
 	IncludedMessages  []string       `yaml:"included_messages"`
 	ExcludedMessages  []string       `yaml:"excluded_messages"`
+	AuthType          *string        `yaml:"auth_type"`
+	Server            *string        `yaml:"server"`
+	User              *string        `yaml:"user"`
+	Domain            *string        `yaml:"domain"`
+	Password          *string        `yaml:"password"`
 }
 
 type filtersConfig struct {
@@ -154,6 +160,11 @@ func (c *Config) setDefaults() {
 	if c.instance.LegacyMode == nil {
 		def := false
 		c.instance.LegacyMode = &def
+	}
+
+	if c.instance.AuthType == nil {
+		def := defaultConfigAuthType
+		c.instance.AuthType = &def
 	}
 
 	// instance fields with initConfig defaults

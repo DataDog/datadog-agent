@@ -340,7 +340,10 @@ func (c *Check) initSubscription() error {
 	opts = append(opts, evtsubscribe.WithEventBatchCount(uint(*c.config.instance.PayloadSize)))
 
 	// session
-	c.session = evtsession.New(c.evtapi)
+	err = c.initSession()
+	if err != nil {
+		return err
+	}
 	opts = append(opts, evtsubscribe.WithSession(c.session))
 
 	// Create the subscription
@@ -365,6 +368,46 @@ func (c *Check) initSubscription() error {
 		return fmt.Errorf("failed to create system render context: %v", err)
 	}
 
+	return nil
+}
+
+func (c *Check) initSession() error {
+	// local session
+	if serverIsLocal(c.config.instance.Server) {
+		c.session = evtsession.New(c.evtapi)
+		return nil
+	}
+
+	// remote session
+	flags, err := evtRPCFlagsFromString(*c.config.instance.AuthType)
+	if err != nil {
+		return err
+	}
+	var server, user, domain, password string
+	if c.config.instance.Server != nil {
+		server = *c.config.instance.Server
+	}
+	if c.config.instance.User != nil {
+		user = *c.config.instance.User
+	}
+	if c.config.instance.Domain != nil {
+		domain = *c.config.instance.Domain
+	}
+	if c.config.instance.Password != nil {
+		password = *c.config.instance.Password
+	}
+	session, err := evtsession.NewRemote(
+		c.evtapi,
+		server,
+		user,
+		domain,
+		password,
+		flags,
+	)
+	if err != nil {
+		return err
+	}
+	c.session = session
 	return nil
 }
 
@@ -414,6 +457,10 @@ func (c *Check) validateConfig() error {
 	}
 	if *c.config.instance.Start != "now" && *c.config.instance.Start != "oldest" {
 		return fmt.Errorf("invalid instance config `start`: '%s'", *c.config.instance.Start)
+	}
+	_, err = evtRPCFlagsFromString(*c.config.instance.AuthType)
+	if err != nil {
+		return fmt.Errorf("invalid instance config `auth_type`: %w", err)
 	}
 
 	if c.config.instance.IncludedMessages != nil {
