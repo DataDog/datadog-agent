@@ -16,9 +16,10 @@ import (
 // Session defines the interface for connecting to an Event Log host and is used to
 // manage event logs and query, subscribe, and render events.
 //
-// TODO: The Event Log API largely manages this under the hood. The connection to the
+// The Event Log API manages the connection behind the session handle. The connection to the
 // remote host is only made when the session is first used (e.g. EvtSubscribe).
-// Does it handle reconnects for us or do we have to close+reopen??
+// If the remote host or the remote EventLog service is restarted the session handle
+// does not need to be closed and re-created.
 //
 // https://learn.microsoft.com/en-us/windows/win32/wes/accessing-remote-computers
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtopensession
@@ -41,13 +42,43 @@ type session struct {
 	handle      evtapi.EventSessionHandle
 }
 
-// New creates a new session
-func New(api evtapi.API) Session {
+func newSession(api evtapi.API) *session {
 	var s session
 	s.eventLogAPI = api
 	s.handle = evtapi.EventSessionHandle(0)
 
 	return &s
+}
+
+// New creates a new session to the local event log service
+func New(api evtapi.API) Session {
+	return newSession(api)
+}
+
+// NewRemote creates a new session to a remote event log service
+func NewRemote(
+	api evtapi.API,
+	server string,
+	user string,
+	domain string,
+	password string,
+	flags uint,
+) (Session, error) {
+	s := newSession(api)
+
+	handle, err := s.eventLogAPI.EvtOpenSession(
+		server,
+		user,
+		domain,
+		password,
+		flags,
+	)
+	if err != nil {
+		return nil, err
+	}
+	s.handle = handle
+
+	return s, nil
 }
 
 func (s *session) Close() {

@@ -372,3 +372,16 @@ func (api *API) EvtFormatMessage(
 	Flags uint) (string, error) { //nolint:revive // TODO fix revive unused-parameter
 	return "", fmt.Errorf("not implemented")
 }
+
+// EvtOpenSession fake
+// not implemented.
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtformatmessage
+func (api *API) EvtOpenSession(
+	Server string, //nolint:revive // TODO fix revive unused-parameter
+	User string, //nolint:revive // TODO fix revive unused-parameter
+	Domain string, //nolint:revive // TODO fix revive unused-parameter
+	Password string, //nolint:revive // TODO fix revive unused-parameter
+	Flags uint, //nolint:revive // TODO fix revive unused-parameter
+) (evtapi.EventSessionHandle, error) {
+	return evtapi.EventSessionHandle(0), fmt.Errorf("not implemented")
+}

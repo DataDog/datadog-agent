@@ -109,6 +109,15 @@ const (
 	EvtFormatMessageXml
 )
 
+// EVT_RPC_LOGIN_FLAGS
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_rpc_login_flags
+const (
+	EvtRpcLoginAuthDefault = iota
+	EvtRpcLoginAuthNegotiate
+	EvtRpcLoginAuthKerberos
+	EvtRpcLoginAuthNTLM
+)
+
 //revive:enable:var-naming
 
 // EventSessionHandle is a typed windows.Handle returned from EvtOpenSession
@@ -177,6 +186,14 @@ type API interface {
 		MessageID uint,
 		Values EvtVariantValues,
 		Flags uint) (string, error)
+
+	EvtOpenSession(
+		Server string,
+		User string,
+		Domain string,
+		Password string,
+		Flags uint,
+	) (EventSessionHandle, error)
 
 	// Windows Event Logging methods
 	RegisterEventSource(SourceName string) (EventSourceHandle, error)

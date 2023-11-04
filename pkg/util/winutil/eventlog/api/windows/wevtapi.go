@@ -31,6 +31,7 @@ var (
 	evtClearLog              = wevtapi.NewProc("EvtClearLog")
 	evtOpenPublisherMetadata = wevtapi.NewProc("EvtOpenPublisherMetadata")
 	evtFormatMessage         = wevtapi.NewProc("EvtFormatMessage")
+	evtOpenSession           = wevtapi.NewProc("EvtOpenSession")
 
 	// Legacy Event Logging API
 	// https://learn.microsoft.com/en-us/windows/win32/eventlog/using-event-logging
@@ -452,4 +453,60 @@ func (api *API) EvtFormatMessage(
 
 	// Trim Buffer to output size (BufferUsed is size in characters)
 	return windows.UTF16ToString(Buffer[:BufferUsed]), nil
+}
+
+// EvtOpenSession wrapper
+//
+// NOTE:
+// The connection is not made and the creds are not validated at the time of this call.
+// Those operations occur when the session is first used (e.g. EvtSubscribe)
+//
+// https://learn.microsoft.com/en-us/windows/win32/api/winevt/nf-winevt-evtopensession
+func (api *API) EvtOpenSession(
+	Server string,
+	User string,
+	Domain string,
+	Password string,
+	Flags uint,
+) (evtapi.EventSessionHandle, error) {
+	server, err := winutil.UTF16PtrOrNilFromString(Server)
+	if err != nil {
+		return evtapi.EventSessionHandle(0), err
+	}
+
+	user, err := winutil.UTF16PtrOrNilFromString(User)
+	if err != nil {
+		return evtapi.EventSessionHandle(0), err
+	}
+
+	domain, err := winutil.UTF16PtrOrNilFromString(Domain)
+	if err != nil {
+		return evtapi.EventSessionHandle(0), err
+	}
+
+	password, err := winutil.UTF16PtrOrNilFromString(Password)
+	if err != nil {
+		return evtapi.EventSessionHandle(0), err
+	}
+
+	login := &EVT_RPC_LOGIN{
+		Server:   server,
+		User:     user,
+		Domain:   domain,
+		Password: password,
+		Flags:    Flags,
+	}
+
+	r1, _, lastErr := evtOpenSession.Call(
+		uintptr(EvtRpcLogin),
+		uintptr(unsafe.Pointer(login)),
+		uintptr(0), // Timeout, reserved, must be zero
+		uintptr(0), // Flags, reserved, must be zero
+	)
+	// EvtOpenSession returns NULL on error
+	if r1 == 0 {
+		return evtapi.EventSessionHandle(0), lastErr
+	}
+
+	return evtapi.EventSessionHandle(r1), nil
 }
