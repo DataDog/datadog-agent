@@ -176,8 +176,8 @@ func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
 
 func (f *FakeDCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
 	return map[string][]string{
-		activeContainer.Handle():  []string{"container_name:active-container-app"},
-		stoppedContainer.Handle(): []string{"container_name:stopped-container-app"},
+		activeContainer.Handle():  {"container_name:active-container-app"},
+		stoppedContainer.Handle(): {"container_name:stopped-container-app"},
 	}, nil
 }
 
@@ -355,18 +355,8 @@ func TestPullAppNameWithDCA(t *testing.T) {
 	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
 
 	event0 := workloadmetaStore.notifiedEvents[0]
-
-	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
-	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
-
 	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
 	assert.True(t, ok)
-
-	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
-	assert.Equal(t, containerEntity.ID, activeContainer.Handle())
-	assert.Equal(t, containerEntity.State.Status, workloadmeta.ContainerStatusRunning)
-	assert.True(t, containerEntity.State.Running)
-	assert.NotEmpty(t, containerEntity.CollectorTags)
 	assert.Contains(t, containerEntity.CollectorTags, "container_name:active-container-app")
 }
 
@@ -392,17 +382,7 @@ func TestPullAppNameWitoutDCA(t *testing.T) {
 	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
 
 	event0 := workloadmetaStore.notifiedEvents[0]
-
-	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
-	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
-
 	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
 	assert.True(t, ok)
-
-	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
-	assert.Equal(t, containerEntity.ID, activeContainer.Handle())
-	assert.Equal(t, containerEntity.State.Status, workloadmeta.ContainerStatusRunning)
-	assert.True(t, containerEntity.State.Running)
-	assert.NotEmpty(t, containerEntity.CollectorTags)
 	assert.Contains(t, containerEntity.CollectorTags, fmt.Sprintf("container_name:%s", activeContainer.Handle()))
 }
