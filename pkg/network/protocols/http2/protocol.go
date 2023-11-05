@@ -27,6 +27,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 )
 
+var (
+	Raw []EbpfTx
+)
+
 type protocol struct {
 	cfg *config.Config
 	// TODO: Do we need to duplicate?
@@ -105,6 +109,7 @@ var Spec = &protocols.ProtocolSpec{
 }
 
 func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
+	Raw = make([]EbpfTx, 0)
 	if !cfg.EnableHTTP2Monitoring {
 		return nil, nil
 	}
@@ -214,6 +219,7 @@ func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 
 func (p *protocol) processHTTP2(data []byte) {
 	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
+	Raw = append(Raw, *tx)
 	p.telemetry.Count(tx)
 	p.statkeeper.Process(tx)
 }

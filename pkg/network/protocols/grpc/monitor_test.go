@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 
@@ -521,6 +522,130 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 						t.Logf("failed dumping http2_dynamic_table: %s", err)
 					} else {
 						t.Log(o)
+					}
+				}
+			})
+		}
+	}
+}
+
+func (s *USMgRPCSuite) TestParallelGRPCScenarios() {
+	t := s.T()
+	cfg := config.New()
+	cfg.EnableHTTP2Monitoring = true
+	cfg.BPFDebug = true
+
+	srv, err := grpc.NewServer(srvAddr)
+	require.NoError(t, err)
+	srv.Run()
+	t.Cleanup(srv.Stop)
+	defaultCtx := context.Background()
+
+	// c is a stream endpoint
+	// a + b are unary endpoints
+	tests := []struct {
+		name              string
+		runClients        func(t *testing.T, clientsCount int)
+		expectedEndpoints map[http.Key]int
+		expectedError     bool
+	}{
+		{
+			name: "simple unary - multiple requests",
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount)
+
+				wg := sync.WaitGroup{}
+				for i := 0; i < 100; i++ {
+					wg.Add(1)
+					i := i
+					go func() {
+						defer wg.Done()
+						client := clients[getClientsIndex(i, clientsCount)]
+						require.NoError(t, client.HandleUnary(defaultCtx, "first"))
+					}()
+				}
+
+				wg.Wait()
+			},
+			expectedEndpoints: map[http.Key]int{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
+					Method: http.MethodPost,
+				}: 100,
+			},
+		},
+	}
+	for _, tt := range tests {
+		for _, clientCount := range []int{15} {
+			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
+			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
+				// we are currently not supporting some edge cases:
+				// https://datadoghq.atlassian.net/browse/USMO-222
+				if tt.expectedError {
+					t.Skip("Skipping test due to known issue")
+				}
+
+				monitor, err := usm.NewMonitor(cfg, nil, nil, nil)
+				require.NoError(t, err)
+				require.NoError(t, monitor.Start())
+				defer monitor.Stop()
+
+				tt.runClients(t, clientCount)
+
+				res := make(map[http.Key]int)
+				assert.Eventually(t, func() bool {
+					stats := monitor.GetProtocolStats()
+					http2Stats, ok := stats[protocols.HTTP2]
+					if !ok {
+						return false
+					}
+					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+					for key, stat := range http2StatsTyped {
+						if key.DstPort == 5050 || key.SrcPort == 5050 {
+							count := stat.Data[200].Count
+							newKey := http.Key{
+								Path:   http.Path{Content: key.Path.Content},
+								Method: key.Method,
+							}
+							if _, ok := res[newKey]; !ok {
+								res[newKey] = count
+							} else {
+								res[newKey] += count
+							}
+						}
+					}
+
+					if len(res) != len(tt.expectedEndpoints) {
+						return false
+					}
+
+					for key, count := range res {
+						val, ok := tt.expectedEndpoints[key]
+						if !ok {
+							return false
+						}
+						if val != count {
+							return false
+						}
+					}
+
+					return true
+				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+				if t.Failed() {
+					o, err := monitor.DumpMaps("http2_in_flight")
+					if err != nil {
+						t.Logf("failed dumping http2_in_flight: %s", err)
+					} else {
+						t.Log(o)
+					}
+					o, err = monitor.DumpMaps("http2_dynamic_table")
+					if err != nil {
+						t.Logf("failed dumping http2_dynamic_table: %s", err)
+					} else {
+						t.Log(o)
+					}
+					for _, e := range http2.Raw {
+						t.Logf("%v", e.String())
 					}
 				}
 			})
