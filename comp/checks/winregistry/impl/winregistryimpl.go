@@ -21,18 +21,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
-	"go.uber.org/fx"
-	"io/fs"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"go.uber.org/fx"
 	"golang.org/x/sys/windows/registry"
 	"gopkg.in/yaml.v2"
+	"io/fs"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -68,8 +66,15 @@ type registryKeyCfg struct {
 	RegistryValues map[string]registryValueCfg `yaml:"registry_values"` // The map key is the registry value name
 }
 
+// checkCfg is the config that is specific to each check instance
 type checkCfg struct {
 	RegistryKeys map[string]registryKeyCfg `yaml:"registry_keys"`
+	SendOnStart  util.Optional[bool]       `yaml:"send_on_start"`
+}
+
+// checkInitCfg is the config that is common to all check instances
+type checkInitCfg struct {
+	SendOnStart util.Optional[bool] `yaml:"send_on_start"`
 }
 
 // registryKey is the in-memory representation of the key to monitor
@@ -88,22 +93,16 @@ type registryKey struct {
 type WindowsRegistryCheck struct {
 	core.CheckBase
 	metrics.Gauge
-	senderManager sender.SenderManager
-	sender        sender.Sender
-	logsComponent agent.Component
-	log           log.Component
-	registryKeys  []registryKey
-	origin        *message.Origin
+	senderManager           sender.SenderManager
+	sender                  sender.Sender
+	logsComponent           agent.Component
+	log                     log.Component
+	registryKeys            []registryKey
+	registryDelegate        registryDelegate
+	integrationLogsDelegate *integrationLogsRegistryDelegate
 }
 
 func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
-	c.origin = message.NewOrigin(sources.NewLogSource("Windows registry check", &logsConfig.LogsConfig{
-		Source:  checkName,
-		Service: checkName,
-		// TODO
-		//Tags:    []string{"foo:bar", "custom:log"},
-	}))
-
 	c.senderManager = senderManager
 	c.BuildID(integrationConfigDigest, data, initConfig)
 	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
@@ -111,9 +110,23 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 		return err
 	}
 
+	var initCfg checkInitCfg
+	if err := yaml.Unmarshal(initConfig, &initCfg); err != nil {
+		return err
+	}
+
 	var conf checkCfg
 	if err := yaml.Unmarshal(data, &conf); err != nil {
 		return err
+	}
+
+	var sendOnStart, sendOnStartSet bool
+	if sendOnStart, sendOnStartSet = conf.SendOnStart.Get(); !sendOnStartSet {
+		if initSendOnStart, initSendOnStartSet := initCfg.SendOnStart.Get(); initSendOnStartSet {
+			sendOnStart = initSendOnStart
+		} else {
+			sendOnStart = false
+		}
 	}
 
 	hiveMap := map[string]registry.Key{
@@ -163,56 +176,36 @@ func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, int
 	}
 	c.sender.FinalizeCheckServiceTag()
 
+	c.integrationLogsDelegate = &integrationLogsRegistryDelegate{
+		logsComponent: c.logsComponent,
+		valueMap:      make(map[string]interface{}),
+		origin: message.NewOrigin(sources.NewLogSource("Windows registry check", &logsConfig.LogsConfig{
+			Source:  checkName,
+			Service: checkName,
+		})),
+		// When sendOnStart is enabled, we unmute the integrations logs sender
+		// which will produce a "key_created" event for the existing keys in the registry
+		// during the first check run.
+		// Otherwise, the integrations logs sender will get unmuted on the subsequent check runs.
+		muted: !sendOnStart,
+	}
+
+	c.registryDelegate = compositeRegistryDelegate{
+		registryDelegates: []registryDelegate{
+			loggingRegistryDelegate{
+				log: c.log,
+			},
+			metricsRegistryDelegate{
+				sender: c.sender,
+			},
+			c.integrationLogsDelegate,
+		},
+	}
+
 	return nil
 }
 
-func (c *WindowsRegistryCheck) Run() error {
-	for _, regKeyCfg := range c.registryKeys {
-		regKey, err := registry.OpenKey(regKeyCfg.hive, regKeyCfg.keyPath, registry.QUERY_VALUE)
-		if err != nil {
-			if errors.Is(err, fs.ErrPermission) {
-				// Treat access denied as errors
-				c.log.Errorf("access denied while accessing key %s: %s", regKeyCfg.originalKeyPath, err)
-			} else if errors.Is(err, registry.ErrNotExist) {
-				c.log.Warnf("key %s was not found: %s", regKeyCfg.originalKeyPath, err)
-				// Process registryValues too so that we can emit missing values for each registryValues
-				c.processRegistryKeyMetrics(c.sender, regKey, regKeyCfg)
-			}
-		} else {
-			// if err == nil the key was opened, so we need to close it after we are done.
-			c.processRegistryKeyMetrics(c.sender, regKey, regKeyCfg)
-			regKey.Close()
-		}
-	}
-	c.sender.Commit()
-	return nil
-}
-
-func (c *WindowsRegistryCheck) emitLog(m, status string) {
-	if c.logsComponent == nil {
-		return
-	}
-	c.logsComponent.GetPipelineProvider().NextPipelineChan() <- message.NewMessage(
-		[]byte(m),
-		c.origin,
-		status,
-		time.Now().UnixNano(),
-	)
-}
-
-func (c *WindowsRegistryCheck) warnf(format string, params ...interface{}) {
-	c.emitLog(fmt.Sprintf(format, params), "warn")
-}
-
-func (c *WindowsRegistryCheck) infof(format string, params ...interface{}) {
-	c.emitLog(fmt.Sprintf(format, params), "info")
-}
-
-func (c *WindowsRegistryCheck) errorf(format string, params ...interface{}) {
-	c.emitLog(fmt.Sprintf(format, params), "error")
-}
-
-func (c *WindowsRegistryCheck) processRegistryKeyMetrics(sender sender.Sender, regKey registry.Key, regKeyCfg registryKey) {
+func (c *WindowsRegistryCheck) processRegistryValues(regDelegate registryDelegate, regKey registry.Key, regKeyCfg registryKey) {
 	for valueName, regValueCfg := range regKeyCfg.registryValues {
 		var err error
 		var valueType uint32
@@ -222,13 +215,10 @@ func (c *WindowsRegistryCheck) processRegistryKeyMetrics(sender sender.Sender, r
 		} else {
 			_, valueType, err = regKey.GetValue(valueName, nil)
 		}
-		gaugeName := fmt.Sprintf("%s.%s.%s", checkPrefix, regKeyCfg.name, regValueCfg.Name)
 		if errors.Is(err, registry.ErrNotExist) {
-			c.log.Warnf("value %s of key %s was not found: %s", valueName, regKeyCfg.name, err)
-			trySendDefaultValue(sender, regValueCfg, gaugeName)
+			regDelegate.onMissing(valueName, regKeyCfg, regValueCfg, err)
 		} else if errors.Is(err, fs.ErrPermission) {
-			c.log.Errorf("access denied while accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
-			trySendDefaultValue(sender, regValueCfg, gaugeName)
+			regDelegate.onAccessDenied(valueName, regKeyCfg, regValueCfg, err)
 		} else if errors.Is(err, registry.ErrShortBuffer) || err == nil {
 			switch valueType {
 			case registry.DWORD:
@@ -236,11 +226,10 @@ func (c *WindowsRegistryCheck) processRegistryKeyMetrics(sender sender.Sender, r
 			case registry.QWORD:
 				val, _, err := regKey.GetIntegerValue(valueName)
 				if err != nil {
-					c.log.Errorf("error accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
-					trySendDefaultValue(sender, regValueCfg, gaugeName)
+					regDelegate.onRetrievalError(valueName, regKeyCfg, regValueCfg, err)
 					continue
 				}
-				sender.Gauge(gaugeName, float64(val), "", nil)
+				regDelegate.onSendNumber(valueName, float64(val), regKeyCfg, regValueCfg)
 			case registry.SZ:
 				fallthrough
 			case registry.EXPAND_SZ:
@@ -249,56 +238,72 @@ func (c *WindowsRegistryCheck) processRegistryKeyMetrics(sender sender.Sender, r
 					val, err = registry.ExpandString(val)
 				}
 				if err != nil {
-					c.log.Errorf("error accessing value %s of key %s: %s", valueName, regKeyCfg.originalKeyPath, err)
-					trySendDefaultValue(sender, regValueCfg, gaugeName)
+					regDelegate.onRetrievalError(valueName, regKeyCfg, regValueCfg, err)
 					continue
 				}
 				// First try to parse the value into a float64
 				if parsedVal, err := strconv.ParseFloat(val, 64); err == nil {
-					sender.Gauge(gaugeName, parsedVal, "", nil)
+					regDelegate.onSendNumber(valueName, parsedVal, regKeyCfg, regValueCfg)
 				} else {
 					// Value can't be parsed, let's check the mappings
 					var mappingFound = false
 					for _, mapping := range regValueCfg.Mappings {
 						if mappedValue, found := mapping[val]; found {
-							sender.Gauge(gaugeName, mappedValue, "", nil)
+							regDelegate.onSendMappedNumber(valueName, val, mappedValue, regKeyCfg, regValueCfg)
 							mappingFound = true
 							break
 						}
 					}
 					if !mappingFound {
-						c.log.Warnf("value %s of key %s cannot be parsed", valueName, regKeyCfg.originalKeyPath)
-						trySendDefaultValue(sender, regValueCfg, gaugeName)
+						regDelegate.onNoMappingFound(valueName, val, regKeyCfg, regValueCfg)
 					}
 				}
 			default:
-				c.log.Warnf("unsupported data type of value %s for key %s: %d", valueName, regKeyCfg.originalKeyPath, valueType)
-				trySendDefaultValue(sender, regValueCfg, gaugeName)
+				regDelegate.onUnsupportedDataType(valueName, valueType, regKeyCfg, regValueCfg)
 			}
 		}
 	}
 }
 
-func trySendDefaultValue(sender sender.Sender, regValueCfg registryValueCfg, gaugeName string) {
-	if defaultVal, exists := regValueCfg.DefaultValue.Get(); exists {
-		sender.Gauge(gaugeName, defaultVal, "", nil)
+func (c *WindowsRegistryCheck) processRegistryKeys(regDelegate registryDelegate) {
+	for _, regKeyCfg := range c.registryKeys {
+		regKey, err := registry.OpenKey(regKeyCfg.hive, regKeyCfg.keyPath, registry.QUERY_VALUE)
+		if err != nil {
+			if errors.Is(err, fs.ErrPermission) {
+				// Treat access denied as errors
+				c.log.Errorf("access denied while accessing key %s: %s", regKeyCfg.originalKeyPath, err)
+			} else if errors.Is(err, registry.ErrNotExist) {
+				c.log.Warnf("key %s was not found: %s", regKeyCfg.originalKeyPath, err)
+				// Process registryValues too so that we can emit missing values for each registryValues
+				c.processRegistryValues(regDelegate, regKey, regKeyCfg)
+			}
+		} else {
+			// if err == nil the key was opened, so we need to close it after we are done.
+			c.processRegistryValues(regDelegate, regKey, regKeyCfg)
+			regKey.Close()
+		}
 	}
 }
 
-func newWindowsRegistryCheck(deps dependencies) check.Check {
-	integrationLogs, _ := deps.LogsComponent.Get()
-	return &WindowsRegistryCheck{
-		CheckBase:     core.NewCheckBase(checkName),
-		logsComponent: integrationLogs,
-		log:           deps.Log,
+func (c *WindowsRegistryCheck) Run() error {
+	c.processRegistryKeys(c.registryDelegate)
+	c.sender.Commit()
+	if c.integrationLogsDelegate.muted {
+		c.integrationLogsDelegate.muted = false
 	}
+	return nil
 }
 
 func newWindowsRegistryComponent(deps dependencies) winregistry.Component {
 	deps.Lifecycle.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			core.RegisterCheck(checkName, func() check.Check {
-				return newWindowsRegistryCheck(deps)
+				integrationLogs, _ := deps.LogsComponent.Get()
+				return &WindowsRegistryCheck{
+					CheckBase:     core.NewCheckBase(checkName),
+					logsComponent: integrationLogs,
+					log:           deps.Log,
+				}
 			})
 			return nil
 		},
