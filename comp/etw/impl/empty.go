@@ -8,7 +8,6 @@
 // Package etwimpl has no implementation on non-Windows platforms
 package etwimpl
 
-// import "C" fixes the error C source files not allowed when not using cgo or SWIG: session.c (typecheck)
 import "C"
 import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
