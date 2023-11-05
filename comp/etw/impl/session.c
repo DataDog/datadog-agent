@@ -5,7 +5,7 @@
 
 extern void etwCallbackC(PEVENT_RECORD);
 
-void WINAPI RecordEventCallback(PEVENT_RECORD event)
+static void WINAPI RecordEventCallback(PEVENT_RECORD event)
 {
     etwCallbackC(event);
 }

@@ -1,3 +1,6 @@
+#ifndef __SESSION_H__
+#define __SESSION_H__
+
 #undef _WIN32_WINNT
 #define _WIN32_WINNT _WIN32_WINNT_WINBLUE // Windows 8.1
 
@@ -21,3 +24,5 @@ ULONG DDEnableTrace(
     ULONG       PIDCount
 );
 TRACEHANDLE DDStartTracing(LPWSTR name, uintptr_t context);
+
+#endif
