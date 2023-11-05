@@ -191,6 +191,42 @@ func TestOTLPNameRemapping(t *testing.T) {
 	}
 }
 
+func TestOTLPV1OperationName(t *testing.T) {
+	cfg := config.New()
+	cfg.OTLPReceiver.ApplyV1OperationName = true
+	out := make(chan *Payload, 1)
+	rcv := NewOTLPReceiver(out, cfg)
+	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		{
+			Attributes: map[string]interface{}{},
+			Spans: []*testutil.OTLPSpan{
+				{
+					Name: "some span name",
+					Attributes: map[string]interface{}{
+						"rpc.system": "grpc",
+					},
+					Kind: ptrace.SpanKindClient,
+				},
+				{
+					Name: "some other span name",
+					Attributes: map[string]interface{}{
+						"http.method": "GET",
+					},
+					Kind: ptrace.SpanKindServer,
+				},
+			},
+		},
+	}).Traces().ResourceSpans().At(0), http.Header{})
+	timeout := time.After(500 * time.Millisecond)
+	select {
+	case <-timeout:
+		t.Fatal("timed out")
+	case p := <-out:
+		assert.Equal(t, "grpc.client.request", p.TracerPayload.Chunks[0].Spans[0].Name)
+		assert.Equal(t, "http.server.request", p.TracerPayload.Chunks[0].Spans[1].Name)
+	}
+}
+
 func TestCreateChunks(t *testing.T) {
 	cfg := config.New()
 	cfg.OTLPReceiver.ProbabilisticSampling = 50
