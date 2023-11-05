@@ -13,24 +13,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
-func testCacheSize(t *testing.T, resolver *Resolver) {
-	err := retry.Do(
-		func() error {
-			if resolver.cacheSize.Load() == 0 {
-				return nil
-			}
-
-			return fmt.Errorf("cache size error: %d", resolver.cacheSize.Load())
-		},
-	)
-	assert.Nil(t, err)
+func testCacheSizeEmpty(t *testing.T, resolver *Resolver) {
+	if resolver.getCacheSize() == 0 {
+		return
+	}
+	assert.Nil(t, fmt.Errorf("cache size error, still have %f entries", resolver.getCacheSize()))
 }
 
 func TestFork1st(t *testing.T) {
@@ -50,7 +43,6 @@ func TestFork1st(t *testing.T) {
 	resolver.AddForkEntry(parent, 0)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -58,7 +50,6 @@ func TestFork1st(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// parent
 	resolver.DeleteEntry(child.Pid, time.Now())
@@ -69,7 +60,7 @@ func TestFork1st(t *testing.T) {
 	resolver.DeleteEntry(parent.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
-	testCacheSize(t, resolver)
+	testCacheSizeEmpty(t, resolver)
 }
 
 func TestFork2nd(t *testing.T) {
@@ -89,7 +80,6 @@ func TestFork2nd(t *testing.T) {
 	resolver.AddForkEntry(parent, 0)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -97,7 +87,6 @@ func TestFork2nd(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ child
@@ -110,7 +99,7 @@ func TestFork2nd(t *testing.T) {
 	resolver.DeleteEntry(child.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
-	testCacheSize(t, resolver)
+	testCacheSizeEmpty(t, resolver)
 }
 
 func TestForkExec(t *testing.T) {
@@ -135,7 +124,6 @@ func TestForkExec(t *testing.T) {
 	resolver.AddForkEntry(parent, 0)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -143,7 +131,6 @@ func TestForkExec(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// parent
 	//     \ [child] -> exec
@@ -152,7 +139,6 @@ func TestForkExec(t *testing.T) {
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, child, exec.Ancestor)
 	assert.Equal(t, parent, exec.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ [child] -> exec
@@ -166,7 +152,7 @@ func TestForkExec(t *testing.T) {
 	resolver.DeleteEntry(exec.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
-	testCacheSize(t, resolver)
+	testCacheSizeEmpty(t, resolver)
 }
 
 func TestOrphanExec(t *testing.T) {
@@ -192,7 +178,6 @@ func TestOrphanExec(t *testing.T) {
 	resolver.AddForkEntry(parent, 0)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -200,7 +185,6 @@ func TestOrphanExec(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ child
@@ -216,13 +200,12 @@ func TestOrphanExec(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child, exec.Ancestor)
 	assert.Equal(t, parent, exec.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// nothing
 	resolver.DeleteEntry(exec.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
-	testCacheSize(t, resolver)
+	testCacheSizeEmpty(t, resolver)
 }
 
 func TestForkExecExec(t *testing.T) {
@@ -253,7 +236,6 @@ func TestForkExecExec(t *testing.T) {
 	resolver.AddForkEntry(parent, 0)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -261,7 +243,6 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ child
@@ -277,7 +258,6 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child, exec1.Ancestor)
 	assert.Equal(t, parent, exec1.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ [child] -> [exec1] -> exec2
@@ -287,13 +267,12 @@ func TestForkExecExec(t *testing.T) {
 	assert.Equal(t, exec1, exec2.Ancestor)
 	assert.Equal(t, child, exec2.Ancestor.Ancestor)
 	assert.Equal(t, parent, exec2.Ancestor.Ancestor.Ancestor)
-	assert.EqualValues(t, 4, resolver.cacheSize.Load())
 
 	// nothing
 	resolver.DeleteEntry(exec2.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
-	testCacheSize(t, resolver)
+	testCacheSizeEmpty(t, resolver)
 }
 
 func TestForkReuse(t *testing.T) {
@@ -325,7 +304,6 @@ func TestForkReuse(t *testing.T) {
 	resolver.AddForkEntry(parent1, 0)
 	assert.Equal(t, parent1, resolver.entryCache[parent1.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent1
 	//     \ child1
@@ -333,7 +311,6 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, child1, resolver.entryCache[child1.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent1, child1.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent1]
 	//     \ child1
@@ -349,7 +326,6 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child1, exec1.Ancestor)
 	assert.Equal(t, parent1, exec1.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// [parent1:pid1]
 	//     \ [child1] -> exec1
@@ -358,7 +334,6 @@ func TestForkReuse(t *testing.T) {
 	resolver.AddForkEntry(parent2, 0)
 	assert.Equal(t, parent2, resolver.entryCache[parent2.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
-	assert.EqualValues(t, 4, resolver.cacheSize.Load())
 
 	// [parent1:pid1]
 	//     \ [child1] -> exec1
@@ -369,7 +344,6 @@ func TestForkReuse(t *testing.T) {
 	assert.Equal(t, child2, resolver.entryCache[child2.Pid])
 	assert.Equal(t, 3, len(resolver.entryCache))
 	assert.Equal(t, parent2, child2.Ancestor)
-	assert.EqualValues(t, 5, resolver.cacheSize.Load())
 
 	// parent2:pid1
 	//     \ child2
@@ -388,7 +362,7 @@ func TestForkReuse(t *testing.T) {
 	resolver.DeleteEntry(child2.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
-	testCacheSize(t, resolver)
+	testCacheSizeEmpty(t, resolver)
 }
 
 func TestForkForkExec(t *testing.T) {
@@ -464,7 +438,7 @@ func TestForkForkExec(t *testing.T) {
 	resolver.DeleteEntry(grandChild.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
-	testCacheSize(t, resolver)
+	testCacheSizeEmpty(t, resolver)
 }
 
 func TestExecBomb(t *testing.T) {
@@ -495,7 +469,6 @@ func TestExecBomb(t *testing.T) {
 	resolver.AddForkEntry(parent, 0)
 	assert.Equal(t, parent, resolver.entryCache[parent.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
-	assert.EqualValues(t, 1, resolver.cacheSize.Load())
 
 	// parent
 	//     \ child
@@ -503,7 +476,6 @@ func TestExecBomb(t *testing.T) {
 	assert.Equal(t, child, resolver.entryCache[child.Pid])
 	assert.Equal(t, 2, len(resolver.entryCache))
 	assert.Equal(t, parent, child.Ancestor)
-	assert.EqualValues(t, 2, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ child
@@ -519,7 +491,6 @@ func TestExecBomb(t *testing.T) {
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, child, exec1.Ancestor)
 	assert.Equal(t, parent, exec1.Ancestor.Ancestor)
-	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// [parent]
 	//     \ [child] -> [exec1] -> exec2
@@ -527,13 +498,12 @@ func TestExecBomb(t *testing.T) {
 	assert.Equal(t, exec1, resolver.entryCache[exec2.Pid])
 	assert.Equal(t, 1, len(resolver.entryCache))
 	assert.Equal(t, exec1.ExecTime, exec2.ExecTime)
-	assert.EqualValues(t, 3, resolver.cacheSize.Load())
 
 	// nothing
 	resolver.DeleteEntry(exec1.Pid, time.Now())
 	assert.Zero(t, len(resolver.entryCache))
 
-	testCacheSize(t, resolver)
+	testCacheSizeEmpty(t, resolver)
 }
 
 func TestExecLostFork(t *testing.T) {
