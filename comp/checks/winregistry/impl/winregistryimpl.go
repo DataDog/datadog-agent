@@ -5,6 +5,7 @@
 
 //go:build windows
 
+// Package winregistryimpl contains the implementation of the Windows Registry check
 package winregistryimpl
 
 import (
@@ -102,6 +103,7 @@ type WindowsRegistryCheck struct {
 	integrationLogsDelegate *integrationLogsRegistryDelegate
 }
 
+// Configure configures the check
 func (c *WindowsRegistryCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	c.senderManager = senderManager
 	c.BuildID(integrationConfigDigest, data, initConfig)
@@ -285,6 +287,7 @@ func (c *WindowsRegistryCheck) processRegistryKeys(regDelegate registryDelegate)
 	}
 }
 
+// Run runs the check
 func (c *WindowsRegistryCheck) Run() error {
 	c.processRegistryKeys(c.registryDelegate)
 	c.sender.Commit()
