@@ -30,10 +30,9 @@ import (
 type monitorState = string
 
 const (
-	Disabled          monitorState = "Disabled"
-	Running           monitorState = "Running"
-	NotRunning        monitorState = "Not Running"
-	monitorModuleName              = "http2_monitor__ebpf"
+	Disabled   monitorState = "Disabled"
+	Running    monitorState = "Running"
+	NotRunning monitorState = "Not Running"
 )
 
 var (

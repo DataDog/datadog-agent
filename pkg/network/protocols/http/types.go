@@ -11,7 +11,6 @@ package http
 #include "../../ebpf/c/protocols/tls/tags-types.h"
 #include "../../ebpf/c/protocols/http/types.h"
 #include "../../ebpf/c/protocols/classification/defs.h"
-#include "../../ebpf/c/protocols/http2/decoding-defs.h"
 */
 import "C"
 

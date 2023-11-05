@@ -10,7 +10,6 @@ package ebpf
 /*
 #include "./c/pid_fd.h"
 #include "./c/tracer/tracer.h"
-#include "./c/protocols/http2/decoding-defs.h"
 #include "./c/tcp_states.h"
 #include "./c/prebuilt/offset-guess.h"
 #include "./c/protocols/classification/defs.h"
