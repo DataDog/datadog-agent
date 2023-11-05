@@ -10,7 +10,10 @@ package http2
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -34,6 +37,8 @@ type protocol struct {
 	// TODO: Do we need to duplicate?
 	statkeeper     *http.StatKeeper
 	eventsConsumer *events.Consumer
+
+	http2Telemetry *Http2KernelTelemetry
 }
 
 const (
@@ -114,10 +119,12 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	telemetry := http.NewTelemetry("http2")
+	http2KernelTelemetry := NewHTTP2KernelTelemetry("http2")
 
 	return &protocol{
-		cfg:       cfg,
-		telemetry: telemetry,
+		cfg:            cfg,
+		telemetry:      telemetry,
+		http2Telemetry: http2KernelTelemetry,
 	}, nil
 }
 
@@ -179,7 +186,12 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 }
 
 func (p *protocol) PostStart(mgr *manager.Manager) error {
-	go p.telemetry.Update(mgr)
+	go func() {
+		err := p.UpdateKernelTelemetry(mgr)
+		if err != nil {
+			log.Warnf("error updating kernel telemetry: %s", err)
+		}
+	}()
 	return nil
 }
 
@@ -229,6 +241,61 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
 }
+
+// UpdateKernelTelemetry should be moved to the HTTP/2 part as well
+func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) error {
+	var zero uint64
+
+	for {
+		mp, _, err := mgr.GetMap(probes.HTTP2TelemetryMap)
+		if err != nil {
+			log.Warnf("error retrieving http2 telemetry map: %s", err)
+			return nil
+		}
+
+		http2Telemetry := &HTTP2Telemetry{}
+		if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+			// This can happen if we haven't initialized the telemetry object yet
+			// so let's just use a trace log
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("error retrieving the http2 telemetry struct: %s", err)
+			}
+			return nil
+		}
+
+		//t.http2requests.Set(int64(http2Telemetry.Request_seen))
+		//t.http2responses.Set(int64(http2Telemetry.Response_seen))
+		p.http2Telemetry.endOfStreamEOS.Set(int64(http2Telemetry.End_of_stream_eos))
+		p.http2Telemetry.endOfStreamRST.Set(int64(http2Telemetry.End_of_stream_rst))
+		//t.strLenGraterThenFrameLoc.Set(int64(http2Telemetry.Str_len_greater_then_frame_loc))
+		//t.frameRemainder.Set(int64(http2Telemetry.Frame_remainder))
+		//t.framesInPacket.Set(int64(http2Telemetry.Max_frames_in_packet))
+		p.http2Telemetry.largePathInDelta.Set(int64(http2Telemetry.Large_path_in_delta))
+		p.http2Telemetry.largePathOutsideDelta.Set(int64(http2Telemetry.Large_path_outside_delta))
+
+		time.Sleep(10 * time.Second)
+	}
+}
+
+//func (p *protocol) getHTTP2EBPFTelemetry(mgr *manager.Manager) *HTTP2Telemetry {
+//	var zero uint64
+//	mp, _, err := mgr.GetMap(probes.HTTP2TelemetryMap)
+//	if err != nil {
+//		log.Warnf("error retrieving http2 telemetry map: %s", err)
+//		return nil
+//	}
+//
+//	http2Telemetry := &HTTP2Telemetry{}
+//	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+//		// This can happen if we haven't initialized the telemetry object yet
+//		// so let's just use a trace log
+//		if log.ShouldLog(seelog.TraceLvl) {
+//			log.Tracef("error retrieving the http2 telemetry struct: %s", err)
+//		}
+//		return nil
+//	}
+//	return http2Telemetry
+//}
 
 // The staticTableEntry represents an entry in the static table that contains an index in the table and a value.
 // The value itself contains both the key and the corresponding value in the static table.

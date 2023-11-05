@@ -22,6 +22,7 @@ type http2DynamicTableIndex C.dynamic_table_index_t
 type http2DynamicTableEntry C.dynamic_table_entry_t
 type http2StreamKey C.http2_stream_key_t
 type EbpfTx C.http2_stream_t
+type HTTP2Telemetry C.http2_telemetry_t
 
 type StaticTableEnumValue = C.static_table_value_t
 

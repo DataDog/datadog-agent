@@ -43,6 +43,12 @@ type EbpfTx struct {
 	Pad_cgo_0             [3]byte
 	Request_path          [160]uint8
 }
+type HTTP2Telemetry struct {
+	End_of_stream_eos        uint64
+	End_of_stream_rst        uint64
+	Large_path_in_delta      uint64
+	Large_path_outside_delta uint64
+}
 
 type StaticTableEnumValue = uint8
 

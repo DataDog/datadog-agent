@@ -22,9 +22,6 @@ type SslReadArgs C.ssl_read_args_t
 type EbpfEvent C.http_event_t
 type EbpfTx C.http_transaction_t
 
-// should move to the HTTP/2 package - wip
-type HTTP2Telemetry C.http2_telemetry_t
-
 const (
 	BufferSize = C.HTTP_BUFFER_SIZE
 )
