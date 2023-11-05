@@ -15,9 +15,9 @@
 #define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 25
 
 // Per request or response we have fewer headers than HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING that are interesting us.
-// For request - those are method, path, and soon to be content type. For response - status code.
+// For request - those are method, path. For response - status code.
 // Thus differentiating between the limits can allow reducing code size.
-#define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 3
+#define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 2
 
 // Maximum size for the path buffer.
 #define HTTP2_MAX_PATH_LEN 160
