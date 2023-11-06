@@ -196,7 +196,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 
 	if interner == nil {
 		// Test cases don't require an interner to work, don't require that they create one for us.
-		interner = cache.NewKeyedStringInternerVals(16384, false)
+		interner = cache.NewKeyedStringInternerMemOnly(16384)
 	}
 
 	for i := 0; i < statsdPipelinesCount; i++ {
@@ -649,8 +649,8 @@ func (d *AgentDemultiplexer) TakeRetentions(retentions cache.InternRetainer, tag
 }
 
 func (d *AgentDemultiplexer) LogRetentions() {
-	d.log.Infof("cache.Retainer: Cache Retainers:")
+	d.log.Debug("cache.Retainer: Cache Retainers:")
 	for tag, retainer := range d.retentions {
-		d.log.Infof("cache.Retainer: %s: %s", tag, retainer.Summarize())
+		d.log.Debugf("cache.Retainer: %s: %s", tag, retainer.Summarize())
 	}
 }

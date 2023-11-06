@@ -1,14 +1,19 @@
+//go:build !linux
+
 package cache
 
 import (
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const MaxValueSize = 4080
 
 // Stub implementation for mmap_hash for non-Linux platforms.
 
-func Report() {}
+func Report() {
+	log.Debug("Stub MMAP Report")
+}
 
 type mmapHash struct {
 }

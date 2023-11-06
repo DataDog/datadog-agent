@@ -31,9 +31,13 @@ const hashPageSize = 4096
 const numEntries = (hashPageSize - 8) / 8
 const callStackDepth = 8
 
+// backBufferSize is padding on each page to handle any memory accesses off
+// the end of the last page.
+const backBufferSize = 8
+
 // MaxValueSize is the largest possible value we can store.  Start with the page size and take off 16:
-// 8 (4+2+2) for a single hashEntry, and 8 for the two int32s on the top of hashPage
-const MaxValueSize = hashPageSize - 16
+// 8 (4+2+2) for a single hashEntry, 8 for the two int32s on the top of hashPage, and 8 for padding.
+const MaxValueSize = hashPageSize - 16 - backBufferSize
 
 // MaxProbes is the maximum number of probes going into the hash table.
 const MaxProbes = 8
@@ -62,6 +66,9 @@ type hashPage struct {
 
 func (hp *hashPage) insertAtIndex(index, hashcode int, key []byte) bool {
 	const entSize = int32(unsafe.Sizeof(hp.entries[0]))
+	if hp.stringData < backBufferSize {
+		hp.stringData = backBufferSize
+	}
 	remaining := hashPageSize - (hp.indexEntries*entSize + hp.stringData)
 	if remaining < (entSize + int32(len(key))) {
 		return false
@@ -160,7 +167,10 @@ func newMmapHash(origin string, fileSize int64, prefixPath string, closeOnReleas
 	if fileSize < hashPageSize {
 		return nil, errors.New("file size too small")
 	}
-	file, err := os.OpenFile(filepath.Join(prefixPath, fmt.Sprintf("%s-%d.dat", normalizeOrigin(origin), fileSize)),
+	allMmaps.lock.Lock()
+	defer allMmaps.lock.Unlock()
+
+	file, err := os.OpenFile(filepath.Join(prefixPath, fmt.Sprintf("%s-%d-%d.dat", normalizeOrigin(origin), len(allMmaps.hashes), fileSize)),
 		os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
 		return nil, err
@@ -203,8 +213,6 @@ func newMmapHash(origin string, fileSize int64, prefixPath string, closeOnReleas
 		closeOnRelease: closeOnRelease,
 	}
 
-	allMmaps.lock.Lock()
-	defer allMmaps.lock.Unlock()
 	allMmaps.hashes = append(allMmaps.hashes, h)
 
 	return h, nil
@@ -285,10 +293,6 @@ func (table *mmapHash) finalize() {
 		return
 	}
 
-	if strings.HasSuffix(table.name, "parseMetricSample_name") || strings.Contains(table.name, "!Timesampler.Name") {
-		log.Infof("Finalizing a segment that often causes issues.")
-	}
-
 	address := unsafe.SliceData(table.mapping)
 	var closeOnRelease string
 	if table.closeOnRelease {
@@ -296,7 +300,7 @@ func (table *mmapHash) finalize() {
 	} else {
 		closeOnRelease = "NO"
 	}
-	_ = log.Warnf(fmt.Sprintf("finalize(%s): Invalidating address %p-%p.  Close-on-release=%s",
+	log.Debugf(fmt.Sprintf("finalize(%s): Invalidating address %p-%p.  Close-on-release=%s",
 		table.Name(), address, unsafe.Add(unsafe.Pointer(address), len(table.mapping)),
 		closeOnRelease))
 	// Make the segment read-only, worry about actual deletion after we have
@@ -402,9 +406,9 @@ func logFailedCheck(check mapCheck, callsite, tag string) string {
 	if _, found := allMmaps.origins[location]; !found {
 		addr := unsafe.StringData(tag)
 		if check.safe {
-			_ = log.Errorf("mmap_hash.%v: %p: Found tag (%s) from dead region, called from %v", callsite, addr, tag, location)
+			log.Debugf("mmap_hash.%v: %p: Found tag (%s) from dead region, called from %v", callsite, addr, tag, location)
 		} else {
-			_ = log.Errorf("mmap_hash.%v: %p: Found tag (INACCESSIBLE) from dead region, called from %v", callsite, addr, location)
+			log.Debugf("mmap_hash.%v: %p: Found tag (INACCESSIBLE) from dead region, called from %v", callsite, addr, location)
 		}
 	}
 	allMmaps.origins[location] += 1
@@ -487,7 +491,7 @@ func Report() {
 	}
 
 	for k, v := range mapData {
-		log.Info(p.Sprintf("* %40s: Total Values: %d, Active Bytes Allocated: %d, Total Bytes Allocated: %d",
+		log.Debug(p.Sprintf("* %40s: Total Values: %d, Active Bytes Allocated: %d, Total Bytes Allocated: %d",
 			k, v.totalValues, v.totalActiveAllocated, v.totalAllocated))
 	}
 
@@ -495,17 +499,20 @@ func Report() {
 	count := 1
 	totalFailedChecks := 0
 	for k, v := range allMmaps.origins {
-		log.Info(p.Sprintf("- %3d/%d %12d/ failed checks: %s", count, nrChecks, v, k))
+		log.Debug(p.Sprintf("- %3d/%d %12d/ failed checks: %s", count, nrChecks, v, k))
 		totalFailedChecks += v
 		count += 1
 	}
-	log.Info(p.Sprintf("Failed Checks Total %d on %d different locations", totalFailedChecks, len(allMmaps.origins)))
+
+	if totalFailedChecks > 0 {
+		log.Info(p.Sprintf("Failed Checks Total %d on %d different locations", totalFailedChecks, len(allMmaps.origins)))
+	}
 
 	if len(allMmaps.pointers) < maxFailedPointersToPrint {
 		for ptr, entry := range allMmaps.pointers {
-			log.Info(p.Sprintf("Address %p in %s: %d hits", unsafe.Pointer(ptr), entry.origin, entry.count))
+			log.Debug(p.Sprintf("Address %p in %s: %d hits", unsafe.Pointer(ptr), entry.origin, entry.count))
 		}
 	} else {
-		log.Info(p.Sprintf("Too many (%d) pointers saved.", len(allMmaps.pointers)))
+		log.Debugf(p.Sprintf("Too many (%d) pointers saved.", len(allMmaps.pointers)))
 	}
 }

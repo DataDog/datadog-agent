@@ -272,7 +272,7 @@ func initTelemetry(cfg config.ConfigReader, logger logComponent.Component) {
 // TODO: (components) - remove once serverless is an FX app
 func NewServerlessServer() Component {
 	return newServerCompat(config.Datadog, logComponent.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverDebug.NewServerlessServerDebug(), true,
-		cache.NewKeyedStringInternerVals(20240, false))
+		cache.NewKeyedStringInternerMemOnly(20240))
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed

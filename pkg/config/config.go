@@ -537,8 +537,12 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_tags", []string{})
 	config.BindEnvAndSetDefault("dogstatsd_mapper_cache_size", 1000)
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_size", 4096)
-	// Unmap old interner pages.
-	config.BindEnvAndSetDefault("dogstatsd_string_interner_preserve_mmap", false)
+	// Whether to unmap old interner pages.  Generally you do unless debugging something.
+	config.BindEnvAndSetDefault("dogstatsd_string_interner_mmap_preserve", false)
+	config.BindEnvAndSetDefault("dogstatsd_string_interner_tmpdir", os.TempDir())
+	config.BindEnvAndSetDefault("dogstatsd_string_interner_mmap_enable", false)
+	config.BindEnvAndSetDefault("dogstatsd_string_interner_mmap_minsizekb", 65536)
+
 	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
 	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
 	// Sends Dogstatsd parse errors to the Debug level instead of the Error level
