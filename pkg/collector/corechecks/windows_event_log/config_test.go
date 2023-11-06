@@ -22,11 +22,13 @@ func TestConfigPrecedence(t *testing.T) {
 	differentTagSID := true
 	differentEventPriority := "high"
 	differentInterpretMessages := false
+	differentLegacyMode := false
 	assert.NotEqual(t, defaultConfigPayloadSize, differentPayloadSize, "Default payload_size changed and test was not updated")
 	assert.NotEqual(t, defaultConfigTagEventID, differentTagEventID, "Default tag_event_id changed and test was not updated")
 	assert.NotEqual(t, defaultConfigTagSID, differentTagEventID, "Default tag_sid changed and test was not updated")
 	assert.NotEqual(t, defaultConfigEventPriority, differentEventPriority, "Default event_priority changed and test was not updated")
 	assert.NotEqual(t, defaultConfigInterpretMessages, differentInterpretMessages, "Default interpret_messages changed and test was not updated")
+	assert.NotEqual(t, defaultConfigLegacyMode, differentLegacyMode, "Default legacy_mode changed and test was not updated")
 
 	//
 	// Assert defaults are applied
@@ -82,13 +84,16 @@ tag_event_id: %v
 tag_sid: %v
 event_priority: %s
 interpret_messages: %v
-`, differentTagEventID, differentTagSID, differentEventPriority, differentInterpretMessages))
+legacy_mode: %v
+`, differentTagEventID, differentTagSID, differentEventPriority, differentInterpretMessages,
+		differentLegacyMode))
 	config, err = unmarshalConfig([]byte(""), initConfig1)
 	if assert.NoError(t, err) {
 		assert.Equal(t, *config.instance.TagEventID, differentTagEventID)
 		assert.Equal(t, *config.instance.TagSID, differentTagSID)
 		assert.Equal(t, *config.instance.EventPriority, differentEventPriority)
 		assert.Equal(t, *config.instance.InterpretMessages, differentInterpretMessages)
+		assert.Equal(t, *config.instance.LegacyMode, differentLegacyMode)
 	}
 
 	//
@@ -99,13 +104,16 @@ tag_event_id: %v
 tag_sid: %v
 event_priority: %v
 interpret_messages: %v
-`, defaultConfigTagEventID, defaultConfigTagSID, defaultConfigEventPriority, defaultConfigInterpretMessages))
+legacy_mode: %v
+`, defaultConfigTagEventID, defaultConfigTagSID, defaultConfigEventPriority, defaultConfigInterpretMessages,
+		defaultConfigLegacyMode))
 	config, err = unmarshalConfig(instanceConfig3, initConfig1)
 	if assert.NoError(t, err) {
 		assert.Equal(t, *config.instance.TagEventID, defaultConfigTagEventID)
 		assert.Equal(t, *config.instance.TagSID, defaultConfigTagSID)
 		assert.Equal(t, *config.instance.EventPriority, defaultConfigEventPriority)
 		assert.Equal(t, *config.instance.InterpretMessages, defaultConfigInterpretMessages)
+		assert.Equal(t, *config.instance.LegacyMode, defaultConfigLegacyMode)
 	}
 
 	//

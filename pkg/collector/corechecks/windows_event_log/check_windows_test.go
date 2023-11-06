@@ -90,7 +90,8 @@ func resetSender(sender *mocksender.MockSender) {
 	sender.Mock.ExpectedCalls = sender.Mock.ExpectedCalls[0:0]
 }
 
-func (s *GetEventsTestSuite) newCheck(instanceConfig []byte, initConfig []byte) (*Check, error) {
+func (s *GetEventsTestSuite) newCheck(instanceConfig []byte) (*Check, error) {
+	initConfig := []byte(`legacy_mode: false`)
 	check := new(Check)
 	check.evtapi = s.ti.API()
 	err := check.Configure(s.sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, initConfig, "test")
@@ -152,7 +153,7 @@ start: oldest
 `,
 		s.channelPath))
 
-	check, err := s.newCheck(instanceConfig, nil)
+	check, err := s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
@@ -177,7 +178,7 @@ start: oldest
 `,
 		s.channelPath))
 
-	check, err := s.newCheck(instanceConfig, nil)
+	check, err := s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
@@ -243,7 +244,7 @@ bookmark_frequency: %d
 `,
 		s.channelPath, s.numEvents-1))
 
-	check, err := s.newCheck(instanceConfig, nil)
+	check, err := s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
@@ -259,7 +260,7 @@ bookmark_frequency: %d
 
 	// create a new check
 	check.Cancel()
-	check, err = s.newCheck(instanceConfig, nil)
+	check, err = s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
@@ -311,7 +312,7 @@ start: now
 `,
 				s.channelPath))
 
-			check, err := s.newCheck(instanceConfig, nil)
+			check, err := s.newCheck(instanceConfig)
 			require.NoError(s.T(), err)
 			defer check.Cancel()
 
@@ -364,7 +365,7 @@ start: now
 				instanceConfig = append(instanceConfig, []byte(fmt.Sprintf("event_priority: %s", tc.confPriority))...)
 			}
 
-			check, err := s.newCheck(instanceConfig, nil)
+			check, err := s.newCheck(instanceConfig)
 			require.NoError(s.T(), err)
 			defer check.Cancel()
 
@@ -403,7 +404,7 @@ query: |
 `,
 		s.channelPath, s.channelPath, s.channelPath))
 
-	check, err := s.newCheck(instanceConfig, nil)
+	check, err := s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
@@ -445,7 +446,7 @@ filters:
   - 1000
 `, s.channelPath, s.eventSource))
 
-	check, err := s.newCheck(instanceConfig, nil)
+	check, err := s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
@@ -508,7 +509,7 @@ included_messages:
   - match this string
 `, s.channelPath))
 
-	check, err := s.newCheck(instanceConfig, nil)
+	check, err := s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
@@ -544,7 +545,7 @@ excluded_messages:
   - match this string
 `, s.channelPath))
 
-	check, err := s.newCheck(instanceConfig, nil)
+	check, err := s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
@@ -582,7 +583,7 @@ excluded_messages:
   - match this string
 `, s.channelPath))
 
-	check, err := s.newCheck(instanceConfig, nil)
+	check, err := s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
 	defer check.Cancel()
 
@@ -630,7 +631,7 @@ tag_event_id: %t
 `,
 				s.channelPath, tc.confval))
 
-			check, err := s.newCheck(instanceConfig, nil)
+			check, err := s.newCheck(instanceConfig)
 			require.NoError(s.T(), err)
 			defer check.Cancel()
 
@@ -690,7 +691,7 @@ tag_sid: %t
 `,
 				s.channelPath, tc.confval))
 
-			check, err := s.newCheck(instanceConfig, nil)
+			check, err := s.newCheck(instanceConfig)
 			require.NoError(s.T(), err)
 			defer check.Cancel()
 

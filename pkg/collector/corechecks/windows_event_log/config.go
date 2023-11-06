@@ -25,6 +25,7 @@ const (
 	defaultConfigEventPriority     = "normal"
 	defaultConfigAuthType          = "default"
 	defaultConfigInterpretMessages = true
+	defaultConfigLegacyMode        = true
 )
 
 // Config represents the Windows Event Log check configuration and its yaml marshalling
@@ -66,6 +67,7 @@ type initConfig struct {
 	TagSID            *bool   `yaml:"tag_sid"`
 	EventPriority     *string `yaml:"event_priority"`
 	InterpretMessages *bool   `yaml:"interpret_messages"`
+	LegacyMode        *bool   `yaml:"legacy_mode"`
 }
 
 func (f *filtersConfig) Sources() []string {
@@ -201,5 +203,13 @@ func (c *Config) setDefaults() {
 			def = *c.init.InterpretMessages
 		}
 		c.instance.InterpretMessages = &def
+	}
+
+	if c.instance.LegacyMode == nil {
+		def := defaultConfigLegacyMode
+		if c.init.LegacyMode != nil {
+			def = *c.init.LegacyMode
+		}
+		c.instance.LegacyMode = &def
 	}
 }
