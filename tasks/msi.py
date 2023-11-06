@@ -37,9 +37,6 @@ NUGET_CONFIG_BASE = '''<?xml version="1.0" encoding="utf-8"?>
 </configuration>
 '''
 
-BinFiles = r"C:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin"
-InstallerSource = r"C:\opt\datadog-agent"
-
 
 def _get_vs_build_command(cmd, vstudio_root=None):
     if not os.getenv("VCINSTALLDIR"):
