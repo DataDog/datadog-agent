@@ -155,7 +155,7 @@ build do
     if not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?)
       command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
       if windows_target?
-        copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+        copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
       else
         copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
       end
