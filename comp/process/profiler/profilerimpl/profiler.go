@@ -76,6 +76,10 @@ func getProfilingSettings(cfg config.Component) profiling.Settings {
 	}
 
 	v, _ := version.Agent()
+
+	tags := cfg.GetStringSlice("internal_profiling.extra_tags")
+	tags = append(tags, fmt.Sprintf("version:%v", v))
+
 	return profiling.Settings{
 		ProfilingURL:         site,
 		Env:                  cfg.GetString("env"),
@@ -85,6 +89,8 @@ func getProfilingSettings(cfg config.Component) profiling.Settings {
 		MutexProfileFraction: cfg.GetInt("internal_profiling.mutex_profile_fraction"),
 		BlockProfileRate:     cfg.GetInt("internal_profiling.block_profile_rate"),
 		WithGoroutineProfile: cfg.GetBool("internal_profiling.enable_goroutine_stacktraces"),
-		Tags:                 []string{fmt.Sprintf("version:%v", v)},
+		WithDeltaProfiles:    cfg.GetBool("internal_profiling.delta_profiles"),
+		Socket:               cfg.GetString("internal_profiling.unix_socket"),
+		Tags:                 tags,
 	}
 }
