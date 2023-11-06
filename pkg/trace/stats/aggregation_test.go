@@ -128,6 +128,26 @@ func TestNewAggregation(t *testing.T) {
 			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerTagsHash}},
 			[]string{"db.instance:i-1234", "db.system:postgres", "peer.service:remote-service"},
 		},
+		{
+			"peer tags aggregation enabled but all peer tags are empty",
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "", "db.instance": "", "db.system": ""},
+			},
+			true,
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: 0}},
+			nil,
+		},
+		{
+			"peer tags aggregation enabled but some peer tags are empty",
+			&pb.Span{
+				Service: "a",
+				Meta:    map[string]string{"span.kind": "client", "field1": "val1", "peer.service": "remote-service", "db.instance": "", "db.system": ""},
+			},
+			true,
+			Aggregation{BucketsAggregationKey: BucketsAggregationKey{Service: "a", SpanKind: "client", PeerTagsHash: peerSvcOnlyHash}},
+			[]string{"peer.service:remote-service"},
+		},
 	} {
 		agg, et := NewAggregationFromSpan(tt.in, "", PayloadAggregationKey{}, tt.enablePeerTagsAgg, peerTags)
 		assert.Equal(t, tt.resAgg, agg, tt.name)

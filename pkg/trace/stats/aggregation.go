@@ -100,7 +100,7 @@ func matchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
 	}
 	var pt []string
 	for _, t := range peerTagKeys {
-		if v, ok := s.Meta[t]; ok {
+		if v, ok := s.Meta[t]; ok && v != "" {
 			pt = append(pt, t+":"+v)
 		}
 	}
