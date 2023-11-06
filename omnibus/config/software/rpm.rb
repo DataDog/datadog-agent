@@ -28,7 +28,7 @@ dependency "libgpg-error"
 dependency "libgcrypt"
 dependency "popt"
 dependency "zstd"
-dependency "sqlite"
+dependency "libsqlite3"
 dependency "libdb"
 dependency "lua"
 

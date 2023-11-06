@@ -497,25 +497,6 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 	}
 }
 
-// peerServiceDefaults specifies default keys used to find a value for peer.service, applied in the order defined below.
-var peerServiceDefaults = []string{
-	// Always use peer.service when it's present
-	semconv.AttributePeerService,
-	// Service-to-service gRPC scenario
-	semconv.AttributeRPCService,
-	// Database
-	semconv.AttributeDBSystem,
-	"db.instance",
-	// Service-to-service HTTP scenario & server-based data streams
-	// Also fallback in case the above attributes are not present
-	semconv.AttributeNetPeerName,
-	// Serverless Database
-	semconv.AttributeAWSDynamoDBTableNames,
-	// Blob storage
-	"bucket.name",
-	semconv.AttributeFaaSDocumentCollection,
-}
-
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
 //
@@ -558,12 +539,6 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		}
 		return true
 	})
-	if key, svc := getFirstFromMap(span.Meta, peerServiceDefaults...); svc != "" {
-		if key != semconv.AttributePeerService {
-			setMetaOTLP(span, semconv.AttributePeerService, svc)
-		}
-		setMetaOTLP(span, "_dd.peer.service.source", key)
-	}
 	for k, v := range attributes.ContainerTagFromAttributes(span.Meta) {
 		if _, ok := span.Meta[k]; !ok {
 			// overwrite only if it does not exist

@@ -238,6 +238,42 @@ func (suite *ecsSuite) TestRedis() {
 	})
 }
 
+func (suite *ecsSuite) TestCPU() {
+	// Test CPU metrics
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				"ecs_container_name:stress-ng",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:ecs-.*-stress-ng-ec2-`,
+				`^docker_image:ghcr.io/colinianking/stress-ng$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:stress-ng$`,
+				`^git.commit.sha:`,
+				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`,
+				`^image_id:sha256:`,
+				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^runtime:docker$`,
+				`^short_image:stress-ng$`,
+				`^task_arn:`,
+				`^task_family:.*-stress-ng-ec2$`,
+				`^task_name:.*-stress-ng-ec2$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 155000000,
+				Min: 145000000,
+			},
+		},
+	})
+}
+
 func (suite *ecsSuite) TestDogstatsd() {
 	// Test dogstatsd origin detection with UDS
 	suite.testMetric(&testMetricArgs{

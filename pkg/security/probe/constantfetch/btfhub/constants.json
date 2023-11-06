@@ -1,5 +1,5 @@
 {
-	"commit": "147c57ebf31eee9b10093a0c95188db6c469a3f6",
+	"commit": "2f2190f2c3854aa2e9cc1f72b0e2f77616282b8b",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -15417,6 +15417,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.1.12-124.79.2.el7uek.x86_64",
+			"cindex": 83
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.1.12-124.80.1.el7uek.x86_64",
 			"cindex": 83
 		},
 		{
