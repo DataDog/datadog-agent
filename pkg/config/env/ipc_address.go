@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package model
+package env
 
 import (
 	"fmt"
 	"net"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // IsLocalAddress returns the given address if it is local or an error if it is not
@@ -35,7 +37,7 @@ func IsLocalAddress(address string) (string, error) {
 }
 
 // GetIPCAddress returns the IPC address or an error if the address is not local
-func GetIPCAddress(cfg Reader) (string, error) {
+func GetIPCAddress(cfg pkgconfigmodel.Reader) (string, error) {
 	address, err := IsLocalAddress(cfg.GetString("ipc_address"))
 	if err != nil {
 		return "", fmt.Errorf("ipc_address: %s", err)

@@ -25,8 +25,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -1533,8 +1533,8 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 	defer func() {
 		// Environment feature detection needs to run before applying override funcs
 		// as it may provide such overrides
-		env.DetectFeatures(config)
-		model.ApplyOverrideFuncs(config)
+		pkgconfigenv.DetectFeatures(config)
+		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
 	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)
@@ -1830,11 +1830,11 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 	return false
 }
 
-var isLocalAddress = model.IsLocalAddress
+var isLocalAddress = pkgconfigenv.IsLocalAddress
 
 // GetIPCAddress returns the IPC address or an error if the address is not local
 func GetIPCAddress() (string, error) {
-	return model.GetIPCAddress(Datadog)
+	return pkgconfigenv.GetIPCAddress(Datadog)
 }
 
 // pathExists returns true if the given path exists
