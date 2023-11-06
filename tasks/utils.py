@@ -122,6 +122,7 @@ def get_build_flags(
     major_version='7',
     python_runtimes='3',
     headless_mode=False,
+    race=False,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -179,6 +180,9 @@ def get_build_flags(
         env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
 
+    if sys.platform == 'win32':
+        env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
+
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
     if rtloader_headers:
         extra_cgo_flags += f" -I{rtloader_headers}"
@@ -212,6 +216,12 @@ def get_build_flags(
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
+
+    # Needed to fix an issue when using -race + gcc 10.x on Windows
+    # https://github.com/bazelbuild/rules_go/issues/2614
+    if race:
+        if sys.platform == 'win32':
+            ldflags += " -linkmode=external"
 
     return ldflags, gcflags, env
 

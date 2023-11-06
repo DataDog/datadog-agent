@@ -574,7 +574,7 @@ RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
     cmd += '-v /usr/lib/os-release:/host/usr/lib/os-release '
     cmd += '-v /etc/passwd:/etc/passwd '
     cmd += '-v /etc/group:/etc/group '
-    cmd += '-v {GOPATH}/src/{REPO_PATH}/pkg/security/tests:/tests {image_tag} sleep 3600'
+    cmd += '-v ./pkg/security/tests:/tests {image_tag} sleep 3600'
 
     args = {
         "GOPATH": get_gopath(ctx),
@@ -623,8 +623,9 @@ def cws_go_generate(ctx):
         ctx.run("go install github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/operators")
         if sys.platform == "linux":
             ctx.run("GOOS=windows go generate ./...")
-        elif sys.platform == "win32":
-            ctx.run("GOOS=linux go generate ./...")
+        # Disable cross generation from windows for now. Need to fix the stringer issue.
+        # elif sys.platform == "win32":
+        #     ctx.run("set GOOS=linux && go generate ./...")
         ctx.run("go generate ./...")
 
     if sys.platform == "linux":
@@ -679,9 +680,9 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.5.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0")
 
             plugin_opts = " ".join(
                 [
@@ -707,7 +708,7 @@ def generate_cws_proto(ctx):
 
 
 def get_git_dirty_files():
-    dirty_stats = check_output(["git", "status", "--porcelain=v1"]).decode('utf-8')
+    dirty_stats = check_output(["git", "status", "--porcelain=v1", "untracked-files=no"]).decode('utf-8')
     paths = []
 
     # see https://git-scm.com/docs/git-status#_short_format for format documentation

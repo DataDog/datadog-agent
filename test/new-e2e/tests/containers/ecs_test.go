@@ -56,6 +56,7 @@ func (suite *ecsSuite) SetupSuite() {
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
 	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
 	suite.ecsClusterName = stackOutput.Outputs["ecs-cluster-name"].Value.(string)
+	suite.clusterName = suite.ecsClusterName
 
 	suite.baseSuite.SetupSuite()
 }
@@ -179,11 +180,11 @@ func (suite *ecsSuite) TestNginx() {
 	// `nginx` check is configured via docker labels
 	// Test it is properly scheduled
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "nginx.net.request_per_s",
+		Filter: testMetricFilterArgs{
+			Name: "nginx.net.request_per_s",
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-nginx-ec2-`,
@@ -210,11 +211,11 @@ func (suite *ecsSuite) TestRedis() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "redis.net.instantaneous_ops_per_sec",
+		Filter: testMetricFilterArgs{
+			Name: "redis.net.instantaneous_ops_per_sec",
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-redis-ec2-`,
@@ -237,14 +238,50 @@ func (suite *ecsSuite) TestRedis() {
 	})
 }
 
+func (suite *ecsSuite) TestCPU() {
+	// Test CPU metrics
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				"ecs_container_name:stress-ng",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:ecs-.*-stress-ng-ec2-`,
+				`^docker_image:ghcr.io/colinianking/stress-ng$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:stress-ng$`,
+				`^git.commit.sha:`,
+				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`,
+				`^image_id:sha256:`,
+				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^runtime:docker$`,
+				`^short_image:stress-ng$`,
+				`^task_arn:`,
+				`^task_family:.*-stress-ng-ec2$`,
+				`^task_name:.*-stress-ng-ec2$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 155000000,
+				Min: 145000000,
+			},
+		},
+	})
+}
+
 func (suite *ecsSuite) TestDogstatsd() {
 	// Test dogstatsd origin detection with UDS
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "custom.metric",
+		Filter: testMetricFilterArgs{
+			Name: "custom.metric",
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-dogstatsd-uds-ec2-`,
@@ -270,11 +307,11 @@ func (suite *ecsSuite) TestDogstatsd() {
 func (suite *ecsSuite) TestPrometheus() {
 	// Test Prometheus check
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "prometheus.prom_gauge",
+		Filter: testMetricFilterArgs{
+			Name: "prometheus.prom_gauge",
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
 				`^container_id:`,
 				`^container_name:ecs-.*-prometheus-ec2-`,
