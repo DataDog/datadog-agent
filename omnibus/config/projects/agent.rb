@@ -301,12 +301,12 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
     ]
     if with_python_runtime? "2"
-      BINARIES_TO_SIGN.concat[
+      BINARIES_TO_SIGN.concat([
         "#{install_dir}\\bin\\agent\\libdatadog-agent-two.dll",
         "#{install_dir}\\embedded2\\python.exe",
         "#{install_dir}\\embedded2\\python27.dll",
         "#{install_dir}\\embedded2\\pythonw.exe"
-      ]
+      ])
     end
     
     BINARIES_TO_SIGN.each do |bin|
