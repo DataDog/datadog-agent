@@ -8,10 +8,8 @@
 package initcontainer
 
 import (
-	"bytes"
 	"context"
-	"fmt"
-	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
+	"io"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -19,6 +17,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/metric"
 
 	"go.uber.org/atomic"
 
@@ -41,12 +41,10 @@ func Run(
 	logsAgent logsAgent.ServerlessLogsAgent,
 	args []string,
 ) {
-	serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] running cmd = >%v<", args)), false)
+	log.Debugf("Launching subprocess %v\n", args)
 	err := execute(logConfig, args)
 	if err != nil {
-		serverlessLog.Write(logConfig, []byte(fmt.Sprintf("[datadog init process] exiting with code = %s", err)), false)
-	} else {
-		serverlessLog.Write(logConfig, []byte("[datadog init process] exiting successfully"), false)
+		log.Debugf("Error exiting: %v\n", err)
 	}
 	metric.AddShutdownMetric(cloudService.GetPrefix(), metricAgent.GetExtraTags(), time.Now(), metricAgent.Demux)
 	flush(logConfig.FlushTimeout, metricAgent, traceAgent, logsAgent)
@@ -61,36 +59,23 @@ func execute(logConfig *serverlessLog.Config, args []string) error {
 
 	cmd := exec.Command(commandName, commandArgs...)
 
-	shouldBuffer := calculateShouldBuffer(commandName)
+	cmd.Stdout = io.Writer(os.Stdout)
+	cmd.Stderr = io.Writer(os.Stderr)
 
-	cmd.Stdout = &serverlessLog.CustomWriter{
-		LogConfig:  logConfig,
-		LineBuffer: bytes.Buffer{},
-		// Dotnet occasionally writes to stdout in multiple chunks causing log splitting issues.
-		// This happens regardless of logging library (and happens with Console.WriteLine).
-		// ShouldBuffer tells the CustomWriter to buffer all log chunks that don't end in a newline,
-		// fixing log splitting in this scenario.
-		ShouldBuffer: shouldBuffer,
+	if logConfig.IsEnabled {
+		cmd.Stdout = io.MultiWriter(os.Stdout, serverlessLog.NewChannelWriter(logConfig.Channel, false))
+		cmd.Stderr = io.MultiWriter(os.Stderr, serverlessLog.NewChannelWriter(logConfig.Channel, true))
 	}
-	cmd.Stderr = &serverlessLog.CustomWriter{
-		LogConfig:    logConfig,
-		LineBuffer:   bytes.Buffer{},
-		ShouldBuffer: shouldBuffer,
-		IsError:      true,
-	}
+
 	err := cmd.Start()
 	if err != nil {
 		return err
 	}
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs)
-	go forwardSignals(cmd.Process, logConfig, sigs)
+	go forwardSignals(cmd.Process, sigs)
 	err = cmd.Wait()
 	return err
-}
-
-func calculateShouldBuffer(commandName string) bool {
-	return commandName == "dotnet"
 }
 
 func buildCommandParam(cmdArg []string) (string, []string) {
@@ -105,11 +90,8 @@ func buildCommandParam(cmdArg []string) (string, []string) {
 	return commandName, []string{}
 }
 
-func forwardSignals(process *os.Process, config *serverlessLog.Config, sigs chan os.Signal) {
+func forwardSignals(process *os.Process, sigs chan os.Signal) {
 	for sig := range sigs {
-		if sig != syscall.SIGURG {
-			serverlessLog.Write(config, []byte(fmt.Sprintf("[datadog init process] %s received", sig)), false)
-		}
 		if sig != syscall.SIGCHLD {
 			if process != nil {
 				_ = syscall.Kill(process.Pid, sig.(syscall.Signal))

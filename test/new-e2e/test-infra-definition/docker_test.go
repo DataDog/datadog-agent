@@ -32,6 +32,6 @@ func (v *dockerSuite) TestExecuteCommand() {
 
 	// args is used to test client.WithArgs. The values of the arguments are not relevant.
 	args := client.WithArgs([]string{"-n", "-c", "."})
-	version := docker.GetAgentCommandRunner().Version(args)
+	version := docker.GetAgent().Version(args)
 	v.Require().Truef(regexpVersion.MatchString(version), fmt.Sprintf("%v doesn't match %v", version, regexpVersion))
 }

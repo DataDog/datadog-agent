@@ -116,7 +116,10 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 		ruleFilters = append(ruleFilters, agentVersionFilter)
 	}
 
-	ruleFilterModel := NewRuleFilterModel()
+	ruleFilterModel, err := NewRuleFilterModel()
+	if err != nil {
+		return fmt.Errorf("failed to create rule filter: %w", err)
+	}
 	seclRuleFilter := rules.NewSECLRuleFilter(ruleFilterModel)
 	macroFilters = append(macroFilters, seclRuleFilter)
 	ruleFilters = append(ruleFilters, seclRuleFilter)
@@ -127,7 +130,7 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 	}
 
 	if err := e.LoadPolicies(e.policyProviders, true); err != nil {
-		return fmt.Errorf("failed to load policies: %s", err)
+		return fmt.Errorf("failed to load policies: %w", err)
 	}
 
 	wg.Add(1)
@@ -181,6 +184,24 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 				} else if e.config.FIMEnabled {
 					_ = e.statsdClient.Gauge(metrics.MetricSecurityAgentFIMRunning, 1, tags, 1)
 				}
+			}
+		}
+	}()
+
+	// Sending an heartbeat event every minute
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		heartbeatTicker := time.NewTicker(1 * time.Minute)
+		defer heartbeatTicker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-heartbeatTicker.C:
+				e.policyMonitor.ReportHeartbeatEvent(e.eventSender)
 			}
 		}
 	}()
@@ -330,11 +351,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
-	for _, action := range rule.Definition.Actions {
-		if action.InternalCallbackDefinition != nil && rule.ID == refreshUserCacheRuleID {
-			_ = e.probe.RefreshUserCache(ev.ContainerContext.ID)
-		}
-	}
+	e.probe.HandleActions(rule, event)
 
 	if rule.Definition.Silent {
 		return false

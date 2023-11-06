@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/cadvisor"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/health"
 	kube "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/node"
@@ -58,20 +59,31 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig, podU
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
 	healthProvider := health.NewProvider(config)
-	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
-	kubeletProvider, err := kube.NewProvider(filter, config, workloadmeta.GetGlobalStore(), podUtils)
 	summaryProvider := summary.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+
+	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
 	if err != nil {
 		log.Warnf("Can't get probe provider: %v", err)
 	}
 
+	kubeletProvider, err := kube.NewProvider(filter, config, workloadmeta.GetGlobalStore(), podUtils)
+	if err != nil {
+		log.Warnf("Can't get kubelet provider: %v", err)
+	}
+
+	cadvisorProvider, err := cadvisor.NewProvider(filter, config, workloadmeta.GetGlobalStore(), podUtils)
+	if err != nil {
+		log.Warnf("Can't get cadvisor provider: %v", err)
+	}
+
 	return []Provider{
+		healthProvider,
 		podProvider,
 		nodeProvider,
-		probeProvider,
-		healthProvider,
-		kubeletProvider,
 		summaryProvider,
+		cadvisorProvider,
+		kubeletProvider,
+		probeProvider,
 	}
 }
 

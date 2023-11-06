@@ -1,0 +1,16 @@
+${COPYRIGHT_HEADER}
+
+//go:build test
+
+package todoimpl
+
+import (
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// MockModule defines the fx options for the mock component.
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+)

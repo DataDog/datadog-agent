@@ -19,7 +19,6 @@
   artifacts:
     expire_in: 2 weeks
     paths:
-      - $CI_PROJECT_DIR/$SYSTEM_PROBE_BINARIES_DIR/system-probe
       - $CI_PROJECT_DIR/sysprobe-build-outputs.tar.xz
 
 build_system-probe-x64:

@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/platforms"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
@@ -75,10 +75,12 @@ func TestInstallScript(t *testing.T) {
 }
 
 func (is *installScriptSuite) TestInstallAgent() {
-	fileManager := filemanager.NewUnixFileManager(is.Env().VM.VMClient)
+	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
 	unixHelper := helpers.NewUnixHelper()
-	agentClient := client.NewAgentCommandRunnerFromVM(is.T(), is.Env().VM)
-	client := common.NewTestClient(is.Env().VM.VMClient, agentClient, fileManager, unixHelper)
+	vm := is.Env().VM.(*client.PulumiStackVM)
+	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
+	require.NoError(is.T(), err)
+	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client)
 

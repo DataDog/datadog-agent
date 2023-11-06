@@ -10,22 +10,27 @@ package tests
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"math"
+	"math/bits"
 	"math/rand"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
 	"github.com/avast/retry-go/v4"
@@ -1426,7 +1431,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setuid", "1001", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setuid", "1001", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setuid")
 			assert.Equal(t, uint32(1001), event.SetUID.UID, "wrong uid")
@@ -1435,7 +1440,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setreuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setreuid", "1002", "1003")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setreuid", "1002", "1003")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setreuid")
 			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
@@ -1445,7 +1450,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setresuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setresuid", "1002", "1003")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setresuid", "1002", "1003")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setreuid")
 			assert.Equal(t, uint32(1002), event.SetUID.UID, "wrong uid")
@@ -1455,7 +1460,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setfsuid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setfsuid", "1004", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setfsuid", "1004", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setfsuid")
 			assert.Equal(t, uint32(1004), event.SetUID.FSUID, "wrong fsuid")
@@ -1464,7 +1469,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setgid", "1005", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setgid", "1005", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setgid")
 			assert.Equal(t, uint32(1005), event.SetGID.GID, "wrong gid")
@@ -1473,7 +1478,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setregid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setregid", "1006", "1007")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setregid", "1006", "1007")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setregid")
 			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
@@ -1483,7 +1488,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setresgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setresgid", "1006", "1007")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setresgid", "1006", "1007")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setregid")
 			assert.Equal(t, uint32(1006), event.SetGID.GID, "wrong gid")
@@ -1493,7 +1498,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 
 	t.Run("setfsgid", func(t *testing.T) {
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, syscallTester, "process-credentials", "setfsgid", "1008", "0")
+			return runSyscallTesterFunc(context.Background(), t, syscallTester, "process-credentials", "setfsgid", "1008", "0")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_setfsgid")
 			assert.Equal(t, uint32(1008), event.SetGID.FSGID, "wrong gid")
@@ -1514,7 +1519,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		threadCapabilities.Unset(capability.EFFECTIVE, capability.CAP_WAKE_ALARM)
 
 		test.WaitSignal(t, func() error {
-			return runSyscallTesterFunc(t, goSyscallTester, "-process-credentials-capset")
+			return runSyscallTesterFunc(context.Background(), t, goSyscallTester, "-process-credentials-capset")
 		}, func(event *model.Event, rule *rules.Rule) {
 			assertTriggeredRule(t, rule, "test_capset")
 
@@ -1546,7 +1551,7 @@ func parseCapIntoSet(capabilities uint64, flag capability.CapType, c capability.
 		}
 
 		if capabilities&v == v {
-			c.Set(flag, capability.Cap(math.Log2(float64(v))))
+			c.Set(flag, capability.Cap(bits.TrailingZeros64(v)))
 		}
 	}
 }
@@ -2093,6 +2098,11 @@ func TestProcessResolution(t *testing.T) {
 			assert.Equal(t, entry1.Pid, entry2.Pid)
 			assert.Equal(t, entry1.PPid, entry2.PPid)
 			assert.Equal(t, entry1.ContainerID, entry2.ContainerID)
+			assert.Equal(t, entry1.Cookie, entry2.Cookie)
+
+			// may not be exaclty equal because of clock drift between two boot time resolution, see time resolver
+			assert.Greater(t, time.Second, entry1.ExecTime.Sub(entry2.ExecTime).Abs())
+			assert.Greater(t, time.Second, entry1.ForkTime.Sub(entry2.ForkTime).Abs())
 		}
 
 		cacheEntry := resolvers.ProcessResolver.ResolveFromCache(pid, pid, inode)
@@ -2218,7 +2228,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 				}
 			} else {
 				testModule.WaitSignal(t, func() error {
-					return runSyscallTesterFunc(t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
+					return runSyscallTesterFunc(context.Background(), t, syscallTester, test.syscallTesterToRun, test.syscallTesterScriptFilenameToRun)
 				}, func(event *model.Event, rule *rules.Rule) {
 					assertTriggeredRule(t, rule, test.rule.ID)
 					test.check(event, rule)
@@ -2226,4 +2236,64 @@ func TestProcessFilelessExecution(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestKillAction(t *testing.T) {
+	checkKernelCompatibility(t, "bpf_send_signal is not supported on this kernel and agent is running in container mode", func(kv *kernel.Version) bool {
+		return !kv.SupportBPFSendSignal() && config.IsContainerized()
+	})
+
+	rule := &rules.RuleDefinition{
+		ID: "kill_action",
+		// using a wilcard to avoid approvers on basename. events will not match thus will be noisy
+		Expression: `process.file.name == "syscall_tester" && mkdir.file.path == "{{.Root}}/test-kill-action"`,
+		Actions: []rules.ActionDefinition{
+			{
+				Kill: &rules.KillDefinition{
+					Signal: "SIGUSR2",
+				},
+			},
+		},
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.Close()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testFile, _, err := test.Path("test-kill-action")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("kill_action", func(t *testing.T) {
+		sigpipeCh := make(chan os.Signal, 1)
+		signal.Notify(sigpipeCh, syscall.SIGUSR2)
+
+		timeoutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := runSyscallTesterFunc(
+			timeoutCtx, t, syscallTester,
+			"set-signal-handler", ";",
+			"mkdirat", testFile, ";",
+			"sleep", "2", ";",
+			"wait-signal", ";",
+			"signal", "sigusr2", strconv.Itoa(int(os.Getpid())),
+		); err != nil {
+			t.Fatal("no signal")
+		}
+
+		select {
+		case <-sigpipeCh:
+		case <-time.After(time.Second * 3):
+			t.Error("signal timeout")
+		}
+	})
 }

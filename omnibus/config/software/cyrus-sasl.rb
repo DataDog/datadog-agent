@@ -21,7 +21,7 @@ build do
 
   configure_opts = ["--with-dblib=lmdb"]
 
-  if osx?
+  if osx_target?
     # https://github.com/Homebrew/homebrew-core/blob/e2071268473bcddaf72f8e3f7aa4153a18d1ccfa/Formula/cyrus-sasl.rb
     configure_opts = configure_opts.append("--disable-macos-framework")
   end

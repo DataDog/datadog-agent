@@ -32,7 +32,6 @@ type Payload struct {
 	Hostname      string         `json:"hostname"`
 	Timestamp     int64          `json:"timestamp"`
 	CheckMetadata *CheckMetadata `json:"check_metadata"`
-	AgentMetadata *AgentMetadata `json:"agent_metadata"`
 	HostMetadata  *HostMetadata  `json:"host_metadata"`
 }
 
@@ -60,15 +59,6 @@ func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error)
 				Hostname:      p.Hostname,
 				Timestamp:     p.Timestamp,
 				CheckMetadata: p.CheckMetadata,
-			})
-	}
-	if p.AgentMetadata != nil {
-		fieldName = "agent_metadata"
-		newPayloads = append(newPayloads,
-			&Payload{
-				Hostname:      p.Hostname,
-				Timestamp:     p.Timestamp,
-				AgentMetadata: p.AgentMetadata,
 			})
 	}
 	if p.HostMetadata != nil {

@@ -31,6 +31,6 @@ func getMMapProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "mmap",
-	}, fentry, Exit|SupportFexit)...)
+	}, fentry, Exit)...)
 	return mmapProbes
 }

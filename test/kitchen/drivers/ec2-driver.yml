@@ -113,6 +113,12 @@ platforms:
     <% if ENV["KITCHEN_CWS_PLATFORM"] %>
     cws_platform: <%= ENV["KITCHEN_CWS_PLATFORM"] %>
     <% end %>
+    <% if ENV["DOCKER_REGISTRY_LOGIN"] && ENV["DOCKER_REGISTRY_PASSWORD"] %>
+    docker:
+      registry: <%= ENV["DOCKER_REGISTRY_URL"] %>
+      username: <%= ENV["DOCKER_REGISTRY_LOGIN"] %>
+      password: <%%= ENV["DOCKER_REGISTRY_PASSWORD"] %>
+    <% end %>
   <% if ENV['KITCHEN_CI_MOUNT_PATH'] && ENV['KITCHEN_CI_ROOT_PATH'] %>
   provisioner:
     command_prefix: TMPDIR=<%= ENV['KITCHEN_CI_ROOT_PATH'] %>
