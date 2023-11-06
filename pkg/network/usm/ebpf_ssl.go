@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"debug/elf"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -560,19 +561,20 @@ func (o *sslProgram) GetStats() *protocols.ProtocolStats {
 
 func isBuildKit(procRoot string, pid uint32) bool {
 	filePath := filepath.Join(procRoot, strconv.Itoa(int(pid)), "comm")
-	content, err := os.ReadFile(filePath)
+	file, err := os.Open(filePath)
 	if err != nil {
 		// Waiting a bit, as we might get the event of process creation before the directory was created.
-		for i := 0; i < 3; i++ {
-			time.Sleep(10 * time.Millisecond)
+		for i := 0; i < 30; i++ {
+			time.Sleep(1 * time.Millisecond)
 			// reading again.
-			content, err = os.ReadFile(filePath)
+			file, err = os.Open(filePath)
 			if err == nil {
 				break
 			}
 		}
 	}
 
+	content, err := io.ReadAll(file)
 	if err != nil {
 		// short living process can hit here, or slow start of another process.
 		return false
