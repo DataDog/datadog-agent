@@ -623,36 +623,44 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     key.length = info->len;
     http2_tls_state_t *state = bpf_map_lookup_elem(&http2_tls_states, &key);
 
+    http2_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
+    if (iteration_value == NULL) {
+        return 0;
+    }
+
+    log_debug("[grpcdebug] http2_tls_entry: len %lu", info->len);
+
     if (state && !state->relevant) {
         bpf_map_delete_elem(&http2_tls_states, &key);
         goto exit;
     }
 
     if (!state) {
-        struct http2_frame header = { 0 };
-        bool relevant = is_relevant_frame_tls(info, &header);
+        iteration_value->frames_count = find_relevant_headers_tls(info, iteration_value->frames_array, iteration_value->frames_count);
 
-        bool frame_header_only = info->len == HTTP2_FRAME_HEADER_SIZE;
-        if (!frame_header_only && !relevant) {
-            // The buffer seems to contain the whole frame, and the frame is not
-            // relevant: we skip it without storing some state.
-            goto exit;
-        }
+        log_debug("[grpcdebug] http2_tls_entry - no state: frames_count %u", iteration_value->frames_count);
 
-        http2_tls_state_t new_state = { 0 };
-        new_state.relevant = relevant;
-        new_state.stream_id = header.stream_id;
-        new_state.frame_flags = header.flags;
+        //bool frame_header_only = info->len == HTTP2_FRAME_HEADER_SIZE;
+        //if (!frame_header_only && !relevant) {
+        //    // The buffer seems to contain the whole frame, and the frame is not
+        //    // relevant: we skip it without storing some state.
+        //    goto exit;
+        //}
 
-        key.length = frame_header_only ? header.length : info->len;
+        //http2_tls_state_t new_state = { 0 };
+        //new_state.relevant = relevant;
+        //new_state.stream_id = header.stream_id;
+        //new_state.frame_flags = header.flags;
 
-        bpf_map_update_elem(&http2_tls_states, &key, &new_state, BPF_ANY);
-        if (frame_header_only) {
-            goto exit;
-        }
+        //key.length = frame_header_only ? header.length : info->len;
+
+        //bpf_map_update_elem(&http2_tls_states, &key, &new_state, BPF_ANY);
+        //if (frame_header_only) {
+        //    goto exit;
+        //}
     }
 
-    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
+    //bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
 
 exit:
     return 0;

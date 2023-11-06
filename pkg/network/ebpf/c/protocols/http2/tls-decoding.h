@@ -65,30 +65,46 @@ static __always_inline bool read_var_int_tls(tls_dispatcher_arguments_t *info, _
     return read_var_int_with_given_current_char_tls(info, current_char_as_number, max_number_for_bits, out);
 }
 
-static __always_inline bool is_relevant_frame_tls(tls_dispatcher_arguments_t *info, struct http2_frame *header) {
-    bool is_headers_frame, is_data_end_of_stream;
+static __always_inline bool find_relevant_headers_tls(tls_dispatcher_arguments_t *info, http2_frame_with_offset *frames_array, __u8 original_index) {
+    bool is_headers_or_rst_frame, is_data_end_of_stream;
+    __u8 interesting_frame_index = 0;
+    struct http2_frame current_frame = {};
+    if (original_index == 1) {
+        interesting_frame_index = 1;
+    }
 
     // Filter preface.
     skip_preface_tls(info);
 
-    // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
-    if (info->off + HTTP2_FRAME_HEADER_SIZE > info->len) {
-        return false;
+#pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
+    for (__u8 i = 0; i < HTTP2_MAX_FRAMES_TO_FILTER; ++i) {
+        // Checking we can read HTTP2_FRAME_HEADER_SIZE from the buffer.
+        if (info->off + HTTP2_FRAME_HEADER_SIZE > info->len) {
+            break;
+        }
+
+        read_into_user_buffer_http2_frame_header((char *)&current_frame, info->buffer_ptr + info->off);
+        info->off += HTTP2_FRAME_HEADER_SIZE;
+        if (!format_http2_frame_header(&current_frame)) {
+            break;
+        }
+
+        log_debug("[grpcdebug] filtering frames: frame type: %d; frame_length: %lu", current_frame.type, current_frame.length);
+
+        // END_STREAM can appear only in Headers and Data frames.
+        // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
+        // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
+        is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
+        is_data_end_of_stream = (current_frame.flags & HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
+        if (interesting_frame_index < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
+            frames_array[interesting_frame_index].frame = current_frame;
+            frames_array[interesting_frame_index].offset = info->off;
+            interesting_frame_index++;
+        }
+        info->off += current_frame.length;
     }
 
-    read_into_user_buffer_http2_frame_header((char *)header, info->buffer_ptr + info->off);
-    info->off += HTTP2_FRAME_HEADER_SIZE;
-    if (!format_http2_frame_header(header)) {
-        return false;
-    }
-
-    // END_STREAM can appear only in Headers and Data frames.
-    // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
-    // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
-    is_headers_frame = header->type == kHeadersFrame;
-    is_data_end_of_stream = ((header->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (header->type == kDataFrame);
-
-    return is_headers_frame || is_data_end_of_stream;
+    return interesting_frame_index;
 }
 
 // parse_field_literal_tls handling the case when the key is part of the static table and the value is a dynamic string
