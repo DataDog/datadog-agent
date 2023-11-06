@@ -11,8 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
-
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"k8s.io/apimachinery/pkg/labels"
 	corev1Informers "k8s.io/client-go/informers/core/v1"
 	corev1Listers "k8s.io/client-go/listers/core/v1"
@@ -45,7 +44,7 @@ func NewServiceAccountCollector() *ServiceAccountCollector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "serviceaccounts",
-			NodeType:                  pkgorchestratormodel.K8sServiceAccount,
+			NodeType:                  orchestrator.K8sServiceAccount,
 			Version:                   "v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.ServiceAccountHandlers)),

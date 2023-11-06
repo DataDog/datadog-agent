@@ -11,8 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
-
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"k8s.io/apimachinery/pkg/labels"
 	netv1Informers "k8s.io/client-go/informers/networking/v1"
 	netv1Listers "k8s.io/client-go/listers/networking/v1"
@@ -45,7 +44,7 @@ func NewIngressCollector() *IngressCollector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "ingresses",
-			NodeType:                  pkgorchestratormodel.K8sIngress,
+			NodeType:                  orchestrator.K8sIngress,
 			Version:                   "networking.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.IngressHandlers)),

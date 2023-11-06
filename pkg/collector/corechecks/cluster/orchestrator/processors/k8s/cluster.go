@@ -15,8 +15,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
-
 	jsoniter "github.com/json-iterator/go"
 	"github.com/twmb/murmur3"
 	corev1 "k8s.io/api/core/v1"
@@ -113,13 +111,13 @@ func (p *ClusterProcessor) Process(ctx *processors.ProcessorContext, list interf
 		return processResult, 0, fmt.Errorf("failed to compute resource version: %s", err.Error())
 	}
 
-	if orchestrator.SkipKubernetesResource(types.UID(ctx.ClusterID), clusterModel.ResourceVersion, pkgorchestratormodel.K8sCluster) {
-		stats := pkgorchestratormodel.CheckStats{
+	if orchestrator.SkipKubernetesResource(types.UID(ctx.ClusterID), clusterModel.ResourceVersion, orchestrator.K8sCluster) {
+		stats := orchestrator.CheckStats{
 			CacheHits: 1,
 			CacheMiss: 0,
-			NodeType:  pkgorchestratormodel.K8sCluster,
+			NodeType:  orchestrator.K8sCluster,
 		}
-		orchestrator.KubernetesResourceCache.Set(pkgorchestratormodel.BuildStatsKey(pkgorchestratormodel.K8sCluster), stats, orchestrator.NoExpiration)
+		orchestrator.KubernetesResourceCache.Set(orchestrator.BuildStatsKey(orchestrator.K8sCluster), stats, orchestrator.NoExpiration)
 		return processResult, 0, nil
 	}
 

@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -128,7 +129,7 @@ func (cb *ManifestBuffer) Start(sender sender.Sender) {
 			select {
 			case msg, ok := <-cb.ManifestChan:
 				if !ok {
-					log.Warnc("Fail to read orchestrator manifest from channel", pkgorchestratormodel.ExtraLogContext...)
+					log.Warnc("Fail to read orchestrator manifest from channel", orchestrator.ExtraLogContext...)
 					continue
 				}
 				cb.appendManifest(msg, sender)

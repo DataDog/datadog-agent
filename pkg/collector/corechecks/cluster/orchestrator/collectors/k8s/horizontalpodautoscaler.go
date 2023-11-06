@@ -11,8 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
-
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	v2Informers "k8s.io/client-go/informers/autoscaling/v2"
 	v2Listers "k8s.io/client-go/listers/autoscaling/v2"
 
@@ -46,7 +45,7 @@ func NewHorizontalPodAutoscalerCollector() *HorizontalPodAutoscalerCollector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "horizontalpodautoscalers",
-			NodeType:                  pkgorchestratormodel.K8sHorizontalPodAutoscaler,
+			NodeType:                  orchestrator.K8sHorizontalPodAutoscaler,
 			Version:                   "autoscaling/v2",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.HorizontalPodAutoscalerHandlers)),

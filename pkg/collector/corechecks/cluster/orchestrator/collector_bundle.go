@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/discovery"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -343,7 +342,7 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().FullName(), result.ResourcesListed, result.ResourcesProcessed, len(result.Result.MetadataMessages), runDuration)
 
 		nt := collector.Metadata().NodeType
-		pkgorchestratormodel.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), nt, orchestrator.KubernetesResourceCache)
+		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), nt, orchestrator.KubernetesResourceCache)
 
 		if collector.Metadata().IsMetadataProducer { // for CR and CRD we don't have metadata but only manifests
 			sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(nt))

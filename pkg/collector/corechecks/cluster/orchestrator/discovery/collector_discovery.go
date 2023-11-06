@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/inventory"
-	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -84,7 +84,7 @@ func GetServerGroupsAndResources() ([]*v1.APIGroup, []*v1.APIResourceList, error
 		// even though it might be incomplete due to discovery failures on other
 		// groups.
 		for group, apiGroupErr := range err.(*discovery.ErrGroupDiscoveryFailed).Groups {
-			log.Warnc(fmt.Sprintf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr), pkgorchestratormodel.ExtraLogContext...)
+			log.Warnc(fmt.Sprintf("Resources for API group version %s could not be discovered: %s", group, apiGroupErr), orchestrator.ExtraLogContext...)
 		}
 	}
 	return groups, resources, nil
@@ -115,7 +115,7 @@ func (p *APIServerDiscoveryProvider) walkAPIResources(inventory *inventory.Colle
 			}
 
 			// Enable the cluster collector when the node resource is discovered.
-			if collector.Metadata().NodeType == pkgorchestratormodel.K8sNode {
+			if collector.Metadata().NodeType == orchestrator.K8sNode {
 				clusterCollector, _ := inventory.CollectorForDefaultVersion("clusters")
 				p.addCollector(clusterCollector)
 			}

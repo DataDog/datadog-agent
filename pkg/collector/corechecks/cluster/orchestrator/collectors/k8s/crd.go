@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
@@ -46,7 +46,7 @@ func NewCRDCollector() *CRDCollector {
 			IsMetadataProducer:        false,
 			SupportsManifestBuffering: false,
 			Name:                      "customresourcedefinitions",
-			NodeType:                  pkgorchestratormodel.K8sCRD,
+			NodeType:                  orchestrator.K8sCRD,
 			Version:                   "apiextensions.k8s.io/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.CRDHandlers)),
@@ -64,7 +64,7 @@ func (c *CRDCollector) Init(rcfg *collectors.CollectorRunConfig) {
 	var err error
 	c.informer, err = rcfg.OrchestratorInformerFactory.CRDInformerFactory.ForResource(groupVersionResource)
 	if err != nil {
-		log.Errorc(err.Error(), pkgorchestratormodel.ExtraLogContext...)
+		log.Errorc(err.Error(), orchestrator.ExtraLogContext...)
 	}
 	c.lister = c.informer.Lister() // return that Lister
 }

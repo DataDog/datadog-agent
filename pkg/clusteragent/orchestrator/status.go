@@ -27,7 +27,7 @@ import (
 )
 
 type stats struct {
-	pkgorchestratormodel.CheckStats
+	orchestrator.CheckStats
 	NodeType  string
 	TotalHits int64
 	TotalMiss int64
@@ -87,7 +87,7 @@ func GetStatus(ctx context.Context, apiCl kubernetes.Interface) map[string]inter
 				status["CLCEnabled"] = true
 				status["CollectionWorking"] = "Clusterchecks are activated but still warming up, the collection could be running on CLC Runners. To verify that we need the clusterchecks to be warmed up."
 			} else {
-				if _, ok := stats.CheckNames[pkgorchestratormodel.CheckName]; ok {
+				if _, ok := stats.CheckNames[orchestrator.CheckName]; ok {
 					status["CLCEnabled"] = true
 					status["CacheNumber"] = "No Elements in the cache, since collection is run on CLC Runners"
 					status["CollectionWorking"] = "The collection is not running on the DCA but on the CLC Runners"
@@ -128,8 +128,8 @@ func setCacheInformationDCAMode(status map[string]interface{}) {
 
 	// get cache efficiency
 	for _, node := range pkgorchestratormodel.NodeTypes() {
-		if value, found := orchestrator.KubernetesResourceCache.Get(pkgorchestratormodel.BuildStatsKey(node)); found {
-			orcStats := value.(pkgorchestratormodel.CheckStats)
+		if value, found := orchestrator.KubernetesResourceCache.Get(orchestrator.BuildStatsKey(node)); found {
+			orcStats := value.(orchestrator.CheckStats)
 			totalMiss := cacheMiss[orcStats.String()]
 			totalHit := cacheHits[orcStats.String()]
 			s := stats{

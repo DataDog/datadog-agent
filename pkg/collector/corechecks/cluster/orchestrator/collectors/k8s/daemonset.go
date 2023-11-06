@@ -11,8 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	k8sProcessors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors/k8s"
-	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
-
+	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"k8s.io/apimachinery/pkg/labels"
 	appsv1Informers "k8s.io/client-go/informers/apps/v1"
 	appsv1Listers "k8s.io/client-go/listers/apps/v1"
@@ -45,7 +44,7 @@ func NewDaemonSetCollector() *DaemonSetCollector {
 			IsManifestProducer:        true,
 			SupportsManifestBuffering: true,
 			Name:                      "daemonsets",
-			NodeType:                  pkgorchestratormodel.K8sDaemonSet,
+			NodeType:                  orchestrator.K8sDaemonSet,
 			Version:                   "apps/v1",
 		},
 		processor: processors.NewProcessor(new(k8sProcessors.DaemonSetHandlers)),
