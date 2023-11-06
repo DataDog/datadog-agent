@@ -65,6 +65,9 @@ func newLruStringCache(maxSize int, tlmEnabled bool) lruStringCache {
 // to create the string, in case there's a separate backing store for it.
 func (c *lruStringCache) lookupOrInsert(key []byte, allocator func(key []byte) string) string {
 	// TODO: replace with a wrap over hashicorp/golang-lru.  It's not less code, but less to test.
+	if len(key) < 1 {
+		return ""
+	}
 
 	// here is the string interner trick: the map lookup using
 	// string(key) doesn't actually allocate a string, but is
