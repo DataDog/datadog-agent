@@ -538,7 +538,7 @@ func serviceTypeTransformer(s sender.Sender, name string, metric ksmstore.DDMetr
 
 // removeSecretTransformer removes the secret tag from the kube_ingress_tls metric
 func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
-	if len(tags)>0{
+	if len(tags)>0 {
 		for i, s := range tags {
 			if strings.Contains(s, "secret:") {
 				tags[i] = ""
