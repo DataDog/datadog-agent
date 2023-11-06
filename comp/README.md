@@ -60,6 +60,10 @@ Package hostname exposes hostname.Get() as a component.
 
 Package log implements a component to handle logging internal to the agent.
 
+### [comp/core/statsd](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/statsd)
+
+Package statsd implements a component to get a statsd client.
+
 ### [comp/core/sysprobeconfig](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/sysprobeconfig)
 
 *Datadog Team*: ebpf-platform
