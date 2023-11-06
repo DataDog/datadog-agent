@@ -10,7 +10,6 @@ package testdns
 
 import (
 	"net"
-	"strconv"
 	"sync"
 	"testing"
 
@@ -18,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var globalTcpError error
+var globalUdpError error
 var serverOnce sync.Once
 
 const localhostAddr = "127.0.0.1"
@@ -27,27 +28,27 @@ const localhostAddr = "127.0.0.1"
 //
 // see server#start to see which domains are handled.
 func GetServerIP(t *testing.T) net.IP {
-	var err error
 	var srv *server
 	serverOnce.Do(func() {
-		srv, err = newServer()
-		srv.Start("tcp", 53)
-		srv.Start("udp", 53)
+		srv = newServer()
+		globalTcpError = srv.Start("tcp")
+		globalUdpError = srv.Start("udp")
 	})
-
-	require.NoError(t, err)
+	require.NoError(t, globalTcpError, "Error starting local TCP DNS server")
+	require.NoError(t, globalUdpError, "Error starting local UDP DNS server")
 	return net.ParseIP(localhostAddr)
 }
 
 type server struct{}
 
-func newServer() (*server, error) {
-	return &server{}, nil
+func newServer() *server {
+	return &server{}
 }
 
-func (s *server) Start(transport string, port int) {
+func (s *server) Start(transport string) error {
 	started := make(chan struct{}, 1)
-	address := localhostAddr + ":" + strconv.Itoa(port)
+	errChan := make(chan error, 1)
+	address := localhostAddr + ":53"
 	srv := dns.Server{
 		Addr: address,
 		Net:  transport,
@@ -99,9 +100,18 @@ func (s *server) Start(transport string, port int) {
 		},
 	}
 	go func() {
-		_ = srv.ListenAndServe()
+		err := srv.ListenAndServe()
+		if err != nil {
+			errChan <- err
+		}
 	}()
-	<-started
+
+	select {
+	case <-started:
+		return nil
+	case err := <-errChan:
+		return err
+	}
 }
 
 func respond(req *dns.Msg, writer dns.ResponseWriter, record string) {
