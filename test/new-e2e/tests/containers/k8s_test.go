@@ -28,6 +28,11 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
+const (
+	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
+	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
+)
+
 var GitCommit string
 
 type k8sSuite struct {
@@ -129,12 +134,21 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 				return
 			}
 
+			dogstatsdPods, err := suite.K8sClient.CoreV1().Pods("dogstatsd-standalone").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", "dogstatsd-standalone").String(),
+			})
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to list dogstatsd standalone pods") {
+				return
+			}
+
 			assert.Len(c, linuxPods.Items, len(linuxNodes.Items))
 			assert.Len(c, windowsPods.Items, len(windowsNodes.Items))
 			assert.NotEmpty(c, clusterAgentPods.Items)
 			assert.NotEmpty(c, clusterChecksPods.Items)
+			assert.Len(c, dogstatsdPods.Items, len(linuxNodes.Items))
 
-			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods} {
+			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods, dogstatsdPods} {
 				for _, pod := range podList.Items {
 					for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
 						assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn’t ready", containerStatus.Name, pod.Name)
@@ -482,14 +496,22 @@ func (suite *k8sSuite) TestCPU() {
 	})
 }
 
-func (suite *k8sSuite) TestDogstatsd() {
+func (suite *k8sSuite) TestDogstatsdInAgent() {
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload)
+}
+
+func (suite *k8sSuite) TestDogstatsdStandalone() {
+	suite.testDogstatsd(kubeNamespaceDogstatsStandaloneWorkload)
+}
+
+func (suite *k8sSuite) testDogstatsd(kubeNamespace string) {
 	// Test dogstatsd origin detection with UDS
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
 				"kube_deployment:dogstatsd-uds",
-				"kube_namespace:workload-dogstatsd",
+				"kube_namespace:" + kubeNamespace,
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -504,7 +526,7 @@ func (suite *k8sSuite) TestDogstatsd() {
 				`^image_tag:main$`,
 				`^kube_container_name:dogstatsd$`,
 				`^kube_deployment:dogstatsd-uds$`,
-				`^kube_namespace:workload-dogstatsd$`,
+				"^kube_namespace:" + kubeNamespace + "$",
 				`^kube_ownerref_kind:replicaset$`,
 				`^kube_ownerref_name:dogstatsd-uds-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
@@ -523,13 +545,13 @@ func (suite *k8sSuite) TestDogstatsd() {
 			Name: "custom.metric",
 			Tags: []string{
 				"kube_deployment:dogstatsd-udp",
-				"kube_namespace:workload-dogstatsd",
+				"kube_namespace:" + kubeNamespace,
 			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_deployment:dogstatsd-udp$`,
-				`^kube_namespace:workload-dogstatsd$`,
+				"^kube_namespace:" + kubeNamespace + "$",
 				`^kube_ownerref_kind:replicaset$`,
 				`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
