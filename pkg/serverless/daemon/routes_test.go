@@ -166,9 +166,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 	processTrace := func(p *api.Payload) {
 		for _, c := range p.TracerPayload.Chunks {
 			priorities = append(priorities, c.Priority)
-			for _, span := range c.Spans {
-				spans = append(spans, span)
-			}
+			spans = append(spans, c.Spans...)
 		}
 	}
 
