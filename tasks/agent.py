@@ -68,6 +68,7 @@ AGENT_CORECHECKS = [
     "uptime",
     "winproc",
     "jetson",
+    "telemetry",
 ]
 
 WINDOWS_CORECHECKS = [
