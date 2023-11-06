@@ -38,7 +38,7 @@ func (v *baseFlareSuite) TestFlareDefaultFiles() {
 	assertFileNotContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
 }
 
-func requestAgentFlareAndFetchFromFakeIntake(t *testing.T, agent *client.Agent, fakeintake *client.Fakeintake, flareArgs ...client.AgentArgsOption) flare.Flare {
+func requestAgentFlareAndFetchFromFakeIntake(t *testing.T, agent client.Agent, fakeintake *client.Fakeintake, flareArgs ...client.AgentArgsOption) flare.Flare {
 	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.NoError(c, fakeintake.Client.GetServerHealth())
