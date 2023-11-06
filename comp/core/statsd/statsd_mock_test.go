@@ -42,13 +42,14 @@ func TestMockProvide(t *testing.T) {
 	w := &statsdWriter{
 		bytes.NewBufferString(""),
 	}
-	mc, err := ddgostatsd.NewWithWriter(w)
+	// ddgostatsd.WithoutOriginDetection() to make sure we don't have the container in the output.
+	mc, err := ddgostatsd.NewWithWriter(w, ddgostatsd.WithoutOriginDetection())
 	assert.NoError(t, err)
 	s := fxutil.Test[Mock](t,
 		MockModule,
 		fx.Replace(fx.Annotate(mc, fx.As(new(MockClient)))),
 	)
-	c, err := s.Get(ddgostatsd.WithoutOriginDetection())
+	c, err := s.Get()
 	assert.NoError(t, err)
 	_ = c.Count("foo", 1, []string{"foo:bar"}, 1)
 	_ = c.Flush()
