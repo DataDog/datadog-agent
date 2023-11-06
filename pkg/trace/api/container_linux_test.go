@@ -51,6 +51,7 @@ func TestConnContext(t *testing.T) {
 	if err := os.Chmod(sockPath, 0o722); err != nil {
 		t.Fatalf("error setting socket permissions: %v", err)
 	}
+	ln = NewMeasuredListener(ln, "uds_connections", 10)
 	defer ln.Close()
 
 	s := &http.Server{
