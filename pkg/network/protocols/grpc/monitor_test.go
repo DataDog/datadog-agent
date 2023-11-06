@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	srvAddr = "127.0.0.1:5050"
+	srvAddr = "127.0.0.1:6400"
 )
 
 var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -72,6 +72,22 @@ func getClientsArray(t *testing.T, size int) []*grpc.Client {
 	}
 
 	return res
+}
+
+func getClientsArray2(t *testing.T, size int) ([]*grpc.Client, func()) {
+	res := make([]*grpc.Client, size)
+	for i := 0; i < size; i++ {
+		client, err := grpc.NewClient(srvAddr, grpc.Options{})
+		require.NoError(t, err)
+		//t.Cleanup(client.Close)
+		res[i] = &client
+	}
+
+	return res, func() {
+		for i := 0; i < size; i++ {
+			res[i].Close()
+		}
+	}
 }
 
 func getClientsIndex(index, totalCount int) int {
@@ -552,8 +568,8 @@ func (s *USMgRPCSuite) TestParallelGRPCScenarios() {
 		{
 			name: "simple unary - multiple requests",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount)
-
+				clients, cleanup := getClientsArray2(t, clientsCount)
+				defer cleanup()
 				wg := sync.WaitGroup{}
 				for i := 0; i < 100; i++ {
 					wg.Add(1)
@@ -601,7 +617,7 @@ func (s *USMgRPCSuite) TestParallelGRPCScenarios() {
 					}
 					http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
 					for key, stat := range http2StatsTyped {
-						if key.DstPort == 5050 || key.SrcPort == 5050 {
+						if key.DstPort == 6400 || key.SrcPort == 6400 {
 							count := stat.Data[200].Count
 							newKey := http.Key{
 								Path:   http.Path{Content: key.Path.Content},
@@ -638,9 +654,15 @@ func (s *USMgRPCSuite) TestParallelGRPCScenarios() {
 					} else {
 						t.Log(o)
 					}
-					o, err = monitor.DumpMaps("http2_dynamic_table")
+					//o, err = monitor.DumpMaps("http2_dynamic_table")
+					//if err != nil {
+					//	t.Logf("failed dumping http2_dynamic_table: %s", err)
+					//} else {
+					//	t.Log(o)
+					//}
+					o, err = monitor.DumpMaps("http2_dynamic_counter_table")
 					if err != nil {
-						t.Logf("failed dumping http2_dynamic_table: %s", err)
+						t.Logf("failed dumping http2_dynamic_counter_table: %s", err)
 					} else {
 						t.Log(o)
 					}

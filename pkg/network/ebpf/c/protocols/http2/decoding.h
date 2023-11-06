@@ -14,6 +14,10 @@
 #include "protocols/http/types.h"
 #include "protocols/classification/defs.h"
 
+static __always_inline __s32 get_unique_port(conn_tuple_t *tup) {
+    return tup->sport != 5050 ? tup->sport : -tup->dport;
+}
+
 // returns true if the given index is one of the relevant headers we care for in the static table.
 // The full table can be found in the user mode code `createStaticTable`.
 static __always_inline bool is_interesting_static_entry(const __u64 index) {
@@ -80,19 +84,34 @@ static __always_inline bool read_var_int(struct __sk_buff *skb, skb_info_t *skb_
 }
 
 //get_dynamic_counter returns the current dynamic counter by the conn tup.
-static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
+static __always_inline __u64 *get_dynamic_counter(struct __sk_buff* skb, conn_tuple_t *tup) {
     // global counter is the counter which help us with the calc of the index in our internal hpack dynamic table
-    __u64 *counter_ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
-    if (counter_ptr != NULL) {
-        return counter_ptr;
-    }
+//    __u64 *counter_ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
+//    if (counter_ptr != NULL) {
+//        return counter_ptr;
+//    }
     __u64 counter = 0;
-    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_ANY);
+    long ret = bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_NOEXIST);
+//    log_debug("guy http2 dynamic counter got %d sport=%d dport=%d\n", ret, tup->sport, tup->dport);
+    if (ret == 0) {}
+//    if (ret < 0) {
+//        log_debug("guy %p http2 dynamic counter exists for sport=%d dport=%d\n", skb, tup->sport, tup->dport);
+//        log_debug("guy %p http2 dynamic counter exists for saddr_l=%d daddr_l=%d\n", skb, tup->saddr_l, tup->daddr_l);
+//        log_debug("guy %p http2 dynamic counter exists for saddr_h=%d daddr_h=%d\n", skb, tup->saddr_h, tup->daddr_h);
+//        log_debug("guy %p http2 dynamic counter exists for netns=%d pid=%d metadata=%d\n", skb, tup->netns, tup->pid);
+//        log_debug("guy %p http2 dynamic counter exists for metadata=%d\n", skb, tup->metadata);
+//    } else {
+//        log_debug("guy %p http2 dynamic counter does not exist for sport=%d dport=%d\n", skb, tup->sport, tup->dport);
+//        log_debug("guy %p http2 dynamic counter does not exist for saddr_l=%d daddr_l=%d\n", skb, tup->saddr_l, tup->daddr_l);
+//        log_debug("guy %p http2 dynamic counter does not exist for saddr_h=%d daddr_h=%d\n", skb, tup->saddr_h, tup->daddr_h);
+//        log_debug("guy %p http2 dynamic counter does not exist for netns=%d pid=%d\n", skb, tup->netns, tup->pid);
+//        log_debug("guy %p http2 dynamic counter does not exist for metadata=%d\n", skb, tup->metadata);
+//    }
     return bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
 }
 
 // parse_field_indexed is handling the case which the header frame is part of the static table.
-static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
+static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, conn_tuple_t *tup, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, __u32 stream_id) {
     if (headers_to_process == NULL) {
         return;
     }
@@ -112,8 +131,11 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
     dynamic_index->index = global_dynamic_counter - (index - MAX_STATIC_TABLE_INDEX);
 
     if (bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) == NULL) {
+        log_debug("guy sport: %ld, stream %ld; indexed missing global_dynamic_counter %ld\n", get_unique_port(tup), stream_id, global_dynamic_counter);
+        log_debug("guy sport: %ld, stream %ld; indexed missing global index %ld\n", get_unique_port(tup), stream_id, index);
         return;
     }
+    log_debug("guy sport: %ld indexed global_dynamic_counter %ld; index %ld \n", get_unique_port(tup), global_dynamic_counter, index);
 
     headers_to_process->index = dynamic_index->index;
     headers_to_process->type = kExistingDynamicHeader;
@@ -125,7 +147,9 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
-static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
+static __always_inline bool parse_field_literal(struct __sk_buff *skb, conn_tuple_t *tup, skb_info_t *skb_info, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, __u32 stream_id) {
+    log_debug("guy sport: %ld stream %ld parse_field_literal %ld\n", get_unique_port(tup), stream_id, global_dynamic_counter);
+
     __u8 str_len = 0;
     if (!read_var_int(skb, skb_info, MAX_6_BITS, &str_len)) {
         return false;
@@ -148,6 +172,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     if (skb_info->data_off + final_size > skb_info->data_end) {
         goto end;
     }
+    log_debug("guy sport: %ld stream: %ld new parse_field_literal %ld\n", get_unique_port(tup), stream_id, global_dynamic_counter);
 
     headers_to_process->index = global_dynamic_counter - 1;
     headers_to_process->type = kNewDynamicHeader;
@@ -160,7 +185,7 @@ end:
 }
 
 // This function reads the http2 headers frame.
-static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length) {
+static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, __u32 stream_id) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
@@ -171,10 +196,11 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     __u8 max_bits = 0;
     __u8 index = 0;
 
-    __u64 *global_dynamic_counter = get_dynamic_counter(tup);
+    __u64 *global_dynamic_counter = get_dynamic_counter(skb, tup);
     if (global_dynamic_counter == NULL) {
         return 0;
     }
+    log_debug("guy pre (sport: %ld; dport: %ld) global_dynamic_counter=%d\n", get_unique_port(tup), tup->dport, *global_dynamic_counter);
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
@@ -209,18 +235,19 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            parse_field_indexed(dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers);
+            parse_field_indexed(dynamic_index, tup, current_header, index, *global_dynamic_counter, &interesting_headers, stream_id);
         } else {
-            (*global_dynamic_counter)++;
+            __sync_fetch_and_add(global_dynamic_counter, 1);
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            if (!parse_field_literal(skb, skb_info, current_header, index, *global_dynamic_counter, &interesting_headers)) {
+            if (!parse_field_literal(skb, tup, skb_info, current_header, index, *global_dynamic_counter, &interesting_headers, stream_id)) {
                 break;
             }
         }
     }
 
+    log_debug("guy post (sport: %ld; dport: %ld) global_dynamic_counter=%d\n", get_unique_port(tup), tup->dport, *global_dynamic_counter);
     return interesting_headers;
 }
 
@@ -303,9 +330,11 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
     }
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
-    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length);
+    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length, current_frame_header->stream_id);
     process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers);
 }
+
+
 
 static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_ctx_t *http2_ctx, struct http2_frame *current_frame) {
     http2_ctx->http2_stream_key.stream_id = current_frame->stream_id;
@@ -314,6 +343,8 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
         return;
     }
 
+    log_debug("guy parsing frame (sport: %ld, stream: %ld) type %ld\n", get_unique_port(tup), current_frame->stream_id, current_frame->type);
+    log_debug("guy parsing frame (sport: %ld, stream: %ld) flags %ld\n", get_unique_port(tup), current_frame->stream_id, current_frame->flags);
     if (current_frame->type == kHeadersFrame) {
         process_headers_frame(skb, current_stream, skb_info, tup, &http2_ctx->dynamic_index, current_frame);
     }
@@ -528,6 +559,7 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
 
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
+//        log_debug("guy %p http2_handle_first_frame tcp termination sport: %ld; sport: %ld\n", skb, dispatcher_args_copy.tup.sport, dispatcher_args_copy.tup.dport);
         // Deleting the entry for the original tuple.
         bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
         // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
@@ -691,7 +723,6 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
         normalize_tuple(&http2_ctx->http2_stream_key.tup);
         http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
         dispatcher_args_copy.skb_info.data_off = current_frame.offset;
-
         parse_frame(skb, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, http2_ctx, &current_frame.frame);
     }
 

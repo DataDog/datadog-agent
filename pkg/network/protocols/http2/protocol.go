@@ -10,6 +10,7 @@ package http2
 import (
 	"errors"
 	"fmt"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"strings"
 	"unsafe"
 
@@ -211,6 +212,14 @@ func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 		iter := currentMap.Iterate()
 		var key http2DynamicTableIndex
 		var value http2DynamicTableEntry
+		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+			output.WriteString(spew.Sdump(key, value))
+		}
+	} else if mapName == dynamicTableCounter {
+		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
+		iter := currentMap.Iterate()
+		var key netebpf.ConnTuple
+		var value uint64
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
