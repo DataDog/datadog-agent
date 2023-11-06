@@ -171,7 +171,6 @@ DEFAULT_MODULES = {
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True),
     "pkg/util/filesystem": GoModule("pkg/util/filesystem", independent=True),
     "pkg/util/fxutil": GoModule("pkg/util/fxutil", independent=True),
-    "pkg/util/goroutines": GoModule("pkg/util/goroutines", independent=True),
     "pkg/util/json": GoModule("pkg/util/json", independent=True),
     "pkg/util/optional": GoModule("pkg/util/optional", independent=True),
     "pkg/util/retry": GoModule("pkg/util/retry", independent=True),

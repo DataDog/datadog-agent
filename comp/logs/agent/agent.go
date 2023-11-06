@@ -31,7 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/tailers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util/goroutines"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
@@ -227,7 +227,7 @@ func (a *agent) stop(context.Context) error {
 		case <-c:
 		case <-timeout.C:
 			a.log.Warn("Force close of the Logs Agent, dumping the Go routines.")
-			if stack, err := goroutines.GetGoRoutinesDump(a.config); err != nil {
+			if stack, err := util.GetGoRoutinesDump(); err != nil {
 				a.log.Warnf("can't get the Go routines dump: %s\n", err)
 			} else {
 				a.log.Warn(stack)
