@@ -591,11 +591,12 @@ func isBuildKit(procRoot string, pid uint32) bool {
 
 	buf := taskCommLenBufferPool.Get().(*[]byte)
 	defer taskCommLenBufferPool.Put(buf)
-	if _, err := file.Read(*buf); err != nil {
+	n, err := file.Read(*buf)
+	if err != nil {
 		// short living process can hit here, or slow start of another process.
 		return false
 	}
-	return bytes.Equal(bytes.TrimSpace(*buf), buildKitProcessName)
+	return bytes.Equal(bytes.TrimSpace((*buf)[:n]), buildKitProcessName)
 }
 
 func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelector) func(utils.FilePath) error {
