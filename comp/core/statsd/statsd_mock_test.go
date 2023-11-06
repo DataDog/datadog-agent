@@ -48,7 +48,7 @@ func TestMockProvide(t *testing.T) {
 		MockModule,
 		fx.Replace(fx.Annotate(mc, fx.As(new(MockClient)))),
 	)
-	c, err := s.Get()
+	c, err := s.Get(ddgostatsd.WithoutOriginDetection())
 	assert.NoError(t, err)
 	_ = c.Count("foo", 1, []string{"foo:bar"}, 1)
 	_ = c.Flush()
