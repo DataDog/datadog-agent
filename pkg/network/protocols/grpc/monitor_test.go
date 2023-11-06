@@ -10,7 +10,6 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"math/rand"
 	"testing"
 	"time"
@@ -97,11 +96,10 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	// c is a stream endpoint
 	// a + b are unary endpoints
 	tests := []struct {
-		name                string
-		runClients          func(t *testing.T, clientsCount int)
-		expectedEndpoints   map[http.Key]captureRange
-		expectedError       bool
-		expectedEndOfStream int
+		name              string
+		runClients        func(t *testing.T, clientsCount int)
+		expectedEndpoints map[http.Key]captureRange
+		expectedError     bool
 	}{
 		{
 			name: "simple unary - multiple requests",
@@ -122,7 +120,6 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 1001,
 				},
 			},
-			expectedEndOfStream: 2000,
 		},
 		{
 			name: "unary, a->b->a",
@@ -149,7 +146,6 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 1,
 				},
 			},
-			expectedEndOfStream: 6,
 		},
 		{
 			name: "unary, a->b->a->b",
@@ -177,7 +173,6 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 2,
 				},
 			},
-			expectedEndOfStream: 8,
 		},
 		{
 			name: "unary, a->b->b->a",
@@ -205,7 +200,6 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 2,
 				},
 			},
-			expectedEndOfStream: 8,
 		},
 		{
 			name: "stream, c",
@@ -226,7 +220,6 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 25,
 				},
 			},
-			expectedEndOfStream: 50,
 		},
 		{
 			name: "mixed, c->b->c->b",
@@ -254,7 +247,6 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 2,
 				},
 			},
-			expectedEndOfStream: 8,
 		},
 		{
 			name: "500 headers -> b -> 500 headers -> b",
@@ -291,8 +283,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 2,
 				},
 			},
-			expectedEndOfStream: 8,
-			expectedError:       true,
+			expectedError: true,
 		},
 		{
 			name: "duplicated headers -> b -> duplicated headers -> b",
@@ -329,8 +320,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					upper: 2,
 				},
 			},
-			expectedError:       true,
-			expectedEndOfStream: 8,
+			expectedError: true,
 		},
 	}
 	for _, tt := range tests {
@@ -389,8 +379,6 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
-
-				log.Info("test passed")
 			})
 		}
 	}

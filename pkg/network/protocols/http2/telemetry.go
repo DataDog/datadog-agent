@@ -27,14 +27,14 @@ type KernelTelemetry struct {
 	// strLenGraterThenFrameLoc Amount of times we did not manage to get the path due to the fact we reached to the end of the frame.
 	// frameRemainder		    Amount of frames that were sent over more than one frame.
 
-	http2requests            *libtelemetry.Gauge
-	http2responses           *libtelemetry.Gauge
-	endOfStreamEOS           *libtelemetry.Gauge
-	endOfStreamRST           *libtelemetry.Gauge
-	largePathInDelta         *libtelemetry.Gauge
-	largePathOutsideDelta    *libtelemetry.Gauge
-	strLenGraterThenFrameLoc *libtelemetry.Gauge
-	frameRemainder           *libtelemetry.Gauge
+	http2requests         *libtelemetry.Gauge
+	http2responses        *libtelemetry.Gauge
+	endOfStreamEOS        *libtelemetry.Gauge
+	endOfStreamRST        *libtelemetry.Gauge
+	largePathInDelta      *libtelemetry.Gauge
+	largePathOutsideDelta *libtelemetry.Gauge
+	strLenExceedsFrame    *libtelemetry.Gauge
+	frameRemainder        *libtelemetry.Gauge
 }
 
 // NewHTTP2KernelTelemetry hold HTTP/2 kernel metrics.
@@ -44,14 +44,14 @@ func NewHTTP2KernelTelemetry(protocol string) *KernelTelemetry {
 		metricGroup: metricGroup,
 
 		// todo: changed it from OptStatsd to OptPrometheus
-		http2requests:            metricGroup.NewGauge("http2requests", libtelemetry.OptStatsd),
-		http2responses:           metricGroup.NewGauge("http2responses", libtelemetry.OptStatsd),
-		endOfStreamEOS:           metricGroup.NewGauge("endOfStreamEOS", libtelemetry.OptStatsd),
-		endOfStreamRST:           metricGroup.NewGauge("endOfStreamRST", libtelemetry.OptStatsd),
-		strLenGraterThenFrameLoc: metricGroup.NewGauge("strLenGraterThenFrameLoc", libtelemetry.OptStatsd),
-		largePathInDelta:         metricGroup.NewGauge("largePathInDelta", libtelemetry.OptStatsd),
-		largePathOutsideDelta:    metricGroup.NewGauge("largePathOutsideDelta", libtelemetry.OptStatsd),
-		frameRemainder:           metricGroup.NewGauge("frameRemainder", libtelemetry.OptStatsd),
+		http2requests:         metricGroup.NewGauge("http2requests", libtelemetry.OptStatsd),
+		http2responses:        metricGroup.NewGauge("http2responses", libtelemetry.OptStatsd),
+		endOfStreamEOS:        metricGroup.NewGauge("endOfStreamEOS", libtelemetry.OptStatsd),
+		endOfStreamRST:        metricGroup.NewGauge("endOfStreamRST", libtelemetry.OptStatsd),
+		strLenExceedsFrame:    metricGroup.NewGauge("strLenExceedsFrame", libtelemetry.OptStatsd),
+		largePathInDelta:      metricGroup.NewGauge("largePathInDelta", libtelemetry.OptStatsd),
+		largePathOutsideDelta: metricGroup.NewGauge("largePathOutsideDelta", libtelemetry.OptStatsd),
+		frameRemainder:        metricGroup.NewGauge("frameRemainder", libtelemetry.OptStatsd),
 	}
 }
 

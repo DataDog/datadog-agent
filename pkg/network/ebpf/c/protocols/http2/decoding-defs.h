@@ -133,7 +133,7 @@ typedef struct {
 typedef struct {
     __u64 end_of_stream_eos;
     __u64 end_of_stream_rst;
-    __u64 str_len_greater_then_frame_loc;
+    __u64 str_len_exceeds_frame;
     __u64 large_path_in_delta;
     __u64 large_path_outside_delta;
     __u64 request_seen;

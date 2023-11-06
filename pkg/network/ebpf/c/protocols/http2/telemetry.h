@@ -8,7 +8,7 @@ enum telemetry_counter
 {
     end_of_stream_eos,
     end_of_stream_rst,
-    str_len_greater_then_frame_loc,
+    str_len_exceeds_frame,
     large_path_in_delta,
     large_path_outside_delta,
     request_seen,
@@ -30,8 +30,8 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     case end_of_stream_rst:
         __sync_fetch_and_add(&http2_tel->end_of_stream_rst, 1);
         break;
-    case str_len_greater_then_frame_loc:
-        __sync_fetch_and_add(&http2_tel->str_len_greater_then_frame_loc, 1);
+    case str_len_exceeds_frame:
+        __sync_fetch_and_add(&http2_tel->str_len_exceeds_frame, 1);
         break;
     case large_path_in_delta:
         __sync_fetch_and_add(&http2_tel->large_path_in_delta, 1);

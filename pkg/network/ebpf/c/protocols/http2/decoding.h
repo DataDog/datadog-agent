@@ -154,7 +154,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
 
     __u32 final_size = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
     if (skb_info->data_off + final_size > skb_info->data_end) {
-        increment_telemetry_count(str_len_greater_then_frame_loc);
+        increment_telemetry_count(str_len_exceeds_frame);
         goto end;
     }
 

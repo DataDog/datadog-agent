@@ -267,7 +267,7 @@ func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) error {
 		p.http2Telemetry.http2responses.Set(int64(http2Telemetry.Response_seen))
 		p.http2Telemetry.endOfStreamEOS.Set(int64(http2Telemetry.End_of_stream_eos))
 		p.http2Telemetry.endOfStreamRST.Set(int64(http2Telemetry.End_of_stream_rst))
-		p.http2Telemetry.strLenGraterThenFrameLoc.Set(int64(http2Telemetry.Str_len_greater_then_frame_loc))
+		p.http2Telemetry.strLenExceedsFrame.Set(int64(http2Telemetry.Str_len_exceeds_frame))
 		p.http2Telemetry.frameRemainder.Set(int64(http2Telemetry.Frame_remainder))
 		p.http2Telemetry.largePathInDelta.Set(int64(http2Telemetry.Large_path_in_delta))
 		p.http2Telemetry.largePathOutsideDelta.Set(int64(http2Telemetry.Large_path_outside_delta))
