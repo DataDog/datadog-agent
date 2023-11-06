@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var globalTcpError error
-var globalUdpError error
+var globalTCPError error
+var globalUDPError error
 var serverOnce sync.Once
 
 const localhostAddr = "127.0.0.1"
@@ -31,11 +31,11 @@ func GetServerIP(t *testing.T) net.IP {
 	var srv *server
 	serverOnce.Do(func() {
 		srv = newServer()
-		globalTcpError = srv.Start("tcp")
-		globalUdpError = srv.Start("udp")
+		globalTCPError = srv.Start("tcp")
+		globalUDPError = srv.Start("udp")
 	})
-	require.NoError(t, globalTcpError, "Error starting local TCP DNS server")
-	require.NoError(t, globalUdpError, "Error starting local UDP DNS server")
+	require.NoError(t, globalTCPError, "error starting local TCP DNS server")
+	require.NoError(t, globalUDPError, "error starting local UDP DNS server")
 	return net.ParseIP(localhostAddr)
 }
 
