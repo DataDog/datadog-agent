@@ -11,12 +11,12 @@ import (
 	"bytes"
 	"debug/elf"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unsafe"
 
@@ -559,8 +559,23 @@ func (o *sslProgram) GetStats() *protocols.ProtocolStats {
 	return nil
 }
 
+const (
+	// Defined in https://man7.org/linux/man-pages/man5/proc.5.html.
+	taskCommLen = 16
+)
+
+var (
+	taskCommLenBufferPool = sync.Pool{
+		New: func() any {
+			buf := make([]byte, taskCommLen)
+			return &buf
+		},
+	}
+)
+
 func isBuildKit(procRoot string, pid uint32) bool {
 	filePath := filepath.Join(procRoot, strconv.Itoa(int(pid)), "comm")
+
 	file, err := os.Open(filePath)
 	if err != nil {
 		// Waiting a bit, as we might get the event of process creation before the directory was created.
@@ -574,12 +589,13 @@ func isBuildKit(procRoot string, pid uint32) bool {
 		}
 	}
 
-	content, err := io.ReadAll(file)
-	if err != nil {
+	buf := taskCommLenBufferPool.Get().(*[]byte)
+	defer taskCommLenBufferPool.Put(buf)
+	if _, err := file.Read(*buf); err != nil {
 		// short living process can hit here, or slow start of another process.
 		return false
 	}
-	return bytes.Equal(bytes.TrimSpace(content), buildKitProcessName)
+	return bytes.Equal(bytes.TrimSpace(*buf), buildKitProcessName)
 }
 
 func addHooks(m *manager.Manager, procRoot string, probes []manager.ProbesSelector) func(utils.FilePath) error {
