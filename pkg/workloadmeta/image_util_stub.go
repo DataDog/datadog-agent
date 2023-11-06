@@ -8,6 +8,6 @@
 package workloadmeta
 
 // updateSBOMRepoMetadata does nothing
-func updateSBOMRepoMetadata(sbom *SBOM, repoTags, _ []string) *SBOM {
+func updateSBOMRepoMetadata(sbom *SBOM, _, _ []string) *SBOM {
 	return sbom
 }
