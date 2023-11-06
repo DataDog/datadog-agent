@@ -18,36 +18,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var globalServer *server
-var globalServerError error
 var serverOnce sync.Once
-var non53ServerOnce sync.Once
 
 const localhostAddr = "127.0.0.1"
-
-// GetServerIPPort53 is a helper that calls GetServerIP with port 53
-func GetServerIPPort53(t *testing.T) net.IP {
-	return GetServerIP(t, 53)
-}
 
 // GetServerIP returns the IP address of the test DNS server. The test DNS server returns canned responses for several
 // known domains that are used in integration tests.
 //
 // see server#start to see which domains are handled.
-func GetServerIP(t *testing.T, port int) net.IP {
-	if port != 53 {
-		non53ServerOnce.Do(func() {
-			globalServer.Start("tcp", port)
-			globalServer.Start("udp", port)
-		})
-	}
+func GetServerIP(t *testing.T) net.IP {
+	var err error
+	var srv *server
 	serverOnce.Do(func() {
-		globalServer, globalServerError = newServer()
-		globalServer.Start("tcp", port)
-		globalServer.Start("udp", port)
+		srv, err = newServer()
+		srv.Start("tcp", 53)
+		srv.Start("udp", 53)
 	})
 
-	require.NoError(t, globalServerError)
+	require.NoError(t, err)
 	return net.ParseIP(localhostAddr)
 }
 

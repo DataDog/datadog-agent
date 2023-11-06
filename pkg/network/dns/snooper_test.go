@@ -58,7 +58,7 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 	defer reverseDNS.Close()
 
 	// Connect to golang.org. This will result in a DNS lookup which will be captured by socketFilterSnooper
-	_, _, reps := sendDNSQueries(t, []string{"golang.org"}, testdns.GetServerIPPort53(t), "udp")
+	_, _, reps := sendDNSQueries(t, []string{"golang.org"}, testdns.GetServerIP(t), "udp")
 	rep := reps[0]
 	require.NotNil(t, rep)
 	require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
@@ -79,7 +79,7 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 	reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer reverseDNS.Close()
 
-	_, _, reps := sendDNSQueries(t, []string{"golang.org"}, testdns.GetServerIPPort53(t), "tcp")
+	_, _, reps := sendDNSQueries(t, []string{"golang.org"}, testdns.GetServerIP(t), "tcp")
 	rep := reps[0]
 	require.NotNil(t, rep)
 	require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
@@ -221,7 +221,7 @@ func TestDNSOverTCPSuccessfulResponseCountWithoutDomain(t *testing.T) {
 		"google.com",
 		"acm.org",
 	}
-	queryIP, queryPort, reps := sendDNSQueries(t, domains, testdns.GetServerIPPort53(t), "tcp")
+	queryIP, queryPort, reps := sendDNSQueries(t, domains, testdns.GetServerIP(t), "tcp")
 
 	// Check that all the queries succeeded
 	for _, rep := range reps {
@@ -229,7 +229,7 @@ func TestDNSOverTCPSuccessfulResponseCountWithoutDomain(t *testing.T) {
 		require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
 	}
 
-	key := getKey(queryIP, queryPort, testdns.GetServerIPPort53(t).String(), syscall.IPPROTO_TCP)
+	key := getKey(queryIP, queryPort, testdns.GetServerIP(t).String(), syscall.IPPROTO_TCP)
 	var allStats StatsByKeyByNameByType
 	require.Eventuallyf(t, func() bool {
 		allStats = statKeeper.Snapshot()
@@ -254,7 +254,7 @@ func TestDNSOverTCPSuccessfulResponseCount(t *testing.T) {
 		"google.com",
 		"acm.org",
 	}
-	serverIP := testdns.GetServerIPPort53(t)
+	serverIP := testdns.GetServerIP(t)
 	queryIP, queryPort, reps := sendDNSQueries(t, domains, serverIP, "tcp")
 
 	// Check that all the queries succeeded
@@ -290,7 +290,7 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		"nonexistenent.net.com",
 		"missingdomain.com",
 	}
-	queryIP, queryPort, reps := sendDNSQueries(t, domains, testdns.GetServerIPPort53(t), "tcp")
+	queryIP, queryPort, reps := sendDNSQueries(t, domains, testdns.GetServerIP(t), "tcp")
 	for _, rep := range reps {
 		require.NotNil(t, rep)
 		require.Equal(t, rep.Rcode, mdns.RcodeNameError) // All the queries should have failed
@@ -298,7 +298,7 @@ func TestDNSFailedResponseCount(t *testing.T) {
 
 	var allStats StatsByKeyByNameByType
 	// First check the one sent over TCP. Expected error type: NXDomain
-	key1 := getKey(queryIP, queryPort, testdns.GetServerIPPort53(t).String(), syscall.IPPROTO_TCP)
+	key1 := getKey(queryIP, queryPort, testdns.GetServerIP(t).String(), syscall.IPPROTO_TCP)
 	require.Eventually(t, func() bool {
 		allStats = statKeeper.Snapshot()
 		return hasDomains(allStats[key1], domains...)
@@ -338,12 +338,10 @@ func TestDNSOverNonPort53(t *testing.T) {
 	domains := []string{
 		"nonexistent.net.com",
 	}
-	ln, _ := net.Listen("tcp", "127.0.0.1:0")
-	port := ln.Addr().(*net.TCPAddr).Port
-	_ = ln.Close()
-	serverIP := testdns.GetServerIP(t, port)
+	shutdown, port := newTestServer(t, localhost, "udp")
+	defer shutdown()
 
-	queryIP, queryPort, reps := sendDNSQueriesOnPort(t, domains, serverIP, strconv.Itoa(port), "udp")
+	queryIP, queryPort, reps := sendDNSQueriesOnPort(t, domains, net.ParseIP(localhost), strconv.Itoa(int(port)), "udp")
 	require.NotNil(t, reps[0])
 
 	// we only pick up on port 53 traffic, so we shouldn't ever get stats
@@ -353,6 +351,39 @@ func TestDNSOverNonPort53(t *testing.T) {
 		allStats = statKeeper.Snapshot()
 		return allStats[key] != nil
 	}, 3*time.Second, 10*time.Millisecond, "found DNS data for key %v when it should be missing", key)
+}
+
+func newTestServer(t *testing.T, ip string, protocol string) (func(), uint16) {
+	t.Helper()
+	addr := net.JoinHostPort(ip, "0")
+	srv := &mdns.Server{
+		Addr: addr,
+		Net:  protocol,
+		Handler: mdns.HandlerFunc(func(w mdns.ResponseWriter, r *mdns.Msg) {
+			msg := mdns.Msg{}
+			msg.SetReply(r)
+			msg.SetRcode(r, mdns.RcodeServerFailure)
+			_ = w.WriteMsg(&msg)
+		}),
+	}
+
+	initChan := make(chan error, 1)
+	srv.NotifyStartedFunc = func() {
+		initChan <- nil
+	}
+	go func() {
+		initChan <- srv.ListenAndServe()
+		close(initChan)
+	}()
+
+	if err := <-initChan; err != nil {
+		t.Errorf("could not initialize DNS server: %s", err)
+		return func() {}, uint16(0)
+	}
+
+	return func() {
+		_ = srv.Shutdown()
+	}, uint16(srv.PacketConn.LocalAddr().(*net.UDPAddr).Port)
 }
 
 func TestDNSOverUDPTimeoutCount(t *testing.T) {
@@ -425,7 +456,7 @@ func TestDNSOverIPv6(t *testing.T) {
 	defer reverseDNS.Close()
 	statKeeper := reverseDNS.statKeeper
 	domain := "missingdomain.com"
-	serverIP := testdns.GetServerIPPort53(t)
+	serverIP := testdns.GetServerIP(t)
 
 	queryIP, queryPort, reps := sendDNSQueries(t, []string{domain}, serverIP, "udp")
 	require.NotNil(t, reps[0])
@@ -452,7 +483,7 @@ func TestDNSNestedCNAME(t *testing.T) {
 
 	domain := "nestedcname.com"
 
-	serverIP := testdns.GetServerIPPort53(t)
+	serverIP := testdns.GetServerIP(t)
 
 	queryIP, queryPort, reps := sendDNSQueries(t, []string{domain}, serverIP, "udp")
 	require.NotNil(t, reps[0])

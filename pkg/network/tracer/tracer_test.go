@@ -1070,10 +1070,10 @@ func (s *TracerSuite) TestDNSStats() {
 	cfg.CollectLocalDNS = true
 	tr := setupTracer(t, cfg)
 	t.Run("valid domain", func(t *testing.T) {
-		testDNSStats(t, tr, "good.com", 1, 0, 0, testdns.GetServerIPPort53(t).String())
+		testDNSStats(t, tr, "good.com", 1, 0, 0, testdns.GetServerIP(t).String())
 	})
 	t.Run("invalid domain", func(t *testing.T) {
-		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, testdns.GetServerIPPort53(t).String())
+		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, testdns.GetServerIP(t).String())
 	})
 	t.Run("timeout", func(t *testing.T) {
 		testDNSStats(t, tr, "golang.org", 0, 0, 1, "1.2.3.4")
