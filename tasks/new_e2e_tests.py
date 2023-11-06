@@ -218,7 +218,7 @@ def _get_existing_stacks(ctx: Context) -> List[Stack]:
     e2e_stacks: List[Stack] = []
     for workspace_dir in workspace_dirs:
         with ctx.cd(workspace_dir):
-            output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all", pty=True)
+            output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls", pty=True)
             if output is None or not output:
                 return []
             lines = output.stdout.splitlines()
