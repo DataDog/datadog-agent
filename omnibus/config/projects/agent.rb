@@ -292,7 +292,7 @@ if windows_target?
   end
 
   if ENV['SIGN_WINDOWS_DD_WCS']
-    BINARIES_TO_SIGN = GO_BINARIES.concat[
+    BINARIES_TO_SIGN = GO_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
       "#{install_dir}\\embedded3\\python.exe",
       "#{install_dir}\\embedded3\\\\python3.dll",
