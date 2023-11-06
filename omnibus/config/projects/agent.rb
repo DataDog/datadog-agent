@@ -273,20 +273,45 @@ if windows_target?
     end
   }
 
-  [
+  GO_BINARIES = [
     "#{install_dir}\\bin\\agent\\agent.exe",
     "#{install_dir}\\bin\\agent\\trace-agent.exe",
     "#{install_dir}\\bin\\agent\\process-agent.exe",
     "#{install_dir}\\bin\\agent\\system-probe.exe"
-  ].each do |bin|
+  ]
+  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
+  end
+
+  GO_BINARIES.each do |bin|   
     # Check the exported symbols from the binary
     inspect_binary(bin, &raise_if_forbidden_symbol_found)
 
     # strip the binary of debug symbols
     windows_symbol_stripping_file bin
   end
-  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-    windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe"
+
+  if ENV['SIGN_WINDOWS_DD_WCS']
+    BINARIES_TO_SIGN = GO_BINARIES.concat[
+      "#{install_dir}\\bin\\agent\\ddtray.exe",
+      "#{install_dir}\\embedded3\\python.exe",
+      "#{install_dir}\\embedded3\\\\python3.dll",
+      "#{install_dir}\\embedded3\\\\python39.dll",
+      "#{install_dir}\\embedded3\\\\pythonw.exe",
+      "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
+    ]
+    if with_python_runtime? "2"
+      BINARIES_TO_SIGN.concat[
+        "#{install_dir}\\bin\\libdatadog-agent-two.dll",
+        "#{install_dir}\\embedded2\\python.exe",
+        "#{install_dir}\\embedded2\\python27.dll",
+        "#{install_dir}\\embedded2\\pythonw.exe"
+      ]
+    end
+    
+    BINARIES_TO_SIGN.each do |bin|
+      sign_file bin
+    end
   end
 
 end

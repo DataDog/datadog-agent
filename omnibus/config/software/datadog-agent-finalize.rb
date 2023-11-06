@@ -35,14 +35,6 @@ build do
               move "#{install_dir}/etc/datadog-agent/apm-inject.yaml.example", conf_dir_root, :force=>true
             end
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
-
-            if ENV['SIGN_WINDOWS_DD_WCS']
-                puts "signing files"
-                #Dir["#{Omnibus::Config.source_dir()}" + "/**/*.{exe,dll}"].each do |signfile|
-                #  sign_package(signfile)
-                #end
-            end
-
         end
 
         if linux_target? || osx_target?
