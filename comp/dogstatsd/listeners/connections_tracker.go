@@ -103,8 +103,17 @@ func (t *ConnectionTracker) HandleConnections() {
 			time.Sleep(t.closeDelay)
 
 			for c := range t.connections {
-				// Stop the current execution of net.Conn.Read() and exit listen loop.
-				_ = c.SetReadDeadline(time.Now())
+				// First, when possible, we close the write end of the connection to notify
+				// the client that we are shutting down.
+				switch c := c.(type) {
+				case *net.TCPConn:
+					err = c.CloseRead()
+				case *net.UnixConn:
+					err = c.CloseRead()
+				default:
+					// We don't have a choice, setting a 0 timeout would likely be a retryable error.
+					err = c.Close()
+				}
 			}
 
 		}
