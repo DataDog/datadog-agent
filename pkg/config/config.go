@@ -1655,7 +1655,7 @@ func setupFipsEndpoints(config Config) error {
 		appsecEvents               = 11
 		orchestratorExplorer       = 12
 		runtimeSecurity            = 13
-		networkDevicesNetflow      = 15
+		networkDevicesNetflow      = 15 // 14 is reserved for compliance (#20230)
 	)
 
 	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
