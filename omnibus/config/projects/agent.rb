@@ -302,7 +302,7 @@ if windows_target?
     ]
     if with_python_runtime? "2"
       BINARIES_TO_SIGN.concat[
-        "#{install_dir}\\bin\\libdatadog-agent-two.dll",
+        "#{install_dir}\\bin\\agent\\libdatadog-agent-two.dll",
         "#{install_dir}\\embedded2\\python.exe",
         "#{install_dir}\\embedded2\\python27.dll",
         "#{install_dir}\\embedded2\\pythonw.exe"
