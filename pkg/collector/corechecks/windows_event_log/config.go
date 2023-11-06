@@ -16,14 +16,15 @@ import (
 )
 
 const (
-	defaultConfigQuery         = "*"
-	defaultConfigStart         = "now"
-	defaultConfigTimeout       = 5
-	defaultConfigPayloadSize   = 10
-	defaultConfigTagEventID    = false
-	defaultConfigTagSID        = false
-	defaultConfigEventPriority = "normal"
-	defaultConfigAuthType      = "default"
+	defaultConfigQuery             = "*"
+	defaultConfigStart             = "now"
+	defaultConfigTimeout           = 5
+	defaultConfigPayloadSize       = 10
+	defaultConfigTagEventID        = false
+	defaultConfigTagSID            = false
+	defaultConfigEventPriority     = "normal"
+	defaultConfigAuthType          = "default"
+	defaultConfigInterpretMessages = true
 )
 
 // Config represents the Windows Event Log check configuration and its yaml marshalling
@@ -51,6 +52,7 @@ type instanceConfig struct {
 	User              *string        `yaml:"user"`
 	Domain            *string        `yaml:"domain"`
 	Password          *string        `yaml:"password"`
+	InterpretMessages *bool          `yaml:"interpret_messages"`
 }
 
 type filtersConfig struct {
@@ -60,9 +62,10 @@ type filtersConfig struct {
 }
 
 type initConfig struct {
-	TagEventID    *bool   `yaml:"tag_event_id"`
-	TagSID        *bool   `yaml:"tag_sid"`
-	EventPriority *string `yaml:"event_priority"`
+	TagEventID        *bool   `yaml:"tag_event_id"`
+	TagSID            *bool   `yaml:"tag_sid"`
+	EventPriority     *string `yaml:"event_priority"`
+	InterpretMessages *bool   `yaml:"interpret_messages"`
 }
 
 func (f *filtersConfig) Sources() []string {
@@ -190,5 +193,13 @@ func (c *Config) setDefaults() {
 			def = *c.init.EventPriority
 		}
 		c.instance.EventPriority = &def
+	}
+
+	if c.instance.InterpretMessages == nil {
+		def := defaultConfigInterpretMessages
+		if c.init.InterpretMessages != nil {
+			def = *c.init.InterpretMessages
+		}
+		c.instance.InterpretMessages = &def
 	}
 }

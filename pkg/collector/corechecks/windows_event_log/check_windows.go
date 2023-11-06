@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -54,6 +55,7 @@ type Check struct {
 	sub                 evtsubscribe.PullSubscription
 	evtapi              evtapi.API
 	systemRenderContext evtapi.EventRenderContextHandle
+	userRenderContext   evtapi.EventRenderContextHandle
 	bookmarkSaver       *bookmarkSaver
 }
 
@@ -215,10 +217,11 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	}
 
 	// formatted message
-	err = c.renderEventMessage(providerName, winevent, ddevent)
+	message, err := c.getEventMessage(providerName, winevent)
 	if err != nil {
-		// TODO: continue?
-		return err
+		log.Errorf("failed to get event message: %v", err)
+	} else {
+		ddevent.Text = message
 	}
 
 	// Optional: Tag EventID
@@ -245,21 +248,58 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	return nil
 }
 
-func (c *Check) renderEventMessage(providerName string, winevent *evtapi.EventRecord, ddevent *agentEvent.Event) error {
+func (c *Check) getEventMessage(providerName string, winevent *evtapi.EventRecord) (string, error) {
+	var message string
+
+	// Try to render the message via the event log API
 	pm, err := c.evtapi.EvtOpenPublisherMetadata(providerName, "")
-	if err != nil {
-		return err
+	if err == nil {
+		defer evtapi.EvtClosePublisherMetadata(c.evtapi, pm)
+
+		message, err = c.evtapi.EvtFormatMessage(pm, winevent.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
+		if err == nil {
+			return message, nil
+		}
+		err = fmt.Errorf("failed to render message: %w", err)
+	} else {
+		err = fmt.Errorf("failed to open event publisher: %w", err)
 	}
-	defer evtapi.EvtClosePublisherMetadata(c.evtapi, pm)
+	renderErr := err
 
-	message, err := c.evtapi.EvtFormatMessage(pm, winevent.EventRecordHandle, 0, nil, evtapi.EvtFormatMessageEvent)
-	if err != nil {
-		return err
+	// rendering failed, which may happen if
+	// * the event source/provider cannot be found/loaded
+	// * Code 15027: The message resource is present but the message was not found in the message table.
+	// * Code 15028: The message ID for the desired message could not be found.
+	// Optional: try to provide some information by including any strings from the EventData in the message.
+	if *c.config.instance.InterpretMessages {
+		// Render the values
+		var eventValues evtapi.EvtVariantValues
+		eventValues, err = c.evtapi.EvtRenderEventValues(c.userRenderContext, winevent.EventRecordHandle)
+		if err == nil {
+			defer eventValues.Close()
+			// aggregate the string values
+			var msgstrings []string
+			for i := uint(0); i < eventValues.Count(); i++ {
+				val, err := eventValues.String(i)
+				if err == nil && len(val) > 0 {
+					msgstrings = append(msgstrings, val)
+				}
+			}
+			if len(msgstrings) > 0 {
+				message = strings.Join(msgstrings, "\n")
+			} else {
+				err = fmt.Errorf("no strings in EventData, and %w", renderErr)
+			}
+		} else {
+			err = fmt.Errorf("failed to render EventData, and %w", renderErr)
+		}
 	}
 
-	ddevent.Text = message
+	if message == "" {
+		return "", err
+	}
 
-	return nil
+	return message, nil
 }
 
 func (c *Check) includeMessage(message string) bool {
@@ -368,6 +408,13 @@ func (c *Check) initSubscription() error {
 	c.systemRenderContext, err = c.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
 	if err != nil {
 		return fmt.Errorf("failed to create system render context: %v", err)
+	}
+
+	// Create e render context for UserData/EventData event values
+	// render UserData if available, otherise EventData properties are rendered.
+	c.userRenderContext, err = c.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextUser)
+	if err != nil {
+		return fmt.Errorf("failed to create user render context: %v", err)
 	}
 
 	return nil
