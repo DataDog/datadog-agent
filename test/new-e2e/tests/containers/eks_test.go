@@ -49,6 +49,7 @@ func (suite *eksSuite) SetupSuite() {
 		"ddagent:deploy":        auto.ConfigValue{Value: "true"},
 		"ddagent:fakeintake":    auto.ConfigValue{Value: "true"},
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
+		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "eks-cluster", stackConfig, eks.Run, false)

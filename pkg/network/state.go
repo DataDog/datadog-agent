@@ -31,17 +31,18 @@ var (
 
 // Telemetry
 var stateTelemetry = struct {
-	closedConnDropped     *nettelemetry.StatCounterWrapper
-	connDropped           *nettelemetry.StatCounterWrapper
-	statsUnderflows       *nettelemetry.StatCounterWrapper
-	statsCookieCollisions *nettelemetry.StatCounterWrapper
-	timeSyncCollisions    *nettelemetry.StatCounterWrapper
-	dnsStatsDropped       *nettelemetry.StatCounterWrapper
-	httpStatsDropped      *nettelemetry.StatCounterWrapper
-	http2StatsDropped     *nettelemetry.StatCounterWrapper
-	kafkaStatsDropped     *nettelemetry.StatCounterWrapper
-	dnsPidCollisions      *nettelemetry.StatCounterWrapper
-	udpDirectionFixes     telemetry.Counter
+	closedConnDropped      *nettelemetry.StatCounterWrapper
+	connDropped            *nettelemetry.StatCounterWrapper
+	statsUnderflows        *nettelemetry.StatCounterWrapper
+	statsCookieCollisions  *nettelemetry.StatCounterWrapper
+	timeSyncCollisions     *nettelemetry.StatCounterWrapper
+	dnsStatsDropped        *nettelemetry.StatCounterWrapper
+	httpStatsDropped       *nettelemetry.StatCounterWrapper
+	http2StatsDropped      *nettelemetry.StatCounterWrapper
+	kafkaStatsDropped      *nettelemetry.StatCounterWrapper
+	dnsPidCollisions       *nettelemetry.StatCounterWrapper
+	incomingDirectionFixes telemetry.Counter
+	outgoingDirectionFixes telemetry.Counter
 }{
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "closed_conn_dropped", []string{"ip_proto"}, "Counter measuring the number of dropped closed connections"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "conn_dropped", []string{}, "Counter measuring the number of closed connections"),
@@ -53,7 +54,8 @@ var stateTelemetry = struct {
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "http2_stats_dropped", []string{}, "Counter measuring the number of http2 stats dropped"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "kafka_stats_dropped", []string{}, "Counter measuring the number of kafka stats dropped"),
 	nettelemetry.NewStatCounterWrapper(stateModuleName, "dns_pid_collisions", []string{}, "Counter measuring the number of DNS PID collisions"),
-	telemetry.NewCounter(stateModuleName, "udp_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes"),
+	telemetry.NewCounter(stateModuleName, "incoming_direction_fixes", []string{}, "Counter measuring the number of udp direction fixes for incoming connections"),
+	telemetry.NewCounter(stateModuleName, "outgoing_direction_fixes", []string{}, "Counter measuring the number of udp/tcp direction fixes for outgoing connections"),
 }
 
 const (
@@ -918,7 +920,12 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 			_, conn.IntraHost = lAddrs[keyWithRAddr]
 		}
 
-		fixConnectionDirection(conn)
+		switch conn.Direction {
+		case OUTGOING:
+			fixOutgoingConnectionDirection(conn)
+		case INCOMING:
+			fixIncomingConnectionDirection(conn)
+		}
 
 		if conn.IntraHost &&
 			conn.Direction == INCOMING &&
@@ -952,7 +959,7 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 	})
 }
 
-// fixConnectionDirection fixes connection direction
+// fixIncomingConnectionDirection fixes connection direction
 // for UDP incoming connections.
 //
 // Some UDP connections can be assigned an incoming
@@ -971,7 +978,7 @@ func (ns *networkState) determineConnectionIntraHost(connections slice.Chain[Con
 // incoming. For remote connections, only
 // destination ports < 1024 are considered
 // non-ephemeral.
-func fixConnectionDirection(c *ConnectionStats) {
+func fixIncomingConnectionDirection(c *ConnectionStats) {
 	// fix only incoming UDP connections
 	if c.Direction != INCOMING || c.Type != UDP {
 		return
@@ -989,7 +996,29 @@ func fixConnectionDirection(c *ConnectionStats) {
 	}
 	if sourceEphemeral && destNotEphemeral {
 		c.Direction = OUTGOING
-		stateTelemetry.udpDirectionFixes.Inc()
+		stateTelemetry.incomingDirectionFixes.Inc()
+	}
+}
+
+// fixOutgoingConnectionDirection potentially fixes the direction for outgoing connections
+//
+// When the system-probe starts up there is a race that occurs where port mappings are missing when they
+// are bound after the `/proc/net` state is read but before the probes are registered.  When that happens, the
+// connections will be marked as outgoing
+//
+// This function attempts to mitigate that by checking if an outgoing connection is from a non-ephemeral port to
+// an ephemeral port on an intra-host connection
+func fixOutgoingConnectionDirection(c *ConnectionStats) {
+	if c.Direction != OUTGOING || !c.IntraHost {
+		return
+	}
+
+	sourceNotEphemeral := IsPortInEphemeralRange(c.Family, c.Type, c.SPort) != EphemeralTrue
+	destEphemeral := IsPortInEphemeralRange(c.Family, c.Type, c.DPort) == EphemeralTrue
+
+	if sourceNotEphemeral && destEphemeral {
+		c.Direction = INCOMING
+		stateTelemetry.outgoingDirectionFixes.Inc()
 	}
 }
 

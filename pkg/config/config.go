@@ -1625,7 +1625,7 @@ func setupFipsEndpoints(config Config) error {
 	// port_range_start + 3:  profiles
 	// port_range_start + 4:  processes
 	// port_range_start + 5:  logs
-	// port_range_start + 6:  databases monitoring metrics
+	// port_range_start + 6:  databases monitoring metrics, metadata and activity
 	// port_range_start + 7:  databases monitoring samples
 	// port_range_start + 8:  network devices metadata
 	// port_range_start + 9:  network devices snmp traps (unused)
@@ -1696,9 +1696,11 @@ func setupFipsEndpoints(config Config) error {
 	config.Set("process_config.process_dd_url", protocol+urlFor(processes), model.SourceAgentRuntime)
 
 	// Database monitoring
-	config.Set("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics), model.SourceAgentRuntime)
-	config.Set("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics), model.SourceAgentRuntime)
-	config.Set("database_monitoring.samples.dd_url", urlFor(databasesMonitoringSamples), model.SourceAgentRuntime)
+	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
+	// (even though the underlying IPs were the same as the ones for DBM metrics intake hostname). We're keeping 2 ports for backward compatibility reason.
+	setupFipsLogsConfig(config, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(config, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
 	// Network devices
 	config.Set("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata), model.SourceAgentRuntime)
