@@ -107,6 +107,10 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	return nil
 }
 
+/*
+calculateRate is responsible for checking the state for previously seen metric sample to generate the rate from.
+If the ifSpeed has changed for the interface, the rate will not be submitted (drop the previous sample)
+*/
 func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageValue float64, usageName string, tags []string) error {
 	ms.interfaceRateMap.mu.Lock()
 	defer ms.interfaceRateMap.mu.Unlock()
@@ -149,6 +153,7 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 // TimeNow is the unix time to use for rate (delta) calculations
 var TimeNow = timeNowNano()
 
+// Helper function to determine the timestamp for the rate metric sample, lifted from pkg/aggregator
 func timeNowNano() float64 {
 	return float64(time.Now().UnixNano()) / float64(time.Second) // Unix time with nanosecond precision
 }

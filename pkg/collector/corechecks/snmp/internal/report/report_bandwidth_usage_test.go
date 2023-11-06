@@ -26,11 +26,13 @@ const (
 	ifSpeed   uint64 = 80 * (1e6)
 )
 
+// Mock interface rate map with previous metric samples for the interface with ifSpeed of 30
 func interfaceRateMapWithPrevious() *InterfaceRateMap {
 	interfaceID := hostname + fullIndex
 	return MockInterfaceRateMap(interfaceID, ifSpeed, ifSpeed, 30, 5, 15)
 }
 
+// Mock interface rate map with previous metric samples where the ifSpeed is taken from configuration files
 func interfaceRateMapWithConfig() *InterfaceRateMap {
 	interfaceID := hostname + fullIndex
 	return MockInterfaceRateMap(interfaceID, 160_000_000, 40_000_000, 20, 10, 15)
@@ -79,9 +81,9 @@ func Test_metricSender_calculateRate(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{
-				// current @ ts 30
+				// current usage value @ ts 30
 				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
-				// previous @ ts 15
+				// previous usage value @ ts 15
 				// ((3000000 * 8) / (80 * 1000000)) * 100 = 30.0
 				// rate generated between ts 15 and 30
 				// (50 - 30) / (30 - 15)
@@ -116,9 +118,9 @@ func Test_metricSender_calculateRate(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{
-				// current @ ts 30
+				// current usage value @ ts 30
 				// ((1000000 * 8) / (80 * 1000000)) * 100 = 10.0
-				// previous @ ts 15
+				// previous usage value @ ts 15
 				// ((500000 * 8) / (80 * 1000000)) * 100 = 5.0
 				// rate generated between ts 15 and 30
 				// (10 - 5) / (30 - 15)
@@ -307,7 +309,12 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{
+				// current usage value @ ts 30
 				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
+				// previous usage value @ ts 15
+				// ((3000000 * 8) / (80 * 1000000)) * 100 = 30.0
+				// rate generated between ts 15 and 30
+				// (50 - 30) / (30 - 15)
 				{"snmp.ifBandwidthInUsage.rate", 20.0 / 15.0},
 			},
 			rateMap: interfaceRateMapWithPrevious(),
@@ -339,7 +346,12 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				},
 			},
 			expectedMetric: []Metric{
+				// current usage value @ ts 30
 				// ((1000000 * 8) / (80 * 1000000)) * 100 = 10.0
+				// previous usage value @ ts 15
+				// ((500000 * 8) / (80 * 1000000)) * 100 = 5.0
+				// rate generated between ts 15 and 30
+				// (10 - 5) / (30 - 15)
 				{"snmp.ifBandwidthOutUsage.rate", 5.0 / 15.0},
 			},
 			rateMap: interfaceRateMapWithPrevious(),
@@ -584,12 +596,12 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{
 				// ((5000000 * 8) / (160 * 1000000)) * 100 = 25.0
-				// previous sample: 20
-				// (25 - 20) / (30 - 15)
+				// previous sample's usage value from map: 20
+				// rate: (25 - 20) / (30 - 15)
 				{"snmp.ifBandwidthInUsage.rate", 5.0 / 15.0},
 				// ((1000000 * 8) / (40 * 1000000)) * 100 = 20.0
-				// previous sample: 10
-				// (20 - 10) / (30 / 15)
+				// previous sample's usage value from map: 10
+				// rate: (20 - 10) / (30 / 15)
 				{"snmp.ifBandwidthOutUsage.rate", 10.0 / 15.0},
 			},
 			rateMap: interfaceRateMapWithConfig(),
@@ -637,12 +649,12 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			},
 			expectedMetric: []Metric{
 				// ((5000000 * 8) / (160 * 1000000)) * 100 = 25.0
-				// previous sample: 20
-				// (25 - 20) / (30 - 15)
+				// previous sample's usage value: 20
+				// rate: (25 - 20) / (30 - 15)
 				{"snmp.ifBandwidthInUsage.rate", 5.0 / 15.0},
 				// ((1000000 * 8) / (40 * 1000000)) * 100 = 20.0
-				// previous sample: 10
-				// (20 - 10) / (30 / 15)
+				// previous sample's usage value: 10
+				// rate: (20 - 10) / (30 / 15)
 				{"snmp.ifBandwidthOutUsage.rate", 10.0 / 15.0},
 			},
 			rateMap: interfaceRateMapWithConfig(),
