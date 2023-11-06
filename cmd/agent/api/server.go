@@ -57,7 +57,7 @@ func StartServer(
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
-	logsAgent optional.Optional[logsAgent.Component],
+	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,

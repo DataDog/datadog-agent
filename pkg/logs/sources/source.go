@@ -46,7 +46,7 @@ type LogSource struct {
 	ParentSource *LogSource
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
-	LatencyStats     *statstracker.StatsTracker
+	LatencyStats     *statstracker.Tracker
 	BytesRead        *status.CountInfo
 	hiddenFromStatus bool
 }
@@ -62,7 +62,7 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 		Messages:         config.NewMessages(),
 		BytesRead:        status.NewCountInfo("Bytes Read"),
 		info:             status.NewInfoRegistry(),
-		LatencyStats:     statstracker.NewStatsTracker(time.Hour*24, time.Hour),
+		LatencyStats:     statstracker.NewTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
 	}
 	source.RegisterInfo(source.BytesRead)

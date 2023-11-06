@@ -82,7 +82,7 @@ type agent struct {
 	started *atomic.Bool
 }
 
-func newLogsAgent(deps dependencies) optional.Optional[Component] {
+func newLogsAgent(deps dependencies) optional.Option[Component] {
 	if deps.Config.GetBool("logs_enabled") || deps.Config.GetBool("log_enabled") {
 		if deps.Config.GetBool("log_enabled") {
 			deps.Log.Warn(`"log_enabled" is deprecated, use "logs_enabled" instead`)
@@ -103,11 +103,11 @@ func newLogsAgent(deps dependencies) optional.Optional[Component] {
 			OnStop:  logsAgent.stop,
 		})
 
-		return optional.NewOptional[Component](logsAgent)
+		return optional.NewOption[Component](logsAgent)
 	}
 
 	deps.Log.Info("logs-agent disabled")
-	return optional.NewNoneOptional[Component]()
+	return optional.NewNoneOption[Component]()
 }
 
 func (a *agent) start(context.Context) error {

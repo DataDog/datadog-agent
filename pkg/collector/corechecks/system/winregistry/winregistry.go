@@ -32,8 +32,8 @@ const (
 )
 
 type registryValueCfg struct {
-	Name         string                     `yaml:"name"` // The metric name of the registry value
-	DefaultValue optional.Optional[float64] `yaml:"default_value"`
+	Name         string                   `yaml:"name"` // The metric name of the registry value
+	DefaultValue optional.Option[float64] `yaml:"default_value"`
 }
 
 type registryKeyCfg struct {

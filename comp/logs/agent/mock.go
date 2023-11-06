@@ -23,7 +23,7 @@ type mockLogsAgent struct {
 	flushDelay      time.Duration
 }
 
-func newMock(deps dependencies) optional.Optional[Mock] {
+func newMock(deps dependencies) optional.Option[Mock] {
 	logsAgent := &mockLogsAgent{
 		hasFlushed:      false,
 		addedSchedulers: make([]schedulers.Scheduler, 0),
@@ -34,7 +34,7 @@ func newMock(deps dependencies) optional.Optional[Mock] {
 		OnStart: logsAgent.start,
 		OnStop:  logsAgent.stop,
 	})
-	return optional.NewOptional[Mock](logsAgent)
+	return optional.NewOption[Mock](logsAgent)
 }
 
 func (a *mockLogsAgent) start(context.Context) error {

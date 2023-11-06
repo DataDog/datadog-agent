@@ -33,7 +33,7 @@ type dependencies struct {
 }
 
 type diagnoseSenderManager struct {
-	senderManager optional.Optional[sender.SenderManager]
+	senderManager optional.Option[sender.SenderManager]
 	deps          dependencies
 }
 

@@ -54,7 +54,7 @@ func newTestClient(t *testing.T, store workloadmeta.Store) (*client, *MockDCACli
 		log.MockModule,
 	))
 
-	optComponent := newClient(deps).(optional.Optional[Component])
+	optComponent := newClient(deps).(optional.Option[Component])
 	comp, _ := optComponent.Get()
 	client := comp.(*client)
 	client.langDetectionCl = mockDCAClient
@@ -87,7 +87,7 @@ func TestClientEnabled(t *testing.T) {
 				log.MockModule,
 			))
 
-			optionalCl := newClient(deps).(optional.Optional[Component])
+			optionalCl := newClient(deps).(optional.Option[Component])
 			assert.Equal(t, testCase.isSet, optionalCl.IsSet())
 		})
 	}
