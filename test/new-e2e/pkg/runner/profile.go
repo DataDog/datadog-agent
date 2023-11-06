@@ -7,6 +7,7 @@ package runner
 
 import (
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"sync"
@@ -31,7 +32,7 @@ const (
 )
 
 var (
-	workspaceRootFolder = os.TempDir()
+	workspaceRootFolder = path.Join(os.TempDir(), "pulumi-workspace")
 	runProfile          Profile
 	initProfile         sync.Once
 )
