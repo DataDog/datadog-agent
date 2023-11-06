@@ -580,7 +580,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 			} else {
 				tags = tagFailure(tags)
 			}
-			statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(tags), 1.0)
+			statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tags, 1.0)
 			return nil, err
 		}
 		snapshotDuration := time.Since(snapshotStartedAt)
