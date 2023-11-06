@@ -37,12 +37,12 @@ func getUnlinkProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unlink",
-	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
+	}, fentry, EntryAndExit)...)
 	unlinkProbes = append(unlinkProbes, ExpandSyscallProbes(&manager.Probe{
 		ProbeIdentificationPair: manager.ProbeIdentificationPair{
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "unlinkat",
-	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
+	}, fentry, EntryAndExit)...)
 	return unlinkProbes
 }

@@ -7,11 +7,19 @@
 package client
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
+
+// eventsToRetry wraps all the events without pods and an expiration time for cleanup
+type eventsToRetry struct {
+	expirationTime time.Time
+	events         []workloadmeta.Event
+}
 
 type batch map[string]*podInfo
 
