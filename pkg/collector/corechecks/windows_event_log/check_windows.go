@@ -185,10 +185,15 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	ddevent.Ts = ts
 	// FQDN
 	fqdn, err := vals.String(evtapi.EvtSystemComputer)
-	if err != nil {
-		// default to DD hostname
-		fqdn, _ = hostname.Get(context.TODO())
-		// TODO: What to do on error?
+	if err != nil || serverIsLocal(c.config.instance.Server) {
+		// use DD hostname
+		//   * if collecting from local computer
+		//   * if fail to fetch hostname of remote computer
+		fqdn, err = hostname.Get(context.TODO())
+		if err != nil {
+			// Use same pattern as logs Message.GetHostname
+			fqdn = "unknown"
+		}
 	}
 	ddevent.Host = fqdn
 	// Level
