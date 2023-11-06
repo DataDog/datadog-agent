@@ -21,9 +21,6 @@ const (
 
 // NewLocalProfile creates a new local profile
 func NewLocalProfile() (Profile, error) {
-	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {
-		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceFolder, err)
-	}
 	envValueStore := parameters.NewEnvStore(EnvPrefix)
 
 	configPath, err := getConfigFilePath()
@@ -69,9 +66,11 @@ type localProfile struct {
 	baseProfile
 }
 
-// RootWorkspacePath returns the root directory for local Pulumi workspace
-func (p localProfile) RootWorkspacePath() string {
-	return workspaceFolder
+// GetWorkspacePath returns the directory for local Pulumi workspace.
+// Since one Workspace supports one single program and we have one program per stack,
+// the path should be unique for each stack.
+func (p localProfile) GetWorkspacePath(stackName string) string {
+	return path.Join(workspaceRootFolder, stackName)
 }
 
 // NamePrefix returns a prefix to name objects based on local username

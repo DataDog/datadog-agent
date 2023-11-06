@@ -31,9 +31,9 @@ const (
 )
 
 var (
-	workspaceFolder = os.TempDir()
-	runProfile      Profile
-	initProfile     sync.Once
+	workspaceRootFolder = os.TempDir()
+	runProfile          Profile
+	initProfile         sync.Once
 )
 
 // Profile interface defines functions required by a profile
@@ -42,8 +42,10 @@ type Profile interface {
 	EnvironmentNames() string
 	// ProjectName used by Pulumi
 	ProjectName() string
-	// RootWorkspacePath returns the root directory for local Pulumi workspace
-	RootWorkspacePath() string
+	// GetWorkspacePath returns the directory for local Pulumi workspace.
+	// Since one Workspace supports one single program and we have one program per stack,
+	// the path should be unique for each stack.
+	GetWorkspacePath(stackName string) string
 	// ParamStore() returns the normal parameter store
 	ParamStore() parameters.Store
 	// SecretStore returns the secure parameter store

@@ -8,6 +8,7 @@ package runner
 import (
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -26,10 +27,6 @@ type ciProfile struct {
 
 // NewCIProfile creates a new CI profile
 func NewCIProfile() (Profile, error) {
-	// Create workspace directory
-	if err := os.MkdirAll(workspaceFolder, 0o700); err != nil {
-		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceFolder, err)
-	}
 	ciSecretPrefix := os.Getenv("CI_SECRET_PREFIX")
 	if len(ciSecretPrefix) == 0 {
 		ciSecretPrefix = defaultCISecretPrefix
@@ -73,9 +70,11 @@ func NewCIProfile() (Profile, error) {
 	}, nil
 }
 
-// RootWorkspacePath returns the root directory for CI Pulumi workspace
-func (p ciProfile) RootWorkspacePath() string {
-	return workspaceFolder
+// GetWorkspacePath returns the directory for CI Pulumi workspace.
+// Since one Workspace supports one single program and we have one program per stack,
+// the path should be unique for each stack.
+func (p ciProfile) GetWorkspacePath(stackName string) string {
+	return path.Join(workspaceRootFolder, stackName)
 }
 
 // NamePrefix returns a prefix to name objects based on a CI unique ID
