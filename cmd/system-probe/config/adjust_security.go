@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 func adjustSecurity(cfg config.Config) {
@@ -19,11 +20,11 @@ func adjustSecurity(cfg config.Config) {
 
 	if cfg.GetBool(secNS("enabled")) {
 		// if runtime is enabled then we force fim
-		cfg.SetWithoutSource(secNS("fim_enabled"), true)
+		cfg.Set(secNS("fim_enabled"), true, model.SourceAgentRuntime)
 	} else {
 		// if runtime is disabled then we force disable activity dumps and security profiles
-		cfg.SetWithoutSource(secNS("activity_dump.enabled"), false)
-		cfg.SetWithoutSource(secNS("security_profile.enabled"), false)
+		cfg.Set(secNS("activity_dump.enabled"), false, model.SourceAgentRuntime)
+		cfg.Set(secNS("security_profile.enabled"), false, model.SourceAgentRuntime)
 	}
 
 	// further adjustments done in RuntimeSecurityConfig.sanitize

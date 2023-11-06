@@ -23,6 +23,7 @@ import (
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -845,7 +846,7 @@ func SetHandler() http.Handler {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}
-				coreconfig.Datadog.SetWithoutSource("log_level", lvl)
+				coreconfig.Datadog.Set("log_level", lvl, model.SourceAgentRuntime)
 				log.Infof("Switched log level to %s", lvl)
 			default:
 				log.Infof("Unsupported config change requested (key: %q).", key)

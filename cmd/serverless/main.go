@@ -16,6 +16,7 @@ import (
 
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
@@ -70,7 +71,7 @@ const (
 
 func main() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
-	config.Datadog.SetWithoutSource("use_v2_api.series", false)
+	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
 	stopCh := make(chan struct{})
 
 	// Disable remote configuration for now as it just spams the debug logs
