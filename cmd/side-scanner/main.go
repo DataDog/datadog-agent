@@ -556,6 +556,17 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		log.Debugf("starting volume snapshotting %q", scan.VolumeID)
 		snapshotID, err = createEBSSnapshot(ctx, ec2client, scan)
 		if err != nil {
+			var isVolumeNotFoundError bool
+			var aerr smithy.APIError
+			if errors.As(err, &aerr) && aerr.ErrorCode() == "InvalidVolume.NotFound" {
+				isVolumeNotFoundError = true
+			}
+			if isVolumeNotFoundError {
+				tags = tagNotFound(tags)
+			} else {
+				tags = tagFailure(tags)
+			}
+			statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tags, 1.0)
 			return nil, err
 		}
 		defer func() {
@@ -570,17 +581,6 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 			SnapshotIds: []string{snapshotID},
 		}, 15*time.Minute)
 		if err != nil {
-			var isVolumeNotFoundError bool
-			var aerr smithy.APIError
-			if errors.As(err, &aerr) && aerr.ErrorCode() == "InvalidVolume.NotFound" { // TODO(jinroh): validate the error code
-				isVolumeNotFoundError = true
-			}
-			if isVolumeNotFoundError {
-				tags = tagNotFound(tags)
-			} else {
-				tags = tagFailure(tags)
-			}
-			statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tags, 1.0)
 			return nil, err
 		}
 		snapshotDuration := time.Since(snapshotStartedAt)
