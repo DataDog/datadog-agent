@@ -425,6 +425,18 @@ type MountEventSerializer struct {
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
 }
 
+// SecurityProfileContextSerializer serializes the security profile context in an event
+type SecurityProfileContextSerializer struct {
+	// Name of the security profile
+	Name string `json:"name"`
+	// Status defines in which state the security profile was when the event was triggered
+	Status string `json:"status"`
+	// Version of the profile in use
+	Version string `json:"version"`
+	// List of tags associated to this profile
+	Tags []string `json:"tags"`
+}
+
 // AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
 type AnomalyDetectionSyscallEventSerializer struct {
 	// Name of the syscall that triggered the anomaly detection event
@@ -435,6 +447,10 @@ type AnomalyDetectionSyscallEventSerializer struct {
 // easyjson:json
 type EventSerializer struct {
 	*BaseEventSerializer
+
+	*NetworkContextSerializer         `json:"network,omitempty"`
+	*DDContextSerializer              `json:"dd,omitempty"`
+	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
 
 	*SELinuxEventSerializer                 `json:"selinux,omitempty"`
 	*BPFEventSerializer                     `json:"bpf,omitempty"`
@@ -826,6 +842,57 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	return &ps
 }
 
+func newDDContextSerializer(e *model.Event) *DDContextSerializer {
+	s := &DDContextSerializer{
+		SpanID:  e.SpanContext.SpanID,
+		TraceID: e.SpanContext.TraceID,
+	}
+	if s.SpanID != 0 || s.TraceID != 0 {
+		return s
+	}
+
+	ctx := eval.NewContext(e)
+	it := &model.ProcessAncestorsIterator{}
+	ptr := it.Front(ctx)
+
+	for ptr != nil {
+		pce := (*model.ProcessCacheEntry)(ptr)
+
+		if pce.SpanID != 0 || pce.TraceID != 0 {
+			s.SpanID = pce.SpanID
+			s.TraceID = pce.TraceID
+			break
+		}
+
+		ptr = it.Next()
+	}
+
+	return s
+}
+
+// nolint: deadcode, unused
+func newNetworkContextSerializer(e *model.Event) *NetworkContextSerializer {
+	return &NetworkContextSerializer{
+		Device:      newNetworkDeviceSerializer(e),
+		L3Protocol:  model.L3Protocol(e.NetworkContext.L3Protocol).String(),
+		L4Protocol:  model.L4Protocol(e.NetworkContext.L4Protocol).String(),
+		Source:      newIPPortSerializer(&e.NetworkContext.Source),
+		Destination: newIPPortSerializer(&e.NetworkContext.Destination),
+		Size:        e.NetworkContext.Size,
+	}
+}
+
+func newSecurityProfileContextSerializer(e *model.SecurityProfileContext) *SecurityProfileContextSerializer {
+	tags := make([]string, len(e.Tags))
+	copy(tags, e.Tags)
+	return &SecurityProfileContextSerializer{
+		Name:    e.Name,
+		Version: e.Version,
+		Status:  e.Status.String(),
+		Tags:    tags,
+	}
+}
+
 // ToJSON returns json
 func (e *EventSerializer) ToJSON() ([]byte, error) {
 	return utils.MarshalEasyJSON(e)
@@ -852,8 +919,17 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 	s := &EventSerializer{
 		BaseEventSerializer:   NewBaseEventSerializer(event, resolvers),
 		UserContextSerializer: newUserContextSerializer(event),
+		DDContextSerializer:   newDDContextSerializer(event),
 	}
 	s.Async = event.FieldHandlers.ResolveAsync(event)
+
+	if s.Category == model.NetworkCategory {
+		s.NetworkContextSerializer = newNetworkContextSerializer(event)
+	}
+
+	if event.SecurityProfileContext.Name != "" {
+		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(&event.SecurityProfileContext)
+	}
 
 	if id := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); id != "" {
 		var creationTime time.Time
