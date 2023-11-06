@@ -15,6 +15,13 @@ type Filter struct {
 	eventType EventType
 }
 
+// FilterParams are the parameters used to create a Filter
+type FilterParams struct {
+	Kinds     []Kind
+	Source    Source
+	EventType EventType
+}
+
 // NewFilter creates a new filter for subscribing to workloadmeta events.
 //
 // Only events for entities with one of the given kinds will be delivered.  If
@@ -24,13 +31,14 @@ type Filter struct {
 // delivered, and the entities in the events will contain data only from that
 // source.  For example, if source is SourceRuntime, then only events from the
 // runtime will be delivered, and they will not contain any additional metadata
-// from orchestrators or cluster orchestrators.  Use SourceAll to collect data
-// from all sources.
+// from orchestrators or cluster orchestrators. Use SourceAll to collect data
+// from all sources. SourceAll is the default.
 //
 // Only events of the given type will be delivered. Use EventTypeAll to collect
-// data from all the event types.
-func NewFilter(kinds []Kind, source Source, eventType EventType) *Filter {
+// data from all the event types. EventTypeAll is the default.
+func NewFilter(filterParams *FilterParams) *Filter {
 	var kindSet map[Kind]struct{}
+	kinds := filterParams.Kinds
 	if len(kinds) > 0 {
 		kindSet = make(map[Kind]struct{})
 		for _, k := range kinds {
@@ -38,10 +46,15 @@ func NewFilter(kinds []Kind, source Source, eventType EventType) *Filter {
 		}
 	}
 
+	// This is enforced in the matching functions, but putting here for clarity
+	if filterParams.Source == "" {
+		filterParams.Source = SourceAll
+	}
+
 	return &Filter{
 		kinds:     kindSet,
-		source:    source,
-		eventType: eventType,
+		source:    filterParams.Source,
+		eventType: filterParams.EventType,
 	}
 }
 

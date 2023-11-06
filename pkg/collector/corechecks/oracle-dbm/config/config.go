@@ -89,6 +89,14 @@ type CustomQuery struct {
 	Tags         []string             `yaml:"tags"`
 }
 
+type asmConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type resourceManagerConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
 	Server                             string                 `yaml:"server"`
@@ -119,6 +127,8 @@ type InstanceConfig struct {
 	CustomQueries                      []CustomQuery          `yaml:"custom_queries"`
 	MetricCollectionInterval           int64                  `yaml:"metric_collection_interval"`
 	DatabaseInstanceCollectionInterval uint64                 `yaml:"database_instance_collection_interval"`
+	Asm                                asmConfig              `yaml:"asm"`
+	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -138,7 +148,15 @@ Port: '%d'
 
 // GetDefaultObfuscatorOptions return default obfuscator options
 func GetDefaultObfuscatorOptions() obfuscate.SQLConfig {
-	return obfuscate.SQLConfig{DBMS: common.IntegrationName, TableNames: true, CollectCommands: true, CollectComments: true, ObfuscationMode: obfuscate.ObfuscateAndNormalize}
+	return obfuscate.SQLConfig{
+		DBMS:                          common.IntegrationName,
+		TableNames:                    true,
+		CollectCommands:               true,
+		CollectComments:               true,
+		ObfuscationMode:               obfuscate.ObfuscateAndNormalize,
+		RemoveSpaceBetweenParentheses: true,
+		KeepNull:                      true,
+	}
 }
 
 // NewCheckConfig builds a new check config.
@@ -166,6 +184,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
 	instance.InactiveSessions.Enabled = true
+	instance.Asm.Enabled = true
+	instance.ResourceManager.Enabled = true
 
 	instance.UseGlobalCustomQueries = "true"
 

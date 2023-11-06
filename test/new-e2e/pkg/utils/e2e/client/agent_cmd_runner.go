@@ -72,6 +72,12 @@ func (agent *agentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("config", commandArgs...)
 }
 
+// ConfigWithError runs config command and returns the runtime agent config or an error
+func (agent *agentCommandRunner) ConfigWithError(commandArgs ...AgentArgsOption) (string, error) {
+	arguments := append([]string{"config"}, newAgentArgs(commandArgs...).Args...)
+	return agent.executeAgentCmdWithError(arguments)
+}
+
 // Diagnose runs diagnose command and returns its ouput
 func (agent *agentCommandRunner) Diagnose(commandArgs ...AgentArgsOption) string {
 	return agent.executeCommand("diagnose", commandArgs...)

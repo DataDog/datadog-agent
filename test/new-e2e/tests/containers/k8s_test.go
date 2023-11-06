@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/agent-payload/v5/gogen"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
+	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/fatih/color"
-	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -42,6 +42,8 @@ type k8sSuite struct {
 }
 
 func (suite *k8sSuite) SetupSuite() {
+	suite.clusterName = suite.KubeClusterName
+
 	suite.baseSuite.SetupSuite()
 }
 
@@ -210,11 +212,11 @@ func (suite *k8sSuite) TestNginx() {
 	// `nginx` check is configured via AD annotation on pods
 	// Test it is properly scheduled
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "nginx.net.request_per_s",
+		Filter: testMetricFilterArgs{
+			Name: "nginx.net.request_per_s",
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:nginx$`,
 				`^display_container_name:nginx`,
@@ -241,11 +243,11 @@ func (suite *k8sSuite) TestNginx() {
 	// `http_check` is configured via AD annotation on service
 	// Test it is properly scheduled
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "network.http.response_time",
+		Filter: testMetricFilterArgs{
+			Name: "network.http.response_time",
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^cluster_name:`,
 				`^instance:My_Nginx$`,
 				`^kube_cluster_name:`,
@@ -258,15 +260,15 @@ func (suite *k8sSuite) TestNginx() {
 
 	// Test KSM metrics for the nginx deployment
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "kubernetes_state.deployment.replicas_available",
-			tags: []string{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes_state.deployment.replicas_available",
+			Tags: []string{
 				"kube_deployment:nginx",
 				"kube_namespace:workload-nginx",
 			},
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^kube_cluster_name:`,
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
@@ -283,11 +285,11 @@ func (suite *k8sSuite) TestRedis() {
 	// `redis` check is auto-configured due to image name
 	// Test it is properly scheduled
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "redis.net.instantaneous_ops_per_sec",
+		Filter: testMetricFilterArgs{
+			Name: "redis.net.instantaneous_ops_per_sec",
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:redis$`,
 				`^display_container_name:redis`,
@@ -314,15 +316,15 @@ func (suite *k8sSuite) TestRedis() {
 
 	// Test KSM metrics for the redis deployment
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "kubernetes_state.deployment.replicas_available",
-			tags: []string{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes_state.deployment.replicas_available",
+			Tags: []string{
 				"kube_deployment:redis",
 				"kube_namespace:workload-redis",
 			},
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^kube_cluster_name:`,
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
@@ -338,15 +340,15 @@ func (suite *k8sSuite) TestRedis() {
 func (suite *k8sSuite) TestDogstatsd() {
 	// Test dogstatsd origin detection with UDS
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "custom.metric",
-			tags: []string{
+		Filter: testMetricFilterArgs{
+			Name: "custom.metric",
+			Tags: []string{
 				"kube_deployment:dogstatsd-uds",
 				"kube_namespace:workload-dogstatsd",
 			},
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:dogstatsd$`,
 				`^display_container_name:dogstatsd`,
@@ -372,15 +374,15 @@ func (suite *k8sSuite) TestDogstatsd() {
 
 	// Test dogstatsd origin detection with UDP
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "custom.metric",
-			tags: []string{
+		Filter: testMetricFilterArgs{
+			Name: "custom.metric",
+			Tags: []string{
 				"kube_deployment:dogstatsd-udp",
 				"kube_namespace:workload-dogstatsd",
 			},
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^kube_deployment:dogstatsd-udp$`,
 				`^kube_namespace:workload-dogstatsd$`,
 				`^kube_ownerref_kind:replicaset$`,
@@ -398,15 +400,15 @@ func (suite *k8sSuite) TestDogstatsd() {
 func (suite *k8sSuite) TestPrometheus() {
 	// Test Prometheus check
 	suite.testMetric(&testMetricArgs{
-		filter: testMetricFilterArgs{
-			name: "prom_gauge",
-			tags: []string{
+		Filter: testMetricFilterArgs{
+			Name: "prom_gauge",
+			Tags: []string{
 				"kube_deployment:prometheus",
 				"kube_namespace:workload-prometheus",
 			},
 		},
-		expect: testMetricExpectArgs{
-			tags: &[]string{
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
 				`^container_id:`,
 				`^container_name:prometheus$`,
 				`^display_container_name:prometheus`,
@@ -434,6 +436,35 @@ func (suite *k8sSuite) TestPrometheus() {
 
 func (suite *k8sSuite) testHPA(namespace, deployment string) {
 	suite.Run(fmt.Sprintf("kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func() {
+		sendEvent := func(alertType, text string, time *int) {
+			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
+				Title: pointer.Ptr(fmt.Sprintf("testHPA %s/%s", namespace, deployment)),
+				Text: pointer.Ptr(fmt.Sprintf(`%%%%%%
+%s
+ %%%%%%`, text)),
+				Time:      time,
+				AlertType: &alertType,
+				Tags: []string{
+					"app:agent-new-e2e-tests-containers",
+					"cluster_name:" + suite.clusterName,
+					"metric:kubernetes_state.deployment.replicas_available",
+					"filter_tag_kube_namespace:" + namespace,
+					"filter_tag_kube_deployment:" + deployment,
+					"test:" + suite.T().Name(),
+				},
+			}); err != nil {
+				suite.T().Logf("Failed to post event: %s", err)
+			}
+		}
+
+		defer func() {
+			if suite.T().Failed() {
+				sendEvent("error", "Failed to witness scale up *and* scale down events.", nil)
+			} else {
+				sendEvent("success", "Scale up and scale down events detected.", nil)
+			}
+		}()
+
 		suite.EventuallyWithTf(func(collect *assert.CollectT) {
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				"kubernetes_state.deployment.replicas_available",
@@ -448,6 +479,7 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 			}
 			if len(metrics) == 0 {
 				collect.Errorf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment)
+				sendEvent("error", fmt.Sprintf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment), nil)
 				return
 			}
 
@@ -455,22 +487,29 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 			// This indirectly tests the cluster-agent external metrics server
 			scaleUp := false
 			scaleDown := false
-			prevValue := 0.0
+			prevValue := -1.0
 		out:
 			for _, metric := range metrics {
-				for _, value := range lo.Map(metric.GetPoints(), func(point *gogen.MetricPayload_MetricPoint, _ int) float64 { return point.GetValue() }) {
-					if value > prevValue+0.5 {
+				for _, point := range metric.GetPoints() {
+					if prevValue == -1.0 {
+						prevValue = point.Value
+						continue
+					}
+
+					if point.Value > prevValue+0.5 {
 						scaleUp = true
+						sendEvent("success", "Scale up detected.", pointer.Ptr(int(point.Timestamp)))
 						if scaleDown {
 							break out
 						}
-					} else if value < prevValue-0.5 {
+					} else if point.Value < prevValue-0.5 {
 						scaleDown = true
+						sendEvent("success", "Scale down detected.", pointer.Ptr(int(point.Timestamp)))
 						if scaleUp {
 							break out
 						}
 					}
-					prevValue = value
+					prevValue = point.Value
 				}
 			}
 			if !scaleUp {

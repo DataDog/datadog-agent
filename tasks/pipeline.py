@@ -137,9 +137,7 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 
 @task
-def trigger(
-    _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
-):
+def trigger(_, git_ref=DEFAULT_BRANCH, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
     """
     OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
     """
@@ -209,7 +207,7 @@ def run(
     here=False,
     use_release_entries=False,
     major_versions='6,7',
-    repo_branch="nightly",
+    repo_branch="dev",
     deploy=False,
     all_builds=True,
     kitchen_tests=True,
@@ -544,8 +542,11 @@ def changelog(ctx, new_commit_sha):
     )
     if messages:
         slack_message += (
-            "\n".join(messages) + "\n:wave: Authors, please check relevant "
-            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
+            "\n".join(messages) + "\n:wave: Authors, please check the "
+            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?tpl_var_cluster_name%5B0%5D=stripe"
+            "&tpl_var_cluster_name%5B1%5D=muk&tpl_var_cluster_name%5B2%5D=snowver"
+            "&tpl_var_cluster_name%5B3%5D=chillpenguin&tpl_var_cluster_name%5B4%5D=diglet"
+            "&tpl_var_cluster_name%5B5%5D=lagaffe&tpl_var_datacenter%5B0%5D=%2A|dashboard> for issues"
         )
     else:
         slack_message += "No new System Probe related commits in this release :cricket:"

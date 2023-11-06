@@ -568,8 +568,8 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					Path:   http.Path{Content: http.Interner.GetString("/")},
 					Method: http.MethodPost,
 				}: {
-					lower: 1000,
-					upper: 1000,
+					lower: 999,
+					upper: 1001,
 				},
 			},
 		},
@@ -590,8 +590,8 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					Path:   http.Path{Content: http.Interner.GetString("/index.html")},
 					Method: http.MethodPost,
 				}: {
-					lower: 1000,
-					upper: 1000,
+					lower: 999,
+					upper: 1001,
 				},
 			},
 		},

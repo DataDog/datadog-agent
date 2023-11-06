@@ -20,6 +20,9 @@ type Agent interface {
 	// Config runs config command and returns the runtime agent config
 	Config(commandArgs ...AgentArgsOption) string
 
+	// ConfigWithError runs config command and returns the runtime agent config or an error
+	ConfigWithError(commandArgs ...AgentArgsOption) (string, error)
+
 	// Diagnose runs diagnose command and returns its ouput
 	Diagnose(commandArgs ...AgentArgsOption) string
 
