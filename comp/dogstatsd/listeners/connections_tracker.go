@@ -114,6 +114,7 @@ func (t *ConnectionTracker) HandleConnections() {
 					// We don't have a choice, setting a 0 timeout would likely be a retryable error.
 					err = c.Close()
 				}
+				log.Debugf("dogstatsd-%s: failed to shutdown connection: %v", t.name, err)
 			}
 
 		}
