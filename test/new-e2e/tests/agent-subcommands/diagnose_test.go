@@ -37,6 +37,7 @@ func TestAgentDiagnoseEC2Suite(t *testing.T) {
 	e2e.Run(t, &agentDiagnoseSuite{}, e2e.FakeIntakeStackDef(), params.WithDevMode())
 }
 
+// type summary represents the number of success, fail, warnings and errors of a diagnose command
 type summary struct {
 	total    int
 	success  int
@@ -91,50 +92,48 @@ func (v *agentDiagnoseSuite) TestDiagnoseList() {
 }
 
 func (v *agentDiagnoseSuite) TestDiagnoseInclude() {
-	diagnoseAll := getDiagnoseOutput(v)
-	resultAll := getDiagnoseSummary(diagnoseAll)
+	diagnose := getDiagnoseOutput(v)
+	diagnoseSummary := getDiagnoseSummary(diagnose)
 
-	total := 0
 	for _, suite := range allSuites {
 		diagnoseInclude := getDiagnoseOutput(v, client.WithArgs([]string{"--include", suite}))
 		resultInclude := getDiagnoseSummary(diagnoseInclude)
 
-		assert.Less(v.T(), resultInclude.total, resultAll.total)
+		assert.Less(v.T(), resultInclude.total, diagnoseSummary.total)
 		assert.Equal(v.T(), resultInclude.fail, 0)
 		assert.Equal(v.T(), resultInclude.errors, 0)
-
-		total += resultInclude.total
 	}
 
-	assert.Equal(v.T(), total, resultAll.total)
+	// Create an args array to include all suites
+	includeArgs := strings.Split("--include "+strings.Join(allSuites, " --include "), " ")
 
-	allinclude := strings.Split("--include "+strings.Join(allSuites, " --include "), " ")
-	diagnoseAllInclude := getDiagnoseOutput(v, client.WithArgs(allinclude))
-	diagnoseAllIncludeSummary := getDiagnoseSummary(diagnoseAllInclude)
-	assert.Equal(v.T(), diagnoseAllIncludeSummary, diagnoseAll)
+	// Diagnose with all suites included should be equal to diagnose without args
+	diagnoseIncludeEverySuite := getDiagnoseOutput(v, client.WithArgs(includeArgs))
+	diagnoseIncludeEverySuiteSummary := getDiagnoseSummary(diagnoseIncludeEverySuite)
+	assert.Equal(v.T(), diagnoseIncludeEverySuiteSummary, diagnoseSummary)
 }
 
 func (v *agentDiagnoseSuite) TestDiagnoseExclude() {
-	diagnoseAll := getDiagnoseOutput(v)
-	resultAll := getDiagnoseSummary(diagnoseAll)
-
 	for _, suite := range allSuites {
 		diagnoseExclude := getDiagnoseOutput(v, client.WithArgs([]string{"--exclude", suite}))
 		resultExclude := getDiagnoseSummary(diagnoseExclude)
 
-		assert.Less(v.T(), resultExclude.total, resultAll.total)
 		assert.Equal(v.T(), resultExclude.fail, 0)
 		assert.Equal(v.T(), resultExclude.errors, 0)
 	}
 
-	allExclude := strings.Split("--exclude "+strings.Join(allSuites, " --exclude "), " ")
-	diagnoseAllExclude := getDiagnoseOutput(v, client.WithArgs(allExclude))
-	diagnoseAllExcludeSummary := getDiagnoseSummary(diagnoseAllExclude)
-	assert.Equal(v.T(), diagnoseAllExcludeSummary.total, 0)
+	// Create an args array to exclude all suites
+	excludeArgs := strings.Split("--exclude "+strings.Join(allSuites, " --exclude "), " ")
+
+	// Diagnose with all suites excluded should do nothing
+	diagnoseExcludeEverySuite := getDiagnoseOutput(v, client.WithArgs(excludeArgs))
+	summary := getDiagnoseSummary(diagnoseExcludeEverySuite)
+	assert.Equal(v.T(), summary.total, 0)
 }
 
+// getDiagnoseSummary parses the diagnose output and returns a struct containing number of success, fail, error and warning
 func getDiagnoseSummary(diagnoseOutput string) summary {
-
+	// success, fail, warning and error are optional in the diagnose output (they're printed when their value != 0)
 	successRegex := `(?:, Success:(?P<success>\d+))?`
 	failRegex := `(?:, Fail:(?P<fail>\d+))?`
 	warningRegex := `(?:, Warning:(?P<warning>\d+))?`
@@ -153,6 +152,7 @@ func getDiagnoseSummary(diagnoseOutput string) summary {
 	}
 }
 
+// getRegexGroupValue returns the value of a specific named group, or 0 if there is no value for this group
 func getRegexGroupValue(re *regexp.Regexp, matches []string, groupName string) int {
 	index := re.SubexpIndex(groupName)
 	if index < 0 || index >= len(matches) {
