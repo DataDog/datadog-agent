@@ -512,7 +512,7 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
 
     return success
 
-
+w
 def deprecating_skip_linters_flag(skip_linters):
     """
     We're deprecating the --skip-linters flag in the test invoke task
@@ -529,6 +529,16 @@ Feel free to remove the flag when running inv -e test.
 If you want to run the linters, please run inv -e lint-go instead.
 """
     print(deprecation_msg, file=sys.stderr)
+
+def sanitize_env_vars():
+    """
+    Sanitizes environment variables
+    We want to ignore all `DD_` variables, as they will interfere with the behavior of some unit tests
+    """
+    for env in os.environ:
+        if env.startswith("DD_"):
+            del os.environ[env]
+
 
 
 @task(iterable=['flavors'])
@@ -575,25 +585,11 @@ def test(
         inv test --module=. --race
     """
 
-    # Format:
-    # {
-    #     "phase1": {
-    #         "flavor1": [module_result1, module_result2],
-    #         "flavor2": [module_result3, module_result4],
-    #     }
-    # }
     modules_results_per_phase = defaultdict(dict)
 
-    # Sanitize environment variables
-    # We want to ignore all `DD_` variables, as they will interfere with the behavior
-    # of some unit tests
-    for env in os.environ:
-        if env.startswith("DD_"):
-            del os.environ[env]
+    sanitize_env_vars()
 
     deprecating_skip_linters_flag(skip_linters)
-
-    # Process input arguments
 
     modules, flavors = process_input_args(module, targets, flavors)
 

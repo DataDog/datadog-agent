@@ -58,7 +58,7 @@ require (
 	code.cloudfoundry.org/bbs v0.0.0-20200403215808-d7bc971db0db
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
-	github.com/CycloneDX/cyclonedx-go v0.7.1
+	github.com/CycloneDX/cyclonedx-go v0.7.2
 	github.com/DataDog/appsec-internal-go v1.0.1
 	github.com/DataDog/datadog-agent/pkg/gohai v0.49.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.49.0-rc.2
@@ -70,7 +70,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.49.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.3.0
-	github.com/DataDog/datadog-operator v1.1.0
+	github.com/DataDog/datadog-operator v1.2.1
 	github.com/DataDog/ebpf-manager v0.3.4
 	github.com/DataDog/go-libddwaf v1.5.0
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
@@ -81,7 +81,7 @@ require (
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.8.0
 	github.com/DataDog/sketches-go v1.4.2
 	github.com/DataDog/viper v1.12.0
-	github.com/DataDog/watermarkpodautoscaler v0.5.2
+	github.com/DataDog/watermarkpodautoscaler v0.6.1
 	github.com/DataDog/zstd v1.5.5
 	github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f // indirect
 	github.com/Masterminds/semver v1.5.0
@@ -116,7 +116,7 @@ require (
 	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/elastic/go-libaudit v0.4.0
-	github.com/evanphx/json-patch v5.6.0+incompatible
+	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/fatih/color v1.15.0
 	github.com/freddierice/go-losetup v0.0.0-20170407175016-fc9adea44124
 	github.com/fsnotify/fsnotify v1.7.0
@@ -141,7 +141,7 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/grpc-gateway v1.16.0
 	github.com/h2non/filetype v1.1.3
-	github.com/hashicorp/consul/api v1.24.0
+	github.com/hashicorp/consul/api v1.26.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hectane/go-acl v0.0.0-20190604041725-da78bae5fc95 // indirect
@@ -166,8 +166,8 @@ require (
 	github.com/open-policy-agent/opa v0.56.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.75.0
 	github.com/opencontainers/go-digest v1.0.0
-	github.com/opencontainers/image-spec v1.1.0-rc4
-	github.com/opencontainers/runtime-spec v1.1.0-rc.3
+	github.com/opencontainers/image-spec v1.1.0-rc5
+	github.com/opencontainers/runtime-spec v1.1.0
 	github.com/openshift/api v3.9.0+incompatible
 	github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be
 	github.com/patrickmn/go-cache v2.1.0+incompatible
@@ -287,7 +287,7 @@ require (
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
-	github.com/DataDog/aptly v1.5.2 // indirect
+	github.com/DataDog/aptly v1.5.3 // indirect
 	github.com/DataDog/extendeddaemonset v0.9.0-rc.2 // indirect
 	github.com/DataDog/gostackparse v0.7.0 // indirect
 	github.com/DataDog/mmh3 v0.0.0-20210722141835-012dc69a9e49 // indirect
@@ -314,12 +314,12 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/awalterschulze/gographviz v2.0.3+incompatible // indirect
 	github.com/aws/aws-sdk-go-v2 v1.21.2
-	github.com/aws/aws-sdk-go-v2/config v1.18.27
+	github.com/aws/aws-sdk-go-v2/config v1.19.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.43
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.13 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.43 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.37 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.35 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.45 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ebs v1.15.19 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.126.0
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.37 // indirect
@@ -612,7 +612,7 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.15.0 // indirect
 	github.com/DataDog/go-sqllexer v0.0.8 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
@@ -622,6 +622,7 @@ require (
 	github.com/ebitengine/purego v0.5.0-alpha.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
+	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/google/cel-go v0.12.7 // indirect
 	github.com/google/gnostic v0.6.9 // indirect

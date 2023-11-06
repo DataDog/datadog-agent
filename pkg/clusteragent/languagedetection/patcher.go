@@ -42,6 +42,7 @@ func NewLanguagePatcher() (*LanguagePatcher, error) {
 	k8sClient := apiCl.DynamicCl
 	return &LanguagePatcher{
 		k8sClient: k8sClient,
+		store:     workloadmeta.GetGlobalStore(),
 	}, nil
 }
 
