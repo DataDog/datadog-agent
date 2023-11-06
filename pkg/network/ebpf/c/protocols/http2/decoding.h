@@ -141,11 +141,11 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
     if (str_len > 180) {
-        increment_telemetry_count(large_path_outside_delta);
+        increment_telemetry_count(LARGE_PATH_OUTSIDE_DELTA);
         goto end;
     }
     if (str_len > HTTP2_MAX_PATH_LEN) {
-        increment_telemetry_count(large_path_in_delta);
+        increment_telemetry_count(LARGE_PATH_IN_DELTA);
         goto end;
     }
     if (index != kIndexPath || headers_to_process == NULL) {
@@ -154,7 +154,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
 
     __u32 final_size = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
     if (skb_info->data_off + final_size > skb_info->data_end) {
-        increment_telemetry_count(str_len_exceeds_frame);
+        increment_telemetry_count(STR_LEN_EXCEEDS_FRAME);
         goto end;
     }
 
@@ -255,7 +255,7 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method = *static_value;
-                increment_telemetry_count(request_seen);
+                increment_telemetry_count(REQUEST_SEEN);
             } else if (current_header->index >= k200 && current_header->index <= k500) {
                 current_stream->response_status_code = *static_value;
             } else if (current_header->index == kEmptyPath) {
@@ -297,7 +297,7 @@ static __always_inline void handle_end_of_stream(http2_stream_t *current_stream,
     // response end of stream;
     current_stream->response_last_seen = bpf_ktime_get_ns();
     current_stream->tup = http2_stream_key_template->tup;
-    increment_telemetry_count(response_seen);
+    increment_telemetry_count(RESPONSE_SEEN);
 
     // enqueue
     http2_batch_enqueue(current_stream);
@@ -339,11 +339,11 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     }
 
     if (current_frame->type == kRSTStreamFrame) {
-        increment_telemetry_count(end_of_stream_rst);
+        increment_telemetry_count(END_OF_STREAM_RST);
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
     }
     if ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
-        increment_telemetry_count(end_of_stream_eos);
+        increment_telemetry_count(END_OF_STREAM_EOS);
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
     }
 
@@ -472,7 +472,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
     if (frame_state->remainder > 0) {
-        increment_telemetry_count(frame_remainder);
+        increment_telemetry_count(FRAMEֹֹ_REMAINDER);
         skb_info->data_off += frame_state->remainder;
         // The remainders "ends" the current packet. No interesting frames were found.
         if (skb_info->data_off == skb_info->data_end) {

@@ -6,14 +6,14 @@
 
 enum telemetry_counter
 {
-    end_of_stream_eos,
-    end_of_stream_rst,
-    str_len_exceeds_frame,
-    large_path_in_delta,
-    large_path_outside_delta,
-    request_seen,
-    response_seen,
-    frame_remainder,
+    END_OF_STREAM_EOS,
+    END_OF_STREAM_RST,
+    STR_LEN_EXCEEDS_FRAME,
+    LARGE_PATH_IN_DELTA,
+    LARGE_PATH_OUTSIDE_DELTA,
+    REQUEST_SEEN,
+    RESPONSE_SEEN,
+    FRAMEֹֹ_REMAINDER,
 };
 
 static __always_inline void increment_telemetry_count(enum telemetry_counter counter_name) {
@@ -24,28 +24,28 @@ static __always_inline void increment_telemetry_count(enum telemetry_counter cou
     }
 
     switch (counter_name) {
-    case end_of_stream_eos:
+    case END_OF_STREAM_EOS:
         __sync_fetch_and_add(&http2_tel->end_of_stream_eos, 1);
         break;
-    case end_of_stream_rst:
+    case END_OF_STREAM_RST:
         __sync_fetch_and_add(&http2_tel->end_of_stream_rst, 1);
         break;
-    case str_len_exceeds_frame:
+    case STR_LEN_EXCEEDS_FRAME:
         __sync_fetch_and_add(&http2_tel->str_len_exceeds_frame, 1);
         break;
-    case large_path_in_delta:
+    case LARGE_PATH_IN_DELTA:
         __sync_fetch_and_add(&http2_tel->large_path_in_delta, 1);
         break;
-    case large_path_outside_delta:
+    case LARGE_PATH_OUTSIDE_DELTA:
         __sync_fetch_and_add(&http2_tel->large_path_outside_delta, 1);
         break;
-    case request_seen:
+    case REQUEST_SEEN:
         __sync_fetch_and_add(&http2_tel->request_seen, 1);
         break;
-    case response_seen:
+    case RESPONSE_SEEN:
         __sync_fetch_and_add(&http2_tel->response_seen, 1);
         break;
-    case frame_remainder:
+    case FRAMEֹֹ_REMAINDER:
         __sync_fetch_and_add(&http2_tel->response_seen, 1);
         break;
     }
