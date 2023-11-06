@@ -245,20 +245,6 @@ def _build_msi(ctx, env, outdir, name):
     sign_file(ctx, out_file)
 
 
-def _python_signed_files(python_runtimes='3'):
-    runtimes = python_runtimes.split(',')
-    files = []
-
-    if '3' in runtimes:
-        for f in ['python.exe', 'python3.dll', 'python39.dll', 'pythonw.exe']:
-            files.append(os.path.join(InstallerSource, 'embedded3', f))
-    if '2' in runtimes:
-        for f in ['python.exe', 'python27.dll', 'pythonw.exe']:
-            files.append(os.path.join(InstallerSource, 'embedded2', f))
-
-    return files
-
-
 @task
 def build(
     ctx, vstudio_root=None, arch="x64", major_version='7', python_runtimes='3', release_version='nightly', debug=False
@@ -280,13 +266,7 @@ def build(
     )
 
     # sign build output that will be included in the installer MSI
-    # NOTE: Most of the files in BinFiles are signed by the agent MSI omnibus task
-    with timed("Signing files"):
-        for f in [
-            os.path.join(build_outdir, 'CustomActions.dll'),
-            os.path.join(BinFiles, 'agent', 'ddtray.exe'),
-        ] + _python_signed_files(python_runtimes=python_runtimes):
-            sign_file(ctx, f)
+    sign_file(ctx, os.path.join(build_outdir, 'CustomActions.dll'))
 
     # Run WixSetup.exe to generate the WXS and other input files
     with timed("Building WXS"):
