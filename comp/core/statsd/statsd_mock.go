@@ -30,17 +30,17 @@ type mockService struct {
 }
 
 // Get returns a pre-configured statsd client
-func (m *mockService) Get(options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+func (m *mockService) Get(_ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
 	return m.client, nil
 }
 
-// GetForAddr returns a pre-configured statsd client that defaults to `addr` if no env var is set
-func (m *mockService) GetForAddr(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+// GetForAddr returns a pre-configured statsd -client that defaults to `addr` if no env var is set
+func (m *mockService) GetForAddr(_ string, _ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
 	return m.client, nil
 }
 
 // GetForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
-func (m *mockService) GetForHostPort(host string, port int, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+func (m *mockService) GetForHostPort(_ string, _ int, _ ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
 	return m.client, nil
 }
 
