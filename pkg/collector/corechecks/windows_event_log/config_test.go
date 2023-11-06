@@ -39,6 +39,11 @@ func TestConfigPrecedence(t *testing.T) {
 		assert.Equal(t, *config.instance.TagEventID, defaultConfigTagEventID)
 		assert.Equal(t, *config.instance.TagSID, defaultConfigTagSID)
 		assert.Equal(t, *config.instance.EventPriority, defaultConfigEventPriority)
+		assert.Equal(t, *config.instance.AuthType, defaultConfigAuthType)
+		assert.Nil(t, config.instance.Server)
+		assert.Nil(t, config.instance.User)
+		assert.Nil(t, config.instance.Domain)
+		assert.Nil(t, config.instance.Password)
 	}
 
 	//

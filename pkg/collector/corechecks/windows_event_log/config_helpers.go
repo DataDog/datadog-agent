@@ -60,6 +60,7 @@ func serverIsLocal(server *string) bool {
 }
 
 func evtRPCFlagsFromString(flags string) (uint, error) {
+	// NOTE: Keep this in sync with config spec `auth_type`
 	switch flags {
 	case "default":
 		return evtapi.EvtRpcLoginAuthDefault, nil
