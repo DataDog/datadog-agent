@@ -144,7 +144,7 @@ func (c *Check) Run() error {
 		return fmt.Errorf("unable to process pods: a panic occurred")
 	}
 
-	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType, orchestrator.KubernetesResourceCache)
+	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
 
 	c.sender.OrchestratorMetadata(processResult.MetadataMessages, c.clusterID, int(orchestrator.K8sPod))
 	c.sender.OrchestratorManifest(processResult.ManifestMessages, c.clusterID)

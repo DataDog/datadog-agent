@@ -117,7 +117,7 @@ func (c *PodCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, erro
 	// Split the messages during forwarding.
 	metadataMessages := append(processResult.MetadataMessages, processResult.ManifestMessages...)
 
-	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType, orchestrator.KubernetesResourceCache)
+	orchestrator.SetCacheStats(len(podList), processed, ctx.NodeType)
 
 	return StandardRunResult(metadataMessages), nil
 }

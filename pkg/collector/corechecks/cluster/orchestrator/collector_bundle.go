@@ -342,7 +342,7 @@ func (cb *CollectorBundle) Run(sender sender.Sender) {
 		log.Debugf("Collector %s run stats: listed=%d processed=%d messages=%d duration=%s", collector.Metadata().FullName(), result.ResourcesListed, result.ResourcesProcessed, len(result.Result.MetadataMessages), runDuration)
 
 		nt := collector.Metadata().NodeType
-		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), nt, orchestrator.KubernetesResourceCache)
+		orchestrator.SetCacheStats(result.ResourcesListed, len(result.Result.MetadataMessages), nt)
 
 		if collector.Metadata().IsMetadataProducer { // for CR and CRD we don't have metadata but only manifests
 			sender.OrchestratorMetadata(result.Result.MetadataMessages, cb.check.clusterID, int(nt))
