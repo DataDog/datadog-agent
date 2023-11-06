@@ -27,8 +27,8 @@ func updateSBOMRepoMetadata(sbom *SBOM, repoTags, repoDigests []string) *SBOM {
 	properties := *sbom.CycloneDXBOM.Metadata.Component.Properties
 	properties = removeOldRepoProperties(properties)
 
-	properties = appendMissingProperties(properties, repoTags, repoTagPropertyKey)
-	properties = appendMissingProperties(properties, repoDigests, repoDigestPropertyKey)
+	properties = appendRepoProperties(properties, repoTags, repoTagPropertyKey)
+	properties = appendRepoProperties(properties, repoDigests, repoDigestPropertyKey)
 
 	sbom.CycloneDXBOM.Metadata.Component.Properties = &properties
 
@@ -49,9 +49,8 @@ func removeOldRepoProperties(properties []cyclonedx.Property) []cyclonedx.Proper
 	return res
 }
 
-// appendMissingProperties function updates the list of properties along with the property set,
-// if the given repoValues are not already present in the set.
-func appendMissingProperties(properties []cyclonedx.Property, repoValues []string, propertyKeyType string) []cyclonedx.Property {
+// appendRepoProperties function updates the slice of properties
+func appendRepoProperties(properties []cyclonedx.Property, repoValues []string, propertyKeyType string) []cyclonedx.Property {
 	for _, repoValue := range repoValues {
 		prop := cdxProperty(propertyKeyType, repoValue)
 		properties = append(properties, prop)
