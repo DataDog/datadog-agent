@@ -153,7 +153,6 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			processPath:           "/bin/bar",
 			completeLineage:       false,
 			resultNodeShouldBeNil: true,
-			granpaInsideContainer: true,
 			resultNewProcessNode:  false,
 			resultErr:             activity_tree.ErrBrokenLineage,
 			resultTree:            map[string][]string{},

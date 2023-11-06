@@ -60,6 +60,17 @@ func (e *ErrProcessWrongParentNode) Error() string {
 	return fmt.Sprintf("wrong parent node: PID(%d), PPID(%d), ID(%s)", e.PID, e.PPID, e.ContainerID)
 }
 
+// ErrProcessIncompleteLineage used when the lineage is incorrect in term of pid/ppid
+type ErrProcessIncompleteLineage struct {
+	PID         uint32
+	PPID        uint32
+	ContainerID string
+}
+
+func (e *ErrProcessIncompleteLineage) Error() string {
+	return fmt.Sprintf("parent node missing: PID(%d), PPID(%d), ID(%s)", e.PID, e.PPID, e.ContainerID)
+}
+
 // ErrNoProcessContext defines an error for event without process context
 type ErrNoProcessContext struct {
 	Err error

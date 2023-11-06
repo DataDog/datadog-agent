@@ -54,7 +54,7 @@ func TestHasValidLineage(t *testing.T) {
 		assert.False(t, isValid)
 		assert.NotNil(t, err)
 
-		var mn *ErrProcessMissingParentNode
+		var mn *ErrProcessIncompleteLineage
 		assert.ErrorAs(t, err, &mn)
 	})
 
@@ -80,7 +80,7 @@ func TestHasValidLineage(t *testing.T) {
 		assert.False(t, isValid)
 		assert.NotNil(t, err)
 
-		var mn *ErrProcessWrongParentNode
+		var mn *ErrProcessMissingParentNode
 		assert.ErrorAs(t, err, &mn)
 	})
 }

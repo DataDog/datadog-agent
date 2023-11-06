@@ -455,7 +455,7 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 	if _, err := entry.HasValidLineage(); err != nil {
 		// check if the node belongs to the container
 		var mn *model.ErrProcessMissingParentNode
-		if !errors.As(err, &mn) || mn.ContainerID != "" {
+		if !errors.As(err, &mn) {
 			return nil, false, ErrBrokenLineage
 		}
 	}
