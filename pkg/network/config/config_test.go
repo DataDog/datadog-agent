@@ -783,7 +783,7 @@ func TestHTTPNotificationThreshold(t *testing.T) {
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		cfg := configurationFromYAML(t, makeYamlConfigString("network_config", "http_notification_threshold", validNotificationThreshold))
+		cfg := configurationFromYAML(t, makeYamlConfigString("service_monitoring_config", "http_notification_threshold", validNotificationThreshold))
 		require.Equal(t, cfg.HTTPNotificationThreshold, int64(validNotificationThreshold))
 	})
 
