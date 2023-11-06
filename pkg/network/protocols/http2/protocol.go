@@ -38,7 +38,7 @@ type protocol struct {
 	statkeeper     *http.StatKeeper
 	eventsConsumer *events.Consumer
 
-	http2Telemetry *Http2KernelTelemetry
+	http2Telemetry *KernelTelemetry
 }
 
 const (
@@ -263,39 +263,19 @@ func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) error {
 			return nil
 		}
 
-		//t.http2requests.Set(int64(http2Telemetry.Request_seen))
-		//t.http2responses.Set(int64(http2Telemetry.Response_seen))
+		p.http2Telemetry.http2requests.Set(int64(http2Telemetry.Request_seen))
+		p.http2Telemetry.http2responses.Set(int64(http2Telemetry.Response_seen))
 		p.http2Telemetry.endOfStreamEOS.Set(int64(http2Telemetry.End_of_stream_eos))
 		p.http2Telemetry.endOfStreamRST.Set(int64(http2Telemetry.End_of_stream_rst))
-		//t.strLenGraterThenFrameLoc.Set(int64(http2Telemetry.Str_len_greater_then_frame_loc))
-		//t.frameRemainder.Set(int64(http2Telemetry.Frame_remainder))
-		//t.framesInPacket.Set(int64(http2Telemetry.Max_frames_in_packet))
+		p.http2Telemetry.strLenGraterThenFrameLoc.Set(int64(http2Telemetry.Str_len_greater_then_frame_loc))
+		p.http2Telemetry.frameRemainder.Set(int64(http2Telemetry.Frame_remainder))
 		p.http2Telemetry.largePathInDelta.Set(int64(http2Telemetry.Large_path_in_delta))
 		p.http2Telemetry.largePathOutsideDelta.Set(int64(http2Telemetry.Large_path_outside_delta))
 
 		time.Sleep(10 * time.Second)
+		p.http2Telemetry.Log()
 	}
 }
-
-//func (p *protocol) getHTTP2EBPFTelemetry(mgr *manager.Manager) *HTTP2Telemetry {
-//	var zero uint64
-//	mp, _, err := mgr.GetMap(probes.HTTP2TelemetryMap)
-//	if err != nil {
-//		log.Warnf("error retrieving http2 telemetry map: %s", err)
-//		return nil
-//	}
-//
-//	http2Telemetry := &HTTP2Telemetry{}
-//	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-//		// This can happen if we haven't initialized the telemetry object yet
-//		// so let's just use a trace log
-//		if log.ShouldLog(seelog.TraceLvl) {
-//			log.Tracef("error retrieving the http2 telemetry struct: %s", err)
-//		}
-//		return nil
-//	}
-//	return http2Telemetry
-//}
 
 // The staticTableEntry represents an entry in the static table that contains an index in the table and a value.
 // The value itself contains both the key and the corresponding value in the static table.
