@@ -23,6 +23,9 @@ const (
 	// APIGatewayV2Event describes an event from AWS API Gateways
 	APIGatewayV2Event
 
+	// APIGatewayKongEvent describes an event from AWS API Gateways through Kong (unstaged)
+	APIGatewayKongEvent
+
 	// APIGatewayWebsocketEvent describes an event from websocket AWS API Gateways
 	APIGatewayWebsocketEvent
 
@@ -154,6 +157,10 @@ func GetEventType(payload map[string]any) AWSEventType {
 		return LambdaFunctionURLEvent
 	}
 
+	if isAPIGatewayKongEvent(payload) {
+		return APIGatewayKongEvent
+	}
+
 	return Unknown
 }
 
@@ -185,6 +192,13 @@ func isAPIGatewayV2Event(event map[string]any) bool {
 	return version == "2.0" &&
 		json.GetNestedValue(event, "rawquerystring") != nil &&
 		!strings.Contains(domainName, "lambda-url")
+}
+
+func isAPIGatewayKongEvent(event map[string]any) bool {
+	return json.GetNestedValue(event, "httpmethod") != nil &&
+		json.GetNestedValue(event, "resource") != nil &&
+		json.GetNestedValue(event, "requestcontext", "stage") == nil &&
+		!isAPIGatewayLambdaAuthorizerRequestParametersEvent(event)
 }
 
 func isAPIGatewayWebsocketEvent(event map[string]any) bool {
