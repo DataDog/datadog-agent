@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -198,6 +199,11 @@ func (c *GenericCollector) Run() {
 			return err
 		}, streamRecvTimeout)
 		if err != nil {
+			// at the end of stream, but its OK
+			if err == io.EOF {
+				continue
+			}
+
 			c.streamCancel()
 
 			telemetry.RemoteClientErrors.Inc(c.CollectorID)

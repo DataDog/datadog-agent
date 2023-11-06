@@ -127,8 +127,8 @@ func TestCollection(t *testing.T) {
 					EventID: 1,
 					SetEvents: []*pbgo.ProcessEventSet{
 						{
-							Pid:          345,
-							Nspid:        567,
+							Pid:          321,
+							Nspid:        765,
 							ContainerID:  "cid",
 							Language:     &pbgo.Language{Name: string(languagemodels.Java)},
 							CreationTime: creationTime,
@@ -150,10 +150,10 @@ func TestCollection(t *testing.T) {
 				},
 				{
 					EntityID: workloadmeta.EntityID{
-						ID:   "345",
+						ID:   "321",
 						Kind: workloadmeta.KindProcess,
 					},
-					NsPid:        567,
+					NsPid:        765,
 					ContainerID:  "cid",
 					Language:     &languagemodels.Language{Name: languagemodels.Java},
 					CreationTime: time.UnixMilli(creationTime),
@@ -236,21 +236,23 @@ func TestCollection(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+
 			overrides := map[string]interface{}{
-				"workloadmeta.remote_process_collector.enabled": true,
-				"language_detection.enabled":                    true,
+				"language_detection.enabled": true,
 			}
 
+			// We do not inject any collectors here; we instantiate
+			// and initialize it out-of-band below. That's OK.
 			mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 				core.MockBundle,
 				fx.Replace(config.MockParams{Overrides: overrides}),
-				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.Params{
 					AgentType: workloadmeta.Remote,
 				}),
-				fx.Provide(NewCollector),
 				workloadmeta.MockModuleV2,
 			))
+
+			time.Sleep(time.Second)
 
 			// remote process collector server (process agent)
 			server := &mockServer{
@@ -319,6 +321,7 @@ func TestCollection(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equal(t, test.expectedProcesses[i], p)
 			}
+
 		})
 	}
 }

@@ -53,7 +53,6 @@ func (w *workloadmeta) Start(ctx context.Context) {
 				if err != nil {
 					w.log.Warnf("error de-registering health check: %s", err)
 				}
-
 				return
 			}
 		}

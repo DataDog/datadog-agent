@@ -9,6 +9,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/remote"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -144,11 +146,10 @@ func TestCollection(t *testing.T) {
 	// workloadmeta server
 	mockServerStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
-		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModuleV2,
 	))
-
+	mockServerStore.Start(context.TODO())
 	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
 
 	// gRPC server
@@ -164,70 +165,94 @@ func TestCollection(t *testing.T) {
 	}()
 	defer grpcServer.Stop()
 
-	// _, portStr, err := net.SplitHostPort(lis.Addr().String())
-	// require.NoError(t, err)
-	// port, err := strconv.Atoi(portStr)
-	// require.NoError(t, err)
+	_, portStr, err := net.SplitHostPort(lis.Addr().String())
+	require.NoError(t, err)
+	port, err := strconv.Atoi(portStr)
+	require.NoError(t, err)
 
-	// // gRPC client
-	// collector := &remote.GenericCollector{
-	// 	StreamHandler: &streamHandler{
-	// 		port: port,
-	// 	},
-	// 	Insecure: true,
-	// }
+	// gRPC client
+	collector := &remote.GenericCollector{
+		CollectorID: "generic-test-collector",
+		Catalog:     workloadmeta.Remote,
+		StreamHandler: &streamHandler{
+			port: port,
+		},
+		Insecure: true,
+	}
 
-	// TODO(components): fix the current issue with multiple stores
-	//                   getting instantiated in checks.
-	//
-	// mockClientStore := workloadmeta.NewMockStore()
-	// ctx, cancel := context.WithCancel(context.TODO())
-	// err = collector.Start(ctx, mockClientStore)
-	// require.NoError(t, err)
+	// workloadmeta client store
+	mockClientStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.Params{
+			AgentType: workloadmeta.Remote,
+		}),
+		fx.Provide(
+			fx.Annotate(func() workloadmeta.Collector {
+				return collector
+			},
+				fx.ResultTags(`group:"workloadmeta"`)),
+		),
+		workloadmeta.MockModuleV2,
+	))
 
-	// // Start straming entites
-	// expectedContainer := &workloadmeta.Container{
-	// 	EntityID: workloadmeta.EntityID{
-	// 		Kind: workloadmeta.KindContainer,
-	// 		ID:   "ctr-id",
-	// 	},
-	// 	EntityMeta: workloadmeta.EntityMeta{
-	// 		Name: "ctr-name",
-	// 	},
-	// 	Image: workloadmeta.ContainerImage{
-	// 		Name: "ctr-image",
-	// 	},
-	// 	Runtime: workloadmeta.ContainerRuntimeDocker,
-	// 	State: workloadmeta.ContainerState{
-	// 		Running:    true,
-	// 		Status:     workloadmeta.ContainerStatusRunning,
-	// 		Health:     workloadmeta.ContainerHealthHealthy,
-	// 		CreatedAt:  time.Time{},
-	// 		StartedAt:  time.Time{},
-	// 		FinishedAt: time.Time{},
-	// 	},
-	// 	EnvVars: map[string]string{
-	// 		"DD_SERVICE":  "my-svc",
-	// 		"DD_ENV":      "prod",
-	// 		"DD_VERSION":  "v1",
-	// 		"NOT_ALLOWED": "not-allowed",
-	// 	},
-	// }
+	time.Sleep(3 * time.Second)
 
-	// mockServerStore.Notify(
-	// 	[]workloadmeta.CollectorEvent{
-	// 		{
-	// 			Type:   workloadmeta.EventTypeSet,
-	// 			Source: workloadmeta.SourceAll,
-	// 			Entity: expectedContainer,
-	// 		},
-	// 	},
-	// )
+	// Subscribe to the mockStore and wait for the initial event
+	ch := mockClientStore.Subscribe("dummy", workloadmeta.NormalPriority, nil)
 
-	// time.Sleep(2 * time.Second)
-	// cancel()
+	// Start straming entites
+	expectedContainer := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   "ctr-id",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "ctr-name",
+		},
+		Image: workloadmeta.ContainerImage{
+			Name: "ctr-image",
+		},
+		Runtime: workloadmeta.ContainerRuntimeDocker,
+		State: workloadmeta.ContainerState{
+			Running:    true,
+			Status:     workloadmeta.ContainerStatusRunning,
+			Health:     workloadmeta.ContainerHealthHealthy,
+			CreatedAt:  time.Time{},
+			StartedAt:  time.Time{},
+			FinishedAt: time.Time{},
+		},
+		EnvVars: map[string]string{
+			"DD_SERVICE":  "my-svc",
+			"DD_ENV":      "prod",
+			"DD_VERSION":  "v1",
+			"NOT_ALLOWED": "not-allowed",
+		},
+	}
 
-	// container, err := mockClientStore.GetContainer("ctr-id")
-	// require.NoError(t, err)
-	// assert.Equal(t, container, expectedContainer)
+	collectorEvents := []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: expectedContainer,
+		},
+	}
+
+	mockServerStore.Notify(collectorEvents)
+
+	// Number of events expected. We expect one per collectorEvent.
+
+	numberOfEvents := len(collectorEvents)
+	// Keep listening to workloadmeta until enough events are received. It is possible that the
+	// first bundle does not hold any events. Thus, it is required to look at the number of events
+	// in the bundle.
+	for i := 0; i < numberOfEvents; {
+		bundle := <-ch
+		close(bundle.Ch)
+		i += len(bundle.Events)
+	}
+	mockClientStore.Unsubscribe(ch)
+
+	container, err := mockClientStore.GetContainer("ctr-id")
+	require.NoError(t, err)
+	assert.Equal(t, container, expectedContainer)
 }
