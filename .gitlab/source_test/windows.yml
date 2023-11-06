@@ -11,6 +11,9 @@
     # we pass in CI_JOB_URL and CI_JOB_NAME so that they can be added to additional tags
     # inside JUNIT_TAR and then later used by datadog-ci
     - !reference [.setup_python_mirror_win]
+    - Write-Host "$(Get-Location)"
+    - ls -Force
+    - ls -Force .cache
     - >
       docker run --rm
       -m 16384M
