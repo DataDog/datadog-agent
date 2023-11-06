@@ -2,12 +2,12 @@
 Running E2E Tests with infra based on Pulumi
 """
 
-from collections import namedtuple
 import json
 import os
 import os.path
 import shutil
 import tempfile
+from collections import namedtuple
 from pathlib import Path
 from typing import List
 
