@@ -26,7 +26,7 @@ func InstallLanguageDetectionEndpoints(r *mux.Router) {
 }
 
 func postDetectedLanguages(w http.ResponseWriter, r *http.Request) {
-	if !config.Datadog.GetBool("language_detecion.enabled") {
+	if !config.Datadog.GetBool("language_detection.enabled") {
 		languagedetection.ErrorResponses.Inc()
 		http.Error(w, "Language detection feature is disabled on the cluster agent", http.StatusServiceUnavailable)
 		return
