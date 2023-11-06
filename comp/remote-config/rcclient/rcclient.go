@@ -126,9 +126,8 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 			config.Datadog.UnsetForSource("log_level", model.SourceRC)
 		} else {
 			newLevel := mergedConfig.LogLevel
-			newSource := model.SourceRC
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
-			err = settings.SetRuntimeSetting("log_level", newLevel, newSource)
+			err = settings.SetRuntimeSetting("log_level", newLevel, model.SourceRC)
 		}
 
 	case model.SourceCLI:
