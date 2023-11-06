@@ -17,10 +17,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"syscall"
 	"time"
 
+	lib "github.com/cilium/ebpf"
 	"github.com/hashicorp/go-multierror"
-	"github.com/mailru/easyjson"
 	"github.com/moby/sys/mountinfo"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
@@ -61,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	utilkernel "github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // EventStream describes the interface implemented by reordered perf maps or ring buffers
@@ -89,7 +91,7 @@ type PlatformProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
-	monitor         *Monitor
+	monitors        *Monitors
 	profileManagers *SecurityProfileManagers
 
 	// Ring
@@ -108,11 +110,13 @@ type PlatformProbe struct {
 	// Approvers / discarders section
 	notifyDiscarderPushedCallbacksLock sync.Mutex
 
+	killListMap           *lib.Map
+	supportsBPFSendSignal bool
+
 	isRuntimeDiscarded bool
 	constantOffsets    map[string]uint64
 	runtimeCompiled    bool
-
-	useFentry bool
+	useFentry          bool
 }
 
 func (p *Probe) detectKernelVersion() error {
@@ -125,16 +129,26 @@ func (p *Probe) detectKernelVersion() error {
 }
 
 // GetKernelVersion computes and returns the running kernel version
-func (p *Probe) GetKernelVersion() (*kernel.Version, error) {
-	if err := p.detectKernelVersion(); err != nil {
-		return nil, err
-	}
-	return p.kernelVersion, nil
+func (p *Probe) GetKernelVersion() *kernel.Version {
+	return p.kernelVersion
 }
 
 // UseRingBuffers returns true if eBPF ring buffers are supported and used
 func (p *Probe) UseRingBuffers() bool {
-	return p.kernelVersion.HaveRingBuffers() && p.Config.Probe.EventStreamUseRingBuffer
+	return p.Config.Probe.EventStreamUseRingBuffer && p.kernelVersion.HaveRingBuffers()
+}
+
+func (p *Probe) selectFentryMode() {
+	if !p.Config.Probe.EventStreamUseFentry {
+		p.useFentry = false
+		return
+	}
+
+	supported := p.kernelVersion.HaveFentrySupport()
+	if !supported {
+		seclog.Errorf("fentry enabled but not supported, falling back to kprobe mode")
+	}
+	p.useFentry = supported
 }
 
 func (p *Probe) sanityChecks() error {
@@ -258,7 +272,7 @@ func (p *Probe) Init() error {
 		return err
 	}
 
-	err = p.monitor.Init()
+	err = p.monitors.Init()
 	if err != nil {
 		return err
 	}
@@ -269,7 +283,12 @@ func (p *Probe) Init() error {
 	}
 	p.profileManagers.AddActivityDumpHandler(p.activityDumpHandler)
 
-	p.eventStream.SetMonitor(p.monitor.eventStreamMonitor)
+	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
+
+	p.killListMap, err = managerhelper.Map(p.Manager, "kill_list")
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -288,7 +307,9 @@ func (p *Probe) Setup() error {
 
 	p.applyDefaultFilterPolicies()
 
-	if err := p.updateProbes(defaultEventTypes, true); err != nil {
+	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
+
+	if err := p.updateProbes(defaultEventTypes, true, needRawSyscalls); err != nil {
 		return err
 	}
 
@@ -382,7 +403,7 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 			p.profileManagers.activityDumpManager.ProcessEvent(event)
 		}
 	}
-	p.monitor.ProcessEvent(event)
+	p.monitors.ProcessEvent(event)
 }
 
 func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
@@ -404,17 +425,14 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 		return eventJSON, event.GetEventType(), err
 	})
 
-	// send specific event
-	if p.Config.RuntimeSecurity.CustomEventEnabled {
-		// send wildcard first
-		for _, handler := range p.customEventHandlers[model.UnknownEventType] {
-			handler.HandleCustomEvent(rule, event)
-		}
+	// send wildcard first
+	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
+		handler.HandleCustomEvent(rule, event)
+	}
 
-		// send specific event
-		for _, handler := range p.customEventHandlers[event.GetEventType()] {
-			handler.HandleCustomEvent(rule, event)
-		}
+	// send specific event
+	for _, handler := range p.customEventHandlers[event.GetEventType()] {
+		handler.HandleCustomEvent(rule, event)
 	}
 }
 
@@ -440,17 +458,17 @@ func (p *Probe) SendStats() error {
 		return err
 	}
 
-	return p.monitor.SendStats()
+	return p.monitors.SendStats()
 }
 
-// GetMonitor returns the monitor of the probe
-func (p *Probe) GetMonitor() *Monitor {
-	return p.monitor
+// GetMonitors returns the monitor of the probe
+func (p *Probe) GetMonitors() *Monitors {
+	return p.monitors
 }
 
 // EventMarshallerCtor returns the event marshaller ctor
-func (p *Probe) EventMarshallerCtor(event *model.Event) func() easyjson.Marshaler {
-	return func() easyjson.Marshaler {
+func (p *Probe) EventMarshallerCtor(event *model.Event) func() events.EventMarshaler {
+	return func() events.EventMarshaler {
 		return serializers.NewEventSerializer(event, p.resolvers)
 	}
 }
@@ -468,8 +486,7 @@ func eventWithNoProcessContext(eventType model.EventType) bool {
 	return eventType == model.DNSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
-// UnmarshalProcessCacheEntry unmarshal a Process
-func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
+func (p *Probe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
 	entry := p.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
 	ev.ProcessCacheEntry = entry
 
@@ -478,14 +495,17 @@ func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, e
 		return n, err
 	}
 	entry.Process.ContainerID = ev.ContainerContext.ID
+	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
 }
 
 func (p *Probe) onEventLost(perfMapName string, perEvent map[string]uint64) {
-	p.DispatchCustomEvent(
-		NewEventLostWriteEvent(perfMapName, perEvent),
-	)
+	if p.Config.RuntimeSecurity.InternalMonitoringEnabled {
+		p.DispatchCustomEvent(
+			NewEventLostWriteEvent(perfMapName, perEvent),
+		)
+	}
 
 	// snapshot traced cgroups if a CgroupTracing event was lost
 	if p.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
@@ -544,7 +564,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		return
 	}
 
-	p.monitor.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
+	p.monitors.eventStreamMonitor.CountEvent(eventType, event.TimestampRaw, 1, dataLen, eventstream.EventStreamMap, CPU)
 
 	// no need to dispatch events
 	switch eventType {
@@ -616,7 +636,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	switch eventType {
 	case model.ForkEventType:
-		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -631,7 +651,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
-		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
@@ -1086,7 +1106,7 @@ func (p *Probe) validEventTypeForConfig(eventType string) bool {
 
 // updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes bool) error {
+func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes, needRawSyscalls bool) error {
 	// event types enabled either by event handlers or by rules
 	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
 	eventTypes = append(eventTypes, ruleEventTypes...)
@@ -1117,12 +1137,16 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes 
 
 	activatedProbes = append(activatedProbes, p.resolvers.TCResolver.SelectTCProbes())
 
-	// ActivityDumps
-	if p.Config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
-			if e == model.SyscallsEventType {
-				activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
-				break
+	if needRawSyscalls {
+		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+	} else {
+		// ActivityDumps
+		if p.Config.RuntimeSecurity.ActivityDumpEnabled {
+			for _, e := range p.profileManagers.GetActivityDumpTracedEventTypes() {
+				if e == model.SyscallsEventType {
+					activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors...)
+					break
+				}
 			}
 		}
 	}
@@ -1232,6 +1256,11 @@ func (p *Probe) DumpDiscarders() (string, error) {
 func (p *Probe) FlushDiscarders() error {
 	seclog.Debugf("Flushing discarders")
 	return bumpDiscardersRevision(p.Erpc)
+}
+
+// RefreshUserCache refreshes the user cache
+func (p *Probe) RefreshUserCache(containerID string) error {
+	return p.GetResolvers().UserGroupResolver.RefreshCache(containerID)
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
@@ -1375,6 +1404,12 @@ func (p *Probe) applyDefaultFilterPolicies() {
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	if p.Opts.SyscallsMonitorEnabled {
+		if err := p.monitors.syscallsMonitor.Disable(); err != nil {
+			return nil, err
+		}
+	}
+
 	ars, err := kfilters.NewApplyRuleSetReport(p.Config.Probe, rs)
 	if err != nil {
 		return nil, err
@@ -1389,8 +1424,31 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		}
 	}
 
-	if err := p.updateProbes(rs.GetEventTypes(), false); err != nil {
+	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
+	if !needRawSyscalls {
+		// Add syscall monitor probes if it's either activated or
+		// there is an 'kill' action in the ruleset
+		for _, rule := range rs.GetRules() {
+			for _, action := range rule.Definition.Actions {
+				if action.Kill != nil {
+					needRawSyscalls = true
+					break
+				}
+			}
+		}
+	}
+
+	if err := p.updateProbes(rs.GetEventTypes(), false, needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
+	}
+
+	if p.Opts.SyscallsMonitorEnabled {
+		if err := p.monitors.syscallsMonitor.Flush(); err != nil {
+			return nil, err
+		}
+		if err := p.monitors.syscallsMonitor.Enable(); err != nil {
+			return nil, err
+		}
 	}
 
 	return ars, nil
@@ -1420,7 +1478,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			Erpc:               nerpc,
 			erpcRequest:        &erpc.Request{},
 			isRuntimeDiscarded: !opts.DontDiscardRuntime,
-			useFentry:          config.Probe.EventStreamUseFentry,
 		},
 	}
 
@@ -1441,14 +1498,18 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		seclog.Warnf("the current environment may be misconfigured: %v", err)
 	}
 
+	p.selectFentryMode()
+
 	useRingBuffers := p.UseRingBuffers()
 	useMmapableMaps := p.kernelVersion.HaveMmapableMaps()
 
 	p.Manager = ebpf.NewRuntimeSecurityManager(useRingBuffers, p.useFentry)
 
+	p.supportsBPFSendSignal = p.kernelVersion.SupportBPFSendSignal()
+
 	p.ensureConfigDefaults()
 
-	p.monitor = NewMonitor(p)
+	p.monitors = NewMonitors(p)
 
 	numCPU, err := utils.NumCPU()
 	if err != nil {
@@ -1556,7 +1617,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 		manager.ConstantEditor{
 			Name:  "send_signal",
-			Value: isBPFSendSignalHelperAvailable(p.kernelVersion),
+			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
 		},
 		manager.ConstantEditor{
 			Name:  "anomaly_syscalls",
@@ -1723,6 +1784,11 @@ func getHasUsernamespaceFirstArg(kernelVersion *kernel.Version) uint64 {
 }
 
 func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
+	// https://github.com/torvalds/linux/commit/0af950f57fefabab628f1963af881e6b9bfe7f38
+	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel6_5 {
+		return 2
+	}
+
 	// https://github.com/torvalds/linux/commit/ffa5723c6d259b3191f851a50a98d0352b345b39
 	// changes a bit how the lower dentry/inode is stored in `ovl_inode`. To check if we
 	// are in this configuration we first probe the kernel version, then we check for the
@@ -1746,14 +1812,6 @@ func getOvlPathInOvlInode(kernelVersion *kernel.Version) uint64 {
 	return 0
 }
 
-// isBPFSendSignalHelperAvailable returns true if the bpf_send_signal helper is available in the current kernel
-func isBPFSendSignalHelperAvailable(kernelVersion *kernel.Version) uint64 {
-	if kernelVersion.Code != 0 && kernelVersion.Code >= kernel.Kernel5_3 {
-		return uint64(1)
-	}
-	return uint64(0)
-}
-
 // getCGroupWriteConstants returns the value of the constant used to determine how cgroups should be captured in kernel
 // space
 func getCGroupWriteConstants() manager.ConstantEditor {
@@ -1774,22 +1832,14 @@ func getCGroupWriteConstants() manager.ConstantEditor {
 // GetOffsetConstants returns the offsets and struct sizes constants
 func (p *Probe) GetOffsetConstants() (map[string]uint64, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
-	kv, err := p.GetKernelVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
-	}
-	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetResults()
 }
 
 // GetConstantFetcherStatus returns the status of the constant fetcher associated with this probe
 func (p *Probe) GetConstantFetcherStatus() (*constantfetch.ConstantFetcherStatus, error) {
 	constantFetcher := constantfetch.ComposeConstantFetchers(constantfetch.GetAvailableConstantFetchers(p.Config.Probe, p.kernelVersion, p.StatsdClient))
-	kv, err := p.GetKernelVersion()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch probe kernel version: %w", err)
-	}
-	AppendProbeRequestsToFetcher(constantFetcher, kv)
+	AppendProbeRequestsToFetcher(constantFetcher, p.kernelVersion)
 	return constantFetcher.FinishAndGetStatus()
 }
 
@@ -1806,6 +1856,10 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
+	if kv.Code >= kernel.Kernel5_3 {
+		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
+	}
+
 	// bpf offsets
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameBPFMapStructID, "struct bpf_map", "id", "linux/bpf.h")
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel4_15 || kv.IsRH7Kernel()) {
@@ -1871,5 +1925,32 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// iouring
 	if kv.Code != 0 && (kv.Code >= kernel.Kernel5_1) {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameIoKiocbStructCtx, "struct io_kiocb", "ctx", "")
+	}
+}
+
+// HandleActions executes the actions of a triggered rule
+func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
+	ev := event.(*model.Event)
+	for _, action := range rule.Definition.Actions {
+		switch {
+		case action.InternalCallbackDefinition != nil && rule.ID == events.RefreshUserCacheRuleID:
+			_ = p.RefreshUserCache(ev.ContainerContext.ID)
+
+		case action.Kill != nil:
+			if pid := ev.ProcessContext.Pid; pid > 1 && pid != utils.Getpid() {
+				log.Debugf("Requesting signal %s to be sent to %d", action.Kill.Signal, pid)
+				sig := model.SignalConstants[action.Kill.Signal]
+
+				var err error
+				if p.supportsBPFSendSignal {
+					err = p.killListMap.Put(uint32(pid), uint32(sig))
+				} else {
+					err = syscall.Kill(int(pid), syscall.Signal(sig))
+				}
+				if err != nil {
+					seclog.Warnf("failed to kill process %d: %s", pid, err)
+				}
+			}
+		}
 	}
 }

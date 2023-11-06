@@ -6,6 +6,8 @@
 package stats
 
 import (
+	"hash/fnv"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -29,14 +31,15 @@ type Aggregation struct {
 
 // BucketsAggregationKey specifies the key by which a bucket is aggregated.
 type BucketsAggregationKey struct {
-	Service     string
-	Name        string
-	PeerService string
-	Resource    string
-	Type        string
-	SpanKind    string
-	StatusCode  uint32
-	Synthetics  bool
+	Service      string
+	Name         string
+	PeerService  string
+	Resource     string
+	Type         string
+	SpanKind     string
+	StatusCode   uint32
+	Synthetics   bool
+	PeerTagsHash uint64
 }
 
 // PayloadAggregationKey specifies the key by which a payload is aggregated.
@@ -65,8 +68,13 @@ func getStatusCode(s *pb.Span) uint32 {
 	return uint32(c)
 }
 
+func clientOrProducer(spanKind string) bool {
+	sk := strings.ToLower(spanKind)
+	return sk == "client" || sk == "producer"
+}
+
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool) Aggregation {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, peerTagKeys []string) (Aggregation, []string) {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
@@ -80,23 +88,59 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 			Synthetics: synthetics,
 		},
 	}
-	if enablePeerSvcAgg {
-		agg.PeerService = s.Meta[tagPeerService]
+	var peerTags []string
+	if clientOrProducer(agg.SpanKind) {
+		if enablePeerSvcAgg {
+			agg.PeerService = s.Meta[tagPeerService]
+		}
+		peerTags = matchingPeerTags(s, peerTagKeys)
+		agg.PeerTagsHash = peerTagsHash(peerTags)
 	}
-	return agg
+	return agg, peerTags
+}
+
+func matchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
+	if len(peerTagKeys) == 0 {
+		return nil
+	}
+	var pt []string
+	for _, t := range peerTagKeys {
+		if v, ok := s.Meta[t]; ok {
+			pt = append(pt, t+":"+v)
+		}
+	}
+	return pt
+}
+
+func peerTagsHash(tags []string) uint64 {
+	if len(tags) == 0 {
+		return 0
+	}
+	if !sort.StringsAreSorted(tags) {
+		sort.Strings(tags)
+	}
+	h := fnv.New64a()
+	for i, t := range tags {
+		if i > 0 {
+			h.Write([]byte{0})
+		}
+		h.Write([]byte(t))
+	}
+	return h.Sum64()
 }
 
 // NewAggregationFromGroup gets the Aggregation key of grouped stats.
 func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 	return Aggregation{
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:    g.Resource,
-			Service:     g.Service,
-			PeerService: g.PeerService,
-			Name:        g.Name,
-			SpanKind:    g.SpanKind,
-			StatusCode:  g.HTTPStatusCode,
-			Synthetics:  g.Synthetics,
+			Resource:     g.Resource,
+			Service:      g.Service,
+			PeerService:  g.PeerService,
+			Name:         g.Name,
+			SpanKind:     g.SpanKind,
+			StatusCode:   g.HTTPStatusCode,
+			Synthetics:   g.Synthetics,
+			PeerTagsHash: peerTagsHash(g.PeerTags),
 		},
 	}
 }

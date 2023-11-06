@@ -9,7 +9,5 @@ generator:
       maximum_prebuild_cache_size_bytes: "256 Mb"
 
 blackhole:
-  - tcp:
-      binding_addr: "127.0.0.1:9091"
   - http:
       binding_addr: "127.0.0.1:9092"

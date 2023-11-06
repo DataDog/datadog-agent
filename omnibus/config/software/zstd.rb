@@ -14,8 +14,6 @@
 # limitations under the License.
 #
 
-require './lib/cmake.rb'
-
 name "zstd"
 default_version "1.5.5"
 
@@ -40,8 +38,8 @@ build do
 
   cmake_options = [
     "-DZSTD_BUILD_PROGRAMS=OFF",
-    "-DENABLE_STATIC=ON",
-    "-DENABLE_SHARED=OFF",
+    "-DZSTD_BUILD_STATIC=OFF",
+    "-DZSTD_BUILD_SHARED=ON",
   ]
 
   cmake(*cmake_options, env: env, cwd: cmake_build_dir, prefix: "#{install_dir}/embedded")

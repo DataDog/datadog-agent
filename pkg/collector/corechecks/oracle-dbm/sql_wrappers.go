@@ -52,12 +52,20 @@ func handlePrivilegeError(c *Check, err error) (bool, error) {
 		return isPrivilegeError, err
 	}
 
-	links := map[hostingCode]string{
-		selfManaged: "https://docs.datadoghq.com/database_monitoring/setup_oracle/selfhosted/#grant-permissions",
-		rds:         "https://docs.datadoghq.com/database_monitoring/setup_oracle/rds/#grant-permissions",
-		oci:         "https://docs.datadoghq.com/database_monitoring/setup_oracle/autonomous_database/#grant-permissions",
+	var link string
+	switch c.hostingType {
+	case selfManaged:
+		if c.multitenant {
+			link = "https://docs.datadoghq.com/database_monitoring/setup_oracle/selfhosted/?tab=multitenant#grant-permissions"
+		} else {
+			link = "https://docs.datadoghq.com/database_monitoring/setup_oracle/selfhosted/?tab=noncdb#grant-permissions"
+		}
+	case rds:
+		link = "https://docs.datadoghq.com/database_monitoring/setup_oracle/rds/#grant-permissions"
+	case oci:
+		link = "https://docs.datadoghq.com/database_monitoring/setup_oracle/autonomous_database/#grant-permissions"
 	}
-	link := links[c.hostingType]
+
 	isPrivilegeError = true
 	return isPrivilegeError, fmt.Errorf("Some privileges are missing. Execute the `grant` commands from %s . Error: %w", link, err)
 }

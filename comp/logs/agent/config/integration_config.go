@@ -81,6 +81,8 @@ type LogsConfig struct {
 	SourceCategory  string
 	Tags            []string
 	ProcessingRules []*ProcessingRule `mapstructure:"log_processing_rules" json:"log_processing_rules"`
+	// ProcessRawMessage is used to process the raw message instead of only the content part of the message.
+	ProcessRawMessage *bool `mapstructure:"process_raw_message" json:"process_raw_message"`
 
 	AutoMultiLine               *bool   `mapstructure:"auto_multi_line_detection" json:"auto_multi_line_detection"`
 	AutoMultiLineSampleSize     int     `mapstructure:"auto_multi_line_sample_size" json:"auto_multi_line_sample_size"`
@@ -142,6 +144,12 @@ func (c *LogsConfig) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("SourceCategory: %#v,"), c.SourceCategory)
 	fmt.Fprintf(&b, ws("Tags: %#v,"), c.Tags)
 	fmt.Fprintf(&b, ws("ProcessingRules: %#v,"), c.ProcessingRules)
+	if c.ProcessRawMessage != nil {
+		fmt.Fprintf(&b, ws("ProcessRawMessage: %t,"), *c.ProcessRawMessage)
+	} else {
+		fmt.Fprint(&b, ws("ProcessRawMessage: nil,"))
+	}
+	fmt.Fprintf(&b, ws("ShouldProcessRawMessage(): %#v,"), c.ShouldProcessRawMessage())
 	if c.AutoMultiLine != nil {
 		fmt.Fprintf(&b, ws("AutoMultiLine: %t,"), *c.AutoMultiLine)
 	} else {
@@ -235,11 +243,26 @@ func (c *LogsConfig) validateTailingMode() error {
 // AutoMultiLineEnabled determines whether auto multi line detection is enabled for this config,
 // considering both the agent-wide logs_config.auto_multi_line_detection and any config for this
 // particular log source.
-func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgConfig.ConfigReader) bool {
+func (c *LogsConfig) AutoMultiLineEnabled(coreConfig pkgConfig.Reader) bool {
 	if c.AutoMultiLine != nil {
 		return *c.AutoMultiLine
 	}
 	return coreConfig.GetBool("logs_config.auto_multi_line_detection")
+}
+
+// ShouldProcessRawMessage returns if the raw message should be processed instead
+// of only the message content.
+// This is tightly linked to how messages are transmitted through the pipeline.
+// If returning true, tailers using structured message (journald, windowsevents)
+// will fall back to original behavior of sending the whole message (e.g. JSON
+// for journald) for post-processing.
+// Otherwise, the message content is extracted from the structured message and
+// only this part is post-processed and sent to the intake.
+func (c *LogsConfig) ShouldProcessRawMessage() bool {
+	if c.ProcessRawMessage != nil {
+		return *c.ProcessRawMessage
+	}
+	return true // default behaviour when nothing's been configured
 }
 
 // ContainsWildcard returns true if the path contains any wildcard character

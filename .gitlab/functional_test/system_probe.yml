@@ -17,11 +17,27 @@
     AGENT_MAJOR_VERSION: 7
     DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
     CHEF_VERSION: 14.15.6
-  script:
+
+.kitchen_test_system_probe_linux:
+  extends:
+    - .kitchen_test_system_probe
+  before_script:
     - echo "CI_JOB_URL=${CI_JOB_URL}" >> $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/job_env.txt
     - echo "CI_JOB_ID=${CI_JOB_ID}" >> $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/job_env.txt
     - echo "CI_JOB_NAME=${CI_JOB_NAME}" >> $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/job_env.txt
     - echo "CI_JOB_STAGE=${CI_JOB_STAGE}" >> $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/job_env.txt
+    - cp $CI_PROJECT_DIR/minimized-btfs.tar.xz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/minimized-btfs.tar.xz
+    - inv system-probe.test-docker-image-list > $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/docker-images.txt
+    - |
+      get_docker_secrets() {
+        if [ -o xtrace ]; then set +x; trap 'set -x' RETURN; fi
+        export DOCKER_REGISTRY_LOGIN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_LOGIN_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+        export DOCKER_REGISTRY_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.$DOCKER_REGISTRY_PWD_SSM_KEY --with-decryption --query "Parameter.Value" --out text)
+      }
+      get_docker_secrets
+    - pushd $DD_AGENT_TESTING_DIR
+    - tasks/kitchen_setup.sh
+  script:
     - tasks/run-test-kitchen.sh system-probe-test $AGENT_MAJOR_VERSION
     - popd
     - inv system-probe.print-failed-tests --output-dir $DD_AGENT_TESTING_DIR/testjson
@@ -32,14 +48,6 @@
       - $DD_AGENT_TESTING_DIR/kitchen-junit-*.tar.gz
       - $DD_AGENT_TESTING_DIR/testjson
       - $CI_PROJECT_DIR/kitchen_logs
-
-.retrieve_test_dockers:
-  - mkdir -p $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
-  - mv $KITCHEN_DOCKERS/* $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/dockers
-
-.retrieve_minimized_btfs:
-  - $S3_CP_CMD $S3_ARTIFACTS_URI/minimized-btfs-${ARCH}.tar.xz /tmp/minimized-btfs.tar.xz
-  - cp /tmp/minimized-btfs.tar.xz $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/minimized-btfs.tar.xz
 
 # This dummy job is added here because we want the functional_tests stage to start at the same time as kernel_matrix_testing stage.
 # The ebpf-platform team is trying to measure the time from the start of the pipeline to the completion of the kernel_matrix_testing and functional_tests stages, to measure improvement.
@@ -60,10 +68,10 @@ kitchen_test_dummy_job_tmp:
 
 kitchen_test_system_probe_linux_x64_ec2:
   extends:
-    - .kitchen_test_system_probe
+    - .kitchen_test_system_probe_linux
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64", "pull_test_dockers_x64" ]
+  needs: [ "tests_ebpf_x64", "prepare_ebpf_functional_tests_x64", "generate_minimized_btfs_x64" ]
   retry: 0
   variables:
     ARCH: amd64
@@ -72,11 +80,6 @@ kitchen_test_system_probe_linux_x64_ec2:
     KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
     KITCHEN_CI_ROOT_PATH: "/tmp/ci"
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
-  before_script:
-    - !reference [.retrieve_test_dockers]
-    - !reference [.retrieve_minimized_btfs]
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
@@ -121,13 +124,16 @@ kitchen_test_system_probe_linux_x64_ec2:
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-23-04"
         KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-23-10"
+        KITCHEN_EC2_DEVICE_NAME: "/dev/sda1"
 
 kitchen_test_system_probe_linux_arm64:
   extends:
-    - .kitchen_test_system_probe
+    - .kitchen_test_system_probe_linux
     - .kitchen_ec2_location_us_east_1
     - .kitchen_ec2
-  needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64", "generate_minimized_btfs_arm64", "pull_test_dockers_arm64" ]
+  needs: [ "tests_ebpf_arm64", "prepare_ebpf_functional_tests_arm64", "generate_minimized_btfs_arm64" ]
   retry: 0
   variables:
     ARCH: arm64
@@ -136,11 +142,6 @@ kitchen_test_system_probe_linux_arm64:
     KITCHEN_CI_MOUNT_PATH: "/mnt/ci"
     KITCHEN_CI_ROOT_PATH: "/tmp/ci"
     KITCHEN_DOCKERS: $DD_AGENT_TESTING_DIR/kitchen-dockers-$ARCH
-  before_script:
-    - !reference [.retrieve_test_dockers]
-    - !reference [.retrieve_minimized_btfs]
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
   parallel:
     matrix:
       - KITCHEN_PLATFORM: "amazonlinux"
@@ -177,6 +178,8 @@ kitchen_test_system_probe_linux_arm64:
         KITCHEN_OSVERS: "ubuntu-22-04"
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-23-04"
+      - KITCHEN_PLATFORM: "ubuntu"
+        KITCHEN_OSVERS: "ubuntu-23-10"
 
 kitchen_test_system_probe_windows_x64:
   extends:

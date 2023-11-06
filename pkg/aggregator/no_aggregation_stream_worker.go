@@ -102,6 +102,7 @@ func (w *noAggregationStreamWorker) addSamples(samples metrics.MetricSampleBatch
 	if len(samples) == 0 {
 		return
 	}
+	// FIXME: instrument
 	w.samplesChan <- samples
 }
 

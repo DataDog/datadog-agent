@@ -9,10 +9,11 @@ import (
 	"testing"
 
 	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,9 +26,9 @@ import (
 
 type testDeps struct {
 	fx.In
-	Server         server.Component
-	Debug          serverDebug.Component
-	AggregatorDeps aggregator.AggregatorTestDeps
+	Server        server.Component
+	Debug         serverdebug.Component
+	Demultiplexer demultiplexer.Mock
 }
 
 func TestDogstatsdMetricsStats(t *testing.T) {
@@ -44,9 +45,10 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		}),
 		dogstatsd.Bundle,
 		defaultforwarder.MockModule,
+		demultiplexer.MockModule,
 	))
-	demux := aggregator.InitAndStartAgentDemultiplexerForTest(deps.AggregatorDeps, opts, "hostname")
 
+	demux := deps.Demultiplexer
 	global.DSD = deps.Server
 	deps.Server.Start(demux)
 

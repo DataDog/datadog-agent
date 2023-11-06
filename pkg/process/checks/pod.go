@@ -48,8 +48,14 @@ func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
 // IsEnabled returns true if the check is enabled by configuration
 func (c *PodCheck) IsEnabled() bool {
 	// activate the pod collection if enabled and we have the cluster name set
-	orchestratorEnabled, kubeClusterName := oconfig.IsOrchestratorEnabled()
+	orchestratorEnabled, coreCheck, kubeClusterName := oconfig.IsOrchestratorEnabled()
 	if !orchestratorEnabled {
+		return false
+	}
+
+	// Do not run this check if we enabled the corecheck for pods
+	if coreCheck {
+		log.Info("Skipping pod check on process agent")
 		return false
 	}
 

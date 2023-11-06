@@ -233,6 +233,19 @@ func validateRuleSetLoadedSchema(t *testing.T, event *events.CustomEvent) bool {
 }
 
 //nolint:deadcode,unused
+func validateHeartbeatSchema(t *testing.T, event *events.CustomEvent) bool {
+	t.Helper()
+
+	eventJSON, err := serializers.MarshalCustomEvent(event)
+	if err != nil {
+		t.Error(err)
+		return false
+	}
+
+	return validateStringSchema(t, string(eventJSON), "file:///schemas/heartbeat.schema.json")
+}
+
+//nolint:deadcode,unused
 func validateActivityDumpProtoSchema(t *testing.T, ad string) bool {
 	t.Helper()
 	return validateStringSchema(t, ad, "file:///schemas/activity_dump_proto.schema.json")

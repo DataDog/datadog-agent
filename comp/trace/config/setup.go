@@ -223,6 +223,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	}
 	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
+	if core.IsSet("apm_config.peer_tags") {
+		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
+	}
 	if core.IsSet("apm_config.extra_sample_rate") {
 		c.ExtraSampleRate = core.GetFloat64("apm_config.extra_sample_rate")
 	}
@@ -390,6 +393,9 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.memcached.enabled") {
 			c.Obfuscation.Memcached.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.enabled")
 		}
+		if coreconfig.Datadog.IsSet("apm_config.obfuscation.memcached.keep_command") {
+			c.Obfuscation.Memcached.KeepCommand = coreconfig.Datadog.GetBool("apm_config.obfuscation.memcached.keep_command")
+		}
 		if coreconfig.Datadog.IsSet("apm_config.obfuscation.mongodb.enabled") {
 			c.Obfuscation.Mongo.Enabled = coreconfig.Datadog.GetBool("apm_config.obfuscation.mongodb.enabled")
 		}
@@ -438,6 +444,29 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		tags := core.GetStringSlice("apm_config.filter_tags.reject")
 		for _, tag := range tags {
 			c.RejectTags = append(c.RejectTags, splitTag(tag))
+		}
+	}
+
+	if coreconfig.Datadog.IsSet("apm_config.filter_tags_regex.require") {
+		tags := coreconfig.Datadog.GetStringSlice("apm_config.filter_tags_regex.require")
+		for _, tag := range tags {
+			splitTag := splitTagRegex(tag)
+			if containsKey(c.RequireTags, splitTag.K) {
+				// RequireTags already has this tag, so skip the regexp.
+				continue
+			}
+			c.RequireTagsRegex = append(c.RequireTagsRegex, splitTag)
+		}
+	}
+	if coreconfig.Datadog.IsSet("apm_config.filter_tags_regex.reject") {
+		tags := coreconfig.Datadog.GetStringSlice("apm_config.filter_tags_regex.reject")
+		for _, tag := range tags {
+			splitTag := splitTagRegex(tag)
+			if containsKey(c.RejectTags, splitTag.K) {
+				// RejectTags already has this tag, so skip the regexp.
+				continue
+			}
+			c.RejectTagsRegex = append(c.RejectTagsRegex, splitTag)
 		}
 	}
 
@@ -672,6 +701,16 @@ func toFloat64(val interface{}) (float64, error) {
 	}
 }
 
+// containsKey return true if slice of tag contains tag with the specified key.
+func containsKey(t []*config.Tag, k string) bool {
+	for _, tag := range t {
+		if tag.K == k {
+			return true
+		}
+	}
+	return false
+}
+
 // splitTag splits a "k:v" formatted string and returns a Tag.
 func splitTag(tag string) *config.Tag {
 	parts := strings.SplitN(tag, ":", 2)
@@ -682,6 +721,24 @@ func splitTag(tag string) *config.Tag {
 		if v := strings.TrimSpace(parts[1]); v != "" {
 			kv.V = v
 		}
+	}
+	return kv
+}
+
+// splitTag splits a "k:v" formatted string and returns a TagRegex.
+func splitTagRegex(tag string) *config.TagRegex {
+	parts := strings.SplitN(tag, ":", 2)
+	kv := &config.TagRegex{
+		K: strings.TrimSpace(parts[0]),
+	}
+	if len(parts) > 1 {
+		v := strings.TrimSpace(parts[1])
+		re, err := regexp.Compile(v)
+		if err != nil {
+			log.Errorf("Invalid regex pattern in tag filter: %q:%q", kv.K, v)
+			return nil
+		}
+		kv.V = re
 	}
 	return kv
 }

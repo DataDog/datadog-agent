@@ -45,15 +45,17 @@ var (
 
 // Provider provides the metrics related to data collected from the `/pods` Kubelet endpoint
 type Provider struct {
-	filter *containers.Filter
-	config *common.KubeletConfig
+	filter   *containers.Filter
+	config   *common.KubeletConfig
+	podUtils *common.PodUtils
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig) *Provider {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, podUtils *common.PodUtils) *Provider {
 	return &Provider{
-		filter: filter,
-		config: config,
+		filter:   filter,
+		config:   config,
+		podUtils: podUtils,
 	}
 }
 
@@ -74,7 +76,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	sender.Gauge(common.KubeletMetricsPrefix+"pods.expired", float64(pods.ExpiredCount), "", p.config.Tags)
 
 	for _, pod := range pods.Items {
-		//for _, container := range pod.Spec.Containers {
+		p.podUtils.PopulateForPod(pod)
 		for _, cStatus := range pod.Status.Containers {
 			if cStatus.ID == "" {
 				// no container ID means we could not find the matching container status for this container, which will make fetching tags difficult.
@@ -111,7 +113,7 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 	return nil
 }
 
-func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
+func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) { //nolint:revive // TODO fix revive unused-parameter
 	if pod.Status.Phase != "Running" && pod.Status.Phase != "Pending" {
 		return
 	}
@@ -134,7 +136,7 @@ func (p *Provider) generateContainerSpecMetrics(sender sender.Sender, pod *kubel
 	}
 }
 
-func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) {
+func (p *Provider) generateContainerStatusMetrics(sender sender.Sender, pod *kubelet.Pod, container *kubelet.ContainerSpec, cStatus *kubelet.ContainerStatus, containerID string) { //nolint:revive // TODO fix revive unused-parameter
 	if pod.Metadata.UID == "" || pod.Metadata.Name == "" {
 		return
 	}

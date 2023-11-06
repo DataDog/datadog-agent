@@ -445,6 +445,16 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 								Key:      "control-plane",
 								Operator: metav1.LabelSelectorOpDoesNotExist,
 							},
+							{
+								Key:      "control-plane",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"true"},
+							},
+							{
+								Key:      "kubernetes.azure.com/managedby",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"aks"},
+							},
 						},
 					},
 				)
@@ -477,6 +487,16 @@ func TestGenerateTemplatesV1beta1(t *testing.T) {
 							{
 								Key:      "control-plane",
 								Operator: metav1.LabelSelectorOpDoesNotExist,
+							},
+							{
+								Key:      "control-plane",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"true"},
+							},
+							{
+								Key:      "kubernetes.azure.com/managedby",
+								Operator: metav1.LabelSelectorOpNotIn,
+								Values:   []string{"aks"},
 							},
 						},
 					},
@@ -629,7 +649,7 @@ func (f *fixtureV1beta1) createController() (*ControllerV1beta1, informers.Share
 	), factory
 }
 
-func (f *fixtureV1beta1) run(t *testing.T) *ControllerV1beta1 {
+func (f *fixtureV1beta1) run(t *testing.T) *ControllerV1beta1 { //nolint:revive // TODO fix revive unused-parameter
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 

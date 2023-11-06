@@ -91,6 +91,7 @@ type RuleDefinition struct {
 	Actions                []ActionDefinition `yaml:"actions"`
 	Every                  time.Duration      `yaml:"every"`
 	Policy                 *Policy
+	Silent                 bool
 }
 
 // GetTag returns the tag value associated with a tag key
@@ -118,21 +119,37 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Set *SetDefinition `yaml:"set"`
+	Set                        *SetDefinition `yaml:"set"`
+	InternalCallbackDefinition *InternalCallbackDefinition
+	Kill                       *KillDefinition `yaml:"kill"`
 }
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check() error {
-	if a.Set == nil {
-		return errors.New("missing 'set' section in action")
+	if a.Set == nil && a.InternalCallbackDefinition == nil && a.Kill == nil {
+		return errors.New("either 'set' or 'kill' section of an action must be specified")
 	}
 
-	if a.Set.Name == "" {
-		return errors.New("action name is empty")
-	}
+	if a.Set != nil {
+		if a.Kill != nil {
+			return errors.New("only of 'set' or 'kill' section of an action can be specified")
+		}
 
-	if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
-		return errors.New("either 'value' or 'field' must be specified")
+		if a.Set.Name == "" {
+			return errors.New("action name is empty")
+		}
+
+		if (a.Set.Value == nil && a.Set.Field == "") || (a.Set.Value != nil && a.Set.Field != "") {
+			return errors.New("either 'value' or 'field' must be specified")
+		}
+	} else if a.Kill != nil {
+		if a.Kill.Signal == "" {
+			a.Kill.Signal = "SIGTERM"
+		}
+
+		if _, found := model.SignalConstants[a.Kill.Signal]; !found {
+			return fmt.Errorf("unsupported signal '%s'", a.Kill.Signal)
+		}
 	}
 
 	return nil
@@ -148,6 +165,14 @@ type SetDefinition struct {
 	Field  string      `yaml:"field"`
 	Append bool        `yaml:"append"`
 	Scope  Scope       `yaml:"scope"`
+}
+
+// InternalCallbackDefinition describes an internal rule action
+type InternalCallbackDefinition struct{}
+
+// KillDefinition describes the 'kill' section of a rule action
+type KillDefinition struct {
+	Signal string `yaml:"signal"`
 }
 
 // Rule describes a rule of a ruleset
@@ -280,7 +305,8 @@ func (rs *RuleSet) populateFieldsWithRuleActionsData(policyRules []*RuleDefiniti
 				continue
 			}
 
-			if action.Set != nil {
+			switch {
+			case action.Set != nil:
 				varName := action.Set.Name
 				if action.Set.Scope != "" {
 					varName = string(action.Set.Scope) + "." + varName
@@ -601,9 +627,10 @@ func (rs *RuleSet) IsDiscarder(event eval.Event, field eval.Field) (bool, error)
 	return IsDiscarder(ctx, field, bucket.rules)
 }
 
-func (rs *RuleSet) runRuleActions(ctx *eval.Context, rule *Rule) error {
+func (rs *RuleSet) runRuleActions(_ eval.Event, ctx *eval.Context, rule *Rule) error {
 	for _, action := range rule.Definition.Actions {
 		switch {
+		// action.Kill has to handled by a ruleset listener
 		case action.Set != nil:
 			name := string(action.Set.Scope)
 			if name != "" {
@@ -669,7 +696,7 @@ func (rs *RuleSet) Evaluate(event eval.Event) bool {
 			rs.NotifyRuleMatch(rule, event)
 			result = true
 
-			if err := rs.runRuleActions(ctx, rule); err != nil {
+			if err := rs.runRuleActions(event, ctx, rule); err != nil {
 				rs.logger.Errorf("Error while executing rule actions: %s", err)
 			}
 		}

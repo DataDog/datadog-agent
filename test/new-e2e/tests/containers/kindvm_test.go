@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/kindvm"
+
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -28,7 +28,10 @@ type kindSuite struct {
 }
 
 func TestKindSuite(t *testing.T) {
-	t.Parallel()
+	suite.Run(t, &kindSuite{})
+}
+
+func (suite *kindSuite) SetupSuite() {
 	ctx := context.Background()
 
 	stackConfig := runner.ConfigMap{
@@ -38,28 +41,23 @@ func TestKindSuite(t *testing.T) {
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "kind-cluster", stackConfig, kindvm.Run, false)
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		infra.GetStackManager().DeleteStack(ctx, "kind-cluster")
-	})
+	suite.Require().NoError(err)
 
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
+	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
+	suite.KubeClusterName = stackOutput.Outputs["kube-cluster-name"].Value.(string)
+	suite.AgentLinuxHelmInstallName = stackOutput.Outputs["agent-linux-helm-install-name"].Value.(string)
+	suite.AgentWindowsHelmInstallName = "none"
+
 	kubeconfig := stackOutput.Outputs["kubeconfig"].Value.(string)
 
-	kubeconfigFile := path.Join(t.TempDir(), "kubeconfig")
-	require.NoError(t, os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600))
+	kubeconfigFile := path.Join(suite.T().TempDir(), "kubeconfig")
+	suite.Require().NoError(os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600))
 
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfigFile)
-	require.NoError(t, err)
+	suite.K8sConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfigFile)
+	suite.Require().NoError(err)
 
-	suite.Run(t, &kindSuite{
-		k8sSuite: k8sSuite{
-			AgentLinuxHelmInstallName:   stackOutput.Outputs["agent-linux-helm-install-name"].Value.(string),
-			AgentWindowsHelmInstallName: "none",
-			Fakeintake:                  fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost)),
-			K8sConfig:                   config,
-			K8sClient:                   kubernetes.NewForConfigOrDie(config),
-		},
-	})
+	suite.K8sClient = kubernetes.NewForConfigOrDie(suite.K8sConfig)
+
+	suite.k8sSuite.SetupSuite()
 }

@@ -11,15 +11,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDeploymentParser_Parse(t *testing.T) {
@@ -54,7 +53,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 				},
 			},
 			deployment: &appsv1.Deployment{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
 					Namespace: "test-namespace",
 					Labels: map[string]string{
@@ -84,7 +83,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 				ContainerLanguages:     map[string][]languagemodels.Language{},
 			},
 			deployment: &appsv1.Deployment{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
 					Namespace: "test-namespace",
 					Labels: map[string]string{
@@ -119,7 +118,7 @@ func TestDeploymentParser_Parse(t *testing.T) {
 				},
 			},
 			deployment: &appsv1.Deployment{
-				ObjectMeta: v1.ObjectMeta{
+				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test-deployment",
 					Namespace: "test-namespace",
 					Labels: map[string]string{
@@ -149,7 +148,7 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 		name           string
 		createResource func(cl *fake.Clientset) error
 		deployment     *workloadmeta.KubernetesDeployment
-		expected       []workloadmeta.EventBundle
+		expected       workloadmeta.EventBundle
 	}{
 		{
 			name: "has env label",
@@ -165,20 +164,18 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 				)
 				return err
 			},
-			expected: []workloadmeta.EventBundle{
-				{
-					Events: []workloadmeta.Event{
-						{
-							Type: workloadmeta.EventTypeSet,
-							Entity: &workloadmeta.KubernetesDeployment{
-								EntityID: workloadmeta.EntityID{
-									ID:   "test-namespace/test-deployment",
-									Kind: workloadmeta.KindKubernetesDeployment,
-								},
-								Env:                    "env",
-								ContainerLanguages:     map[string][]languagemodels.Language{},
-								InitContainerLanguages: map[string][]languagemodels.Language{},
+			expected: workloadmeta.EventBundle{
+				Events: []workloadmeta.Event{
+					{
+						Type: workloadmeta.EventTypeSet,
+						Entity: &workloadmeta.KubernetesDeployment{
+							EntityID: workloadmeta.EntityID{
+								ID:   "test-namespace/test-deployment",
+								Kind: workloadmeta.KindKubernetesDeployment,
 							},
+							Env:                    "env",
+							ContainerLanguages:     map[string][]languagemodels.Language{},
+							InitContainerLanguages: map[string][]languagemodels.Language{},
 						},
 					},
 				},
@@ -201,22 +198,20 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 				)
 				return err
 			},
-			expected: []workloadmeta.EventBundle{
-				{
-					Events: []workloadmeta.Event{
-						{
-							Type: workloadmeta.EventTypeSet,
-							Entity: &workloadmeta.KubernetesDeployment{
-								EntityID: workloadmeta.EntityID{
-									ID:   "test-namespace/test-deployment",
-									Kind: workloadmeta.KindKubernetesDeployment,
-								},
-								ContainerLanguages: map[string][]languagemodels.Language{
-									"nginx": {{Name: languagemodels.Go}, {Name: languagemodels.Java}},
-								},
-								InitContainerLanguages: map[string][]languagemodels.Language{
-									"redis": {{Name: languagemodels.Go}, {Name: languagemodels.Python}},
-								},
+			expected: workloadmeta.EventBundle{
+				Events: []workloadmeta.Event{
+					{
+						Type: workloadmeta.EventTypeSet,
+						Entity: &workloadmeta.KubernetesDeployment{
+							EntityID: workloadmeta.EntityID{
+								ID:   "test-namespace/test-deployment",
+								Kind: workloadmeta.KindKubernetesDeployment,
+							},
+							ContainerLanguages: map[string][]languagemodels.Language{
+								"nginx": {{Name: languagemodels.Go}, {Name: languagemodels.Java}},
+							},
+							InitContainerLanguages: map[string][]languagemodels.Language{
+								"redis": {{Name: languagemodels.Go}, {Name: languagemodels.Python}},
 							},
 						},
 					},

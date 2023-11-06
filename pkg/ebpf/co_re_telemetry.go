@@ -15,22 +15,19 @@ import (
 type COREResult int
 
 const (
-	successCustomBTF COREResult = iota
-	successEmbeddedBTF
-	successDefaultBTF
-	btfNotFound
-	AssetReadError
-	VerifierError
-	LoaderError
+	// BTFResult comes beforehand
+	assetReadError COREResult = 4
+	verifierError  COREResult = 5
+	loaderError    COREResult = 6
 )
 
 // coreTelemetryByAsset is a global object which is responsible for storing CO-RE telemetry for all ebpf assets
 var coreTelemetryByAsset = make(map[string]COREResult)
 var telemetrymu sync.Mutex
 
-// StoreCORETelemetryForAsset stores CO-RE telemetry for a particular asset.
+// storeCORETelemetryForAsset stores CO-RE telemetry for a particular asset.
 // If NPM is enabled, all stored telemetry will be sent to the backend as part of the agent payload & emitted internally.
-func StoreCORETelemetryForAsset(assetName string, result COREResult) {
+func storeCORETelemetryForAsset(assetName string, result COREResult) {
 	telemetrymu.Lock()
 	defer telemetrymu.Unlock()
 
