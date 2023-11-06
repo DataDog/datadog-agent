@@ -189,11 +189,8 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 		// use DD hostname
 		//   * if collecting from local computer
 		//   * if fail to fetch hostname of remote computer
-		fqdn, err = hostname.Get(context.TODO())
-		if err != nil {
-			// Use same pattern as logs Message.GetHostname
-			fqdn = "unknown"
-		}
+		fqdn, _ = hostname.Get(context.TODO())
+		// on error/empty, default hostname is provided by aggregator.Sender
 	}
 	ddevent.Host = fqdn
 	// Level
