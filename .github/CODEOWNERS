@@ -475,6 +475,7 @@
 /test/new-e2e/tests/ndm                 @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                 @DataDog/Networks
 /test/new-e2e/tests/agent-platform      @DataDog/agent-platform
+/test/new-e2e/tests/agent-metric-logs   @DataDog/agent-metrics-logs
 /test/system/                           @DataDog/agent-shared-components
 /test/system/dogstatsd/                 @DataDog/agent-metrics-logs
 /test/benchmarks/apm_scripts/           @DataDog/agent-apm
