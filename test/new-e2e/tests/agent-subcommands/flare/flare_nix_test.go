@@ -10,53 +10,14 @@ import (
 	_ "embed"
 	"strings"
 	"testing"
-	"time"
 
-	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 )
-
-type commandFlareSuite struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
-}
-
-func TestFlareSuite(t *testing.T) {
-	e2e.Run(t, &commandFlareSuite{}, e2e.FakeIntakeStackDef())
-}
-
-func requestAgentFlareAndFetchFromFakeIntake(v *commandFlareSuite, flareArgs ...client.AgentArgsOption) flare.Flare {
-	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
-	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		assert.NoError(c, v.Env().Fakeintake.Client.GetServerHealth())
-	}, 5*time.Minute, 20*time.Second, "expected fakeintake server to be ready; not ready in 5min")
-
-	_ = v.Env().Agent.Flare(flareArgs...)
-
-	flare, err := v.Env().Fakeintake.Client.GetLatestFlare()
-	require.NoError(v.T(), err)
-
-	return flare
-}
-
-func (v *commandFlareSuite) TestFlareDefaultFiles() {
-	flare := requestAgentFlareAndFetchFromFakeIntake(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
-
-	assertFilesExist(v.T(), flare, defaultFlareFiles)
-	assertFilesExist(v.T(), flare, defaultLogFiles)
-	assertFilesExist(v.T(), flare, defaultConfigFiles)
-	assertFoldersExist(v.T(), flare, defaultFlareFolders)
-
-	assertFileContains(v.T(), flare, "process_check_output.json", "'process_config.process_collection.enabled' is disabled")
-	assertFileNotContains(v.T(), flare, "container_check_output.json", "'process_config.container_collection.enabled' is disabled")
-	assertFileNotContains(v.T(), flare, "process_discovery_check_output.json", "'process_config.process_discovery.enabled' is disabled")
-
-	assertLogsFolderOnlyContainsLogFile(v.T(), flare)
-	assertEtcFolderOnlyContainsConfigFile(v.T(), flare)
-}
 
 //go:embed fixtures/datadog-agent.yaml
 var agentConfiguration []byte
@@ -67,7 +28,16 @@ var systemProbeConfiguration []byte
 //go:embed fixtures/security-agent.yaml
 var securityAgentConfiguration []byte
 
-func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
+type linuxFlareSuite struct {
+	baseFlareSuite
+}
+
+func TestLinuxFlareSuite(t *testing.T) {
+	t.Parallel()
+	e2e.Run(t, &linuxFlareSuite{}, e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.UbuntuOS)), e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer())))
+}
+
+func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
 
 	var scenarioExpectedFiles = []string{
 		"telemetry.log",       // if telemetry.enabled
@@ -82,7 +52,6 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 	useSudo := true
 
 	withFiles := []agentparams.Option{
-		// TODO: use dedicated functions when https://github.com/DataDog/test-infra-definitions/pull/309 is merged
 		agentparams.WithSystemProbeConfig(string(systemProbeConfiguration)),
 		agentparams.WithSecurityAgentConfig(string(securityAgentConfiguration)),
 		agentparams.WithFile(confdPath+"test.yaml", "dummy content", useSudo),
@@ -95,11 +64,10 @@ func (v *commandFlareSuite) TestFlareWithAllConfiguration() {
 
 	v.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentOptions...)))
 
-	flare := requestAgentFlareAndFetchFromFakeIntake(v, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent, v.Env().Fakeintake, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, scenarioExpectedFiles)
 	assertFilesExist(v.T(), flare, allLogFiles)
-	// XXX: this test is expected to fail because 'etc/security-agent.yaml' is not found. See #18463
 	assertFilesExist(v.T(), flare, allConfigFiles)
 
 	extraCustomConfigFiles := []string{"etc/confd/dist/test.yaml", "etc/confd/dist/test.yml", "etc/confd/dist/test.yml.test", "etc/confd/checksd/test.yml"}

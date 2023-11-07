@@ -704,15 +704,21 @@ logs_config:
 
 database_monitoring:
   metrics:
-    dd_url: somehost:1234
+    logs_dd_url: somehost:1234
   activity:
-    dd_url: somehost:1234
+    logs_dd_url: somehost:1234
   samples:
-    dd_url: somehost:1234
+    logs_dd_url: somehost:1234
 
 network_devices:
   metadata:
-    dd_url: somehost:1234
+    logs_dd_url: somehost:1234
+  snmp_traps:
+    forwarder:
+      logs_dd_url: somehost:1234
+  netflow:
+    forwarder:
+      logs_dd_url: somehost:1234
 
 orchestrator_explorer:
     orchestrator_dd_url: https://somehost:1234
@@ -803,12 +809,14 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseHTTPURL+"10", c.GetString("apm_config.telemetry.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"04", c.GetString("process_config.process_dd_url"))
 		assert.Equal(t, expectedBaseURL+"05", c.GetString("logs_config.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.metrics.dd_url"))
-		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.activity.dd_url"))
-		assert.Equal(t, expectedBaseURL+"07", c.GetString("database_monitoring.samples.dd_url"))
-		assert.Equal(t, expectedBaseURL+"08", c.GetString("network_devices.metadata.dd_url"))
+		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.metrics.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.activity.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"07", c.GetString("database_monitoring.samples.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"08", c.GetString("network_devices.metadata.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"09", c.GetString("network_devices.snmp_traps.forwarder.logs_dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"12", c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL+"13", c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"15", c.GetString("network_devices.netflow.forwarder.logs_dd_url"))
 
 	} else {
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("dd_url"))
@@ -817,12 +825,14 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.telemetry.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("process_config.process_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("logs_config.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.metrics.dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.activity.dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.samples.dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.metadata.dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.metrics.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.activity.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.samples.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.metadata.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.snmp_traps.forwarder.logs_dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("runtime_security_config.endpoints.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.netflow.forwarder.logs_dd_url"))
 	}
 }
 

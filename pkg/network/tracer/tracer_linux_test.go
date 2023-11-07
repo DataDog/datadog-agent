@@ -71,9 +71,9 @@ func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *ne
 	dnsClient := new(dns.Client)
 	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
 	require.NoError(t, err)
-	defer dnsConn.Close()
 	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
 	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+	_ = dnsConn.Close()
 	require.NoError(t, err)
 
 	return dnsClientAddr, dnsServerAddr
@@ -1703,7 +1703,10 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	buf := make([]byte, 6)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		n, _, err := syscall.Recvfrom(fd, buf[read:], syscall.MSG_WAITALL)
-		require.NoError(c, err)
+		if !assert.NoError(c, err) {
+			return
+		}
+
 		read += n
 		t.Logf("read %d", read)
 		assert.Equal(c, 6, read)
