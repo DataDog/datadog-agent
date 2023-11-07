@@ -72,6 +72,7 @@ func (c *Check) Run() error {
 	if err != nil {
 		return err
 	}
+	defer sender.Commit()
 
 	err = c.fetchEventsLoop(sender)
 	if err != nil {
@@ -80,7 +81,6 @@ func (c *Check) Run() error {
 		return fmt.Errorf("failed to fetch events: %v", err)
 	}
 
-	sender.Commit()
 	return nil
 }
 
