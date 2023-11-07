@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux || windows
+
 package network
 
 import (
@@ -1774,6 +1776,101 @@ func TestDetermineConnectionIntraHost(t *testing.T) {
 				assert.NotNil(t, c.IPTranslation, "name: %s, conn: %+v", te.name, c)
 			}
 		}
+	}
+}
+
+func TestIntraHostFixDirection(t *testing.T) {
+	tests := []struct {
+		name      string
+		conn      ConnectionStats
+		direction ConnectionDirection
+	}{
+		{
+			name: "outgoing both non-ephemeral",
+			conn: ConnectionStats{
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     123,
+				DPort:     456,
+				Direction: OUTGOING,
+			},
+			direction: OUTGOING,
+		},
+		{
+			name: "outgoing non ephemeral to ephemeral",
+			conn: ConnectionStats{
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     123,
+				DPort:     49612,
+				Direction: OUTGOING,
+			},
+			direction: INCOMING,
+		},
+		{
+			name: "outgoing ephemeral to non ephemeral",
+			conn: ConnectionStats{
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     49612,
+				DPort:     123,
+				Direction: OUTGOING,
+			},
+			direction: OUTGOING,
+		},
+		{
+			name: "incoming udp non ephemeral to ephemeral",
+			conn: ConnectionStats{
+				Type:      UDP,
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     49612,
+				DPort:     123,
+				Direction: INCOMING,
+			},
+			direction: OUTGOING,
+		},
+		{
+			name: "incoming udp ephemeral to non ephemeral",
+			conn: ConnectionStats{
+				Type:      UDP,
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     123,
+				DPort:     49612,
+				Direction: INCOMING,
+			},
+			direction: INCOMING,
+		},
+		{
+			name: "incoming tcp non ephemeral to ephemeral",
+			conn: ConnectionStats{
+				Type:      TCP,
+				IntraHost: true,
+				Source:    util.AddressFromString("1.1.1.1"),
+				Dest:      util.AddressFromString("1.1.1.1"),
+				SPort:     49612,
+				DPort:     123,
+				Direction: INCOMING,
+			},
+			direction: INCOMING,
+		},
+	}
+
+	for _, te := range tests {
+		t.Run(te.name, func(t *testing.T) {
+			conns := []ConnectionStats{te.conn}
+
+			state := newDefaultState()
+			state.determineConnectionIntraHost(slice.NewChain(conns))
+
+			assert.Equal(t, te.direction, conns[0].Direction)
+		})
 	}
 }
 

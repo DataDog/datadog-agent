@@ -1,23 +1,13 @@
 [
   {
-    "container_id": "",
-    "language_name": "",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-service",
-            "name": "aws.lambda",
-            "resource": "integration-tests-extension-XXXXXX-trace-csharp",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -51,37 +41,37 @@
               "_sampling_priority_rate_v1": 1,
               "_top_level": 1
             },
+            "name": "aws.lambda",
+            "parent_id": null,
+            "resource": "integration-tests-extension-XXXXXX-trace-csharp",
+            "service": "integration-tests-service",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "serverless"
           }
         ],
-        "tags": null,
-        "dropped_trace": false
+        "tags": null
       }
     ],
-    "tags": null,
+    "container_id": "",
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": "integration-tests-version"
-  },
-  {
-    "container_id": "",
     "language_name": "",
     "language_version": null,
-    "tracer_version": null,
     "runtime_id": "",
+    "tags": null,
+    "tracer_version": null
+  },
+  {
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-service",
-            "name": "aws.lambda",
-            "resource": "integration-tests-extension-XXXXXX-trace-csharp",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -115,37 +105,37 @@
               "_sampling_priority_rate_v1": 1,
               "_top_level": 1
             },
+            "name": "aws.lambda",
+            "parent_id": null,
+            "resource": "integration-tests-extension-XXXXXX-trace-csharp",
+            "service": "integration-tests-service",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "serverless"
           }
         ],
-        "tags": null,
-        "dropped_trace": false
+        "tags": null
       }
     ],
-    "tags": null,
+    "container_id": "",
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": "integration-tests-version"
-  },
-  {
-    "container_id": "",
     "language_name": "",
     "language_version": null,
-    "tracer_version": null,
     "runtime_id": "",
+    "tags": null,
+    "tracer_version": null
+  },
+  {
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-service",
-            "name": "aws.lambda.cold_start",
-            "resource": "integration-tests-extension-XXXXXX-trace-csharp",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -172,37 +162,37 @@
               "_sampling_priority_rate_v1": 1,
               "_top_level": 1
             },
+            "name": "aws.lambda.cold_start",
+            "parent_id": null,
+            "resource": "integration-tests-extension-XXXXXX-trace-csharp",
+            "service": "integration-tests-service",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "serverless"
           }
         ],
-        "tags": null,
-        "dropped_trace": false
+        "tags": null
       }
     ],
-    "tags": null,
+    "container_id": "",
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": "integration-tests-version"
+    "language_name": "",
+    "language_version": null,
+    "runtime_id": "",
+    "tags": null,
+    "tracer_version": null
   },
   {
-    "container_id": "",
-    "language_name": ".NET",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-service-http-client",
-            "name": "http.request",
-            "resource": "GET example.com/",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -241,37 +231,37 @@
               "_top_level": 1,
               "process_id": null
             },
+            "name": "http.request",
+            "parent_id": null,
+            "resource": "GET example.com/",
+            "service": "integration-tests-service-http-client",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "http"
           }
         ],
-        "tags": null,
-        "dropped_trace": false
+        "tags": null
       }
     ],
-    "tags": null,
+    "container_id": "",
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": "integration-tests-version"
-  },
-  {
-    "container_id": "",
     "language_name": ".NET",
     "language_version": null,
-    "tracer_version": null,
     "runtime_id": "",
+    "tags": null,
+    "tracer_version": null
+  },
+  {
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-service-http-client",
-            "name": "http.request",
-            "resource": "GET example.com/",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -310,16 +300,26 @@
               "_top_level": 1,
               "process_id": null
             },
+            "name": "http.request",
+            "parent_id": null,
+            "resource": "GET example.com/",
+            "service": "integration-tests-service-http-client",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "http"
           }
         ],
-        "tags": null,
-        "dropped_trace": false
+        "tags": null
       }
     ],
-    "tags": null,
+    "container_id": "",
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": "integration-tests-version"
+    "language_name": ".NET",
+    "language_version": null,
+    "runtime_id": "",
+    "tags": null,
+    "tracer_version": null
   }
 ]
