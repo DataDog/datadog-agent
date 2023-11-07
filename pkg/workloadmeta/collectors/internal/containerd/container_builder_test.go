@@ -104,7 +104,8 @@ func TestBuildWorkloadMetaContainer(t *testing.T) {
 		},
 	}
 
-	result, err := buildWorkloadMetaContainer(namespace, &container, &client)
+	c := &collector{containerdClient: &client}
+	result, err := c.buildWorkloadMetaContainer(namespace, &container)
 	assert.NoError(t, err)
 
 	expected := workloadmeta.Container{

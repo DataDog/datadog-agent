@@ -24,12 +24,12 @@ import (
 )
 
 // buildWorkloadMetaContainer generates a workloadmeta.Container from a containerd.Container
-func buildWorkloadMetaContainer(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (workloadmeta.Container, error) {
+func (c *collector) buildWorkloadMetaContainer(namespace string, container containerd.Container) (workloadmeta.Container, error) {
 	if container == nil {
 		return workloadmeta.Container{}, fmt.Errorf("cannot build workloadmeta container from nil containerd container")
 	}
 
-	info, err := containerdClient.Info(namespace, container)
+	info, err := c.containerdClient.Info(namespace, container)
 	if err != nil {
 		return workloadmeta.Container{}, err
 	}
@@ -55,7 +55,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		log.Debugf("cannot split image name %q: %s", info.Image, err)
 	}
 
-	status, err := containerdClient.Status(namespace, container)
+	status, err := c.containerdClient.Status(namespace, container)
 	if err != nil {
 		if !errdefs.IsNotFound(err) {
 			return workloadmeta.Container{}, err
@@ -68,7 +68,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	}
 
 	networkIPs := make(map[string]string)
-	ip, err := extractIP(namespace, container, containerdClient)
+	ip, err := extractIP(namespace, container, c.containerdClient)
 	if err != nil {
 		log.Debugf("cannot get IP of container %s", err)
 	} else if ip == "" {
@@ -77,7 +77,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 		networkIPs[""] = ip
 	}
 
-	isPauseContainer := false
+	var isPauseContainer bool
 	if containers.IsPauseContainer(info.Labels, info.Image, c.pauseContainerFilter) {
 		isPauseContainer = true
 	}
@@ -109,7 +109,7 @@ func buildWorkloadMetaContainer(namespace string, container containerd.Container
 	}
 
 	// Spec retrieval is slow if large due to JSON parsing
-	spec, err := containerdClient.Spec(namespace, info, cutil.DefaultAllowedSpecMaxSize)
+	spec, err := c.containerdClient.Spec(namespace, info, cutil.DefaultAllowedSpecMaxSize)
 	if err == nil {
 		if spec == nil {
 			return workloadmeta.Container{}, fmt.Errorf("retrieved empty spec for container id: %s", info.ID)

@@ -51,8 +51,9 @@ func TestBuildCollectorEvent(t *testing.T) {
 	fakeExitInfo := &exitInfo{exitCode: &exitCode, exitTS: exitTime}
 
 	client := containerdClient(&container)
+	c := &collector{containerdClient: &client}
 
-	workloadMetaContainer, err := buildWorkloadMetaContainer(namespace, &container, &client)
+	workloadMetaContainer, err := c.buildWorkloadMetaContainer(namespace, &container)
 	workloadMetaContainer.Namespace = namespace
 	assert.NoError(t, err)
 
