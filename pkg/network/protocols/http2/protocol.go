@@ -187,10 +187,7 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 
 func (p *protocol) PostStart(mgr *manager.Manager) error {
 	go func() {
-		err := p.UpdateKernelTelemetry(mgr)
-		if err != nil {
-			log.Warnf("error updating kernel telemetry: %s", err)
-		}
+		p.UpdateKernelTelemetry(mgr)
 	}()
 	return nil
 }
@@ -243,14 +240,14 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 }
 
 // UpdateKernelTelemetry should be moved to the HTTP/2 part as well
-func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) error {
+func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) {
 	var zero uint64
 
 	for {
 		mp, _, err := mgr.GetMap(probes.HTTP2TelemetryMap)
 		if err != nil {
 			log.Warnf("error retrieving http2 telemetry map: %s", err)
-			return nil
+			return
 		}
 
 		http2Telemetry := &HTTP2Telemetry{}
@@ -260,7 +257,7 @@ func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) error {
 			if log.ShouldLog(seelog.TraceLvl) {
 				log.Tracef("error retrieving the http2 telemetry struct: %s", err)
 			}
-			return nil
+			return
 		}
 
 		p.http2Telemetry.http2requests.Set(int64(http2Telemetry.Request_seen))
