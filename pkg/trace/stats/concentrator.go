@@ -54,8 +54,12 @@ type Concentrator struct {
 
 var defaultPeerTags = []string{
 	"_dd.base_service",
-	"_dd.cluster.name",
+	"amqp.destination",
+	"amqp.exchange",
+	"amqp.queue",
+	"aws.queue.name",
 	"bucketname",
+	"cassandra.cluster",
 	"db.cassandra.contact.points",
 	"db.couchbase.seed.nodes",
 	"db.hostname",
@@ -65,6 +69,7 @@ var defaultPeerTags = []string{
 	"hazelcast.instance",
 	"messaging.kafka.bootstrap.servers",
 	"mongodb.db",
+	"msmq.queue.path",
 	"net.peer.name",
 	"network.destination.name",
 	"peer.hostname",
