@@ -41,5 +41,7 @@ func (mt *minTracker) update(newVal int) {
 }
 
 func (mt *minTracker) get() int {
+	mt.Lock()
+	defer mt.Unlock()
 	return mt.val
 }
