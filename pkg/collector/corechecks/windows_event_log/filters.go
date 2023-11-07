@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+// Event Keywords fields
+// https://learn.microsoft.com/en-us/dotnet/api/system.diagnostics.eventing.reader.standardeventkeywords
 const (
 	failureAuditFlag uint64 = 0x10000000000000
 	successAuditFlag uint64 = 0x20000000000000
@@ -29,6 +31,12 @@ func filterIsEmpty(f filterDefinition) bool {
 		len(f.IDs()) == 0)
 }
 
+// queryFromFilter converts the filter definition from the config into a structured XML query
+//
+// Examples of XPath queries:
+// - https://powershell.org/2019/08/a-better-way-to-search-events/
+// - https://www.petri.com/query-xml-event-log-data-using-xpath-in-windows-server-2012-r2
+// - https://blog.backslasher.net/filtering-windows-event-log-using-xpath.html
 func queryFromFilter(f filterDefinition) (string, error) {
 	if filterIsEmpty(f) {
 		return "*", nil
@@ -81,6 +89,10 @@ func formatEventIDPart(eventID int) (string, error) {
 	return part, nil
 }
 
+// formatTypePart adds filters for event levels and the Security event log audit types
+//
+// level values
+// https://learn.microsoft.com/en-us/windows/win32/wes/eventmanifestschema-leveltype-complextype#remarks
 func formatTypePart(t string) (string, error) {
 	// lowercase for case insensitive match
 	t = strings.ToLower(t)
