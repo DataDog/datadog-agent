@@ -863,12 +863,29 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 		return nil, err
 	}
 
+	functionStartedAt := time.Now()
+	statsd.Count("datadog.sidescanner.functions.started", 1.0, tags, 1.0)
 	lambdaFunc, err := lambdaclient.GetFunction(ctx, &lambda.GetFunctionInput{
 		FunctionName: aws.String(scan.FunctionName()),
 	})
 	if err != nil {
+		var isResourceNotFoundError bool
+		var aerr smithy.APIError
+		if errors.As(err, &aerr) && aerr.ErrorCode() == "ResourceNotFoundException" {
+			isResourceNotFoundError = true
+		}
+		if isResourceNotFoundError {
+			tags = tagNotFound(tags)
+		} else {
+			tags = tagFailure(tags)
+		}
+		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tags, 1.0)
 		return nil, err
 	}
+	functionDuration := time.Since(functionStartedAt)
+	log.Debugf("function retrieved sucessfully %q (took %s)", scan.FunctionName(), functionDuration)
+	statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagSuccess(tags), 1.0)
+	statsd.Histogram("datadog.sidescanner.functions.duration", float64(functionDuration.Milliseconds()), tags, 1.0)
 
 	if lambdaFunc.Code.Location == nil {
 		return nil, fmt.Errorf("lambdaFunc.Code.Location is nil")
