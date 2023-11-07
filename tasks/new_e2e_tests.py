@@ -218,13 +218,15 @@ def _get_existing_stacks(ctx: Context) -> List[Stack]:
     e2e_stacks: List[Stack] = []
     for workspace_dir in workspace_dirs:
         with ctx.cd(workspace_dir):
-            output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls", pty=True)
+            output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --json", pty=True)
             if output is None or not output:
                 return []
-            lines = output.stdout.splitlines()
-            lines = lines[1:]  # skip headers
-            for line in lines:
-                stack_name = line.split(" ")[0]
+            stacks_data = json.loads(output.stdout)
+            for stack in stacks_data:
+                if "name" not in stack:
+                    print(f"Skipping stack {stack} as it does not have a name")
+                    continue
+                stack_name = stack["name"]
                 print(f"Adding stack {stack_name}")
                 e2e_stacks.append(Stack(stack_name, workspace_dir))
             return e2e_stacks
