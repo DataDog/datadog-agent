@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"math"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/beevik/ntp"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,6 +41,18 @@ var (
 	tlmNtpOffset = telemetry.NewGauge("check", "ntp_offset",
 		nil, "Ntp offset")
 )
+
+func init() {
+	core.RegisterCheck(ntpCheckName, ntpFactory)
+
+	expvarcollector.RegisterExpvarCallback("ntpOffset", func() (interface{}, error) {
+		if ntpExpVar.String() != "" {
+			result, err := strconv.ParseFloat(ntpExpVar.String(), 64)
+			return result, err
+		}
+		return nil, nil
+	})
+}
 
 // NTPCheck only has sender and config
 type NTPCheck struct {
@@ -244,8 +258,4 @@ func ntpFactory() check.Check {
 	return &NTPCheck{
 		CheckBase: core.NewCheckBaseWithInterval(ntpCheckName, time.Duration(defaultMinCollectionInterval)*time.Second),
 	}
-}
-
-func init() {
-	core.RegisterCheck(ntpCheckName, ntpFactory)
 }

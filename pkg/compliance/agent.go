@@ -11,6 +11,7 @@ package compliance
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"hash/fnv"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/rules"
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/status/expvarcollector"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -49,6 +51,15 @@ const (
 	// configurations which tend to be constant.
 	defaultCheckIntervalLowPriority = 3 * time.Hour
 )
+
+func init() {
+	expvarcollector.RegisterExpvarCallback("complianceChecks", func() (interface{}, error) {
+		complianceStatusJSON := []byte(status.String())
+		complianceStatus := make(map[string]interface{})
+		json.Unmarshal(complianceStatusJSON, &complianceStatus) //nolint:errcheck
+		return complianceStatus, nil
+	})
+}
 
 // AgentOptions holds the different options to configure the compliance agent.
 type AgentOptions struct {
