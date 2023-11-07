@@ -42,6 +42,7 @@ const (
 	intakeName              = "ddintake"
 	connectionResetInterval = 120 // seconds
 	intakeMaxWaitTime       = 5 * time.Minute
+	intakeUnusedWaitTime    = 1 * time.Minute
 	intakeTick              = 20 * time.Second
 	fakeintake1Name         = "1fakeintake"
 	fakeintake2Name         = "2fakeintake"
@@ -144,74 +145,82 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 	}
 	v.UpdateEnv(multiFakeintakeStackDef(agentOptions...))
 
-	// check that fakeintake1 does receive metrics
+	// check that fakeintake1 is used as intake and not fakeintake2
 	v.T().Logf("checking that the agent contacts main intake at %s", fakeintake1IP)
-	require.EventuallyWithT(
-		v.T(),
-		assertIntakeIsUsed(v.Env().VM, v.Env().Fakeintake1, v.Env().Agent),
-		intakeMaxWaitTime,
-		intakeTick,
-	)
-
-	// check that fakeintake2 doesn't receive metrics
-	assertIntakeNotUsed(v.T(), v.Env().VM, v.Env().Fakeintake2, v.Env().Agent)
+	v.requireIntakeIsUsed(v.Env().Fakeintake1, intakeMaxWaitTime, intakeTick)
+	v.requireIntakeNotUsed(v.Env().Fakeintake2, intakeMaxWaitTime, intakeTick)
 
 	// perform NSS change
 	fakeintake2IP, err := hostIPFromURL(v.Env().Fakeintake2.URL())
 	v.NoError(err)
 	setHostEntry(v.T(), v.Env().VM, intakeName, fakeintake2IP)
 
-	// check that fakeintake2 receives metrics
+	// check that fakeintake2 is used as intake and not fakeintake1
 	v.T().Logf("checking that the agent contacts fallback intake at %s", fakeintake2IP)
-	require.EventuallyWithT(
-		v.T(),
-		assertIntakeIsUsed(v.Env().VM, v.Env().Fakeintake2, v.Env().Agent),
-		connectionResetInterval*time.Second+intakeMaxWaitTime,
-		intakeTick,
-	)
+	intakeMaxWaitTime := connectionResetInterval*time.Second + intakeMaxWaitTime
+	v.requireIntakeIsUsed(v.Env().Fakeintake2, intakeMaxWaitTime, intakeTick)
+	v.requireIntakeNotUsed(v.Env().Fakeintake1, intakeMaxWaitTime, intakeTick)
 }
 
-// assertIntakeIsUsed asserts the the given intakes receives metrics, logs, and flares
-func assertIntakeIsUsed(vm client.VM, intake *client.Fakeintake, agent client.Agent) func(*assert.CollectT) {
-	return func(t *assert.CollectT) {
+// requireIntakeIsUsed checks that the given intakes receives metrics, logs, and flares
+func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *client.Fakeintake, intakeMaxWaitTime, intakeTick time.Duration) {
+	checkFn := func(t *assert.CollectT) {
 		// check metrics
 		metricNames, err := intake.GetMetricNames()
 		require.NoError(t, err)
 		assert.NotEmpty(t, metricNames)
 
 		// check logs
-		vm.Execute("echo 'totoro' >> /tmp/test.log")
+		v.Env().VM.Execute("echo 'totoro' >> /tmp/test.log")
 		logs, err := intake.FilterLogs("custom_logs")
 		require.NoError(t, err)
 		assert.NotEmpty(t, logs)
 
 		// check flares
-		agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+		v.Env().Agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 		_, err = intake.GetLatestFlare()
 		if err != nil {
 			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
 		}
 		assert.NoError(t, err)
 	}
+
+	require.EventuallyWithT(v.T(), checkFn, intakeMaxWaitTime, intakeTick)
 }
 
-// assertIntakeNotUsed asserts that the given intake doesn't receive metrics, logs, and flares
-func assertIntakeNotUsed(t *testing.T, vm client.VM, intake *client.Fakeintake, agent client.Agent) {
-	// check metrics
-	metricNames, err := intake.GetMetricNames()
-	require.NoError(t, err)
-	require.Empty(t, metricNames)
+// requireIntakeNotUsed checks that the given intake doesn't receive metrics, logs, and flares
+func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *client.Fakeintake, intakeMaxWaitTime, intakeTick time.Duration) {
+	checkFn := func(t *assert.CollectT) {
+		// flush intake
+		intake.FlushServerAndResetAggregators()
 
-	// check logs
-	vm.Execute("echo 'totoro' >> /tmp/test.log")
-	logs, err := intake.FilterLogs("custom_logs")
-	require.NoError(t, err)
-	require.Empty(t, logs)
+		// write a log
+		v.Env().VM.Execute("echo 'totoro' >> /tmp/test.log")
 
-	// check flares
-	agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
-	_, err = intake.GetLatestFlare()
-	require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
+		// send a flare
+		v.Env().Agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+
+		// give time to the agent to send things
+		time.Sleep(intakeUnusedWaitTime)
+
+		// check metrics
+		metricNames, err := intake.GetMetricNames()
+		require.NoError(t, err)
+		assert.Empty(t, metricNames)
+
+		// check logs
+		logs, err := intake.FilterLogs("custom_logs")
+		require.NoError(t, err)
+		assert.Empty(t, logs)
+
+		// check flares
+		_, err = intake.GetLatestFlare()
+		if assert.Error(t, err) {
+			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
+		}
+	}
+
+	require.EventuallyWithT(v.T(), checkFn, intakeMaxWaitTime, intakeTick+intakeUnusedWaitTime)
 }
 
 // setHostEntry adds an entry in /etc/hosts for the given hostname and hostIP
