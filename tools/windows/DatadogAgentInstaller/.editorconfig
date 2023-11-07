@@ -6,7 +6,7 @@
 indent_style = space
 tab_width = 4
 indent_size = 4
-end_of_line = lf
+end_of_line = crlf
 
 #### .NET Coding Conventions ####
 
