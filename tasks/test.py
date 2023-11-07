@@ -551,6 +551,7 @@ def test(
     rerun_fails=None,
     go_mod="mod",
     junit_tar="",
+    only_modified_packages=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -658,6 +659,8 @@ def test(
             args=args,
             test_profiler=test_profiler,
         )
+        if only_modified_packages:
+            modules = get_modified_packages(ctx)
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
@@ -1109,3 +1112,57 @@ def junit_macos_repack(_, infile, outfile):
     contain correct job name and job URL.
     """
     repack_macos_junit_tar(infile, outfile)
+
+
+@task
+def get_modified_packages(ctx) -> List[GoModule]:
+    modified_files = get_modified_files(ctx)
+    modified_go_files = [
+        f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
+    ]
+
+    modules_to_test = {}
+    go_mod_modified_modules = set()
+
+    for modified_file in modified_go_files:
+
+        match_precision = 0
+        best_module_path = None
+
+        for module_path in DEFAULT_MODULES:
+            if module_path in modified_file:
+                if len(module_path) > match_precision:
+                    match_precision = len(module_path)
+                    best_module_path = module_path
+        if best_module_path in go_mod_modified_modules:
+            continue
+        # If we modify the go.mod or go.sum we run the tests for the whole module
+        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
+            modules_to_test[best_module_path] = DEFAULT_MODULES[best_module_path]
+            go_mod_modified_modules.add(best_module_path)
+            continue
+
+        if best_module_path in modules_to_test:
+            if (
+                modules_to_test[best_module_path].targets is not None
+                and os.path.dirname(modified_file) not in modules_to_test[best_module_path].targets
+            ):
+                modules_to_test[best_module_path].targets.append(os.path.dirname(modified_file))
+        else:
+            modules_to_test[best_module_path] = GoModule(best_module_path, targets=[os.path.dirname(modified_file)])
+
+    # Print module to test
+    print("Modules to test:")
+    for module_path in modules_to_test:
+        print(f"{module_path}: {modules_to_test[module_path].targets}")
+
+    print(modules_to_test.values())
+    return modules_to_test.values()
+
+
+def get_modified_files(ctx):
+    last_main_commit = ctx.run("git rev-parse main", hide=True).stdout
+    print(f"Checking diff from {last_main_commit} commit on main branch")
+
+    modified_files = ctx.run(f"git diff --name-only {last_main_commit}", hide=True).stdout.splitlines()
+    return modified_files
