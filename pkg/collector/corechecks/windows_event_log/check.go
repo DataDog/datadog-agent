@@ -11,13 +11,14 @@ package evtlog
 import (
 	"fmt"
 	"regexp"
-	"time"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	agentCheck "github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api/windows"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
@@ -38,6 +39,9 @@ type Check struct {
 	core.CheckBase
 	config *Config
 
+	fetchEventsLoopWaiter sync.WaitGroup
+	fetchEventsLoopStop   chan struct{}
+
 	includedMessages []*regexp.Regexp
 	excludedMessages []*regexp.Regexp
 
@@ -55,83 +59,75 @@ type Check struct {
 
 // Run executes the check
 func (c *Check) Run() error {
-	if !c.sub.Running() {
-		err := c.sub.Start()
-		if err != nil {
-			return fmt.Errorf("failed to start event subscription: %v", err)
-		}
-	}
-
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
+	// Necessary for check stats to be calculated (number of events collected, etc)
 	defer sender.Commit()
 
-	err = c.fetchEventsLoop(sender)
-	if err != nil {
-		// An error occurred fetching events, stop the subscription
-		c.sub.Stop()
-		return fmt.Errorf("failed to fetch events: %v", err)
+	if !c.sub.Running() {
+		err := c.startSubscription()
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
 }
 
-func (c *Check) fetchEventsLoop(sender sender.Sender) error {
-	// Save the bookmark at the end of the check, regardless of the bookmarkFrequency
+func (c *Check) fetchEventsLoop(sender sender.Sender) {
+	defer c.fetchEventsLoopWaiter.Done()
+
+	// Always stop the subscription when the loop ends.
+	// The check will start the subscription and this loop again next time it runs.
+	defer c.sub.Stop()
+
+	// Save the bookmark at the end of the loop, regardless of the bookmarkFrequency
 	defer func() {
 		err := c.bookmarkSaver.saveLastBookmark()
 		if err != nil {
 			c.Warnf(err.Error())
 		}
 	}()
+
+	var addBookmarkToSubOnce sync.Once
+
 	// Fetch new events
 	for {
-		stop, err := c.fetchEvents(sender)
-		if err != nil {
-			return err
-		}
-		if stop {
-			return nil
-		}
-	}
-}
-
-func (c *Check) fetchEvents(sender sender.Sender) (bool, error) {
-	// Use time.NewTimer instead of time.After so we don't leak a background task each
-	// loop iteration. see https://pkg.go.dev/time#After
-	timeout := time.NewTimer(time.Duration(*c.config.instance.Timeout) * time.Second)
-	defer timeout.Stop()
-
-	select {
-	case <-timeout.C:
-		// Waited for timeout, did not receive any new events, end the check
-		return true, nil
-	case events, ok := <-c.sub.GetEvents():
-		if !ok {
-			// The channel is closed, this indicates an error or that sub.Stop() was called
-			// Use sub.Error() to get the error, if any.
-			err := c.sub.Error()
-			if err != nil {
-				return true, err
+		select {
+		case <-c.fetchEventsLoopStop:
+			return
+		case events, ok := <-c.sub.GetEvents():
+			if !ok {
+				// The channel is closed, this indicates an error or that sub.Stop() was called
+				// Use sub.Error() to get the error, if any.
+				err := c.sub.Error()
+				if err != nil {
+					log.Errorf("event subscription stopped with error: %v", err)
+				}
+				return
 			}
-			return true, nil
-		}
-		for _, event := range events {
-			// Submit Datadog Event
-			_ = c.submitEvent(sender, event)
+			for _, event := range events {
+				// Submit Datadog Event
+				_ = c.submitEvent(sender, event)
 
-			// bookmarkSaver manages whether or not to save/persist the bookmark
-			err := c.bookmarkSaver.updateBookmark(event)
-			if err != nil {
-				c.Warnf(err.Error())
+				// bookmarkSaver manages whether or not to save/persist the bookmark
+				err := c.bookmarkSaver.updateBookmark(event)
+				if err != nil {
+					c.Warnf(err.Error())
+				} else {
+					// If we don't have a bookmark when we create the subscription we have
+					// to add it later once we've updated it at least once.
+					addBookmarkToSubOnce.Do(func() {
+						c.sub.SetBookmark(c.bookmarkSaver.bookmark)
+					})
+				}
+
+				// Must close event handle when we are done with it
+				evtapi.EvtCloseRecord(c.evtapi, event.EventRecordHandle)
 			}
-
-			// Must close event handle when we are done with it
-			evtapi.EvtCloseRecord(c.evtapi, event.EventRecordHandle)
 		}
-		return false, nil
 	}
 }
 
@@ -184,11 +180,13 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		return fmt.Errorf("configuration error: %v", err)
 	}
 
-	// Start the event subscription
+	// Create the event subscription
 	err = c.initSubscription()
 	if err != nil {
 		return fmt.Errorf("failed to initialize event subscription: %v", err)
 	}
+
+	// subscription will be started on first check run.
 
 	return nil
 }
@@ -235,9 +233,8 @@ func (c *Check) validateConfig() error {
 
 // Cancel stops the check and releases resources
 func (c *Check) Cancel() {
-	if c.sub != nil {
-		c.sub.Stop()
-	}
+	// stop background loop and wait for it to finish
+	c.stopSubscription()
 
 	if c.session != nil {
 		c.session.Close()

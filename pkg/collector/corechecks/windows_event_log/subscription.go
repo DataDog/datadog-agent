@@ -90,16 +90,6 @@ func (c *Check) initSubscription() error {
 		*c.config.instance.Query,
 		opts...)
 
-	// Start the subscription
-	err = c.sub.Start()
-	if err != nil {
-		return fmt.Errorf("failed to subscribe to events: %v", err)
-	}
-
-	// Connect bookmark to subscription now in case we didn't load a bookmark when the
-	// subscription was created.
-	c.sub.SetBookmark(bookmark)
-
 	// Create a render context for System event values
 	c.systemRenderContext, err = c.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
 	if err != nil {
@@ -114,6 +104,34 @@ func (c *Check) initSubscription() error {
 	}
 
 	return nil
+}
+
+func (c *Check) startSubscription() error {
+	sender, err := c.GetSender()
+	if err != nil {
+		return err
+	}
+
+	err = c.sub.Start()
+	if err != nil {
+		return fmt.Errorf("failed to start event subscription: %v", err)
+	}
+
+	// Start collection loop in the background so we can collect/report
+	// events as they come instead of being behind by check_interval (15s).
+	c.fetchEventsLoopStop = make(chan struct{})
+	c.fetchEventsLoopWaiter.Add(1)
+	go c.fetchEventsLoop(sender)
+
+	return nil
+}
+
+func (c *Check) stopSubscription() {
+	if c.sub != nil && c.sub.Running() {
+		close(c.fetchEventsLoopStop)
+		c.fetchEventsLoopWaiter.Wait()
+		// fetchEventsLoop runs c.sub.Stop() when it returns
+	}
 }
 
 func (c *Check) initSession() error {

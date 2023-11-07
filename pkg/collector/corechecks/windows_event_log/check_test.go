@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/reporter"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/test"
 
@@ -38,6 +39,24 @@ type GetEventsTestSuite struct {
 
 	sender *mocksender.MockSender
 	ti     eventlog_test.APITester
+}
+
+// collectTWithLog is a wrapper around assert.CollectT that adds Logf so that
+// we can use assert.collectT as mock.testingT (AssertExpectations calls)
+type collectTWithLog struct {
+	logf func(format string, args ...interface{})
+	*assert.CollectT
+}
+
+func (t *collectTWithLog) Logf(format string, args ...interface{}) {
+	t.logf(format, args...)
+}
+
+func newCollectTWithLog(t *assert.CollectT, logf func(format string, args ...interface{})) *collectTWithLog {
+	return &collectTWithLog{
+		logf:     logf,
+		CollectT: t,
+	}
 }
 
 func (s *GetEventsTestSuite) SetupSuite() {
@@ -91,16 +110,26 @@ func resetSender(sender *mocksender.MockSender) {
 }
 
 func (s *GetEventsTestSuite) newCheck(instanceConfig []byte) (*Check, error) {
-	initConfig := []byte(`legacy_mode: false`)
-	check := new(Check)
-	check.evtapi = s.ti.API()
-	err := check.Configure(s.sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, initConfig, "test")
+	c, err := newCheck(s.ti.API(), s.sender, instanceConfig)
 	if !assert.NoError(s.T(), err) {
 		return nil, err
 	}
-	mocksender.SetSender(s.sender, check.ID())
+	return c, nil
+}
 
-	return check, nil
+func newCheck(api evtapi.API, sender *mocksender.MockSender, instanceConfig []byte) (*Check, error) {
+	initConfig := []byte(`legacy_mode: false`)
+	check := new(Check)
+	check.evtapi = api
+
+	// Have to call BuildID() separately here so we can register our mock sender with the aggregator
+	// for the ID for the check we're about to make so when the check calls GetSender()
+	// it gets our mocksender instead of creating a new real sender.
+	check.BuildID(integration.FakeConfigHash, instanceConfig, initConfig)
+	mocksender.SetSender(sender, check.ID())
+
+	err := check.Configure(sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, initConfig, "test")
+	return check, err
 }
 
 func TestGetEventsTestSuite(t *testing.T) {
@@ -123,21 +152,22 @@ func TestGetEventsTestSuite(t *testing.T) {
 
 func countEvents(check *Check, senderEventCall *mock.Call, numEvents uint) uint {
 	eventsCollected := uint(0)
-	prevEventsCollected := uint(0)
+	done := make(chan struct{})
 	if numEvents > 0 {
 		senderEventCall.Run(func(args mock.Arguments) {
 			eventsCollected++
+			if eventsCollected == numEvents {
+				close(done)
+			}
 		})
 	} else {
 		senderEventCall.Unset()
+		close(done)
 	}
-	for {
-		check.Run()
-		if eventsCollected == numEvents || prevEventsCollected == eventsCollected {
-			break
-		}
-		prevEventsCollected = eventsCollected
-	}
+	// run check in case subscription needs to be started
+	check.Run()
+	// wait for events
+	<-done
 	return eventsCollected
 }
 
@@ -246,7 +276,10 @@ bookmark_frequency: %d
 
 	check, err := s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
-	defer check.Cancel()
+	defer func() {
+		// inner defer b/c we create a new check later we'll want to close instead
+		check.Cancel()
+	}()
 
 	s.sender.On("Commit").Return()
 	senderEventCall := s.sender.On("Event", mock.Anything)
@@ -262,7 +295,6 @@ bookmark_frequency: %d
 	check.Cancel()
 	check, err = s.newCheck(instanceConfig)
 	require.NoError(s.T(), err)
-	defer check.Cancel()
 
 	// new check should resume from bookmark and read 0 events
 	resetSender(s.sender)
@@ -316,18 +348,20 @@ start: now
 			require.NoError(s.T(), err)
 			defer check.Cancel()
 
-			// report event
-			err = reporter.ReportEvent(tc.reportLevel, 0, 1000, nil, []string{"teststring"}, nil)
-			require.NoError(s.T(), err)
-
-			s.sender.On("Commit").Return().Once()
+			s.sender.On("Commit").Return()
 			s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 				return e.AlertType == alertType
 			})).Once()
 
 			check.Run()
 
-			s.sender.AssertExpectations(s.T())
+			// report event
+			err = reporter.ReportEvent(tc.reportLevel, 0, 1000, nil, []string{"teststring"}, nil)
+			require.NoError(s.T(), err)
+
+			s.EventuallyWithT(func(t *assert.CollectT) {
+				s.sender.AssertExpectations(newCollectTWithLog(t, s.T().Logf))
+			}, 30*time.Second, 500*time.Millisecond)
 		})
 	}
 }
@@ -369,18 +403,20 @@ start: now
 			require.NoError(s.T(), err)
 			defer check.Cancel()
 
-			// report event
-			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{"teststring"}, nil)
-			require.NoError(s.T(), err)
-
-			s.sender.On("Commit").Return().Once()
+			s.sender.On("Commit").Return()
 			s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 				return e.Priority == eventPriority
 			})).Once()
 
 			check.Run()
 
-			s.sender.AssertExpectations(s.T())
+			// report event
+			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{"teststring"}, nil)
+			require.NoError(s.T(), err)
+
+			s.EventuallyWithT(func(t *assert.CollectT) {
+				s.sender.AssertExpectations(newCollectTWithLog(t, s.T().Logf))
+			}, 30*time.Second, 500*time.Millisecond)
 		})
 	}
 }
@@ -410,21 +446,23 @@ query: |
 
 	matchstring := "match this string"
 	nomatchstring := "should not match"
-	s.sender.On("Commit").Return().Once()
+	s.sender.On("Commit").Return()
 	s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 		return assert.Contains(s.T(), e.Text, matchstring, "reported events should match EventID=1000")
 	})).Once()
 
-	// Generate an event the query should match on (EventID=1000)
-	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
-	s.Require().NoError(err)
+	check.Run()
+
 	// Generate an event the query should not match on (EventID!=1000)
 	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
 	s.Require().NoError(err)
+	// Generate an event the query should match on (EventID=1000)
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
+	s.Require().NoError(err)
 
-	check.Run()
-
-	s.sender.AssertExpectations(s.T())
+	s.EventuallyWithT(func(t *assert.CollectT) {
+		s.sender.AssertExpectations(newCollectTWithLog(t, s.T().Logf))
+	}, 30*time.Second, 500*time.Millisecond)
 }
 
 // Tests that the Event Query configuration value successfully filters event records
@@ -452,21 +490,23 @@ filters:
 
 	matchstring := "match this string"
 	nomatchstring := "should not match"
-	s.sender.On("Commit").Return().Once()
+	s.sender.On("Commit").Return()
 	s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 		return assert.Contains(s.T(), e.Text, matchstring, "reported events should match EventID=1000")
 	})).Once()
 
-	// Generate an event the query should match on (EventID=1000)
-	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
-	s.Require().NoError(err)
+	check.Run()
+
 	// Generate an event the query should not match on (EventID!=1000)
 	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
 	s.Require().NoError(err)
+	// Generate an event the query should match on (EventID=1000)
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
+	s.Require().NoError(err)
 
-	check.Run()
-
-	s.sender.AssertExpectations(s.T())
+	s.EventuallyWithT(func(t *assert.CollectT) {
+		s.sender.AssertExpectations(newCollectTWithLog(t, s.T().Logf))
+	}, 30*time.Second, 500*time.Millisecond)
 }
 
 func (s *GetEventsTestSuite) TestCatchInvalidRegex() {
@@ -515,21 +555,23 @@ included_messages:
 
 	matchstring := "match this string"
 	nomatchstring := "should not match"
-	s.sender.On("Commit").Return().Once()
+	s.sender.On("Commit").Return()
 	s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 		return assert.Contains(s.T(), e.Text, matchstring, "should only report match string")
 	})).Once()
 
-	// Generate an event that matches included_messages
-	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
-	s.Require().NoError(err)
+	check.Run()
+
 	// Geneate an event that does not match included_messages
 	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
 	s.Require().NoError(err)
+	// Generate an event that matches included_messages
+	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
+	s.Require().NoError(err)
 
-	check.Run()
-
-	s.sender.AssertExpectations(s.T())
+	s.EventuallyWithT(func(t *assert.CollectT) {
+		s.sender.AssertExpectations(newCollectTWithLog(t, s.T().Logf))
+	}, 30*time.Second, 500*time.Millisecond)
 }
 
 // Tests that events that match excluded_messages are not reported
@@ -551,10 +593,12 @@ excluded_messages:
 
 	matchstring := "match this string"
 	nomatchstring := "should not match"
-	s.sender.On("Commit").Return().Once()
+	s.sender.On("Commit").Return()
 	s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 		return assert.NotContains(s.T(), e.Text, matchstring, "should not report match string")
 	})).Once()
+
+	check.Run()
 
 	// Generate an event that matches excluded_messages
 	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
@@ -563,9 +607,9 @@ excluded_messages:
 	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
 	s.Require().NoError(err)
 
-	check.Run()
-
-	s.sender.AssertExpectations(s.T())
+	s.EventuallyWithT(func(t *assert.CollectT) {
+		s.sender.AssertExpectations(newCollectTWithLog(t, s.T().Logf))
+	}, 30*time.Second, 500*time.Millisecond)
 }
 
 // Tests that events that match excluded_messages are not reported even if they also match included_messages
@@ -589,8 +633,10 @@ excluded_messages:
 
 	matchstring := "match this string"
 	nomatchstring := "should not match"
-	s.sender.On("Commit").Return().Once()
+	s.sender.On("Commit").Return()
 	// no events should be reported
+
+	check.Run()
 
 	// Generate an event that matches [in|ex]cluded_messages
 	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, nil, []string{matchstring}, nil)
@@ -598,8 +644,6 @@ excluded_messages:
 	// Geneate an event that does not match [in|ex]cluded_messages
 	err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 999, nil, []string{nomatchstring}, nil)
 	s.Require().NoError(err)
-
-	check.Run()
 
 	s.sender.AssertExpectations(s.T())
 }
@@ -635,7 +679,7 @@ tag_event_id: %t
 			require.NoError(s.T(), err)
 			defer check.Cancel()
 
-			s.sender.On("Commit").Return().Once()
+			s.sender.On("Commit").Return()
 			s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 				if tc.confval {
 					return assert.Contains(s.T(), e.Tags, tc.tag, "Tags should contain the event id")
@@ -647,12 +691,14 @@ tag_event_id: %t
 				return res
 			})).Once()
 
+			check.Run()
+
 			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, tc.eventID, nil, []string{"teststring"}, nil)
 			s.Require().NoError(err)
 
-			check.Run()
-
-			s.sender.AssertExpectations(s.T())
+			s.EventuallyWithT(func(t *assert.CollectT) {
+				s.sender.AssertExpectations(newCollectTWithLog(t, s.T().Logf))
+			}, 30*time.Second, 500*time.Millisecond)
 		})
 	}
 }
@@ -695,7 +741,7 @@ tag_sid: %t
 			require.NoError(s.T(), err)
 			defer check.Cancel()
 
-			s.sender.On("Commit").Return().Once()
+			s.sender.On("Commit").Return()
 			s.sender.On("Event", mock.MatchedBy(func(e agentEvent.Event) bool {
 				if tc.confval {
 					return assert.Contains(s.T(), e.Tags, tc.tag, "Tags should contain the sid/username")
@@ -707,11 +753,14 @@ tag_sid: %t
 				return res
 			})).Once()
 
-			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, tc.sid, []string{"teststring"}, nil)
-			s.Require().NoError(err)
 			check.Run()
 
-			s.sender.AssertExpectations(s.T())
+			err = reporter.ReportEvent(windows.EVENTLOG_INFORMATION_TYPE, 0, 1000, tc.sid, []string{"teststring"}, nil)
+			s.Require().NoError(err)
+
+			s.EventuallyWithT(func(t *assert.CollectT) {
+				s.sender.AssertExpectations(newCollectTWithLog(t, s.T().Logf))
+			}, 30*time.Second, 500*time.Millisecond)
 		})
 	}
 }
@@ -765,11 +814,8 @@ payload_size: %d
 						testDir := b.TempDir()
 						mockConfig.Set("run_path", testDir)
 						// create check
-						check := new(Check)
-						check.evtapi = ti.API()
-						err = check.Configure(sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
+						check, err := newCheck(ti.API(), sender, instanceConfig)
 						require.NoError(b, err)
-						mocksender.SetSender(sender, check.ID())
 						sender.On("Commit").Return()
 						senderEventCall := sender.On("Event", mock.Anything)
 						// read all the events
