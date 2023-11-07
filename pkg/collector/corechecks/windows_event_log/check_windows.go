@@ -187,7 +187,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	ddevent.Ts = ts
 	// FQDN
 	fqdn, err := vals.String(evtapi.EvtSystemComputer)
-	if err != nil || serverIsLocal(c.config.instance.Server) {
+	if err != nil || c.session == nil {
 		// use DD hostname
 		//   * if collecting from local computer
 		//   * if fail to fetch hostname of remote computer
@@ -386,7 +386,10 @@ func (c *Check) initSubscription() error {
 	if err != nil {
 		return err
 	}
-	opts = append(opts, evtsubscribe.WithSession(c.session))
+
+	if c.session != nil {
+		opts = append(opts, evtsubscribe.WithSession(c.session))
+	}
 
 	// Create the subscription
 	c.sub = evtsubscribe.NewPullSubscription(
@@ -423,7 +426,7 @@ func (c *Check) initSubscription() error {
 func (c *Check) initSession() error {
 	// local session
 	if serverIsLocal(c.config.instance.Server) {
-		c.session = evtsession.New(c.evtapi)
+		c.session = nil
 		return nil
 	}
 
