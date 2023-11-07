@@ -193,7 +193,7 @@ func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLa
 	panic("implement me")
 }
 
-func TestStart(t *testing.T) {
+func TestStartError(t *testing.T) {
 	fakeGardenUtil := FakeGardenUtil{}
 
 	workloadmetaStore := fakeWorkloadmetaStore{}

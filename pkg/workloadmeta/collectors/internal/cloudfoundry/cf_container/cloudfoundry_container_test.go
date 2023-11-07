@@ -21,8 +21,7 @@ func (store *fakeWorkloadmetaStore) Notify(events []workloadmeta.CollectorEvent)
 	store.notifiedEvents = append(store.notifiedEvents, events...)
 }
 
-func TestStart(t *testing.T) {
-
+func TestStartError(t *testing.T) {
 	workloadmetaStore := fakeWorkloadmetaStore{}
 	c := collector{
 		store: &workloadmetaStore,
