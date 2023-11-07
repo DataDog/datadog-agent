@@ -21,10 +21,9 @@ var CheckName = "orchestrator"
 // ExtraLogContext is used to add check name into log context
 var ExtraLogContext = []interface{}{"check", CheckName}
 
-// NoExpiration is used for functions that take an expiration time
-var NoExpiration = cache.NoExpiration
-
 const (
+	// NoExpiration maps to go-cache corresponding value
+	NoExpiration = cache.NoExpiration
 	// K8sUnsetType represents a Kubernetes unset type
 	K8sUnsetType NodeType = iota
 	// K8sPod represents a Kubernetes Pod

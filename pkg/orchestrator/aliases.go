@@ -28,6 +28,8 @@ var (
 )
 
 const (
+	// NoExpiration maps to go-cache corresponding value
+	NoExpiration = pkgorchestratormodel.NoExpiration
 	// K8sUnsetType alias for pkgorchestratormodel.K8sUnsetType
 	K8sUnsetType = pkgorchestratormodel.K8sUnsetType
 	// K8sPod alias for pkgorchestratormodel.K8sPod
