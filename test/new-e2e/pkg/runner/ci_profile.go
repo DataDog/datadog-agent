@@ -8,7 +8,6 @@ package runner
 import (
 	"fmt"
 	"os"
-	"path"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -68,13 +67,6 @@ func NewCIProfile() (Profile, error) {
 		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore),
 		ciUniqueID:  "ci-" + pipelineID + "-" + projectID,
 	}, nil
-}
-
-// GetWorkspacePath returns the directory for CI Pulumi workspace.
-// Since one Workspace supports one single program and we have one program per stack,
-// the path should be unique for each stack.
-func (p ciProfile) GetWorkspacePath(stackName string) string {
-	return path.Join(workspaceRootFolder, stackName)
 }
 
 // NamePrefix returns a prefix to name objects based on a CI unique ID

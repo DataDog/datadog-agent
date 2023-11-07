@@ -8,8 +8,6 @@
 package runner
 
 import (
-	"fmt"
-
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 )
 
@@ -17,16 +15,13 @@ var _ Profile = &mockProfile{}
 
 func newMockProfile(storeMap map[parameters.StoreKey]string) Profile {
 	store := parameters.NewMockStore(storeMap)
-	return mockProfile{baseProfile: newProfile("totoro", []string{}, store, nil)}
+	mp := mockProfile{baseProfile: newProfile("totoro", []string{}, store, nil)}
+	mp.baseProfile.workspaceRootFolder = "mock"
+	return mp
 }
 
 type mockProfile struct {
 	baseProfile
-}
-
-// GetWorkspacePath returns the root directory for local Pulumi workspace
-func (mp mockProfile) GetWorkspacePath(stackName string) string {
-	return fmt.Sprintf("mock-%s", stackName)
 }
 
 // NamePrefix returns a prefix to name objects

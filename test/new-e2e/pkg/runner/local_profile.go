@@ -66,13 +66,6 @@ type localProfile struct {
 	baseProfile
 }
 
-// GetWorkspacePath returns the directory for local Pulumi workspace.
-// Since one Workspace supports one single program and we have one program per stack,
-// the path should be unique for each stack.
-func (p localProfile) GetWorkspacePath(stackName string) string {
-	return path.Join(workspaceRootFolder, stackName)
-}
-
 // NamePrefix returns a prefix to name objects based on local username
 func (p localProfile) NamePrefix() string {
 	// Stack names may only contain alphanumeric characters, hyphens, underscores, or periods.
