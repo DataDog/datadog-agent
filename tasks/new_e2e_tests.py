@@ -7,6 +7,7 @@ import os
 import os.path
 import shutil
 import tempfile
+from collections import namedtuple
 from pathlib import Path
 from typing import List
 
@@ -187,6 +188,9 @@ def _clean_locks():
             print(f"🗑️ Deleted lock: {subdir}")
 
 
+Stack = namedtuple('Stack', ['name', 'workspaceDirectory'])
+
+
 def _clean_stacks(ctx: Context):
     print("🧹 Clean up stack")
     stacks = _get_existing_stacks(ctx)
@@ -201,47 +205,55 @@ def _clean_stacks(ctx: Context):
         _remove_stack(ctx, stack)
 
 
-def _get_existing_stacks(ctx: Context) -> List[str]:
-    # running in temp dir as this is where datadog-agent test
-    # stacks are stored
-    with ctx.cd(tempfile.gettempdir()):
-        output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all", pty=True)
-        if output is None or not output:
-            return []
-        lines = output.stdout.splitlines()
-        lines = lines[1:]  # skip headers
-        e2e_stacks: List[str] = []
-        for line in lines:
-            stack_name = line.split(" ")[0]
-            print(f"Adding stack {stack_name}")
-            e2e_stacks.append(stack_name)
-        return e2e_stacks
+def _get_existing_stacks(ctx: Context) -> List[Stack]:
+    # running in temp dir and `pulumi-workspace` subfolder as this is where datadog-agent test
+    # stacks are stored.
+    workspace_dirs = [tempfile.gettempdir()]
+    workspace_subdirs_root = os.path.join(tempfile.gettempdir(), "pulumi-workspace")
+    if os.path.isdir(workspace_subdirs_root):
+        for entry in os.listdir(Path(workspace_subdirs_root)):
+            subdir = os.path.join(workspace_subdirs_root, entry)
+            if os.path.isdir(subdir):
+                workspace_dirs.append(subdir)
+    e2e_stacks: List[Stack] = []
+    for workspace_dir in workspace_dirs:
+        with ctx.cd(workspace_dir):
+            output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls", pty=True)
+            if output is None or not output:
+                return []
+            lines = output.stdout.splitlines()
+            lines = lines[1:]  # skip headers
+            for line in lines:
+                stack_name = line.split(" ")[0]
+                print(f"Adding stack {stack_name}")
+                e2e_stacks.append(Stack(stack_name, workspace_dir))
+            return e2e_stacks
 
 
-def _destroy_stack(ctx: Context, stack_name: str):
+def _destroy_stack(ctx: Context, stack: Stack):
     # running in temp dir as this is where datadog-agent test
     # stacks are stored. It is expected to fail on stacks existing locally
     # with resources removed by agent-sandbox clean up job
-    with ctx.cd(tempfile.gettempdir()):
+    with ctx.cd(stack.workspaceDirectory):
         ret = ctx.run(
-            f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack_name} --yes --remove --skip-preview",
+            f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack.name} --yes --remove --skip-preview",
             pty=True,
             warn=True,
         )
         if ret is not None and ret.exited != 0:
             # run with refresh on first destroy attempt failure
             ctx.run(
-                f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack_name} -r --yes --remove --skip-preview",
+                f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack.name} -r --yes --remove --skip-preview",
                 pty=True,
                 warn=True,
             )
 
 
-def _remove_stack(ctx: Context, stack_name: str):
+def _remove_stack(ctx: Context, stack: Stack):
     # running in temp dir as this is where datadog-agent test
     # stacks are stored
-    with ctx.cd(tempfile.gettempdir()):
-        ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack_name}", pty=True)
+    with ctx.cd(stack.workspaceDirectory):
+        ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack.name}", pty=True)
 
 
 def _get_pulumi_about(ctx: Context) -> dict:

@@ -38,6 +38,7 @@ func (suite *kindSuite) SetupSuite() {
 		"ddagent:deploy":        auto.ConfigValue{Value: "true"},
 		"ddagent:fakeintake":    auto.ConfigValue{Value: "true"},
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
+		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "kind-cluster", stackConfig, kindvm.Run, false)

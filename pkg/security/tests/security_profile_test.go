@@ -225,18 +225,20 @@ func TestAnomalyDetection(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             200,
-		activityDumpTracedCgroupsCount:      3,
-		activityDumpDuration:                testActivityDumpDuration,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-		enableSecurityProfile:               true,
-		securityProfileDir:                  outputDir,
-		securityProfileWatchDir:             true,
-		anomalyDetectionMinimumStablePeriod: 0,
+		enableActivityDump:                      true,
+		activityDumpRateLimiter:                 200,
+		activityDumpTracedCgroupsCount:          3,
+		activityDumpDuration:                    testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:       outputDir,
+		activityDumpLocalStorageCompression:     false,
+		activityDumpLocalStorageFormats:         expectedFormats,
+		activityDumpTracedEventTypes:            testActivityDumpTracedEventTypes,
+		enableSecurityProfile:                   true,
+		securityProfileDir:                      outputDir,
+		securityProfileWatchDir:                 true,
+		anomalyDetectionMinimumStablePeriodExec: time.Second,
+		anomalyDetectionMinimumStablePeriodDNS:  time.Second,
+		anomalyDetectionWarmupPeriod:            time.Second,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -407,20 +409,21 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             200,
-		activityDumpTracedCgroupsCount:      3,
-		activityDumpDuration:                testActivityDumpDuration,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-		enableSecurityProfile:               true,
-		securityProfileDir:                  outputDir,
-		securityProfileWatchDir:             true,
-		anomalyDetectionMinimumStablePeriod: 0,
-		anomalyDetectionWarmupPeriod:        3 * time.Second,
-		tagsResolver:                        NewFakeMonoResolver(),
+		enableActivityDump:                      true,
+		activityDumpRateLimiter:                 200,
+		activityDumpTracedCgroupsCount:          3,
+		activityDumpDuration:                    testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:       outputDir,
+		activityDumpLocalStorageCompression:     false,
+		activityDumpLocalStorageFormats:         expectedFormats,
+		activityDumpTracedEventTypes:            testActivityDumpTracedEventTypes,
+		enableSecurityProfile:                   true,
+		securityProfileDir:                      outputDir,
+		securityProfileWatchDir:                 true,
+		anomalyDetectionMinimumStablePeriodExec: 0,
+		anomalyDetectionMinimumStablePeriodDNS:  0,
+		anomalyDetectionWarmupPeriod:            3 * time.Second,
+		tagsResolver:                            NewFakeMonoResolver(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -576,18 +579,19 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	defer os.RemoveAll(outputDir)
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             200,
-		activityDumpTracedCgroupsCount:      3,
-		activityDumpDuration:                testActivityDumpDuration,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-		enableSecurityProfile:               true,
-		securityProfileDir:                  outputDir,
-		securityProfileWatchDir:             true,
-		anomalyDetectionMinimumStablePeriod: 10 * time.Second,
+		enableActivityDump:                      true,
+		activityDumpRateLimiter:                 200,
+		activityDumpTracedCgroupsCount:          3,
+		activityDumpDuration:                    testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:       outputDir,
+		activityDumpLocalStorageCompression:     false,
+		activityDumpLocalStorageFormats:         expectedFormats,
+		activityDumpTracedEventTypes:            testActivityDumpTracedEventTypes,
+		enableSecurityProfile:                   true,
+		securityProfileDir:                      outputDir,
+		securityProfileWatchDir:                 true,
+		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
+		anomalyDetectionMinimumStablePeriodDNS:  10 * time.Second,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -770,18 +774,19 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		},
 	}
 	test, err := newTestModule(t, nil, rulesDef, testOpts{
-		enableActivityDump:                  true,
-		activityDumpRateLimiter:             200,
-		activityDumpTracedCgroupsCount:      3,
-		activityDumpDuration:                testActivityDumpDuration,
-		activityDumpLocalStorageDirectory:   outputDir,
-		activityDumpLocalStorageCompression: false,
-		activityDumpLocalStorageFormats:     expectedFormats,
-		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
-		enableSecurityProfile:               true,
-		securityProfileDir:                  outputDir,
-		securityProfileWatchDir:             true,
-		anomalyDetectionMinimumStablePeriod: reinsertPeriod,
+		enableActivityDump:                      true,
+		activityDumpRateLimiter:                 200,
+		activityDumpTracedCgroupsCount:          3,
+		activityDumpDuration:                    testActivityDumpDuration,
+		activityDumpLocalStorageDirectory:       outputDir,
+		activityDumpLocalStorageCompression:     false,
+		activityDumpLocalStorageFormats:         expectedFormats,
+		activityDumpTracedEventTypes:            testActivityDumpTracedEventTypes,
+		enableSecurityProfile:                   true,
+		securityProfileDir:                      outputDir,
+		securityProfileWatchDir:                 true,
+		anomalyDetectionMinimumStablePeriodExec: reinsertPeriod,
+		anomalyDetectionMinimumStablePeriodDNS:  reinsertPeriod,
 	})
 	if err != nil {
 		t.Fatal(err)

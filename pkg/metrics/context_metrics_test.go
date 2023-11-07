@@ -8,15 +8,12 @@
 package metrics
 
 import (
-	// stdlib
 	"math"
 	"testing"
 
-	// 3p
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 )
 
 func TestContextMetricsGaugeSampling(t *testing.T) {
@@ -26,8 +23,9 @@ func TestContextMetricsGaugeSampling(t *testing.T) {
 		Value: 1,
 		Mtype: GaugeType,
 	}
+	c := setupConfig()
 
-	metrics.AddSample(contextKey, &mSample, 1, 10, nil)
+	metrics.AddSample(contextKey, &mSample, 1, 10, nil, c)
 	series, err := metrics.Flush(12345)
 
 	assert.Len(t, err, 0)
@@ -53,7 +51,8 @@ func TestContextMetricsGaugeSamplingNoSample(t *testing.T) {
 		Mtype: GaugeType,
 	}
 
-	metrics.AddSample(contextKey, &mSample, 1, 10, nil)
+	c := setupConfig()
+	metrics.AddSample(contextKey, &mSample, 1, 10, nil, c)
 	series, err := metrics.Flush(12345)
 
 	assert.Len(t, err, 0)
@@ -71,6 +70,7 @@ func TestContextMetricsGaugeSamplingInvalidSamples(t *testing.T) {
 	contextKey1 := ckey.ContextKey(0xaaffffffffffffff)
 	contextKey2 := ckey.ContextKey(0xbbffffffffffffff)
 
+	c := setupConfig()
 	// +/-Inf
 	mSample1 := MetricSample{
 		Value: math.Inf(1),
@@ -81,8 +81,8 @@ func TestContextMetricsGaugeSamplingInvalidSamples(t *testing.T) {
 		Mtype: GaugeType,
 	}
 
-	metrics.AddSample(contextKey1, &mSample1, 1, 10, nil)
-	metrics.AddSample(contextKey2, &mSample2, 1, 10, nil)
+	metrics.AddSample(contextKey1, &mSample1, 1, 10, nil, c)
+	metrics.AddSample(contextKey2, &mSample2, 1, 10, nil, c)
 	series, err := metrics.Flush(20)
 	assert.Len(t, err, 0)
 	assert.Equal(t, 0, len(series))
@@ -92,7 +92,7 @@ func TestContextMetricsGaugeSamplingInvalidSamples(t *testing.T) {
 		Value: math.NaN(),
 		Mtype: GaugeType,
 	}
-	metrics.AddSample(contextKey1, &mSample3, 1, 30, nil)
+	metrics.AddSample(contextKey1, &mSample3, 1, 30, nil, c)
 	series, err = metrics.Flush(40)
 	assert.Len(t, err, 0)
 	assert.Equal(t, 0, len(series))
@@ -102,7 +102,7 @@ func TestContextMetricsGaugeSamplingInvalidSamples(t *testing.T) {
 		Value: 1,
 		Mtype: GaugeType,
 	}
-	metrics.AddSample(contextKey1, &mSample4, 1, 50, nil)
+	metrics.AddSample(contextKey1, &mSample4, 1, 50, nil, c)
 	series, err = metrics.Flush(60)
 	assert.Len(t, err, 0)
 	expectedSerie := &Serie{
@@ -121,14 +121,15 @@ func TestContextMetricsSingleRateSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12340, 10, nil)
+	c := setupConfig()
+	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12340, 10, nil, c)
 	series, err := metrics.Flush(12345)
 
 	assert.Len(t, err, 0)
 	// No series flushed since the rate was sampled once only
 	assert.Equal(t, 0, len(series))
 
-	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 2}, 12350, 10, nil)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 2}, 12350, 10, nil, c)
 	series, err = metrics.Flush(12351)
 
 	assert.Len(t, err, 0)
@@ -150,8 +151,9 @@ func TestContextMetricsNegativeRateSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 2}, 12340, 10, nil)
-	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12350, 10, nil)
+	c := setupConfig()
+	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 2}, 12340, 10, nil, c)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: RateType, Value: 1}, 12350, 10, nil, c)
 	series, err := metrics.Flush(12351)
 
 	assert.Len(t, series, 0)
@@ -163,8 +165,9 @@ func TestContextMetricsCountSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	metrics.AddSample(contextKey, &MetricSample{Mtype: CountType, Value: 1}, 12340, 10, nil)
-	metrics.AddSample(contextKey, &MetricSample{Mtype: CountType, Value: 5}, 12345, 10, nil)
+	c := setupConfig()
+	metrics.AddSample(contextKey, &MetricSample{Mtype: CountType, Value: 1}, 12340, 10, nil, c)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: CountType, Value: 5}, 12345, 10, nil, c)
 	series, err := metrics.Flush(12350)
 
 	assert.Len(t, err, 0)
@@ -183,9 +186,10 @@ func TestContextMetricsCountSampling(t *testing.T) {
 func TestContextMetricsMonotonicCountSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
+	c := setupConfig()
 
-	metrics.AddSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 1}, 12340, 10, nil)
-	metrics.AddSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 5}, 12345, 10, nil)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 1}, 12340, 10, nil, c)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: MonotonicCountType, Value: 5}, 12345, 10, nil, c)
 	series, err := metrics.Flush(12350)
 
 	assert.Len(t, err, 0)
@@ -205,10 +209,11 @@ func TestContextMetricsHistogramSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12340, 10, nil)
-	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 2}, 12342, 10, nil)
-	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12350, 10, nil)
-	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 6}, 12350, 10, nil)
+	c := setupConfig()
+	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12340, 10, nil, c)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 2}, 12342, 10, nil, c)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 1}, 12350, 10, nil, c)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: HistogramType, Value: 6}, 12350, 10, nil, c)
 	series, err := metrics.Flush(12351)
 
 	assert.Len(t, err, 0)
@@ -256,10 +261,11 @@ func TestContextMetricsHistorateSampling(t *testing.T) {
 	metrics := MakeContextMetrics()
 	contextKey := ckey.ContextKey(0xffffffffffffffff)
 
-	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 1}, 12340, 10, nil)
-	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 2}, 12341, 10, nil)
-	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 4}, 12342, 10, nil)
-	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 4}, 12343, 10, nil)
+	c := setupConfig()
+	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 1}, 12340, 10, nil, c)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 2}, 12341, 10, nil, c)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 4}, 12342, 10, nil, c)
+	metrics.AddSample(contextKey, &MetricSample{Mtype: HistorateType, Value: 4}, 12343, 10, nil, c)
 	series, err := metrics.Flush(12351)
 
 	assert.Len(t, err, 0)
