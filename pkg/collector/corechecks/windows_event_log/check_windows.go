@@ -317,6 +317,11 @@ func (c *Check) getEventMessage(providerName string, winevent *evtapi.EventRecor
 		return "", err
 	}
 
+	// Remove invisible unicode character from message
+	// https://unicode.scarfboy.com/?s=U%2b200E
+	// https://github.com/mhammond/pywin32/pull/1524#issuecomment-633152961
+	message = strings.ReplaceAll(message, "\u200e", "")
+
 	return message, nil
 }
 
