@@ -12,8 +12,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/fx"
 
-	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	sdk "go.opentelemetry.io/otel/sdk/metric"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
