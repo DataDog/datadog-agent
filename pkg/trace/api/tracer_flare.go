@@ -28,12 +28,12 @@ const (
 	datadogSiteGov              = "ddog-gov.com"
 )
 
-type EndpointGetter func(url *url.URL) error
+type endpointGetter func(url *url.URL) error
 
 // tracerFlareTransport forwards request to tracer flare endpoint.
 type tracerFlareTransport struct {
 	rt          http.RoundTripper
-	getEndpoint EndpointGetter
+	getEndpoint endpointGetter
 }
 
 func getServerlessFlareEndpoint(url *url.URL) error {
