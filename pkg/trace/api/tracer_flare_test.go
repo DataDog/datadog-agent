@@ -10,6 +10,8 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -65,41 +67,102 @@ func getTraceFlareBody(multipartBoundary string) io.ReadCloser {
 
 }
 
+func mockGetServerlessFlareEndpoint(url *url.URL) error {
+	url.Path = "/api/ui/support/serverless/flare"
+	return nil
+}
+
+func TestGetServerlessFlareEndpoint(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		subdomainUrl := "https://us3.datadoghq.com/test"
+		testUrl, err := url.Parse(subdomainUrl)
+		assert.Nil(t, err)
+
+		err = getServerlessFlareEndpoint(testUrl)
+		assert.Nil(t, err)
+		assert.Equal(t, "https://us3.datadoghq.com/api/ui/support/serverless/flare", testUrl.String())
+	})
+
+	t.Run("no subdomain host", func(t *testing.T) {
+		noSubdomainUrl := "https://datadoghq.com/test"
+		testUrl, err := url.Parse(noSubdomainUrl)
+		assert.Nil(t, err)
+
+		err = getServerlessFlareEndpoint(testUrl)
+		assert.Nil(t, err)
+		assert.Equal(t, "https://app.datadoghq.com/api/ui/support/serverless/flare", testUrl.String())
+	})
+
+	t.Run("invalid host", func(t *testing.T) {
+		invalidHostUrl := "https://invalid.com/test"
+		testUrl, err := url.Parse(invalidHostUrl)
+		assert.Nil(t, err)
+
+		err = getServerlessFlareEndpoint(testUrl)
+		assert.Equal(t, "tracer_flare.Proxy: invalid site: invalid.com. Must be one of: datadoghq.com,datadoghq.eu,us3.datadoghq.com,us5.datadoghq.com,ap1.datadoghq.com,ddog-gov.com", err.Error())
+	})
+
+}
+
 func TestTracerFlareProxyHandler(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != "POST" {
-			w.WriteHeader(404)
-		}
+	t.Run("ok", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			if req.Method != "POST" {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
 
-		switch req.URL.Path {
-		case "/api/ui/support/serverless/flare":
-			assert.Equal(t, "test", req.Header.Get("DD-API-KEY"), "got invalid API key: %q", req.Header.Get("DD-API-KEY"))
-			err := req.ParseMultipartForm(1000000)
-			assert.Nil(t, err)
+			switch req.URL.Path {
+			case "/api/ui/support/serverless/flare":
+				assert.Equal(t, "test", req.Header.Get("DD-API-KEY"), "got invalid API key: %q", req.Header.Get("DD-API-KEY"))
+				err := req.ParseMultipartForm(1000000)
+				assert.Nil(t, err)
 
-			assert.Equal(t, "case_id", req.FormValue("case_id"))
-			assert.Equal(t, "tracer_go", req.FormValue("source"))
-			assert.Equal(t, "test@test.com", req.FormValue("email"))
-			assert.Equal(t, "hostname", req.FormValue("hostname"))
-			assert.Equal(t, "flare.zip", req.MultipartForm.File["flare_file"][0].Filename)
+				assert.Equal(t, "case_id", req.FormValue("case_id"))
+				assert.Equal(t, "tracer_go", req.FormValue("source"))
+				assert.Equal(t, "test@test.com", req.FormValue("email"))
+				assert.Equal(t, "hostname", req.FormValue("hostname"))
+				assert.Equal(t, "flare.zip", req.MultipartForm.File["flare_file"][0].Filename)
 
-			w.WriteHeader(200)
-		default:
-			w.WriteHeader(404)
-		}
-	}))
-	defer srv.Close()
+				w.WriteHeader(http.StatusOK)
+			default:
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+		}))
+		defer srv.Close()
 
-	req, err := http.NewRequest(http.MethodPost, srv.URL, nil)
-	assert.NoError(t, err)
-	boundaryWriter := multipart.NewWriter(nil)
+		req, err := http.NewRequest(http.MethodPost, srv.URL, nil)
+		assert.NoError(t, err)
+		boundaryWriter := multipart.NewWriter(nil)
 
-	req.Header.Set("Content-Type", boundaryWriter.FormDataContentType())
-	req.Body = getTraceFlareBody(boundaryWriter.Boundary())
-	req.ContentLength = -1
+		req.Header.Set("Content-Type", boundaryWriter.FormDataContentType())
+		req.Body = getTraceFlareBody(boundaryWriter.Boundary())
+		req.ContentLength = -1
 
-	rec := httptest.NewRecorder()
-	receiver := newTestReceiverFromConfig(newTestReceiverConfig())
-	receiver.tracerFlareHandler().ServeHTTP(rec, req)
-	require.Equal(t, http.StatusOK, rec.Code)
+		rec := httptest.NewRecorder()
+		receiver := newTestReceiverFromConfig(newTestReceiverConfig())
+		handler := receiver.tracerFlareHandler()
+		handler.(*httputil.ReverseProxy).Transport.(*tracerFlareTransport).getEndpoint = mockGetServerlessFlareEndpoint
+
+		handler.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+	})
+
+	t.Run("invalid host", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {}))
+		defer srv.Close()
+
+		req, err := http.NewRequest(http.MethodPost, srv.URL, nil)
+		assert.NoError(t, err)
+		boundaryWriter := multipart.NewWriter(nil)
+
+		req.Header.Set("Content-Type", boundaryWriter.FormDataContentType())
+		req.Body = getTraceFlareBody(boundaryWriter.Boundary())
+		req.ContentLength = -1
+
+		rec := httptest.NewRecorder()
+		receiver := newTestReceiverFromConfig(newTestReceiverConfig())
+		receiver.tracerFlareHandler().ServeHTTP(rec, req)
+		require.Equal(t, http.StatusBadGateway, rec.Code)
+	})
+
 }
