@@ -163,12 +163,8 @@ github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.0 h1:NNSjBd
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.0/go.mod h1:8d/zACzxfdBllttohcF3mwL6ELg8vXTGiPkib/1ObOA=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0 h1:IF+RAgzl0UMo/zA+FBFn/sJqpLKNohkIcSpB47V3yh0=
 github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0/go.mod h1:t0w1Xi9rnqthYFQcq5oqgqVS7CQBGaZbEZI3qPXzmPE=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.8.0 h1:YLCXphoA7rGEwlh69+wkqmh8BPk2noEwZaBYMCQ0NU4=
-github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.8.0/go.mod h1:AjBYUDNKzEwJzTkJfe5O8hBYODQPpDne3fejPljow/w=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.8.0 h1:IDyjHFtUgx+VV6Q+h+RswS8wNFcGjmR56bkQeQ5+Qt4=
-github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.8.0/go.mod h1:qpCkRg9O1kbvenpvjRIGH07v8ozAadJP25yS+uwHyeg=
-github.com/DataDog/sketches-go v1.4.2 h1:gppNudE9d19cQ98RYABOetxIhpTCl4m7CnbRZjvVA/o=
-github.com/DataDog/sketches-go v1.4.2/go.mod h1:xJIXldczJyyjnbDop7ZZcLxJdV3+7Kra7H1KMgpgkLk=
+github.com/DataDog/sketches-go v1.4.3 h1:ZB9nijteJRFUQixkQfatCqASartGNfiolIlMiEv3u/w=
+github.com/DataDog/sketches-go v1.4.3/go.mod h1:XR0ns2RtEEF09mDKXiKZiQg+nfZStrq1ZuL1eezeZe0=
 github.com/DataDog/trivy v0.0.0-20230526171704-5aaa4575395e h1:sw8zPMtAx20gY2wSdANQ/Z64B1hOMrku+zoPFGcumLk=
 github.com/DataDog/trivy v0.0.0-20230526171704-5aaa4575395e/go.mod h1:f1nyvEyWU3w5L8dYIQljloMO/BX0i0OK9NwGeZtvmFw=
 github.com/DataDog/viper v1.12.0 h1:FufyZpZPxyszafSV5B8Q8it75IhhuJwH0T7QpT6HnD0=
@@ -185,6 +181,10 @@ github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f/go.mod h1:oXfOhM/Kr
 github.com/DisposaBoy/JsonConfigReader v0.0.0-20130112093355-33a99fdf1d5e/go.mod h1:GCzqZQHydohgVLSIqRKZeTt8IGb1Y4NaFfim3H40uUI=
 github.com/DisposaBoy/JsonConfigReader v0.0.0-20201129172854-99cf318d67e7 h1:AJKJCKcb/psppPl/9CUiQQnTG+Bce0/cIweD5w5Q7aQ=
 github.com/DisposaBoy/JsonConfigReader v0.0.0-20201129172854-99cf318d67e7/go.mod h1:GCzqZQHydohgVLSIqRKZeTt8IGb1Y4NaFfim3H40uUI=
+github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/otlp/metrics v0.0.0-20231107212946-82389c31f2b2 h1:xthq1Rs9ZeG8chWTPToyIacVXAKEbxtS7O2h44Zd4Kw=
+github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/otlp/metrics v0.0.0-20231107212946-82389c31f2b2/go.mod h1:Rj9iSVbiS66vXtQ48gcZReslXXmkihN0R7oxFu16NwE=
+github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20231107212946-82389c31f2b2 h1:mpSKKOCIDalqtWbO0twgSP+eoFiyqXC1wFdCqn6G0tc=
+github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20231107212946-82389c31f2b2/go.mod h1:T0t5wBUPB2L9IYMZJ+0bZQtkQGP2A1+Ynf5e4Be/hQs=
 github.com/GoogleCloudPlatform/docker-credential-gcr v2.0.5+incompatible h1:juIaKLLVhqzP55d8x4cSVgwyQv76Z55/fRv/UBr2KkQ=
 github.com/GoogleCloudPlatform/docker-credential-gcr v2.0.5+incompatible/go.mod h1:BB1eHdMLYEFuFdBlRMb0N7YGVdM5s6Pt0njxgvfbGGs=
 github.com/MakeNowJust/heredoc v1.0.0 h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ4pzQ=
@@ -1732,8 +1732,8 @@ go.opentelemetry.io/collector/featuregate v1.0.0-rcv0016 h1:/6N9990tbjotvXgrXpV5
 go.opentelemetry.io/collector/featuregate v1.0.0-rcv0016/go.mod h1:fLmJMf1AoHttkF8p5oJAc4o5ZpHu8yO5XYJ7gbLCLzo=
 go.opentelemetry.io/collector/otelcol v0.87.0 h1:qmtF44r4heBSzoMo+hVJsYlwMDZBo4MjGDHJnDhT66c=
 go.opentelemetry.io/collector/otelcol v0.87.0/go.mod h1:BSCvlVMyWLH3704kfGUv8KWRRN2nvNJBOBcfKttXTDM=
-go.opentelemetry.io/collector/pdata v1.0.0-rcv0016 h1:qCPXSQCoD3qeWFb1RuIks8fw9Atxpk78bmtVdi15KhE=
-go.opentelemetry.io/collector/pdata v1.0.0-rcv0016/go.mod h1:OdN0alYOlYhHXu6BDlGehrZWgtBuiDsz/rlNeJeXiNg=
+go.opentelemetry.io/collector/pdata v1.0.0-rcv0017 h1:AgALhc2VenoA5l1DvTdg7mkzaBGqoTSuMkAtjsttBFo=
+go.opentelemetry.io/collector/pdata v1.0.0-rcv0017/go.mod h1:Rv9fOclA5AtM/JGm0d4jBOIAo1+jBA13UT5Bx0ovXi4=
 go.opentelemetry.io/collector/processor v0.87.0 h1:aUGtRyeQk0WgQwp2rZBvJ1j+6+WJO8XMb1kjtanIWo8=
 go.opentelemetry.io/collector/processor v0.87.0/go.mod h1:FHqpqdm/uyjjhNQxXJBhvQDIwjnP01EW9M6t0xVaRR4=
 go.opentelemetry.io/collector/processor/batchprocessor v0.87.0 h1:/a2yjC8XMg1j/9hnpDbxTKbG/AyWac2xsQSx0PmFz1M=
@@ -1742,8 +1742,8 @@ go.opentelemetry.io/collector/receiver v0.87.0 h1:4HpA5Rxb1jcMywCB8y5aNTXiqSt3n7
 go.opentelemetry.io/collector/receiver v0.87.0/go.mod h1:uApnlS81KGGfQJrzbCdBZWsB5DQJgcPTsYlb9CFdE3s=
 go.opentelemetry.io/collector/receiver/otlpreceiver v0.87.0 h1:iXO30EKZwEP1TEuLlQjxVaeVeffDkdJqz9DuqjzME9c=
 go.opentelemetry.io/collector/receiver/otlpreceiver v0.87.0/go.mod h1:1IE82wJuyGW0z0BeJ3A0SoPxsPlqf9aefCycbtuxUO0=
-go.opentelemetry.io/collector/semconv v0.87.0 h1:BsG1jdLLRCBRlvUujk4QA86af7r/ZXnizczQpEs/gg8=
-go.opentelemetry.io/collector/semconv v0.87.0/go.mod h1:j/8THcqVxFna1FpvA2zYIsUperEtOaRaqoLYIN4doWw=
+go.opentelemetry.io/collector/semconv v0.88.0 h1:8TVP4hYaUC87S6CCLKNoSxsUE0ChldE4vqotvNHHUnE=
+go.opentelemetry.io/collector/semconv v0.88.0/go.mod h1:j/8THcqVxFna1FpvA2zYIsUperEtOaRaqoLYIN4doWw=
 go.opentelemetry.io/collector/service v0.87.0 h1:IFVdchppG9od4SzHgFEUfxUvvJ/F6WqknO1GK90mfVA=
 go.opentelemetry.io/collector/service v0.87.0/go.mod h1:kBdpzrqR2wJkOdg50yzp4dv+2XBMyeqTgF4lCx0hSpQ=
 go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.45.0 h1:RsQi0qJ2imFfCvZabqzM9cNXBG8k6gXMv1A0cXRmH6A=

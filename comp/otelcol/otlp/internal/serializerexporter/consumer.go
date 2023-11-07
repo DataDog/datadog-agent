@@ -73,7 +73,7 @@ func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	c.apmstats = append(c.apmstats, body)
 }
 
-func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, qsketch *quantile.Sketch) {
+func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, qsketch quantile.Sketch) {
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		Name:     dimensions.Name(),
 		Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),

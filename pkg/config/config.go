@@ -499,6 +499,9 @@ func InitConfig(config Config) {
 	// Options are: udp, uds, named_pipe
 	config.BindEnvAndSetDefault("dogstatsd_eol_required", []string{})
 
+	// Experimental and not officially supported for now. Use wider 32 bit bins for distribution metrics.
+	config.BindEnvAndSetDefault("experimental_use_wide_distribution_bins", false)
+
 	// The following options allow to configure how the dogstatsd intake buffers and queues incoming datagrams.
 	// When a datagram is received it is first added to a datagrams buffer. This buffer fills up until
 	// we reach `dogstatsd_packet_buffer_size` datagrams or after `dogstatsd_packet_buffer_flush_timeout` ms.

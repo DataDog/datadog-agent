@@ -167,7 +167,7 @@ func (sl SketchSeriesList) MarshalSplitCompress(bufferContext *marshaler.BufferC
 
 			for _, p := range ss.Points {
 				err = ps.Embedded(sketchDogsketches, func(ps *molecule.ProtoStream) error {
-					b := p.Sketch.Basic
+					b := p.Sketch.Basic()
 					k, n := p.Sketch.Cols()
 
 					err = ps.Int64(dogsketchTs, p.Ts)
@@ -293,7 +293,7 @@ func (sl SketchSeriesList) Marshal() ([]byte, error) {
 		dsl := make([]gogen.SketchPayload_Sketch_Dogsketch, 0, len(ss.Points))
 
 		for _, p := range ss.Points {
-			b := p.Sketch.Basic
+			b := p.Sketch.Basic()
 			k, n := p.Sketch.Cols()
 			dsl = append(dsl, gogen.SketchPayload_Sketch_Dogsketch{
 				Ts:  p.Ts,

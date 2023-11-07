@@ -9,6 +9,7 @@ import (
 	"math"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
@@ -59,7 +60,15 @@ func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey) *quantile.Agent {
 	// level 2: ctx -> sketch
 	s, ok := byCtx[ck]
 	if !ok {
-		s = &quantile.Agent{}
+		if config.Datadog.GetBool("experimental_use_wide_distribution_bins") {
+			s = &quantile.Agent{
+				Sketch: quantile.Sketch32{},
+			}
+		} else {
+			s = &quantile.Agent{
+				Sketch: quantile.Sketch16{},
+			}
+		}
 		m[ts][ck] = s
 	}
 
