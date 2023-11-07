@@ -103,8 +103,8 @@ func (a *AppSec) Close() error {
 	return nil
 }
 
-// Monitor runs the security event rules and return the events as an array
-func (a *AppSec) Monitor(addresses map[string]interface{}) []any {
+// Monitor runs the security event rules and return the events as an slice
+func (a *AppSec) Monitor(addresses map[string]any) []any {
 	log.Debugf("appsec: monitoring the request context %v", addresses)
 	ctx := waf.NewContext(a.handle)
 	if ctx == nil {

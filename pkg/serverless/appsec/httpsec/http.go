@@ -30,7 +30,7 @@ import (
 // subprocessor monitoring the given security rules addresses and returning
 // the security events that matched.
 type Monitorer interface {
-	Monitor(addresses map[string]interface{}) (events []any)
+	Monitor(addresses map[string]any) (events []any)
 }
 
 // AppSec monitoring context including the full list of monitored HTTP values
