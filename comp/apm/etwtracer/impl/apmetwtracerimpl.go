@@ -23,6 +23,7 @@ import (
 	"golang.org/x/sys/windows"
 	"io"
 	"net"
+	"os"
 	"time"
 	"unsafe"
 )
@@ -111,6 +112,48 @@ type win32MessageBytePipe interface {
 	CloseWrite() error
 }
 
+func (a *apmetwtracerimpl) binaryReadWithTimeout(c net.Conn, data any) error {
+	err := c.SetReadDeadline(time.Now().Add(1 * time.Second))
+	if err != nil {
+		return err
+	}
+	err = binary.Read(c, binary.LittleEndian, data)
+	if errors.Is(err, io.EOF) {
+		a.log.Debugf("Client disconnected [%s]", c.RemoteAddr().Network())
+		return err
+	}
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		a.log.Debugf("Client timed-out [%s]", c.RemoteAddr().Network())
+		return err
+	}
+	if err != nil {
+		a.log.Errorf("Read error: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (a *apmetwtracerimpl) binaryWriteWithTimeout(c net.Conn, data any) error {
+	err := c.SetWriteDeadline(time.Now().Add(1 * time.Second))
+	if err != nil {
+		return err
+	}
+	err = binary.Write(c, binary.LittleEndian, data)
+	if errors.Is(err, io.EOF) {
+		a.log.Debugf("Client disconnected [%s]", c.RemoteAddr().Network())
+		return err
+	}
+	if errors.Is(err, os.ErrDeadlineExceeded) {
+		a.log.Debugf("Client timed-out [%s]", c.RemoteAddr().Network())
+		return err
+	}
+	if err != nil {
+		a.log.Errorf("Write error: %v", err)
+		return err
+	}
+	return nil
+}
+
 func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 	// calls https://github.com/microsoft/go-winio/blob/e6aebd619a7278545b11188a0e21babea6b94182/pipe.go#L147
 	// which closes a pipe in message-mode
@@ -118,18 +161,12 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		_ = pipe.CloseWrite()
 	}(c.(win32MessageBytePipe))
 
-	a.log.Debugf("client connected [%s]", c.RemoteAddr().Network())
+	a.log.Debugf("Client connected [%s]", c.RemoteAddr().Network())
 	for {
 		h := header{}
-		err := binary.Read(c, binary.LittleEndian, &h)
-
-		// Client disconnected
-		if err == io.EOF {
-			return
-		}
-
+		err := a.binaryReadWithTimeout(c, &h)
 		if err != nil {
-			a.log.Errorf("Read error: %v", err)
+			// Error is handled in binaryReadWithTimeout
 			return
 		}
 
@@ -141,15 +178,9 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 
 		// Read pid
 		var pid uint64
-		err = binary.Read(c, binary.LittleEndian, &pid)
-
-		// Client disconnected
-		if err == io.EOF {
-			return
-		}
-
+		err = a.binaryReadWithTimeout(c, &pid)
 		if err != nil {
-			a.log.Errorf("Read error: %v", err)
+			// Error is handled in binaryReadWithTimeout
 			return
 		}
 
@@ -177,17 +208,8 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		}
 		h.Size = headerSize
 
-		err = binary.Write(c, binary.LittleEndian, &h)
-
-		// Client disconnected
-		if err == io.EOF {
-			return
-		}
-
-		if err != nil {
-			a.log.Errorf("Read error: %v", err)
-			return
-		}
+		// Error is handled in binaryWriteWithTimeout
+		_ = a.binaryWriteWithTimeout(c, &h)
 	}
 }
 
@@ -250,6 +272,7 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 			_, writeErr := pidCtx.conn.Write(etwutil.GoBytes(unsafe.Pointer(&ev), int(ev.header.Size)))
 			if writeErr != nil {
 				a.log.Warnf("Could not write ETW event for PID %d, %v", pid, writeErr)
+				a.RemovePID(pid)
 			}
 		})
 	}()
@@ -290,7 +313,7 @@ func (a *apmetwtracerimpl) RemovePID(pid uint64) error {
 	pidCtx.conn.Close()
 	delete(a.pids, pid)
 	a.reconfigureProvider()
-	if len(a.pids) <= 0 {
+	if len(a.pids) == 0 {
 		return a.session.DisableProvider(a.dotNetRuntimeProviderGUID)
 	}
 	return nil
