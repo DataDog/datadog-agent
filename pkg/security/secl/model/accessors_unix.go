@@ -3402,7 +3402,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.NetworkContext.Destination.IPNet
+				return ev.NetworkContext.Destination.IPNet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3411,7 +3411,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Destination.Port)
+				return int(ev.NetworkContext.Destination.Port)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3420,7 +3420,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Device.IfIndex)
+				return int(ev.NetworkContext.Device.IfIndex)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3429,7 +3429,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.BaseEvent.NetworkContext.Device)
+				return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3438,7 +3438,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.L3Protocol)
+				return int(ev.NetworkContext.L3Protocol)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3447,7 +3447,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.L4Protocol)
+				return int(ev.NetworkContext.L4Protocol)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3456,7 +3456,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Size)
+				return int(ev.NetworkContext.Size)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3465,7 +3465,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.NetworkContext.Source.IPNet
+				return ev.NetworkContext.Source.IPNet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3474,7 +3474,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Source.Port)
+				return int(ev.NetworkContext.Source.Port)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -17813,23 +17813,23 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "mprotect.vm_protection":
 		return ev.MProtect.VMProtection, nil
 	case "network.destination.ip":
-		return ev.BaseEvent.NetworkContext.Destination.IPNet, nil
+		return ev.NetworkContext.Destination.IPNet, nil
 	case "network.destination.port":
-		return int(ev.BaseEvent.NetworkContext.Destination.Port), nil
+		return int(ev.NetworkContext.Destination.Port), nil
 	case "network.device.ifindex":
-		return int(ev.BaseEvent.NetworkContext.Device.IfIndex), nil
+		return int(ev.NetworkContext.Device.IfIndex), nil
 	case "network.device.ifname":
-		return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.BaseEvent.NetworkContext.Device), nil
+		return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device), nil
 	case "network.l3_protocol":
-		return int(ev.BaseEvent.NetworkContext.L3Protocol), nil
+		return int(ev.NetworkContext.L3Protocol), nil
 	case "network.l4_protocol":
-		return int(ev.BaseEvent.NetworkContext.L4Protocol), nil
+		return int(ev.NetworkContext.L4Protocol), nil
 	case "network.size":
-		return int(ev.BaseEvent.NetworkContext.Size), nil
+		return int(ev.NetworkContext.Size), nil
 	case "network.source.ip":
-		return ev.BaseEvent.NetworkContext.Source.IPNet, nil
+		return ev.NetworkContext.Source.IPNet, nil
 	case "network.source.port":
-		return int(ev.BaseEvent.NetworkContext.Source.Port), nil
+		return int(ev.NetworkContext.Source.Port), nil
 	case "open.file.change_time":
 		return int(ev.Open.File.FileFields.CTime), nil
 	case "open.file.destination.mode":
@@ -30663,65 +30663,65 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "network.destination.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Destination.IPNet"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.IPNet"}
 		}
-		ev.BaseEvent.NetworkContext.Destination.IPNet = rv
+		ev.NetworkContext.Destination.IPNet = rv
 		return nil
 	case "network.destination.port":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Destination.Port"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.Port"}
 		}
-		ev.BaseEvent.NetworkContext.Destination.Port = uint16(rv)
+		ev.NetworkContext.Destination.Port = uint16(rv)
 		return nil
 	case "network.device.ifindex":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Device.IfIndex"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfIndex"}
 		}
-		ev.BaseEvent.NetworkContext.Device.IfIndex = uint32(rv)
+		ev.NetworkContext.Device.IfIndex = uint32(rv)
 		return nil
 	case "network.device.ifname":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Device.IfName"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfName"}
 		}
-		ev.BaseEvent.NetworkContext.Device.IfName = rv
+		ev.NetworkContext.Device.IfName = rv
 		return nil
 	case "network.l3_protocol":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.L3Protocol"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L3Protocol"}
 		}
-		ev.BaseEvent.NetworkContext.L3Protocol = uint16(rv)
+		ev.NetworkContext.L3Protocol = uint16(rv)
 		return nil
 	case "network.l4_protocol":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.L4Protocol"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L4Protocol"}
 		}
-		ev.BaseEvent.NetworkContext.L4Protocol = uint16(rv)
+		ev.NetworkContext.L4Protocol = uint16(rv)
 		return nil
 	case "network.size":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Size"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Size"}
 		}
-		ev.BaseEvent.NetworkContext.Size = uint32(rv)
+		ev.NetworkContext.Size = uint32(rv)
 		return nil
 	case "network.source.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Source.IPNet"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IPNet"}
 		}
-		ev.BaseEvent.NetworkContext.Source.IPNet = rv
+		ev.NetworkContext.Source.IPNet = rv
 		return nil
 	case "network.source.port":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Source.Port"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.Port"}
 		}
-		ev.BaseEvent.NetworkContext.Source.Port = uint16(rv)
+		ev.NetworkContext.Source.Port = uint16(rv)
 		return nil
 	case "open.file.change_time":
 		rv, ok := value.(int)

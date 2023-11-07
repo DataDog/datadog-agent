@@ -8,10 +8,8 @@
 package aggregator
 
 import (
-	// stdlib
 	"testing"
 
-	// 3p
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -274,7 +272,7 @@ func (s *mockSample) GetHost() string                   { return "noop" }
 func (s *mockSample) GetMetricType() metrics.MetricType { return metrics.GaugeType }
 func (s *mockSample) IsNoIndex() bool                   { return false }
 func (s *mockSample) GetSource() metrics.MetricSource   { return metrics.MetricSourceUnknown }
-func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator) {
+func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator, _ metrics.EnrichTagsfn) {
 	tb.Append(s.taggerTags...)
 	mb.Append(s.metricTags...)
 }

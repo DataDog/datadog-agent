@@ -455,9 +455,10 @@ var zeroProcessContext ProcessContext
 type ProcessCacheEntry struct {
 	ProcessContext
 
-	refCount  uint64                     `field:"-" json:"-"`
-	onRelease func(_ *ProcessCacheEntry) `field:"-" json:"-"`
-	releaseCb func()                     `field:"-" json:"-"`
+	hasCompleteLineage *bool
+	refCount           uint64                     `field:"-" json:"-"`
+	onRelease          func(_ *ProcessCacheEntry) `field:"-" json:"-"`
+	releaseCb          func()                     `field:"-" json:"-"`
 }
 
 // IsContainerRoot returns whether this is a top level process in the container ID
