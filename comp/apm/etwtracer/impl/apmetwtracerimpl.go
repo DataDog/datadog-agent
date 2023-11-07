@@ -249,7 +249,7 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 	go func() {
 		// StartTracing blocks the caller
 		_ = a.session.StartTracing(func(e *etw.DDEventRecord) {
-			a.log.Infof("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
+			a.log.Debugf("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
 			pid := uint64(e.EventHeader.ProcessID)
 			var pidCtx pidContext
 			var ok bool
