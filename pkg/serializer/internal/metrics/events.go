@@ -67,7 +67,7 @@ func (events Events) Marshal() ([]byte, error) {
 }
 
 func (events Events) getEventsBySourceType() map[string][]*event.Event {
-	eventsBySourceType := make(map[string][]*event.Event)
+	eventsBySourceType := make(map[string][]*event.Event, len(events))
 	for _, e := range events {
 		sourceTypeName := e.SourceTypeName
 		if sourceTypeName == "" {
