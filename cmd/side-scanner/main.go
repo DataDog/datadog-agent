@@ -865,6 +865,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 
 	functionStartedAt := time.Now()
 	statsd.Count("datadog.sidescanner.functions.started", 1.0, tags, 1.0)
+
 	lambdaFunc, err := lambdaclient.GetFunction(ctx, &lambda.GetFunctionInput{
 		FunctionName: aws.String(scan.FunctionName()),
 	})
@@ -882,17 +883,15 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tags, 1.0)
 		return nil, err
 	}
-	functionDuration := time.Since(functionStartedAt)
-	log.Debugf("function retrieved sucessfully %q (took %s)", scan.FunctionName(), functionDuration)
-	statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagSuccess(tags), 1.0)
-	statsd.Histogram("datadog.sidescanner.functions.duration", float64(functionDuration.Milliseconds()), tags, 1.0)
 
 	if lambdaFunc.Code.Location == nil {
+		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, fmt.Errorf("lambdaFunc.Code.Location is nil")
 	}
 
 	tempDir, err := os.MkdirTemp("", "aws-lambda")
 	if err != nil {
+		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, err
 	}
 	defer os.RemoveAll(tempDir)
@@ -900,6 +899,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 	archivePath := filepath.Join(tempDir, "code.zip")
 	archiveFile, err := os.Create(archivePath)
 	if err != nil {
+		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, err
 	}
 	defer archiveFile.Close()
@@ -907,28 +907,38 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 	lambdaURL := *lambdaFunc.Code.Location
 	resp, err := http.Get(lambdaURL) // TODO: create an http.Client with sane defaults
 	if err != nil {
+		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
+		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, fmt.Errorf("bad status: %s", resp.Status)
 	}
 
 	_, err = io.Copy(archiveFile, resp.Body)
 	if err != nil {
+		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, err
 	}
 
 	extractedPath := filepath.Join(tempDir, "extract")
 	err = os.Mkdir(extractedPath, 0700)
 	if err != nil {
+		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, err
 	}
 
 	err = extractZip(archivePath, extractedPath)
 	if err != nil {
+		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, err
 	}
+
+	functionDuration := time.Since(functionStartedAt)
+	log.Debugf("function retrieved sucessfully %q (took %s)", scan.FunctionName(), functionDuration)
+	statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagSuccess(tags), 1.0)
+	statsd.Histogram("datadog.sidescanner.functions.duration", float64(functionDuration.Milliseconds()), tags, 1.0)
 
 	statsd.Count("datadog.sidescanner.scans.started", 1.0, tags, 1.0)
 	defer func() {
