@@ -22,6 +22,8 @@ type ServerlessMetricAgent struct {
 	dogStatsDServer dogstatsdServer.Component
 	tags            []string
 	Demux           aggregator.Demultiplexer
+
+	SketchesBucketOffset time.Duration
 }
 
 // MetricConfig abstacts the config package
@@ -95,7 +97,7 @@ func (c *ServerlessMetricAgent) IsReady() bool {
 // Flush triggers a DogStatsD flush
 func (c *ServerlessMetricAgent) Flush() {
 	if c.IsReady() {
-		c.dogStatsDServer.ServerlessFlush()
+		c.dogStatsDServer.ServerlessFlush(c.SketchesBucketOffset)
 	}
 }
 

@@ -183,6 +183,9 @@ func (lp *LifecycleProcessor) initFromSQSEvent(event events.SQSEvent) {
 
 func (lp *LifecycleProcessor) initFromLambdaFunctionURLEvent(event events.LambdaFunctionURLRequest, region string, accountID string, functionName string) {
 	lp.requestHandler.event = event
+	if !lp.DetectLambdaLibrary() && lp.InferredSpansEnabled {
+		lp.GetInferredSpan().EnrichInferredSpanWithLambdaFunctionURLEvent(event)
+	}
 	lp.addTag(tagFunctionTriggerEventSource, functionURL)
 	lp.addTag(tagFunctionTriggerEventSourceArn, fmt.Sprintf("arn:aws:lambda:%v:%v:url:%v", region, accountID, functionName))
 	lp.addTags(trigger.GetTagsFromLambdaFunctionURLRequest(event))

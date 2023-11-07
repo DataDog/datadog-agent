@@ -23,20 +23,31 @@ func (pc *ProcessCacheEntry) SetAncestor(parent *ProcessCacheEntry) {
 		pc.Ancestor.Release()
 	}
 
+	pc.hasCompleteLineage = nil
 	pc.Ancestor = parent
 	pc.Parent = &parent.Process
 	parent.Retain()
 }
 
-// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
-func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
+func hasCompleteLineageInner(pc *ProcessCacheEntry) bool {
 	for pc != nil {
+		if pc.hasCompleteLineage != nil {
+			return *pc.hasCompleteLineage
+		}
+
 		if pc.Pid == 1 {
 			return true
 		}
 		pc = pc.Ancestor
 	}
 	return false
+}
+
+// HasCompleteLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1
+func (pc *ProcessCacheEntry) HasCompleteLineage() bool {
+	res := hasCompleteLineageInner(pc)
+	pc.hasCompleteLineage = &res
+	return res
 }
 
 // HasValidLineage returns false if, from the entry, we cannot ascend the ancestors list to PID 1 or if a new is having a missing parent

@@ -36,7 +36,9 @@ func TestMain(m *testing.M) {
 
 func TestStartDoesNotBlock(t *testing.T) {
 	config.Load()
-	metricAgent := &ServerlessMetricAgent{}
+	metricAgent := &ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 	assert.NotNil(t, metricAgent.Demux)
@@ -56,7 +58,9 @@ func (m *InvalidMetricConfigMocked) GetMultipleEndpoints() (map[string][]string,
 }
 
 func TestStartInvalidConfig(t *testing.T) {
-	metricAgent := &ServerlessMetricAgent{}
+	metricAgent := &ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+	}
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &InvalidMetricConfigMocked{}, &MetricDogStatsD{})
 	assert.False(t, metricAgent.IsReady())
@@ -69,7 +73,9 @@ func (m *MetricDogStatsDMocked) NewServer(demux aggregator.Demultiplexer) (dogst
 }
 
 func TestStartInvalidDogStatsD(t *testing.T) {
-	metricAgent := &ServerlessMetricAgent{}
+	metricAgent := &ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+	}
 	defer metricAgent.Stop()
 	metricAgent.Start(1*time.Second, &MetricConfig{}, &MetricDogStatsDMocked{})
 	assert.False(t, metricAgent.IsReady())
@@ -82,7 +88,9 @@ func TestStartWithProxy(t *testing.T) {
 
 	t.Setenv(proxyEnabledEnvVar, "true")
 
-	metricAgent := &ServerlessMetricAgent{}
+	metricAgent := &ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &MetricConfig{}, &MetricDogStatsD{})
 
@@ -96,7 +104,9 @@ func TestStartWithProxy(t *testing.T) {
 }
 
 func TestRaceFlushVersusAddSample(t *testing.T) {
-	metricAgent := &ServerlessMetricAgent{}
+	metricAgent := &ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+	}
 	defer metricAgent.Stop()
 	metricAgent.Start(10*time.Second, &ValidMetricConfigMocked{}, &MetricDogStatsD{})
 
@@ -215,7 +225,7 @@ func TestRaceFlushVersusParsePacket(t *testing.T) {
 
 	go func(wg *sync.WaitGroup) {
 		for i := 0; i < 1000; i++ {
-			s.ServerlessFlush()
+			s.ServerlessFlush(time.Second * 10)
 		}
 		finish.Done()
 	}(finish)

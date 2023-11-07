@@ -4,9 +4,16 @@
 # NOTE: Use aws-vault clear before running tests to ensure credentials do not expire during a test run
 
 # Run tests:
-#   aws-vault clear && aws-vault exec serverless-sandbox-account-admin -- ./run.sh
+#   aws-vault clear && aws-vault exec serverless-sandbox-account-admin -- ./run.sh [suite]
 # Regenerate snapshots:
-#   aws-vault clear && UPDATE_SNAPSHOTS=true aws-vault exec serverless-sandbox-account-admin -- ./run.sh
+#   aws-vault clear && UPDATE_SNAPSHOTS=true aws-vault exec serverless-sandbox-account-admin -- ./run.sh [suite]
+
+# Optionally specify a [suite] to limit tests executed to a specific group (all tests are run if none is provided).
+# Valid values are:
+#   - metric
+#   - log
+#   - trace
+#   - appsec
 
 # Optional environment variables:
 
@@ -19,7 +26,7 @@
 # ENABLE_RACE_DETECTION [true|false] - Enables go race detection for the lambda extension
 # ARCHITECTURE [arm64|amd64] - Specify the architecture to test. The default is amd64
 
-DEFAULT_NODE_LAYER_VERSION=95
+DEFAULT_NODE_LAYER_VERSION=99
 DEFAULT_PYTHON_LAYER_VERSION=77
 DEFAULT_JAVA_TRACE_LAYER_VERSION=11
 DEFAULT_DOTNET_TRACE_LAYER_VERSION=9
@@ -157,8 +164,38 @@ trace_functions=(
     "trace-proxy"
     "otlp-python"
 )
+appsec_functions=(
+    "appsec-node"
+    "appsec-python"
+    "appsec-java"
+    "appsec-go"
+    "appsec-csharp"
+)
 
-all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}")
+declare -a all_functions # This is an array
+if [ $# == 1 ]; then
+    case $1 in
+        metric)
+            all_functions=("${metric_functions[@]}")
+        ;;
+        log)
+            all_functions=("${log_functions[@]}")
+        ;;
+        trace)
+            all_functions=("${trace_functions[@]}")
+        ;;
+        appsec)
+            all_functions=("${appsec_functions[@]}")
+        ;;
+        *)
+            echo "Unknown test suite: '$1' (valid names are: metric, log, trace, appsec)"
+            exit 1
+        ;;
+    esac
+    echo "Selected test suite '$1' contains ${#all_functions[@]} functions..."
+else
+    all_functions=("${metric_functions[@]}" "${log_functions[@]}" "${trace_functions[@]}" "${appsec_functions[@]}")
+fi
 
 # Add a function to this list to skip checking its results
 # This should only be used temporarily while we investigate and fix the test
@@ -167,7 +204,15 @@ functions_to_skip=()
 echo "Invoking functions for the first time..."
 set +e # Don't exit this script if an invocation fails or there's a diff
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" &>/dev/null &
+    case $function_name in
+    appsec-*)
+        # Invoke appsec functions with an arbitrary attack tool user-agent to trigger a known WAF rule
+        serverless invoke --stage "${stage}" -f "${function_name}" -d "$(cat appsec-payload.json)" &>/dev/null &
+        ;;
+    *)
+        serverless invoke --stage "${stage}" -f "${function_name}" &>/dev/null &
+        ;;
+    esac
 done
 wait
 
@@ -179,20 +224,30 @@ sleep $SECONDS_BETWEEN_INVOCATIONS
 # two invocations are needed since enhanced metrics are computed with the REPORT log line (which is created at the end of the first invocation)
 echo "Invoking functions for the second time..."
 for function_name in "${all_functions[@]}"; do
-    serverless invoke --stage "${stage}" -f "${function_name}" -d '{"body": "testing request payload"}' &>/dev/null &
+    case $function_name in
+    appsec-*)
+        # Invoke appsec functions with an arbitrary attack tool user-agent to trigger a known WAF rule
+        serverless invoke --stage "${stage}" -f "${function_name}" -d "$(cat appsec-payload.json)" &>/dev/null &
+        ;;
+    *)
+        serverless invoke --stage "${stage}" -f "${function_name}" -d '{"body": "testing request payload"}' &>/dev/null &
+        ;;
+    esac
 done
 wait
 
 LOGS_WAIT_MINUTES=8
-END_OF_WAIT_TIME=$(date --date="+"$LOGS_WAIT_MINUTES" minutes" +"%r")
+END_OF_WAIT_TIME=$(node -p "new Date(Date.now() + ${LOGS_WAIT_MINUTES} * 60_000).toLocaleTimeString()")
 echo "Waiting $LOGS_WAIT_MINUTES minutes for logs to flush..."
-echo "This will be done at $END_OF_WAIT_TIME"
+echo "This will be done around $END_OF_WAIT_TIME"
 sleep "$LOGS_WAIT_MINUTES"m
 
 failed_functions=()
 
 if [ -z $RAWLOGS_DIR ]; then
     RAWLOGS_DIR=$(mktemp -d)
+else
+    mkdir -p $RAWLOGS_DIR
 fi
 echo "Raw logs will be written to ${RAWLOGS_DIR}"
 
@@ -204,10 +259,22 @@ for function_name in "${all_functions[@]}"; do
         fetch_logs_exit_code=$?
         if [ $fetch_logs_exit_code -eq 1 ]; then
             printf "\e[A\e[K" # erase previous log line
-            echo "Retrying fetch logs for $function_name... (retry #$retry_counter)"
+            echo "Retrying fetch logs for $function_name in 10 seconds... (retry #$retry_counter)"
             retry_counter=$(($retry_counter + 1))
             sleep 10
             continue
+        fi
+        if [[ "${function_name}" = timeout-* ]]; then
+            echo "Ignoring Lambda report check count as this is a timeout example..."
+        else
+            count=$(echo $raw_logs | grep -o 'REPORT RequestId' | wc -l)
+            if [ $count -lt 2 ]; then
+                echo "Logs not done flushing yet ($count Lambda reports seen, at least 2 expected)..."
+                echo "Retrying fetch logs for $function_name in 60 seconds... (retry #$retry_counter)"
+                retry_counter=$(($retry_counter + 1))
+                sleep 60
+                continue
+            fi
         fi
         break
     done
@@ -220,6 +287,8 @@ for function_name in "${all_functions[@]}"; do
         norm_type=metrics
     elif [[ " ${log_functions[*]} " =~ " ${function_name} " ]]; then
         norm_type=logs
+    elif [[ " ${appsec_functions[*]} " =~ " ${function_name} " ]]; then
+        norm_type=appsec
     else
         norm_type=traces
     fi
@@ -252,6 +321,8 @@ for function_name in "${all_functions[@]}"; do
             echo "Diff:"
             echo
             echo "$diff_output"
+            echo
+            echo "Raw output can be found in $RAWLOGS_DIR/$function_name (or in CI output artifacts)"
             echo
         else
             printf "${GREEN} PASS ${END_COLOR} $function_name\n"
