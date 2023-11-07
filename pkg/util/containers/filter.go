@@ -169,27 +169,25 @@ func GetSharedMetricFilter() (*Filter, error) {
 // GetPauseContainerFilter returns a filter only excluding pause containers
 func GetPauseContainerFilter() (*Filter, error) {
 	var excludeList []string
-	if config.Datadog.GetBool("exclude_pause_container") {
-		excludeList = append(excludeList,
-			pauseContainerGCR,
-			pauseContainerOpenshift,
-			pauseContainerOpenshift3,
-			pauseContainerKubernetes,
-			pauseContainerGoogle,
-			pauseContainerAzure,
-			pauseContainerECS,
-			pauseContainerEKS,
-			pauseContainerRancher,
-			pauseContainerMCR,
-			pauseContainerWin,
-			pauseContainerAKS,
-			pauseContainerECR,
-			pauseContainerUpstream,
-			pauseContainerCDK,
-			pauseContainerGiantSwarm,
-			pauseContainerRegistryK8sIo,
-		)
-	}
+	excludeList = append(excludeList,
+		pauseContainerGCR,
+		pauseContainerOpenshift,
+		pauseContainerOpenshift3,
+		pauseContainerKubernetes,
+		pauseContainerGoogle,
+		pauseContainerAzure,
+		pauseContainerECS,
+		pauseContainerEKS,
+		pauseContainerRancher,
+		pauseContainerMCR,
+		pauseContainerWin,
+		pauseContainerAKS,
+		pauseContainerECR,
+		pauseContainerUpstream,
+		pauseContainerCDK,
+		pauseContainerGiantSwarm,
+		pauseContainerRegistryK8sIo,
+	)
 
 	return NewFilter(GlobalFilter, nil, excludeList)
 }
