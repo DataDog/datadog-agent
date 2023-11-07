@@ -1004,21 +1004,14 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 	require.NoError(t, err)
 
 	var conn net.Conn
+	conn, err = net.Dial("tcp", "2.2.2.2:"+port)
+	require.NoError(t, err, "error connecting to client")
 	t.Cleanup(func() {
-		if conn != nil {
-			conn.Close()
-		}
+		conn.Close()
 	})
 
 	var incoming, outgoing *network.ConnectionStats
 	require.Eventually(t, func() bool {
-		if conn == nil {
-			conn, err = net.Dial("tcp", "2.2.2.2:"+port)
-			if !assert.NoError(t, err, "error connecting to client") {
-				return false
-			}
-		}
-
 		_, err = conn.Write([]byte("ping"))
 		if !assert.NoError(t, err, "error writing in client") {
 			return false
@@ -1038,7 +1031,7 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 
 		t.Logf("incoming: %+v, outgoing: %+v", incoming, outgoing)
 
-		return outgoing != nil && incoming != nil
+		return outgoing != nil && incoming != nil && outgoing.IPTranslation != nil
 	}, 3*time.Second, 100*time.Millisecond, "failed to get both incoming and outgoing connection")
 
 	assert.True(t, outgoing.IntraHost, "did not find outgoing connection classified as local: %v", outgoing)
