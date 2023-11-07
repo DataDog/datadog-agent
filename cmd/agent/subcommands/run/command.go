@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	"github.com/DataDog/datadog-agent/comp/process"
 
 	// checks implemented as components
 
@@ -64,6 +65,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
@@ -194,6 +196,7 @@ func run(log log.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
 	logsAgent optional.Option[logsAgent.Component],
+	processAgent optional.Option[processAgent.Component],
 	otelcollector otelcollector.Component,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
@@ -240,7 +243,8 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata, invAgent); err != nil {
+	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient,
+		logsAgent, processAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata, invAgent); err != nil {
 		return err
 	}
 
@@ -308,6 +312,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		ndmtmp.Bundle,
 		netflow.Bundle,
+		process.Bundle,
 	)
 }
 
@@ -323,6 +328,7 @@ func startAgent(
 	serverDebug dogstatsddebug.Component,
 	rcclient rcclient.Component,
 	logsAgent optional.Option[logsAgent.Component],
+	processAgent optional.Option[processAgent.Component],
 	sharedForwarder defaultforwarder.Component,
 	sharedSerializer serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
@@ -454,6 +460,10 @@ func startAgent(
 	if logsAgent, ok := logsAgent.Get(); ok {
 		// TODO: (components) - once adScheduler is a component, inject it into the logs agent.
 		logsAgent.AddScheduler(adScheduler.New(common.AC))
+	}
+
+	if procAgent, ok := processAgent.Get(); ok {
+		log.Infof("ProcAgent Enabled: %v", procAgent)
 	}
 
 	// start the cloudfoundry container tagger
