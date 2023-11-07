@@ -522,6 +522,10 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 					} else {
 						t.Log(o)
 					}
+
+					for _, e := range http2.Raw {
+						t.Logf("%v", e.String())
+					}
 				}
 			})
 		}
