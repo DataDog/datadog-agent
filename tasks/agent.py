@@ -4,6 +4,7 @@ Agent namespaced tasks
 
 import ast
 import glob
+import hashlib
 import json
 import os
 import platform
@@ -37,8 +38,6 @@ from tasks.rtloader import install as rtloader_install
 from tasks.rtloader import make as rtloader_make
 from tasks.ssm import get_pfx_pass, get_signing_cert
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
-
-from .release import _get_release_json_value
 
 # constants
 BIN_DIR = os.path.join(".", "bin")
@@ -856,6 +855,122 @@ def _send_build_metrics(ctx, overall_duration):
         print(r.text)
 
 
+def _get_build_images(ctx):
+    tags = ctx.run("grep -E 'DATADOG_AGENT_.*BUILDIMAGES:' .gitlab-ci.yml | cut -d ':' -f 2").stdout
+    return map(lambda t: t.strip(), tags.splitlines())
+
+
+def _get_environment_for_cache() -> dict:
+    """
+    Compute a hash from the environment after excluding irrelevant/insecure
+    environment variables to ensure we don't omit a variable
+    """
+
+    def env_filter(item):
+        key = item[0]
+        excluded_prefixes = [
+            'AGENT_',
+            'ARTIFACTORY_',
+            'ARTIFACTORY_',
+            'AWS_',
+            'BUILDENV_',
+            'CI_',
+            'CLUSTER_AGENT_',
+            'DATADOG_AGENT_',
+            'DD_',
+            'DEB_',
+            'DESTINATION_',
+            'DOCKER_',
+            'FF_',
+            'GITLAB_',
+            'GIT_',
+            'K8S_',
+            'KERNEL_MATRIX_TESTING_',
+            'KUBERNETES_',
+            'OMNIBUS_',
+            'POD_',
+            'RELEASE_VERSION',
+            'RPM_',
+            'S3_',
+            'TEST_INFRA_',
+            'USE_',
+            'VAULT_',
+            'WINDOWS_',
+        ]
+        excluded_suffixes = [
+            '_SHA256',
+            '_VERSION',
+        ]
+        excluded_values = [
+            "AVAILABILITY_ZONE",
+            "BENCHMARKS_CI_IMAGE",
+            "BUCKET_BRANCH",
+            "BUNDLER_VERSION",
+            "CHANNEL",
+            "CI",
+            "CONSUL_HTTP_ADDR",
+            "DOGSTATSD_BINARIES_DIR",
+            "EXPERIMENTS_EVALUATION_ADDRESS",
+            "GCC_VERSION",
+            "GCE_METADATA_HOST",
+            "GENERAL_ARTIFACTS_CACHE_BUCKET_URL",
+            "GET_SOURCES_ATTEMPTS",
+            "HOME",
+            "HOSTNAME",
+            "HOST_IP",
+            "INTEGRATION_WHEELS_CACHE_BUCKET",
+            "KITCHEN_INFRASTRUCTURE_FLAKES_RETRY",
+            "MACOS_S3_BUCKET",
+            "MESSAGE",
+            "OLDPWD",
+            "PROCESS_S3_BUCKET",
+            "PWD",
+            "PYTHON_RUNTIMES",
+            "RUNNER_TEMP_PROJECT_DIR",
+            "RUSTC_SHA256",
+            "RUST_VERSION",
+            "SHLVL",
+            "STATIC_BINARIES_DIR",
+            "STATSD_URL",
+            "SYSTEM_PROBE_BINARIES_DIR",
+            "TRACE_AGENT_URL",
+            "USE_CACHING_PROXY_PYTHON",
+            "USE_CACHING_PROXY_RUBY",
+            "USE_S3_CACHING",
+            "WIN_S3_BUCKET",
+            "_",
+            "build_before",
+        ]
+        for p in excluded_prefixes:
+            if key.startswith(p):
+                return False
+        for s in excluded_suffixes:
+            if key.endswith(s):
+                return False
+        if key in excluded_values:
+            return False
+        return True
+
+    return dict(filter(env_filter, os.environ.items()))
+
+
+def _omnibus_compute_cache_key(ctx):
+    h = hashlib.sha1()
+    print('Computing cache key')
+    omnibus_last_commit = ctx.run('git log -n 1 --pretty=format:%H omnibus/').stdout
+    h.update(str.encode(omnibus_last_commit))
+    print(f'\tLast omnibus commit is {omnibus_last_commit}')
+    buildimages_hash = _get_build_images(ctx)
+    for img_hash in buildimages_hash:
+        h.update(str.encode(img_hash))
+    environment = _get_environment_for_cache()
+    for k, v in environment.items():
+        print(f'\tUsing environment variable {k} to compute cache key')
+        h.update(str.encode(f'{k}={v}'))
+    # FIXME: include omnibus-ruby and omnibus-software version once they are pinned
+    return h.hexdigest()
+
+
 # hardened-runtime needs to be set to False to build on MacOS < 10.13.6, as the -o runtime option is not supported.
 @task(
     help={
@@ -942,16 +1057,20 @@ def omnibus_build(
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
         # generated one.
         use_remote_cache = remote_cache_name is not None
-        base_branch = _get_release_json_value("base_branch")
         if use_remote_cache:
             cache_state = None
-            git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{base_branch}/{remote_cache_name}"
+            cache_key = _omnibus_compute_cache_key(ctx)
+            print(f'Cache key: {cache_key}')
+            git_cache_url = f"s3://{os.environ['S3_OMNIBUS_CACHE_BUCKET']}/builds/{cache_key}/{remote_cache_name}"
             bundle_path = "/tmp/omnibus-git-cache-bundle"
             with timed(quiet=True) as restore_cache:
                 # Allow failure in case the cache was evicted
                 if ctx.run(f"aws s3 cp --only-show-errors {git_cache_url} {bundle_path}", warn=True):
+                    print(f'Successfully restored cache {cache_key}')
                     ctx.run(f"git clone --mirror {bundle_path} {omnibus_cache_dir}")
                     cache_state = ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout
+                else:
+                    print(f'Failed to restore cache from key {cache_key}')
 
     with timed(quiet=True) as omnibus_elapsed:
         omnibus_run_task(
@@ -965,22 +1084,18 @@ def omnibus_build(
             host_distribution=host_distribution,
         )
 
-    if use_omnibus_git_cache and use_remote_cache:
-        with timed(quiet=True) as update_cache:
-            # if base_branch == os.environ['CI_COMMIT_BRANCH'] or True:
-            # Purge the cache manually as omnibus will stick to not restoring a tag when
-            # a mismatch is detected, but will keep the old cached tags.
-            # Do this before checking for tag differences, in order to remove staled tags
-            # in case they were included in the bundle in a previous build
-            # Allow the command to fail since an empty cache will cause a git reflog failure
-            stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
-            for _, tag in enumerate(stale_tags.split(os.linesep)):
-                ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
-            if ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
+    if use_omnibus_git_cache:
+        stale_tags = ctx.run(f'git -C {omnibus_cache_dir} tag --no-merged', warn=True).stdout
+        # Purge the cache manually as omnibus will stick to not restoring a tag when
+        # a mismatch is detected, but will keep the old cached tags.
+        # Do this before checking for tag differences, in order to remove staled tags
+        # in case they were included in the bundle in a previous build
+        for _, tag in enumerate(stale_tags.split(os.linesep)):
+            ctx.run(f'git -C {omnibus_cache_dir} tag -d {tag}')
+        if use_remote_cache and ctx.run(f"git -C {omnibus_cache_dir} tag -l").stdout != cache_state:
+            with timed(quiet=True) as update_cache:
                 ctx.run(f"git -C {omnibus_cache_dir} bundle create {bundle_path} --tags")
                 ctx.run(f"aws s3 cp --only-show-errors {bundle_path} {git_cache_url}")
-            # else:
-            #    print("Not updating omnibus cache from a feature branch")
 
     # Delete the temporary pip.conf file once the build is done
     os.remove(pip_config_file)
