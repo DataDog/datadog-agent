@@ -98,8 +98,10 @@ const (
 	ProgramTLSHTTPTermination TLSProgramType = C.TLS_HTTP_TERMINATION
 	// ProgramTLSHTTP2 is tail call to process http2 traffic.
 	ProgramTLSHTTP2 TLSProgramType = C.TLS_HTTP2_PROCESS
-	// ProgramTLSHTTP2FramesParser is tail call to process http2 frames.
-	ProgramTLSHTTP2FramesParser TLSProgramType = C.TLS_HTTP2_FRAMES_PARSER
+	// ProgramTLSHTTP2FramesParserFromState is tail call to process http2 frames when state is present.
+	ProgramTLSHTTP2FramesParserFromState TLSProgramType = C.TLS_HTTP2_FRAMES_PARSER_FROM_STATE
+	// ProgramTLSHTTP2FramesParserNoState is tail call to process http2 frames fully contained in one buffer.
+	ProgramTLSHTTP2FramesParserNoState TLSProgramType = C.TLS_HTTP2_FRAMES_PARSER_NO_STATE
 	// ProgramTLSHTTP2Termination is tail call to process http2 termination..
 	ProgramTLSHTTP2Termination TLSProgramType = C.TLS_HTTP2_TERMINATION
 )

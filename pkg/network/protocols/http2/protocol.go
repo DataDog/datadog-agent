@@ -37,18 +37,19 @@ type protocol struct {
 }
 
 const (
-	inFlightMap               = "http2_in_flight"
-	dynamicTable              = "http2_dynamic_table"
-	dynamicTableCounter       = "http2_dynamic_counter_table"
-	http2IterationsTable      = "http2_iterations"
-	staticTable               = "http2_static_table"
-	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
-	filterTailCall            = "socket__http2_filter"
-	parserTailCall            = "socket__http2_frames_parser"
-	eventStream               = "http2"
-	tlsEntryTailCall          = "uprobe__http2_tls_entry"
-	tlsParserTailCall         = "uprobe__http2_tls_frames_parser"
-	tlsTerminationTailCall    = "uprobe__http2_tls_termination"
+	inFlightMap                = "http2_in_flight"
+	dynamicTable               = "http2_dynamic_table"
+	dynamicTableCounter        = "http2_dynamic_counter_table"
+	http2IterationsTable       = "http2_iterations"
+	staticTable                = "http2_static_table"
+	firstFrameHandlerTailCall  = "socket__http2_handle_first_frame"
+	filterTailCall             = "socket__http2_filter"
+	parserTailCall             = "socket__http2_frames_parser"
+	eventStream                = "http2"
+	tlsEntryTailCall           = "uprobe__http2_tls_entry"
+	tlsParserTailCallFromState = "uprobe__http2_tls_frames_parser_from_state"
+	tlsParserTailCallNoState   = "uprobe__http2_tls_frames_parser_no_state"
+	tlsTerminationTailCall     = "uprobe__http2_tls_termination"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -116,9 +117,16 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			ProgArrayName: protocols.TLSDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramTLSHTTP2FramesParser),
+			Key:           uint32(protocols.ProgramTLSHTTP2FramesParserFromState),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: tlsParserTailCall,
+				EBPFFuncName: tlsParserTailCallFromState,
+			},
+		},
+		{
+			ProgArrayName: protocols.TLSDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramTLSHTTP2FramesParserNoState),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: tlsParserTailCallNoState,
 			},
 		},
 		{

@@ -621,53 +621,70 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
     http2_tls_state_key_t key = { 0 };
     key.tup = info->tup;
     key.length = info->len;
-    http2_tls_state_t *state = bpf_map_lookup_elem(&http2_tls_states, &key);
 
-    http2_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
-    if (iteration_value == NULL) {
-        return 0;
+    http2_tls_state_t *state = bpf_map_lookup_elem(&http2_tls_states, &key);
+    if (state) {
+        // The frame is not relevant, so we delete the state and skip it.
+        if (!state->relevant) {
+            bpf_map_delete_elem(&http2_tls_states, &key);
+            goto exit;
+        }
+
+
+        // The frame is relevant, we parse it, using info from the state.
+        bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER_FROM_STATE);
     }
 
-    log_debug("[grpcdebug] http2_tls_entry: len %lu", info->len);
-
-    if (state && !state->relevant) {
-        bpf_map_delete_elem(&http2_tls_states, &key);
+    // Make sure we don't have the HTTP2 magic at the beginning of the buffer.
+    skip_preface_tls(info);
+    if (!CAN_READ_FRAME_HEADER(info)) {
         goto exit;
     }
 
-    if (!state) {
-        iteration_value->frames_count = find_relevant_headers_tls(info, iteration_value->frames_array, iteration_value->frames_count);
+    // We don't have state and can only parse the frame header.
+    if (FRAME_HEADER_ONLY(info)) {
+        struct http2_frame frame_header = { 0 };
 
-        log_debug("[grpcdebug] http2_tls_entry - no state: frames_count %u", iteration_value->frames_count);
+        read_into_user_buffer_http2_frame_header((char *)&frame_header, info->buffer_ptr + info->off);
+        if (!format_http2_frame_header(&frame_header)) {
+            goto exit;
+        }
 
-        //bool frame_header_only = info->len == HTTP2_FRAME_HEADER_SIZE;
-        //if (!frame_header_only && !relevant) {
-        //    // The buffer seems to contain the whole frame, and the frame is not
-        //    // relevant: we skip it without storing some state.
-        //    goto exit;
-        //}
+        bool is_headers_or_rst_frame = frame_header.type == kHeadersFrame || frame_header.type == kRSTStreamFrame;
+        bool is_data_end_of_stream = (frame_header.flags & HTTP2_END_OF_STREAM) && (frame_header.type == kDataFrame);
 
-        //http2_tls_state_t new_state = { 0 };
-        //new_state.relevant = relevant;
-        //new_state.stream_id = header.stream_id;
-        //new_state.frame_flags = header.flags;
+        http2_tls_state_t new_state = { 0 };
+        new_state.relevant = is_headers_or_rst_frame || is_data_end_of_stream;
+        new_state.stream_id = frame_header.stream_id;
+        new_state.frame_flags = frame_header.flags;
 
-        //key.length = frame_header_only ? header.length : info->len;
 
-        //bpf_map_update_elem(&http2_tls_states, &key, &new_state, BPF_ANY);
-        //if (frame_header_only) {
-        //    goto exit;
-        //}
+        key.length = frame_header.length;
+        bpf_map_update_elem(&http2_tls_states, &key, &new_state, BPF_ANY);
+        goto exit;
     }
 
-    //bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER);
+    // We have one or more full frames in the buffer, so we filter them, then
+    // call the parser.
+    http2_tail_call_state_t *iteration_value = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
+    if (iteration_value == NULL) {
+        goto exit;
+    }
+
+    iteration_value->frames_count = find_relevant_headers_tls(info, iteration_value->frames_array, iteration_value->frames_count);
+    if (iteration_value->frames_count == 0) {
+        goto exit;
+    }
+
+    iteration_value->iteration = 0;
+    bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER_NO_STATE);
 
 exit:
     return 0;
 }
 
-SEC("uprobe/http2_tls_frames_parser")
-int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
+SEC("uprobe/http2_tls_frames_parser_from_state")
+int uprobe__http2_tls_frames_parser_from_state(struct pt_regs *ctx) {
     const u32 zero = 0;
 
     tls_dispatcher_arguments_t *info = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
@@ -701,6 +718,53 @@ int uprobe__http2_tls_frames_parser(struct pt_regs *ctx) {
 
 state_delete:
     bpf_map_delete_elem(&http2_tls_states, &key);
+exit:
+    return 0;
+}
+
+SEC("uprobe/http2_tls_frames_parser_no_state")
+int uprobe__http2_tls_frames_parser_no_state(struct pt_regs *ctx) {
+    const u32 zero = 0;
+
+    tls_dispatcher_arguments_t *info = bpf_map_lookup_elem(&tls_dispatcher_arguments, &zero);
+    if (info == NULL) {
+        log_debug("[http2_tls_frames_parser] could not get tls info from map");
+        return 0;
+    }
+
+    http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
+    if (http2_ctx == NULL) {
+        log_debug("[http2_tls_frames_parser] could not get http2_ctx from map");
+        goto exit;
+    }
+
+    http2_tail_call_state_t *state = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
+    if (state == NULL) {
+        log_debug("[http2_tls_frames_parser] could not get iteration_value from map");
+        goto exit;
+    }
+
+    http2_frame_with_offset current_frame;
+
+#pragma unroll(HTTP2_FRAMES_PER_TAIL_CALL)
+    for (__u8 i = 0; i < HTTP2_FRAMES_PER_TAIL_CALL; i++) {
+        if (state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS || state->iteration >= state->frames_count) {
+            break;
+        }
+
+        current_frame = state->frames_array[state->iteration++];
+        // create the http2 ctx for the current http2 frame.
+        bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
+        http2_ctx->http2_stream_key.tup = info->tup;
+        normalize_tuple(&http2_ctx->http2_stream_key.tup);
+        http2_ctx->dynamic_index.tup = info->tup;
+        http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
+
+        info->off = current_frame.offset;
+
+        parse_frame_tls(info, http2_ctx, current_frame.frame.flags);
+    }
+
 exit:
     return 0;
 }

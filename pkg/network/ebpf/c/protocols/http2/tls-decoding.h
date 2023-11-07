@@ -9,6 +9,9 @@
 #include "protocols/http2/maps-defs.h"
 #include "protocols/tls/https-maps.h"
 
+#define FRAME_HEADER_ONLY(Info) (Info->off + HTTP2_FRAME_HEADER_SIZE == Info->len)
+#define CAN_READ_FRAME_HEADER(Info) (Info->off + HTTP2_FRAME_HEADER_SIZE <= Info->len)
+
 READ_INTO_USER_BUFFER(http2_preface, HTTP2_MARKER_SIZE)
 READ_INTO_USER_BUFFER(http2_frame_header, HTTP2_FRAME_HEADER_SIZE)
 READ_INTO_USER_BUFFER(http2_char, sizeof(__u8))
@@ -65,7 +68,7 @@ static __always_inline bool read_var_int_tls(tls_dispatcher_arguments_t *info, _
     return read_var_int_with_given_current_char_tls(info, current_char_as_number, max_number_for_bits, out);
 }
 
-static __always_inline bool find_relevant_headers_tls(tls_dispatcher_arguments_t *info, http2_frame_with_offset *frames_array, __u8 original_index) {
+static __always_inline __u8 find_relevant_headers_tls(tls_dispatcher_arguments_t *info, http2_frame_with_offset *frames_array, __u8 original_index) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
@@ -89,7 +92,6 @@ static __always_inline bool find_relevant_headers_tls(tls_dispatcher_arguments_t
             break;
         }
 
-        log_debug("[grpcdebug] filtering frames: frame type: %d; frame_length: %lu", current_frame.type, current_frame.length);
 
         // END_STREAM can appear only in Headers and Data frames.
         // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and

@@ -635,13 +635,13 @@ func testProtocolConnectionProtocolMapCleanup(t *testing.T, tr *Tracer, clientHo
 		waitForConnectionsWithProtocol(t, tr, targetAddr, HTTPServer.address, &protocols.Stack{Application: protocols.HTTP})
 		HTTPServer.Shutdown()
 
-		gRPCServer, err := grpc.NewServer(HTTPServer.address)
+		gRPCServer, err := grpc.NewServer(HTTPServer.address, false)
 		require.NoError(t, err)
 		gRPCServer.Run()
 
 		grpcClient, err := grpc.NewClient(targetAddr, grpc.Options{
 			CustomDialer: dialer,
-		})
+		}, false)
 		require.NoError(t, err)
 		defer grpcClient.Close()
 		_ = grpcClient.HandleUnary(context.Background(), "test")
