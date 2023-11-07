@@ -14,6 +14,8 @@ namespace Datadog.CustomActions
 
         public const string DefaultSite = "datadoghq.com";
 
+        private const string DefaultOrigin = "WindowsAgentInstaller";
+
         public Telemetry(
             IInstallerHttpClient client,
             ISession session)
@@ -44,6 +46,8 @@ namespace Datadog.CustomActions
 
             var installerVersion = Assembly.GetExecutingAssembly().GetName().Version;
             var agentVersion = CiInfo.PackageVersion;
+            var installId = GetInstallId();
+            var origin = GetOrigin();
             var payload = @$"
 {{
     ""request_type"": ""apm-onboarding-event"",
@@ -53,7 +57,9 @@ namespace Datadog.CustomActions
         ""tags"": {{
             ""agent_platform"": ""windows"",
             ""agent_version"": ""{agentVersion}"",
-            ""script_version"": ""{installerVersion}""
+            ""script_version"": ""{installerVersion}"",
+            ""install_id"": ""{installId}"",
+            ""origin"": ""{origin}""
         }}
     }}
 }}";
@@ -79,6 +85,24 @@ namespace Datadog.CustomActions
                 return ActionResult.Failure;
             }
             return ActionResult.Success;
+        }
+
+        private string GetInstallId() {
+            var installId = System.Environment.GetEnvironmentVariable("DD_INSTALL_ID");
+            if (installId != null && installId.Length > 0) {
+                return installId;
+            }
+            installId = System.Guid.NewGuid().ToString();
+            System.Environment.SetEnvironmentVariable("DD_INSTALL_ID", installId);
+            return installId;
+        }
+
+        private string GetOrigin() {
+            var origin = System.Environment.GetEnvironmentVariable("DD_ORIGIN");
+            if (origin != null && origin.Length > 0) {
+                return origin;
+            }
+            return DefaultOrigin;
         }
 
         [CustomAction]
