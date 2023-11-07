@@ -44,4 +44,9 @@ BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, __u32, http2_ctx_t, 1)
  */
 BPF_ARRAY_MAP(http2_telemetry, http2_telemetry_t, 1)
 
+//BPF_PERCPU_ARRAY_MAP(http2_telemetry, http2_telemetry_t, u64, 1)
+ // BPF_LRU_MAP(http2_dynamic_counter_table, conn_tuple_t, u64, 0)
+
+
+
 #endif

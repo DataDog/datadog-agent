@@ -22,7 +22,7 @@ type KernelTelemetry struct {
 	// http2responses            Count of HTTP/2 responses seen
 	// endOfStreamEOS            Count of END_OF_STREAM flags seen
 	// endOfStreamRST            Count of RST flags seen
-	// largePathInDelta          Count of path sizes between 160-180 bytes
+	// largePathInDelta          Count of path sizes between 120-180 bytes
 	// largePathOutsideDelta     Count of path sizes greater than 180 bytes
 	// strLenGreaterThanFrameLoc Count of times we couldn't retrieve the path due to reaching the end of the frame.
 	// frameRemainder            Count of frames sent over more than one frame.
