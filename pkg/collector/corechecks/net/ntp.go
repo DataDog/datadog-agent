@@ -174,7 +174,7 @@ func (c *NTPCheck) Run() error {
 	if err != nil {
 		log.Error(err)
 
-		sender.ServiceCheck("ntp.in_sync", servicecheck.ServiceCheckCritical, "", nil, serviceCheckMessage)
+		sender.ServiceCheck("ntp.in_sync", servicecheck.ServiceCheckUnknown, "", nil, serviceCheckMessage)
 		c.lastCollection = time.Now()
 		sender.Commit()
 
