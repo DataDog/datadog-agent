@@ -49,11 +49,6 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 	}
 	stats["verbose"] = verbose
 	stats["config"] = getPartialConfig()
-	metadata := stats["metadata"].(*hostMetadataUtils.Payload)
-	hostTags := make([]string, 0, len(metadata.HostTags.System)+len(metadata.HostTags.GoogleCloudPlatform))
-	hostTags = append(hostTags, metadata.HostTags.System...)
-	hostTags = append(hostTags, metadata.HostTags.GoogleCloudPlatform...)
-	stats["hostTags"] = hostTags
 
 	pythonVersion := python.GetPythonVersion()
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
@@ -337,7 +332,12 @@ func getCommonStatus() (map[string]interface{}, error) {
 
 	stats["version"] = version.AgentVersion
 	stats["flavor"] = flavor.GetFlavor()
-	stats["metadata"] = hostMetadataUtils.GetFromCache(context.TODO(), config.Datadog)
+	metadata := hostMetadataUtils.GetFromCache(context.TODO(), config.Datadog)
+	stats["metadata"] = metadata
+	hostTags := make([]string, 0, len(metadata.HostTags.System)+len(metadata.HostTags.GoogleCloudPlatform))
+	hostTags = append(hostTags, metadata.HostTags.System...)
+	hostTags = append(hostTags, metadata.HostTags.GoogleCloudPlatform...)
+	stats["hostTags"] = hostTags
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 	stats["pid"] = os.Getpid()
 	stats["go_version"] = runtime.Version()
