@@ -69,7 +69,7 @@ func (v *agentDiagnoseSuite) TestDiagnoseLocalFallback() {
 	svcManager.Stop("datadog-agent")
 
 	diagnose := getDiagnoseOutput(v)
-	assert.Contains(v.T(), diagnose, "Running diagnose command locally")
+	assert.Contains(v.T(), diagnose, "Running diagnose command locally", "Expected diagnose command to fallback to local diagnosis when the Agent is stopped, but it did not.")
 	assert.NotContains(v.T(), diagnose, "FAIL")
 
 	svcManager.Start("datadog-agent")
@@ -99,7 +99,7 @@ func (v *agentDiagnoseSuite) TestDiagnoseInclude() {
 		diagnoseInclude := getDiagnoseOutput(v, client.WithArgs([]string{"--include", suite}))
 		resultInclude := getDiagnoseSummary(diagnoseInclude)
 
-		assert.Less(v.T(), resultInclude.total, diagnoseSummary.total)
+		assert.Less(v.T(), resultInclude.total, diagnoseSummary.total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.total, resultInclude.total)
 		assert.Equal(v.T(), resultInclude.fail, 0)
 		assert.Equal(v.T(), resultInclude.errors, 0)
 	}
@@ -139,7 +139,7 @@ func (v *agentDiagnoseSuite) TestDiagnoseVerbose() {
 	matches := re.FindAllString(diagnose, -1)
 
 	// Verify that verbose mode display extra information such 'PASS' for successful checks
-	assert.Equal(v.T(), len(matches), summary.total)
+	assert.Equal(v.T(), len(matches), summary.total, "Expected to have the same number of 'PASS' as the number of checks (%v), but was %v", summary.total, len(matches))
 	assert.Contains(v.T(), diagnose, "connectivity-datadog-core-endpoints")
 }
 
