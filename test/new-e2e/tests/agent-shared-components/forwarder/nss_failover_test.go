@@ -96,12 +96,13 @@ func TestMultiFakeintakeSuite(t *testing.T) {
 
 // SetupSuite waits for both fakeintakes to be ready before running tests.
 func (v *multiFakeIntakeSuite) SetupSuite() {
-	v.Env() // update the environment outside EventuallyWithT
+	fakeintake1 := v.Env().Fakeintake1
+	fakeintake2 := v.Env().Fakeintake2
 
 	// Wait for the fakeintake to be ready to avoid 503
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		assert.NoError(c, v.Env().Fakeintake1.Client.GetServerHealth())
-		assert.NoError(c, v.Env().Fakeintake2.Client.GetServerHealth())
+		assert.NoError(c, fakeintake1.Client.GetServerHealth())
+		assert.NoError(c, fakeintake2.Client.GetServerHealth())
 	}, intakeMaxWaitTime, intakeTick)
 }
 
