@@ -73,6 +73,16 @@ func (c *Check) Run() error {
 		}
 	}
 
+	// save/persist bookmark on each check run
+	// check.Cancel() may not be called (like in agent check command), which means
+	// if the events read are less than bookmark_frequency then a bookmark won't
+	// be saved before the process exits. saving here, too, gives us a good time periodic
+	// save/persist in addition to the count periodic bookmark_frequency option.
+	err = c.bookmarkSaver.saveLastBookmark()
+	if err != nil {
+		c.Warnf(err.Error())
+	}
+
 	return nil
 }
 

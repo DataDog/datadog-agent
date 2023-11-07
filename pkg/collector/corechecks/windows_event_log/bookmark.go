@@ -9,6 +9,7 @@ package evtlog
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
@@ -23,9 +24,13 @@ type bookmarkSaver struct {
 	// track how often to save
 	eventsSinceLastBookmark int
 	lastBookmark            string
+	mu                      sync.Mutex
 }
 
 func (b *bookmarkSaver) updateBookmark(event *evtapi.EventRecord) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	// Updating and rendering the bookmark is fast, and it makes the "update bookmark at end of check"
 	// logic easier by avoiding having to track/save/close the event handle, so just do it every time.
 	err := b.bookmark.Update(event.EventRecordHandle)
@@ -54,6 +59,9 @@ func (b *bookmarkSaver) updateBookmark(event *evtapi.EventRecord) error {
 // saveLastBookmark saves/persists the last unsaved bookmark.
 // Used to always save the bookmark before the check ends, regardless of bookmarkFrequency.
 func (b *bookmarkSaver) saveLastBookmark() error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
 	if b.bookmarkFrequency > 0 && b.eventsSinceLastBookmark > 0 && b.lastBookmark != "" {
 		err := b.saveBookmark(b.lastBookmark)
 		b.resetBookmarkTracking()
