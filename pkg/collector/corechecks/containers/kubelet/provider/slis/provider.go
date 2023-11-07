@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"strings"
@@ -33,14 +32,13 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 		filter: filter,
 		store:  store,
 	}
-	log.Errorf("sliProvider was called")
 	transformers := prometheus.Transformers{
 		"kubernetes_healthcheck":        provider.sliHealthCheck,
 		"kubernetes_healthchecks_total": provider.sliHealthCheck,
 	}
 
 	scraperConfig := &prometheus.ScraperConfig{AllowNotFound: true}
-	if config.SliMetricsEndpoint == nil || *config.SliMetricsEndpoint != "" {
+	if config.SlisMetricsEndpoint == nil || *config.SlisMetricsEndpoint != "" {
 		scraperConfig.Path = "/metrics/slis"
 	}
 
@@ -55,13 +53,17 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Sender) {
 	for _, metric := range metricFam.Samples {
 		metricSuffix := string(metric.Metric["__name__"])
-		log.Errorf("the suffix is %+v", metricSuffix)
 		tags := p.MetricTags(metric)
 		for i, tag := range tags {
 			if strings.HasPrefix(tag, "name:") {
 				tags[i] = strings.Replace(tag, "name:", "tls_name:", 1)
 			}
 		}
-		sender.Count(common.KubeletMetricsPrefix+"slis"+metricSuffix, float64(metric.Value), "", tags)
+
+		if metricSuffix == "kubernetes_healthchecks_total" {
+			sender.Gauge(common.KubeletMetricsPrefix+"slis."+metricSuffix, float64(metric.Value), "", tags)
+		} else {
+			sender.Gauge(common.KubeletMetricsPrefix+"slis."+metricSuffix, float64(metric.Value), "", tags)
+		}
 	}
 }
