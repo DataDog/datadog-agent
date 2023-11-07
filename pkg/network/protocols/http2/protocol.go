@@ -38,7 +38,8 @@ type protocol struct {
 	statkeeper     *http.StatKeeper
 	eventsConsumer *events.Consumer
 
-	http2Telemetry *kernelTelemetry
+	// KernelTelemetry is used to retrieve metrics from the kernel
+	http2Telemetry *KernelTelemetry
 }
 
 const (
