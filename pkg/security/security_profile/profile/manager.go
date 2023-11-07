@@ -12,6 +12,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path"
 	"slices"
 	"sync"
 	"time"
@@ -505,6 +506,13 @@ func (m *SecurityProfileManager) ShouldDeleteProfile(profile *SecurityProfile) {
 	if profile.loadedInKernel {
 		// remove profile from kernel space
 		m.unloadProfile(profile)
+
+		// only persist the profile if it was actively used
+		if profile.ActivityTree != nil {
+			if err := m.persistProfile(profile); err != nil {
+				seclog.Errorf("couldn't persist profile: %v", err)
+			}
+		}
 	}
 
 	// cleanup profile before insertion in cache
@@ -743,6 +751,45 @@ func (m *SecurityProfileManager) unlinkProfile(profile *SecurityProfile, workloa
 
 func (m *SecurityProfileManager) canGenerateAnomaliesFor(e *model.Event) bool {
 	return m.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(m.config.RuntimeSecurity.AnomalyDetectionEventTypes, e.GetEventType())
+}
+
+// persistProfile (thread unsafe) persists a profile to the filesystem
+func (m *SecurityProfileManager) persistProfile(profile *SecurityProfile) error {
+	proto := SecurityProfileToProto(profile)
+	if proto == nil {
+		return fmt.Errorf("couldn't encode profile (nil proto)")
+	}
+	raw, err := proto.MarshalVT()
+	if err != nil {
+		return fmt.Errorf("couldn't encode profile: %w", err)
+	}
+
+	filename := profile.Metadata.Name + ".profile"
+	outputPath := path.Join(m.config.RuntimeSecurity.SecurityProfileDir, filename)
+
+	// create output directory and output file, truncate existing file if a profile already exists
+	err = os.MkdirAll(m.config.RuntimeSecurity.SecurityProfileDir, 0400)
+	if err != nil {
+		return fmt.Errorf("couldn't ensure directory [%s] exists: %w", m.config.RuntimeSecurity.SecurityProfileDir, err)
+	}
+
+	file, err := os.OpenFile(outputPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0400)
+	if err != nil {
+		return fmt.Errorf("couldn't persist profile to file [%s]: %w", outputPath, err)
+	}
+	defer file.Close()
+
+	if _, err = file.Write(raw); err != nil {
+		return fmt.Errorf("couldn't write profile to file [%s]: %w", outputPath, err)
+	}
+
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("error trying to close profile file [%s]: %w", file.Name(), err)
+	}
+
+	seclog.Infof("[profile] file for %s written at: [%s]", profile.selector.String(), outputPath)
+
+	return nil
 }
 
 // LookupEventInProfiles lookups event in profiles

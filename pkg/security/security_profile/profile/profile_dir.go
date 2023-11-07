@@ -161,7 +161,7 @@ func (dp *DirectoryProvider) onNewProfileDebouncerCallback() {
 				// read and parse profile
 				profile, err := LoadProfileFromFile(profilePath.path)
 				if err != nil {
-					seclog.Warnf("couldn't load profile %s: %v", profilePath, err)
+					seclog.Warnf("couldn't load profile %s: %v", profilePath.path, err)
 					continue
 				}
 
