@@ -73,7 +73,7 @@ tests_deb-x64-py3:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
 
-tests_deb-x64-py-targeted:
+tests_deb-x64-py-fast:
   extends:
     - .rtloader_tests
     - .linux_tests
