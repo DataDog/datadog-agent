@@ -67,41 +67,41 @@ func getTraceFlareBody(multipartBoundary string) io.ReadCloser {
 
 }
 
-func mockGetServerlessFlareEndpoint(url *url.URL) error {
+func mockGetServerlessFlareEndpoint(url *url.URL, agentVersion string) {
 	url.Path = "/api/ui/support/serverless/flare"
-	return nil
 }
 
 func TestGetServerlessFlareEndpoint(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
+	agentVersion := "7.50.0-devel+git.488.be5861b"
+	t.Run("url with subdomain, not matching regex", func(t *testing.T) {
 		subdomainURL := "https://us3.datadoghq.com/test"
 		testURL, err := url.Parse(subdomainURL)
 		assert.Nil(t, err)
 
-		err = getServerlessFlareEndpoint(testURL)
+		getServerlessFlareEndpoint(testURL, agentVersion)
 		assert.Nil(t, err)
-		assert.Equal(t, "https://us3.datadoghq.com/api/ui/support/serverless/flare", testURL.String())
+		assert.Equal(t, "https://app.us3.datadoghq.com/api/ui/support/serverless/flare", testURL.String())
 	})
 
-	t.Run("no subdomain host", func(t *testing.T) {
+	t.Run("url with subdomain, matching regex", func(t *testing.T) {
+		subdomainURL := "https://app.datadoghq.com/test"
+		testURL, err := url.Parse(subdomainURL)
+		assert.Nil(t, err)
+
+		getServerlessFlareEndpoint(testURL, agentVersion)
+		assert.Nil(t, err)
+		assert.Equal(t, "https://7-50-0-flare.datadoghq.com/api/ui/support/serverless/flare", testURL.String())
+	})
+
+	t.Run("url without subdomain", func(t *testing.T) {
 		noSubdomainURL := "https://datadoghq.com/test"
 		testURL, err := url.Parse(noSubdomainURL)
 		assert.Nil(t, err)
 
-		err = getServerlessFlareEndpoint(testURL)
+		getServerlessFlareEndpoint(testURL, agentVersion)
 		assert.Nil(t, err)
 		assert.Equal(t, "https://app.datadoghq.com/api/ui/support/serverless/flare", testURL.String())
 	})
-
-	t.Run("invalid host", func(t *testing.T) {
-		invalidHostURL := "https://invalid.com/test"
-		testURL, err := url.Parse(invalidHostURL)
-		assert.Nil(t, err)
-
-		err = getServerlessFlareEndpoint(testURL)
-		assert.Equal(t, "tracer_flare.Proxy: invalid site: invalid.com. Must be one of: datadoghq.com,datadoghq.eu,us3.datadoghq.com,us5.datadoghq.com,ap1.datadoghq.com,ddog-gov.com", err.Error())
-	})
-
 }
 
 func TestTracerFlareProxyHandler(t *testing.T) {
@@ -142,6 +142,7 @@ func TestTracerFlareProxyHandler(t *testing.T) {
 		receiver := newTestReceiverFromConfig(newTestReceiverConfig())
 		handler := receiver.tracerFlareHandler()
 		handler.(*httputil.ReverseProxy).Transport.(*tracerFlareTransport).getEndpoint = mockGetServerlessFlareEndpoint
+		handler.(*httputil.ReverseProxy).Transport.(*tracerFlareTransport).agentVersion = "1.1.1"
 
 		handler.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusOK, rec.Code)

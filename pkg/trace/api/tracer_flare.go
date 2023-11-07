@@ -6,61 +6,53 @@
 package api
 
 import (
-	"fmt"
 	stdlog "log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"golang.org/x/exp/slices"
 )
 
 const (
 	serverlessFlareEndpointPath = "/api/ui/support/serverless/flare"
-	datadogSiteUS1              = "datadoghq.com"
-	datadogSiteEU1              = "datadoghq.eu"
-	datadogSiteUS3              = "us3.datadoghq.com"
-	datadogSiteUS5              = "us5.datadoghq.com"
-	datadogSiteAP1              = "ap1.datadoghq.com"
-	datadogSiteGov              = "ddog-gov.com"
 )
 
-type endpointGetter func(url *url.URL) error
+var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+var versionNumsddURLRegexp = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
+
+type endpointGetter func(url *url.URL, agentVersion string)
 
 // tracerFlareTransport forwards request to tracer flare endpoint.
 type tracerFlareTransport struct {
-	rt          http.RoundTripper
-	getEndpoint endpointGetter
+	rt           http.RoundTripper
+	getEndpoint  endpointGetter
+	agentVersion string
 }
 
-func getServerlessFlareEndpoint(url *url.URL) error {
-	reqHost := url.Host
-	datadogSites := []string{datadogSiteUS1, datadogSiteEU1, datadogSiteUS3, datadogSiteUS5, datadogSiteAP1, datadogSiteGov}
-	if !slices.Contains(datadogSites, reqHost) {
-		return fmt.Errorf("tracer_flare.Proxy: invalid site: %s. Must be one of: %s", reqHost, strings.Join(datadogSites[:], ","))
-	}
-
+func getServerlessFlareEndpoint(url *url.URL, agentVersion string) {
 	// The DNS doesn't redirect to the proper endpoint when a subdomain is not present in the baseUrl.
-	// See https://github.com/DataDog/datadog-ci/blob/master/src/helpers/flare.ts#L92
-	noSubdomainSites := []string{datadogSiteUS1, datadogSiteEU1, datadogSiteGov}
-	if slices.Contains(noSubdomainSites, reqHost) {
-		url.Host = "app." + reqHost
-	}
+	// Adding app. subdomain here for site like datadoghq.com
+	if !ddURLRegexp.MatchString(url.Host) {
+		url.Host = "app." + url.Host
+	} else {
+		// Following exisiting logic to prefixes the domain with the agent version
+		// https://github.com/DataDog/datadog-agent/blob/e9056abe94e8dbddd51bbc901036e7362442f02e/pkg/config/utils/endpoints.go#L129
+		subdomain := strings.Split(url.Host, ".")[0]
+		versionNums := strings.Join(versionNumsddURLRegexp.FindStringSubmatch(agentVersion)[1:], "-")
+		newSubdomain := versionNums + "-flare"
 
+		url.Host = strings.Replace(url.Host, subdomain, newSubdomain, 1)
+	}
 	url.Scheme = "https"
 	url.Path = serverlessFlareEndpointPath
-
-	return nil
 }
 
 func (m *tracerFlareTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
-	err := m.getEndpoint(req.URL)
-	if err != nil {
-		return nil, err
-	}
+	m.getEndpoint(req.URL, m.agentVersion)
 	return m.rt.RoundTrip(req)
 }
 
@@ -73,9 +65,10 @@ func (r *HTTPReceiver) tracerFlareHandler() http.Handler {
 
 	logger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	transport := r.conf.NewHTTPTransport()
+	agentVersion := r.conf.AgentVersion
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "tracer_flare.Proxy: ", 0),
-		Transport: &tracerFlareTransport{transport, getServerlessFlareEndpoint},
+		Transport: &tracerFlareTransport{transport, getServerlessFlareEndpoint, agentVersion},
 	}
 }
