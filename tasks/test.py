@@ -1161,7 +1161,7 @@ def get_modified_packages(ctx) -> List[GoModule]:
 
 
 def get_modified_files(ctx):
-    last_main_commit = ctx.run("git rev-parse main", hide=True).stdout
+    last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
     print(f"Checking diff from {last_main_commit} commit on main branch")
 
     modified_files = ctx.run(f"git diff --name-only {last_main_commit}", hide=True).stdout.splitlines()
