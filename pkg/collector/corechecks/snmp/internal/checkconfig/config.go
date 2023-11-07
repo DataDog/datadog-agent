@@ -255,7 +255,7 @@ func (c *CheckConfig) RebuildMetadataMetricsAndTags() {
 
 // UpdateDeviceIDAndTags updates DeviceID and DeviceIDTags
 func (c *CheckConfig) UpdateDeviceIDAndTags() {
-	c.DeviceIDTags = sortutil.UniqInPlace(c.getDeviceIDTags())
+	c.DeviceIDTags = c.getDeviceIDTags()
 	c.DeviceID = c.Namespace + ":" + c.IPAddress
 }
 
@@ -293,7 +293,7 @@ func (c *CheckConfig) GetNetworkTags() []string {
 // warning: changing getDeviceIDTags logic might lead to different deviceID
 func (c *CheckConfig) getDeviceIDTags() []string {
 	tags := []string{deviceNamespaceTagKey + ":" + c.Namespace, deviceIPTagKey + ":" + c.IPAddress}
-	sort.Strings(tags)
+	sortutil.UniqInPlace(tags)
 	return tags
 }
 
