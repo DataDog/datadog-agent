@@ -27,7 +27,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const checkName = "windows_event_log"
+const checkName = "win32_event_log"
 
 // The lower cased version of the `API SOURCE ATTRIBUTE` column from the table located here:
 // https://docs.datadoghq.com/integrations/faq/list-of-api-source-attribute-value/
