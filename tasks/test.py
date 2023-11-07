@@ -661,6 +661,7 @@ def test(
         )
         if only_modified_packages:
             modules = get_modified_packages(ctx)
+
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
@@ -1116,6 +1117,7 @@ def junit_macos_repack(_, infile, outfile):
 
 @task
 def get_modified_packages(ctx) -> List[GoModule]:
+
     modified_files = get_modified_files(ctx)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
@@ -1125,17 +1127,20 @@ def get_modified_packages(ctx) -> List[GoModule]:
     go_mod_modified_modules = set()
 
     for modified_file in modified_go_files:
-
         match_precision = 0
         best_module_path = None
 
+        # Since several modules can match the path we take only the most precise one
         for module_path in DEFAULT_MODULES:
             if module_path in modified_file:
                 if len(module_path) > match_precision:
                     match_precision = len(module_path)
                     best_module_path = module_path
+
+        # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
         if best_module_path in go_mod_modified_modules:
             continue
+
         # If we modify the go.mod or go.sum we run the tests for the whole module
         if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
             modules_to_test[best_module_path] = DEFAULT_MODULES[best_module_path]
@@ -1151,12 +1156,10 @@ def get_modified_packages(ctx) -> List[GoModule]:
         else:
             modules_to_test[best_module_path] = GoModule(best_module_path, targets=[os.path.dirname(modified_file)])
 
-    # Print module to test
-    print("Modules to test:")
-    for module_path in modules_to_test:
-        print(f"{module_path}: {modules_to_test[module_path].targets}")
+    print("Running tests for the following modules:")
+    for module in modules_to_test:
+        print(f"- {module}: ")
 
-    print(modules_to_test.values())
     return modules_to_test.values()
 
 
