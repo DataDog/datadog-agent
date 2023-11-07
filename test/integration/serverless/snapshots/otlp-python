@@ -1,23 +1,13 @@
 [
   {
-    "container_id": "",
-    "language_name": "python",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-extension-XXXXXX-otlp-python",
-            "name": "otlpPython.internal",
-            "resource": "my-function",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -56,16 +46,16 @@
               "version": "integration-tests-version"
             },
             "metrics": null,
+            "name": "otlpPython.internal",
+            "parent_id": null,
+            "resource": "my-function",
+            "service": "integration-tests-extension-XXXXXX-otlp-python",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "custom"
           },
           {
-            "service": "integration-tests-extension-XXXXXX-otlp-python",
-            "name": "opentelemetry.instrumentation.aws_lambda.server",
-            "resource": "otlpPython.simple_test",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -108,41 +98,41 @@
             "metrics": {
               "_top_level": 1
             },
+            "name": "opentelemetry.instrumentation.aws_lambda.server",
+            "parent_id": null,
+            "resource": "otlpPython.simple_test",
+            "service": "integration-tests-extension-XXXXXX-otlp-python",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "web"
           }
         ],
         "tags": {
           "_dd.otlp_sr": "1.00"
-        },
-        "dropped_trace": false
+        }
       }
     ],
+    "container_id": "",
+    "env": "integration-tests-env",
+    "hostname": "",
+    "language_name": "python",
+    "language_version": null,
+    "runtime_id": "",
     "tags": {
       "_dd.tags.container": "cloud_provider:aws,region:eu-west-1"
     },
-    "env": "integration-tests-env",
-    "hostname": "",
-    "app_version": "integration-tests-version"
+    "tracer_version": null
   },
   {
-    "container_id": "",
-    "language_name": "python",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-extension-XXXXXX-otlp-python",
-            "name": "otlpPython.internal",
-            "resource": "my-function",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -181,16 +171,16 @@
               "version": "integration-tests-version"
             },
             "metrics": null,
+            "name": "otlpPython.internal",
+            "parent_id": null,
+            "resource": "my-function",
+            "service": "integration-tests-extension-XXXXXX-otlp-python",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "custom"
           },
           {
-            "service": "integration-tests-extension-XXXXXX-otlp-python",
-            "name": "opentelemetry.instrumentation.aws_lambda.server",
-            "resource": "otlpPython.simple_test",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -233,20 +223,30 @@
             "metrics": {
               "_top_level": 1
             },
+            "name": "opentelemetry.instrumentation.aws_lambda.server",
+            "parent_id": null,
+            "resource": "otlpPython.simple_test",
+            "service": "integration-tests-extension-XXXXXX-otlp-python",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "web"
           }
         ],
         "tags": {
           "_dd.otlp_sr": "1.00"
-        },
-        "dropped_trace": false
+        }
       }
     ],
+    "container_id": "",
+    "env": "integration-tests-env",
+    "hostname": "",
+    "language_name": "python",
+    "language_version": null,
+    "runtime_id": "",
     "tags": {
       "_dd.tags.container": "cloud_provider:aws,region:eu-west-1"
     },
-    "env": "integration-tests-env",
-    "hostname": "",
-    "app_version": "integration-tests-version"
+    "tracer_version": null
   }
 ]

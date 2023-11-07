@@ -81,10 +81,6 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 	return psSerializer
 }
 
-func newNetworkDeviceSerializer(e *model.Event) *NetworkDeviceSerializer { //nolint:revive // TODO fix revive unused-parameter
-	return &NetworkDeviceSerializer{}
-}
-
 func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resolvers *resolvers.Resolvers) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
