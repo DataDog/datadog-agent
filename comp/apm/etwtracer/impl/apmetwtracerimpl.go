@@ -187,7 +187,9 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		switch h.CommandResponse {
 		case registerCommand:
 			a.log.Infof("Registering process with ID %d", pid)
-			err = a.AddPID(pid)
+			a.pidMutex.Lock()
+			err = a.addPID(pid)
+			a.pidMutex.Unlock()
 			if err != nil {
 				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v", pid, err)
 				h.CommandResponse = errorResponse
@@ -196,7 +198,9 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 			}
 		case unregisterCommand:
 			a.log.Infof("Unregistering process with ID %d", pid)
-			err = a.RemovePID(pid)
+			a.pidMutex.Lock()
+			err = a.removePID(pid)
+			a.pidMutex.Unlock()
 			if err != nil {
 				a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v", pid, err)
 				h.CommandResponse = errorResponse
@@ -249,6 +253,9 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 	go func() {
 		// StartTracing blocks the caller
 		_ = a.session.StartTracing(func(e *etw.DDEventRecord) {
+			a.pidMutex.Lock()
+			defer a.pidMutex.Unlock()
+
 			a.log.Debugf("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
 			pid := uint64(e.EventHeader.ProcessID)
 			var pidCtx pidContext
@@ -272,7 +279,7 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 			_, writeErr := pidCtx.conn.Write(etwutil.GoBytes(unsafe.Pointer(&ev), int(ev.header.Size)))
 			if writeErr != nil {
 				a.log.Warnf("Could not write ETW event for PID %d, %v", pid, writeErr)
-				a.RemovePID(pid)
+				a.removePID(pid)
 			}
 		})
 	}()
@@ -287,31 +294,24 @@ func (a *apmetwtracerimpl) stop(_ context.Context) error {
 	return err
 }
 
-func (a *apmetwtracerimpl) AddPID(pid uint64) error {
+func (a *apmetwtracerimpl) addPID(pid uint64) error {
 	c, err := winio.DialPipe(fmt.Sprintf(clientNamedPipePath, pid), nil)
 	if err != nil {
 		return err
 	}
-
-	a.pidMutex.Lock()
 	a.pids[pid] = pidContext{
 		conn:     c,
 		lastSeen: time.Now(),
 	}
-	a.pidMutex.Unlock()
-
 	return a.reconfigureProvider()
 }
 
-func (a *apmetwtracerimpl) RemovePID(pid uint64) error {
+func (a *apmetwtracerimpl) removePID(pid uint64) error {
 	var pidCtx pidContext
 	var ok bool
-	a.pidMutex.Lock()
 	if pidCtx, ok = a.pids[pid]; !ok {
-		a.pidMutex.Unlock()
 		return fmt.Errorf("could not find PID %d in PID list", pid)
 	}
-	delete(a.pids, pid)
 	a.pidMutex.Unlock()
 	pidCtx.conn.Close()
 
@@ -319,13 +319,6 @@ func (a *apmetwtracerimpl) RemovePID(pid uint64) error {
 }
 
 func (a *apmetwtracerimpl) reconfigureProvider() error {
-	a.pidMutex.Lock()
-	// Since we are making a copy of the PID list, we could unlock the mutex earlier.
-	// However, we actually want this mutex to last until this function returns
-	// to prevent spurious reconfiguration of the ETW provider.
-	// Adding or removing a PID thus will wait until we have finished with the current reconfiguration.
-	defer a.pidMutex.Unlock()
-
 	pidsList := make([]uint64, 0, len(a.pids))
 	for p := range a.pids {
 		pidsList = append(pidsList, p)
