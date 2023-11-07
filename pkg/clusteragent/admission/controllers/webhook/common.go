@@ -19,7 +19,8 @@ import (
 func buildCWSInstrumentationLabelSelectors(useNamespaceSelector bool) (namespaceSelector, objectSelector *metav1.LabelSelector) {
 	var labelSelector metav1.LabelSelector
 
-	if config.Datadog.GetBool("admission_controller.cws_instrumentation.mutate_unlabelled") {
+	if config.Datadog.GetBool("admission_controller.cws_instrumentation.mutate_unlabelled") ||
+		config.Datadog.GetBool("admission_controller.mutate_unlabelled") {
 		// Accept all, ignore pods if they're explicitly filtered-out
 		labelSelector = metav1.LabelSelector{
 			MatchExpressions: []metav1.LabelSelectorRequirement{

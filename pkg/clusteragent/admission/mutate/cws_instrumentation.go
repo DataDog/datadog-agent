@@ -77,29 +77,29 @@ func injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, n
 		metrics.MutationAttempts.Inc(metrics.CWSExecInstrumentation, strconv.FormatBool(injected), "")
 	}()
 
+	// is the namespace targeted by the instrumentation ?
+	if !isNsTargetedByCWSInstrumentation(ns) {
+		return nil
+	}
+
 	if exec == nil || userInfo == nil {
 		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "nil exec or user info", "")
 		return fmt.Errorf("cannot inject CWS instrumentation into nil exec options or nil userInfo")
 	}
 	if len(exec.Command) == 0 {
 		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "empty command", "")
-		return fmt.Errorf("cannot inject CWS instrumentation into empty exec command")
-	}
-
-	// is the namespace targeted by the instrumentation ?
-	if !isNsTargetedByCWSInstrumentation(ns) {
 		return nil
 	}
 
 	// check if the pod has been instrumented
 	pod, err := apiClient.CoreV1().Pods(ns).Get(context.TODO(), name, metav1.GetOptions{})
-	if err != nil {
+	if err != nil || pod == nil {
 		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot get pod", "")
 		return fmt.Errorf("couldn't describe pod %s in namespace %s from the API server: %w", name, ns, err)
 	}
 
 	// is the pod instrumentation ready ? (i.e. has the CWS Instrumentation pod admission controller run ?)
-	if !isPodCWSInstrumentationReady(pod.GetAnnotations()) {
+	if !isPodCWSInstrumentationReady(pod.Annotations) {
 		// pod isn't instrumented, do not attempt to override the pod exec command
 		log.Debugf("Ignoring exec request into %s, pod not instrumented yet", podString(pod))
 		return nil
@@ -114,7 +114,7 @@ func injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, n
 	}
 
 	if len(exec.Command) > 7 {
-		// make sure the command hasn't already been instrumented
+		// make sure the command hasn't already been instrumented (note: it shouldn't happen)
 		if exec.Command[0] == filepath.Join(cwsMountPath, "cws-instrumentation") &&
 			exec.Command[1] == "inject" &&
 			exec.Command[2] == "--session-type" &&
@@ -158,16 +158,14 @@ func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface
 		metrics.MutationAttempts.Inc(metrics.CWSPodInstrumentation, strconv.FormatBool(injected), "")
 	}()
 
+	// is the namespace targeted by the instrumentation ?
+	if !isNsTargetedByCWSInstrumentation(ns) {
+		return nil
+	}
+
 	if pod == nil {
 		metrics.MutationErrors.Inc(metrics.CWSPodInstrumentation, "nil pod", "")
 		return fmt.Errorf("cannot inject CWS instrumentation into nil pod")
-	}
-
-	// sanity check: make sure the provided CWS Injector image name isn't empty
-	if len(config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")) == 0 {
-		metrics.MutationErrors.Inc(metrics.CWSPodInstrumentation, "missing image name", "")
-		// don't touch the pod and leave now
-		return fmt.Errorf("empty CWS Injector image name")
 	}
 
 	// compute init container resources
@@ -177,15 +175,8 @@ func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface
 		return err
 	}
 
-	// is the namespace targeted by the instrumentation ?
-	if !isNsTargetedByCWSInstrumentation(ns) {
-		return nil
-	}
-
-	annotations := pod.GetAnnotations()
-
 	// check if the pod has already been instrumented
-	if isPodCWSInstrumentationReady(annotations) {
+	if isPodCWSInstrumentationReady(pod.Annotations) {
 		injected = true
 		// nothing to do, return
 		return nil
@@ -203,38 +194,41 @@ func injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface
 	injectCWSInitContainer(pod, resources)
 
 	// add label to indicate that the pod has been instrumented
-	if annotations == nil {
-		annotations = make(map[string]string)
+	if pod.Annotations == nil {
+		pod.Annotations = make(map[string]string)
 	}
-	annotations[cwsInstrumentationPodAnotationStatus] = cwsInstrumentationPodAnotationReady
-	pod.Annotations = annotations
+	pod.Annotations[cwsInstrumentationPodAnotationStatus] = cwsInstrumentationPodAnotationReady
 	injected = true
 	log.Debugf("Pod %s is now instrumented for CWS", podString(pod))
 	return nil
 }
 
 func injectCWSVolume(pod *corev1.Pod) {
+	volumeSource := corev1.VolumeSource{
+		EmptyDir: &corev1.EmptyDirVolumeSource{},
+	}
+
 	// make sure that the cws volume doesn't already exists
-	for _, vol := range pod.Spec.Volumes {
+	for i, vol := range pod.Spec.Volumes {
 		if vol.Name == cwsVolumeName {
-			// return now, the volume is already present
+			// The volume exists but does it have the expected configuration ? Override just to be sure
+			pod.Spec.Volumes[i].VolumeSource = volumeSource
 			return
 		}
 	}
 
 	pod.Spec.Volumes = append(pod.Spec.Volumes, corev1.Volume{
-		Name: cwsVolumeName,
-		VolumeSource: corev1.VolumeSource{
-			EmptyDir: &corev1.EmptyDirVolumeSource{},
-		},
+		Name:         cwsVolumeName,
+		VolumeSource: volumeSource,
 	})
 }
 
 func injectCWSVolumeMount(container *corev1.Container) {
 	// make sure that the volume mount doesn't already exist
-	for _, mnt := range container.VolumeMounts {
+	for i, mnt := range container.VolumeMounts {
 		if mnt.Name == cwsVolumeName {
-			// return now, the volume mount has already been added
+			// The volume mount exists but does it have the expected configuration ? Override just to be sure
+			container.VolumeMounts[i].MountPath = cwsMountPath
 			return
 		}
 	}

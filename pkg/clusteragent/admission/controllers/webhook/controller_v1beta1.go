@@ -242,34 +242,37 @@ func (c *ControllerV1beta1) generateTemplates() {
 
 	// CWS Instrumentation - user context injection
 	if config.Datadog.GetBool("admission_controller.cws_instrumentation.enabled") {
-		// generate selectors
-		nsSelector, objSelector := buildCWSInstrumentationLabelSelectors(c.config.useNamespaceSelector())
+		// sanity check: make sure the provided CWS Injector image name isn't empty
+		if len(config.Datadog.GetString("admission_controller.cws_instrumentation.image_name")) != 0 {
+			// generate selectors
+			nsSelector, objSelector := buildCWSInstrumentationLabelSelectors(c.config.useNamespaceSelector())
 
-		// bind mount cws-instrumentation
-		webhook := c.getWebhookSkeleton(
-			"cws-pod-instrumentation",
-			config.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"),
-			[]admiv1beta1.OperationType{
-				admiv1beta1.Create,
-			},
-			[]string{"pods"},
-			nsSelector,
-			objSelector,
-		)
-		webhooks = append(webhooks, webhook)
+			// bind mount cws-instrumentation
+			webhook := c.getWebhookSkeleton(
+				"cws-pod-instrumentation",
+				config.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"),
+				[]admiv1beta1.OperationType{
+					admiv1beta1.Create,
+				},
+				[]string{"pods"},
+				nsSelector,
+				objSelector,
+			)
+			webhooks = append(webhooks, webhook)
 
-		// override pod exec command
-		webhook = c.getWebhookSkeleton(
-			"cws-command-instrumentation",
-			config.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"),
-			[]admiv1beta1.OperationType{
-				admiv1beta1.Connect,
-			},
-			[]string{"pods/exec"},
-			nil,
-			nil,
-		)
-		webhooks = append(webhooks, webhook)
+			// override pod exec command
+			webhook = c.getWebhookSkeleton(
+				"cws-command-instrumentation",
+				config.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"),
+				[]admiv1beta1.OperationType{
+					admiv1beta1.Connect,
+				},
+				[]string{"pods/exec"},
+				nil,
+				nil,
+			)
+			webhooks = append(webhooks, webhook)
+		}
 	}
 
 	c.webhookTemplates = webhooks

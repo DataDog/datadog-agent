@@ -472,7 +472,18 @@ func Test_injectCWSPodInstrumentation(t *testing.T) {
 				cwsInjectorImageTag:          "",
 				cwsInjectorContainerRegistry: "",
 			},
-			wantErr: true,
+			expectedInitContainer: corev1.Container{
+				Name:    cwsInjectorInitContainerName,
+				Image:   ":latest",
+				Command: []string{"/cws-instrumentation", "setup", "--cws-volume-mount", cwsMountPath},
+				VolumeMounts: []corev1.VolumeMount{
+					{
+						Name:      cwsVolumeName,
+						MountPath: cwsMountPath,
+					},
+				},
+			},
+			wantInstrumentation: true,
 		},
 		{
 			name: "all namespaces, image name, image tag",
