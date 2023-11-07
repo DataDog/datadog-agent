@@ -128,7 +128,8 @@ func (tx *EbpfTx) DynamicTags() []string {
 func (tx *EbpfTx) String() string {
 	var output strings.Builder
 	output.WriteString("http2.ebpfTx{")
-	output.WriteString("Method: '" + tx.Method().String() + "', ")
+	output.WriteString(fmt.Sprintf("[%s] [%s ⇄ %s] ", tx.family(), tx.sourceEndpoint(), tx.destEndpoint()))
+	output.WriteString("Stream ID: " + fmt.Sprintf("%v", tx.Stream_id) + " Method: '" + tx.Method().String() + "', ")
 	buf := make([]byte, len(tx.Request_path))
 	path, ok := tx.Path(buf)
 	if ok {

@@ -630,7 +630,6 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
             goto exit;
         }
 
-
         // The frame is relevant, we parse it, using info from the state.
         bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER_FROM_STATE);
     }
@@ -657,7 +656,6 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
         new_state.relevant = is_headers_or_rst_frame || is_data_end_of_stream;
         new_state.stream_id = frame_header.stream_id;
         new_state.frame_flags = frame_header.flags;
-
 
         key.length = frame_header.length;
         bpf_map_update_elem(&http2_tls_states, &key, &new_state, BPF_ANY);

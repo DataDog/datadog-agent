@@ -89,6 +89,7 @@ typedef struct {
     __u64 request_started;
     __u64 tags;
 
+    __u32 stream_id;
     __u16 response_status_code;
     __u8 request_method;
     __u8 path_size;
