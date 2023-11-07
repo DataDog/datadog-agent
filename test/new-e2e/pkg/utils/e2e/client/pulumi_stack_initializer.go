@@ -49,6 +49,7 @@ func CallStackInitializers[Env any](t *testing.T, env *Env, upResult auto.UpResu
 
 type field struct {
 	stackInitializer pulumiStackInitializer
+	connInitializer  connectionInitializer
 	name             string
 }
 
@@ -70,11 +71,19 @@ func getFields[Env any](env *Env) ([]field, error) {
 			return nil, fmt.Errorf("the field %v in %v is not exported", fieldName, envType)
 		}
 
-		initializer, ok := envValue.Field(i).Interface().(pulumiStackInitializer)
+		stackInitializer, ok := envValue.Field(i).Interface().(pulumiStackInitializer)
 		if ok {
 			fields = append(fields, field{
-				stackInitializer: initializer,
+				stackInitializer: stackInitializer,
 				name:             fieldName,
+			})
+		}
+
+		connInitializer, ok := envValue.Field(i).Interface().(connectionInitializer)
+		if ok {
+			fields = append(fields, field{
+				connInitializer: connInitializer,
+				name:            fieldName,
 			})
 		}
 	}
