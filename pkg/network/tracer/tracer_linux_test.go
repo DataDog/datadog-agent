@@ -1788,6 +1788,46 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	assert.Equal(t, network.INCOMING, incoming.Direction)
 }
 
+func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
+	t := s.T()
+	// Start the client and server before we enable the system probe to test that the tracer picks
+	// up the pre-existing connection
+
+	ch := make(chan struct{})
+	server := NewTCPServer(func(c net.Conn) {
+		<-ch
+		c.Close()
+	})
+	require.NoError(t, server.Run())
+	t.Cleanup(server.Shutdown)
+
+	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	require.NoError(t, err)
+
+	// Enable BPF-based system probe
+	tr := setupTracer(t, testConfig())
+
+	// close the server connection so the tracer picks it up
+	close(ch)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		t.Log(conns) // for debugging failures
+		conn, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		return conn != nil
+	}, 3*time.Second, 100*time.Millisecond)
+
+	m := conn.Monotonic
+	assert.Zero(t, m.SentBytes, "sent bytes should be 0")
+	assert.Zero(t, m.RecvBytes, "recv bytes should be 0")
+	assert.Zero(t, m.SentPackets, "sent packets should be 0")
+	assert.Zero(t, m.RecvPackets, "recv packets should be 0")
+	assert.Zero(t, m.TCPEstablished, "tcp established should be 0")
+	assert.Equal(t, uint32(1), m.TCPClosed, "tcp closed should be 1")
+	assert.Equal(t, network.INCOMING, conn.Direction, "connection direction should be incoming")
+}
+
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	t := s.T()
 
