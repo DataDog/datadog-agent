@@ -39,3 +39,7 @@ func (mt *minTracker) update(newVal int) {
 		mt.timestamp = time.Now()
 	}
 }
+
+func (mt *minTracker) get() int {
+	return mt.val
+}

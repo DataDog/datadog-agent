@@ -14,34 +14,34 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestUpdateMinimumRemainingRequests(t *testing.T) {
+func TestUpdateMinTracker(t *testing.T) {
 	expiryDuration := 60 * time.Second
 
-	mrr := newMinTracker(expiryDuration)
+	mt := newMinTracker(expiryDuration)
 
 	// Should update
-	mrr.update(10)
-	assert.Equal(t, mrr.val, 10)
+	mt.update(10)
+	assert.Equal(t, mt.get(), 10)
 
 	// Should not update, since value didn't expire yet
-	mrr.update(11)
-	assert.Equal(t, mrr.val, 10)
+	mt.update(11)
+	assert.Equal(t, mt.get(), 10)
 
 	// simulate waiting half the expirationDuration
-	mrr.timestamp = time.Now().Add(-expiryDuration / 2)
+	mt.timestamp = time.Now().Add(-expiryDuration / 2)
 
 	// Should not update
-	mrr.update(199)
-	assert.Equal(t, mrr.val, 10)
+	mt.update(199)
+	assert.Equal(t, mt.get(), 10)
 
 	// Shoud update, even if value didn't expire because new value is lower
-	mrr.update(5)
-	assert.Equal(t, mrr.val, 5)
+	mt.update(5)
+	assert.Equal(t, mt.get(), 5)
 
 	// Change timestamp to simulate expiration
-	mrr.timestamp = time.Now().Add(-2 * expiryDuration)
+	mt.timestamp = time.Now().Add(-2 * expiryDuration)
 
 	// Shoud update because current value has expired
-	mrr.update(100)
-	assert.Equal(t, mrr.val, 100)
+	mt.update(100)
+	assert.Equal(t, mt.get(), 100)
 }

@@ -197,7 +197,7 @@ func (p *Processor) queryDatadogExternal(ddQueries []string, timeWindow time.Dur
 	newVal, err := strconv.Atoi(queryLimits.Remaining)
 	if err == nil {
 		getMinRemainingRequestsTracker().update(newVal)
-		rateLimitsRemainingMin.Set(float64(minRemainingRequestsTracker.val), queryEndpoint, le.JoinLeaderLabel)
+		rateLimitsRemainingMin.Set(float64(minRemainingRequestsTracker.get()), queryEndpoint, le.JoinLeaderLabel)
 	}
 
 	return processedMetrics, nil
