@@ -38,7 +38,7 @@ type protocol struct {
 	statkeeper     *http.StatKeeper
 	eventsConsumer *events.Consumer
 
-	http2Telemetry *KernelTelemetry
+	http2Telemetry *kernelTelemetry
 }
 
 const (
