@@ -18,7 +18,6 @@ import (
 const (
 	defaultConfigQuery             = "*"
 	defaultConfigStart             = "now"
-	defaultConfigTimeout           = 5
 	defaultConfigPayloadSize       = 10
 	defaultConfigTagEventID        = false
 	defaultConfigTagSID            = false
@@ -145,11 +144,6 @@ func (c *Config) setDefaults() {
 	if c.instance.Start == nil {
 		def := defaultConfigStart
 		c.instance.Start = &def
-	}
-
-	if c.instance.Timeout == nil {
-		def := defaultConfigTimeout
-		c.instance.Timeout = &def
 	}
 
 	if c.instance.PayloadSize == nil {

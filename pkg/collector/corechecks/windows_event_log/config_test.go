@@ -37,7 +37,7 @@ func TestConfigPrecedence(t *testing.T) {
 	if assert.NoError(t, err) {
 		assert.Equal(t, *config.instance.Query, defaultConfigQuery)
 		assert.Equal(t, *config.instance.Start, defaultConfigStart)
-		assert.Equal(t, *config.instance.Timeout, defaultConfigTimeout)
+		assert.Nil(t, config.instance.Timeout)
 		assert.Equal(t, *config.instance.PayloadSize, defaultConfigPayloadSize)
 		assert.Equal(t, *config.instance.BookmarkFrequency, defaultConfigPayloadSize)
 		assert.Equal(t, *config.instance.TagEventID, defaultConfigTagEventID)

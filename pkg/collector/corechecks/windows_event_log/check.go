@@ -200,6 +200,11 @@ func (c *Check) validateConfig() error {
 	if *c.config.instance.LegacyMode {
 		return fmt.Errorf("unsupported configuration: legacy_mode: true")
 	}
+	if c.config.instance.Timeout != nil {
+		// timeout option is deprecated. Now that the subscription runs in the background in a select
+		// style, a timeout on the "wait for events" operation is no longer applicable.
+		c.Warn("instance config `timeout` is deprecated. It is no longer used by the check and can be removed.")
+	}
 	if len(*c.config.instance.ChannelPath) == 0 {
 		return fmt.Errorf("instance config `path` must be provided and not be empty")
 	}
