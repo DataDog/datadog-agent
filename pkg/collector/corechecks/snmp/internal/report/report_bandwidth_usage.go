@@ -100,6 +100,7 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	usageValue := ((octetsFloatValue * 8) / (float64(ifSpeed))) * 100.0
 
 	interfaceID := ms.hostname + fullIndex + usageName
+	log.Debugf("interfaceID: %s", interfaceID)
 	err = ms.calculateRate(interfaceID, ifSpeed, usageValue, usageName, tags)
 	if err != nil {
 		return err
@@ -116,8 +117,11 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 	defer ms.interfaceRateMap.mu.Unlock()
 
 	interfaceRate, ok := ms.interfaceRateMap.rates[interfaceID]
+	log.Debugf("in the calculate rate, interfaceID: %s", interfaceID)
+
 	// current data point has the same interface speed as last data point
 	if ok && interfaceRate.ifSpeed == ifSpeed {
+		log.Debugf("in the calculate rate and in the if statement ok, interfaceID: %s", interfaceID)
 		// calculate the delta
 		currentTimestamp := TimeNow
 		delta := (usageValue - interfaceRate.previousSample) / (currentTimestamp - interfaceRate.previousTs)
@@ -142,6 +146,7 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 			previousSample: usageValue,
 			previousTs:     TimeNow,
 		}
+		log.Debugf("new entry in interface map: interface ID: %s, ifSpeed: %d, previous sample: %f", interfaceID, ifSpeed, usageValue)
 		// do not send a sample to metrics, send error for ifSpeed change (previous entry conflicted)
 		if ok {
 			return fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", interfaceRate.ifSpeed, ifSpeed, interfaceID)
