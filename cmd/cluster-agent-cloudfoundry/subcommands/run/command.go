@@ -121,7 +121,8 @@ func run(log log.Component, demultiplexer demultiplexer.Component) error {
 	}
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(mainCtx, demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents()
+	common.StartComponents(mainCtx, demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, demultiplexer), true)
