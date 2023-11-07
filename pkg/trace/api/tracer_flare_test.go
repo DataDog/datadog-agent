@@ -67,7 +67,7 @@ func getTraceFlareBody(multipartBoundary string) io.ReadCloser {
 
 }
 
-func mockGetServerlessFlareEndpoint(url *url.URL, agentVersion string) {
+func mockGetServerlessFlareEndpoint(url *url.URL, _ string) {
 	url.Path = "/api/ui/support/serverless/flare"
 }
 
