@@ -369,6 +369,10 @@ func (e *conntrackEventGenerator) Generate(status GuessWhat, expected *fieldValu
 				return err
 			}
 
+			e.udpConn.Write([]byte("ping"))
+			out := make([]byte, 4)
+			e.udpConn.Read(out)
+
 			return e.populateUDPExpectedValues(expected)
 		})
 		if err != nil {

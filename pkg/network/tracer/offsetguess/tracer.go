@@ -1071,16 +1071,20 @@ func newUDPServer(addr string) (string, func(), error) {
 	}
 
 	done := make(chan struct{})
+
+	pong := []byte("pong")
 	go func() {
 		defer close(done)
 
 		b := make([]byte, 10)
 		for {
 			_ = ln.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
-			_, _, err := ln.ReadFrom(b)
+			_, caddr, err := ln.ReadFrom(b)
 			if err != nil && !os.IsTimeout(err) {
 				return
 			}
+
+			ln.WriteTo(pong, caddr)
 		}
 	}()
 
