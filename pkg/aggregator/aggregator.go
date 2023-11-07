@@ -23,9 +23,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -399,7 +399,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 		if ss.commit {
 			checkSampler.commit(timeNowNano())
 		} else {
-			ss.metricSample.Tags = util.SortUniqInPlace(ss.metricSample.Tags)
+			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample)
 		}
 	} else {
@@ -415,7 +415,7 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 	tlmProcessed.Inc("", "histogram_bucket")
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
-		checkBucket.bucket.Tags = util.SortUniqInPlace(checkBucket.bucket.Tags)
+		checkBucket.bucket.Tags = sort.UniqInPlace(checkBucket.bucket.Tags)
 		checkSampler.addBucket(checkBucket.bucket)
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)

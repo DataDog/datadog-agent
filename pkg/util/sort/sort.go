@@ -1,9 +1,10 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
-// Copyright 2016-present Datadog, Inc.
+// Copyright 2023-present Datadog, Inc.
 
-package util
+// Package sort contains util functions to sort slices of tags
+package sort
 
 // InsertionSortThreshold is the slice size after which we should consider
 // using the stdlib sort method instead of the InsertionSort implemented below.
