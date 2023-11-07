@@ -53,9 +53,8 @@ type Concentrator struct {
 }
 
 var defaultPeerTags = []string{
-	"_dd.base.service",
+	"_dd.base_service",
 	"_dd.cluster.name",
-	"_dd.first.configured.host",
 	"bucketname",
 	"db.cassandra.contact.points",
 	"db.couchbase.seed.nodes",
@@ -68,12 +67,12 @@ var defaultPeerTags = []string{
 	"mongodb.db",
 	"net.peer.name",
 	"network.destination.name",
-	"out.host",
 	"peer.hostname",
 	"peer.service",
 	"queuename",
 	"rpc.service",
 	"rulename",
+	"server.address",
 	"statemachinename",
 	"streamname",
 	"tablename",
