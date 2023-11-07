@@ -86,7 +86,6 @@ TOOL_LIST = [
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/goware/modvendor',
-    'github.com/mgechev/revive',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v2',
