@@ -83,24 +83,19 @@ func (pc *ProcessCacheEntry) Equals(entry *ProcessCacheEntry) bool {
 
 // NewPlaceholderProcessCacheEntry returns a new empty process cache entry for failed process resolutions
 func NewPlaceholderProcessCacheEntry(pid uint32) *ProcessCacheEntry {
-	entry := &ProcessCacheEntry{
+	return &ProcessCacheEntry{
 		ProcessContext: ProcessContext{
 			Process: Process{
 				PIDContext: PIDContext{Pid: pid},
 			},
 		},
 	}
-	entry.markFileEventAsResolved()
-	return entry
 }
 
-var processContextZero = ProcessCacheEntry{ProcessContext: ProcessContext{Process: Process{Source: ProcessCacheEntryFromPlaceholder}}}
+var processContextZero = ProcessCacheEntry{}
 
 // GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
-func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+func GetPlaceholderProcessCacheEntry(pid uint32) *ProcessCacheEntry {
 	processContextZero.Pid = pid
-	processContextZero.Tid = tid
-	processContextZero.IsKworker = isKworker
-	processContextZero.markFileEventAsResolved()
 	return &processContextZero
 }

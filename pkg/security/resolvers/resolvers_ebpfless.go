@@ -10,7 +10,6 @@ package resolvers
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -58,11 +57,8 @@ func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, sc
 	var tagsResolver tags.Resolver
 	if opts.TagsResolver != nil {
 		tagsResolver = opts.TagsResolver
-
-		fmt.Printf("EEEEEEEEEEEEEEEE\n")
 	} else {
 		tagsResolver = tags.NewResolver(config.Probe)
-		fmt.Printf("FFFFFFFFFFFFFFFF: %v\n", tagsResolver)
 	}
 
 	processOpts := process.NewResolverOpts()

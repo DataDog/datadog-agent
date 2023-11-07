@@ -61,9 +61,7 @@ type Process struct {
 
 	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
 
-	SpanID  uint64 `field:"-"`
-	TraceID uint64 `field:"-"`
-
+	ForkTime time.Time `field:"fork_time,opts:getters_only" json:"-"`
 	ExitTime time.Time `field:"exit_time,opts:getters_only" json:"-"`
 	ExecTime time.Time `field:"exec_time,opts:getters_only" json:"-"`
 
@@ -71,14 +69,19 @@ type Process struct {
 
 	PPid uint32 `field:"ppid"` // SECLDoc[ppid] Definition:`Parent process ID`
 
+	Comm string `field:"comm"` // SECLDoc[comm] Definition:`Comm attribute of the process`
+
 	ArgsEntry *ArgsEntry `field:"-" json:"-"`
 	EnvsEntry *EnvsEntry `field:"-" json:"-"`
 
-	Argv0 string   `field:"argv0,handler:ResolveProcessArgv0,weight:100"`                                                                                                                   // SECLDoc[argv0] Definition:`First argument of the process`
-	Args  string   `field:"args,handler:ResolveProcessArgs,weight:100"`                                                                                                                     // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
-	Argv  []string `field:"argv,handler:ResolveProcessArgv,weight:100; args_flags,handler:ResolveProcessArgsFlags,opts:helper; args_options,handler:ResolveProcessArgsOptions,opts:helper"` // SECLDoc[argv] Definition:`Arguments of the process (as an array, excluding argv0)` Example:`exec.argv in ["127.0.0.1"]` Description:`Matches any process that has this IP address as one of its arguments.` SECLDoc[args_flags] Definition:`Flags in the process arguments` Example:`exec.args_flags in ["s"] && exec.args_flags in ["V"]` Description:`Matches any process with both "-s" and "-V" flags in its arguments. Also matches "-sV".` SECLDoc[args_options] Definition:`Argument of the process as options` Example:`exec.args_options in ["p=0-1024"]` Description:`Matches any process that has either "-p 0-1024" or "--p=0-1024" in its arguments.`                                                                                                           // SECLDoc[args_truncated] Definition:`Indicator of arguments truncation`
-	Envs  []string `field:"envs,handler:ResolveProcessEnvs,weight:100"`                                                                                                                     // SECLDoc[envs] Definition:`Environment variable names of the process`
-	Envp  []string `field:"envp,handler:ResolveProcessEnvp,weight:100"`                                                                                                                     // SECLDoc[envp] Definition:`Environment variables of the process`
+	// defined to generate accessors, ArgsTruncated and EnvsTruncated are used during by unmarshaller
+	Argv0         string   `field:"argv0,handler:ResolveProcessArgv0,weight:100"`                                                                                                                   // SECLDoc[argv0] Definition:`First argument of the process`
+	Args          string   `field:"args,handler:ResolveProcessArgs,weight:100"`                                                                                                                     // SECLDoc[args] Definition:`Arguments of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
+	Argv          []string `field:"argv,handler:ResolveProcessArgv,weight:100; args_flags,handler:ResolveProcessArgsFlags,opts:helper; args_options,handler:ResolveProcessArgsOptions,opts:helper"` // SECLDoc[argv] Definition:`Arguments of the process (as an array, excluding argv0)` Example:`exec.argv in ["127.0.0.1"]` Description:`Matches any process that has this IP address as one of its arguments.` SECLDoc[args_flags] Definition:`Flags in the process arguments` Example:`exec.args_flags in ["s"] && exec.args_flags in ["V"]` Description:`Matches any process with both "-s" and "-V" flags in its arguments. Also matches "-sV".` SECLDoc[args_options] Definition:`Argument of the process as options` Example:`exec.args_options in ["p=0-1024"]` Description:`Matches any process that has either "-p 0-1024" or "--p=0-1024" in its arguments.`
+	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated"`                                                                                                             // SECLDoc[args_truncated] Definition:`Indicator of arguments truncation`
+	Envs          []string `field:"envs,handler:ResolveProcessEnvs,weight:100"`                                                                                                                     // SECLDoc[envs] Definition:`Environment variable names of the process`
+	Envp          []string `field:"envp,handler:ResolveProcessEnvp,weight:100"`                                                                                                                     // SECLDoc[envp] Definition:`Environment variables of the process`
+	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated"`                                                                                                             // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
 	Variables            eval.Variables `field:"-" json:"-"`

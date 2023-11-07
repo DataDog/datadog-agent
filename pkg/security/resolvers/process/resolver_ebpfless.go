@@ -102,7 +102,7 @@ func (p *Resolver) AddForkEntry(pid uint32, ppid uint32) *model.ProcessCacheEntr
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertForkEntry(entry, model.ProcessCacheEntryFromEvent)
+	p.insertForkEntry(entry)
 
 	return entry
 }
@@ -117,9 +117,11 @@ func (p *Resolver) AddExecEntry(pid uint32, file string, argv []string, envs []s
 		entry.Process.Comm = argv[0]
 		entry.Process.Argv0 = argv[0]
 	}
+
 	entry.Process.EnvsEntry = &model.EnvsEntry{Values: envs}
-	entry.Process.FileEvent.SetPathnameStr(file)
-	entry.Process.FileEvent.SetBasenameStr(filepath.Base(entry.Process.FileEvent.PathnameStr))
+
+	entry.Process.FileEvent.PathnameStr = file
+	entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
 
 	// TODO fix timestamp
 	entry.ExecTime = time.Now()
@@ -127,13 +129,12 @@ func (p *Resolver) AddExecEntry(pid uint32, file string, argv []string, envs []s
 	p.Lock()
 	defer p.Unlock()
 
-	p.insertExecEntry(entry, model.ProcessCacheEntryFromEvent)
+	p.insertExecEntry(entry)
 
 	return entry
 }
 
-func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, source uint64) {
-	entry.Source = source
+func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry) {
 	p.entryCache[entry.Pid] = entry
 	entry.Retain()
 
@@ -144,7 +145,7 @@ func (p *Resolver) insertEntry(entry, prev *model.ProcessCacheEntry, source uint
 	p.cacheSize.Inc()
 }
 
-func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, source uint64) {
+func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		// this shouldn't happen but it is better to exit the prev and let the new one replace it
@@ -155,21 +156,19 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, source uint64
 		parent := p.entryCache[entry.PPid]
 		if parent != nil {
 			parent.Fork(entry)
-		} else {
-			entry.IsParentMissing = true
 		}
 	}
 
-	p.insertEntry(entry, prev, source)
+	p.insertEntry(entry, prev)
 }
 
-func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, source uint64) {
+func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
 		prev.Exec(entry)
 	}
 
-	p.insertEntry(entry, prev, source)
+	p.insertEntry(entry, prev)
 }
 
 // Resolve returns the cache entry for the given pid
