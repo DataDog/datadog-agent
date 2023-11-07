@@ -575,6 +575,11 @@ func parseBytesToUint(buf []byte, base int, bitSize int) (uint64, error) {
 	return strconv.ParseUint(*(*string)(unsafe.Pointer(&buf)), base, bitSize)
 }
 
+func parseBytesToFloat(buf []byte, bitSize int) (float64, error) {
+	// Safety: We are not modifying the contents of the byte slice.
+	return strconv.ParseFloat(*(*string)(unsafe.Pointer(&buf)), bitSize)
+}
+
 func parseMemInfo(value, key []byte, memInfo *MemoryInfoStat) {
 	value = bytes.TrimSuffix(value, []byte("kB"))
 	value = bytes.TrimSpace(value)
@@ -621,30 +626,43 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	// use spaces and prevCharIsSpace to simulate strings.Fields() to avoid allocation
 	spaces := 0
 	prevCharIsSpace := false
-	var ppidStr, flagStr, utimeStr, stimeStr, startTimeStr string
+	var buffer []byte
 
 	for _, c := range content {
 		if unicode.IsSpace(rune(c)) {
 			if !prevCharIsSpace {
+				switch spaces {
+				case 2:
+					if ppid, err := parseBytesToInt(buffer, 10, 32); err == nil {
+						sInfo.ppid = int32(ppid)
+					}
+				case 7:
+					if flags, err := parseBytesToUint(buffer, 10, 32); err == nil {
+						sInfo.flags = uint32(flags)
+					}
+				case 12:
+					if utime, err := parseBytesToFloat(buffer, 64); err == nil {
+						sInfo.cpuStat.User = utime / p.clockTicks
+					}
+				case 13:
+					if stime, err := parseBytesToFloat(buffer, 64); err == nil {
+						sInfo.cpuStat.System = stime / p.clockTicks
+					}
+				case 20:
+					if t, err := parseBytesToUint(buffer, 10, 64); err == nil {
+						ctime := (t / uint64(p.clockTicks)) + p.bootTime.Load()
+						// convert create time into milliseconds
+						sInfo.createTime = int64(ctime * 1000)
+					}
+				}
 				spaces++
+				buffer = buffer[:0]
 			}
 			prevCharIsSpace = true
 			continue
 		} else {
+			buffer = append(buffer, c)
 			prevCharIsSpace = false
-		}
-
-		switch spaces {
-		case 2:
-			ppidStr += string(c)
-		case 7:
-			flagStr += string(c)
-		case 12:
-			utimeStr += string(c)
-		case 13:
-			stimeStr += string(c)
-		case 20:
-			startTimeStr += string(c)
 		}
 	}
 
@@ -652,25 +670,6 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 		return sInfo
 	}
 
-	ppid, err := strconv.ParseInt(ppidStr, 10, 32)
-	if err == nil {
-		sInfo.ppid = int32(ppid)
-	}
-
-	flags, err := strconv.ParseUint(flagStr, 10, 32)
-	if err == nil {
-		sInfo.flags = uint32(flags)
-	}
-
-	utime, err := strconv.ParseFloat(utimeStr, 64)
-	if err == nil {
-		sInfo.cpuStat.User = utime / p.clockTicks
-	}
-
-	stime, err := strconv.ParseFloat(stimeStr, 64)
-	if err == nil {
-		sInfo.cpuStat.System = stime / p.clockTicks
-	}
 	// the nice parameter location seems to be different for various procfs,
 	// so we fetch that using syscall
 	snice, err := syscall.Getpriority(syscall.PRIO_PROCESS, int(pid))
@@ -679,13 +678,6 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	}
 
 	sInfo.cpuStat.Timestamp = now.Unix()
-
-	t, err := strconv.ParseUint(startTimeStr, 10, 64)
-	if err == nil {
-		ctime := (t / uint64(p.clockTicks)) + p.bootTime.Load()
-		// convert create time into milliseconds
-		sInfo.createTime = int64(ctime * 1000)
-	}
 
 	return sInfo
 }
