@@ -237,10 +237,28 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	if *c.config.instance.TagSID {
 		sid, err := vals.SID(evtapi.EvtSystemUserID)
 		if err == nil {
-			account, domain, _, err := sid.LookupAccount("")
+			// https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-lookupaccountsidw
+			// TODO WINA-513: LookupAccountName takes 30 seconds to timeout, which will significantly
+			//       slow down event collection if it consistently fails.
+			var account, domain string
+			if c.session == nil {
+				// "local" lookup, may contact trusted domain controllers
+				account, domain, _, err = sid.LookupAccount("")
+			} else {
+				// remote lookup, requires LSARPC via SMB/RPC
+				var host string
+				host, err = vals.String(evtapi.EvtSystemComputer)
+				if err == nil {
+					account, domain, _, err = sid.LookupAccount(host)
+				} else {
+					err = fmt.Errorf("failed to get host from event: %w", err)
+				}
+			}
 			if err == nil {
 				tag := fmt.Sprintf("sid:%s\\%s", domain, account)
 				ddevent.Tags = append(ddevent.Tags, tag)
+			} else {
+				log.Errorf("failed to lookup user for sid '%s': %v", sid.String(), err)
 			}
 		}
 	}
