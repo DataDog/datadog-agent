@@ -1540,10 +1540,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		seclog.Warnf("constant fetcher failed: %v", err)
 		return nil, err
 	}
-	// the constant fetching mechanism can be quite memory intensive, between kernel header downloading,
-	// runtime compilation, BTF parsing...
-	// let's ensure the GC has run at this point before doing further memory intensive stuff
-	runtime.GC()
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
