@@ -26,6 +26,7 @@
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
       -e VCPKG_BINARY_SOURCES="clear;x-azblob,${vcpkgBlobSaSUrl}"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
+      -e EXTRAPARAMS="${EXTRAPARAMS}"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
@@ -66,6 +67,13 @@ tests_windows-x64:
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
+
+tests_windows-x64-fast:
+  extends: .tests_windows_base
+  variables:
+    PYTHON_RUNTIMES: 3
+    ARCH: "x64"
+    EXTRAPARAMS: '--only-modified-packages'
 
 lint_windows-x64:
   extends: .lint_windows_base
