@@ -15,7 +15,7 @@ experimental:
 templates:
   job_template: &job_template
     docker:
-      - image: datadog/agent-buildimages-circleci-runner:v20878799-a2f77ae
+      - image: datadog/agent-buildimages-circleci-runner:v22284534-4d24e62
         environment:
           USE_SYSTEM_LIBS: "1"
     working_directory: /go/src/github.com/DataDog/datadog-agent

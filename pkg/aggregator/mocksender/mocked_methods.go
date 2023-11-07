@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package mocksender
 
 import (
@@ -95,6 +97,12 @@ func (m *MockSender) Commit() {
 // SetCheckCustomTags enables the set of check custom tags mock call.
 func (m *MockSender) SetCheckCustomTags(tags []string) {
 	m.Called(tags)
+}
+
+// GetCheckCustomTags enables the get of check custom tags mock call.
+func (m *MockSender) GetCheckCustomTags() []string {
+	m.Called()
+	return []string{}
 }
 
 // SetCheckService enables the setting of check service mock call.

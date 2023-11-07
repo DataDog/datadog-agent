@@ -11,7 +11,7 @@ func SupportedBuildModes() []BuildMode {
 	return []BuildMode{Prebuilt}
 }
 
-func TestBuildModes(t *testing.T, modes []BuildMode, name string, fn func(t *testing.T)) {
+func TestBuildModes(t *testing.T, modes []BuildMode, name string, fn func(t *testing.T)) { //nolint:revive // TODO fix revive unused-parameter
 	// ignore provided modes and only use prebuilt
 	TestBuildMode(t, Prebuilt, name, fn)
 }

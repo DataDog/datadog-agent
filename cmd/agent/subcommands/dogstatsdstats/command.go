@@ -18,7 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -108,7 +108,7 @@ func requestDogstatsdStats(log log.Component, config config.Component, cliParams
 	} else if cliParams.jsonStatus {
 		s = string(r)
 	} else {
-		s, e = serverDebug.FormatDebugStats(r)
+		s, e = serverdebugimpl.FormatDebugStats(r)
 		if e != nil {
 			fmt.Printf("Could not format the statistics, the data must be inconsistent. You may want to try the JSON output. Contact the support if you continue having issues.\n")
 			return nil

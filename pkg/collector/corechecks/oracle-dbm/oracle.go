@@ -189,7 +189,7 @@ func (c *Check) Run() error {
 				return fmt.Errorf("%s %w", c.logPrompt, err)
 			}
 		}
-		if c.config.ProcessMemory.Enabled {
+		if c.config.ProcessMemory.Enabled || c.config.InactiveSessions.Enabled {
 			err := c.ProcessMemory()
 			if err != nil {
 				return fmt.Errorf("%s %w", c.logPrompt, err)
@@ -219,6 +219,24 @@ func (c *Check) Run() error {
 		if metricIntervalExpired {
 			if c.config.SharedMemory.Enabled {
 				err := c.SharedMemory()
+				if err != nil {
+					return fmt.Errorf("%s %w", c.logPrompt, err)
+				}
+			}
+		}
+
+		if metricIntervalExpired {
+			if c.config.Asm.Enabled {
+				err := c.asmDiskgroups()
+				if err != nil {
+					return fmt.Errorf("%s %w", c.logPrompt, err)
+				}
+			}
+		}
+
+		if metricIntervalExpired {
+			if c.config.ResourceManager.Enabled {
+				err := c.resourceManager()
 				if err != nil {
 					return fmt.Errorf("%s %w", c.logPrompt, err)
 				}

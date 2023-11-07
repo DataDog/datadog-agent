@@ -33,6 +33,8 @@ type Sender interface {
 	GetSenderStats() stats.SenderStats
 	DisableDefaultHostname(disable bool)
 	SetCheckCustomTags(tags []string)
+	// GetCheckCustomTags returns the check custom tags, added to every metric/log/event of the check
+	GetCheckCustomTags() []string
 	SetCheckService(service string)
 	SetNoIndex(noIndex bool)
 	FinalizeCheckServiceTag()
@@ -45,4 +47,10 @@ type SenderManager interface {
 	SetSender(Sender, checkid.ID) error
 	DestroySender(id checkid.ID)
 	GetDefaultSender() (Sender, error)
+}
+
+// DiagnoseSenderManager is the SenderManager used by the diagnose command
+// It creates an instance of senderManager lazily to keep the same behavior as before.
+type DiagnoseSenderManager interface {
+	LazyGetSenderManager() (SenderManager, error)
 }

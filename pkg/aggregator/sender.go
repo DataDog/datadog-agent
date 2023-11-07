@@ -129,6 +129,13 @@ func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
 }
 
+// GetCheckCustomTags gets current checkTags of the sender.
+func (s *checkSender) GetCheckCustomTags() []string {
+	res := make([]string, len(s.checkTags))
+	copy(res, s.checkTags)
+	return res
+}
+
 // SetCheckService appends the service as a tag for metrics, events, and service checks
 // This may be called any number of times, though the only the last call will have an effect
 func (s *checkSender) SetCheckService(service string) {

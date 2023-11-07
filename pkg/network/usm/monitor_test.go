@@ -17,6 +17,7 @@ import (
 	"net"
 	nethttp "net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -26,6 +27,7 @@ import (
 	"golang.org/x/net/http2"
 	"golang.org/x/net/http2/h2c"
 
+	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -40,12 +42,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	usmhttp2 "github.com/DataDog/datadog-agent/pkg/network/protocols/http2"
-	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/grpc"
-	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+func TestMain(m *testing.M) {
+	logLevel := os.Getenv("DD_LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "warn"
+	}
+	log.SetupLogger(seelog.Default, logLevel)
+	os.Exit(m.Run())
+}
 
 const (
 	kb = 1024
@@ -58,7 +67,14 @@ const (
 
 var (
 	emptyBody = []byte(nil)
+	kv        = kernel.MustHostVersion()
 )
+
+func skipIfUSMNotSupported(t *testing.T) {
+	if kv < http.MinimumKernelVersion {
+		t.Skipf("USM is not supported on %v", kv)
+	}
+}
 
 func TestMonitorProtocolFail(t *testing.T) {
 	failingStartupMock := func(_ *manager.Manager) error {
@@ -96,6 +112,7 @@ type HTTPTestSuite struct {
 }
 
 func TestHTTP(t *testing.T) {
+	skipIfUSMNotSupported(t)
 	ebpftest.TestBuildModes(t, []ebpftest.BuildMode{ebpftest.Prebuilt, ebpftest.RuntimeCompiled, ebpftest.CORE}, "", func(t *testing.T) {
 		suite.Run(t, new(HTTPTestSuite))
 	})
@@ -403,52 +420,6 @@ func (s *HTTPTestSuite) TestHTTPMonitorIntegrationWithNAT() {
 	})
 }
 
-func (s *HTTPTestSuite) TestUnknownMethodRegression() {
-	t := s.T()
-
-	// SetupDNAT sets up a NAT translation from 2.2.2.2 to 1.1.1.1
-	netlink.SetupDNAT(t)
-
-	monitor := newHTTPMonitor(t)
-	targetAddr := "2.2.2.2:8080"
-	serverAddr := "1.1.1.1:8080"
-	serverAddrIP := util.AddressFromString("1.1.1.1")
-	srvDoneFn := testutil.HTTPServer(t, serverAddr, testutil.Options{
-		EnableTLS:       false,
-		EnableKeepAlive: true,
-	})
-	t.Cleanup(srvDoneFn)
-
-	requestFn := requestGenerator(t, targetAddr, emptyBody)
-	for i := 0; i < 100; i++ {
-		requestFn()
-	}
-
-	time.Sleep(5 * time.Second)
-	stats := getHttpStats(t, monitor)
-	tel := telemetry.ReportPayloadTelemetry("1")
-	requestsSum := 0
-	for key := range stats {
-		if key.Method == http.MethodUnknown {
-			t.Error("detected HTTP request with method unknown")
-		}
-		// we just want our requests
-		if strings.Contains(key.Path.Content.Get(), "/request-") &&
-			key.DstPort == 8080 &&
-			util.FromLowHigh(key.DstIPLow, key.DstIPHigh) == serverAddrIP {
-			requestsSum++
-		}
-	}
-
-	require.Equal(t, int64(0), tel["usm.http.dropped"])
-	require.Equal(t, int64(0), tel["usm.http.rejected"])
-	require.Equal(t, int64(0), tel["usm.http.malformed"])
-	// requestGenerator() doesn't query 100 responses
-	require.Equal(t, int64(0), tel["usm.http.hits1XX"])
-
-	require.Equal(t, int(100), requestsSum)
-}
-
 func (s *HTTPTestSuite) TestRSTPacketRegression() {
 	t := s.T()
 
@@ -579,12 +550,11 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		name              string
 		runClients        func(t *testing.T, clientsCount int)
 		expectedEndpoints map[http.Key]captureRange
-		skip              bool
 	}{
 		{
 			name: " / path",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{})
+				clients := getClientsArray(t, clientsCount)
 
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -599,14 +569,14 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					Method: http.MethodPost,
 				}: {
 					lower: 999,
-					upper: 1000,
+					upper: 1001,
 				},
 			},
 		},
 		{
 			name: " /index.html path",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients := getClientsArray(t, clientsCount, grpc.Options{})
+				clients := getClientsArray(t, clientsCount)
 
 				for i := 0; i < 1000; i++ {
 					client := clients[getClientsIndex(i, clientsCount)]
@@ -621,7 +591,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 					Method: http.MethodPost,
 				}: {
 					lower: 999,
-					upper: 1000,
+					upper: 1001,
 				},
 			},
 		},
@@ -630,10 +600,6 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 		for _, clientCount := range []int{1, 2, 5} {
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
-				if tt.skip {
-					t.Skip("Skipping test due to known issue")
-				}
-
 				monitor, err := NewMonitor(cfg, nil, nil, nil)
 				require.NoError(t, err)
 				require.NoError(t, monitor.Start())
@@ -642,7 +608,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 				tt.runClients(t, clientCount)
 
 				res := make(map[http.Key]int)
-				require.Eventually(t, func() bool {
+				assert.Eventually(t, func() bool {
 					stats := monitor.GetProtocolStats()
 					http2Stats, ok := stats[protocols.HTTP2]
 					if !ok {
@@ -680,12 +646,20 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+				if t.Failed() {
+					o, err := monitor.DumpMaps("http2_in_flight")
+					if err != nil {
+						t.Logf("failed dumping http2_in_flight: %s", err)
+					} else {
+						t.Log(o)
+					}
+				}
 			})
 		}
 	}
 }
 
-func getClientsArray(t *testing.T, size int, options grpc.Options) []*nethttp.Client {
+func getClientsArray(t *testing.T, size int) []*nethttp.Client {
 	t.Helper()
 
 	res := make([]*nethttp.Client, size)

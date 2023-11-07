@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:generate go run github.com/DataDog/datadog-agent/pkg/security/secl/compiler/generators/accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go
+//go:generate accessors -tags windows -types-file model.go -output accessors_windows.go -field-handlers field_handlers_windows.go -field-accessors-output field_accessors_windows.go
 
 // Package model holds model related files
 package model
@@ -50,8 +50,8 @@ type Process struct {
 	SpanID  uint64 `field:"-"`
 	TraceID uint64 `field:"-"`
 
-	ExitTime time.Time `field:"-" json:"-"`
-	ExecTime time.Time `field:"-" json:"-"`
+	ExitTime time.Time `field:"exit_time,opts:getters_only" json:"-"`
+	ExecTime time.Time `field:"exec_time,opts:getters_only" json:"-"`
 
 	CreatedAt uint64 `field:"created_at,handler:ResolveProcessCreatedAt"` // SECLDoc[created_at] Definition:`Timestamp of the creation of the process`
 
@@ -60,12 +60,13 @@ type Process struct {
 	ArgsEntry *ArgsEntry `field:"-" json:"-"`
 	EnvsEntry *EnvsEntry `field:"-" json:"-"`
 
-	CmdLine string   `field:"cmdline"`                             // SECLDoc[cmdline] Definition:`Command line of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
-	Envs    []string `field:"envs,handler:ResolveProcessEnvs:100"` // SECLDoc[envs] Definition:`Environment variable names of the process`
-	Envp    []string `field:"envp,handler:ResolveProcessEnvp:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
+	CmdLine string   `field:"cmdline"`                                    // SECLDoc[cmdline] Definition:`Command line of the process (as a string, excluding argv0)` Example:`exec.args == "-sV -p 22,53,110,143,4564 198.116.0-255.1-127"` Description:`Matches any process with these exact arguments.` Example:`exec.args =~ "* -F * http*"` Description:`Matches any process that has the "-F" argument anywhere before an argument starting with "http".`
+	Envs    []string `field:"envs,handler:ResolveProcessEnvs,weight:100"` // SECLDoc[envs] Definition:`Environment variable names of the process`
+	Envp    []string `field:"envp,handler:ResolveProcessEnvp,weight:100"` // SECLDoc[envp] Definition:`Environment variables of the process`                                                                                                                         // SECLDoc[envp] Definition:`Environment variables of the process`
 
 	// cache version
-	Variables eval.Variables `field:"-" json:"-"`
+	Variables               eval.Variables `field:"-" json:"-"`
+	ScrubbedCmdLineResolved bool           `field:"-" json:"-"`
 }
 
 // ExecEvent represents a exec event

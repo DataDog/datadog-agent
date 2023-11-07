@@ -23,7 +23,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/mapper"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
-	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	serverdebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -68,7 +69,7 @@ type dependencies struct {
 
 	Log    logComponent.Component
 	Config configComponent.Component
-	Debug  serverDebug.Component
+	Debug  serverdebug.Component
 	Replay replay.Component
 	Params Params
 }
@@ -112,7 +113,7 @@ type server struct {
 	histToDist              bool
 	histToDistPrefix        string
 	extraTags               []string
-	Debug                   serverDebug.Component
+	Debug                   serverdebug.Component
 
 	tCapture                replay.Component
 	mapper                  *mapper.MetricMapper
@@ -129,6 +130,7 @@ type server struct {
 	cachedTlmLock sync.Mutex
 	// cachedOriginCounters caches telemetry counter per origin
 	// (when dogstatsd origin telemetry is enabled)
+	// TODO: use lru.Cache and track listenerId too
 	cachedOriginCounters map[string]cachedOriginCounter
 	cachedOrder          []cachedOriginCounter // for cache eviction
 
@@ -177,7 +179,7 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 	tlmChannel = telemetry.NewHistogram(
 		"dogstatsd",
 		"channel_latency",
-		[]string{"message_type"},
+		[]string{"shard", "message_type"},
 		"Time in millisecond to push metrics to the aggregator input buffer",
 		buckets)
 
@@ -187,7 +189,7 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 
 // TODO: (components) - remove once serverless is an FX app
 func NewServerlessServer() Component {
-	return newServerCompat(config.Datadog, logComponent.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverDebug.NewServerlessServerDebug(), true)
+	return newServerCompat(config.Datadog, logComponent.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true)
 }
 
 // TODO: (components) - merge with newServerCompat once NewServerlessServer is removed
@@ -195,7 +197,7 @@ func newServer(deps dependencies) Component {
 	return newServerCompat(deps.Config, deps.Log, deps.Replay, deps.Debug, deps.Params.Serverless)
 }
 
-func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverDebug.Component, serverless bool) Component {
+func newServerCompat(cfg config.Reader, log logComponent.Component, capture replay.Component, debug serverdebug.Component, serverless bool) Component {
 	// This needs to be done after the configuration is loaded
 	once.Do(func() { initTelemetry(cfg, log) })
 
@@ -321,13 +323,41 @@ func (s *server) Start(demultiplexer aggregator.Demultiplexer) error {
 	udsListenerRunning := false
 
 	socketPath := s.config.GetString("dogstatsd_socket")
-	if len(socketPath) > 0 {
-		unixListener, err := listeners.NewUDSListener(packetsChannel, sharedPacketPoolManager, s.config, s.tCapture)
+	socketStreamPath := s.config.GetString("dogstatsd_stream_socket")
+	originDetection := s.config.GetBool("dogstatsd_origin_detection")
+	var sharedUDSOobPoolManager *packets.PoolManager
+	if originDetection {
+		sharedUDSOobPoolManager = listeners.NewUDSOobPoolManager()
+	}
+
+	if s.tCapture != nil {
+		err := s.tCapture.RegisterSharedPoolManager(sharedPacketPoolManager)
 		if err != nil {
-			s.log.Errorf(err.Error())
+			s.log.Errorf("Can't register shared pool manager: %s", err.Error())
+		}
+		err = s.tCapture.RegisterOOBPoolManager(sharedUDSOobPoolManager)
+		if err != nil {
+			s.log.Errorf("Can't register OOB pool manager: %s", err.Error())
+		}
+	}
+
+	if len(socketPath) > 0 {
+		unixListener, err := listeners.NewUDSDatagramListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
+		if err != nil {
+			s.log.Errorf("Can't init listener: %s", err.Error())
 		} else {
 			tmpListeners = append(tmpListeners, unixListener)
 			udsListenerRunning = true
+		}
+	}
+
+	if len(socketStreamPath) > 0 {
+		s.log.Warnf("dogstatsd_stream_socket is not yet supported, run it at your own risk")
+		unixListener, err := listeners.NewUDSStreamListener(packetsChannel, sharedPacketPoolManager, sharedUDSOobPoolManager, s.config, s.tCapture)
+		if err != nil {
+			s.log.Errorf("Can't init listener: %s", err.Error())
+		} else {
+			tmpListeners = append(tmpListeners, unixListener)
 		}
 	}
 
@@ -461,7 +491,7 @@ func (s *server) handleMessages() {
 	s.log.Debug("DogStatsD will run", workersCount, "workers")
 
 	for i := 0; i < workersCount; i++ {
-		worker := newWorker(s)
+		worker := newWorker(s, i)
 		go worker.run()
 		s.workers = append(s.workers, worker)
 	}
@@ -608,7 +638,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 
 				samples = samples[0:0]
 
-				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, s.originTelemetry)
+				samples, err = s.parseMetricMessage(samples, parser, message, packet.Origin, packet.ListenerID, s.originTelemetry)
 				if err != nil {
 					s.errLog("Dogstatsd: error parsing metric message '%q': %s", message, err)
 					continue
@@ -683,7 +713,7 @@ func (s *server) getOriginCounter(origin string) (okCnt telemetry.SimpleCounter,
 // which will be slower when processing millions of samples. It could use a boolean returned by `parseMetricSample` which
 // is the first part aware of processing a late metric. Also, it may help us having a telemetry of a "late_metrics" type here
 // which we can't do today.
-func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, originTelemetry bool) ([]metrics.MetricSample, error) {
+func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser *parser, message []byte, origin string, listenerID string, originTelemetry bool) ([]metrics.MetricSample, error) {
 	okCnt := tlmProcessedOk
 	errorCnt := tlmProcessedError
 	if origin != "" && originTelemetry {
@@ -706,7 +736,7 @@ func (s *server) parseMetricMessage(metricSamples []metrics.MetricSample, parser
 		}
 	}
 
-	metricSamples = enrichMetricSample(metricSamples, sample, origin, s.enrichConfig)
+	metricSamples = enrichMetricSample(metricSamples, sample, origin, listenerID, s.enrichConfig)
 
 	if len(sample.values) > 0 {
 		s.sharedFloat64List.put(sample.values)

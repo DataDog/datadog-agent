@@ -298,7 +298,7 @@ def build(
 
     # Run WiX to turn the WXS into an MSI
     with timed("Building MSI"):
-        msi_name = f"datadog-agent-ng-{env['PACKAGE_VERSION']}-1-x86_64"
+        msi_name = f"datadog-agent-{env['PACKAGE_VERSION']}-1-x86_64"
         _build_msi(
             ctx,
             env,
@@ -310,7 +310,7 @@ def build(
         shutil.copy2(os.path.join(build_outdir, msi_name + '.msi'), OUTPUT_PATH)
 
     # if the optional upgrade test helper exists then build that too
-    optional_name = "datadog-agent-ng-7.43.0~rc.3+git.485.14b9337-1-x86_64"
+    optional_name = "datadog-agent-7.43.0~rc.3+git.485.14b9337-1-x86_64"
     if os.path.exists(os.path.join(build_outdir, optional_name + ".wxs")):
         with timed("Building optional MSI"):
             _build_msi(

@@ -9,8 +9,9 @@ package oracle
 
 import (
 	"fmt"
+	"testing"
+
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/config"
@@ -18,7 +19,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 var chk Check
@@ -44,8 +44,8 @@ service_name: %s
 tns_alias: %s
 tns_admin: %s
 `, HOST, PORT, USER, PASSWORD, SERVICE_NAME, TNS_ALIAS, TNS_ADMIN))
-
-	err := chk.Configure(aggregator.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "oracle_test")
 	require.NoError(t, err)
 
 	assert.Equal(t, chk.config.InstanceConfig.Server, HOST)
@@ -63,7 +63,6 @@ func TestCustomQueries(t *testing.T) {
 		t.Fatalf("an error '%s' was not expected when opening a stub database connection", err)
 	}
 	defer db.Close()
-	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
 
 	dbMock.ExpectExec("alter.*").WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -79,15 +78,17 @@ func TestCustomQueries(t *testing.T) {
 		Query:        "SELECT c1, c2 FROM t",
 		Columns:      columns,
 	}
-
-	initAndStartAgentDemultiplexer(t)
+	
+	senderManager := mocksender.CreateDefaultDemultiplexer()
+	chk, err := initCheck(t, senderManager, "localhost", 1523, "a", "a", "a")
 	chk.Run()
 
-	sender := mocksender.NewMockSender(chk.ID())
+	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.SetupAcceptAll()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	chk.config.InstanceConfig.CustomQueries = []config.CustomQuery{q}
+	chk.dbCustomQueries = sqlx.NewDb(db, "sqlmock")
 
 	err = chk.CustomQueries()
 	assert.NoError(t, err, "failed to execute custom query")

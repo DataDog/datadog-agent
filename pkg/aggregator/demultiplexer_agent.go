@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
@@ -22,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"go.uber.org/fx"
 )
 
 // DemultiplexerWithAggregator is a Demultiplexer running an Aggregator.
@@ -122,28 +120,9 @@ type dataOutputs struct {
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
 func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	demultiplexerInstanceMu.Lock()
-	defer demultiplexerInstanceMu.Unlock()
-
 	demux := initAgentDemultiplexer(log, sharedForwarder, options, hostname)
-
-	if demultiplexerInstance != nil {
-		log.Warn("A DemultiplexerInstance is already existing but InitAndStartAgentDemultiplexer has been called again. Current instance will be overridden")
-	}
-	demultiplexerInstance = demux
-
 	go demux.Run()
 	return demux
-}
-
-type AggregatorTestDeps struct {
-	fx.In
-	Log             log.Component
-	SharedForwarder defaultforwarder.Component
-}
-
-func InitAndStartAgentDemultiplexerForTest(deps AggregatorTestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, options, hostname)
 }
 
 func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
@@ -430,7 +409,6 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 
 	d.dataOutputs.sharedSerializer = nil
 	d.senders = nil
-	demultiplexerInstance = nil
 }
 
 // ForceFlushToSerializer triggers the execution of a flush from all data of samplers
@@ -548,7 +526,7 @@ func (d *AgentDemultiplexer) SendSamplesWithoutAggregation(samples metrics.Metri
 		return
 	}
 
-	tlmProcessed.Add(float64(len(samples)), "late_metrics")
+	tlmProcessed.Add(float64(len(samples)), "", "late_metrics")
 	d.statsd.noAggStreamWorker.addSamples(samples)
 }
 

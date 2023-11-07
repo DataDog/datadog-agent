@@ -6,6 +6,7 @@ import time
 import traceback
 from collections import defaultdict
 from datetime import datetime
+from typing import Dict
 
 import yaml
 from invoke import task
@@ -34,7 +35,7 @@ from .libs.pipeline_tools import (
     trigger_agent_pipeline,
     wait_for_pipeline,
 )
-from .libs.types import SlackMessage, TeamMessage
+from .libs.types import FailedJobs, SlackMessage, TeamMessage
 from .utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -136,9 +137,7 @@ def workflow_rules(gitlab_file=".gitlab-ci.yml"):
 
 
 @task
-def trigger(
-    _, git_ref=DEFAULT_BRANCH, release_version_6="nightly", release_version_7="nightly-a7", repo_branch="nightly"
-):
+def trigger(_, git_ref=DEFAULT_BRANCH, release_version_6="dev", release_version_7="dev-a7", repo_branch="dev"):
     """
     OBSOLETE: Trigger a deploy pipeline on the given git ref. Use pipeline.run with the --deploy option instead.
     """
@@ -208,7 +207,7 @@ def run(
     here=False,
     use_release_entries=False,
     major_versions='6,7',
-    repo_branch="nightly",
+    repo_branch="dev",
     deploy=False,
     all_builds=True,
     kitchen_tests=True,
@@ -376,7 +375,7 @@ Please check for typos in the JOBOWNERS file and/or add them to the Github <-> S
 """
 
 
-def generate_failure_messages(project_name, failed_jobs):
+def generate_failure_messages(project_name: str, failed_jobs: FailedJobs) -> Dict[str, SlackMessage]:
     all_teams = "@DataDog/agent-all"
 
     # Generate messages for each team
@@ -386,7 +385,7 @@ def generate_failure_messages(project_name, failed_jobs):
     failed_job_owners = find_job_owners(failed_jobs)
     for owner, jobs in failed_job_owners.items():
         if owner == "@DataDog/multiple":
-            for job in jobs:
+            for job in jobs.all_non_infra_failures():
                 for test in get_failed_tests(project_name, job):
                     messages_to_send[all_teams].add_test_failure(test, job)
                     for owner in test.owners:
@@ -493,6 +492,9 @@ def is_system_probe(owners, files):
     return False
 
 
+EMAIL_SLACK_ID_MAP = {"guy20495@gmail.com": "U03LJSCAPK2", "safchain@gmail.com": "U01009CUG9X"}
+
+
 @task
 def changelog(ctx, new_commit_sha):
     old_commit_sha = ctx.run(
@@ -522,7 +524,10 @@ def changelog(ctx, new_commit_sha):
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
-        author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout
+        if author_email in EMAIL_SLACK_ID_MAP:
+            author_handle = EMAIL_SLACK_ID_MAP[author_email]
+        else:
+            author_handle = ctx.run(f"email2slackid {author_email.strip()}", hide=True).stdout.strip()
         if author_handle:
             author_handle = f"<@{author_handle}>"
         else:
@@ -537,13 +542,16 @@ def changelog(ctx, new_commit_sha):
     )
     if messages:
         slack_message += (
-            "\n".join(messages) + "\n:wave: Authors, please check relevant "
-            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98|dashboards> for issues"
+            "\n".join(messages) + "\n:wave: Authors, please check the "
+            "<https://ddstaging.datadoghq.com/dashboard/kfn-zy2-t98?tpl_var_cluster_name%5B0%5D=stripe"
+            "&tpl_var_cluster_name%5B1%5D=muk&tpl_var_cluster_name%5B2%5D=snowver"
+            "&tpl_var_cluster_name%5B3%5D=chillpenguin&tpl_var_cluster_name%5B4%5D=diglet"
+            "&tpl_var_cluster_name%5B5%5D=lagaffe&tpl_var_datacenter%5B0%5D=%2A|dashboard> for issues"
         )
     else:
         slack_message += "No new System Probe related commits in this release :cricket:"
 
-    print(f"Posting message to slack \n {slack_message}")
+    print(f"Posting message to slack: \n {slack_message}")
     send_slack_message("system-probe-ops", slack_message)
     print(f"Writing new commit sha: {new_commit_sha} to SSM")
     ctx.run(
@@ -594,7 +602,7 @@ def notify(_, notification_type="merge", print_to_stdout=False):
 
     # From the job failures, set whether the pipeline succeeded or failed and craft the
     # base message that will be sent.
-    if failed_jobs:  # At least one job failed
+    if failed_jobs.all_mandatory_failures():  # At least one mandatory job failed
         header_icon = ":host-red:"
         state = "failed"
         coda = "If there is something wrong with the notification please contact #agent-platform"
@@ -853,7 +861,12 @@ def update_gitlab_config(file_path, image_tag, test_version):
     with open(file_path, "r") as gl:
         file_content = gl.readlines()
     gitlab_ci = yaml.safe_load("".join(file_content))
-    suffixes = [name for name in gitlab_ci["variables"].keys() if name.endswith("SUFFIX")]
+    # TEST_INFRA_DEFINITION_BUILDIMAGE label format differs from other buildimages
+    suffixes = [
+        name
+        for name in gitlab_ci["variables"]
+        if name.endswith("SUFFIX") and not name.startswith("TEST_INFRA_DEFINITION")
+    ]
     images = [name.replace("_SUFFIX", "") for name in suffixes]
     with open(file_path, "w") as gl:
         for line in file_content:
@@ -895,9 +908,11 @@ def trigger_build(ctx, branch_name=None, create_branch=False):
     """
     if create_branch:
         ctx.run(f"git checkout -b {branch_name}")
-    ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
     answer = input("Do you want to trigger a pipeline (will also commit and push)? [Y/n]\n")
     if len(answer) == 0 or answer.casefold() == "y":
+        ctx.run("git add .gitlab-ci.yml .circleci/config.yml")
         ctx.run("git commit -m 'Update buildimages version'")
         ctx.run(f"git push origin {branch_name}")
+        print("Wait 10s to let Gitlab create the first events before triggering a new pipeline")
+        time.sleep(10)
         run(ctx, here=True)

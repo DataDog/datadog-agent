@@ -29,6 +29,6 @@ func GetConfiguredTags(c config.Reader, includeDogstatsd bool) []string {
 
 	// The aggregator sorts and removes duplicates in place. Pre-sorting part of the tags should
 	// improve the performances of the insertion sort in the aggregators.
-	combined = sort.RemoveDuplicatesAndSort(combined)
+	combined = sort.UniqInPlace(combined)
 	return combined
 }

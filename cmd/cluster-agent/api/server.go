@@ -46,7 +46,7 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(senderManager sender.SenderManager) error {
+func StartServer(senderManager sender.DiagnoseSenderManager) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
@@ -56,6 +56,9 @@ func StartServer(senderManager sender.SenderManager) error {
 
 	// API V1 Metadata APIs
 	v1.InstallMetadataEndpoints(apiRouter)
+
+	// API V1 Language Detection APIs
+	v1.InstallLanguageDetectionEndpoints(apiRouter)
 
 	// Validate token for every request
 	router.Use(validateToken)

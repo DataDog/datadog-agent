@@ -1,6 +1,3 @@
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags windows $GOFILE
-//go:generate go run github.com/mailru/easyjson/easyjson -gen_build_flags=-mod=mod -no_std_marshalers -build_tags windows -output_filename serializers_base_windows_easyjson.go serializers_base.go
-
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
@@ -9,6 +6,9 @@
 package serializers
 
 import (
+	"encoding/json"
+
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -25,7 +25,6 @@ type FileSerializer struct {
 }
 
 // ProcessSerializer serializes a process to JSON
-// easyjson:json
 type ProcessSerializer struct {
 	// Process ID
 	Pid uint32 `json:"pid,omitempty"`
@@ -44,29 +43,26 @@ type ProcessSerializer struct {
 }
 
 // FileEventSerializer serializes a file event to JSON
-// easyjson:json
 type FileEventSerializer struct {
 	FileSerializer
 }
 
 // NetworkDeviceSerializer serializes the network device context to JSON
-// easyjson:json
 type NetworkDeviceSerializer struct{}
 
 // EventSerializer serializes an event to JSON
-// easyjson:json
 type EventSerializer struct {
 	*BaseEventSerializer
 }
 
-func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64) *FileSerializer {
+func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64) *FileSerializer { //nolint:revive // TODO fix revive unused-parameter
 	return &FileSerializer{
 		Path: e.FieldHandlers.ResolveFilePath(e, fe),
 		Name: e.FieldHandlers.ResolveFileBasename(e, fe),
 	}
 }
 
-func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolvers.Resolvers) *ProcessSerializer {
+func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolvers.Resolvers) *ProcessSerializer { //nolint:revive // TODO fix revive unused-parameter
 	psSerializer := &ProcessSerializer{
 		ExecTime: getTimeIfNotZero(ps.ExecTime),
 		ExitTime: getTimeIfNotZero(ps.ExitTime),
@@ -74,7 +70,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 		Pid:        ps.Pid,
 		PPid:       getUint32Pointer(&ps.PPid),
 		Executable: newFileSerializer(&ps.FileEvent, e),
-		CmdLine:    ps.CmdLine,
+		CmdLine:    resolvers.ProcessResolver.GetProcessCmdLineScrubbed(ps),
 	}
 
 	if len(ps.ContainerID) != 0 {
@@ -85,7 +81,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 	return psSerializer
 }
 
-func newNetworkDeviceSerializer(e *model.Event) *NetworkDeviceSerializer {
+func newNetworkDeviceSerializer(e *model.Event) *NetworkDeviceSerializer { //nolint:revive // TODO fix revive unused-parameter
 	return &NetworkDeviceSerializer{}
 }
 
@@ -122,8 +118,24 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	return &ps
 }
 
-func serializeOutcome(retval int64) string {
+func serializeOutcome(retval int64) string { //nolint:revive // TODO fix revive unused-parameter
 	return "unknown"
+}
+
+// ToJSON returns json
+func (e *EventSerializer) ToJSON() ([]byte, error) {
+	return json.Marshal(e)
+}
+
+// MarshalEvent marshal the event
+func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error) {
+	s := NewEventSerializer(event, probe)
+	return json.Marshal(s)
+}
+
+// MarshalCustomEvent marshal the custom event
+func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
+	return json.Marshal(event)
 }
 
 // NewEventSerializer creates a new event serializer based on the event type

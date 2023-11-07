@@ -31,7 +31,7 @@ func init() {
 	diagnosis.Register("connectivity-datadog-core-endpoints", diagnose)
 }
 
-func diagnose(diagCfg diagnosis.Config, senderManager sender.SenderManager) []diagnosis.Diagnosis {
+func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagnosis.Diagnosis { //nolint:revive // TODO fix revive unused-parameter
 
 	// Create domain resolvers
 	keysPerDomain, err := utils.GetMultipleEndpoints(config.Datadog)

@@ -21,38 +21,6 @@ func TestUniqInPlace(t *testing.T) {
 
 	assert.ElementsMatch(t, elements, []string{"tag1:tagval", "tag2:tagval", "tag3:tagggg"})
 }
-
-func TestRemoveDuplicatesAndSort(t *testing.T) {
-	test := []struct {
-		name              string
-		input             []string
-		expected          []string
-		expectedLenAndCap int
-	}{
-		{
-			name:              "remove a duplicate",
-			input:             []string{"tag1:value1", "tag1:value1", "tag2:value2"},
-			expected:          []string{"tag1:value1", "tag2:value2"},
-			expectedLenAndCap: 2,
-		},
-		{
-			name:              "return the same array",
-			input:             []string{"bar", "baz", "foo"},
-			expected:          []string{"bar", "baz", "foo"},
-			expectedLenAndCap: 3,
-		},
-	}
-
-	for _, testCase := range test {
-		t.Run(testCase.name, func(t *testing.T) {
-			elements := RemoveDuplicatesAndSort(testCase.input)
-			assert.ElementsMatch(t, testCase.expected, elements)
-			assert.Equal(t, testCase.expectedLenAndCap, len(elements))
-			assert.Equal(t, testCase.expectedLenAndCap, cap(elements))
-		})
-	}
-}
-
 func benchmarkDeduplicateTags(b *testing.B, numberOfTags int) {
 	tags := make([]string, 0, numberOfTags+1)
 	for i := 0; i < numberOfTags; i++ {

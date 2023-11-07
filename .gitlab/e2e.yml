@@ -124,7 +124,7 @@ k8s-e2e-otlp-main:
 
 .new_e2e_template:
   stage: e2e
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
   tags: ["arch:amd64"]
   before_script:
     # Setup AWS Credentials
@@ -196,14 +196,14 @@ new-e2e-agent-subcommands-dev:
   rules: !reference [.on_dev_branch_manual]
   needs: []
   variables:
-    TARGETS: ./agent-subcommands
+    TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
 
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
   variables:
-    TARGETS: ./agent-subcommands
+    TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
@@ -213,14 +213,14 @@ new-e2e-language-detection-dev:
   rules: !reference [.on_dev_branch_manual]
   needs: []
   variables:
-    TARGETS: ./language-detection
+    TARGETS: ./tests/language-detection
     TEAM: processes
 
 new-e2e-language-detection-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
   variables:
-    TARGETS: ./language-detection
+    TARGETS: ./tests/language-detection
     TEAM: processes
 
 new-e2e-npm-dev:

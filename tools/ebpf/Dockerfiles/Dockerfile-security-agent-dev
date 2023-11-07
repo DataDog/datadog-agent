@@ -1,0 +1,25 @@
+ARG AGENT_BASE=datadog/agent:latest
+FROM $AGENT_BASE
+ARG CORE_AGENT_DEST
+
+# include some useful dev tools since this will be used or development
+RUN apt-get update -y && apt-get install -y jq netcat-openbsd
+
+# the core agent has the library path hardcoded, this allows the agent included below to find libs
+ENV LD_LIBRARY_PATH /opt/datadog-agent/embedded/lib
+
+# inv -e security-agent.build-dev-image will set up a temporary
+# build directory where this Dockerfile and the necessary binaries
+# are in the same directory
+COPY security-agent /opt/datadog-agent/embedded/bin/security-agent
+COPY system-probe /opt/datadog-agent/embedded/bin/system-probe
+COPY clang-bpf /opt/datadog-agent/embedded/bin/clang-bpf
+COPY llc-bpf /opt/datadog-agent/embedded/bin/llc-bpf
+
+# if you want to replace the base image's core agent binary, set $CORE_AGENT_DEST to
+# /opt/datadog-agent/bin/agent/agent; otherwise, set it to /dev/null
+COPY agent $CORE_AGENT_DEST
+
+COPY *.o /opt/datadog-agent/embedded/share/system-probe/ebpf/
+COPY co-re/*.o /opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/
+COPY *.c /opt/datadog-agent/embedded/share/system-probe/ebpf/runtime/

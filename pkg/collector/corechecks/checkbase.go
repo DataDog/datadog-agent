@@ -124,7 +124,7 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, integrat
 		if len(commonOptions.Tags) > 0 {
 			// Tags are sorted and duplicates are removed in the aggregator. Pre-sorting a subslice can speed up the next call
 			// of UniqInPlace in the aggregator
-			commonOptions.Tags = sort.RemoveDuplicatesAndSort(commonOptions.Tags)
+			commonOptions.Tags = sort.UniqInPlace(commonOptions.Tags)
 			s, err := c.GetSender()
 			if err != nil {
 				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)

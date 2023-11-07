@@ -151,7 +151,6 @@ type KSMCheck struct {
 	core.CheckBase
 	agentConfig          config.Config
 	instance             *KSMConfig
-	globalTags           []string
 	allStores            [][]cache.Store
 	telemetry            *telemetryCache
 	cancel               context.CancelFunc
@@ -234,7 +233,11 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	// Retrieve cluster name
 	k.getClusterName()
 
-	k.initTags()
+	// Add global tags to every metric
+	err = k.initTags()
+	if err != nil {
+		return err
+	}
 
 	builder := kubestatemetrics.New()
 
@@ -517,7 +520,7 @@ func (k *KSMCheck) Run() error {
 		}
 	}
 
-	k.sendTelemetry(sender)
+	k.sendTelemetry()
 
 	return nil
 }
@@ -629,7 +632,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		tags = append(tags, owners...)
 	}
 
-	return hostname, append(tags, k.globalTags...)
+	return hostname, tags
 }
 
 // familyFilter is a metric families filter for label joins
@@ -774,21 +777,29 @@ func (k *KSMCheck) getClusterName() {
 	}
 }
 
-// initTags avoids keeping a nil Tags field in the check instance
-// Sets the kube_cluster_name tag for all metrics.
-// Adds the global user-defined tags from the Agent config.
-func (k *KSMCheck) initTags() {
-	k.globalTags = []string{}
-
+// initTags sets the global tags for all metrics
+func (k *KSMCheck) initTags() error {
+	// Add the cluster name tag to the global tags
+	globalTags := []string{}
 	if k.clusterNameTagValue != "" {
-		k.globalTags = append(k.globalTags, "kube_cluster_name:"+k.clusterNameTagValue)
+		globalTags = append(globalTags, "kube_cluster_name:"+k.clusterNameTagValue)
 	}
-
+	// Add configured tags to the global tags
 	if !k.instance.DisableGlobalTags {
-		k.globalTags = append(k.globalTags, configUtils.GetConfiguredTags(k.agentConfig, false)...)
+		globalTags = append(globalTags, configUtils.GetConfiguredTags(k.agentConfig, false)...)
 	}
 
-	k.globalTags = sort.RemoveDuplicatesAndSort(k.globalTags)
+	// Add the globalTags to the Sender/RawSender (Sender wraps the RawSender) so that they will be sent with every metric.
+	sender, err := k.GetRawSender()
+	if err != nil {
+		return err
+	}
+	checkTags := sender.GetCheckCustomTags()
+	newCheckTags := append(checkTags, globalTags...)
+	// Pre-sort to avoid the overhead of InsertionSort in the aggregator
+	newCheckTags = sort.UniqInPlace(newCheckTags)
+	sender.SetCheckCustomTags(newCheckTags)
+	return nil
 }
 
 // processTelemetry accumulates the telemetry metric values, it can be called multiple times
@@ -819,19 +830,25 @@ func (k *KSMCheck) processTelemetry(metrics map[string][]ksmstore.DDMetricsFam) 
 }
 
 // sendTelemetry converts the cached telemetry values and forwards them as telemetry metrics
-func (k *KSMCheck) sendTelemetry(s sender.Sender) {
+func (k *KSMCheck) sendTelemetry() {
 	if !k.instance.Telemetry {
+		return
+	}
+
+	// This check uses the SafeSender to avoid tag corruption
+	safeSender, err := k.GetSender()
+	if err != nil {
+		log.Errorf("unable to get sender for telemetry: %s", err)
 		return
 	}
 
 	// reset the cache for the next check run
 	defer k.telemetry.reset()
 
-	s.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", sort.CopyArray(k.globalTags))
-	s.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", sort.CopyArray(k.globalTags))
+	safeSender.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", nil)
+	safeSender.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", nil)
 	for resource, count := range k.telemetry.getResourcesCount() {
-		tags := append(k.globalTags, "resource_name:"+resource)
-		s.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", sort.CopyArray(tags))
+		safeSender.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", []string{"resource_name:" + resource})
 	}
 }
 

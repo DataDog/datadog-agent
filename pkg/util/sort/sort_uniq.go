@@ -37,19 +37,3 @@ func uniqSorted(elements []string) []string {
 	}
 	return elements[:j+1]
 }
-
-// RemoveDuplicatesAndSort sorts and removes duplicates from a slice without doing it in place.
-func RemoveDuplicatesAndSort(elements []string) []string {
-	res := CopyArray(elements)
-	res = UniqInPlace(res)
-	// copying the array with exactly enough capacity should make it more resilient
-	// against cases where `append` mutates the original array
-	return CopyArray(res)
-}
-
-// CopyArray returns a copied array
-func CopyArray[T any](array []T) []T {
-	res := make([]T, len(array))
-	copy(res, array)
-	return res
-}

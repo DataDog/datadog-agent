@@ -20,18 +20,15 @@ if ohai["platform"] != "windows"
   relative_path "Python-#{version}"
 
   python_configure_options = [
-    "--with-ssl=#{install_dir}/embedded",
     "--with-ensurepip=yes" # We upgrade pip later, in the pip3 software definition
   ]
 
   if mac_os_x?
     python_configure_options.push("--enable-ipv6",
                           "--with-universal-archs=intel",
-                          "--enable-shared",
-                          "--disable-static")
-  elsif linux?
+                          "--enable-shared")
+  elsif linux_target?
     python_configure_options.push("--enable-shared",
-                          "--disable-static",
                           "--enable-ipv6")
   elsif aix?
     # something here...

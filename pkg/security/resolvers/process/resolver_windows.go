@@ -50,7 +50,7 @@ type ResolverOpts struct {
 }
 
 // NewResolver returns a new process resolver
-func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber,
+func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, //nolint:revive // TODO fix revive unused-parameter
 	opts ResolverOpts) (*Resolver, error) {
 
 	p := &Resolver{
@@ -134,7 +134,7 @@ func (p *Resolver) GetEntry(pid Pid) *model.ProcessCacheEntry {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *model.ProcessCacheEntry {
+func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *model.ProcessCacheEntry { //nolint:revive // TODO fix revive unused-parameter
 	return p.GetEntry(pid)
 }
 
@@ -157,6 +157,23 @@ func (p *Resolver) GetEnvp(pr *model.Process) []string {
 
 	pr.Envp = pr.EnvsEntry.Values
 	return pr.Envp
+}
+
+// GetProcessCmdLineScrubbed returns the scrubbed cmdline
+func (p *Resolver) GetProcessCmdLineScrubbed(pr *model.Process) string {
+	if pr.ScrubbedCmdLineResolved {
+		return pr.CmdLine
+	}
+
+	if p.scrubber != nil && len(pr.CmdLine) > 0 {
+		// replace with the scrubbed version
+		scrubbed, _ := p.scrubber.ScrubCommand([]string{pr.CmdLine})
+		if len(scrubbed) > 0 {
+			pr.CmdLine = strings.Join(scrubbed, " ")
+		}
+	}
+
+	return pr.CmdLine
 }
 
 // getCacheSize returns the cache size of the process resolver

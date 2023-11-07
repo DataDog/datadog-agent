@@ -343,6 +343,10 @@ func TestGetSenderAddCheckCustomTagsService(t *testing.T) {
 	s.sender.SetCheckCustomTags(customTags)
 	assert.Len(t, s.sender.checkTags, 2)
 
+	// verify that GetCheckCustomTags sends the correct tags
+	tags := s.sender.GetCheckCustomTags()
+	assert.Equal(t, s.sender.checkTags, tags)
+
 	// only tags coming from the configuration file
 	s.sender.ServiceCheck("test", servicecheck.ServiceCheckOK, "testhostname", nil, "test message")
 	sc = <-s.serviceCheckChan
@@ -385,6 +389,10 @@ func TestGetSenderAddCheckCustomTagsEvent(t *testing.T) {
 	s.sender.SetCheckCustomTags(customTags)
 	assert.Len(t, s.sender.checkTags, 2)
 
+	// verify that GetCheckCustomTags sends the correct tags
+	tags := s.sender.GetCheckCustomTags()
+	assert.Equal(t, s.sender.checkTags, tags)
+
 	// only tags coming from the configuration file
 	event.Tags = nil
 	s.sender.Event(event)
@@ -419,6 +427,10 @@ func TestGetSenderAddCheckCustomTagsHistogramBucket(t *testing.T) {
 	customTags := []string{"custom:tag1", "custom:tag2"}
 	s.sender.SetCheckCustomTags(customTags)
 	assert.Len(t, s.sender.checkTags, 2)
+
+	// verify that GetCheckCustomTags sends the correct tags
+	tags := s.sender.GetCheckCustomTags()
+	assert.Equal(t, s.sender.checkTags, tags)
 
 	// only tags coming from the configuration file
 	s.sender.HistogramBucket("my.histogram_bucket", 42, 1.0, 2.0, true, "my-hostname", nil, false)

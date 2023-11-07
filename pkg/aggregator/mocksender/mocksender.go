@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 package mocksender
 
 import (
@@ -103,6 +105,7 @@ func (m *MockSender) SetupAcceptAll() {
 	m.On("GetSenderStats", mock.AnythingOfType("stats.SenderStats")).Return()
 	m.On("DisableDefaultHostname", mock.AnythingOfType("bool")).Return()
 	m.On("SetCheckCustomTags", mock.AnythingOfType("[]string")).Return()
+	m.On("GetCheckCustomTags").Return()
 	m.On("SetCheckService", mock.AnythingOfType("string")).Return()
 	m.On("FinalizeCheckServiceTag").Return()
 	m.On("SetNoIndex").Return()
