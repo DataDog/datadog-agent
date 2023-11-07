@@ -59,14 +59,14 @@ func (i *integrationLogsRegistryDelegate) processValue(valueName string, val int
 	keyName := getKeyName(valueName, regKeyCfg)
 	cachedVal, ok := i.valueMap[keyName]
 	if !ok {
-		p := getPayload(fmt.Sprintf("value %s = %v", valueName, val), keyCreated, regKeyCfg)
+		p := getPayload(fmt.Sprintf("value %s = '%v'", keyName, val), keyCreated, regKeyCfg)
 		p.Data["old_value"] = nil
 		p.Data["new_value"] = val
 		i.sendLog(&p, "info")
 		i.valueMap[keyName] = val
 	} else {
 		if cachedVal != val {
-			p := getPayload(fmt.Sprintf("value %s change from %v to %v", valueName, cachedVal, val), keyChanged, regKeyCfg)
+			p := getPayload(fmt.Sprintf("value %s changed from '%v' to '%v'", keyName, cachedVal, val), keyChanged, regKeyCfg)
 			p.Data["old_value"] = cachedVal
 			p.Data["new_value"] = val
 			i.sendLog(&p, "info")
@@ -79,8 +79,24 @@ func (i *integrationLogsRegistryDelegate) onSendNumber(valueName string, val flo
 	i.processValue(valueName, val, regKeyCfg)
 }
 
-func (i *integrationLogsRegistryDelegate) onSendMappedNumber(valueName string, _ string, mappedVal float64, regKeyCfg registryKey, _ registryValueCfg) {
-	i.processValue(valueName, mappedVal, regKeyCfg)
+func (i *integrationLogsRegistryDelegate) onSendMappedNumber(valueName string, originalVal string, mappedVal float64, regKeyCfg registryKey, _ registryValueCfg) {
+	keyName := getKeyName(valueName, regKeyCfg)
+	cachedVal, ok := i.valueMap[keyName]
+	if !ok {
+		p := getPayload(fmt.Sprintf("value %s = '%v' ('%v')", keyName, mappedVal, originalVal), keyCreated, regKeyCfg)
+		p.Data["old_value"] = nil
+		p.Data["new_value"] = mappedVal
+		i.sendLog(&p, "info")
+		i.valueMap[keyName] = mappedVal
+	} else {
+		if cachedVal != mappedVal {
+			p := getPayload(fmt.Sprintf("value %s changed from '%v' to '%v' ('%v')", keyName, cachedVal, mappedVal, originalVal), keyChanged, regKeyCfg)
+			p.Data["old_value"] = cachedVal
+			p.Data["new_value"] = mappedVal
+			i.sendLog(&p, "info")
+			i.valueMap[keyName] = mappedVal
+		}
+	}
 }
 
 func (i *integrationLogsRegistryDelegate) onNoMappingFound(valueName string, val string, regKeyCfg registryKey, _ registryValueCfg) {
@@ -95,7 +111,7 @@ func (i *integrationLogsRegistryDelegate) onMissing(valueName string, regKeyCfg 
 	keyName := getKeyName(valueName, regKeyCfg)
 	cachedVal, ok := i.valueMap[keyName]
 	if ok {
-		p := getPayload(fmt.Sprintf("value %s (%v) was deleted", keyName, cachedVal), keyDeleted, regKeyCfg)
+		p := getPayload(fmt.Sprintf("value %s ('%v') was deleted", keyName, cachedVal), keyDeleted, regKeyCfg)
 		p.Data["old_value"] = cachedVal
 		p.Data["new_value"] = nil
 		i.sendLog(&p, "info")
