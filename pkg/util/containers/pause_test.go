@@ -13,9 +13,10 @@ import (
 
 func TestIsPauseContainer(t *testing.T) {
 	tests := []struct {
-		name   string
-		labels map[string]string
-		want   bool
+		name      string
+		labels    map[string]string
+		imageName string
+		want      bool
 	}{
 		{
 			name: "docker & crio pause container",
@@ -66,10 +67,26 @@ func TestIsPauseContainer(t *testing.T) {
 			labels: map[string]string{},
 			want:   false,
 		},
+		{
+			name: "sandbox",
+			labels: map[string]string{
+				"io.cri-containerd.kind": "sandbox",
+			},
+			want: true,
+		},
+		{
+			name:      "image name",
+			imageName: "k8s.gcr.io/pause-amd64:3.1",
+			want:      true,
+		},
 	}
+
+	pauseContainerFilter, err := GetPauseContainerFilter()
+	assert.NoError(t, err)
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, IsPauseContainer(tt.labels))
+			assert.Equal(t, tt.want, IsPauseContainer(tt.labels, tt.imageName, pauseContainerFilter))
 		})
 	}
 }

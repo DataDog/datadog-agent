@@ -16,11 +16,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/opencontainers/image-spec/identity"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	dderrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
-	"github.com/opencontainers/image-spec/identity"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/types"
@@ -363,6 +364,7 @@ func (c *ContainerdUtil) Status(namespace string, ctn containerd.Container) (con
 // It checks the io.cri-containerd.kind label
 // Ref:
 // - https://github.com/containerd/cri/blob/release/1.4/pkg/server/helpers.go#L74
+// TODO: Delete since it's not used anymore.
 func (c *ContainerdUtil) IsSandbox(namespace string, ctn containerd.Container) (bool, error) {
 	labels, err := c.Labels(namespace, ctn)
 	if err != nil {
