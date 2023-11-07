@@ -166,7 +166,6 @@ func TestNetFlow_IntegrationTest_AdditionalFields(t *testing.T) {
 						{
 							Field:       7,
 							Destination: "destination.port",
-							Type:        common.Varint,
 						},
 						{
 							Field:       32,
