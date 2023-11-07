@@ -8,8 +8,8 @@ require (
 	github.com/alecthomas/participle v0.7.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/fatih/structtag v1.2.0
-	github.com/fsnotify/fsnotify v1.6.0
-	github.com/google/go-cmp v0.5.9
+	github.com/fsnotify/fsnotify v1.7.0
+	github.com/google/go-cmp v0.6.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/skydive-project/go-debouncer v1.0.0
@@ -17,7 +17,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/exp v0.0.0-20221114191408-850992195362
 	golang.org/x/sys v0.13.0
-	golang.org/x/text v0.13.0
+	golang.org/x/text v0.14.0
 	golang.org/x/tools v0.14.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1

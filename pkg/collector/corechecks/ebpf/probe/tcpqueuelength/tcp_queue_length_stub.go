@@ -17,7 +17,7 @@ import (
 type Tracer struct{}
 
 // NewTracer is not implemented on non-linux systems
-func NewTracer(cfg *ebpf.Config) (*Tracer, error) {
+func NewTracer(*ebpf.Config) (*Tracer, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 

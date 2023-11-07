@@ -1,0 +1,371 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -299,7 +299,7 @@ cmake_dependent_option(OPENSCAP_PROBE_UNIX_UNAME "Unix uname probe" ON "ENABLE_P
+ cmake_dependent_option(OPENSCAP_PROBE_UNIX_XINETD "Unix xinetd probe" ON "ENABLE_PROBES_UNIX" OFF)
+ 
+ # LINUX PROBES
+-cmake_dependent_option(OPENSCAP_PROBE_LINUX_DPKGINFO "Linux dpkginfo probe" ON "ENABLE_PROBES_LINUX; APTPKG_FOUND" OFF)
++cmake_dependent_option(OPENSCAP_PROBE_LINUX_DPKGINFO "Linux dpkginfo probe" ON "ENABLE_PROBES_LINUX" OFF)
+ cmake_dependent_option(OPENSCAP_PROBE_LINUX_IFLISTENERS "Linux iflisteners probe" ON "ENABLE_PROBES_LINUX" OFF)
+ cmake_dependent_option(OPENSCAP_PROBE_LINUX_INETLISTENINGSERVERS "Linux inetlisteningservers probe" ON "ENABLE_PROBES_LINUX" OFF)
+ cmake_dependent_option(OPENSCAP_PROBE_LINUX_PARTITION "Linux partition probe" ON "ENABLE_PROBES_LINUX; BLKID_FOUND" OFF)
+@@ -434,7 +434,7 @@ message(STATUS "  Unix xinetd probe: ${OPENSCAP_PROBE_UNIX_XINETD}")
+ message(STATUS " ")
+ 
+ message(STATUS "Linux probes: ${ENABLE_PROBES_LINUX}")
+-message(STATUS "  Linux dpkginfo probe (depends on aptpkg): ${OPENSCAP_PROBE_LINUX_DPKGINFO}")
++message(STATUS "  Linux dpkginfo probe: ${OPENSCAP_PROBE_LINUX_DPKGINFO}")
+ message(STATUS "  Linux iflisteners probe: ${OPENSCAP_PROBE_LINUX_IFLISTENERS}")
+ message(STATUS "  Linux inetlisteningservers probe: ${OPENSCAP_PROBE_LINUX_INETLISTENINGSERVERS}")
+ message(STATUS "  Linux partition probe (depends on blkid): ${OPENSCAP_PROBE_LINUX_PARTITION}")
+--- a/cmake/FindAptPkg.cmake
++++ /dev/null
+@@ -1,30 +0,0 @@
+-# - Try to find the APTPKG development libraries
+-# Once done this will define
+-#
+-# APTPKG_FOUND - system has libapt-pkg
+-# APTPKG_INCLUDE_DIR - APTPKG include directory
+-# APTPKG_LIBRARIES - APTPKG (if found) library
+-
+-if(APTPKG_INCLUDE_DIR AND APTPKG_LIBRARIES)
+-    # Already in cache, be silent
+-    set(APTPKG_FIND_QUIETLY TRUE)
+-endif()
+-
+-find_path(APTPKG_INCLUDE_DIR apt-pkg/init.h)
+-find_library(APTPKG_LIBRARIES NAMES apt-pkg)
+-
+-if(APTPKG_INCLUDE_DIR AND APTPKG_LIBRARIES)
+-   set(APTPKG_FOUND TRUE)
+-endif()
+-
+-if(APTPKG_FOUND)
+-   if(NOT APTPKG_FIND_QUIETLY)
+-      message(STATUS "Found apt-pkg: ${APTPKG_LIBRARIES}")
+-   endif()
+-else()
+-   if(AptPkg_FIND_REQUIRED)
+-       message(FATAL_ERROR "Could NOT find AptPkg")
+-   endif()
+-endif()
+-
+-mark_as_advanced(APTPKG_INCLUDE_DIR APTPKG_LIBRARIES)
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -115,9 +115,6 @@ endif()
+ if(DBUS_FOUND)
+ 	target_link_libraries(openscap ${DBUS_LIBRARIES})
+ endif()
+-if(APTPKG_FOUND)
+-	target_link_libraries(openscap ${APTPKG_LIBRARIES})
+-endif()
+ if(ACL_FOUND)
+ 	target_link_libraries(openscap ${ACL_LIBRARY})
+ endif()
+--- a/src/OVAL/probes/probe-table.c
++++ b/src/OVAL/probes/probe-table.c
+@@ -257,7 +257,7 @@ static const probe_table_entry_t probe_table[] = {
+ 	{OVAL_INDEPENDENT_YAML_FILE_CONTENT, NULL, yamlfilecontent_probe_main, NULL, yamlfilecontent_probe_offline_mode_supported},
+ #endif
+ #ifdef OPENSCAP_PROBE_LINUX_DPKGINFO
+-	{OVAL_LINUX_DPKG_INFO, dpkginfo_probe_init, dpkginfo_probe_main, dpkginfo_probe_fini, dpkginfo_probe_offline_mode_supported},
++	{OVAL_LINUX_DPKG_INFO, NULL, dpkginfo_probe_main, NULL, dpkginfo_probe_offline_mode_supported},
+ #endif
+ #ifdef OPENSCAP_PROBE_LINUX_IFLISTENERS
+ 	{OVAL_LINUX_IFLISTENERS, NULL, iflisteners_probe_main, NULL, NULL},
+--- a/src/OVAL/probes/unix/linux/CMakeLists.txt
++++ b/src/OVAL/probes/unix/linux/CMakeLists.txt
+@@ -1,13 +1,10 @@
+ if(OPENSCAP_PROBE_LINUX_DPKGINFO)
+ 	list(APPEND LINUX_PROBES_SOURCES
+-		"dpkginfo-helper.cxx"
++		"dpkginfo-helper.c"
+ 		"dpkginfo-helper.h"
+ 		"dpkginfo_probe.c"
+ 		"dpkginfo_probe.h"
+ 	)
+-	list(APPEND LINUX_PROBES_INCLUDE_DIRECTORIES
+-		${APTPKG_INCLUDE_DIR}
+-	)
+ endif()
+ 
+ if(OPENSCAP_PROBE_LINUX_IFLISTENERS)
+--- /dev/null
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.c
+@@ -0,0 +1,174 @@
++#ifdef HAVE_CONFIG_H
++#include <config.h>
++#endif
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <string.h>
++#include <ctype.h>
++#include <limits.h>
++
++#include "debug_priv.h"
++#include "dpkginfo-helper.h"
++
++#define MAX_LEN 4096
++
++static char* trimleft(char *str)
++{
++	while (isspace((unsigned char)*str))
++		str++;
++
++	if (*str == 0)
++		return str;
++
++	return str;
++}
++
++static int version(struct dpkginfo_reply_t *reply)
++{
++	char *evr, *epoch, *version, *release;
++
++	if (reply->evr == NULL)
++		return -1;
++
++	evr = strdup(reply->evr);
++	if (evr == NULL)
++		return -1;
++
++	if ((epoch = strchr(evr, ':')) != NULL) {
++		*epoch++ = '\0';
++		reply->epoch = strdup(evr);
++		if (reply->epoch == NULL)
++			goto err;
++	} else {
++		reply->epoch = strdup("0");
++		if (reply->epoch == NULL)
++			goto err;
++		epoch = evr;
++	}
++
++	version = epoch;
++	if ((release = strchr(version, '-')) != NULL) {
++		*release++ = '\0';
++		reply->release = strdup(release);
++		if (reply->release == NULL)
++			goto err;
++	}
++	reply->version = strdup(version);
++	if (reply->version == NULL)
++		goto err;
++
++	free(evr);
++	return 0;
++err:
++	free(evr);
++	return -1;
++}
++
++struct dpkginfo_reply_t* dpkginfo_get_by_name(const char *name, int *err)
++{
++	FILE *f;
++	char buf[MAX_LEN], path[PATH_MAX], *root, *key, *value;
++	struct dpkginfo_reply_t *reply;
++
++	*err = 0;
++	reply = NULL;
++
++	root = getenv("OSCAP_PROBE_ROOT");
++	if (root != NULL)
++		snprintf(path, PATH_MAX, "%s/var/lib/dpkg/status", root);
++	else
++		snprintf(path, PATH_MAX, "/var/lib/dpkg/status");
++
++	f = fopen(path, "r");
++	if (f == NULL) {
++		dW("%s not found.", path);
++		*err = -1;
++		return NULL;
++	}
++
++	while (fgets(buf, MAX_LEN, f)) {
++		if (buf[0] == '\n') {
++			// New package entry.
++			if (reply != NULL) {
++				// Package found.
++				*err = 1;
++				goto out;
++			}
++			continue;
++		}
++		if (isspace(buf[0])) {
++			// Ignore line beginning by a space.
++			continue;
++		}
++		buf[strcspn(buf, "\n")] = 0;
++		key = buf;
++		value = strchr(buf, ':');
++		if (value == NULL) {
++			// Ignore truncated line.
++			continue;
++		}
++		*value++ = '\0';
++		value = trimleft(value);
++		// Package should be the first line.
++		if (strncmp(key, "Package", 7) == 0) {
++			if (strcmp(value, name) == 0) {
++				if (reply != NULL)
++					continue;
++				reply = calloc(1, sizeof(*reply));
++				if (reply == NULL)
++					goto err;
++				reply->name = strdup(value);
++				if (reply->name == NULL)
++					goto err;
++			}
++		} else if (reply != NULL) {
++			if (strncmp(key, "Status", 6) == 0) {
++				if (strncmp(value, "install", 7) != 0) {
++					// Package deinstalled.
++					dpkginfo_free_reply(reply);
++					reply = NULL;
++					continue;
++				}
++			} else if (strncmp(key, "Architecture", 12) == 0) {
++				reply->arch = strdup(value);
++				if (reply->arch == NULL)
++					goto err;
++			} else if (strncmp(key, "Version", 7) == 0) {
++				reply->evr = strdup(value);
++				if (reply->evr == NULL)
++					goto err;
++				if (version(reply) < 0)
++					goto err;
++			}
++		}
++	}
++
++	// Reached end of file.
++	if (reply != NULL) {
++		// Package found.
++		*err = 1;
++	}
++
++out:
++	fclose(f);
++	return reply;
++err:
++	fclose(f);
++	dpkginfo_free_reply(reply);
++	*err = -1;
++	return NULL;
++}
++
++void dpkginfo_free_reply(struct dpkginfo_reply_t *reply)
++{
++	if (reply) {
++		free(reply->name);
++		free(reply->arch);
++		free(reply->epoch);
++		free(reply->release);
++		free(reply->version);
++		free(reply->evr);
++		free(reply);
++	}
++}
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.h
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.h
+@@ -22,10 +22,6 @@
+ #ifndef __DPKGINFO_HELPER__
+ #define __DPKGINFO_HELPER__
+ 
+-#ifdef __cplusplus
+-extern "C" {
+-#endif
+-
+ struct dpkginfo_reply_t {
+         char *name;
+         char *arch;
+@@ -35,15 +31,8 @@ struct dpkginfo_reply_t {
+         char *evr;
+ };
+ 
+-int dpkginfo_init();
+-int dpkginfo_fini();
+-
+ struct dpkginfo_reply_t * dpkginfo_get_by_name(const char *name, int *err);
+ 
+ void dpkginfo_free_reply(struct dpkginfo_reply_t *reply);
+ 
+-#ifdef __cplusplus
+-}
+-#endif
+-
+ #endif /* __DPKGINFO_HELPER__ */
+--- a/src/OVAL/probes/unix/linux/dpkginfo_probe.c
++++ b/src/OVAL/probes/unix/linux/dpkginfo_probe.c
+@@ -63,43 +63,10 @@
+ 
+ #include "dpkginfo_probe.h"
+ 
+-struct dpkginfo_global {
+-        int init_done;
+-        pthread_mutex_t mutex;
+-};
+-
+-static struct dpkginfo_global g_dpkg = {
+-	.mutex = PTHREAD_MUTEX_INITIALIZER,
+-        .init_done = -1,
+-};
+-
+ int dpkginfo_probe_offline_mode_supported(void) {
+         return PROBE_OFFLINE_OWN;
+ }
+ 
+-void *dpkginfo_probe_init(void)
+-{
+-        pthread_mutex_lock (&(g_dpkg.mutex));
+-        g_dpkg.init_done = dpkginfo_init();
+-        pthread_mutex_unlock (&(g_dpkg.mutex));
+-        if (g_dpkg.init_done < 0) {
+-                dE("dpkginfo_init has failed.");
+-        }
+-
+-        return ((void *)&g_dpkg);
+-}
+-
+-void dpkginfo_probe_fini (void *ptr)
+-{
+-        struct dpkginfo_global *d = (struct dpkginfo_global *)ptr;
+-
+-        pthread_mutex_lock (&(d->mutex));
+-        dpkginfo_fini();
+-        pthread_mutex_unlock (&(d->mutex));
+-
+-        return;
+-}
+-
+ int dpkginfo_probe_main (probe_ctx *ctx, void *arg)
+ {
+ 	SEXP_t *val, *item, *ent, *obj;
+@@ -107,15 +74,6 @@ int dpkginfo_probe_main (probe_ctx *ctx, void *arg)
+         struct dpkginfo_reply_t *dpkginfo_reply = NULL;
+         int errflag;
+ 
+-	if (arg == NULL) {
+-		return PROBE_EINIT;
+-	}
+-
+-        if (g_dpkg.init_done < 0) {
+-                probe_cobj_set_flag(probe_ctx_getresult(ctx), SYSCHAR_FLAG_UNKNOWN);
+-                return 0;
+-        }
+-
+ 	obj = probe_ctx_getobject(ctx);
+ 	ent = probe_obj_getent(obj, "name", 1);
+ 
+@@ -153,9 +111,7 @@ int dpkginfo_probe_main (probe_ctx *ctx, void *arg)
+         }
+ 
+         /* get info from debian apt cache */
+-        pthread_mutex_lock (&(g_dpkg.mutex));
+         dpkginfo_reply = dpkginfo_get_by_name(request_st, &errflag);
+-        pthread_mutex_unlock (&(g_dpkg.mutex));
+ 
+         if (dpkginfo_reply == NULL) {
+                 switch (errflag) {

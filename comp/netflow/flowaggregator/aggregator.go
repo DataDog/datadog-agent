@@ -145,7 +145,7 @@ func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) 
 
 		agg.logger.Tracef("flushed flow: %s", string(payloadBytes))
 
-		m := &message.Message{Content: payloadBytes}
+		m := message.NewMessage(payloadBytes, nil, "", 0)
 		err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow)
 		if err != nil {
 			// at the moment, SendEventPlatformEventBlocking can only fail if the event type is invalid
@@ -197,7 +197,7 @@ func (agg *FlowAggregator) sendExporterMetadata(flows []*common.Flow, flushTime 
 				continue
 			}
 			agg.logger.Debugf("netflow exporter metadata payload: %s", string(payloadBytes))
-			m := &message.Message{Content: payloadBytes}
+			m := message.NewMessage(payloadBytes, nil, "", 0)
 			err = agg.epForwarder.SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesMetadata)
 			if err != nil {
 				agg.logger.Errorf("Error sending event platform event for netflow exporter metadata: %s", err)

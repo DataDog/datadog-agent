@@ -155,6 +155,7 @@ func TestCollection(t *testing.T) {
 		err := grpcServer.Serve(lis)
 		require.NoError(t, err)
 	}()
+	defer grpcServer.Stop()
 
 	_, portStr, err := net.SplitHostPort(lis.Addr().String())
 	require.NoError(t, err)
@@ -171,6 +172,10 @@ func TestCollection(t *testing.T) {
 
 	mockClientStore := workloadmeta.NewMockStore()
 	ctx, cancel := context.WithCancel(context.TODO())
+	// Subscribe to the mockStore and wait for the initial event
+	ch := mockClientStore.Subscribe("dummy", workloadmeta.NormalPriority, nil)
+
+	// Start collecting entities
 	err = collector.Start(ctx, mockClientStore)
 	require.NoError(t, err)
 
@@ -203,17 +208,28 @@ func TestCollection(t *testing.T) {
 		},
 	}
 
-	mockServerStore.Notify(
-		[]workloadmeta.CollectorEvent{
-			{
-				Type:   workloadmeta.EventTypeSet,
-				Source: workloadmeta.SourceAll,
-				Entity: expectedContainer,
-			},
+	collectorEvents := []workloadmeta.CollectorEvent{
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: expectedContainer,
 		},
-	)
+	}
 
-	time.Sleep(2 * time.Second)
+	mockServerStore.Notify(collectorEvents)
+
+	// Number of events expected. We expect one per collectorEvent.
+
+	numberOfEvents := len(collectorEvents)
+	// Keep listening to workloadmeta until enough events are received. It is possible that the
+	// first bundle does not hold any events. Thus, it is required to look at the number of events
+	// in the bundle.
+	for i := 0; i < numberOfEvents; {
+		bundle := <-ch
+		close(bundle.Ch)
+		i += len(bundle.Events)
+	}
+	mockClientStore.Unsubscribe(ch)
 	cancel()
 
 	container, err := mockClientStore.GetContainer("ctr-id")

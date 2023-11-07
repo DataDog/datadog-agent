@@ -169,7 +169,7 @@ func GenerateStores[T any](
 	expectedType interface{},
 	client T,
 	listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher,
-	useAPIServerCache bool,
+	useAPIServerCache bool, //nolint:revive // TODO fix revive unused-parameter
 ) []cache.Store {
 	filteredMetricFamilies := generator.FilterFamilyGenerators(b.allowDenyList, metricFamilies)
 	composedMetricGenFuncs := generator.ComposeMetricGenFuncs(filteredMetricFamilies)

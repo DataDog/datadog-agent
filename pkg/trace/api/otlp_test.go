@@ -458,25 +458,57 @@ func TestOTLPReceiveResourceSpans(t *testing.T) {
 	}
 
 	t.Run("ClientComputedStats", func(t *testing.T) {
-		rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+		// testAndExpect tests the ReceiveResourceSpans method by feeding it the given spans and header and running
+		// the fn function on the outputted payload. It waits for the payload up to 500ms after which it times out.
+		testAndExpect := func(spans []testutil.OTLPResourceSpan, header http.Header, fn func(p *Payload)) func(t *testing.T) {
+			return func(t *testing.T) {
+				rspans := testutil.NewOTLPTracesRequest(spans).Traces().ResourceSpans().At(0)
+				rcv.ReceiveResourceSpans(context.Background(), rspans, header)
+				timeout := time.After(500 * time.Millisecond)
+				select {
+				case <-timeout:
+					t.Fatal("timed out")
+				case p := <-out:
+					fn(p)
+				}
+			}
+		}
+
+		testSpans := [...][]testutil.OTLPResourceSpan{
 			{
-				LibName:    "libname",
-				LibVersion: "1.2",
-				Attributes: map[string]interface{}{},
-				Spans: []*testutil.OTLPSpan{
-					{Attributes: map[string]interface{}{string(semconv.AttributeK8SPodUID): "123cid"}},
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{},
+					Spans:      []*testutil.OTLPSpan{{Attributes: map[string]interface{}{string(semconv.AttributeK8SPodUID): "123cid"}}},
 				},
 			},
-		}).Traces().ResourceSpans().At(0)
-		rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{})
-		timeout := time.After(500 * time.Millisecond)
-		select {
-		case <-timeout:
-			t.Fatal("timed out")
-		case p := <-out:
-			// stats are computed this time
-			require.False(p.ClientComputedStats)
+			{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{
+						// these spans are marked as having had stats computed
+						keyStatsComputed: "true",
+					},
+					Spans: []*testutil.OTLPSpan{{Attributes: map[string]interface{}{string(semconv.AttributeK8SPodUID): "123cid"}}},
+				},
+			},
 		}
+
+		t.Run("default", testAndExpect(testSpans[0], http.Header{}, func(p *Payload) {
+			require.False(p.ClientComputedStats)
+		}))
+
+		t.Run("header", testAndExpect(testSpans[0], http.Header{
+			header.ComputedStats: []string{"true"},
+		}, func(p *Payload) {
+			require.True(p.ClientComputedStats)
+		}))
+
+		t.Run("resource", testAndExpect(testSpans[1], http.Header{}, func(p *Payload) {
+			require.True(p.ClientComputedStats)
+		}))
 	})
 }
 
@@ -1077,7 +1109,6 @@ func TestOTLPConvertSpan(t *testing.T) {
 					"http.method":             "GET",
 					"http.route":              "/path",
 					"peer.service":            "userbase",
-					"_dd.peer.service.source": "peer.service",
 					"span.kind":               "server",
 				},
 				Metrics: map[string]float64{
@@ -1404,7 +1435,6 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"service.version":         "v1.2.3",
 					"version":                 "v1.2.3",
 					"peer.service":            "userbase",
-					"_dd.peer.service.source": "peer.service",
 					"span.kind":               "server",
 				},
 				Type:    "web",
@@ -1451,7 +1481,6 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"service.version":         "v1.2.3",
 					"version":                 "v1.2.3",
 					"peer.service":            "userbase",
-					"_dd.peer.service.source": "peer.service",
 					"span.kind":               "server",
 				},
 				Type:    "web",
@@ -1498,8 +1527,6 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"version":                 "v1.2.3",
 					"db.system":               "postgres",
 					"net.peer.name":           "remotehost",
-					"peer.service":            "postgres",
-					"_dd.peer.service.source": "db.system",
 					"span.kind":               "client",
 				},
 				Type:    "db",
@@ -1546,8 +1573,6 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"version":                 "v1.2.3",
 					"rpc.service":             "GetInstance",
 					"net.peer.name":           "remotehost",
-					"peer.service":            "GetInstance",
-					"_dd.peer.service.source": "rpc.service",
 					"span.kind":               "client",
 				},
 				Type:    "http",
@@ -1592,8 +1617,6 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"service.version":         "v1.2.3",
 					"version":                 "v1.2.3",
 					"net.peer.name":           "remotehost",
-					"peer.service":            "remotehost",
-					"_dd.peer.service.source": "net.peer.name",
 					"span.kind":               "server",
 				},
 				Type:    "web",
@@ -1638,8 +1661,6 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"service.version":          "v1.2.3",
 					"version":                  "v1.2.3",
 					"aws.dynamodb.table_names": "my-table",
-					"peer.service":             "my-table",
-					"_dd.peer.service.source":  "aws.dynamodb.table_names",
 					"span.kind":                "server",
 				},
 				Type:    "web",
@@ -1684,8 +1705,6 @@ func TestOTLPConvertSpanSetPeerService(t *testing.T) {
 					"service.version":          "v1.2.3",
 					"version":                  "v1.2.3",
 					"faas.document.collection": "my-s3-bucket",
-					"peer.service":             "my-s3-bucket",
-					"_dd.peer.service.source":  "faas.document.collection",
 					"span.kind":                "server",
 				},
 				Type:    "web",

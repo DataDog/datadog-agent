@@ -8,7 +8,7 @@
 package dns
 
 import (
-	"math/rand"
+	"fmt"
 	"net"
 	"strconv"
 	"syscall"
@@ -143,14 +143,11 @@ func sendDNSQueriesOnPort(t *testing.T, domains []string, serverIP string, port 
 	msg.RecursionDesired = true
 	queryIP := getOutboundIP(t, serverIP).String()
 
-	rand.Seed(time.Now().UnixNano())
-	queryPort := rand.Intn(20000) + 10000
-
 	var dnsClientAddr net.Addr
 	if protocol == "tcp" {
-		dnsClientAddr = &net.TCPAddr{IP: net.ParseIP(queryIP), Port: queryPort}
+		dnsClientAddr = &net.TCPAddr{IP: net.ParseIP(queryIP)}
 	} else {
-		dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(queryIP), Port: queryPort}
+		dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(queryIP)}
 	}
 
 	localAddrDialer := &net.Dialer{
@@ -160,23 +157,23 @@ func sendDNSQueriesOnPort(t *testing.T, domains []string, serverIP string, port 
 
 	dnsClient := mdns.Client{Net: protocol, Dialer: localAddrDialer}
 	dnsHost := net.JoinHostPort(serverIP, port)
-	var reps []*mdns.Msg
+	conn, err := dnsClient.Dial(dnsHost)
+	require.NoError(t, err)
 
+	var reps []*mdns.Msg
+	var queryPort int
 	if protocol == "tcp" {
-		conn, err := dnsClient.Dial(dnsHost)
-		require.NoError(t, err)
-		for _, domain := range domains {
-			msg.SetQuestion(mdns.Fqdn(domain), mdns.TypeA)
-			rep, _, _ := dnsClient.ExchangeWithConn(msg, conn)
-			reps = append(reps, rep)
-		}
+		queryPort = conn.Conn.(*net.TCPConn).LocalAddr().(*net.TCPAddr).Port
 	} else { // UDP
-		for _, domain := range domains {
-			msg.SetQuestion(mdns.Fqdn(domain), mdns.TypeA)
-			rep, _, _ := dnsClient.Exchange(msg, dnsHost)
-			reps = append(reps, rep)
-		}
+		queryPort = conn.Conn.(*net.UDPConn).LocalAddr().(*net.UDPAddr).Port
 	}
+
+	for _, domain := range domains {
+		msg.SetQuestion(mdns.Fqdn(domain), mdns.TypeA)
+		rep, _, _ := dnsClient.ExchangeWithConn(msg, conn)
+		reps = append(reps, rep)
+	}
+
 	return queryIP, queryPort, reps
 }
 
@@ -311,7 +308,7 @@ func TestDNSFailedResponseCount(t *testing.T) {
 	key1 := getKey(queryIP, queryPort, validDNSServerIP, syscall.IPPROTO_TCP)
 
 	h := handler{}
-	shutdown := newTestServer(t, localhost, 53, "udp", h.ServeDNS)
+	shutdown, _ := newTestServer(t, localhost, 53, "udp", h.ServeDNS)
 	defer shutdown()
 
 	queryIP, queryPort, _ = sendDNSQueries(t, domains, localhost, "udp")
@@ -348,10 +345,10 @@ func TestDNSOverNonPort53(t *testing.T) {
 		"nonexistent.com.net",
 	}
 	h := &handler{}
-	shutdown := newTestServer(t, localhost, 5353, "udp", h.ServeDNS)
+	shutdown, port := newTestServer(t, localhost, 0, "udp", h.ServeDNS)
 	defer shutdown()
 
-	queryIP, queryPort, reps := sendDNSQueriesOnPort(t, domains, localhost, "5353", "udp")
+	queryIP, queryPort, reps := sendDNSQueriesOnPort(t, domains, localhost, fmt.Sprintf("%d", port), "udp")
 	require.NotNil(t, reps[0])
 
 	// we only pick up on port 53 traffic, so we shouldn't ever get stats
@@ -435,7 +432,7 @@ func TestDNSOverIPv6(t *testing.T) {
 
 	// This DNS server is set up so it always returns a NXDOMAIN answer
 	serverIP := net.IPv6loopback.String()
-	closeFn := newTestServer(t, serverIP, 53, "udp", nxDomainHandler)
+	closeFn, _ := newTestServer(t, serverIP, 53, "udp", nxDomainHandler)
 	defer closeFn()
 
 	queryIP, queryPort, reps := sendDNSQueries(t, []string{"nxdomain-123.com"}, serverIP, "udp")
@@ -462,7 +459,7 @@ func TestDNSNestedCNAME(t *testing.T) {
 	statKeeper := reverseDNS.statKeeper
 
 	serverIP := "127.0.0.1"
-	closeFn := newTestServer(t, serverIP, 53, "udp", func(w dns.ResponseWriter, r *dns.Msg) {
+	closeFn, _ := newTestServer(t, serverIP, 53, "udp", func(w dns.ResponseWriter, r *dns.Msg) {
 		answer := new(dns.Msg)
 		answer.SetReply(r)
 
@@ -501,7 +498,7 @@ func TestDNSNestedCNAME(t *testing.T) {
 	checkSnooping(t, serverIP, "example.com", reverseDNS)
 }
 
-func newTestServer(t *testing.T, ip string, port uint16, protocol string, handler dns.HandlerFunc) func() {
+func newTestServer(t *testing.T, ip string, port uint16, protocol string, handler dns.HandlerFunc) (func(), uint16) {
 	addr := net.JoinHostPort(ip, strconv.Itoa(int(port)))
 	srv := &dns.Server{Addr: addr, Net: protocol, Handler: handler}
 
@@ -517,12 +514,21 @@ func newTestServer(t *testing.T, ip string, port uint16, protocol string, handle
 
 	if err := <-initChan; err != nil {
 		t.Errorf("could not initialize DNS server: %s", err)
-		return func() {}
+		return func() {}, port
+	}
+
+	if port == 0 {
+		switch protocol {
+		case "udp":
+			port = uint16(srv.PacketConn.LocalAddr().(*net.UDPAddr).Port)
+		case "tcp":
+			port = uint16(srv.Listener.Addr().(*net.TCPAddr).Port)
+		}
 	}
 
 	return func() {
 		_ = srv.Shutdown()
-	}
+	}, port
 }
 
 // nxDomainHandler returns a NXDOMAIN response for any query
