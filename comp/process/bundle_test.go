@@ -28,6 +28,7 @@ func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle,
 		fx.Supply(mockCoreBundleParams),
 		fx.Provide(func() types.CheckComponent { return nil }),
+		core.MockBundle,
 	)
 }
 
@@ -58,6 +59,7 @@ func TestBundleOneShot(t *testing.T) {
 
 			mockCoreBundleParams,
 		),
+		core.MockBundle,
 		Bundle,
 	)
 	require.NoError(t, err)

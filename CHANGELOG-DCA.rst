@@ -2,6 +2,46 @@
 Release Notes
 =============
 
+.. _Release Notes_7.49.0:
+
+7.49.0 / 6.49.0
+======
+
+.. _Release Notes_7.49.0_New Features:
+
+New Features
+------------
+
+- Added option to attach profiling data to a flare.
+
+- Increment cluster agent admission controller mutation attempts metric when library is auto-injected.
+
+
+.. _Release Notes_7.49.0_Enhancement Notes:
+
+Enhancement Notes
+-----------------
+
+- Added the ``check_name`` tag to the ``cluster_checks.configs_info`` metric emitted by the Cluster Agent telemetry.
+
+- Sensitive information is now scrubbed from pod annotations.
+
+- Skip collections for resources missing RBACs in orchestrator check
+
+
+.. _Release Notes_7.49.0_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Remove openmetrics endpoint default value from `containerd` check default configuration.
+
+- Resolved a conflict between the admission controller and the AKS admissions enforcer that previously led to a loop in reconciling the webhook.
+
+- Fixes a panic in the Cluster Agent that happens when trying to unschedule a
+  check that has not been dispatched to any runner.
+
+
 .. _Release Notes_7.48.0:
 
 7.48.0 / 6.48.0

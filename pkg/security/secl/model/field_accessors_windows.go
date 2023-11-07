@@ -214,18 +214,6 @@ func (ev *Event) GetExecPpid() uint32 {
 	return ev.Exec.Process.PPid
 }
 
-// GetExecTid returns the value of the field, resolving if necessary
-func (ev *Event) GetExecTid() uint32 {
-	zeroValue := uint32(0)
-	if ev.GetEventType().String() != "exec" {
-		return zeroValue
-	}
-	if ev.Exec.Process == nil {
-		return zeroValue
-	}
-	return ev.Exec.Process.PIDContext.Tid
-}
-
 // GetExitCause returns the value of the field, resolving if necessary
 func (ev *Event) GetExitCause() uint32 {
 	zeroValue := uint32(0)
@@ -406,18 +394,6 @@ func (ev *Event) GetExitPpid() uint32 {
 		return zeroValue
 	}
 	return ev.Exit.Process.PPid
-}
-
-// GetExitTid returns the value of the field, resolving if necessary
-func (ev *Event) GetExitTid() uint32 {
-	zeroValue := uint32(0)
-	if ev.GetEventType().String() != "exit" {
-		return zeroValue
-	}
-	if ev.Exit.Process == nil {
-		return zeroValue
-	}
-	return ev.Exit.Process.PIDContext.Tid
 }
 
 // GetNetworkDestinationIp returns the value of the field, resolving if necessary
@@ -727,28 +703,6 @@ func (ev *Event) GetProcessAncestorsPpid() []uint32 {
 	return values
 }
 
-// GetProcessAncestorsTid returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessAncestorsTid() []uint32 {
-	zeroValue := []uint32{}
-	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
-	}
-	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
-	}
-	var values []uint32
-	ctx := eval.NewContext(ev)
-	iterator := &ProcessAncestorsIterator{}
-	ptr := iterator.Front(ctx)
-	for ptr != nil {
-		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.PIDContext.Tid
-		values = append(values, result)
-		ptr = iterator.Next()
-	}
-	return values
-}
-
 // GetProcessCmdline returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessCmdline() string {
 	zeroValue := ""
@@ -1023,21 +977,6 @@ func (ev *Event) GetProcessParentPpid() uint32 {
 	return ev.BaseEvent.ProcessContext.Parent.PPid
 }
 
-// GetProcessParentTid returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessParentTid() uint32 {
-	zeroValue := uint32(0)
-	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
-	}
-	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
-	}
-	if !ev.BaseEvent.ProcessContext.HasParent() {
-		return uint32(0)
-	}
-	return ev.BaseEvent.ProcessContext.Parent.PIDContext.Tid
-}
-
 // GetProcessPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessPid() uint32 {
 	zeroValue := uint32(0)
@@ -1054,15 +993,6 @@ func (ev *Event) GetProcessPpid() uint32 {
 		return zeroValue
 	}
 	return ev.BaseEvent.ProcessContext.Process.PPid
-}
-
-// GetProcessTid returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessTid() uint32 {
-	zeroValue := uint32(0)
-	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
-	}
-	return ev.BaseEvent.ProcessContext.Process.PIDContext.Tid
 }
 
 // GetTimestamp returns the value of the field, resolving if necessary

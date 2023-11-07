@@ -1687,7 +1687,7 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 		c.Write([]byte("foo"))
 	})
 
-	server.Run()
+	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
 
 	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
@@ -1697,14 +1697,20 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	f, err := c.(*net.TCPConn).File()
 	require.NoError(t, err)
 
-	buf := make([]byte, 6)
+	fd := int(f.Fd())
+
 	read := 0
-	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		n, _, err := syscall.Recvfrom(int(f.Fd()), buf, syscall.MSG_WAITALL)
-		require.NoError(collect, err)
+	buf := make([]byte, 6)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		n, _, err := syscall.Recvfrom(fd, buf[read:], syscall.MSG_WAITALL)
+		if !assert.NoError(c, err) {
+			return
+		}
+
 		read += n
-		assert.Equal(t, 6, read)
-	}, 3*time.Second, 100*time.Millisecond, "failed to receive expected bytes")
+		t.Logf("read %d", read)
+		assert.Equal(c, 6, read)
+	}, 10*time.Second, 100*time.Millisecond, "failed to get required bytes")
 
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {

@@ -47,9 +47,6 @@ type Process struct {
 
 	ContainerID string `field:"container.id"` // SECLDoc[container.id] Definition:`Container ID`
 
-	SpanID  uint64 `field:"-"`
-	TraceID uint64 `field:"-"`
-
 	ExitTime time.Time `field:"exit_time,opts:getters_only" json:"-"`
 	ExecTime time.Time `field:"exec_time,opts:getters_only" json:"-"`
 
@@ -77,12 +74,6 @@ type ExecEvent struct {
 // PIDContext holds the process context of an kernel event
 type PIDContext struct {
 	Pid uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
-	Tid uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
-
-	// NOTE: Used by the process cache entry. Should be reworked the decouple the different models
-	NetNS     uint32 `field:"-"`
-	IsKworker bool   `field:"-"` // SECLDoc[is_kworker] Definition:`Indicates whether the process is a kworker`
-	ExecInode uint64 `field:"-"` // used to track exec and event loss
 }
 
 // NetworkDeviceContext defines a network device context
