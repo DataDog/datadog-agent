@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
 )
 
 // CheckBase provides default implementations for most of the check.Check
@@ -125,6 +126,9 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, integrat
 		// Set custom tags configured for this check
 		if len(commonOptions.Tags) > 0 {
 			s, err := c.GetSender()
+			// sort.UniqInPlace is called as well in the aggregator. In removes duplicates and sorts the tags.
+			// calling it here can avoid some useless work in the aggregator.
+			commonOptions.Tags = sort.UniqInPlace(commonOptions.Tags)
 			if err != nil {
 				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
 				return err

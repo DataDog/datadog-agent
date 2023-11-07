@@ -5,7 +5,10 @@
 
 package utils
 
-import "github.com/DataDog/datadog-agent/pkg/config"
+import (
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
+)
 
 // GetConfiguredTags returns list of tags from a configuration, based on
 // `tags` (DD_TAGS) and `extra_tags“ (DD_EXTRA_TAGS), with `dogstatsd_tags` (DD_DOGSTATSD_TAGS)
@@ -24,5 +27,8 @@ func GetConfiguredTags(c config.Reader, includeDogstatsd bool) []string {
 	combined = append(combined, extraTags...)
 	combined = append(combined, dsdTags...)
 
+	// The aggregator sorts and removes duplicates in place. Pre-sorting part of the tags should
+	// improve the performances of the insertion sort in the aggregators.
+	combined = sort.UniqInPlace(combined)
 	return combined
 }
