@@ -9,6 +9,7 @@
 package apmetwtracerimpl
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -113,7 +114,7 @@ type win32MessageBytePipe interface {
 }
 
 func (a *apmetwtracerimpl) binaryReadWithTimeout(c net.Conn, data any) error {
-	err := c.SetReadDeadline(time.Now().Add(1 * time.Second))
+	err := c.SetReadDeadline(time.Now().Add(30 * time.Second))
 	if err != nil {
 		return err
 	}
@@ -134,7 +135,7 @@ func (a *apmetwtracerimpl) binaryReadWithTimeout(c net.Conn, data any) error {
 }
 
 func (a *apmetwtracerimpl) binaryWriteWithTimeout(c net.Conn, data any) error {
-	err := c.SetWriteDeadline(time.Now().Add(1 * time.Second))
+	err := c.SetWriteDeadline(time.Now().Add(30 * time.Second))
 	if err != nil {
 		return err
 	}
@@ -170,9 +171,8 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 			return
 		}
 
-		magicStr := string(h.Magic[:13]) // Don't count last byte
-		if magicStr != magicHeaderString {
-			a.log.Errorf("Invalid header: %s", magicStr)
+		if bytes.Equal(a.magic[:], h.Magic[:]) {
+			a.log.Errorf("Invalid header: %s", string(h.Magic[:13]))
 			return
 		}
 
