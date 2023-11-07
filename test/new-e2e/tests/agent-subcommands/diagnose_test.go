@@ -131,6 +131,18 @@ func (v *agentDiagnoseSuite) TestDiagnoseExclude() {
 	assert.Equal(v.T(), summary.total, 0)
 }
 
+func (v *agentDiagnoseSuite) TestDiagnoseVerbose() {
+	diagnose := getDiagnoseOutput(v, client.WithArgs([]string{"-v"}))
+	summary := getDiagnoseSummary(diagnose)
+
+	re := regexp.MustCompile("PASS")
+	matches := re.FindAllString(diagnose, -1)
+
+	// Verify that verbose mode display extra information such 'PASS' for successful checks
+	assert.Equal(v.T(), len(matches), summary.total)
+	assert.Contains(v.T(), diagnose, "connectivity-datadog-core-endpoints")
+}
+
 // getDiagnoseSummary parses the diagnose output and returns a struct containing number of success, fail, error and warning
 func getDiagnoseSummary(diagnoseOutput string) summary {
 	// success, fail, warning and error are optional in the diagnose output (they're printed when their value != 0)
