@@ -9,7 +9,7 @@ struct path_key_t {
     u32 path_id;
 };
 
-struct __attribute__((__packed__)) path_leaf_t {
+struct path_leaf_t {
   struct path_key_t parent;
   char name[DR_MAX_SEGMENT_LENGTH + 1];
   u16 len;

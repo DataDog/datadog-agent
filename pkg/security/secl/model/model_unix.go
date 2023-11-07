@@ -842,9 +842,10 @@ const PathLeafSize = PathKeySize + MaxSegmentLength + 1 + 2 + 6 // path_key + na
 
 // PathLeaf is the go representation of the eBPF path_leaf_t structure
 type PathLeaf struct {
-	Parent PathKey
-	Name   [MaxSegmentLength + 1]byte
-	Len    uint16
+	Parent  PathKey
+	Name    [MaxSegmentLength + 1]byte
+	Len     uint16
+	Padding [6]uint8
 }
 
 // GetName returns the path value as a string
