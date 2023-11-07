@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/cihub/seelog"
+	probing "github.com/prometheus-community/pro-bing"
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	coresnmp "github.com/DataDog/datadog-agent/pkg/snmp"
 
@@ -114,6 +116,15 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 	// Fetch and report metrics
 	var checkErr error
 	var deviceStatus metadata.DeviceStatus
+
+	// Get a system appropriate ping check
+	log.Infof("ATTEMPTING TO RUN PING FOR HOST: %s", d.config.IPAddress)
+	pingStats, err := d.GetPing()
+	if err != nil {
+		log.Errorf("%s: failed to ping device: %s", d.config.IPAddress, err.Error())
+	} else {
+		log.Infof("%s: ping returned: %+v", d.config.IPAddress, pingStats)
+	}
 
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
 	tags := common.CopyStrings(staticTags)
@@ -346,4 +357,10 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 // GetDiagnoses collects diagnoses for diagnose CLI
 func (d *DeviceCheck) GetDiagnoses() []diagnosis.Diagnosis {
 	return d.diagnoses.ReportAsAgentDiagnoses()
+}
+
+// GetPing collects ping information for a device
+func (d *DeviceCheck) GetPing() (*probing.Statistics, error) {
+	pinger := pinger.NewPinger()
+	return pinger.Ping(d.config.IPAddress)
 }

@@ -14,6 +14,7 @@ import (
 )
 
 const (
+	pingURL              = "http://unix/" + string(sysconfig.PingerModule) + "/ping/"
 	connectionsURL       = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/connections"
 	registerURL          = "http://localhost:3333/" + string(sysconfig.NetworkTracerModule) + "/register"
 	languageDetectionURL = "http://localhost:3333/" + string(sysconfig.LanguageDetectionModule) + "/detect"
