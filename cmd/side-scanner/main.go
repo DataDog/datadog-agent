@@ -473,6 +473,10 @@ retry:
 	return *result.SnapshotId, nil
 }
 
+func tagNoResult(s []string) []string {
+	return append(s, fmt.Sprint("status:noresult"))
+}
+
 func tagNotFound(s []string) []string {
 	return append(s, fmt.Sprint("status:notfound"))
 }
@@ -591,10 +595,13 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 
 	log.Infof("start EBS scanning %s", scan)
 
+	noResult := false
 	statsd.Count("datadog.sidescanner.scans.started", 1.0, tags, 1.0)
 	defer func() {
 		if err != nil {
 			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
+		} else if noResult {
+			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagNoResult(tags), 1.0)
 		} else {
 			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
 		}
@@ -799,6 +806,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		return nil, fmt.Errorf("trivy scan failed: %w", err)
 	}
 
+	noResult = !hasPackages(trivyReport.Results)
 	scanDuration := time.Since(scanStartedAt)
 	log.Debugf("ebs-scan: finished (took %s)", scanDuration)
 	statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tags, 1.0)
@@ -824,6 +832,15 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		},
 	}
 	return
+}
+
+func hasPackages(results types.Results) bool {
+	for _, r := range results {
+		if len(r.Packages) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
