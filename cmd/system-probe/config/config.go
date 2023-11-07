@@ -37,6 +37,7 @@ const (
 	EBPFModule                   ModuleName = "ebpf"
 	LanguageDetectionModule      ModuleName = "language_detection"
 	WindowsCrashDetectModule     ModuleName = "windows_crash_detection"
+	ComplianceModule             ModuleName = "compliance"
 )
 
 // Config represents the configuration options for the system-probe
@@ -147,6 +148,9 @@ func load() (*Config, error) {
 		cfg.GetBool(evNS("process.enabled")) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
+	}
+	if cfg.GetBool(secNS("enabled")) {
+		c.EnabledModules[ComplianceModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}

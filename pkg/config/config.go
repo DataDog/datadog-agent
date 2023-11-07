@@ -1192,6 +1192,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
 	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
