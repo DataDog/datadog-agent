@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// telemetry is a check to collect and send limited subset of internal telemetry from the core
-// agent. The check implements a subset of openmetrics v2 check functionality.
+// Package telemetry is a check to collect and send limited subset of internal telemetry from the
+// core agent. The check implements a subset of openmetrics v2 check functionality.
 package telemetry
 
 import (
