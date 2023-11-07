@@ -28,8 +28,12 @@ func TestQueryFromFilter(t *testing.T) {
 		{"type error", &filtersConfig{TypeList: []string{"error"}}, "*[System[Level=2]]"},
 		{"type warning", &filtersConfig{TypeList: []string{"warning"}}, "*[System[Level=3]]"},
 		{"type information", &filtersConfig{TypeList: []string{"information"}}, "*[System[(Level=0 or Level=4)]]"},
+		{"type Success Audit", &filtersConfig{TypeList: []string{"success audit"}}, "*[System[band(Keywords,9007199254740992)]]"},
+		{"type Failure Audit", &filtersConfig{TypeList: []string{"failure audit"}}, "*[System[band(Keywords,4503599627370496)]]"},
 		{"type multiple", &filtersConfig{TypeList: []string{"critical", "error"}}, "*[System[(Level=1 or Level=2)]]"},
 		{"type multiple", &filtersConfig{TypeList: []string{"critical", "information"}}, "*[System[(Level=1 or (Level=0 or Level=4))]]"},
+		{"type multiple", &filtersConfig{TypeList: []string{"critical", "information", "Error", "Warning", "Success Audit", "Failure Audit"}},
+			"*[System[(Level=1 or (Level=0 or Level=4) or Level=2 or Level=3 or band(Keywords,9007199254740992) or band(Keywords,4503599627370496))]]"},
 		{"id single", &filtersConfig{IDList: []int{1000}}, "*[System[EventID=1000]]"},
 		{"id multiple", &filtersConfig{IDList: []int{1000, 1001}}, "*[System[(EventID=1000 or EventID=1001)]]"},
 		{"complex", &filtersConfig{

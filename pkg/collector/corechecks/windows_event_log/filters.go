@@ -12,6 +12,11 @@ import (
 	"strings"
 )
 
+const (
+	failureAuditFlag uint64 = 0x10000000000000
+	successAuditFlag uint64 = 0x20000000000000
+)
+
 type filterDefinition interface {
 	Sources() []string
 	Types() []string
@@ -90,10 +95,11 @@ func formatTypePart(t string) (string, error) {
 	case "information":
 		// Match event viewer behavior
 		part = "(Level=0 or Level=4)"
+	// NOTE: query does not support `0x` syntax for integer values
 	case "failure audit":
-		part = "band(Keywords,0x10000000000000)</"
+		part = fmt.Sprintf("band(Keywords,%d)", failureAuditFlag)
 	case "success audit":
-		part = "band(Keywords,0x20000000000000)"
+		part = fmt.Sprintf("band(Keywords,%d)", successAuditFlag)
 	default:
 		return "", fmt.Errorf("invalid event level: %s", t)
 	}
