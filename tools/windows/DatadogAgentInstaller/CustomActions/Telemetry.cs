@@ -87,9 +87,11 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
-        private string GetInstallId() {
+        private string GetInstallId()
+        {
             var installId = System.Environment.GetEnvironmentVariable("DD_INSTALL_ID");
-            if (installId != null && installId.Length > 0) {
+            if (installId != null && installId.Length > 0)
+            {
                 return installId;
             }
             installId = System.Guid.NewGuid().ToString();
@@ -97,9 +99,11 @@ namespace Datadog.CustomActions
             return installId;
         }
 
-        private string GetOrigin() {
+        private string GetOrigin()
+        {
             var origin = System.Environment.GetEnvironmentVariable("DD_ORIGIN");
-            if (origin != null && origin.Length > 0) {
+            if (origin != null && origin.Length > 0)
+            {
                 return origin;
             }
             return DefaultOrigin;
