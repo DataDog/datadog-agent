@@ -254,31 +254,6 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 		})
 	}()
 
-	// Start a garbage collection goroutine to cleanup periodically processes
-	// that might have crashed without unregistering themselves.
-	go func() {
-		for {
-			select {
-			case <-a.stopGarbageCollector:
-				return
-			case <-time.After(10 * time.Second):
-				// Every 10 seconds, check if any PID has become a zombie
-				now := time.Now()
-				for pid, pidCtx := range a.pids {
-					if now.Sub(pidCtx.lastSeen) > time.Minute {
-						// No events received for more than 1 minute,
-						// remove this PID
-						a.log.Infof("Removing PID %d for being idle for > 1 minute", pid)
-						removeErr := a.RemovePID(pid)
-						if removeErr != nil {
-							a.log.Errorf("Failed to reconfigure the ETW provider for PID %d: %v", pid, removeErr)
-						}
-					}
-				}
-			}
-		}
-	}()
-
 	return nil
 }
 
