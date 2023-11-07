@@ -18,7 +18,7 @@ type e2eSuite struct {
 	*Suite[struct{}]
 	stackName       string
 	runFctCallCount int
-	updateEnvStack  *StackDefinition[struct{}]
+	updateEnvStack  InfraProvider[struct{}]
 }
 
 func TestE2ESuite(t *testing.T) {
@@ -54,7 +54,7 @@ func (s *e2eSuite) Test3_UpdateEnv() {
 	s.Require().Equal(2, s.runFctCallCount)
 }
 
-func (s *e2eSuite) createStack(stackName string) *StackDefinition[struct{}] {
+func (s *e2eSuite) createStack(stackName string) InfraProvider[struct{}] {
 	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*struct{}, error) {
 		s.stackName = stackName
 		s.runFctCallCount++
@@ -91,14 +91,14 @@ func (s *skipDeleteOnFailureSuite) Test3() {
 	s.UpdateEnv(s.updateStack("Test3"))
 }
 
-func (s *skipDeleteOnFailureSuite) updateStack(testName string) *StackDefinition[struct{}] {
+func (s *skipDeleteOnFailureSuite) updateStack(testName string) InfraProvider[struct{}] {
 	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*struct{}, error) {
 		s.testsRun = append(s.testsRun, testName)
 		return &struct{}{}, nil
 	})
 }
 
-func newSuite[Env any](stackName string, stackDef *StackDefinition[Env], options ...params.Option) *Suite[Env] {
+func newSuite[Env any](stackName string, stackDef InfraProvider[Env], options ...params.Option) *Suite[Env] {
 	testSuite := Suite[Env]{}
 	testSuite.initSuite(stackName, stackDef, options...)
 	return &testSuite

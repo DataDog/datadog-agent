@@ -359,10 +359,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/pulumi/pulumi/sdk/v3/go/auto"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -375,8 +372,8 @@ type Suite[Env any] struct {
 	suite.Suite
 
 	params          params.Params
-	defaultStackDef *StackDefinition[Env]
-	currentStackDef *StackDefinition[Env]
+	defaultInfraDef InfraProvider[Env]
+	currentInfraDef InfraProvider[Env]
 	firstFailTest   string
 
 	// These fields are initialized in SetupSuite
@@ -387,7 +384,7 @@ type Suite[Env any] struct {
 
 type suiteConstraint[Env any] interface {
 	suite.TestingSuite
-	initSuite(stackName string, stackDef *StackDefinition[Env], options ...params.Option)
+	initSuite(infraName string, infraDef InfraProvider[Env], options ...params.Option)
 }
 
 // Run runs the tests defined in e2eSuite
@@ -398,32 +395,32 @@ type suiteConstraint[Env any] interface {
 //
 // stackDef defines the stack definition.
 //
-// options is an optional list of options like [DevMode], [SkipDeleteOnFailure] or [WithStackName].
+// options is an optional list of options like [DevMode], [SkipDeleteOnFailure] or [WithName].
 //
 //	type vmSuite struct {
 //		e2e.Suite[e2e.VMEnv]
 //	}
 //	// ...
 //	e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
-func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *StackDefinition[Env], options ...params.Option) {
+func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, infraDef InfraProvider[Env], options ...params.Option) {
 	suiteType := reflect.TypeOf(e2eSuite).Elem()
 	name := suiteType.Name()
 	pkgPaths := suiteType.PkgPath()
 	pkgs := strings.Split(pkgPaths, "/")
 
-	// Use the hash of PkgPath in order to have a uniq stack name
+	// Use the hash of PkgPath in order to have a unique  name
 	hash := utils.StrHash(pkgs...)
 
 	// Example: "e2e-e2eSuite-cbb731954db42b"
-	defaultStackName := fmt.Sprintf("%v-%v-%v", pkgs[len(pkgs)-1], name, hash)
+	defaultName := fmt.Sprintf("%v-%v-%v", pkgs[len(pkgs)-1], name, hash)
 
-	e2eSuite.initSuite(defaultStackName, stackDef, options...)
+	e2eSuite.initSuite(defaultName, infraDef, options...)
 	suite.Run(t, e2eSuite)
 }
 
-func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...params.Option) {
-	suite.params.StackName = stackName
-	suite.defaultStackDef = stackDef
+func (suite *Suite[Env]) initSuite(name string, infraDef InfraProvider[Env], options ...params.Option) {
+	suite.params.Name = name
+	suite.defaultInfraDef = infraDef
 	for _, o := range options {
 		o(&suite.params)
 	}
@@ -437,7 +434,7 @@ func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[E
 //     overrides the environment.
 func (suite *Suite[Env]) Env() *Env {
 	if suite.env == nil || !suite.isUpdateEnvCalledInThisTest {
-		suite.UpdateEnv(suite.defaultStackDef)
+		suite.UpdateEnv(suite.defaultInfraDef)
 	}
 	return suite.env
 }
@@ -484,7 +481,7 @@ func (suite *Suite[Env]) SetupSuite() {
 		suite.params.SkipDeleteOnFailure = true
 	}
 
-	suite.Require().NotEmptyf(suite.params.StackName, "The stack name is empty. You must define it with WithName")
+	suite.Require().NotEmptyf(suite.params.Name, "The infrastructure name is empty. You must define it with WithName")
 	// Check if the Env type is correct otherwise raises an error before creating the env.
 	err := client.CheckEnvStructValid[Env]()
 	suite.Require().NoError(err)
@@ -510,45 +507,26 @@ func (suite *Suite[Env]) TearDownSuite() {
 	// TODO: Implement retry on delete
 	ctx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
 	defer cancel()
-	err := infra.GetStackManager().DeleteStack(ctx, suite.params.StackName)
+	err := suite.currentInfraDef.DeleteInfra(ctx, suite.params.Name)
 	if err != nil {
-		suite.T().Errorf("unable to delete stack: %s, err :%v", suite.params.StackName, err)
+		suite.T().Errorf("unable to delete infrastructure: %s, err :%v", suite.params.Name, err)
 		suite.T().Fail()
 	}
-}
-
-func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, auto.UpResult, error) {
-	var env *Env
-	ctx := context.Background()
-
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
-		ctx,
-		suite.params.StackName,
-		stackDef.configMap,
-		func(ctx *pulumi.Context) error {
-			var err error
-			env, err = stackDef.envFactory(ctx)
-			return err
-		}, false)
-
-	return env, stackOutput, err
 }
 
 // UpdateEnv updates the environment.
 // This affects only the test that calls this function.
 // Test functions that don't call UpdateEnv have the environment defined by [e2e.Run].
-func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
-	if stackDef != suite.currentStackDef {
+func (suite *Suite[Env]) UpdateEnv(infraDef InfraProvider[Env]) {
+	if infraDef != suite.currentInfraDef {
 		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.params.SkipDeleteOnFailure {
 			// In case of failure, do not override the environment
 			suite.T().SkipNow()
 		}
-		env, upResult, err := createEnv(suite, stackDef)
-		suite.Require().NoError(err)
-		err = client.CallStackInitializers(suite.T(), env, upResult)
+		env, err := infraDef.ProvisionInfraAndInitializeEnv(context.Background(), suite.T(), suite.params.Name, false)
 		suite.Require().NoError(err)
 		suite.env = env
-		suite.currentStackDef = stackDef
+		suite.currentInfraDef = infraDef
 	}
 	suite.isUpdateEnvCalledInThisTest = true
 }

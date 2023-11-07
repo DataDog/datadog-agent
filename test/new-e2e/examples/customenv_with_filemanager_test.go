@@ -24,7 +24,7 @@ type fileManagerSuiteEx7 struct {
 	e2e.Suite[e2e.VMEnv]
 }
 
-func fileManagerVMStackDef(localFolderPath string, remoteFolderPath string) *e2e.StackDefinition[e2e.VMEnv] {
+func fileManagerVMStackDef(localFolderPath string, remoteFolderPath string) e2e.InfraProvider[e2e.VMEnv] {
 	return e2e.EnvFactoryStackDef(func(ctx *pulumi.Context) (*e2e.VMEnv, error) {
 		vm, err := ec2vm.NewEc2VM(ctx, ec2params.WithOS(ec2os.UbuntuOS))
 		if err != nil {
