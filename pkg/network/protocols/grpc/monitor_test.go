@@ -593,6 +593,7 @@ func (s *USMgRPCSuite) TestParallelGRPCScenarios() {
 	}
 	for _, tt := range tests {
 		for _, clientCount := range []int{15} {
+			http2.Raw = make([]http2.EbpfTx, 0)
 			testNameSuffix := fmt.Sprintf("-different clients - %v", clientCount)
 			t.Run(tt.name+testNameSuffix, func(t *testing.T) {
 				// we are currently not supporting some edge cases:

@@ -15,7 +15,7 @@
 #include "protocols/classification/defs.h"
 
 static __always_inline __s32 get_unique_port(conn_tuple_t *tup) {
-    return tup->sport != 5050 ? tup->sport : -tup->dport;
+    return tup->sport != 6400 ? tup->sport : -tup->dport;
 }
 
 // returns true if the given index is one of the relevant headers we care for in the static table.
@@ -92,20 +92,20 @@ static __always_inline __u64 *get_dynamic_counter(struct __sk_buff* skb, conn_tu
 //    }
     __u64 counter = 0;
     long ret = bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_NOEXIST);
-//    log_debug("guy http2 dynamic counter got %d sport=%d dport=%d\n", ret, tup->sport, tup->dport);
+//    bpf_printk("guy http2 dynamic counter got %d sport=%d dport=%d\n", ret, tup->sport, tup->dport);
     if (ret == 0) {}
 //    if (ret < 0) {
-//        log_debug("guy %p http2 dynamic counter exists for sport=%d dport=%d\n", skb, tup->sport, tup->dport);
-//        log_debug("guy %p http2 dynamic counter exists for saddr_l=%d daddr_l=%d\n", skb, tup->saddr_l, tup->daddr_l);
-//        log_debug("guy %p http2 dynamic counter exists for saddr_h=%d daddr_h=%d\n", skb, tup->saddr_h, tup->daddr_h);
-//        log_debug("guy %p http2 dynamic counter exists for netns=%d pid=%d metadata=%d\n", skb, tup->netns, tup->pid);
-//        log_debug("guy %p http2 dynamic counter exists for metadata=%d\n", skb, tup->metadata);
+//        bpf_printk("guy %p http2 dynamic counter exists for sport=%d dport=%d\n", skb, tup->sport, tup->dport);
+//        bpf_printk("guy %p http2 dynamic counter exists for saddr_l=%d daddr_l=%d\n", skb, tup->saddr_l, tup->daddr_l);
+//        bpf_printk("guy %p http2 dynamic counter exists for saddr_h=%d daddr_h=%d\n", skb, tup->saddr_h, tup->daddr_h);
+//        bpf_printk("guy %p http2 dynamic counter exists for netns=%d pid=%d metadata=%d\n", skb, tup->netns, tup->pid);
+//        bpf_printk("guy %p http2 dynamic counter exists for metadata=%d\n", skb, tup->metadata);
 //    } else {
-//        log_debug("guy %p http2 dynamic counter does not exist for sport=%d dport=%d\n", skb, tup->sport, tup->dport);
-//        log_debug("guy %p http2 dynamic counter does not exist for saddr_l=%d daddr_l=%d\n", skb, tup->saddr_l, tup->daddr_l);
-//        log_debug("guy %p http2 dynamic counter does not exist for saddr_h=%d daddr_h=%d\n", skb, tup->saddr_h, tup->daddr_h);
-//        log_debug("guy %p http2 dynamic counter does not exist for netns=%d pid=%d\n", skb, tup->netns, tup->pid);
-//        log_debug("guy %p http2 dynamic counter does not exist for metadata=%d\n", skb, tup->metadata);
+//        bpf_printk("guy %p http2 dynamic counter does not exist for sport=%d dport=%d\n", skb, tup->sport, tup->dport);
+//        bpf_printk("guy %p http2 dynamic counter does not exist for saddr_l=%d daddr_l=%d\n", skb, tup->saddr_l, tup->daddr_l);
+//        bpf_printk("guy %p http2 dynamic counter does not exist for saddr_h=%d daddr_h=%d\n", skb, tup->saddr_h, tup->daddr_h);
+//        bpf_printk("guy %p http2 dynamic counter does not exist for netns=%d pid=%d\n", skb, tup->netns, tup->pid);
+//        bpf_printk("guy %p http2 dynamic counter does not exist for metadata=%d\n", skb, tup->metadata);
 //    }
     return bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
 }
@@ -131,11 +131,11 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
     dynamic_index->index = global_dynamic_counter - (index - MAX_STATIC_TABLE_INDEX);
 
     if (bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) == NULL) {
-        log_debug("guy sport: %ld, stream %ld; indexed missing global_dynamic_counter %ld\n", get_unique_port(tup), stream_id, global_dynamic_counter);
-        log_debug("guy sport: %ld, stream %ld; indexed missing global index %ld\n", get_unique_port(tup), stream_id, index);
+//        bpf_printk("guy sport: %ld, stream %ld; indexed missing global_dynamic_counter %ld\n", get_unique_port(tup), stream_id, global_dynamic_counter);
+//        bpf_printk("guy sport: %ld, stream %ld; indexed missing global index %ld\n", get_unique_port(tup), stream_id, index);
         return;
     }
-    log_debug("guy sport: %ld indexed global_dynamic_counter %ld; index %ld \n", get_unique_port(tup), global_dynamic_counter, index);
+//    bpf_printk("guy sport: %ld indexed global_dynamic_counter %ld; index %ld \n", get_unique_port(tup), global_dynamic_counter, index);
 
     headers_to_process->index = dynamic_index->index;
     headers_to_process->type = kExistingDynamicHeader;
@@ -148,7 +148,7 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
 static __always_inline bool parse_field_literal(struct __sk_buff *skb, conn_tuple_t *tup, skb_info_t *skb_info, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, __u32 stream_id) {
-    log_debug("guy sport: %ld stream %ld parse_field_literal %ld\n", get_unique_port(tup), stream_id, global_dynamic_counter);
+//    bpf_printk("guy sport: %ld stream %ld parse_field_literal %ld\n", get_unique_port(tup), stream_id, global_dynamic_counter);
 
     __u8 str_len = 0;
     if (!read_var_int(skb, skb_info, MAX_6_BITS, &str_len)) {
@@ -172,7 +172,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, conn_tupl
     if (skb_info->data_off + final_size > skb_info->data_end) {
         goto end;
     }
-    log_debug("guy sport: %ld stream: %ld new parse_field_literal %ld\n", get_unique_port(tup), stream_id, global_dynamic_counter);
+//    bpf_printk("guy sport: %ld stream: %ld new parse_field_literal %ld\n", get_unique_port(tup), stream_id, global_dynamic_counter);
 
     headers_to_process->index = global_dynamic_counter - 1;
     headers_to_process->type = kNewDynamicHeader;
@@ -200,7 +200,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     if (global_dynamic_counter == NULL) {
         return 0;
     }
-    log_debug("guy pre (sport: %ld; dport: %ld) global_dynamic_counter=%d\n", get_unique_port(tup), tup->dport, *global_dynamic_counter);
+    bpf_printk("guy pre (sport: %ld; dport: %ld) global_dynamic_counter=%d\n", get_unique_port(tup), tup->dport, *global_dynamic_counter);
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
@@ -247,7 +247,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
         }
     }
 
-    log_debug("guy post (sport: %ld; dport: %ld) global_dynamic_counter=%d\n", get_unique_port(tup), tup->dport, *global_dynamic_counter);
+    bpf_printk("guy post (sport: %ld; dport: %ld) global_dynamic_counter=%d\n", get_unique_port(tup), tup->dport, *global_dynamic_counter);
     return interesting_headers;
 }
 
@@ -343,8 +343,8 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
         return;
     }
 
-    log_debug("guy parsing frame (sport: %ld, stream: %ld) type %ld\n", get_unique_port(tup), current_frame->stream_id, current_frame->type);
-    log_debug("guy parsing frame (sport: %ld, stream: %ld) flags %ld\n", get_unique_port(tup), current_frame->stream_id, current_frame->flags);
+    bpf_printk("guy parsing frame (sport: %ld, stream: %ld) type %ld\n", get_unique_port(tup), current_frame->stream_id, current_frame->type);
+    bpf_printk("guy parsing frame (sport: %ld, stream: %ld) flags %ld\n", get_unique_port(tup), current_frame->stream_id, current_frame->flags);
     if (current_frame->type == kHeadersFrame) {
         process_headers_frame(skb, current_stream, skb_info, tup, &http2_ctx->dynamic_index, current_frame);
     }
@@ -354,11 +354,16 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     bool is_rst = current_frame->type == kRSTStreamFrame;
     // If rst, and stream is empty (no status code, or no response) then delete from inflight
     if (is_rst && (current_stream->response_status_code == 0 || current_stream->request_started == 0)) {
+        bpf_printk("guy abort (sport: %ld, stream: %ld)\n", get_unique_port(tup), current_frame->stream_id);
+
         bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
         return;
     }
     if (is_rst || ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM)) {
+        bpf_printk("guy parsing frame (sport: %ld, stream: %ld) calling EOS\n", get_unique_port(tup), current_frame->stream_id);
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
+    } else {
+        bpf_printk("guy parsing frame end (sport: %ld, stream: %ld; type: %ld)\n", get_unique_port(tup), current_frame->stream_id, current_frame->type);
     }
 
     return;
@@ -504,7 +509,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
     return false;
 }
 
-static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index) {
+static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_frame_with_offset *frames_array, __u8 original_index) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
@@ -512,6 +517,7 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
         interesting_frame_index = 1;
     }
 
+    bpf_printk("guy find_relevant_headers (sport: %ld, stream_id: %ld, initial index: %ld)\n", get_unique_port(tup), current_frame.stream_id, interesting_frame_index);
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
     for (__u32 iteration = 0; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
         // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
@@ -534,6 +540,9 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
             frames_array[interesting_frame_index].frame = current_frame;
             frames_array[interesting_frame_index].offset = skb_info->data_off;
             interesting_frame_index++;
+            bpf_printk("guy find_relevant_headers (sport: %ld, stream_id: %ld, interesting_frame_type: %ld)\n", get_unique_port(tup), current_frame.stream_id, current_frame.type);
+            bpf_printk("guy find_relevant_headers (sport: %ld, stream_id: %ld, interesting_frame_flags: %ld)\n", get_unique_port(tup), current_frame.stream_id, current_frame.flags);
+            bpf_printk("guy find_relevant_headers (sport: %ld, stream_id: %ld, interesting_frame_index: %ld)\n", get_unique_port(tup), current_frame.stream_id, interesting_frame_index);
         }
         skb_info->data_off += current_frame.length;
     }
@@ -552,14 +561,18 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     // the next prog will start to read from the next valid frame.
     dispatcher_arguments_t *args = bpf_map_lookup_elem(&dispatcher_arguments, &zero);
     if (args == NULL) {
-        return false;
+        return 0;
     }
     bpf_memcpy(&dispatcher_args_copy.tup, &args->tup, sizeof(conn_tuple_t));
     bpf_memcpy(&dispatcher_args_copy.skb_info, &args->skb_info, sizeof(skb_info_t));
 
+    if (dispatcher_args_copy.tup.sport != 6400 && dispatcher_args_copy.tup.dport != 6400) {
+        return 0;
+    }
+
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
-//        log_debug("guy %p http2_handle_first_frame tcp termination sport: %ld; sport: %ld\n", skb, dispatcher_args_copy.tup.sport, dispatcher_args_copy.tup.dport);
+//        bpf_printk("guy %p http2_handle_first_frame tcp termination sport: %ld; sport: %ld\n", skb, dispatcher_args_copy.tup.sport, dispatcher_args_copy.tup.dport);
         // Deleting the entry for the original tuple.
         bpf_map_delete_elem(&http2_dynamic_counter_table, &dispatcher_args_copy.tup);
         // In case of local host, the protocol will be deleted for both (client->server) and (server->client),
@@ -638,7 +651,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // The verifier cannot tell if `iteration_value->frames_count` is 0 or 1, so we have to help it. The value is
     // 1 if we have found an interesting frame in `socket__http2_handle_first_frame`, otherwise it is 0.
     // filter frames
-    iteration_value->frames_count = find_relevant_headers(skb, &local_skb_info, iteration_value->frames_array, iteration_value->frames_count);
+    iteration_value->frames_count = find_relevant_headers(skb, &local_skb_info, &dispatcher_args_copy.tup, iteration_value->frames_array, iteration_value->frames_count);
 
     frame_header_remainder_t new_frame_state = {0};
     if (local_skb_info.data_off > local_skb_info.data_end) {
@@ -711,8 +724,10 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
         }
 
         current_frame = frames_array[tail_call_state->iteration];
+        bpf_printk("guy parser (sport: %ld, stream_id: %ld, idx: %ld)\n", get_unique_port(&dispatcher_args_copy.tup), current_frame.frame.stream_id, tail_call_state->iteration);
         // Having this condition after assignment and not before is due to a verifier issue.
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
+            bpf_printk("guy parser end1 (sport: %ld, stream_id: %ld, idx: %ld)\n", get_unique_port(&dispatcher_args_copy.tup), current_frame.frame.stream_id, tail_call_state->iteration);
             break;
         }
         tail_call_state->iteration += 1;
