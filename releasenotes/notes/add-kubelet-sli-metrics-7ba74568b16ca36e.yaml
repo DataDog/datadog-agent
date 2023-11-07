@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    The Kubernetes State Metrics Core check now collects `kubernetes_state.ingress.tls`
+    Adds support for kubelet SLI metrics
