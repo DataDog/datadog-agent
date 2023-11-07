@@ -38,8 +38,8 @@ type protocol struct {
 	statkeeper     *http.StatKeeper
 	eventsConsumer *events.Consumer
 
-	// KernelTelemetry is used to retrieve metrics from the kernel
-	http2Telemetry *KernelTelemetry
+	// kernelTelemetry is used to retrieve metrics from the kernel
+	http2Telemetry *kernelTelemetry
 }
 
 const (
@@ -120,7 +120,7 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	telemetry := http.NewTelemetry("http2")
-	http2KernelTelemetry := NewHTTP2KernelTelemetry("http2")
+	http2KernelTelemetry := newHTTP2KernelTelemetry("http2")
 
 	return &protocol{
 		cfg:            cfg,

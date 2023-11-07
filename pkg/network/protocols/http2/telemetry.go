@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-type KernelTelemetry struct {
+type kernelTelemetry struct {
 	// metricGroup is used here mostly for building the log message below
 	metricGroup *libtelemetry.MetricGroup
 
@@ -37,10 +37,10 @@ type KernelTelemetry struct {
 	frameRemainder        *libtelemetry.Gauge
 }
 
-// NewHTTP2KernelTelemetry hold HTTP/2 kernel metrics.
-func NewHTTP2KernelTelemetry(protocol string) *KernelTelemetry {
+// newHTTP2KernelTelemetry hold HTTP/2 kernel metrics.
+func newHTTP2KernelTelemetry(protocol string) *kernelTelemetry {
 	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol))
-	return &KernelTelemetry{
+	return &kernelTelemetry{
 		metricGroup: metricGroup,
 
 		// todo: changed it from OptStatsd to OptPrometheus
@@ -55,6 +55,6 @@ func NewHTTP2KernelTelemetry(protocol string) *KernelTelemetry {
 	}
 }
 
-func (t *KernelTelemetry) Log() {
+func (t *kernelTelemetry) Log() {
 	log.Debugf("http2 kernel telemetry summary: %s", t.metricGroup.Summary())
 }
