@@ -323,7 +323,7 @@ func (a *apmetwtracerimpl) reconfigureProvider() error {
 	// Since we are making a copy of the PID list, we could unlock the mutex earlier.
 	// However, we actually want this mutex to last until this function returns
 	// to prevent spurious reconfiguration of the ETW provider.
-	// Adding or removing a PID thus will wait until we have finished with the current reconfigurationg.
+	// Adding or removing a PID thus will wait until we have finished with the current reconfiguration.
 	defer a.pidMutex.Unlock()
 
 	pidsList := make([]uint64, 0, len(a.pids))
