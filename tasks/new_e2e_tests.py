@@ -7,7 +7,6 @@ import os
 import os.path
 import shutil
 import tempfile
-from collections import namedtuple
 from pathlib import Path
 from typing import List
 
