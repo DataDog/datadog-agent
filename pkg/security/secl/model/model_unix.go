@@ -408,7 +408,7 @@ type FileEvent struct {
 	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
 
 	HashState HashState `field:"-"`
-	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
+	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad,weight:999"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
 
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
