@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -400,17 +401,40 @@ type BindEventSerializer struct {
 // MountEventSerializer serializes a mount event to JSON
 // easyjson:json
 type MountEventSerializer struct {
-	MountPoint                     *FileSerializer `json:"mp,omitempty"`                    // Mount point file information
-	Root                           *FileSerializer `json:"root,omitempty"`                  // Root file information
-	MountID                        uint32          `json:"mount_id"`                        // Mount ID of the new mount
-	ParentMountID                  uint32          `json:"parent_mount_id"`                 // Mount ID of the parent mount
-	BindSrcMountID                 uint32          `json:"bind_src_mount_id"`               // Mount ID of the source of a bind mount
-	Device                         uint32          `json:"device"`                          // Device associated with the file
-	FSType                         string          `json:"fs_type,omitempty"`               // Filesystem type
-	MountPointPath                 string          `json:"mountpoint.path,omitempty"`       // Mount point path
-	MountSourcePath                string          `json:"source.path,omitempty"`           // Mount source path
-	MountPointPathResolutionError  string          `json:"mountpoint.path_error,omitempty"` // Mount point path error
-	MountSourcePathResolutionError string          `json:"source.path_error,omitempty"`     // Mount source path error
+	// Mount point file information
+	MountPoint *FileSerializer `json:"mp,omitempty"`
+	// Root file information
+	Root *FileSerializer `json:"root,omitempty"`
+	// Mount ID of the new mount
+	MountID uint32 `json:"mount_id"`
+	// Mount ID of the parent mount
+	ParentMountID uint32 `json:"parent_mount_id"`
+	// Mount ID of the source of a bind mount
+	BindSrcMountID uint32 `json:"bind_src_mount_id"`
+	// Device associated with the file
+	Device uint32 `json:"device"`
+	// Filesystem type
+	FSType string `json:"fs_type,omitempty"`
+	// Mount point path
+	MountPointPath string `json:"mountpoint.path,omitempty"`
+	// Mount source path
+	MountSourcePath string `json:"source.path,omitempty"`
+	// Mount point path error
+	MountPointPathResolutionError string `json:"mountpoint.path_error,omitempty"`
+	// Mount source path error
+	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
+}
+
+// SecurityProfileContextSerializer serializes the security profile context in an event
+type SecurityProfileContextSerializer struct {
+	// Name of the security profile
+	Name string `json:"name"`
+	// Status defines in which state the security profile was when the event was triggered
+	Status string `json:"status"`
+	// Version of the profile in use
+	Version string `json:"version"`
+	// List of tags associated to this profile
+	Tags []string `json:"tags"`
 }
 
 // AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
@@ -423,6 +447,10 @@ type AnomalyDetectionSyscallEventSerializer struct {
 // easyjson:json
 type EventSerializer struct {
 	*BaseEventSerializer
+
+	*NetworkContextSerializer         `json:"network,omitempty"`
+	*DDContextSerializer              `json:"dd,omitempty"`
+	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
 
 	*SELinuxEventSerializer                 `json:"selinux,omitempty"`
 	*BPFEventSerializer                     `json:"bpf,omitempty"`
@@ -482,8 +510,11 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 	}
 
 	// lazy hash serialization: we don't want to hash files for every event
-	if fe.HashState == model.Done || e.IsAnomalyDetectionEvent() {
+	if fe.HashState == model.Done {
+		fs.Hashes = fe.Hashes
+	} else if e.IsAnomalyDetectionEvent() {
 		fs.Hashes = e.FieldHandlers.ResolveHashesFromEvent(e, fe)
+		fs.HashState = fe.HashState.String()
 	}
 	return fs
 }
@@ -814,13 +845,94 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	return &ps
 }
 
+func newDDContextSerializer(e *model.Event) *DDContextSerializer {
+	s := &DDContextSerializer{
+		SpanID:  e.SpanContext.SpanID,
+		TraceID: e.SpanContext.TraceID,
+	}
+	if s.SpanID != 0 || s.TraceID != 0 {
+		return s
+	}
+
+	ctx := eval.NewContext(e)
+	it := &model.ProcessAncestorsIterator{}
+	ptr := it.Front(ctx)
+
+	for ptr != nil {
+		pce := (*model.ProcessCacheEntry)(ptr)
+
+		if pce.SpanID != 0 || pce.TraceID != 0 {
+			s.SpanID = pce.SpanID
+			s.TraceID = pce.TraceID
+			break
+		}
+
+		ptr = it.Next()
+	}
+
+	return s
+}
+
+// nolint: deadcode, unused
+func newNetworkContextSerializer(e *model.Event) *NetworkContextSerializer {
+	return &NetworkContextSerializer{
+		Device:      newNetworkDeviceSerializer(e),
+		L3Protocol:  model.L3Protocol(e.NetworkContext.L3Protocol).String(),
+		L4Protocol:  model.L4Protocol(e.NetworkContext.L4Protocol).String(),
+		Source:      newIPPortSerializer(&e.NetworkContext.Source),
+		Destination: newIPPortSerializer(&e.NetworkContext.Destination),
+		Size:        e.NetworkContext.Size,
+	}
+}
+
+func newSecurityProfileContextSerializer(e *model.SecurityProfileContext) *SecurityProfileContextSerializer {
+	tags := make([]string, len(e.Tags))
+	copy(tags, e.Tags)
+	return &SecurityProfileContextSerializer{
+		Name:    e.Name,
+		Version: e.Version,
+		Status:  e.Status.String(),
+		Tags:    tags,
+	}
+}
+
+// ToJSON returns json
+func (e *EventSerializer) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
+// MarshalJSON returns json
+func (e *EventSerializer) MarshalJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
+// MarshalEvent marshal the event
+func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error) {
+	s := NewEventSerializer(event, probe)
+	return utils.MarshalEasyJSON(s)
+}
+
+// MarshalCustomEvent marshal the custom event
+func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
+	return event.MarshalJSON()
+}
+
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *EventSerializer {
 	s := &EventSerializer{
 		BaseEventSerializer:   NewBaseEventSerializer(event, resolvers),
 		UserContextSerializer: newUserContextSerializer(event),
+		DDContextSerializer:   newDDContextSerializer(event),
 	}
 	s.Async = event.FieldHandlers.ResolveAsync(event)
+
+	if s.Category == model.NetworkCategory {
+		s.NetworkContextSerializer = newNetworkContextSerializer(event)
+	}
+
+	if event.SecurityProfileContext.Name != "" {
+		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(&event.SecurityProfileContext)
+	}
 
 	if id := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); id != "" {
 		var creationTime time.Time

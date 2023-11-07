@@ -94,8 +94,9 @@ func (l *Launcher) Stop() {
 // sanitizedConfig sets default values for the config
 func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *windowsevent.Config {
 	config := &windowsevent.Config{
-		ChannelPath: sourceConfig.ChannelPath,
-		Query:       sourceConfig.Query,
+		ChannelPath:       sourceConfig.ChannelPath,
+		Query:             sourceConfig.Query,
+		ProcessRawMessage: sourceConfig.ShouldProcessRawMessage(),
 	}
 	if config.Query == "" {
 		config.Query = "*"
@@ -107,8 +108,9 @@ func (l *Launcher) sanitizedConfig(sourceConfig *config.LogsConfig) *windowseven
 func (l *Launcher) setupTailer(source *sources.LogSource) (tailer, error) {
 	sanitizedConfig := l.sanitizedConfig(source.Config)
 	config := &windowsevent.Config{
-		ChannelPath: sanitizedConfig.ChannelPath,
-		Query:       sanitizedConfig.Query,
+		ChannelPath:       sanitizedConfig.ChannelPath,
+		Query:             sanitizedConfig.Query,
+		ProcessRawMessage: sanitizedConfig.ProcessRawMessage,
 	}
 	t := windowsevent.NewTailer(nil, source, config, l.pipelineProvider.NextPipelineChan())
 	bookmark := l.registry.GetOffset(t.Identifier())

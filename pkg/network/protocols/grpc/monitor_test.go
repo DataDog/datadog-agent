@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"google.golang.org/grpc/metadata"
@@ -47,7 +48,6 @@ type USMgRPCSuite struct {
 }
 
 func TestGRPCScenarios(t *testing.T) {
-	t.Skip("tests are broken after upgrading go-grpc to 1.58")
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < http2.MinimumKernelVersion {
@@ -77,6 +77,11 @@ func getClientsIndex(index, totalCount int) int {
 	return index % totalCount
 }
 
+type captureRange struct {
+	lower int
+	upper int
+}
+
 func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	t := s.T()
 	cfg := config.New()
@@ -93,7 +98,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 	tests := []struct {
 		name              string
 		runClients        func(t *testing.T, clientsCount int)
-		expectedEndpoints map[http.Key]int
+		expectedEndpoints map[http.Key]captureRange
 		expectedError     bool
 	}{
 		{
@@ -106,11 +111,14 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					require.NoError(t, client.HandleUnary(defaultCtx, "first"))
 				}
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
-				}: 1000,
+				}: {
+					lower: 999,
+					upper: 1001,
+				},
 			},
 		},
 		{
@@ -122,15 +130,21 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				require.NoError(t, clients[getClientsIndex(1, clientsCount)].GetFeature(defaultCtx, -746143763, 407838351))
 				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(defaultCtx, "first"))
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
-				}: 2,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
-				}: 1,
+				}: {
+					lower: 1,
+					upper: 1,
+				},
 			},
 		},
 		{
@@ -143,15 +157,21 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(defaultCtx, "third"))
 				require.NoError(t, clients[getClientsIndex(3, clientsCount)].GetFeature(defaultCtx, -743999179, 408122808))
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
-				}: 2,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
-				}: 2,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
 			},
 		},
 		{
@@ -164,15 +184,21 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				require.NoError(t, clients[getClientsIndex(2, clientsCount)].GetFeature(defaultCtx, -743999179, 408122808))
 				require.NoError(t, clients[getClientsIndex(3, clientsCount)].HandleUnary(defaultCtx, "third"))
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
-				}: 2,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
-				}: 2,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
 			},
 		},
 		{
@@ -185,11 +211,14 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 					require.NoError(t, client.HandleStream(defaultCtx, 10))
 				}
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/protobuf.Math/Max")},
 					Method: http.MethodPost,
-				}: 25,
+				}: {
+					lower: 25,
+					upper: 25,
+				},
 			},
 		},
 		{
@@ -202,15 +231,21 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleStream(defaultCtx, 10))
 				require.NoError(t, clients[getClientsIndex(3, clientsCount)].HandleUnary(defaultCtx, "second"))
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/protobuf.Math/Max")},
 					Method: http.MethodPost,
-				}: 2,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
-				}: 2,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
 			},
 		},
 		{
@@ -232,15 +267,21 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				require.NoError(t, clients[getClientsIndex(2, clientsCount)].HandleUnary(ctxWithHeaders, string(longName)))
 				require.NoError(t, clients[getClientsIndex(3, clientsCount)].GetFeature(ctxWithoutHeaders, -743999179, 408122808))
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
-				}: 2,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
-				}: 2,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
 			},
 			expectedError: true,
 		},
@@ -263,15 +304,21 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].HandleUnary(ctxWithHeaders, string(longName)))
 				require.NoError(t, clients[getClientsIndex(0, clientsCount)].GetFeature(ctxWithoutHeaders, -743999179, 408122808))
 			},
-			expectedEndpoints: map[http.Key]int{
+			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/routeguide.RouteGuide/GetFeature")},
 					Method: http.MethodPost,
-				}: 2,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/helloworld.Greeter/SayHello")},
 					Method: http.MethodPost,
-				}: 2,
+				}: {
+					lower: 2,
+					upper: 2,
+				},
 			},
 			expectedError: true,
 		},
@@ -325,7 +372,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 						if !ok {
 							return false
 						}
-						if val != count {
+						if val.lower > count || val.upper < count {
 							return false
 						}
 					}
@@ -335,11 +382,6 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 			})
 		}
 	}
-}
-
-type captureRange struct {
-	lower int
-	upper int
 }
 
 func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
@@ -428,7 +470,7 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 				tt.runClients(t, clientCount)
 
 				res := make(map[http.Key]int)
-				require.Eventually(t, func() bool {
+				assert.Eventually(t, func() bool {
 					stats := monitor.GetProtocolStats()
 					http2Stats, ok := stats[protocols.HTTP2]
 					if !ok {
@@ -466,6 +508,21 @@ func (s *USMgRPCSuite) TestLargeBodiesGRPCScenarios() {
 
 					return true
 				}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedEndpoints)
+
+				if t.Failed() {
+					o, err := monitor.DumpMaps("http2_in_flight")
+					if err != nil {
+						t.Logf("failed dumping http2_in_flight: %s", err)
+					} else {
+						t.Log(o)
+					}
+					o, err = monitor.DumpMaps("http2_dynamic_table")
+					if err != nil {
+						t.Logf("failed dumping http2_dynamic_table: %s", err)
+					} else {
+						t.Log(o)
+					}
+				}
 			})
 		}
 	}

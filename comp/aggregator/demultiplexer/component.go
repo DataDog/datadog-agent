@@ -25,11 +25,12 @@ type Component interface {
 	Serializer() serializer.MetricSerializer
 
 	aggregator.DemultiplexerWithAggregator
-}
 
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
+	// AddAgentStartupTelemetry adds a startup event and count (in a DSD time sampler)
+	// to be sent on the next flush.
+	AddAgentStartupTelemetry(agentVersion string)
+
+	sender.DiagnoseSenderManager
 }
 
 // Module defines the fx options for this component.

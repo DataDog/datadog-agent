@@ -9,13 +9,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -224,7 +225,8 @@ func TestProxy(t *testing.T) {
 	expectedProxy := &Proxy{
 		HTTP:    "http_url",
 		HTTPS:   "https_url",
-		NoProxy: []string{"a", "b", "c"}}
+		NoProxy: []string{"a", "b", "c"},
+	}
 
 	cases := []testCase{
 		{
@@ -296,7 +298,8 @@ func TestProxy(t *testing.T) {
 					&Proxy{
 						HTTP:    "dd_http_url",
 						HTTPS:   "dd_https_url",
-						NoProxy: []string{"a", "b", "c"}},
+						NoProxy: []string{"a", "b", "c"},
+					},
 					config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -313,7 +316,8 @@ func TestProxy(t *testing.T) {
 					&Proxy{
 						HTTP:    "http_env",
 						HTTPS:   "",
-						NoProxy: []string{"d", "e", "f"}},
+						NoProxy: []string{"d", "e", "f"},
+					},
 					config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -330,7 +334,8 @@ func TestProxy(t *testing.T) {
 					&Proxy{
 						HTTP:    "http_env",
 						HTTPS:   "",
-						NoProxy: []string{"d", "e", "f"}},
+						NoProxy: []string{"d", "e", "f"},
+					},
 					config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -350,7 +355,8 @@ func TestProxy(t *testing.T) {
 					&Proxy{
 						HTTP:    "",
 						HTTPS:   "",
-						NoProxy: []string{"a", "b", "c"}},
+						NoProxy: []string{"a", "b", "c"},
+					},
 					config.GetProxies())
 			},
 			proxyForCloudMetadata: true,
@@ -408,7 +414,6 @@ func TestProxy(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-
 			// CircleCI sets NO_PROXY, so unset it for this test
 			unsetEnvForTest(t, "NO_PROXY")
 
@@ -699,11 +704,11 @@ logs_config:
 
 database_monitoring:
   metrics:
-    dd_url: somehost:1234
+    logs_dd_url: somehost:1234
   activity:
-    dd_url: somehost:1234
+    logs_dd_url: somehost:1234
   samples:
-    dd_url: somehost:1234
+    logs_dd_url: somehost:1234
 
 network_devices:
   metadata:
@@ -798,9 +803,9 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseHTTPURL+"10", c.GetString("apm_config.telemetry.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"04", c.GetString("process_config.process_dd_url"))
 		assert.Equal(t, expectedBaseURL+"05", c.GetString("logs_config.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.metrics.dd_url"))
-		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.activity.dd_url"))
-		assert.Equal(t, expectedBaseURL+"07", c.GetString("database_monitoring.samples.dd_url"))
+		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.metrics.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"06", c.GetString("database_monitoring.activity.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL+"07", c.GetString("database_monitoring.samples.logs_dd_url"))
 		assert.Equal(t, expectedBaseURL+"08", c.GetString("network_devices.metadata.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL+"12", c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL+"13", c.GetString("runtime_security_config.endpoints.logs_dd_url"))
@@ -812,9 +817,9 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("apm_config.telemetry.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("process_config.process_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("logs_config.logs_dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.metrics.dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.activity.dd_url"))
-		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.samples.dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.metrics.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.activity.logs_dd_url"))
+		assert.Equal(t, expectedBaseURL, c.GetString("database_monitoring.samples.logs_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.metadata.dd_url"))
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("runtime_security_config.endpoints.logs_dd_url"))
@@ -881,7 +886,6 @@ apm_config:
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
-
 }
 
 func TestComputeStatsBySpanKindEnv(t *testing.T) {
@@ -906,6 +910,26 @@ func TestIsRemoteConfigEnabled(t *testing.T) {
 	t.Setenv("DD_SITE", "ddog-gov.com")
 	testConfig = SetupConfFromYAML("")
 	require.False(t, IsRemoteConfigEnabled(testConfig))
+}
+
+func TestGetRemoteConfigurationAllowedIntegrations(t *testing.T) {
+	// EMPTY configuration
+	testConfig := SetupConfFromYAML("")
+	require.Equal(t, map[string]bool{}, GetRemoteConfigurationAllowedIntegrations(testConfig))
+
+	t.Setenv("DD_REMOTE_CONFIGURATION_AGENT_INTEGRATIONS_ALLOW_LIST", "[\"POSTgres\", \"redisDB\"]")
+	testConfig = SetupConfFromYAML("")
+	require.Equal(t,
+		map[string]bool{"postgres": true, "redisdb": true},
+		GetRemoteConfigurationAllowedIntegrations(testConfig),
+	)
+
+	t.Setenv("DD_REMOTE_CONFIGURATION_AGENT_INTEGRATIONS_BLOCK_LIST", "[\"mySQL\", \"redisDB\"]")
+	testConfig = SetupConfFromYAML("")
+	require.Equal(t,
+		map[string]bool{"postgres": true, "redisdb": false, "mysql": false},
+		GetRemoteConfigurationAllowedIntegrations(testConfig),
+	)
 }
 
 func TestLanguageDetectionSettings(t *testing.T) {
@@ -936,4 +960,34 @@ func TestPeerTagsEnv(t *testing.T) {
 	t.Setenv("DD_APM_PEER_TAGS", `["aws.s3.bucket","db.instance","db.system"]`)
 	testConfig = SetupConfFromYAML("")
 	require.Equal(t, []string{"aws.s3.bucket", "db.instance", "db.system"}, testConfig.GetStringSlice("apm_config.peer_tags"))
+}
+
+func TestLogDefaults(t *testing.T) {
+
+	// New config
+	c := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	require.Equal(t, 0, c.GetInt("log_file_max_rolls"))
+	require.Equal(t, "", c.GetString("log_file_max_size"))
+	require.Equal(t, "", c.GetString("log_file"))
+	require.Equal(t, "", c.GetString("log_level"))
+	require.False(t, c.GetBool("log_to_console"))
+	require.False(t, c.GetBool("log_format_json"))
+
+	// Test Config (same as Datadog)
+	testConfig := SetupConf()
+	require.Equal(t, 1, testConfig.GetInt("log_file_max_rolls"))
+	require.Equal(t, "10Mb", testConfig.GetString("log_file_max_size"))
+	require.Equal(t, "", testConfig.GetString("log_file"))
+	require.Equal(t, "info", testConfig.GetString("log_level"))
+	require.True(t, testConfig.GetBool("log_to_console"))
+	require.False(t, testConfig.GetBool("log_format_json"))
+
+	// SystemProbe config
+	require.Equal(t, 1, SystemProbe.GetInt("log_file_max_rolls"))
+	require.Equal(t, "10Mb", SystemProbe.GetString("log_file_max_size"))
+	require.Equal(t, defaultSystemProbeLogFilePath, SystemProbe.GetString("log_file"))
+	require.Equal(t, "info", SystemProbe.GetString("log_level"))
+	require.True(t, SystemProbe.GetBool("log_to_console"))
+	require.False(t, SystemProbe.GetBool("log_format_json"))
+
 }

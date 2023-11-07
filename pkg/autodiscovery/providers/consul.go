@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -89,6 +90,7 @@ func NewConsulConfigProvider(providerConfig *config.ConfigurationProviders) (Con
 	cache := newProviderCache()
 	cli, err := consul.NewClient(clientCfg)
 	if err != nil {
+		telemetry.Errors.Inc(names.Consul)
 		return nil, fmt.Errorf("Unable to instantiate the consul client: %s", err)
 	}
 
@@ -136,6 +138,7 @@ func (p *ConsulConfigProvider) IsUpToDate(ctx context.Context) (bool, error) {
 	queryOptions = queryOptions.WithContext(ctx)
 	identifiers, _, err := kv.List(p.TemplateDir, queryOptions)
 	if err != nil {
+		telemetry.Errors.Inc(names.Consul)
 		return false, err
 	}
 	if p.cache.count != len(identifiers) {
@@ -171,6 +174,7 @@ func (p *ConsulConfigProvider) getIdentifiers(ctx context.Context, prefix string
 	// TODO: decide on the query parameters.
 	keys, _, err := kv.Keys(prefix, "", queryOptions)
 	if err != nil {
+		telemetry.Errors.Inc(names.Consul)
 		log.Error("Can't get templates keys from consul: ", err)
 		return identifiers
 	}
@@ -221,18 +225,21 @@ func (p *ConsulConfigProvider) getTemplates(ctx context.Context, key string) []i
 
 	checkNames, err := p.getCheckNames(ctx, checkNameKey)
 	if err != nil {
+		telemetry.Errors.Inc(names.Consul)
 		log.Errorf("Failed to retrieve check names at %s. Error: %s", checkNameKey, err)
 		return templates
 	}
 
 	initConfigs, err := p.getJSONValue(ctx, initKey)
 	if err != nil {
+		telemetry.Errors.Inc(names.Consul)
 		log.Errorf("Failed to retrieve init configs at %s. Error: %s", initKey, err)
 		return templates
 	}
 
 	instances, err := p.getJSONValue(ctx, instanceKey)
 	if err != nil {
+		telemetry.Errors.Inc(names.Consul)
 		log.Errorf("Failed to retrieve instances at %s. Error: %s", instanceKey, err)
 		return templates
 	}

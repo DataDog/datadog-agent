@@ -6,6 +6,7 @@
 package aggregator
 
 import (
+	"bytes"
 	"encoding/json"
 	"time"
 
@@ -39,8 +40,8 @@ func (l *Log) GetCollectedTime() time.Time {
 
 // ParseLogPayload return the parsed logs from payload
 func ParseLogPayload(payload api.Payload) (logs []*Log, err error) {
-	if len(payload.Data) == 0 {
-		// logs can submit with empty data
+	if len(payload.Data) == 0 || bytes.Equal(payload.Data, []byte("{}")) {
+		// logs can submit with empty data or empty JSON object
 		return []*Log{}, nil
 	}
 	enflated, err := enflate(payload.Data, payload.Encoding)

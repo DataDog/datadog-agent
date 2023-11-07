@@ -26,9 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -57,10 +58,11 @@ func SetupHandlers(
 	r *mux.Router,
 	flareComp flare.Component,
 	server dogstatsdServer.Component,
-	serverDebug dogstatsdDebug.Component,
+	serverDebug dogstatsddebug.Component,
 	logsAgent util.Optional[logsAgent.Component],
-	senderManager sender.SenderManager,
+	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
+	invAgent inventoryagent.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -83,7 +85,7 @@ func SetupHandlers(
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
-	r.HandleFunc("/metadata/{payload}", func(w http.ResponseWriter, r *http.Request) { metadataPayload(w, r, hostMetadata) }).Methods("GET")
+	r.HandleFunc("/metadata/{payload}", func(w http.ResponseWriter, r *http.Request) { metadataPayload(w, r, hostMetadata, invAgent) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager) }).Methods("POST")
 
 	// Some agent subcommands do not provide these dependencies (such as JMX)
@@ -286,7 +288,7 @@ func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceive
 	}
 }
 
-func getDogstatsdStats(w http.ResponseWriter, r *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) {
+func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsddebug.Component) {
 	log.Info("Got a request for the Dogstatsd stats.")
 
 	if !config.Datadog.GetBool("use_dogstatsd") {
@@ -424,7 +426,7 @@ func secretInfo(w http.ResponseWriter, r *http.Request) {
 	secrets.GetDebugInfo(w)
 }
 
-func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp host.Component) {
+func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp host.Component, invAgent inventoryagent.Component) {
 	vars := mux.Vars(r)
 	payloadType := vars["payload"]
 
@@ -464,6 +466,13 @@ func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp ho
 			setJSONError(w, err, 500)
 			return
 		}
+	case "inventory-agent":
+		// GetLastPayload already return scrubbed data
+		scrubbed, err = invAgent.GetAsJSON()
+		if err != nil {
+			setJSONError(w, err, 500)
+			return
+		}
 	default:
 		setJSONError(w, log.Errorf("Unknown metadata payload requested: %s", payloadType), 500)
 		return
@@ -472,7 +481,7 @@ func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp ho
 	w.Write(scrubbed)
 }
 
-func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.SenderManager) {
+func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.DiagnoseSenderManager) {
 	var diagCfg diagnosis.Config
 
 	// Read parameters

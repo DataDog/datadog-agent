@@ -20,4 +20,4 @@ e2e_test_junit_upload:
     - export DATADOG_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
     - export JIRA_TOKEN=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.jira_read_api_token --with-decryption --query "Parameter.Value" --out text)
     - set -x
-    - for f in junit-new-e2e-*.tgz; do inv -e junit-upload --tgz-path $f; done
+    - for f in junit-new-e2e-*.tgz; do inv -e junit-upload --tgz-path "$f"; done

@@ -76,6 +76,10 @@ type Store interface {
 	// when the pod actually exists.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
 
+	// GetKubernetesPodByName returns the first pod whose name and namespace matches those passed in
+	// to this function.
+	GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error)
+
 	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
 	// the entity with kind KindKubernetesNode and the given ID.
 	GetKubernetesNode(id string) (*KubernetesNode, error)
@@ -903,6 +907,15 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 	if !ok {
 		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
 	}
+
+	// SBOMs are generated only once. However, when they are generated it is possible that
+	// not every RepoDigest and RepoTags are attached to the image. In that case, the SBOM
+	// will also miss metadata and will not be re-generated when new metadata is detected.
+	// Because this metadata is essential for processing, it is important to inject new metadata
+	// to the existing SBOM. Generating a new SBOM can be a more robust solution but can also be
+	// costly.
+	// Moreover we can't update the SBOM in the collector because it's not thread safe.
+	i.SBOM = updateSBOMRepoMetadata(otherImage.SBOM, otherImage.RepoTags, otherImage.RepoDigests)
 
 	return merge(i, otherImage)
 }

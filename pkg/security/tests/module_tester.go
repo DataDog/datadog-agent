@@ -117,6 +117,8 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  internal_monitoring:
+    enabled: true
   remote_configuration:
     enabled: false
   socket: /tmp/test-runtime-security.sock
@@ -206,6 +208,12 @@ rules:
           {{- end}}
           scope: {{$Action.Set.Scope}}
           append: {{$Action.Set.Append}}
+{{- end}}
+{{- if $Action.Kill}}
+      - kill:
+          {{- if $Action.Kill.Signal}}
+          signal: {{$Action.Kill.Signal}}
+          {{- end}}
 {{- end}}
 {{- end}}
 {{end}}
@@ -1170,11 +1178,11 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	if probe == nil {
 		return ""
 	}
-	monitor := probe.GetMonitor()
-	if monitor == nil {
+	monitors := probe.GetMonitors()
+	if monitors == nil {
 		return ""
 	}
-	eventStreamMonitor := monitor.GetEventStreamMonitor()
+	eventStreamMonitor := monitors.GetEventStreamMonitor()
 	if eventStreamMonitor == nil {
 		return ""
 	}
@@ -1327,9 +1335,9 @@ func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*mod
 					if errors.Is(err, errSkipEvent) {
 						message <- Continue
 						return
-					} else {
-						tb.Error(err)
 					}
+
+					tb.Error(err)
 				}
 				if tb.Skipped() || tb.Failed() {
 					failNow <- true

@@ -151,8 +151,11 @@ func TestSubscribe(t *testing.T) {
 		{
 			// if the filter has type "EventTypeUnset", it does not receive
 			// events for entities that are currently in the store.
-			name:   "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
-			filter: NewFilter(nil, fooSource, EventTypeUnset),
+			name: "do not receive events for entities in the store pre-subscription if filter type is EventTypeUnset",
+			filter: NewFilter(&FilterParams{
+				Source:    fooSource,
+				EventType: EventTypeUnset,
+			}),
 			preEvents: []CollectorEvent{
 				{
 					Type:   EventTypeSet,
@@ -169,8 +172,11 @@ func TestSubscribe(t *testing.T) {
 			// in the store, and match a filter by source. entities
 			// that don't match the filter at all should not
 			// generate an event.
-			name:   "receive events for entities in the store pre-subscription with filter",
-			filter: NewFilter(nil, fooSource, EventTypeAll),
+			name: "receive events for entities in the store pre-subscription with filter",
+			filter: NewFilter(&FilterParams{
+				Source:    fooSource,
+				EventType: EventTypeAll,
+			}),
 			preEvents: []CollectorEvent{
 				// set container with two sources, delete one source
 				{
@@ -333,8 +339,11 @@ func TestSubscribe(t *testing.T) {
 			// setting an entity from two different sources, but
 			// unsetting from only one (that matches the filter)
 			// correctly generates an unset event
-			name:   "sets and unsets an entity with source filters",
-			filter: NewFilter(nil, fooSource, EventTypeAll),
+			name: "sets and unsets an entity with source filters",
+			filter: NewFilter(&FilterParams{
+				Source:    fooSource,
+				EventType: EventTypeAll,
+			}),
 			postEvents: [][]CollectorEvent{
 				{
 					{
@@ -497,8 +506,11 @@ func TestSubscribe(t *testing.T) {
 			},
 		},
 		{
-			name:   "filters by event type",
-			filter: NewFilter(nil, SourceAll, EventTypeUnset),
+			name: "filters by event type",
+			filter: NewFilter(&FilterParams{
+				Source:    SourceAll,
+				EventType: EventTypeUnset,
+			}),
 			postEvents: [][]CollectorEvent{
 				{
 					{
@@ -846,6 +858,116 @@ func TestListProcessesWithFilter(t *testing.T) {
 	})
 
 	assert.Equal(t, []*Process{javaProcess}, retrievedProcesses)
+}
+
+func TestGetKubernetesPodByName(t *testing.T) {
+	pod1 := &KubernetesPod{
+		EntityID: EntityID{
+			Kind: KindKubernetesPod,
+			ID:   "123",
+		},
+		EntityMeta: EntityMeta{
+			Name:      "test-pod",
+			Namespace: "test-namespace",
+		},
+	}
+	pod2 := &KubernetesPod{
+		EntityID: EntityID{
+			Kind: KindKubernetesPod,
+			ID:   "234",
+		},
+		EntityMeta: EntityMeta{
+			Name:      "test-pod-other",
+			Namespace: "test-namespace",
+		},
+	}
+	pod3 := &KubernetesPod{
+		EntityID: EntityID{
+			Kind: KindKubernetesPod,
+			ID:   "345",
+		},
+		EntityMeta: EntityMeta{
+			Name:      "test-pod",
+			Namespace: "test-namespace-other",
+		},
+	}
+
+	type want struct {
+		pod *KubernetesPod
+		err error
+	}
+	type args struct {
+		podName      string
+		podNamespace string
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "test-pod/test-namespace returns correct pod",
+			args: args{
+				podName:      "test-pod",
+				podNamespace: "test-namespace",
+			},
+			want: want{
+				pod: pod1,
+			},
+		},
+		{
+			name: "test-pod-other/test-namespace returns correct pod",
+			args: args{
+				podName:      "test-pod-other",
+				podNamespace: "test-namespace",
+			},
+			want: want{
+				pod: pod2,
+			},
+		},
+		{
+			name: "test-pod/test-namespace-other returns correct pod",
+			args: args{
+				podName:      "test-pod",
+				podNamespace: "test-namespace-other",
+			},
+			want: want{
+				pod: pod3,
+			},
+		},
+		{
+			name: "missing pod returns error",
+			args: args{
+				podName:      "test-pod-other",
+				podNamespace: "test-namespace-other",
+			},
+			want: want{
+				err: errors.NewNotFound("test-pod-other"),
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			testStore := newTestStore()
+			for _, pod := range []*KubernetesPod{pod1, pod2, pod3} {
+				testStore.handleEvents([]CollectorEvent{
+					{
+						Type:   EventTypeSet,
+						Source: fooSource,
+						Entity: pod,
+					},
+				})
+			}
+
+			pod, err := testStore.GetKubernetesPodByName(test.args.podName, test.args.podNamespace)
+
+			assert.Equal(t, test.want.pod, pod)
+			if test.want.err != nil {
+				assert.Error(t, err, test.want.err.Error())
+			}
+		})
+	}
 }
 
 func TestListImages(t *testing.T) {
