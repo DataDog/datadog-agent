@@ -33,8 +33,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-// DefaultFlushInterval aggregator default flush interval
 const (
+	// DefaultFlushInterval aggregator default flush interval
 	DefaultFlushInterval = 15 * time.Second // flush interval
 	bucketSize           = 10               // fixed for now
 	// MetricSamplePoolBatchSize is the batch size of the metric sample pool.
