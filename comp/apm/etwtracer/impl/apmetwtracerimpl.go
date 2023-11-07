@@ -25,6 +25,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"sync"
 	"time"
 	"unsafe"
 )
@@ -59,7 +60,6 @@ func newApmEtwTracerImpl(deps dependencies) (apmetwtracer.Component, error) {
 		dotNetRuntimeProviderGUID: guid,
 		log:                       deps.Log,
 		etw:                       deps.Etw,
-		stopGarbageCollector:      make(chan struct{}),
 	}
 
 	// Cache the magic header
@@ -75,13 +75,13 @@ type apmetwtracerimpl struct {
 	session                   etw.Session
 	dotNetRuntimeProviderGUID windows.GUID
 
-	pids pidMap
+	pids     pidMap
+	pidMutex sync.Mutex
 
-	pipeListener         net.Listener
-	log                  log.Component
-	etw                  etw.Component
-	magic                [14]byte
-	stopGarbageCollector chan struct{}
+	pipeListener net.Listener
+	log          log.Component
+	etw          etw.Component
+	magic        [14]byte
 }
 
 type header struct {
@@ -282,7 +282,6 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 
 func (a *apmetwtracerimpl) stop(_ context.Context) error {
 	a.log.Infof("Stopping Datadog APM ETW tracer component")
-	a.stopGarbageCollector <- struct{}{}
 	err := a.session.StopTracing()
 	err = errors.Join(err, a.pipeListener.Close())
 	return err
@@ -293,40 +292,54 @@ func (a *apmetwtracerimpl) AddPID(pid uint64) error {
 	if err != nil {
 		return err
 	}
+
+	a.pidMutex.Lock()
 	a.pids[pid] = pidContext{
 		conn:     c,
 		lastSeen: time.Now(),
 	}
-	a.reconfigureProvider()
-	if len(a.pids) > 0 {
-		return a.session.EnableProvider(a.dotNetRuntimeProviderGUID)
-	}
-	return nil
+	a.pidMutex.Unlock()
+
+	return a.reconfigureProvider()
 }
 
 func (a *apmetwtracerimpl) RemovePID(pid uint64) error {
 	var pidCtx pidContext
 	var ok bool
+	a.pidMutex.Lock()
 	if pidCtx, ok = a.pids[pid]; !ok {
+		a.pidMutex.Unlock()
 		return fmt.Errorf("could not find PID %d in PID list", pid)
 	}
-	pidCtx.conn.Close()
 	delete(a.pids, pid)
-	a.reconfigureProvider()
-	if len(a.pids) == 0 {
-		return a.session.DisableProvider(a.dotNetRuntimeProviderGUID)
-	}
-	return nil
+	a.pidMutex.Unlock()
+	pidCtx.conn.Close()
+
+	return a.reconfigureProvider()
 }
 
-func (a *apmetwtracerimpl) reconfigureProvider() {
+func (a *apmetwtracerimpl) reconfigureProvider() error {
+	a.pidMutex.Lock()
+	// Since we are making a copy of the PID list, we could unlock the mutex earlier.
+	// However, we actually want this mutex to last until this function returns
+	// to prevent spurious reconfiguration of the ETW provider.
+	// Adding or removing a PID thus will wait until we have finished with the current reconfigurationg.
+	defer a.pidMutex.Unlock()
+
+	pidsList := make([]uint64, 0, len(a.pids))
+	for p := range a.pids {
+		pidsList = append(pidsList, p)
+	}
+
 	a.session.ConfigureProvider(a.dotNetRuntimeProviderGUID, func(cfg *etw.ProviderConfiguration) {
 		cfg.TraceLevel = etw.TRACE_LEVEL_VERBOSE
 		cfg.MatchAnyKeyword = 0x40004001
-		pidsList := make([]uint64, 0, len(a.pids))
-		for p := range a.pids {
-			pidsList = append(pidsList, p)
-		}
 		cfg.PIDs = pidsList
 	})
+
+	if len(pidsList) > 0 {
+		return a.session.EnableProvider(a.dotNetRuntimeProviderGUID)
+	} else {
+		return a.session.DisableProvider(a.dotNetRuntimeProviderGUID)
+	}
 }
