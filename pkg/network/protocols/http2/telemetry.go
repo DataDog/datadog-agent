@@ -18,14 +18,14 @@ type KernelTelemetry struct {
 	// metricGroup is used here mostly for building the log message below
 	metricGroup *libtelemetry.MetricGroup
 
-	// http2requests            http2 requests seen
-	// http2requests            http2 responses seen
-	// endOfStreamEOS           END_OF_STREAM flags seen
-	// endOfStreamRST           RST seen
-	// largePathInDelta         Amount of path size between 160-180 bytes
-	// largePathOutsideDelta    Amount of path size between bigger than 180 bytes
-	// strLenGraterThenFrameLoc Amount of times we did not manage to get the path due to the fact we reached to the end of the frame.
-	// frameRemainder		    Amount of frames that were sent over more than one frame.
+	// http2requests             Count of HTTP/2 requests seen
+	// http2responses            Count of HTTP/2 responses seen
+	// endOfStreamEOS            Count of END_OF_STREAM flags seen
+	// endOfStreamRST            Count of RST flags seen
+	// largePathInDelta          Count of path sizes between 160-180 bytes
+	// largePathOutsideDelta     Count of path sizes greater than 180 bytes
+	// strLenGreaterThanFrameLoc Count of times we couldn't retrieve the path due to reaching the end of the frame.
+	// frameRemainder            Count of frames sent over more than one frame.
 
 	http2requests         *libtelemetry.Gauge
 	http2responses        *libtelemetry.Gauge
