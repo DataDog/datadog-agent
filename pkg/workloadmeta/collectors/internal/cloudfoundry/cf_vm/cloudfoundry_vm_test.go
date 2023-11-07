@@ -1,4 +1,8 @@
-package cloudfoundry_vm
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+package vm
 
 import (
 	"context"
@@ -13,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
 )
 
 var activeContainer = gardenfakes.FakeContainer{
@@ -67,6 +72,9 @@ func (f *FakeGardenUtil) GetContainersInfo(handles []string) (map[string]garden.
 	containersInfo := make(map[string]garden.ContainerInfoEntry)
 	for _, container := range f.containers {
 		handle := container.Handle()
+		if !slices.Contains(handles, handle) {
+			continue
+		}
 		info, err := container.Info()
 		entry := garden.ContainerInfoEntry{
 			Info: info,
@@ -79,7 +87,7 @@ func (f *FakeGardenUtil) GetContainersInfo(handles []string) (map[string]garden.
 	return containersInfo, nil
 }
 
-func (f *FakeGardenUtil) GetContainersMetrics(handles []string) (map[string]garden.ContainerMetricsEntry, error) {
+func (f *FakeGardenUtil) GetContainersMetrics(_ []string) (map[string]garden.ContainerMetricsEntry, error) {
 	return map[string]garden.ContainerMetricsEntry{}, nil
 
 }
@@ -138,35 +146,35 @@ func (f *FakeDCAClient) GetVersion() (version.Version, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetNodeLabels(nodeName string) (map[string]string, error) {
+func (f *FakeDCAClient) GetNodeLabels(_ string) (map[string]string, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetNodeAnnotations(nodeName string) (map[string]string, error) {
+func (f *FakeDCAClient) GetNodeAnnotations(_ string) (map[string]string, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetNamespaceLabels(nsName string) (map[string]string, error) {
+func (f *FakeDCAClient) GetNamespaceLabels(_ string) (map[string]string, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetPodsMetadataForNode(nodeName string) (apiv1.NamespacesPodsStringsSet, error) {
+func (f *FakeDCAClient) GetPodsMetadataForNode(_ string) (apiv1.NamespacesPodsStringsSet, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetKubernetesMetadataNames(nodeName, ns, podName string) ([]string, error) {
+func (f *FakeDCAClient) GetKubernetesMetadataNames(_, _, _ string) ([]string, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) PostClusterCheckStatus(ctx context.Context, identifier string, status types.NodeStatus) (types.StatusResponse, error) {
+func (f *FakeDCAClient) PostClusterCheckStatus(_ context.Context, _ string, _ types.NodeStatus) (types.StatusResponse, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetClusterCheckConfigs(ctx context.Context, identifier string) (types.ConfigResponse, error) {
+func (f *FakeDCAClient) GetClusterCheckConfigs(_ context.Context, _ string) (types.ConfigResponse, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetEndpointsCheckConfigs(ctx context.Context, nodeName string) (types.ConfigResponse, error) {
+func (f *FakeDCAClient) GetEndpointsCheckConfigs(_ context.Context, _ string) (types.ConfigResponse, error) {
 	panic("implement me")
 }
 
@@ -174,7 +182,7 @@ func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
 	panic("implement me")
 }
 
-func (f *FakeDCAClient) GetCFAppsMetadataForNode(nodename string) (map[string][]string, error) {
+func (f *FakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string, error) {
 	return map[string][]string{
 		activeContainer.Handle():  {"container_name:active-container-app"},
 		stoppedContainer.Handle(): {"container_name:stopped-container-app"},
