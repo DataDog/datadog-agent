@@ -106,7 +106,7 @@ func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.Con
 }
 
 // ResolveContainerTags resolves the container tags of the event
-func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
+func (fh *FieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ID != "" {
 		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ID)
 	}
@@ -114,7 +114,7 @@ func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.Containe
 }
 
 // ResolveProcessCreatedAt resolves process creation time
-func (fh *FieldHandlers) ResolveProcessCreatedAt(ev *model.Event, e *model.Process) int {
+func (fh *FieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Process) int {
 	return int(e.ExecTime.UnixNano())
 }
 

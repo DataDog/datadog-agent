@@ -19,12 +19,6 @@ include:
     - export IMG_DESTINATIONS="${CWS_INSTRUMENTATION_REPOSITORY}:${VERSION}"
 
 
-deploy_containers-cws-instrumentation:
-  extends: .deploy_containers-cws-instrumentation-base
-  rules:
-    !reference [.on_deploy_a7_manual_auto_on_rc]
-
-
 deploy_containers-cws-instrumentation-rc:
   extends: .deploy_containers-cws-instrumentation-base
   rules:

@@ -1329,23 +1329,20 @@ CSM Threats logs have the following JSON schema:
         "file": {
             "$ref": "#/$defs/FileEvent"
         },
-        "dns": {
-            "$ref": "#/$defs/DNSEvent"
-        },
-        "network": {
-            "$ref": "#/$defs/NetworkContext"
-        },
         "exit": {
             "$ref": "#/$defs/ExitEvent"
         },
         "process": {
             "$ref": "#/$defs/ProcessContext"
         },
-        "dd": {
-            "$ref": "#/$defs/DDContext"
-        },
         "container": {
             "$ref": "#/$defs/ContainerContext"
+        },
+        "network": {
+            "$ref": "#/$defs/NetworkContext"
+        },
+        "dd": {
+            "$ref": "#/$defs/DDContext"
         },
         "security_profile": {
             "$ref": "#/$defs/SecurityProfileContext"
@@ -1374,6 +1371,9 @@ CSM Threats logs have the following JSON schema:
         "splice": {
             "$ref": "#/$defs/SpliceEvent"
         },
+        "dns": {
+            "$ref": "#/$defs/DNSEvent"
+        },
         "bind": {
             "$ref": "#/$defs/BindEvent"
         },
@@ -1399,12 +1399,11 @@ CSM Threats logs have the following JSON schema:
 | `evt` | $ref | Please see [EventContext](#eventcontext) |
 | `date` | string |  |
 | `file` | $ref | Please see [FileEvent](#fileevent) |
-| `dns` | $ref | Please see [DNSEvent](#dnsevent) |
-| `network` | $ref | Please see [NetworkContext](#networkcontext) |
 | `exit` | $ref | Please see [ExitEvent](#exitevent) |
 | `process` | $ref | Please see [ProcessContext](#processcontext) |
-| `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
+| `network` | $ref | Please see [NetworkContext](#networkcontext) |
+| `dd` | $ref | Please see [DDContext](#ddcontext) |
 | `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
 | `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
 | `bpf` | $ref | Please see [BPFEvent](#bpfevent) |
@@ -1414,6 +1413,7 @@ CSM Threats logs have the following JSON schema:
 | `module` | $ref | Please see [ModuleEvent](#moduleevent) |
 | `signal` | $ref | Please see [SignalEvent](#signalevent) |
 | `splice` | $ref | Please see [SpliceEvent](#spliceevent) |
+| `dns` | $ref | Please see [DNSEvent](#dnsevent) |
 | `bind` | $ref | Please see [BindEvent](#bindevent) |
 | `mount` | $ref | Please see [MountEvent](#mountevent) |
 | `anomaly_detection_syscall` | $ref | Please see [AnomalyDetectionSyscallEvent](#anomalydetectionsyscallevent) |
