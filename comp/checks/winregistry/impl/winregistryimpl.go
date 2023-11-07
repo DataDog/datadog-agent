@@ -236,6 +236,10 @@ func (c *WindowsRegistryCheck) processRegistryValues(regDelegate registryDelegat
 				fallthrough
 			case registry.EXPAND_SZ:
 				val, _, err := regKey.GetStringValue(valueName)
+				if err != nil {
+					regDelegate.onRetrievalError(valueName, regKeyCfg, regValueCfg, err)
+					continue
+				}
 				if valueType == registry.EXPAND_SZ {
 					val, err = registry.ExpandString(val)
 				}
