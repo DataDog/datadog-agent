@@ -128,7 +128,7 @@ namespace WixSetup.Datadog
             // to build/ship without it.
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
             {
-                project.Properties.Combine(new Property("INSTALL_CWS", "1"));
+                project.AddProperty(new Property("INSTALL_CWS", "1"));
             }
 
             // Always generate a new GUID otherwise WixSharp will generate one based on
