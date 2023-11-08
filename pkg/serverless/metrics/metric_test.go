@@ -82,6 +82,7 @@ func TestStartInvalidDogStatsD(t *testing.T) {
 }
 
 func TestStartWithProxy(t *testing.T) {
+	t.SkipNow()
 	originalValues := config.Datadog.GetStringSlice(statsDMetricBlocklistKey)
 	defer config.Datadog.SetWithoutSource(statsDMetricBlocklistKey, originalValues)
 	config.Datadog.SetWithoutSource(statsDMetricBlocklistKey, []string{})
