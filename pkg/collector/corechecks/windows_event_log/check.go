@@ -120,7 +120,7 @@ func (c *Check) fetchEventsLoop(sender sender.Sender) {
 			}
 			for _, event := range events {
 				// Submit Datadog Event
-				_ = c.submitEvent(sender, event)
+				c.submitEvent(sender, event)
 
 				// bookmarkSaver manages whether or not to save/persist the bookmark
 				err := c.bookmarkSaver.updateBookmark(event)
@@ -141,7 +141,7 @@ func (c *Check) fetchEventsLoop(sender sender.Sender) {
 	}
 }
 
-func (c *Check) submitEvent(sender sender.Sender, event *evtapi.EventRecord) error {
+func (c *Check) submitEvent(sender sender.Sender, event *evtapi.EventRecord) {
 	// Base event
 	ddevent := agentEvent.Event{
 		Priority:       c.eventPriority,
@@ -150,20 +150,20 @@ func (c *Check) submitEvent(sender sender.Sender, event *evtapi.EventRecord) err
 	}
 
 	// Render Windows event values into the DD event
-	_ = c.renderEventValues(event, &ddevent)
-
+	err := c.renderEventValues(event, &ddevent)
+	if err != nil {
+		log.Error(err)
+	}
 	// If the event has rendered text, check it against the regexp patterns to see if
 	// we should send the event or not
 	if len(ddevent.Text) > 0 {
 		if !c.includeMessage(ddevent.Text) {
-			return nil
+			return
 		}
 	}
 
 	// submit
 	sender.Event(ddevent)
-
-	return nil
 }
 
 func (c *Check) bookmarkPersistentCacheKey() string {
@@ -179,6 +179,14 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if err != nil {
 		return fmt.Errorf("configuration error: %w", err)
 	}
+
+	// Add the possibly configured service as a tag for this check
+	s, err := c.GetSender()
+	if err != nil {
+		log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
+		return err
+	}
+	s.FinalizeCheckServiceTag()
 
 	// process configuration
 	c.config, err = unmarshalConfig(data, initConfig)

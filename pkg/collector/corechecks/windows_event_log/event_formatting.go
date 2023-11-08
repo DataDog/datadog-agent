@@ -8,13 +8,11 @@
 package evtlog
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
@@ -37,11 +35,10 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	// FQDN
 	fqdn, err := vals.String(evtapi.EvtSystemComputer)
 	if err != nil || c.session == nil {
-		// use DD hostname
+		// use default hostname provided by aggregator.Sender
 		//   * if collecting from local computer
 		//   * if fail to fetch hostname of remote computer
-		fqdn, _ = hostname.Get(context.TODO())
-		// on error/empty, default hostname is provided by aggregator.Sender
+		fqdn = ""
 	}
 	ddevent.Host = fqdn
 	// Level

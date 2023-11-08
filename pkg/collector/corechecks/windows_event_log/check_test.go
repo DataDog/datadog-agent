@@ -129,6 +129,7 @@ func newCheck(api evtapi.API, sender *mocksender.MockSender, instanceConfig []by
 	// it gets our mocksender instead of creating a new real sender.
 	check.BuildID(integration.FakeConfigHash, instanceConfig, initConfig)
 	mocksender.SetSender(sender, check.ID())
+	sender.On("FinalizeCheckServiceTag").Return()
 
 	err := check.Configure(sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, initConfig, "test")
 	return check, err
