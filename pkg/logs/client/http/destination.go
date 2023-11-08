@@ -90,8 +90,8 @@ func NewDestination(endpoint config.Endpoint,
 	destinationsContext *client.DestinationsContext,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
-	telemetryName string,
-) *Destination {
+	telemetryName string) *Destination {
+
 	return newDestination(endpoint,
 		contentType,
 		destinationsContext,
@@ -107,8 +107,8 @@ func newDestination(endpoint config.Endpoint,
 	timeout time.Duration,
 	maxConcurrentBackgroundSends int,
 	shouldRetry bool,
-	telemetryName string,
-) *Destination {
+	telemetryName string) *Destination {
+
 	if maxConcurrentBackgroundSends <= 0 {
 		maxConcurrentBackgroundSends = 1
 	}
@@ -165,13 +165,13 @@ func (d *Destination) Start(input chan *message.Payload, output chan *message.Pa
 }
 
 func (d *Destination) run(input chan *message.Payload, output chan *message.Payload, stopChan chan struct{}, isRetrying chan bool) {
-	startIdle := time.Now()
+	var startIdle = time.Now()
 
 	for p := range input {
 		idle := float64(time.Since(startIdle) / time.Millisecond)
 		d.expVars.AddFloat(expVarIdleMsMapKey, idle)
 		tlmIdle.Add(idle, d.telemetryName)
-		startInUse := time.Now()
+		var startInUse = time.Now()
 
 		d.sendConcurrent(p, output, isRetrying)
 
@@ -213,6 +213,7 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 		d.retryLock.Unlock()
 
 		err := d.unconditionalSend(payload)
+
 		if err != nil {
 			metrics.DestinationErrors.Add(1)
 			metrics.TlmDestinationErrors.Inc()

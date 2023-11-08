@@ -14,13 +14,13 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	datadogHttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
-	datadogHttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -31,12 +31,10 @@ const encryptionContextKey = "LambdaFunctionName"
 const functionNameEnvVar = "AWS_LAMBDA_FUNCTION_NAME"
 
 // one of those env variable must be set
-const (
-	apiKeyEnvVar              = "DD_API_KEY"
-	apiKeySecretManagerEnvVar = "DD_API_KEY_SECRET_ARN"
-	apiKeyKmsEnvVar           = "DD_KMS_API_KEY"
-	apiKeyKmsEncryptedEnvVar  = "DD_API_KEY_KMS_ENCRYPTED"
-)
+const apiKeyEnvVar = "DD_API_KEY"
+const apiKeySecretManagerEnvVar = "DD_API_KEY_SECRET_ARN"
+const apiKeyKmsEnvVar = "DD_KMS_API_KEY"
+const apiKeyKmsEncryptedEnvVar = "DD_API_KEY_KMS_ENCRYPTED"
 
 // kmsKeySuffix is the suffix of all environment variables which should be decrypted by KMS
 const kmsKeySuffix = "_KMS_ENCRYPTED"
@@ -66,6 +64,7 @@ func decryptKMS(kmsClient kmsAPI, ciphertext string) (string, error) {
 		CiphertextBlob: decodedBytes,
 	}
 	response, err := kmsClient.Decrypt(context.TODO(), params)
+
 	if err != nil {
 		log.Debug("Failed to decrypt ciphertext without encryption context, retrying with encryption context")
 		// Try with encryption context, in case API key was encrypted using the AWS Console
@@ -187,7 +186,7 @@ func HasAPIKey() bool {
 
 // CheckForSingleAPIKey checks if an API key has been set in multiple places and logs a warning if so.
 func CheckForSingleAPIKey() {
-	apikeySetIn := []string{}
+	var apikeySetIn = []string{}
 	if len(os.Getenv(apiKeyKmsEncryptedEnvVar)) > 0 {
 		apikeySetIn = append(apikeySetIn, "KMS_ENCRYPTED")
 	}
