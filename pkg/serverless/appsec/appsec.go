@@ -78,7 +78,11 @@ func newAppSec() (*AppSec, error) {
 	}
 
 	var rules map[string]any
-	if err := json.Unmarshal([]byte(appsec.StaticRecommendedRules), &rules); err != nil {
+	ruleset, err := appsec.DefaultRuleset()
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(ruleset, &rules); err != nil {
 		return nil, err
 	}
 	handle, err := waf.NewHandle(rules, cfg.Obfuscator.KeyRegex, cfg.Obfuscator.ValueRegex)
@@ -105,21 +109,27 @@ func (a *AppSec) Close() error {
 
 // Monitor runs the security event rules and return the events as a slice
 // The monitored addresses are all persistent addresses
-func (a *AppSec) Monitor(addresses map[string]any) []any {
+func (a *AppSec) Monitor(addresses map[string]any) (res waf.Result) {
 	log.Debugf("appsec: monitoring the request context %v", addresses)
 	ctx := waf.NewContext(a.handle)
 	if ctx == nil {
-		return nil
+		return res
 	}
 	defer ctx.Close()
 	timeout := a.cfg.WafTimeout
+
+	// Naive 10% sampling for API Security, disabled for testing
+	//	if rand.Uint32()%10 == 0 {
+	addresses["waf.context.processor"] = map[string]any{"extract-schema": true}
+	//	}
+
 	res, err := ctx.Run(waf.RunAddressData{Persistent: addresses}, timeout)
 	if err != nil {
 		if err == waf.ErrTimeout {
 			log.Debugf("appsec: waf timeout value of %s reached", timeout)
 		} else {
 			log.Errorf("appsec: unexpected waf execution error: %v", err)
-			return nil
+			return res
 		}
 	}
 
@@ -129,9 +139,9 @@ func (a *AppSec) Monitor(addresses map[string]any) []any {
 	}
 	if !a.eventsRateLimiter.Allow() {
 		log.Debugf("appsec: security events discarded: the rate limit of %d events/s is reached", a.cfg.TraceRateLimit)
-		return nil
+		return waf.Result{}
 	}
-	return res.Events
+	return res
 }
 
 // wafHealth is a simple test helper that returns the same thing as `waf.Health`

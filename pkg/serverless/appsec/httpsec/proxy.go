@@ -237,9 +237,11 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		log.Debug("appsec: missing span tag http.status_code")
 	}
 
-	if events := lp.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
-		setSecurityEventsTags(span, events, reqHeaders, nil)
+	if res := lp.appsec.Monitor(ctx.toAddresses()); len(res.Events) > 0 {
+		setSecurityEventsTags(span, res.Events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
+
+		setAPISecurityTags(span, res.Derivatives)
 	}
 }
 

