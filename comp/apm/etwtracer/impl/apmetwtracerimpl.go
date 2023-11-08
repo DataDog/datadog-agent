@@ -113,12 +113,10 @@ type win32MessageBytePipe interface {
 	CloseWrite() error
 }
 
-func (a *apmetwtracerimpl) binaryReadWithTimeout(c net.Conn, data any) error {
-	err := c.SetReadDeadline(time.Now().Add(30 * time.Second))
-	if err != nil {
-		return err
-	}
-	err = binary.Read(c, binary.LittleEndian, data)
+func (a *apmetwtracerimpl) readBinary(c net.Conn, data any) error {
+	// Don't set a deadline for reading, some clients might be silent for a long time
+	// and keep the connection open.
+	err := binary.Read(c, binary.LittleEndian, data)
 	if errors.Is(err, io.EOF) {
 		a.log.Debugf("Client disconnected [%s]", c.RemoteAddr().Network())
 		return err
@@ -134,7 +132,7 @@ func (a *apmetwtracerimpl) binaryReadWithTimeout(c net.Conn, data any) error {
 	return nil
 }
 
-func (a *apmetwtracerimpl) binaryWriteWithTimeout(c net.Conn, data any) error {
+func (a *apmetwtracerimpl) writeBinary(c net.Conn, data any) error {
 	err := c.SetWriteDeadline(time.Now().Add(30 * time.Second))
 	if err != nil {
 		return err
@@ -165,22 +163,22 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 	a.log.Debugf("Client connected [%s]", c.RemoteAddr().Network())
 	for {
 		h := header{}
-		err := a.binaryReadWithTimeout(c, &h)
+		err := a.readBinary(c, &h)
 		if err != nil {
-			// Error is handled in binaryReadWithTimeout
+			// Error is handled in readBinary
 			return
 		}
 
-		if bytes.Equal(a.magic[:], h.Magic[:]) {
-			a.log.Errorf("Invalid header: %s", string(h.Magic[:13]))
+		if !bytes.Equal(a.magic[:], h.Magic[:]) {
+			a.log.Errorf("Invalid header: %s", string(h.Magic[:]))
 			return
 		}
 
 		// Read pid
 		var pid uint64
-		err = a.binaryReadWithTimeout(c, &pid)
+		err = a.readBinary(c, &pid)
 		if err != nil {
-			// Error is handled in binaryReadWithTimeout
+			// Error is handled in readBinary
 			return
 		}
 
@@ -212,8 +210,8 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		}
 		h.Size = headerSize
 
-		// Error is handled in binaryWriteWithTimeout
-		_ = a.binaryWriteWithTimeout(c, &h)
+		// Error is handled in writeBinary
+		_ = a.writeBinary(c, &h)
 	}
 }
 
@@ -229,7 +227,21 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 	}
 
 	a.pipeListener, err = winio.ListenPipe(serverNamedPipePath, &winio.PipeConfig{
-		MessageMode: true,
+		// https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format
+		// https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-strings
+		// https://learn.microsoft.com/en-us/windows/win32/secauthz/sid-strings
+		//
+		// D:dacl_flags(ace_type;ace_flags;rights;object_guid;inherit_object_guid;account_sid;(resource_attribute))
+		// 	dacl_flags:
+		//		"P": SDDL_PROTECTED
+		//	ace_type:
+		//		"A": SDDL_ACCESS_ALLOWED
+		// rights:
+		//		"GA": SDDL_GENERIC_ALL
+		// account_sid:
+		//		"WD": Everyone
+		SecurityDescriptor: "D:P(A;;GA;;;WD)",
+		MessageMode:        true,
 	})
 	if err != nil {
 		a.log.Errorf("Failed to listen to named pipe '%s': %v", serverNamedPipePath, err)
