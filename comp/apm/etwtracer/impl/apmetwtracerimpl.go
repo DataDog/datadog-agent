@@ -309,8 +309,7 @@ func (a *apmetwtracerimpl) addPID(pid uint64) error {
 		return err
 	}
 	a.pids[pid] = pidContext{
-		conn:     c,
-		lastSeen: time.Now(),
+		conn: c,
 	}
 	return a.reconfigureProvider()
 }
