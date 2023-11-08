@@ -2,14 +2,12 @@ package main
 
 import (
 	"archive/zip"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -45,6 +43,7 @@ import (
 
 	// DataDog agent: SBOM + proto stuffs
 	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
+	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -213,7 +212,7 @@ func scanCmd(rawScan []byte) error {
 		if err != nil {
 			log.Errorf("error scanning task %s: %s", scan, err)
 		} else {
-			fmt.Printf("scanning result %s: %s\n", scan, entity)
+			fmt.Printf("scanning result %s: %s\n", scan, prototext.Format(entity))
 		}
 	}
 	return nil
