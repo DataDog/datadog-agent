@@ -16,18 +16,22 @@ import (
 
 func TestConfigPrecedence(t *testing.T) {
 	// values that are different from defaults to be used for testing
+	differentStart := "oldest"
 	differentPayloadSize := 5
 	differentBookmarkFrequency := 7
 	differentTagEventID := true
 	differentTagSID := true
 	differentEventPriority := "high"
+	differentAuthType := "kerberos"
 	differentInterpretMessages := false
 	differentLegacyMode := true
 	differentLegacyModeV2 := true
+	assert.NotEqual(t, defaultConfigStart, differentStart, "Default start changed and test was not updated")
 	assert.NotEqual(t, defaultConfigPayloadSize, differentPayloadSize, "Default payload_size changed and test was not updated")
 	assert.NotEqual(t, defaultConfigTagEventID, differentTagEventID, "Default tag_event_id changed and test was not updated")
 	assert.NotEqual(t, defaultConfigTagSID, differentTagEventID, "Default tag_sid changed and test was not updated")
 	assert.NotEqual(t, defaultConfigEventPriority, differentEventPriority, "Default event_priority changed and test was not updated")
+	assert.NotEqual(t, defaultConfigAuthType, differentAuthType, "Default auth_type changed and test was not updated")
 	assert.NotEqual(t, defaultConfigInterpretMessages, differentInterpretMessages, "Default interpret_messages changed and test was not updated")
 	assert.NotEqual(t, defaultConfigLegacyMode, differentLegacyMode, "Default legacy_mode changed and test was not updated")
 	assert.NotEqual(t, defaultConfigLegacyModeV2, differentLegacyModeV2, "Default legacy_mode_v2 changed and test was not updated")
@@ -120,6 +124,23 @@ legacy_mode_v2: %v
 		assert.Equal(t, *config.instance.InterpretMessages, defaultConfigInterpretMessages)
 		assert.Equal(t, *config.instance.LegacyMode, defaultConfigLegacyMode)
 		assert.Equal(t, *config.instance.LegacyModeV2, defaultConfigLegacyModeV2)
+	}
+
+	//
+	// Assert instance config overrides defaults (for opts without init_config)
+	//
+	instanceConfig6 := []byte(fmt.Sprintf(`
+start: %v
+auth_type: %v
+payload_size: %v
+bookmark_frequency: %v
+`, differentStart, differentAuthType, differentPayloadSize, differentBookmarkFrequency))
+	config, err = unmarshalConfig(instanceConfig6, nil)
+	if assert.NoError(t, err) {
+		assert.Equal(t, *config.instance.Start, differentStart)
+		assert.Equal(t, *config.instance.AuthType, differentAuthType)
+		assert.Equal(t, *config.instance.PayloadSize, differentPayloadSize)
+		assert.Equal(t, *config.instance.BookmarkFrequency, differentBookmarkFrequency)
 	}
 
 	//
