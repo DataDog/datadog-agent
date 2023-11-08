@@ -53,6 +53,7 @@ type KubeServiceService struct {
 	hosts           map[string]string
 	ports           []ContainerPort
 	metricsExcluded bool
+	globalExcluded  bool
 }
 
 // Make sure KubeServiceService implements the Service interface
@@ -250,6 +251,14 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 		ksvc.Namespace,
 	)
 
+	svc.globalExcluded = l.containerFilters.IsExcluded(
+		containers.GlobalFilter,
+		ksvc.GetAnnotations(),
+		ksvc.Name,
+		"",
+		ksvc.Namespace,
+	)
+
 	l.m.Lock()
 	l.services[ksvc.UID] = svc
 	l.m.Unlock()
@@ -369,6 +378,8 @@ func (s *KubeServiceService) GetCheckNames(context.Context) []string {
 func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
 	if filter == containers.MetricsFilter {
 		return s.metricsExcluded
+	} else if filter == containers.GlobalFilter {
+		return s.globalExcluded
 	}
 	return false
 }

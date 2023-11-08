@@ -57,6 +57,7 @@ type KubeEndpointService struct {
 	hosts           map[string]string
 	ports           []ContainerPort
 	metricsExcluded bool
+	globalExcluded  bool
 }
 
 // Make sure KubeEndpointService implements the Service interface
@@ -322,7 +323,8 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 			kep.Name,
 			"",
 			kep.Namespace,
-		) || l.containerFilters.IsExcluded(
+		)
+		eps[i].globalExcluded = l.containerFilters.IsExcluded(
 			containers.GlobalFilter,
 			kep.GetAnnotations(),
 			kep.Name,
@@ -481,8 +483,10 @@ func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
 // HasFilter returns whether the kube endpoint should not collect certain metrics
 // due to filtering applied.
 func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
-	if filter == containers.MetricsFilter || filter == containers.GlobalFilter {
+	if filter == containers.MetricsFilter {
 		return s.metricsExcluded
+	} else if filter == containers.GlobalFilter {
+		return s.globalExcluded
 	}
 	return false
 }
