@@ -8,5 +8,5 @@
 ---
 fixes:
   - |
-    APM: fix a regression in the Trace Agent, causing container tagging
-    with UDS and cgroup v2 to fail
+    APM: fix a regression in the Trace Agent that caused container tagging
+    with UDS and cgroup v2 to fail.
