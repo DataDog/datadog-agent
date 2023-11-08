@@ -58,13 +58,6 @@ namespace WixSetup.Datadog
 
         public Project ConfigureProject()
         {
-            // Conditionally include the PROCMON MSM while it is in active development to make it easier
-            // to build/ship without it.
-            Property cwsProperty = null;
-            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
-            {
-                cwsProperty = new Property("INSTALL_CWS", "1");
-            }
             var project = new ManagedProject("Datadog Agent",
                 // Use 2 LaunchConditions, one for server versions,
                 // one for client versions.
@@ -128,11 +121,15 @@ namespace WixSetup.Datadog
                 )
                 {
                     Win64 = true
-                },
-                // cwsProperty is conditionally declared above, it is either NULL
-                // or the property indicating that cws is to be included.
-                cwsProperty
+                }
             );
+
+            // Conditionally include the PROCMON MSM while it is in active development to make it easier
+            // to build/ship without it.
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
+            {
+                project.Properties.Combine(new Property("INSTALL_CWS", "1"));
+            }
 
             // Always generate a new GUID otherwise WixSharp will generate one based on
             // the version
