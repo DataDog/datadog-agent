@@ -6,13 +6,16 @@
 package forwarder
 
 import (
+	"bytes"
 	_ "embed"
 	"fmt"
 	"net"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/DataDog/test-infra-definitions/components/datadog/agent"
@@ -39,17 +42,31 @@ type multiFakeIntakeEnv struct {
 
 const (
 	// intakeName should only contains alphanumerical characters to ease pattern matching /etc/hosts
-	intakeName              = "ddintake"
+	intakeName      = "ddintake"
+	fakeintake1Name = "1fakeintake"
+	fakeintake2Name = "2fakeintake"
+
+	logFile                 = "/tmp/test.log"
+	logService              = "custom_logs"
 	connectionResetInterval = 120 // seconds
-	intakeMaxWaitTime       = 5 * time.Minute
-	intakeUnusedWaitTime    = 1 * time.Minute
-	intakeTick              = 20 * time.Second
-	fakeintake1Name         = "1fakeintake"
-	fakeintake2Name         = "2fakeintake"
+
+	intakeMaxWaitTime    = 5 * time.Minute
+	intakeUnusedWaitTime = 1 * time.Minute
+	intakeTick           = 20 * time.Second
 )
 
-//go:embed testfixtures/custom_logs.yaml
-var customLogsConfig string
+// templateVars is used to template the configs
+var templateVars = map[string]string{
+	"ConnectionResetInterval": strconv.Itoa(connectionResetInterval),
+	"LogFile":                 logFile,
+	"LogService":              logService,
+}
+
+//go:embed testfixtures/custom_logs.yaml.tmpl
+var customLogsConfigTmplFile string
+
+//go:embed testfixtures/config.yaml.tmpl
+var configTmplFile string
 
 func multiFakeintakeStackDef(agentOptions ...agentparams.Option) *e2e.StackDefinition[multiFakeIntakeEnv] {
 	return e2e.EnvFactoryStackDef(func(ctx *pulumi.Context) (*multiFakeIntakeEnv, error) {
@@ -128,6 +145,12 @@ func (v *multiFakeIntakeSuite) SetupTest() {
 //
 // TODO: handle APM traces
 func (v *multiFakeIntakeSuite) TestNSSFailover() {
+	agentConfig, err := readTmplConfig(configTmplFile)
+	v.NoError(err)
+
+	customLogsConfig, err := readTmplConfig(customLogsConfigTmplFile)
+	v.NoError(err)
+
 	// ensure host uses files for NSS
 	enforceNSSwitchFiles(v.T(), v.Env().VM)
 
@@ -138,7 +161,7 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 
 	// configure agent to use the custom intake, set connection_reset_interval, use logs, and processes
 	agentOptions := []agentparams.Option{
-		agentparams.WithAgentConfig(getAgentConfig(connectionResetInterval)),
+		agentparams.WithAgentConfig(agentConfig),
 		agentparams.WithLogs(),
 		agentparams.WithIntakeHostname(intakeName),
 		agentparams.WithIntegration("custom_logs.d", customLogsConfig),
@@ -171,8 +194,8 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *client.Fakeintake, in
 		assert.NotEmpty(t, metricNames)
 
 		// check logs
-		v.Env().VM.Execute("echo 'totoro' >> /tmp/test.log")
-		logs, err := intake.FilterLogs("custom_logs")
+		v.Env().VM.Execute(fmt.Sprintf("echo 'totoro' >> %s", logFile))
+		logs, err := intake.FilterLogs(logService)
 		require.NoError(t, err)
 		assert.NotEmpty(t, logs)
 
@@ -195,7 +218,7 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *client.Fakeintake, i
 		intake.FlushServerAndResetAggregators()
 
 		// write a log
-		v.Env().VM.Execute("echo 'totoro' >> /tmp/test.log")
+		v.Env().VM.Execute(fmt.Sprintf("echo 'totoro' >> %s", logFile))
 
 		// send a flare
 		v.Env().Agent.Flare(client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
@@ -209,7 +232,7 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *client.Fakeintake, i
 		assert.Empty(t, metricNames)
 
 		// check logs
-		logs, err := intake.FilterLogs("custom_logs")
+		logs, err := intake.FilterLogs(logService)
 		require.NoError(t, err)
 		assert.Empty(t, logs)
 
@@ -305,8 +328,18 @@ func hostIPFromURL(fakeintakeURL string) (string, error) {
 	return ips[0].String(), nil
 }
 
-func getAgentConfig(interval int) string {
-	return fmt.Sprintf(`forwarder_connection_reset_interval: %[1]d
-apm_config.connection_reset_interval: %[1]d
-logs_config.connection_reset_interval: %[1]d`, interval)
+func readTmplConfig(tmplContent string) (string, error) {
+	var buffer bytes.Buffer
+
+	tmpl, err := template.New("").Parse(tmplContent)
+	if err != nil {
+		return "", err
+	}
+
+	err = tmpl.Execute(&buffer, templateVars)
+	if err != nil {
+		return "", err
+	}
+
+	return buffer.String(), nil
 }
