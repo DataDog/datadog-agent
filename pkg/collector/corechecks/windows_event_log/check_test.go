@@ -10,11 +10,13 @@ package evtlog
 import (
 	"fmt"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	agentCheck "github.com/DataDog/datadog-agent/pkg/collector/check"
 	agentConfig "github.com/DataDog/datadog-agent/pkg/config"
 	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -532,6 +534,82 @@ start: oldest
 			check.evtapi = s.ti.API()
 			err := check.Configure(s.sender.GetSenderManager(), integration.FakeConfigHash, instanceConfig, nil, "test")
 			require.ErrorContains(s.T(), err, tc.errorMatch)
+		})
+	}
+}
+
+func (s *GetEventsTestSuite) TestCatchLegacyMode() {
+	bTrue := true
+	tcs := []struct {
+		name                 string
+		errorIs              *error
+		errorMatch           string
+		sharedLegacyMode     *bool
+		sharedLegacyModeV2   *bool
+		instanceLegacyMode   *bool
+		instanceLegacyModeV2 *bool
+	}{
+		{"DefaultToLegacyMode",
+			&agentCheck.ErrSkipCheckInstance,
+			"unsupported configuration: legacy_mode: true",
+			nil, nil, nil, nil},
+		{"ExplicitSharedLegacyMode",
+			&agentCheck.ErrSkipCheckInstance,
+			"unsupported configuration: legacy_mode: true",
+			&bTrue, nil, nil, nil},
+		{"ExplicitSharedLegacyModeV2",
+			&agentCheck.ErrSkipCheckInstance,
+			"unsupported configuration: legacy_mode_v2: true",
+			nil, &bTrue, nil, nil},
+		{"ExplicitLegacyMode",
+			&agentCheck.ErrSkipCheckInstance,
+			"unsupported configuration: legacy_mode: true",
+			nil, nil, &bTrue, nil},
+		{"ExplicitLegacyModeV2",
+			&agentCheck.ErrSkipCheckInstance,
+			"unsupported configuration: legacy_mode_v2: true",
+			nil, nil, nil, &bTrue},
+		{"MultipleLegacyMode",
+			nil,
+			"legacy_mode and legacy_mode_v2 are both true",
+			nil, nil, &bTrue, &bTrue},
+	}
+
+	for _, tc := range tcs {
+		s.Run(tc.name, func() {
+			sharedConfigList := make([]string, 0)
+			instanceConfigList := make([]string, 0)
+			instanceConfigList = append(instanceConfigList, fmt.Sprintf(`
+path: %s
+start: oldest
+`, s.channelPath))
+			if tc.sharedLegacyMode != nil {
+				sharedConfigList = append(sharedConfigList, fmt.Sprintf("legacy_mode: %v", *tc.sharedLegacyMode))
+			}
+			if tc.sharedLegacyModeV2 != nil {
+				sharedConfigList = append(sharedConfigList, fmt.Sprintf("legacy_mode_v2: %v", *tc.sharedLegacyModeV2))
+			}
+			if tc.instanceLegacyMode != nil {
+				instanceConfigList = append(instanceConfigList, fmt.Sprintf("legacy_mode: %v", *tc.instanceLegacyMode))
+			}
+			if tc.instanceLegacyModeV2 != nil {
+				instanceConfigList = append(instanceConfigList, fmt.Sprintf("legacy_mode_v2: %v", *tc.instanceLegacyModeV2))
+			}
+			var sharedConfig, instanceConfig string
+			if len(sharedConfigList) > 0 {
+				sharedConfig = strings.Join(sharedConfigList, "\n")
+			}
+			if len(instanceConfigList) > 0 {
+				instanceConfig = strings.Join(instanceConfigList, "\n")
+			}
+
+			check := new(Check)
+			check.evtapi = s.ti.API()
+			err := check.Configure(s.sender.GetSenderManager(), integration.FakeConfigHash, []byte(instanceConfig), []byte(sharedConfig), "test")
+			require.ErrorContains(s.T(), err, tc.errorMatch)
+			if tc.errorIs != nil {
+				require.ErrorIs(s.T(), err, *tc.errorIs)
+			}
 		})
 	}
 }

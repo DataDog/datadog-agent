@@ -24,7 +24,9 @@ const (
 	defaultConfigEventPriority     = "normal"
 	defaultConfigAuthType          = "default"
 	defaultConfigInterpretMessages = true
-	defaultConfigLegacyMode        = true
+	// Legacy mode options have special handling, see processLegacyModeOptions()
+	defaultConfigLegacyMode   = false
+	defaultConfigLegacyModeV2 = false
 )
 
 // Config represents the Windows Event Log check configuration and its yaml marshalling
@@ -41,6 +43,7 @@ type instanceConfig struct {
 	PayloadSize       *int           `yaml:"payload_size"`
 	BookmarkFrequency *int           `yaml:"bookmark_frequency"`
 	LegacyMode        *bool          `yaml:"legacy_mode"`
+	LegacyModeV2      *bool          `yaml:"legacy_mode_v2"`
 	EventPriority     *string        `yaml:"event_priority"`
 	TagEventID        *bool          `yaml:"tag_event_id"`
 	TagSID            *bool          `yaml:"tag_sid"`
@@ -67,6 +70,7 @@ type initConfig struct {
 	EventPriority     *string `yaml:"event_priority"`
 	InterpretMessages *bool   `yaml:"interpret_messages"`
 	LegacyMode        *bool   `yaml:"legacy_mode"`
+	LegacyModeV2      *bool   `yaml:"legacy_mode_v2"`
 }
 
 func (f *filtersConfig) Sources() []string {
@@ -156,11 +160,6 @@ func (c *Config) setDefaults() {
 		c.instance.BookmarkFrequency = &def
 	}
 
-	if c.instance.LegacyMode == nil {
-		def := false
-		c.instance.LegacyMode = &def
-	}
-
 	if c.instance.AuthType == nil {
 		def := defaultConfigAuthType
 		c.instance.AuthType = &def
@@ -199,11 +198,36 @@ func (c *Config) setDefaults() {
 		c.instance.InterpretMessages = &def
 	}
 
+	// Legacy mode options
+	c.processLegacyModeOptions()
+}
+
+func (c *Config) processLegacyModeOptions() {
+	// use initConfig option if instance value is unset
 	if c.instance.LegacyMode == nil {
-		def := defaultConfigLegacyMode
 		if c.init.LegacyMode != nil {
-			def = *c.init.LegacyMode
+			c.instance.LegacyMode = c.init.LegacyMode
 		}
+	}
+	if c.instance.LegacyModeV2 == nil {
+		if c.init.LegacyModeV2 != nil {
+			c.instance.LegacyModeV2 = c.init.LegacyModeV2
+		}
+	}
+
+	// If legacy_mode and legacy_mode_v2 are unset, default to legacy mode for configuration backwards compatibility
+	if c.instance.LegacyMode == nil && (c.instance.LegacyModeV2 == nil || !*c.instance.LegacyModeV2) {
+		def := true
 		c.instance.LegacyMode = &def
+	}
+
+	// if option is unset, default to false
+	if c.instance.LegacyMode == nil {
+		val := defaultConfigLegacyMode
+		c.instance.LegacyMode = &val
+	}
+	if c.instance.LegacyModeV2 == nil {
+		val := defaultConfigLegacyModeV2
+		c.instance.LegacyModeV2 = &val
 	}
 }

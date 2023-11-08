@@ -205,10 +205,18 @@ func (c *Check) validateConfig() error {
 	var err error
 	c.eventPriority, err = agentEvent.GetEventPriorityFromString(*c.config.instance.EventPriority)
 	if err != nil {
-		return fmt.Errorf("invalid instance config `event_priority`: %v", err)
+		return fmt.Errorf("invalid instance config `event_priority`: %w", err)
+	}
+	if *c.config.instance.LegacyMode && *c.config.instance.LegacyModeV2 {
+		return fmt.Errorf("legacy_mode and legacy_mode_v2 are both true. Each instance must set a single mode to true")
 	}
 	if *c.config.instance.LegacyMode {
-		return fmt.Errorf("unsupported configuration: legacy_mode: true")
+		// wrap ErrSkipCheckInstance for graceful skipping
+		return fmt.Errorf("%w: unsupported configuration: legacy_mode: true", agentCheck.ErrSkipCheckInstance)
+	}
+	if *c.config.instance.LegacyModeV2 {
+		// wrap ErrSkipCheckInstance for graceful skipping
+		return fmt.Errorf("%w: unsupported configuration: legacy_mode_v2: true", agentCheck.ErrSkipCheckInstance)
 	}
 	if c.config.instance.Timeout != nil {
 		// timeout option is deprecated. Now that the subscription runs in the background in a select
