@@ -62,6 +62,7 @@ stages:
   - deps_build
   - deps_fetch
   - source_test
+  - source_test_stats
   - source_test_junit_upload
   - binary_build
   - package_deps_build

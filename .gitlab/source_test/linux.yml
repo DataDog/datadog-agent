@@ -89,9 +89,10 @@ tests_deb-x64-py3-fast:
   allow_failure: true
 
 stats-fast-tests-deb-x64-py3:
-  stage: source_test
+  stage: source_test_stats
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
+  needs: ["tests_deb-x64-py3-fast", "tests_deb-x64-py3"]
   dependencies: ["tests_deb-x64-py3-fast", "tests_deb-x64-py3"]
   script:
     - echo "===================== FAST TEST ====================="
