@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
 package api
 
 import (
@@ -8,8 +13,10 @@ import (
 	"github.com/google/uuid"
 )
 
+// InstallSignature contains the information on how the agent was installed
+// and a unique identifier that distinguishes this agent from others.
 type InstallSignature struct {
-	InstallId   string `json:"install_id"`
+	InstallID   string `json:"install_id"`
 	InstallType string `json:"install_type"`
 }
 
@@ -17,6 +24,8 @@ const (
 	defaultInstallType = "manual"
 )
 
+// GetInstallSignature returns the install signature for this agent.
+// If one is not found on disk, a new one is generated and written to disk.
 func GetInstallSignature() (InstallSignature, error) {
 	installSignature, err := readInstallSignatureFromDisk()
 	if err == nil {
@@ -59,12 +68,12 @@ func readInstallSignatureFromDisk() (installSignature InstallSignature, err erro
 }
 
 func generateNewInstallSignature() (InstallSignature, error) {
-	installId, err := uuid.NewDCEGroup()
+	installID, err := uuid.NewDCEGroup()
 	if err != nil {
 		return InstallSignature{}, err
 	}
 	return InstallSignature{
-		InstallId:   installId.String(),
+		InstallID:   installID.String(),
 		InstallType: defaultInstallType,
 	}, nil
 }

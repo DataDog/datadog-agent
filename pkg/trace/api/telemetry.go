@@ -123,8 +123,8 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		if containerTags != "" {
 			req.Header.Set("x-datadog-container-tags", containerTags)
 		}
-		if installSignature.InstallId != "" {
-			req.Header.Set("DD-Agent-Install-Id", installSignature.InstallId)
+		if installSignature.InstallID != "" {
+			req.Header.Set("DD-Agent-Install-Id", installSignature.InstallID)
 		}
 		if installSignature.InstallType != "" {
 			req.Header.Set("DD-Agent-Install-Type", installSignature.InstallType)
