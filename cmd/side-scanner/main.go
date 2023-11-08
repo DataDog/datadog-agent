@@ -714,6 +714,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 				continue
 			}
 			blockDevice := blockDevices.BlockDevices[0]
+			// TODO(jinroh): support scanning multiple partitions
 			for _, child := range blockDevice.Children {
 				if child.Type == "part" && (child.FsType == "ext4" || child.FsType == "xfs") {
 					partitionDevice = child.Path
@@ -852,7 +853,7 @@ var deviceName struct {
 func nextDeviceName() string {
 	deviceName.mu.Lock()
 	defer deviceName.mu.Unlock()
-	if deviceName.letter == 0 || deviceName.letter == 'a' {
+	if deviceName.letter == 0 || deviceName.letter == 'p' {
 		deviceName.letter = 'f'
 	} else {
 		deviceName.letter += 1
