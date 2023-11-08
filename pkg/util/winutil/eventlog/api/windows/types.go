@@ -7,6 +7,8 @@
 
 package winevtapi
 
+//revive:disable:var-naming These names are intended to match the Windows API names
+
 // EVT_LOGIN_CLASS
 // https://learn.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_login_class
 const (
@@ -22,3 +24,5 @@ type EVT_RPC_LOGIN struct {
 	Password *uint16
 	Flags    uint
 }
+
+//revive:enable:var-naming

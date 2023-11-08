@@ -190,6 +190,9 @@ func WithSubscribeFlags(flags uint) PullSubscriptionOption {
 	}
 }
 
+// WithSession sets the session option for the subscription to enable collecting
+// event logs from remote hosts.
+// https://learn.microsoft.com/en-us/windows/win32/wes/accessing-remote-computers
 func WithSession(session evtsession.Session) PullSubscriptionOption {
 	return func(q *pullSubscription) {
 		q.session = session
