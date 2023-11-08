@@ -81,22 +81,7 @@ tests_deb-x64-py3-fast:
   extends:
     - .rtloader_tests
     - .linux_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
-  needs: ["go_deps", "go_tools_deps"]
-  variables:
-    PYTHON_RUNTIMES: '3'
-    CONDA_ENV: ddpy3
-    EXTRAPARAMS: '--only-modified-packages'
-  allow_failure: true
-
-
-tests_deb-x64-py3-fast:
-  extends:
-    - .rtloader_tests
-    - .linux_tests
-  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+    - .linux_x64
   needs: ["go_deps", "go_tools_deps"]
   variables:
     PYTHON_RUNTIMES: '3'
@@ -110,7 +95,6 @@ stats-fast-tests-deb-x64-py3:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   needs: ["tests_deb-x64-py3-fast", "tests_deb-x64-py3"]
-  dependencies: ["tests_deb-x64-py3-fast", "tests_deb-x64-py3"]
   script:
     - ls
     - echo "===================== FAST TEST ====================="
