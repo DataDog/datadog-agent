@@ -533,13 +533,17 @@ func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (a
 		return aws.Config{}, err
 	}
 	if assumedRoleARN != nil {
-		defcfg, err := config.LoadDefaultConfig(ctx)
-		if err != nil {
-			return aws.Config{}, err
-		}
-		stsclient := sts.NewFromConfig(defcfg)
+		stsclient := sts.NewFromConfig(cfg)
 		stsassume := stscreds.NewAssumeRoleProvider(stsclient, *assumedRoleARN)
 		cfg.Credentials = aws.NewCredentialsCache(stsassume)
+
+		// TODO(jinroh): we may want to omit this check. This is mostly to
+		// make sure that the configuration is effective.
+		stsclient = sts.NewFromConfig(cfg)
+		result, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err != nil || *result.Arn != *assumedRoleARN {
+			return aws.Config{}, fmt.Errorf("awsconfig: could not assumerole %q: %w", *assumedRoleARN)
+		}
 	}
 	return cfg, nil
 }
