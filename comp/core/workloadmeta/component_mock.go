@@ -37,11 +37,11 @@ type Mock interface {
 }
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
+var MockModule fx.Option = fxutil.Component(
 	fx.Provide(newWorkloadMetaMock),
 )
 
 // MockModuleV2 defines the fx options for the mock component.
-var MockModuleV2 = fxutil.Component(
+var MockModuleV2 fx.Option = fxutil.Component(
 	fx.Provide(newWorkloadMetaMockV2),
 )
