@@ -125,6 +125,7 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 		// calculate the delta
 		currentTimestamp := TimeNow
 		delta := (usageValue - interfaceRate.previousSample) / (currentTimestamp - interfaceRate.previousTs)
+		log.Debugf("interfaceID: %s | usageValue: %f, previousVal: %f, currentTs: %f, previousTs:%f", interfaceID, usageValue, interfaceRate.previousSample, currentTimestamp, interfaceRate.previousTs)
 		// update the map previous as the current for next rate
 		interfaceRate.previousSample = usageValue
 		interfaceRate.previousTs = currentTimestamp
@@ -137,6 +138,7 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 			forcedType: profiledefinition.ProfileMetricTypeGauge,
 			options:    profiledefinition.MetricsConfigOption{},
 		}
+		log.Debugf("send metric, interfaceID: %s, delta: %f", interfaceID, delta)
 		// send the metric
 		ms.sendMetric(sample)
 	} else {
@@ -146,7 +148,7 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 			previousSample: usageValue,
 			previousTs:     TimeNow,
 		}
-		log.Debugf("new entry in interface map: interface ID: %s, ifSpeed: %d, previous sample: %f", interfaceID, ifSpeed, usageValue)
+		log.Debugf("new entry in interface map: interface ID: %s, ifSpeed: %d, previous sample: %f, ts: %f", interfaceID, ifSpeed, usageValue, TimeNow())
 		// do not send a sample to metrics, send error for ifSpeed change (previous entry conflicted)
 		if ok {
 			return fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", interfaceRate.ifSpeed, ifSpeed, interfaceID)
