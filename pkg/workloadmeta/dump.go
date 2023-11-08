@@ -50,7 +50,9 @@ func (s *store) Dump(verbose bool) WorkloadDumpResponse {
 		var info string
 		switch e := entity.(type) {
 		case *Container:
-			info = e.String(verbose)
+			if !e.IsPauseContainer || (e.IsPauseContainer && verbose) {
+				info = e.String(verbose)
+			}
 		case *KubernetesPod:
 			info = e.String(verbose)
 		case *KubernetesNode:

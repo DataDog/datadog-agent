@@ -685,7 +685,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 				continue
 			}
 
-			// Pause containers are stored in the workloadmeta store but not sent to subscribers unless they have specified that they would like to include pause contaienrs
+			// Pause containers are stored in the workloadmeta store but not sent to subscribers unless they have specified that they would like to include pause containers
 			container, ok := ev.Entity.(*Container)
 			if ok && !filter.MatchIncludePauseContainers() && container.IsPauseContainer {
 				continue
