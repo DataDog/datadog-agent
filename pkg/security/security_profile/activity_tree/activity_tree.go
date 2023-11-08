@@ -452,9 +452,12 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 		return nil, false, nil
 	}
 
-	// check the lineage now, we have to do it only once
-	if !entry.HasCompleteLineage() {
-		return nil, false, ErrBrokenLineage
+	if _, err := entry.HasValidLineage(); err != nil {
+		// check if the node belongs to the container
+		var mn *model.ErrProcessMissingParentNode
+		if !errors.As(err, &mn) {
+			return nil, false, ErrBrokenLineage
+		}
 	}
 
 	// Check if entry or one of its parents cookies are in CookieToProcessNode while building the branch we're trying to
