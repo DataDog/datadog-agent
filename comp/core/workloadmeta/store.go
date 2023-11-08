@@ -153,12 +153,12 @@ func (w *workloadmeta) Subscribe(name string, priority SubscriberPriority, filte
 		})
 	}
 
+	w.subscribersMut.Lock()
+	defer w.subscribersMut.Unlock()
+
 	// notifyChannel should not wait when doing the first subscription, as
 	// the subscriber is not ready to receive events yet
 	w.notifyChannel(sub.name, sub.ch, events, false)
-
-	w.subscribersMut.Lock()
-	defer w.subscribersMut.Unlock()
 
 	w.subscribers = append(w.subscribers, sub)
 	sort.SliceStable(w.subscribers, func(i, j int) bool {
@@ -552,7 +552,8 @@ func (w *workloadmeta) pull(ctx context.Context) {
 
 func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
 	w.storeMut.Lock()
-	w.subscribersMut.RLock()
+	w.subscribersMut.Lock()
+	defer w.subscribersMut.Unlock()
 
 	filteredEvents := make(map[subscriber][]Event, len(w.subscribers))
 	for _, sub := range w.subscribers {
@@ -666,8 +667,6 @@ func (w *workloadmeta) handleEvents(evs []CollectorEvent) {
 		}
 	}
 
-	w.subscribersMut.RUnlock()
-
 	// unlock the store before notifying subscribers, as they might need to
 	// read it for related entities (such as a pod's containers) while they
 	// process an event.
@@ -729,14 +728,13 @@ func (w *workloadmeta) unsubscribeAll() {
 	telemetry.Subscribers.Set(0)
 }
 
+// call holding lock on w.subscribersMut
 func (w *workloadmeta) notifyChannel(name string, ch chan EventBundle, events []Event, wait bool) {
 	bundle := EventBundle{
 		Ch:     make(chan struct{}),
 		Events: events,
 	}
-	w.subscribersMut.Lock()
 	ch <- bundle
-	w.subscribersMut.Unlock()
 
 	if wait {
 		timer := time.NewTimer(eventBundleChTimeout)

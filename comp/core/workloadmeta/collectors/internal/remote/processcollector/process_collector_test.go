@@ -310,7 +310,10 @@ func TestCollection(t *testing.T) {
 				close(bundle.Ch)
 				i += len(bundle.Events)
 			}
+
 			mockStore.Unsubscribe(ch)
+			cancel()
+
 			cancel()
 
 			// Verify final state
