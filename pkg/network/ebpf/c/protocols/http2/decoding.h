@@ -121,7 +121,6 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
 static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
-
     __u8 str_len = 0;
     if (!read_var_int(skb, skb_info, MAX_6_BITS, &str_len)) {
         return false;
@@ -469,7 +468,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
     return false;
 }
 
-static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_frame_with_offset *frames_array, __u8 original_index) {
+static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
@@ -602,7 +601,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // The verifier cannot tell if `iteration_value->frames_count` is 0 or 1, so we have to help it. The value is
     // 1 if we have found an interesting frame in `socket__http2_handle_first_frame`, otherwise it is 0.
     // filter frames
-    iteration_value->frames_count = find_relevant_headers(skb, &local_skb_info, &dispatcher_args_copy.tup, iteration_value->frames_array, iteration_value->frames_count);
+    iteration_value->frames_count = find_relevant_headers(skb, &local_skb_info, iteration_value->frames_array, iteration_value->frames_count);
 
     frame_header_remainder_t new_frame_state = {0};
     if (local_skb_info.data_off > local_skb_info.data_end) {
@@ -687,6 +686,7 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
         normalize_tuple(&http2_ctx->http2_stream_key.tup);
         http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
         dispatcher_args_copy.skb_info.data_off = current_frame.offset;
+
         parse_frame(skb, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, http2_ctx, &current_frame.frame);
     }
 
