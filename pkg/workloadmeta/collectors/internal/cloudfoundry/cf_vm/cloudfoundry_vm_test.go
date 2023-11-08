@@ -370,7 +370,7 @@ func TestPullAppNameWithDCA(t *testing.T) {
 	assert.Contains(t, containerEntity.CollectorTags, "container_name:active-container-app")
 }
 
-func TestPullAppNameWitoutDCA(t *testing.T) {
+func TestPullAppNameWithoutDCA(t *testing.T) {
 	containers := []garden.Container{
 		&activeContainer,
 	}
