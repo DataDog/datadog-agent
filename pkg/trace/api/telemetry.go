@@ -96,10 +96,6 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 	}
 	limitedLogger := log.NewThrottled(5, 10*time.Second) // limit to 5 messages every 10 seconds
 	logger := stdlog.New(limitedLogger, "telemetry.Proxy: ", 0)
-	installSignature, err := GetInstallSignature()
-	if err != nil {
-		log.Errorf("Error getting install signature: %v", err)
-	}
 	director := func(req *http.Request) {
 		req.Header.Set("Via", fmt.Sprintf("trace-agent %s", r.conf.AgentVersion))
 		if _, ok := req.Header["User-Agent"]; !ok {
@@ -122,12 +118,6 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		}
 		if containerTags != "" {
 			req.Header.Set("x-datadog-container-tags", containerTags)
-		}
-		if installSignature.InstallId != "" {
-			req.Header.Set("DD-Agent-Install-Id", installSignature.InstallId)
-		}
-		if installSignature.InstallType != "" {
-			req.Header.Set("DD-Agent-Install-Type", installSignature.InstallType)
 		}
 		if arn, ok := r.conf.GlobalTags[functionARNKeyTag]; ok {
 			req.Header.Set(cloudProviderHeader, string(aws))
