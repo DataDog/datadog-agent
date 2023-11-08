@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -278,8 +279,10 @@ func TestRun(t *testing.T) {
 			// are not necessarily emitted in the first run. It depends on
 			// whether the check had time to process the events.
 
-			check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
-			err := check.Run()
+			err := check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
+			require.NoError(t, err)
+
+			err = check.Run()
 			assert.NoError(t, err)
 
 			assert.Eventually(t, func() bool { // Wait until the events are processed
@@ -330,7 +333,9 @@ func TestRun_withCollectEvents(t *testing.T) {
 	mockedSender.SetupAcceptAll()
 
 	// First run to set up the informers.
-	check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
+	err = check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
+	require.NoError(t, err)
+
 	err = check.Run()
 	assert.NoError(t, err)
 
@@ -419,7 +424,8 @@ func TestRun_skipEventForExistingRelease(t *testing.T) {
 	// Create a new release and check that we never send an event for it
 	_, err = k8sClient.CoreV1().Secrets("default").Create(context.TODO(), secret, metav1.CreateOptions{})
 	assert.NoError(t, err)
-	check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
+	err = check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
+	require.NoError(t, err)
 	err = check.Run()
 	assert.NoError(t, err)
 	mockedSender.AssertNotCalled(t, "Event")
@@ -553,8 +559,9 @@ func TestRun_ServiceCheck(t *testing.T) {
 
 			k8sClient := fake.NewSimpleClientset()
 			check.informerFactory = informers.NewSharedInformerFactory(k8sClient, time.Minute)
-			check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
-			err := check.Run()
+			err := check.CommonConfigure(mockedSender.GetSenderManager(), 0, nil, nil, "")
+			require.NoError(t, err)
+			err = check.Run()
 			assert.NoError(t, err)
 
 			// "my_datadog" release should report OK.
