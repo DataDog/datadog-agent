@@ -7,9 +7,11 @@
 package forwarderimpl
 
 import (
+	"context"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
@@ -22,14 +24,14 @@ import (
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(NewTrapForwarder),
+	fx.Provide(newTrapForwarder),
 )
 
-// TrapForwarder consumes from a trapsIn channel, format traps and send them as EventPlatformEvents
-// The TrapForwarder is an intermediate step between the listener and the epforwarder in order to limit the processing of the listener
+// trapForwarder consumes SNMP packets, formats traps and send them as EventPlatformEvents
+// The trapForwarder is an intermediate step between the listener and the epforwarder in order to limit the processing of the listener
 // to the minimum. The forwarder process payloads received by the listener via the trapsIn channel, formats them and finally
 // give them to the epforwarder for sending it to Datadog.
-type TrapForwarder struct {
+type trapForwarder struct {
 	trapsIn   packet.PacketsChannel
 	formatter formatter.Component
 	sender    sender.Sender
@@ -39,31 +41,47 @@ type TrapForwarder struct {
 
 type dependencies struct {
 	fx.In
+	Config    config.Component
 	Formatter formatter.Component
 	Sender    sender.Sender
 	Listener  listener.Component
 	Logger    log.Component
 }
 
-// NewTrapForwarder creates a simple TrapForwarder instance
-func NewTrapForwarder(dep dependencies) (forwarder.Component, error) {
-	return &TrapForwarder{
+// newTrapForwarder creates a simple TrapForwarder instance
+func newTrapForwarder(lc fx.Lifecycle, dep dependencies) (forwarder.Component, error) {
+	tf := &trapForwarder{
 		trapsIn:   dep.Listener.Packets(),
 		formatter: dep.Formatter,
 		sender:    dep.Sender,
 		stopChan:  make(chan struct{}, 1),
 		logger:    dep.Logger,
-	}, nil
+	}
+	conf := dep.Config.Get()
+	if conf.Enabled {
+		lc.Append(fx.Hook{
+			OnStart: func(ctx context.Context) error {
+				tf.Start()
+				return nil
+			},
+			OnStop: func(ctx context.Context) error {
+				tf.Stop()
+				return nil
+			},
+		})
+	}
+
+	return tf, nil
 }
 
 // Start the TrapForwarder instance. Need to Stop it manually.
-func (tf *TrapForwarder) Start() {
+func (tf *trapForwarder) Start() {
 	tf.logger.Info("Starting TrapForwarder")
 	go tf.run()
 }
 
 // Stop the TrapForwarder instance.
-func (tf *TrapForwarder) Stop() {
+func (tf *trapForwarder) Stop() {
 	select {
 	case tf.stopChan <- struct{}{}:
 	default:
@@ -71,7 +89,7 @@ func (tf *TrapForwarder) Stop() {
 	}
 }
 
-func (tf *TrapForwarder) run() {
+func (tf *trapForwarder) run() {
 	flushTicker := time.NewTicker(10 * time.Second).C
 	for {
 		select {
@@ -86,7 +104,7 @@ func (tf *TrapForwarder) run() {
 	}
 }
 
-func (tf *TrapForwarder) sendTrap(packet *packet.SnmpPacket) {
+func (tf *trapForwarder) sendTrap(packet *packet.SnmpPacket) {
 	data, err := tf.formatter.FormatPacket(packet)
 	if err != nil {
 		tf.logger.Errorf("failed to format packet: %s", err)

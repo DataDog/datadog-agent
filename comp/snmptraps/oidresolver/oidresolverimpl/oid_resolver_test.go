@@ -107,7 +107,7 @@ func TestSortFiles(t *testing.T) {
 
 func TestResolverWithNonStandardOIDs(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
+	resolver := &multiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
 	trapData := oidresolver.TrapDBFileContent{
 		Traps: oidresolver.TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": oidresolver.TrapMetadata{Name: "netSnmpExampleHeartbeat", MIBName: "NET-SNMP-EXAMPLES-MIB"}},
 		Variables: oidresolver.VariableSpec{
@@ -136,7 +136,7 @@ func TestResolverWithNonStandardOIDs(t *testing.T) {
 }
 func TestResolverWithConflictingTrapOID(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
+	resolver := &multiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
 	trapDataA := oidresolver.TrapDBFileContent{
 		Traps: oidresolver.TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": oidresolver.TrapMetadata{Name: "foo", MIBName: "FOO-MIB"}},
 	}
@@ -153,7 +153,7 @@ func TestResolverWithConflictingTrapOID(t *testing.T) {
 
 func TestResolverWithConflictingVariables(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
+	resolver := &multiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
 	trapDataA := oidresolver.TrapDBFileContent{
 		Traps: oidresolver.TrapSpec{"1.3.6.1.4.1.8072.2.3.0.1": oidresolver.TrapMetadata{}},
 		Variables: oidresolver.VariableSpec{
@@ -184,7 +184,7 @@ func TestResolverWithConflictingVariables(t *testing.T) {
 
 func TestResolverWithSuffixedVariable(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
+	resolver := &multiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
 	updateResolverWithIntermediateJSONReader(t, resolver, dummyTrapDB)
 
 	data, err := resolver.GetVariableMetadata("1.3.6.1.6.3.1.1.5.4", "1.3.6.1.2.1.2.2.1.1")
@@ -206,7 +206,7 @@ func TestResolverWithSuffixedVariable(t *testing.T) {
 
 func TestResolverWithSuffixedVariableAndNodeConflict(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
+	resolver := &multiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
 	trapDB := oidresolver.TrapDBFileContent{
 		Traps: oidresolver.TrapSpec{
 			"1.3.6.1.6.3.1.1.5.4": oidresolver.TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
@@ -244,7 +244,7 @@ func TestResolverWithSuffixedVariableAndNodeConflict(t *testing.T) {
 
 func TestResolverWithNoMatchVariableShouldStopBeforeRoot(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	resolver := &MultiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
+	resolver := &multiFilesOIDResolver{traps: make(oidresolver.TrapSpec), logger: logger}
 	trapDB := oidresolver.TrapDBFileContent{
 		Traps: oidresolver.TrapSpec{
 			"1.3.6.1.6.3.1.1.5.4": oidresolver.TrapMetadata{Name: "linkUp", MIBName: "IF-MIB"},
@@ -274,7 +274,7 @@ func TestResolverWithNoMatchVariableShouldStopBeforeRoot(t *testing.T) {
 
 }
 
-func updateResolverWithIntermediateJSONReader(t *testing.T, oidResolver *MultiFilesOIDResolver, trapData oidresolver.TrapDBFileContent) {
+func updateResolverWithIntermediateJSONReader(t *testing.T, oidResolver *multiFilesOIDResolver, trapData oidresolver.TrapDBFileContent) {
 	data, err := json.Marshal(trapData)
 	require.NoError(t, err)
 
@@ -283,7 +283,7 @@ func updateResolverWithIntermediateJSONReader(t *testing.T, oidResolver *MultiFi
 	require.NoError(t, err)
 }
 
-func updateResolverWithIntermediateYAMLReader(t *testing.T, oidResolver *MultiFilesOIDResolver, trapData oidresolver.TrapDBFileContent) {
+func updateResolverWithIntermediateYAMLReader(t *testing.T, oidResolver *multiFilesOIDResolver, trapData oidresolver.TrapDBFileContent) {
 	data, err := yaml.Marshal(trapData)
 	require.NoError(t, err)
 
@@ -308,7 +308,7 @@ func TestIsValidOID_PropertyBasedTesting(t *testing.T) {
 			recreatedOID = "." + recreatedOID
 		}
 		validOIDs[i] = recreatedOID
-		require.True(t, IsValidOID(validOIDs[i]), "OID: %s", validOIDs[i])
+		require.True(t, oidresolver.IsValidOID(validOIDs[i]), "OID: %s", validOIDs[i])
 	}
 
 	var invalidRunes = []rune(",?><|\\}{[]()*&^%$#@!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
@@ -333,7 +333,7 @@ func TestIsValidOID_PropertyBasedTesting(t *testing.T) {
 			oid = strings.Join(oidParts, ".")
 		}
 
-		require.False(t, IsValidOID(oid), "OID: %s", oid)
+		require.False(t, oidresolver.IsValidOID(oid), "OID: %s", oid)
 	}
 }
 
@@ -350,6 +350,6 @@ func TestIsValidOID_Unit(t *testing.T) {
 	}
 
 	for oid, expected := range cases {
-		require.Equal(t, expected, IsValidOID(oid))
+		require.Equal(t, expected, oidresolver.IsValidOID(oid))
 	}
 }

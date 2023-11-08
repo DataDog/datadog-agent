@@ -5,6 +5,11 @@
 
 package oidresolver
 
+import (
+	"strings"
+	"unicode"
+)
+
 // VariableMetadata is the MIB-extracted information of a given trap variable
 type VariableMetadata struct {
 	Name               string         `yaml:"name" json:"name"`
@@ -39,4 +44,28 @@ type TrapSpec map[string]TrapMetadata
 type TrapDBFileContent struct {
 	Traps     TrapSpec     `yaml:"traps" json:"traps"`
 	Variables VariableSpec `yaml:"vars" json:"vars"`
+}
+
+// NormalizeOID converts an OID from the absolute form ".1.2.3..." to a relative form "1.2.3..."
+func NormalizeOID(value string) string {
+	// OIDs can be formatted as ".1.2.3..." ("absolute form") or "1.2.3..." ("relative form").
+	// Convert everything to relative form, like we do in the Python check.
+	return strings.TrimLeft(value, ".")
+}
+
+// IsValidOID returns true if value looks like a valid OID.
+// An OID is made of digits and dots, but OIDs do not end with a dot and there are always
+// digits between dots.
+func IsValidOID(value string) bool {
+	var previousChar rune
+	for _, char := range value {
+		if char != '.' && !unicode.IsDigit(char) {
+			return false
+		}
+		if char == '.' && previousChar == '.' {
+			return false
+		}
+		previousChar = char
+	}
+	return previousChar != '.'
 }

@@ -10,7 +10,4 @@ package forwarder
 // team: network-device-monitoring
 
 // Component is the component type.
-type Component interface {
-	Start()
-	Stop()
-}
+type Component interface{}

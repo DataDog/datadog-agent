@@ -8,13 +8,13 @@
 package snmptraps
 
 import (
-	configimpl "github.com/DataDog/datadog-agent/comp/snmptraps/config/impl"
-	formatterimpl "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/impl"
-	forwarderimpl "github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/impl"
-	listenerimpl "github.com/DataDog/datadog-agent/comp/snmptraps/listener/impl"
-	oidresolverimpl "github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/impl"
-	serverimpl "github.com/DataDog/datadog-agent/comp/snmptraps/server/impl"
-	statusimpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/forwarderimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/oidresolverimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/server/serverimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 

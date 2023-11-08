@@ -7,6 +7,7 @@
 package listenerimpl
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -26,11 +27,11 @@ import (
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(NewTrapListener),
+	fx.Provide(newTrapListener),
 )
 
-// TrapListener opens an UDP socket and put all received traps in a channel
-type TrapListener struct {
+// trapListener opens an UDP socket and put all received traps in a channel
+type trapListener struct {
 	config        *config.TrapsConfig
 	sender        sender.Sender
 	packets       packet.PacketsChannel
@@ -48,8 +49,8 @@ type dependencies struct {
 	Status status.Component
 }
 
-// NewTrapListener creates a simple TrapListener instance but does not start it
-func NewTrapListener(dep dependencies) (listener.Component, error) {
+// newTrapListener creates a TrapListener and registers it with the lifecycle.
+func newTrapListener(lc fx.Lifecycle, dep dependencies) (listener.Component, error) {
 	var err error
 	config := dep.Config.Get()
 	gosnmpListener := gosnmp.NewTrapListener()
@@ -58,7 +59,7 @@ func NewTrapListener(dep dependencies) (listener.Component, error) {
 		return nil, err
 	}
 	errorsChan := make(chan error, 1)
-	trapListener := &TrapListener{
+	trapListener := &trapListener{
 		config:        config,
 		sender:        dep.Sender,
 		packets:       make(packet.PacketsChannel, config.GetPacketChannelSize()),
@@ -69,29 +70,40 @@ func NewTrapListener(dep dependencies) (listener.Component, error) {
 	}
 
 	gosnmpListener.OnNewTrap = trapListener.receiveTrap
+	if config.Enabled {
+		lc.Append(fx.Hook{
+			OnStart: func(ctx context.Context) error {
+				return trapListener.start()
+			},
+			OnStop: func(ctx context.Context) error {
+				return trapListener.stop()
+			},
+		})
+	}
+
 	return trapListener, nil
 }
 
 // Packets returns the packets channel to which the listener publishes.
-func (t *TrapListener) Packets() packet.PacketsChannel {
+func (t *trapListener) Packets() packet.PacketsChannel {
 	return t.packets
 }
 
-// Start the TrapListener instance. Need to be manually Stopped
-func (t *TrapListener) Start() error {
+// start the TrapListener instance.
+func (t *trapListener) start() error {
 	t.logger.Infof("Start listening for traps on %s", t.config.Addr())
 	go t.run()
 	return t.blockUntilReady()
 }
 
-func (t *TrapListener) run() {
+func (t *trapListener) run() {
 	err := t.listener.Listen(t.config.Addr()) // blocking call
 	if err != nil {
 		t.errorsChannel <- err
 	}
 }
 
-func (t *TrapListener) blockUntilReady() error {
+func (t *trapListener) blockUntilReady() error {
 	select {
 	// Wait for listener to be started and listening to traps.
 	// See: https://godoc.org/github.com/gosnmp/gosnmp#TrapListener.Listening
@@ -104,12 +116,26 @@ func (t *TrapListener) blockUntilReady() error {
 	}
 }
 
-// Stop the current TrapListener instance
-func (t *TrapListener) Stop() {
-	t.listener.Close()
+// stop the current TrapListener instance
+func (t *trapListener) stop() error {
+
+	stopped := make(chan interface{})
+
+	go func() {
+		t.logger.Infof("Stop listening on %s", t.config.Addr())
+		t.listener.Close()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(time.Duration(t.config.StopTimeout) * time.Second):
+		return fmt.Errorf("TrapListener.Stop() timed out after %d seconds", t.config.StopTimeout)
+	}
+	return nil
 }
 
-func (t *TrapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
+func (t *trapListener) receiveTrap(p *gosnmp.SnmpPacket, u *net.UDPAddr) {
 	packet := &packet.SnmpPacket{Content: p, Addr: u, Timestamp: time.Now().UnixMilli(), Namespace: t.config.Namespace}
 	tags := packet.GetTags()
 

@@ -16,7 +16,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"unicode"
 
 	"go.uber.org/fx"
 	"gopkg.in/yaml.v2"
@@ -45,25 +44,25 @@ var nodesOIDThatShouldNeverMatch = []string{
 
 type unmarshaller func(data []byte, v interface{}) error
 
-// MultiFilesOIDResolver is an OIDResolver implementation that can be configured with multiple input files.
+// multiFilesOIDResolver is an OIDResolver implementation that can be configured with multiple input files.
 // Trap OIDs conflicts are resolved using the name of the source file in alphabetical order and by giving
 // the less priority to Datadog's own database shipped with the agent.
 // Variable OIDs conflicts are fully resolved by also looking at the trap OID. A given trap OID only
 // exist in a single file (after the previous conflict resolution), meaning that we get the variable
 // metadata from that same file.
-type MultiFilesOIDResolver struct {
+type multiFilesOIDResolver struct {
 	traps  oidresolver.TrapSpec
 	logger log.Component
 }
 
 func newResolver(conf config.Component, logger log.Component) (oidresolver.Component, error) {
-	return NewMultiFilesOIDResolver(conf.GetString("confd_path"), logger)
+	return newMultiFilesOIDResolver(conf.GetString("confd_path"), logger)
 }
 
-// NewMultiFilesOIDResolver creates a new MultiFilesOIDResolver instance by loading json or yaml files
+// newMultiFilesOIDResolver creates a new MultiFilesOIDResolver instance by loading json or yaml files
 // (optionnally gzipped) located in the directory snmp.d/traps_db/
-func NewMultiFilesOIDResolver(confdPath string, logger log.Component) (*MultiFilesOIDResolver, error) {
-	oidResolver := &MultiFilesOIDResolver{
+func newMultiFilesOIDResolver(confdPath string, logger log.Component) (*multiFilesOIDResolver, error) {
+	oidResolver := &multiFilesOIDResolver{
 		traps:  make(oidresolver.TrapSpec),
 		logger: logger,
 	}
@@ -86,8 +85,8 @@ func NewMultiFilesOIDResolver(confdPath string, logger log.Component) (*MultiFil
 }
 
 // GetTrapMetadata returns TrapMetadata for a given trapOID
-func (or *MultiFilesOIDResolver) GetTrapMetadata(trapOID string) (oidresolver.TrapMetadata, error) {
-	trapOID = strings.TrimSuffix(NormalizeOID(trapOID), ".0")
+func (or *multiFilesOIDResolver) GetTrapMetadata(trapOID string) (oidresolver.TrapMetadata, error) {
+	trapOID = strings.TrimSuffix(oidresolver.NormalizeOID(trapOID), ".0")
 	trapData, ok := or.traps[trapOID]
 	if !ok {
 		return oidresolver.TrapMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
@@ -98,9 +97,9 @@ func (or *MultiFilesOIDResolver) GetTrapMetadata(trapOID string) (oidresolver.Tr
 // GetVariableMetadata returns VariableMetadata for a given variableOID and trapOID.
 // The trapOID should not be needed in theory but the Datadog Agent allows to define multiple variable names for the
 // same OID as long as they are defined in different file. The trapOID is used to differentiate between these files.
-func (or *MultiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID string) (oidresolver.VariableMetadata, error) {
-	trapOID = strings.TrimSuffix(NormalizeOID(trapOID), ".0")
-	varOID = strings.TrimSuffix(NormalizeOID(varOID), ".0")
+func (or *multiFilesOIDResolver) GetVariableMetadata(trapOID string, varOID string) (oidresolver.VariableMetadata, error) {
+	trapOID = strings.TrimSuffix(oidresolver.NormalizeOID(trapOID), ".0")
+	varOID = strings.TrimSuffix(oidresolver.NormalizeOID(varOID), ".0")
 	trapData, ok := or.traps[trapOID]
 	if !ok {
 		return oidresolver.VariableMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOID)
@@ -158,7 +157,7 @@ func getSortedFileNames(files []fs.DirEntry, logger log.Component) []string {
 	return append(ddProvidedFileNames, userProvidedFileNames...)
 }
 
-func (or *MultiFilesOIDResolver) updateFromFile(filePath string) error {
+func (or *multiFilesOIDResolver) updateFromFile(filePath string) error {
 	var fileReader io.ReadCloser
 	fileReader, err := os.Open(filePath)
 	if err != nil {
@@ -181,7 +180,7 @@ func (or *MultiFilesOIDResolver) updateFromFile(filePath string) error {
 	return or.updateFromReader(fileReader, unmarshalMethod)
 }
 
-func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMethod unmarshaller) error {
+func (or *multiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMethod unmarshaller) error {
 	fileContent, err := io.ReadAll(reader)
 	if err != nil {
 		return err
@@ -196,16 +195,16 @@ func (or *MultiFilesOIDResolver) updateFromReader(reader io.Reader, unmarshalMet
 	return nil
 }
 
-func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB oidresolver.TrapDBFileContent) {
+func (or *multiFilesOIDResolver) updateResolverWithData(trapDB oidresolver.TrapDBFileContent) {
 	definedVariables := oidresolver.VariableSpec{}
 
 	allOIDs := make([]string, 0, len(trapDB.Variables))
 	for variableOID := range trapDB.Variables {
-		if !IsValidOID(variableOID) {
+		if !oidresolver.IsValidOID(variableOID) {
 			or.logger.Warnf("trap variable OID %s does not look like a valid OID", variableOID)
 			continue
 		}
-		allOIDs = append(allOIDs, NormalizeOID(variableOID))
+		allOIDs = append(allOIDs, oidresolver.NormalizeOID(variableOID))
 	}
 
 	// "Fast" algorithm used to mark OID that act both as a variable and as a parent of other variable
@@ -233,11 +232,11 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB oidresolver.TrapD
 	}
 
 	for trapOID, trapData := range trapDB.Traps {
-		if !IsValidOID(trapOID) {
+		if !oidresolver.IsValidOID(trapOID) {
 			or.logger.Errorf("trap OID %s does not look like a valid OID", trapOID)
 			continue
 		}
-		trapOID := NormalizeOID(trapOID)
+		trapOID := oidresolver.NormalizeOID(trapOID)
 		if _, trapConflict := or.traps[trapOID]; trapConflict {
 			or.logger.Debugf("a trap with OID %s is defined in multiple traps db files", trapOID)
 		}
@@ -248,28 +247,4 @@ func (or *MultiFilesOIDResolver) updateResolverWithData(trapDB oidresolver.TrapD
 			VariableSpecPtr: definedVariables,
 		}
 	}
-}
-
-// NormalizeOID converts an OID from the absolute form ".1.2.3..." to a relative form "1.2.3..."
-func NormalizeOID(value string) string {
-	// OIDs can be formatted as ".1.2.3..." ("absolute form") or "1.2.3..." ("relative form").
-	// Convert everything to relative form, like we do in the Python check.
-	return strings.TrimLeft(value, ".")
-}
-
-// IsValidOID returns true if value looks like a valid OID.
-// An OID is made of digits and dots, but OIDs do not end with a dot and there are always
-// digits between dots.
-func IsValidOID(value string) bool {
-	var previousChar rune
-	for _, char := range value {
-		if char != '.' && !unicode.IsDigit(char) {
-			return false
-		}
-		if char == '.' && previousChar == '.' {
-			return false
-		}
-		previousChar = char
-	}
-	return previousChar != '.'
 }

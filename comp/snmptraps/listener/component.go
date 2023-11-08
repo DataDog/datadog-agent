@@ -15,10 +15,6 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// Start starts the listener
-	Start() error
-	// Stop stops the listener
-	Stop()
 	// Packets returns the channel to which the listener publishes traps packets.
 	Packets() packet.PacketsChannel
 }

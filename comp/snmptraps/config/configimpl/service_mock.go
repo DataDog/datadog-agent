@@ -14,11 +14,22 @@ import (
 	"go.uber.org/fx"
 )
 
-func newMockConfig(tc *trapsconf.TrapsConfig, hnService hostname.Component) (trapsconf.Component, error) {
-	host, err := hnService.Get(context.Background())
-	if err != nil {
-		return nil, err
+type dependencies struct {
+	fx.In
+	HostnameService hostname.Component `optional:"true"`
+	Conf            *trapsconf.TrapsConfig
+}
+
+func newMockConfig(dep dependencies) (trapsconf.Component, error) {
+	host := "my-hostname"
+	if dep.HostnameService != nil {
+		var err error
+		host, err = dep.HostnameService.Get(context.Background())
+		if err != nil {
+			return nil, err
+		}
 	}
+	tc := dep.Conf
 	if err := tc.SetDefaults(host, "default"); err != nil {
 		return nil, err
 	}
@@ -30,5 +41,5 @@ func newMockConfig(tc *trapsconf.TrapsConfig, hnService hostname.Component) (tra
 // have default values set sensibly if they aren't provided.
 var MockModule = fxutil.Component(
 	fx.Provide(newMockConfig),
-	fx.Supply(&trapsconf.TrapsConfig{}),
+	fx.Supply(&trapsconf.TrapsConfig{Enabled: true}),
 )

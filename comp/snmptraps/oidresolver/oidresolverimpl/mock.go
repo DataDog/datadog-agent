@@ -27,7 +27,7 @@ type MockResolver struct {
 
 // GetTrapMetadata implements OIDResolver#GetTrapMetadata.
 func (r MockResolver) GetTrapMetadata(trapOid string) (oidresolver.TrapMetadata, error) {
-	trapOid = NormalizeOID(trapOid)
+	trapOid = oidresolver.NormalizeOID(trapOid)
 	trapData, ok := r.content.Traps[trapOid]
 	if !ok {
 		return oidresolver.TrapMetadata{}, fmt.Errorf("trap OID %s is not defined", trapOid)
@@ -37,7 +37,7 @@ func (r MockResolver) GetTrapMetadata(trapOid string) (oidresolver.TrapMetadata,
 
 // GetVariableMetadata implements OIDResolver#GetVariableMetadata.
 func (r MockResolver) GetVariableMetadata(string, varOid string) (oidresolver.VariableMetadata, error) { //nolint:revive // TODO fix revive unusued-parameter
-	varOid = NormalizeOID(varOid)
+	varOid = oidresolver.NormalizeOID(varOid)
 	varData, ok := r.content.Variables[varOid]
 	if !ok {
 		return oidresolver.VariableMetadata{}, fmt.Errorf("variable OID %s is not defined", varOid)

@@ -18,7 +18,7 @@ import (
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(New),
+	fx.Provide(newManager),
 )
 
 var (
@@ -32,8 +32,8 @@ func init() {
 	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
 }
 
-// New creates a new component
-func New() status.Component {
+// newManager creates a new component
+func newManager() status.Component {
 	return &manager{}
 }
 

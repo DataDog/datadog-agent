@@ -24,14 +24,14 @@ var MockModule = fxutil.Component(
 
 // newDummy creates a new dummy formatter.
 func newDummy() formatter.Component {
-	return &DummyFormatter{}
+	return &dummyFormatter{}
 }
 
-// DummyFormatter is a formatter that just hashes packets.
-type DummyFormatter struct{}
+// dummyFormatter is a formatter that just hashes packets.
+type dummyFormatter struct{}
 
 // FormatPacket is a dummy formatter method that hashes an SnmpPacket object
-func (f DummyFormatter) FormatPacket(packet *packet.SnmpPacket) ([]byte, error) {
+func (f dummyFormatter) FormatPacket(packet *packet.SnmpPacket) ([]byte, error) {
 	var b bytes.Buffer
 	for _, err := range []error{
 		gob.NewEncoder(&b).Encode(packet.Addr),

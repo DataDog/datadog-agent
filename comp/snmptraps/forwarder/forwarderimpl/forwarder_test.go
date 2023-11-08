@@ -15,11 +15,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
-	formatterimpl "github.com/DataDog/datadog-agent/comp/snmptraps/formatter/impl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
-	listenerimpl "github.com/DataDog/datadog-agent/comp/snmptraps/listener/impl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -40,6 +41,7 @@ type services struct {
 func setUp(t *testing.T) *services {
 	t.Helper()
 	s := fxutil.Test[services](t,
+		configimpl.MockModule,
 		log.MockModule,
 		fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
 			mockSender := mocksender.NewMockSender("mock-sender")
@@ -50,8 +52,6 @@ func setUp(t *testing.T) *services {
 		listenerimpl.MockModule,
 		Module,
 	)
-	s.Forwarder.Start()
-	t.Cleanup(func() { s.Forwarder.Stop() })
 	return &s
 }
 

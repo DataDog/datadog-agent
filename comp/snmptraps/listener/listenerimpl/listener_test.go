@@ -10,14 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
-	configimpl "github.com/DataDog/datadog-agent/comp/snmptraps/config/impl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	packetModule "github.com/DataDog/datadog-agent/comp/snmptraps/packet"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
-	statusimpl "github.com/DataDog/datadog-agent/comp/snmptraps/status/impl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -42,10 +41,10 @@ type services struct {
 }
 
 func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
+	conf.Enabled = true
 	s := fxutil.Test[services](t,
 		log.MockModule,
 		configimpl.MockModule,
-		hostnameimpl.MockModule,
 		statusimpl.MockModule,
 		fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
 			mockSender := mocksender.NewMockSender("mock-sender")
@@ -55,8 +54,6 @@ func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
 		Module,
 		fx.Replace(conf),
 	)
-	require.NoError(t, s.Listener.Start())
-	t.Cleanup(func() { s.Listener.Stop() })
 	return &s
 }
 
