@@ -31,7 +31,9 @@ var activeContainer = gardenfakes.FakeContainer{
 			HostIP:      "container-host-ip-1",
 			ContainerIP: "container-ip-1",
 			ExternalIP:  "container-external-ip-1",
-			Properties:  garden.Properties{},
+			Properties: garden.Properties{
+				"log_config": "{\"guid\":\"app-guid-1\",\"index\":0,\"source_name\":\"CELL\",\"tags\":{\"app_id\":\"app-id-1\",\"app_name\":\"app-name-1\"}}",
+			},
 		}, nil
 	},
 }
@@ -394,5 +396,5 @@ func TestPullAppNameWithoutDCA(t *testing.T) {
 	event0 := workloadmetaStore.notifiedEvents[0]
 	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
 	assert.True(t, ok)
-	assert.Contains(t, containerEntity.CollectorTags, fmt.Sprintf("container_name:%s", activeContainer.Handle()))
+	assert.Contains(t, containerEntity.CollectorTags, fmt.Sprintf("container_name:%s", "app-name-1"))
 }
