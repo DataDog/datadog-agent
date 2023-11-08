@@ -10,13 +10,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	trapsconf "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -40,9 +38,7 @@ type dependencies struct {
 	Config    trapsconf.Component
 	Listener  listener.Component
 	Logger    log.Component
-	Sender    sender.Sender
 	Forwarder forwarder.Component
-	Hostname  hostname.Component
 }
 
 // newServer configures a netflow server.
