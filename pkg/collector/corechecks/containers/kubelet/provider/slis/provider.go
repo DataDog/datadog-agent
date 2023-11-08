@@ -61,7 +61,7 @@ func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Se
 		}
 
 		if metricSuffix == "kubernetes_healthchecks_total" {
-			sender.Gauge(common.KubeletMetricsPrefix+"slis."+metricSuffix, float64(metric.Value), "", tags)
+			sender.Count(common.KubeletMetricsPrefix+"slis."+metricSuffix, float64(metric.Value), "", tags)
 		} else {
 			sender.Gauge(common.KubeletMetricsPrefix+"slis."+metricSuffix, float64(metric.Value), "", tags)
 		}
