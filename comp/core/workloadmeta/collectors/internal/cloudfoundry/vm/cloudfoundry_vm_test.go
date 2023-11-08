@@ -216,10 +216,10 @@ func TestStartError(t *testing.T) {
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
-		store:      &workloadmetaStore,
+		store:      workloadmetaStore,
 	}
 
-	err := c.Start(context.TODO(), &workloadmetaStore)
+	err := c.Start(context.TODO(), workloadmetaStore)
 	assert.Error(t, err)
 }
 
@@ -234,7 +234,7 @@ func TestPullNoContainers(t *testing.T) {
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
-		store:      &workloadmetaStore,
+		store:      workloadmetaStore,
 		dcaClient:  &fakeDCAClient,
 		dcaEnabled: true,
 	}
@@ -262,7 +262,7 @@ func TestPullActiveContainer(t *testing.T) {
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
-		store:      &workloadmetaStore,
+		store:      workloadmetaStore,
 		dcaClient:  &fakeDCAClient,
 		dcaEnabled: true,
 	}
@@ -305,7 +305,7 @@ func TestPullStoppedContainer(t *testing.T) {
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
-		store:      &workloadmetaStore,
+		store:      workloadmetaStore,
 		dcaClient:  &fakeDCAClient,
 		dcaEnabled: true,
 	}
@@ -348,7 +348,7 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
-		store:      &workloadmetaStore,
+		store:      workloadmetaStore,
 		dcaClient:  &fakeDCAClient,
 		dcaEnabled: true,
 	}
@@ -402,7 +402,7 @@ func TestPullAppNameWithDCA(t *testing.T) {
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
-		store:      &workloadmetaStore,
+		store:      workloadmetaStore,
 		dcaClient:  &fakeDCAClient,
 		dcaEnabled: true,
 	}
@@ -436,7 +436,7 @@ func TestPullNoAppNameWithoutDCA(t *testing.T) {
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
-		store:      &workloadmetaStore,
+		store:      workloadmetaStore,
 		dcaClient:  &fakeDCAClient,
 		dcaEnabled: false, // disabled DCA
 	}

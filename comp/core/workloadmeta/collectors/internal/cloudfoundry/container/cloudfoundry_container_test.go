@@ -22,7 +22,7 @@ func TestStartError(t *testing.T) {
 		workloadmeta.MockModule,
 	))
 	c := collector{
-		store: &workloadmetaStore,
+		store: workloadmetaStore,
 	}
 
 	err := c.Start(context.TODO(), &workloadmetaStore)
@@ -38,7 +38,7 @@ func TestPull(t *testing.T) {
 	fakeNodeName := "fake-hostname"
 
 	c := collector{
-		store:    &workloadmetaStore,
+		store:    workloadmetaStore,
 		nodeName: fakeNodeName,
 	}
 
