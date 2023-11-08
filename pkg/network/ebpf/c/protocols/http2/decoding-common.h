@@ -65,6 +65,9 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
     if (headers_to_process == NULL) {
         return;
     }
+
+    log_debug("[grpcdebug] parse_field_indexed entry - index: %u", index);
+
     // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
     if (is_interesting_static_entry(index)) {
         headers_to_process->index = index;
@@ -75,15 +78,17 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
     if (is_static_table_entry(index)) {
         return;
     }
-
     // we change the index to fit our internal dynamic table implementation index.
     // the index is starting from 1 so we decrease 62 in order to be equal to the given index.
     dynamic_index->index = global_dynamic_counter - (index - MAX_STATIC_TABLE_INDEX);
+
+    log_debug("[grpcdebug] parse_field_indexed - global_dynamic_counter: %u; index: %u", global_dynamic_counter, index);
 
     if (bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) == NULL) {
         return;
     }
 
+    log_debug("[grpcdebug] found interesting indexed header: index (in actual table): %u", index);
     headers_to_process->index = dynamic_index->index;
     headers_to_process->type = kExistingDynamicHeader;
     (*interesting_headers_counter)++;

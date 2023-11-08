@@ -134,6 +134,9 @@ static __always_inline bool parse_field_literal_tls(tls_dispatcher_arguments_t *
         goto end;
     }
 
+    log_debug("[grpcdebug] found interesting literal header - index: %u", index);
+    log_debug("[grpcdebug] found interesting literal header - sport=%ld, dport=%ld", info->tup.sport, info->tup.dport);
+    log_debug("[grpcdebug] found interesting literal header - pid=%u, netns=%u", info->tup.pid, info->tup.netns);
     headers_to_process->index = global_dynamic_counter - 1;
     headers_to_process->type = kNewDynamicHeader;
     headers_to_process->new_dynamic_value_offset = info->off;
@@ -155,16 +158,22 @@ static __always_inline __u8 filter_relevant_headers_tls(tls_dispatcher_arguments
     __u8 max_bits = 0;
     __u8 index = 0;
 
+    log_debug("[grpcdebug] before loop - off=%lu, frame_end=%u, end=%u", info->off, frame_end, end);
+
     __u64 *global_dynamic_counter = get_dynamic_counter(&info->tup);
     if (global_dynamic_counter == NULL) {
         return 0;
     }
+
+    log_debug("[grpcdebug] info->tup.sport=%ld, info->tup.dport=%ld, global_dynamic_counter=%u", info->tup.sport, info->tup.dport, *global_dynamic_counter);
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING)
     for (__u8 headers_index = 0; headers_index < HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING; ++headers_index) {
         if (info->off >= end) {
             break;
         }
+        log_debug("[grpcdebug] header off=%lu", info->off);
+
         read_into_user_buffer_http2_char(&current_ch, info->buffer_ptr + info->off);
         info->off++;
 
@@ -190,12 +199,15 @@ static __always_inline __u8 filter_relevant_headers_tls(tls_dispatcher_arguments
         }
 
         if (is_indexed) {
+            log_debug("[grpcdebug] filtering indexed - index=%u, sport=%ld, dport=%ld", index, info->tup.sport, info->tup.dport);
+            log_debug("[grpcdebug] filtering indexed - pid=%u, netns=%u", info->tup.pid, info->tup.netns);
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
             parse_field_indexed(dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers);
         } else {
             (*global_dynamic_counter)++;
+            log_debug("[grpcdebug] global_dynamic_counter=%u", *global_dynamic_counter);
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
@@ -243,6 +255,7 @@ static __always_inline void process_headers_tls(tls_dispatcher_arguments_t *info
 
         dynamic_index->index = current_header->index;
         if (current_header->type == kExistingDynamicHeader) {
+            log_debug("[grpcdebug] existing dynamic header");
             dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
             if (dynamic_value == NULL) {
                 break;
@@ -250,6 +263,7 @@ static __always_inline void process_headers_tls(tls_dispatcher_arguments_t *info
             current_stream->path_size = dynamic_value->string_len;
             bpf_memcpy(current_stream->request_path, dynamic_value->buffer, HTTP2_MAX_PATH_LEN);
         } else {
+            log_debug("[grpcdebug] new dynamic header");
             dynamic_value.string_len = current_header->new_dynamic_value_size;
 
             // create the new dynamic value which will be added to the internal table.
@@ -273,6 +287,7 @@ static __always_inline void process_headers_frame_tls(tls_dispatcher_arguments_t
 
     __u8 interesting_headers = filter_relevant_headers_tls(info, dynamic_index, headers_to_process);
     if (interesting_headers > 0) {
+        log_debug("[grpcdebug] process_headers_frame_tls - interesting headers: %u", interesting_headers);
         process_headers_tls(info, dynamic_index, current_stream, headers_to_process, interesting_headers);
     }
 }

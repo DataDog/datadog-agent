@@ -164,6 +164,7 @@ int uprobe__crypto_tls_Conn_Write__return(struct pt_regs *ctx) {
         bpf_map_delete_elem(&go_tls_write_args, &call_key);
         return 0;
     }
+    log_debug("[grpcdebug] conn tuple from write return: sport=%ld, dport=%ld", t->sport, t->dport);
 
     log_debug("[go-tls-write] processing %s\n", call_data_ptr->b_data);
     char *buffer_ptr = (char*)call_data_ptr->b_data;

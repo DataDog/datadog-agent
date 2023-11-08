@@ -618,6 +618,8 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
         return 0;
     }
 
+    log_debug("[grpcdebug] http2_tls_entry: len %lu", info->len);
+
     http2_tls_state_key_t key = { 0 };
     key.tup = info->tup;
     key.length = info->len;
@@ -675,6 +677,7 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
         goto exit;
     }
 
+    log_debug("[grpcdebug] http2_tls_entry - no state: found interesting frames: %u", iteration_value->frames_count);
     iteration_value->iteration = 0;
     bpf_tail_call_compat(ctx, &tls_process_progs, TLS_HTTP2_FRAMES_PARSER_NO_STATE);
 
@@ -733,16 +736,18 @@ int uprobe__http2_tls_frames_parser_no_state(struct pt_regs *ctx) {
 
     http2_ctx_t *http2_ctx = bpf_map_lookup_elem(&http2_ctx_heap, &zero);
     if (http2_ctx == NULL) {
-        log_debug("[http2_tls_frames_parser] could not get http2_ctx from map");
+        log_debug("[http2_tls_frames_parser_no_state] could not get http2_ctx from map");
         goto exit;
     }
 
     http2_tail_call_state_t *state = bpf_map_lookup_elem(&http2_frames_to_process, &zero);
     if (state == NULL) {
-        log_debug("[http2_tls_frames_parser] could not get iteration_value from map");
+        log_debug("[http2_tls_frames_parser_no_state] could not get iteration_value from map");
         goto exit;
     }
 
+    log_debug("[grpcdebug] frame_parser - no state: sport=%ld, dport=%ld", info->tup.sport, info->tup.dport);
+    log_debug("[grpcdebug] http2_tls_frames_parser_no_state: iteration %u, frames_count %u", state->iteration, state->frames_count);
     http2_frame_with_offset current_frame;
 
 #pragma unroll(HTTP2_FRAMES_PER_TAIL_CALL)
@@ -759,6 +764,7 @@ int uprobe__http2_tls_frames_parser_no_state(struct pt_regs *ctx) {
         http2_ctx->dynamic_index.tup = info->tup;
         http2_ctx->http2_stream_key.stream_id = current_frame.frame.stream_id;
 
+        log_debug("[grpcdebug] frame_parser - no state: offset %u, frame type %u", current_frame.offset, current_frame.frame.type);
         info->off = current_frame.offset;
 
         parse_frame_tls(info, http2_ctx, current_frame.frame.flags, current_frame.frame.type);
