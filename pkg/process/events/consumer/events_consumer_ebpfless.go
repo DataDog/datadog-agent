@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build unix && !ebpfless
+//go:build ebpfless
 
 package consumer
 
@@ -23,10 +23,6 @@ func (p *ProcessConsumer) Copy(event *smodel.Event) any {
 		Pid:            event.GetProcessPid(),
 		ContainerID:    event.GetContainerId(),
 		Ppid:           event.GetProcessPpid(),
-		UID:            event.GetProcessUid(),
-		GID:            event.GetProcessGid(),
-		Username:       event.GetProcessUser(),
-		Group:          event.GetProcessGroup(),
 		Exe:            event.GetExecFilePath(),
 		Cmdline:        cmdline,
 		ForkTime:       event.GetProcessForkTime(),

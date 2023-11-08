@@ -96,4 +96,7 @@ func initCWSSystemProbeConfig(cfg Config) {
 
 	// CWS - UserSessions
 	cfg.BindEnvAndSetDefault("runtime_security_config.user_sessions.cache_size", 1024)
+
+	// CWS -eBPF Less
+	cfg.BindEnvAndSetDefault("runtime_security_config.ebpfless.socket", "localhost:5678")
 }

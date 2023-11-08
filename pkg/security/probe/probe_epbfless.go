@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"time"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/safchain/rstrace/pkg/proto"
 	"google.golang.org/grpc"
 
@@ -30,8 +29,6 @@ import (
 )
 
 type PlatformProbe struct {
-	Manager *manager.Manager
-
 	// internals
 	proto.UnimplementedSyscallMsgStreamServer
 
@@ -134,7 +131,9 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 }
 
 func (p *Probe) Start() error {
-	lis, err := net.Listen("tcp", fmt.Sprintf("localhost:%d", 7878))
+	family, address := config.GetFamilyAddress(p.Config.RuntimeSecurity.EBPFLessSocket)
+
+	lis, err := net.Listen(family, address)
 	if err != nil {
 		return err
 	}
@@ -226,4 +225,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	}
 
 	return p, nil
+}
+
+// HandleActions executes the actions of a triggered rule
+func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {
 }
