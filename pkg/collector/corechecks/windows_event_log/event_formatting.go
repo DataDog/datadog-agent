@@ -32,7 +32,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	ts, err := vals.Time(evtapi.EvtSystemTimeCreated)
 	if err != nil {
 		// if no timestamp default to current time
-		ts = time.Now().Unix()
+		ts = time.Now().UTC().Unix()
 	}
 	ddevent.Ts = ts
 	// FQDN
