@@ -973,7 +973,13 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 	defer archiveFile.Close()
 
 	lambdaURL := *lambdaFunc.Code.Location
-	resp, err := http.Get(lambdaURL) // TODO: create an http.Client with sane defaults
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, lambdaURL, nil) // TODO: create an http.Client with sane defaults
+	if err != nil {
+		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
+		return nil, err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, err
@@ -997,7 +1003,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 		return nil, err
 	}
 
-	err = extractZip(archivePath, extractedPath)
+	err = extractZip(ctx, archivePath, extractedPath)
 	if err != nil {
 		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, err
@@ -1073,7 +1079,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 	return
 }
 
-func extractZip(zipPath, destinationPath string) error {
+func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
 		return fmt.Errorf("extractZip: openreader: %w", err)
@@ -1082,6 +1088,11 @@ func extractZip(zipPath, destinationPath string) error {
 
 	// TODO: be more rebust against zip bombs
 	for _, f := range r.File {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
 		dest := filepath.Join(destinationPath, f.Name)
 		destDir := filepath.Dir(dest)
 		if err := os.MkdirAll(destDir, 0700); err != nil {
