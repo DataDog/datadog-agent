@@ -10,12 +10,8 @@ package model
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"net"
 	"reflect"
 )
-
-// Aliases used to avoid compilation error in case of unused imported package
-type NetIP = net.IP
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
@@ -26,7 +22,6 @@ func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 }
 func (m *Model) GetEventTypes() []eval.EventType {
 	return []eval.EventType{
-		eval.EventType("dns"),
 		eval.EventType("exec"),
 		eval.EventType("exit"),
 		eval.EventType("open"),
@@ -97,6 +92,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "exec.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Exec.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "exec.argv":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -159,6 +163,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "exec.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.file.name":
 		return &eval.StringEvaluator{
@@ -237,6 +250,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) []string {
 				ev := ctx.Event.(*Event)
 				return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exit.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Exit.Process)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -322,6 +344,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
 		}, nil
+	case "exit.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exit.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "exit.file.name":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -372,69 +403,6 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return int(ev.Exit.Process.PPid)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.destination.ip":
-		return &eval.CIDREvaluator{
-			EvalFnc: func(ctx *eval.Context) net.IPNet {
-				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.NetworkContext.Destination.IPNet
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.destination.port":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Destination.Port)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.l3_protocol":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.L3Protocol)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.l4_protocol":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.L4Protocol)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.size":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Size)
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.source.ip":
-		return &eval.CIDREvaluator{
-			EvalFnc: func(ctx *eval.Context) net.IPNet {
-				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.NetworkContext.Source.IPNet
-			},
-			Field:  field,
-			Weight: eval.FunctionWeight,
-		}, nil
-	case "network.source.port":
-		return &eval.IntEvaluator{
-			EvalFnc: func(ctx *eval.Context) int {
-				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Source.Port)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -552,6 +520,27 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					value = iterator.Next()
 				}
 				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.args_truncated":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &element.ProcessContext.Process)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.BoolCache[field] = results
 				return results
 			}, Field: field,
 			Weight: eval.IteratorWeight,
@@ -700,6 +689,27 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return results
 			}, Field: field,
 			Weight: 100 * eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.envs_truncated":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				var results []bool
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &element.ProcessContext.Process)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.BoolCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.file.name":
 		return &eval.StringArrayEvaluator{
@@ -852,6 +862,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.HandlerWeight,
 		}, nil
+	case "process.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "process.argv":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
@@ -914,6 +933,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "process.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.file.name":
 		return &eval.StringEvaluator{
@@ -983,6 +1011,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 					return []string{}
 				}
 				return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.parent.args_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return false
+				}
+				return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -1070,6 +1110,18 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: 100 * eval.HandlerWeight,
+		}, nil
+	case "process.parent.envs_truncated":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return false
+				}
+				return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.file.name":
 		return &eval.StringEvaluator{
@@ -1167,6 +1219,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.args",
 		"exec.args_flags",
 		"exec.args_options",
+		"exec.args_truncated",
 		"exec.argv",
 		"exec.argv0",
 		"exec.comm",
@@ -1174,6 +1227,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.created_at",
 		"exec.envp",
 		"exec.envs",
+		"exec.envs_truncated",
 		"exec.file.name",
 		"exec.file.name.length",
 		"exec.file.path",
@@ -1183,6 +1237,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.args",
 		"exit.args_flags",
 		"exit.args_options",
+		"exit.args_truncated",
 		"exit.argv",
 		"exit.argv0",
 		"exit.cause",
@@ -1192,19 +1247,13 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.created_at",
 		"exit.envp",
 		"exit.envs",
+		"exit.envs_truncated",
 		"exit.file.name",
 		"exit.file.name.length",
 		"exit.file.path",
 		"exit.file.path.length",
 		"exit.pid",
 		"exit.ppid",
-		"network.destination.ip",
-		"network.destination.port",
-		"network.l3_protocol",
-		"network.l4_protocol",
-		"network.size",
-		"network.source.ip",
-		"network.source.port",
 		"open.file.destination.mode",
 		"open.file.name",
 		"open.file.name.length",
@@ -1214,6 +1263,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.args",
 		"process.ancestors.args_flags",
 		"process.ancestors.args_options",
+		"process.ancestors.args_truncated",
 		"process.ancestors.argv",
 		"process.ancestors.argv0",
 		"process.ancestors.comm",
@@ -1221,6 +1271,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.created_at",
 		"process.ancestors.envp",
 		"process.ancestors.envs",
+		"process.ancestors.envs_truncated",
 		"process.ancestors.file.name",
 		"process.ancestors.file.name.length",
 		"process.ancestors.file.path",
@@ -1230,6 +1281,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.args",
 		"process.args_flags",
 		"process.args_options",
+		"process.args_truncated",
 		"process.argv",
 		"process.argv0",
 		"process.comm",
@@ -1237,6 +1289,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.created_at",
 		"process.envp",
 		"process.envs",
+		"process.envs_truncated",
 		"process.file.name",
 		"process.file.name.length",
 		"process.file.path",
@@ -1244,6 +1297,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.args",
 		"process.parent.args_flags",
 		"process.parent.args_options",
+		"process.parent.args_truncated",
 		"process.parent.argv",
 		"process.parent.argv0",
 		"process.parent.comm",
@@ -1251,6 +1305,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.created_at",
 		"process.parent.envp",
 		"process.parent.envs",
+		"process.parent.envs_truncated",
 		"process.parent.file.name",
 		"process.parent.file.name.length",
 		"process.parent.file.path",
@@ -1277,6 +1332,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exec.Process), nil
 	case "exec.args_options":
 		return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exec.Process), nil
+	case "exec.args_truncated":
+		return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Exec.Process), nil
 	case "exec.argv":
 		return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process), nil
 	case "exec.argv0":
@@ -1291,6 +1348,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process), nil
 	case "exec.envs":
 		return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process), nil
+	case "exec.envs_truncated":
+		return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process), nil
 	case "exec.file.name":
 		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent), nil
 	case "exec.file.name.length":
@@ -1309,6 +1368,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveProcessArgsFlags(ev, ev.Exit.Process), nil
 	case "exit.args_options":
 		return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exit.Process), nil
+	case "exit.args_truncated":
+		return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Exit.Process), nil
 	case "exit.argv":
 		return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process), nil
 	case "exit.argv0":
@@ -1327,6 +1388,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process), nil
 	case "exit.envs":
 		return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process), nil
+	case "exit.envs_truncated":
+		return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exit.Process), nil
 	case "exit.file.name":
 		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent), nil
 	case "exit.file.name.length":
@@ -1339,20 +1402,6 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exit.Process.PIDContext.Pid), nil
 	case "exit.ppid":
 		return int(ev.Exit.Process.PPid), nil
-	case "network.destination.ip":
-		return ev.BaseEvent.NetworkContext.Destination.IPNet, nil
-	case "network.destination.port":
-		return int(ev.BaseEvent.NetworkContext.Destination.Port), nil
-	case "network.l3_protocol":
-		return int(ev.BaseEvent.NetworkContext.L3Protocol), nil
-	case "network.l4_protocol":
-		return int(ev.BaseEvent.NetworkContext.L4Protocol), nil
-	case "network.size":
-		return int(ev.BaseEvent.NetworkContext.Size), nil
-	case "network.source.ip":
-		return ev.BaseEvent.NetworkContext.Source.IPNet, nil
-	case "network.source.port":
-		return int(ev.BaseEvent.NetworkContext.Source.Port), nil
 	case "open.file.destination.mode":
 		return int(ev.Open.Mode), nil
 	case "open.file.name":
@@ -1398,6 +1447,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			element := (*ProcessCacheEntry)(ptr)
 			result := ev.FieldHandlers.ResolveProcessArgsOptions(ev, &element.ProcessContext.Process)
 			values = append(values, result...)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.args_truncated":
+		var values []bool
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &element.ProcessContext.Process)
+			values = append(values, result)
 			ptr = iterator.Next()
 		}
 		return values, nil
@@ -1485,6 +1546,18 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "process.ancestors.envs_truncated":
+		var values []bool
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &element.ProcessContext.Process)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "process.ancestors.file.name":
 		var values []string
 		ctx := eval.NewContext(ev)
@@ -1563,6 +1636,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveProcessArgsFlags(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.args_options":
 		return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.BaseEvent.ProcessContext.Process), nil
+	case "process.args_truncated":
+		return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.argv":
 		return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.argv0":
@@ -1577,6 +1652,8 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.envs":
 		return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process), nil
+	case "process.envs_truncated":
+		return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.file.name":
 		return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent), nil
 	case "process.file.name.length":
@@ -1600,6 +1677,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return []string{}, &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent), nil
+	case "process.parent.args_truncated":
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return false, &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.argv":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return []string{}, &eval.ErrNotSupported{Field: field}
@@ -1635,6 +1717,11 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return []string{}, &eval.ErrNotSupported{Field: field}
 		}
 		return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent), nil
+	case "process.parent.envs_truncated":
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return false, &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.file.name":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -1682,6 +1769,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.args_options":
 		return "exec", nil
+	case "exec.args_truncated":
+		return "exec", nil
 	case "exec.argv":
 		return "exec", nil
 	case "exec.argv0":
@@ -1695,6 +1784,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exec.envp":
 		return "exec", nil
 	case "exec.envs":
+		return "exec", nil
+	case "exec.envs_truncated":
 		return "exec", nil
 	case "exec.file.name":
 		return "exec", nil
@@ -1714,6 +1805,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.args_options":
 		return "exit", nil
+	case "exit.args_truncated":
+		return "exit", nil
 	case "exit.argv":
 		return "exit", nil
 	case "exit.argv0":
@@ -1732,6 +1825,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.envs":
 		return "exit", nil
+	case "exit.envs_truncated":
+		return "exit", nil
 	case "exit.file.name":
 		return "exit", nil
 	case "exit.file.name.length":
@@ -1744,20 +1839,6 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exit", nil
 	case "exit.ppid":
 		return "exit", nil
-	case "network.destination.ip":
-		return "dns", nil
-	case "network.destination.port":
-		return "dns", nil
-	case "network.l3_protocol":
-		return "dns", nil
-	case "network.l4_protocol":
-		return "dns", nil
-	case "network.size":
-		return "dns", nil
-	case "network.source.ip":
-		return "dns", nil
-	case "network.source.port":
-		return "dns", nil
 	case "open.file.destination.mode":
 		return "open", nil
 	case "open.file.name":
@@ -1776,6 +1857,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.args_options":
 		return "*", nil
+	case "process.ancestors.args_truncated":
+		return "*", nil
 	case "process.ancestors.argv":
 		return "*", nil
 	case "process.ancestors.argv0":
@@ -1789,6 +1872,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.ancestors.envp":
 		return "*", nil
 	case "process.ancestors.envs":
+		return "*", nil
+	case "process.ancestors.envs_truncated":
 		return "*", nil
 	case "process.ancestors.file.name":
 		return "*", nil
@@ -1808,6 +1893,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.args_options":
 		return "*", nil
+	case "process.args_truncated":
+		return "*", nil
 	case "process.argv":
 		return "*", nil
 	case "process.argv0":
@@ -1821,6 +1908,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.envp":
 		return "*", nil
 	case "process.envs":
+		return "*", nil
+	case "process.envs_truncated":
 		return "*", nil
 	case "process.file.name":
 		return "*", nil
@@ -1836,6 +1925,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.parent.args_options":
 		return "*", nil
+	case "process.parent.args_truncated":
+		return "*", nil
 	case "process.parent.argv":
 		return "*", nil
 	case "process.parent.argv0":
@@ -1849,6 +1940,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.parent.envp":
 		return "*", nil
 	case "process.parent.envs":
+		return "*", nil
+	case "process.parent.envs_truncated":
 		return "*", nil
 	case "process.parent.file.name":
 		return "*", nil
@@ -1885,6 +1978,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "exec.args_options":
 		return reflect.String, nil
+	case "exec.args_truncated":
+		return reflect.Bool, nil
 	case "exec.argv":
 		return reflect.String, nil
 	case "exec.argv0":
@@ -1899,6 +1994,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "exec.envs":
 		return reflect.String, nil
+	case "exec.envs_truncated":
+		return reflect.Bool, nil
 	case "exec.file.name":
 		return reflect.String, nil
 	case "exec.file.name.length":
@@ -1917,6 +2014,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "exit.args_options":
 		return reflect.String, nil
+	case "exit.args_truncated":
+		return reflect.Bool, nil
 	case "exit.argv":
 		return reflect.String, nil
 	case "exit.argv0":
@@ -1935,6 +2034,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "exit.envs":
 		return reflect.String, nil
+	case "exit.envs_truncated":
+		return reflect.Bool, nil
 	case "exit.file.name":
 		return reflect.String, nil
 	case "exit.file.name.length":
@@ -1946,20 +2047,6 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exit.pid":
 		return reflect.Int, nil
 	case "exit.ppid":
-		return reflect.Int, nil
-	case "network.destination.ip":
-		return reflect.Struct, nil
-	case "network.destination.port":
-		return reflect.Int, nil
-	case "network.l3_protocol":
-		return reflect.Int, nil
-	case "network.l4_protocol":
-		return reflect.Int, nil
-	case "network.size":
-		return reflect.Int, nil
-	case "network.source.ip":
-		return reflect.Struct, nil
-	case "network.source.port":
 		return reflect.Int, nil
 	case "open.file.destination.mode":
 		return reflect.Int, nil
@@ -1979,6 +2066,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.ancestors.args_options":
 		return reflect.String, nil
+	case "process.ancestors.args_truncated":
+		return reflect.Bool, nil
 	case "process.ancestors.argv":
 		return reflect.String, nil
 	case "process.ancestors.argv0":
@@ -1993,6 +2082,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.ancestors.envs":
 		return reflect.String, nil
+	case "process.ancestors.envs_truncated":
+		return reflect.Bool, nil
 	case "process.ancestors.file.name":
 		return reflect.String, nil
 	case "process.ancestors.file.name.length":
@@ -2011,6 +2102,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.args_options":
 		return reflect.String, nil
+	case "process.args_truncated":
+		return reflect.Bool, nil
 	case "process.argv":
 		return reflect.String, nil
 	case "process.argv0":
@@ -2025,6 +2118,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.envs":
 		return reflect.String, nil
+	case "process.envs_truncated":
+		return reflect.Bool, nil
 	case "process.file.name":
 		return reflect.String, nil
 	case "process.file.name.length":
@@ -2039,6 +2134,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.parent.args_options":
 		return reflect.String, nil
+	case "process.parent.args_truncated":
+		return reflect.Bool, nil
 	case "process.parent.argv":
 		return reflect.String, nil
 	case "process.parent.argv0":
@@ -2053,6 +2150,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.String, nil
 	case "process.parent.envs":
 		return reflect.String, nil
+	case "process.parent.envs_truncated":
+		return reflect.Bool, nil
 	case "process.parent.file.name":
 		return reflect.String, nil
 	case "process.parent.file.name.length":
@@ -2150,6 +2249,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Argv"}
 		}
 		return nil
+	case "exec.args_truncated":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.ArgsTruncated"}
+		}
+		ev.Exec.Process.ArgsTruncated = rv
+		return nil
 	case "exec.argv":
 		if ev.Exec.Process == nil {
 			ev.Exec.Process = &Process{}
@@ -2228,6 +2337,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		default:
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.Envs"}
 		}
+		return nil
+	case "exec.envs_truncated":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.EnvsTruncated"}
+		}
+		ev.Exec.Process.EnvsTruncated = rv
 		return nil
 	case "exec.file.name":
 		if ev.Exec.Process == nil {
@@ -2314,6 +2433,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		default:
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Argv"}
 		}
+		return nil
+	case "exit.args_truncated":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.ArgsTruncated"}
+		}
+		ev.Exit.Process.ArgsTruncated = rv
 		return nil
 	case "exit.argv":
 		if ev.Exit.Process == nil {
@@ -2408,6 +2537,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Envs"}
 		}
 		return nil
+	case "exit.envs_truncated":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.EnvsTruncated"}
+		}
+		ev.Exit.Process.EnvsTruncated = rv
+		return nil
 	case "exit.file.name":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -2457,55 +2596,6 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.PPid"}
 		}
 		ev.Exit.Process.PPid = uint32(rv)
-		return nil
-	case "network.destination.ip":
-		rv, ok := value.(net.IPNet)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Destination.IPNet"}
-		}
-		ev.BaseEvent.NetworkContext.Destination.IPNet = rv
-		return nil
-	case "network.destination.port":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Destination.Port"}
-		}
-		ev.BaseEvent.NetworkContext.Destination.Port = uint16(rv)
-		return nil
-	case "network.l3_protocol":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.L3Protocol"}
-		}
-		ev.BaseEvent.NetworkContext.L3Protocol = uint16(rv)
-		return nil
-	case "network.l4_protocol":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.L4Protocol"}
-		}
-		ev.BaseEvent.NetworkContext.L4Protocol = uint16(rv)
-		return nil
-	case "network.size":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Size"}
-		}
-		ev.BaseEvent.NetworkContext.Size = uint32(rv)
-		return nil
-	case "network.source.ip":
-		rv, ok := value.(net.IPNet)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Source.IPNet"}
-		}
-		ev.BaseEvent.NetworkContext.Source.IPNet = rv
-		return nil
-	case "network.source.port":
-		rv, ok := value.(int)
-		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Source.Port"}
-		}
-		ev.BaseEvent.NetworkContext.Source.Port = uint16(rv)
 		return nil
 	case "open.file.destination.mode":
 		rv, ok := value.(int)
@@ -2583,6 +2673,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		default:
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Argv"}
 		}
+		return nil
+	case "process.ancestors.args_truncated":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ArgsTruncated"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.ArgsTruncated = rv
 		return nil
 	case "process.ancestors.argv":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -2683,6 +2786,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		default:
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Envs"}
 		}
+		return nil
+	case "process.ancestors.envs_truncated":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.EnvsTruncated"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.EnvsTruncated = rv
 		return nil
 	case "process.ancestors.file.name":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -2788,6 +2904,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Argv"}
 		}
 		return nil
+	case "process.args_truncated":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.ArgsTruncated"}
+		}
+		ev.BaseEvent.ProcessContext.Process.ArgsTruncated = rv
+		return nil
 	case "process.argv":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -2867,6 +2993,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Envs"}
 		}
 		return nil
+	case "process.envs_truncated":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.EnvsTruncated"}
+		}
+		ev.BaseEvent.ProcessContext.Process.EnvsTruncated = rv
+		return nil
 	case "process.file.name":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -2941,6 +3077,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		default:
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Argv"}
 		}
+		return nil
+	case "process.parent.args_truncated":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.ArgsTruncated"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.ArgsTruncated = rv
 		return nil
 	case "process.parent.argv":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -3041,6 +3190,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		default:
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.Envs"}
 		}
+		return nil
+	case "process.parent.envs_truncated":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		rv, ok := value.(bool)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.EnvsTruncated"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.EnvsTruncated = rv
 		return nil
 	case "process.parent.file.name":
 		if ev.BaseEvent.ProcessContext == nil {

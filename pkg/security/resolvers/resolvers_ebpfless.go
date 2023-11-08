@@ -12,22 +12,12 @@ import (
 	"context"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/container"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 )
 
 // Opts defines common options
@@ -37,19 +27,9 @@ type Opts struct {
 
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
-	manager           *manager.Manager
-	MountResolver     *mount.Resolver
 	ContainerResolver *container.Resolver
-	TimeResolver      *time.Resolver
-	UserGroupResolver *usergroup.Resolver
 	TagsResolver      tags.Resolver
-	DentryResolver    *dentry.Resolver
 	ProcessResolver   *process.Resolver
-	CGroupResolver    *cgroup.Resolver
-	PathResolver      path.ResolverInterface
-	SBOMResolver      *sbom.Resolver
-	HashResolver      *hash.Resolver
-	TCResolver        *tc.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers

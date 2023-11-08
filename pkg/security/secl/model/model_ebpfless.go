@@ -81,7 +81,7 @@ type Process struct {
 	ArgsTruncated bool     `field:"args_truncated,handler:ResolveProcessArgsTruncated"`                                                                                                             // SECLDoc[args_truncated] Definition:`Indicator of arguments truncation`
 	Envs          []string `field:"envs,handler:ResolveProcessEnvs,weight:100"`                                                                                                                     // SECLDoc[envs] Definition:`Environment variable names of the process`
 	Envp          []string `field:"envp,handler:ResolveProcessEnvp,weight:100"`                                                                                                                     // SECLDoc[envp] Definition:`Environment variables of the process`
-	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated"`                                                                                                             // SECLDoc[envp] Definition:`Environment variables of the process`
+	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated"`                                                                                                             // SECLDoc[envs_truncated] Definition:`Indicator of environment variables truncation`
 
 	// cache version
 	Variables            eval.Variables `field:"-" json:"-"`

@@ -10,7 +10,6 @@ package model
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"net"
 	"time"
 )
 
@@ -89,6 +88,18 @@ func (ev *Event) GetExecArgsOptions() []string {
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
+}
+
+// GetExecArgsTruncated returns the value of the field, resolving if necessary
+func (ev *Event) GetExecArgsTruncated() bool {
+	zeroValue := false
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Exec.Process)
 }
 
 // GetExecArgv returns the value of the field, resolving if necessary
@@ -184,6 +195,18 @@ func (ev *Event) GetExecEnvs(desiredKeys map[string]bool) []string {
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
+}
+
+// GetExecEnvsTruncated returns the value of the field, resolving if necessary
+func (ev *Event) GetExecEnvsTruncated() bool {
+	zeroValue := false
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exec.Process)
 }
 
 // GetExecExecTime returns the value of the field, resolving if necessary
@@ -336,6 +359,18 @@ func (ev *Event) GetExitArgsOptions() []string {
 	return fieldCopy
 }
 
+// GetExitArgsTruncated returns the value of the field, resolving if necessary
+func (ev *Event) GetExitArgsTruncated() bool {
+	zeroValue := false
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.Exit.Process)
+}
+
 // GetExitArgv returns the value of the field, resolving if necessary
 func (ev *Event) GetExitArgv() []string {
 	zeroValue := []string{}
@@ -449,6 +484,18 @@ func (ev *Event) GetExitEnvs(desiredKeys map[string]bool) []string {
 	return fieldCopy
 }
 
+// GetExitEnvsTruncated returns the value of the field, resolving if necessary
+func (ev *Event) GetExitEnvsTruncated() bool {
+	zeroValue := false
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.Exit.Process)
+}
+
 // GetExitExecTime returns the value of the field, resolving if necessary
 func (ev *Event) GetExitExecTime() time.Time {
 	zeroValue := time.Time{}
@@ -555,69 +602,6 @@ func (ev *Event) GetExitPpid() uint32 {
 		return zeroValue
 	}
 	return ev.Exit.Process.PPid
-}
-
-// GetNetworkDestinationIp returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkDestinationIp() net.IPNet {
-	zeroValue := net.IPNet{}
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Destination.IPNet
-}
-
-// GetNetworkDestinationPort returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkDestinationPort() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Destination.Port
-}
-
-// GetNetworkL3Protocol returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkL3Protocol() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.L3Protocol
-}
-
-// GetNetworkL4Protocol returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkL4Protocol() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.L4Protocol
-}
-
-// GetNetworkSize returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkSize() uint32 {
-	zeroValue := uint32(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Size
-}
-
-// GetNetworkSourceIp returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkSourceIp() net.IPNet {
-	zeroValue := net.IPNet{}
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Source.IPNet
-}
-
-// GetNetworkSourcePort returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkSourcePort() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Source.Port
 }
 
 // GetOpenFileDestinationMode returns the value of the field, resolving if necessary
@@ -735,6 +719,28 @@ func (ev *Event) GetProcessAncestorsArgsOptions() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessArgsOptions(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetProcessAncestorsArgsTruncated returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsArgsTruncated() []bool {
+	zeroValue := []bool{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return zeroValue
+	}
+	var values []bool
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &element.ProcessContext.Process)
+		values = append(values, result)
 		ptr = iterator.Next()
 	}
 	return values
@@ -891,6 +897,28 @@ func (ev *Event) GetProcessAncestorsEnvs(desiredKeys map[string]bool) []string {
 		result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
 		result = filterEnvs(result, desiredKeys)
 		values = append(values, result...)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetProcessAncestorsEnvsTruncated returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsEnvsTruncated() []bool {
+	zeroValue := []bool{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return zeroValue
+	}
+	var values []bool
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &element.ProcessContext.Process)
+		values = append(values, result)
 		ptr = iterator.Next()
 	}
 	return values
@@ -1061,6 +1089,15 @@ func (ev *Event) GetProcessArgsOptions() []string {
 	return fieldCopy
 }
 
+// GetProcessArgsTruncated returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessArgsTruncated() bool {
+	zeroValue := false
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
+}
+
 // GetProcessArgv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgv() []string {
 	zeroValue := []string{}
@@ -1133,6 +1170,15 @@ func (ev *Event) GetProcessEnvs(desiredKeys map[string]bool) []string {
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
+}
+
+// GetProcessEnvsTruncated returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessEnvsTruncated() bool {
+	zeroValue := false
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessExecTime returns the value of the field, resolving if necessary
@@ -1249,6 +1295,21 @@ func (ev *Event) GetProcessParentArgsOptions() []string {
 	return fieldCopy
 }
 
+// GetProcessParentArgsTruncated returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentArgsTruncated() bool {
+	zeroValue := false
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return zeroValue
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return false
+	}
+	return ev.FieldHandlers.ResolveProcessArgsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
+}
+
 // GetProcessParentArgv returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgv() []string {
 	zeroValue := []string{}
@@ -1363,6 +1424,21 @@ func (ev *Event) GetProcessParentEnvs(desiredKeys map[string]bool) []string {
 	fieldCopy := make([]string, len(resolvedField))
 	copy(fieldCopy, resolvedField)
 	return fieldCopy
+}
+
+// GetProcessParentEnvsTruncated returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentEnvsTruncated() bool {
+	zeroValue := false
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return zeroValue
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return false
+	}
+	return ev.FieldHandlers.ResolveProcessEnvsTruncated(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentFileName returns the value of the field, resolving if necessary
