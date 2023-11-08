@@ -2,12 +2,14 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -490,8 +492,39 @@ func tagSuccess(s []string) []string {
 	return append(s, fmt.Sprint("status:success"))
 }
 
+type instrumentedRoundTripper struct {
+	t *http.Transport
+}
+
+func (rt instrumentedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	// TODO(jinroh): add some instrumentation here
+	// if req.Body != nil {
+	// 	body, err := io.ReadAll(req.Body)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// 	form, err := url.ParseQuery(string(body))
+	// 	req.Body = io.NopCloser(bytes.NewReader(body))
+	// }
+	resp, err := rt.t.RoundTrip(req)
+	if err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
+
 func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (aws.Config, error) {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	intrumentedHTTPClient := &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: instrumentedRoundTripper{&http.Transport{
+			IdleConnTimeout: 10 * time.Second,
+			MaxIdleConns:    10,
+		}},
+	}
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion(region),
+		config.WithHTTPClient(intrumentedHTTPClient),
+	)
 	if err != nil {
 		return aws.Config{}, err
 	}
@@ -627,12 +660,12 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	trivyDisabledAnalyzers = append(trivyDisabledAnalyzers, analyzer.TypeLanguages...)
 	var trivyArtifact artifact.Artifact
 
-	self, err := getSelfEC2InstanceIndentity(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	if scan.AttachVolume || attachVolumes {
+		self, err := getSelfEC2InstanceIndentity(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
+		}
+
 		log.Debugf("creating new volume for snapshot %q in az %q", snapshotID, self.AvailabilityZone)
 		volume, err := ec2client.CreateVolume(ctx, &ec2.CreateVolumeInput{
 			VolumeType:       ec2types.VolumeTypeGp2,
