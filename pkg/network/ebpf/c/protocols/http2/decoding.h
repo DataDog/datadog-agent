@@ -14,10 +14,6 @@
 #include "protocols/http/types.h"
 #include "protocols/classification/defs.h"
 
-static __always_inline __s32 get_unique_port(conn_tuple_t *tup) {
-    return tup->sport != 6400 ? tup->sport : -tup->dport;
-}
-
 // returns true if the given index is one of the relevant headers we care for in the static table.
 // The full table can be found in the user mode code `createStaticTable`.
 static __always_inline bool is_interesting_static_entry(const __u64 index) {
@@ -85,17 +81,8 @@ static __always_inline bool read_var_int(struct __sk_buff *skb, skb_info_t *skb_
 
 //get_dynamic_counter returns the current dynamic counter by the conn tup.
 static __always_inline __u64 *get_dynamic_counter(struct __sk_buff* skb, conn_tuple_t *tup) {
-    // global counter is the counter which help us with the calc of the index in our internal hpack dynamic table
-//    __u64 *counter_ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
-//    if (counter_ptr != NULL) {
-//        return counter_ptr;
-//    }
     __u64 counter = 0;
-    long ret = bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_NOEXIST);
-    if (ret == 0) {}
-//    if (ret < 0) {
-//    } else {
-//    }
+    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
 }
 
