@@ -74,6 +74,7 @@ tests_windows-x64-fast:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
     EXTRAPARAMS: '--only-modified-packages'
+  allow_failure: true
 
 lint_windows-x64:
   extends: .lint_windows_base

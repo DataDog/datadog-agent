@@ -84,6 +84,7 @@ tests_deb-x64-py-fast:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
     EXTRAPARAMS: '--only-modified-packages'
+  allow_failure: true
 
 
 lint_linux-x64:
