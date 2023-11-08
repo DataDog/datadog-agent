@@ -928,25 +928,23 @@ func TestSendTelemetry(t *testing.T) {
 				{
 					name:     "kubernetes_state.telemetry.metrics.count.total",
 					val:      5,
-					tags:     []string{"kube_cluster_name:foo"},
 					hostname: "",
 				},
 				{
 					name:     "kubernetes_state.telemetry.metrics.count",
 					val:      2,
-					tags:     []string{"kube_cluster_name:foo", "resource_name:baz"},
+					tags:     []string{"resource_name:baz"},
 					hostname: "",
 				},
 				{
 					name:     "kubernetes_state.telemetry.metrics.count",
 					val:      3,
-					tags:     []string{"kube_cluster_name:foo", "resource_name:bar"},
+					tags:     []string{"resource_name:bar"},
 					hostname: "",
 				},
 				{
 					name:     "kubernetes_state.telemetry.unknown_metrics.count",
 					val:      1,
-					tags:     []string{"kube_cluster_name:foo"},
 					hostname: "",
 				},
 			},
@@ -1131,14 +1129,15 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 			wantHostname: "",
 		},
 		{
-			name: "add check instance tags",
+			// instance tags are added in the sender by `initTags`. They do not need to be provided as arguments in sender functions.
+			name: "do not add check instance tags",
 			config: &KSMConfig{
 				Tags: []string{"instance:tag"},
 			},
 			args: args{
 				labels: map[string]string{"foo_label": "foo_value"},
 			},
-			wantTags:     []string{"foo_label:foo_value", "instance:tag"},
+			wantTags:     []string{"foo_label:foo_value"},
 			wantHostname: "",
 		},
 		{
