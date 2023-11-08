@@ -42,11 +42,9 @@ type dependencies struct {
 	Etw etw.Component
 }
 
-// pidContext wraps a named-pipe connection and a last-seen
-// timestamp for a given PID.
+// pidContext holds the necessary context for each PID that is monitored by this integration.
 type pidContext struct {
-	conn     net.Conn
-	lastSeen time.Time
+	conn net.Conn
 }
 
 type pidMap = map[uint64]pidContext
@@ -277,7 +275,6 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 				// after a process un-registers itself, no need to log anything here.
 				return
 			}
-			pidCtx.lastSeen = time.Now()
 			ev := clrEvent{
 				header: header{
 					Magic:           a.magic,
