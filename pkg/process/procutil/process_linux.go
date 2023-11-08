@@ -626,7 +626,8 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 	// use spaces and prevCharIsSpace to simulate strings.Fields() to avoid allocation
 	spaces := 0
 	prevCharIsSpace := false
-	var buffer []byte
+	// pre-size the buffer to avoid allocations
+	buffer := make([]byte, 0, 32)
 
 	for _, c := range content {
 		if unicode.IsSpace(rune(c)) {
