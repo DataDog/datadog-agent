@@ -816,6 +816,7 @@ func InitConfig(config Config) {
 
 	// Azure
 	config.BindEnvAndSetDefault("azure_hostname_style", "os")
+	config.BindEnvAndSetDefault("azure_vm_use_dmi", true) // should the agent leverage DMI information to know if it's running on Azure VM or not. Enabling this will add the instance ID from DMI to the host alias list.
 
 	// IBM cloud
 	// We use a long timeout here since the metadata and token API can be very slow sometimes.

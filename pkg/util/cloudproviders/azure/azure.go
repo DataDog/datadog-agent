@@ -8,6 +8,7 @@ package azure
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cachedfetch"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // declare these as vars not const to ease testing
@@ -25,6 +27,8 @@ var (
 
 	// CloudProviderName contains the inventory name of for EC2
 	CloudProviderName = "Azure"
+	// DMIBoardVendor contains the DMI board vendor for Azure VM
+	DMIBoardVendor = "Microsoft Corporation"
 )
 
 const hostnameStyleSetting = "azure_hostname_style"
@@ -50,9 +54,23 @@ var vmIDFetcher = cachedfetch.Fetcher{
 	},
 }
 
-// GetHostAliases returns the VM ID from the Azure Metadata api
+// GetHostAliases returns the VM ID from the Azure Metadata api or DMI if the former is unaccessible
 func GetHostAliases(ctx context.Context) ([]string, error) {
-	return vmIDFetcher.FetchStringSlice(ctx)
+	vmID, err := vmIDFetcher.FetchStringSlice(ctx)
+	if err == nil {
+		return vmID, nil
+	}
+	log.Debugf("failed to get Azure VM ID from metadata API for Host Alias: %s", err)
+
+	// we fallback on DMI
+	vmID, err = getAzureVMIDFromDMI()
+	if err == nil {
+		return vmID, nil
+	}
+	log.Debugf("failed to get Azure VM ID from DMI for Host Alias: %s", err)
+
+	// We return an error to ensure IsRunningOn returns `false` : unable to determine if the host is Azure
+	return []string{}, errors.New("unable to determine the Azure VM ID from metadata API and DMI")
 }
 
 var resourceGroupNameFetcher = cachedfetch.Fetcher{
