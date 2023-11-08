@@ -665,6 +665,11 @@ func (p *probe) parseStatContent(statContent []byte, sInfo *statInfo, pid int32,
 			buffer = append(buffer, c)
 			prevCharIsSpace = false
 		}
+
+		if spaces > 20 {
+			// last item so break out of the loop as we don't need to parse the rest of the content
+			break
+		}
 	}
 
 	if spaces < 20 { // We access index 20 and below, so this is just a safety check.
