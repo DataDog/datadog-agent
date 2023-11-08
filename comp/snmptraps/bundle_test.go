@@ -11,7 +11,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
@@ -21,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/stretchr/testify/require"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
 
@@ -37,7 +36,7 @@ type deps struct {
 }
 
 func TestBundleDependencies(t *testing.T) {
-	require.NoError(t, fx.ValidateApp(
+	fxutil.TestBundle(t, Bundle,
 		config.MockModule,
 		hostnameimpl.MockModule,
 		log.MockModule,
@@ -46,11 +45,5 @@ func TestBundleDependencies(t *testing.T) {
 			mockSender.SetupAcceptAll()
 			return mockSender, mockSender
 		}),
-		ndmtmp.MockBundle,
-		fx.Supply(fx.Annotate(t, fx.As(new(testing.TB)))),
-		// instantiate all of the ndmtmp components, since this is not done
-		// automatically.
-		fx.Invoke(func(deps) {}),
-		Bundle,
-	))
+	)
 }
