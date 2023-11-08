@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package util
+// Package sort has sort functions used by Agent.
+package sort
 
 // InsertionSortThreshold is the slice size after which we should consider
 // using the stdlib sort method instead of the InsertionSort implemented below.
