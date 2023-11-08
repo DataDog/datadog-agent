@@ -340,7 +340,6 @@ func (a *apmetwtracerimpl) reconfigureProvider() error {
 
 	if len(pidsList) > 0 {
 		return a.session.EnableProvider(a.dotNetRuntimeProviderGUID)
-	} else {
-		return a.session.DisableProvider(a.dotNetRuntimeProviderGUID)
 	}
+	return a.session.DisableProvider(a.dotNetRuntimeProviderGUID)
 }
