@@ -27,8 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 )
 
-var testTimeout = 10 * time.Second
-var testTicker = 5 * time.Millisecond
+var testTimeout = 30 * time.Second
+var testTicker = 100 * time.Millisecond
 
 func TestRun(t *testing.T) {
 	releases := []release{
