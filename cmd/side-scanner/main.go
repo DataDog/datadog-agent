@@ -34,6 +34,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
+	"github.com/aws/aws-sdk-go-v2/service/ebs"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/lambda"
@@ -495,8 +496,13 @@ func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (a
 		return aws.Config{}, err
 	}
 	if assumedRoleARN != nil {
-		stsclient := sts.NewFromConfig(cfg)
-		cfg.Credentials = aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(stsclient, *assumedRoleARN))
+		defcfg, err := config.LoadDefaultConfig(ctx)
+		if err != nil {
+			return aws.Config{}, err
+		}
+		stsclient := sts.NewFromConfig(defcfg)
+		stsassume := stscreds.NewAssumeRoleProvider(stsclient, *assumedRoleARN)
+		cfg.Credentials = aws.NewCredentialsCache(stsassume)
 	}
 	return cfg, nil
 }
@@ -507,6 +513,14 @@ func newEC2Client(ctx context.Context, region string, assumedRoleARN *string) (*
 		return nil, err
 	}
 	return ec2.NewFromConfig(cfg), nil
+}
+
+func newEBSClient(ctx context.Context, region string, assumedRoleARN *string) (*ebs.Client, error) {
+	cfg, err := newAWSConfig(ctx, region, assumedRoleARN)
+	if err != nil {
+		return nil, err
+	}
+	return ebs.NewFromConfig(cfg), nil
 }
 
 func newLambdaClient(ctx context.Context, region string, assumedRoleARN *string) (*lambda.Client, error) {
@@ -781,8 +795,12 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 			OnlyDirs:          []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"},
 			AWSRegion:         scan.Region,
 		})
-		// trivyArtifactEBS := trivyArtifact.(*vm.EBS)
-		// trivyArtifactEBS.SetEBS(ebsclient)
+		ebsclient, err := newEBSClient(ctx, scan.Region, scan.AssumedRole)
+		if err != nil {
+			return nil, fmt.Errorf("could not create EBS client: %w", err)
+		}
+		trivyArtifactEBS := trivyArtifact.(*vm.EBS)
+		trivyArtifactEBS.SetEBS(EBSClientWithWalk{ebsclient})
 		if err != nil {
 			return nil, fmt.Errorf("unable to create artifact from image: %w", err)
 		}
