@@ -9,10 +9,10 @@
 // Maximum number of frames to be processed in a single TCP packet. That's also the number of tail calls we'll have.
 // NOTE: we may need to revisit this const if we need to capture more connections.
 #define HTTP2_MAX_FRAMES_ITERATIONS 30
-#define HTTP2_MAX_FRAMES_TO_FILTER  100
+#define HTTP2_MAX_FRAMES_TO_FILTER 80
 
 // A limit of max headers which we process in the request/response.
-#define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 25
+#define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 15
 
 // Per request or response we have fewer headers than HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING that are interesting us.
 // For request - those are method, path. For response - status code.
@@ -29,7 +29,7 @@
 #define HTTP2_END_OF_STREAM 0x1
 
 // Http2 max batch size.
-#define HTTP2_BATCH_SIZE 17
+#define HTTP2_BATCH_SIZE 16
 
 // MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
 // 1 << 6 - 1
