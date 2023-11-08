@@ -1084,7 +1084,8 @@ func newUDPServer(addr string) (string, func(), error) {
 				return
 			}
 
-			ln.WriteTo(pong, caddr)
+			// TODO: error check
+			_, _ = ln.WriteTo(pong, caddr)
 		}
 	}()
 

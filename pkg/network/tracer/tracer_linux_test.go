@@ -71,9 +71,9 @@ func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *ne
 	dnsClient := new(dns.Client)
 	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
 	require.NoError(t, err)
+	defer dnsConn.Close()
 	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
 	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
-	_ = dnsConn.Close()
 	require.NoError(t, err)
 
 	return dnsClientAddr, dnsServerAddr
@@ -618,6 +618,33 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
 	})
+}
+
+func TestMe(t *testing.T) {
+	srv := NewTCPServer(func(c net.Conn) {
+		c.Write([]byte("foo"))
+		c.Write([]byte("bar"))
+		fmt.Println("here")
+	})
+
+	srv.Run()
+
+	conn, err := net.DialTimeout("tcp", srv.address, time.Second)
+	require.NoError(t, err)
+
+	file, err := conn.(*net.TCPConn).File()
+	require.NoError(t, err)
+
+	time.Sleep(time.Second * 5)
+
+	fd := int(file.Fd())
+
+	buf := make([]byte, 6)
+	n, _, err := syscall.Recvfrom(int(fd), buf, syscall.MSG_WAITALL)
+
+	fmt.Println(string(buf))
+	fmt.Println(n)
+	require.NoError(t, err)
 }
 
 func (s *TracerSuite) TestGatewayLookupEnabled() {
@@ -1703,10 +1730,7 @@ func (s *TracerSuite) TestBlockingReadCounts() {
 	buf := make([]byte, 6)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		n, _, err := syscall.Recvfrom(fd, buf[read:], syscall.MSG_WAITALL)
-		if !assert.NoError(c, err) {
-			return
-		}
-
+		require.NoError(c, err)
 		read += n
 		t.Logf("read %d", read)
 		assert.Equal(c, 6, read)
