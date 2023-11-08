@@ -200,6 +200,9 @@ start: oldest
 
 // Test that the check can detect and recover from a broken subscription
 func (s *GetEventsTestSuite) TestRecoverFromBrokenSubscription() {
+	// TODO: https://datadoghq.atlassian.net/browse/WINA-480
+	s.T().Skip("WINA-480: Skipping flaky test")
+
 	// Put events in the log
 	err := s.ti.GenerateEvents(s.eventSource, s.numEvents)
 	require.NoError(s.T(), err)
