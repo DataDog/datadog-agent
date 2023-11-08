@@ -107,3 +107,8 @@ type OpenEvent struct {
 	Flags uint32    `field:"flags"`                 // SECLDoc[flags] Definition:`Flags used when opening the file` Constants:`Open flags`
 	Mode  uint32    `field:"file.destination.mode"` // SECLDoc[file.destination.mode] Definition:`Mode of the created file` Constants:`File mode constants`
 }
+
+// ExtraFieldHandlers handlers not hold by any field
+type ExtraFieldHandlers interface {
+	BaseExtraFieldHandlers
+}

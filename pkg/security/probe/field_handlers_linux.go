@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !ebpfless
+
 // Package probe holds probe related files
 package probe
 
@@ -428,4 +430,44 @@ func (fh *FieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEv
 // ResolveHashes resolves the hashes of the requested file event
 func (fh *FieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
 	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+}
+
+// ResolveK8SUsername resolves the k8s username of the event
+func (fh *FieldHandlers) ResolveK8SUsername(_ *model.Event, evtCtx *model.UserSessionContext) string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SUsername
+}
+
+// ResolveK8SUID resolves the k8s UID of the event
+func (fh *FieldHandlers) ResolveK8SUID(_ *model.Event, evtCtx *model.UserSessionContext) string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SUID
+}
+
+// ResolveK8SGroups resolves the k8s groups of the event
+func (fh *FieldHandlers) ResolveK8SGroups(_ *model.Event, evtCtx *model.UserSessionContext) []string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SGroups
+}
+
+// ResolveK8SExtra resolves the k8s extra of the event
+func (fh *FieldHandlers) ResolveK8SExtra(_ *model.Event, evtCtx *model.UserSessionContext) map[string][]string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SExtra
 }

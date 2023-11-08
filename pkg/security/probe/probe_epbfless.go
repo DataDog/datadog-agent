@@ -52,8 +52,8 @@ func (p *Probe) SendSyscallMsg(ctx context.Context, syscallMsg *proto.SyscallMsg
 		p.resolvers.ProcessResolver.AddForkEntry(syscallMsg.PID, syscallMsg.Fork.PPID)
 	case proto.SyscallType_Open:
 		event.Type = uint32(model.FileOpenEventType)
-		event.Open.File.SetPathnameStr(syscallMsg.Open.Filename)
-		event.Open.File.SetBasenameStr(filepath.Base(syscallMsg.Open.Filename))
+		event.Open.File.PathnameStr = syscallMsg.Open.Filename
+		event.Open.File.BasenameStr = filepath.Base(syscallMsg.Open.Filename)
 		event.Open.Flags = syscallMsg.Open.Flags
 		event.Open.Mode = syscallMsg.Open.Mode
 	default:
@@ -69,9 +69,9 @@ func (p *Probe) SendSyscallMsg(ctx context.Context, syscallMsg *proto.SyscallMsg
 	}
 
 	// use ProcessCacheEntry process context as process context
-	event.ProcessCacheEntry = p.resolvers.ProcessResolver.Resolve(syscallMsg.PID, syscallMsg.PID, 0, false)
+	event.ProcessCacheEntry = p.resolvers.ProcessResolver.Resolve(syscallMsg.PID)
 	if event.ProcessCacheEntry == nil {
-		event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(syscallMsg.PID, syscallMsg.PID, false)
+		event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(syscallMsg.PID)
 	}
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/runtime"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/syscalls"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
@@ -165,24 +166,33 @@ func (m *Monitors) ProcessEvent(event *model.Event) {
 		return
 	}
 
+	eventType := model.UnknownEventType
+
 	var pathErr *path.ErrPathResolution
 	if errors.As(event.Error, &pathErr) {
+		switch pathErr.Err.(type) {
+		case dentry.ErrTruncatedParents, dentry.ErrTruncatedParentsERPC:
+			eventType = model.CustomTruncatedParentsEventType
+		default:
+			eventType = model.UnknownEventType
+		}
+
 		m.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, m.probe, pathErr.Err),
+			NewAbnormalEvent(events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, m.probe, eventType, pathErr.Err),
 		)
 	}
 
 	var processContextErr *model.ErrNoProcessContext
 	if errors.As(event.Error, &processContextErr) {
 		m.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, m.probe, event.Error),
+			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, m.probe, eventType, event.Error),
 		)
 	}
 
 	var brokenLineageErr *model.ErrProcessBrokenLineage
 	if errors.As(event.Error, &brokenLineageErr) {
 		m.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, m.probe, event.Error),
+			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, m.probe, eventType, event.Error),
 		)
 	}
 }

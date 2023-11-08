@@ -172,7 +172,7 @@ func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry) {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useProcFS bool) *model.ProcessCacheEntry {
+func (p *Resolver) Resolve(pid uint32) *model.ProcessCacheEntry {
 	p.Lock()
 	defer p.Unlock()
 	if e, ok := p.entryCache[pid]; ok {

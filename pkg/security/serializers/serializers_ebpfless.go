@@ -9,7 +9,6 @@ package serializers
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -41,6 +40,8 @@ type ProcessSerializer struct {
 	ExecTime *utils.EasyjsonTime `json:"exec_time,omitempty"`
 	// Exit time of the process
 	ExitTime *utils.EasyjsonTime `json:"exit_time,omitempty"`
+	// File information of the executable
+	Executable *FileSerializer `json:"executable,omitempty"`
 	// Container context
 	Container *ContainerContextSerializer `json:"container,omitempty"`
 	// First command line argument
@@ -99,9 +100,6 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 	if len(ps.ContainerID) != 0 {
 		psSerializer.Container = &ContainerContextSerializer{
 			ID: ps.ContainerID,
-		}
-		if cgroup, _ := resolvers.CGroupResolver.GetWorkload(ps.ContainerID); cgroup != nil {
-			psSerializer.Container.CreatedAt = getTimeIfNotZero(time.Unix(0, int64(cgroup.CreatedAt)))
 		}
 	}
 	return psSerializer
