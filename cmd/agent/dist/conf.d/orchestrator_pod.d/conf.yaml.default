@@ -1,4 +1,2 @@
-init_config:
 instances:
-  -
-
+  - {}
