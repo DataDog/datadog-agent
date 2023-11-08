@@ -86,7 +86,7 @@ func GetStatus() map[string]interface{} {
 			}
 		}
 	}
-	stats["checkMetadata"] = checkMetadata
+	stats["inventories"] = checkMetadata
 	if data, ok := inventoriesStats["agent_metadata"]; ok {
 		stats["agent_metadata"] = data
 	} else {
