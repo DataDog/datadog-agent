@@ -151,7 +151,7 @@ func TestGetLabelsToTags(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			config := config.Mock(t)
-			config.Set("kubernetes_node_labels_as_tags", test.configLabelsAsTags)
+			config.SetWithoutSource("kubernetes_node_labels_as_tags", test.configLabelsAsTags)
 
 			actuaLabelsAsTags := getLabelsToTags()
 			assert.Equal(t, test.expectLabelsAsTags, actuaLabelsAsTags)
