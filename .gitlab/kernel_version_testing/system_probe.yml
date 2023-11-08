@@ -310,15 +310,15 @@ kernel_matrix_testing_setup_env:
     - INSTANCE_TYPE=m5d.metal
     - !reference [.get_instance_ip_by_type]
     - X64_INSTANCE_IP=$INSTANCE_IP
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@X64_INSTANCE_IP" "sudo virsh list --name | grep -v -E '^$' | xargs -I '{}' sh -c \"sudo virsh dumpxml '{}' > /tmp/microvm-xml-'{}'.txt\""
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$X64_INSTANCE_IP" "sudo virsh list --name | grep -v -E '^$' | xargs -I '{}' sh -c \"sudo virsh dumpxml '{}' > /tmp/microvm-xml-'{}'.txt\""
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$X64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/x86_64/
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@X64_INSTANCE_IP:/tmp/ddvm-xml-*" $CI_PROJECT_DIR/libvirt/xml/x86_64
     - INSTANCE_TYPE=m6gd.metal
     - !reference [.get_instance_ip_by_type]
     - ARM64_INSTANCE_IP=$INSTANCE_IP
-    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@ARM64_INSTANCE_IP" "sudo virsh list --name | grep -v -E '^$' | xargs -I '{}' sh -c \"sudo virsh dumpxml '{}' > /tmp/microvm-xml-'{}'.txt\""
+    - ssh -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$ARM64_INSTANCE_IP" "sudo virsh list --name | grep -v -E '^$' | xargs -I '{}' sh -c \"sudo virsh dumpxml '{}' > /tmp/microvm-xml-'{}'.txt\""
     - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$ARM64_INSTANCE_IP:/tmp/ddvm-*.log" $CI_PROJECT_DIR/libvirt/log/arm64/
-    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@ARM64_INSTANCE_IP:/tmp/ddvm-xml-*" $CI_PROJECT_DIR/libvirt/xml/arm64
+    - scp -o StrictHostKeyChecking=no -i $AWS_EC2_SSH_KEY_FILE "ubuntu@$ARM64_INSTANCE_IP:/tmp/ddvm-xml-*" $CI_PROJECT_DIR/libvirt/xml/arm64
   artifacts:
     when: always
     paths:
