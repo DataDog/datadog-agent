@@ -91,6 +91,10 @@ var (
 
 	configPath    string
 	attachVolumes bool
+
+	defaultHTTPClient = &http.Client{
+		Timeout: 10 * time.Second,
+	}
 )
 
 func main() {
@@ -513,16 +517,15 @@ func (rt instrumentedRoundTripper) RoundTrip(req *http.Request) (*http.Response,
 }
 
 func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (aws.Config, error) {
-	intrumentedHTTPClient := &http.Client{
-		Timeout: 10 * time.Second,
-		Transport: instrumentedRoundTripper{&http.Transport{
-			IdleConnTimeout: 10 * time.Second,
-			MaxIdleConns:    10,
-		}},
-	}
+	intrumentedHTTPClient := *defaultHTTPClient
+	intrumentedHTTPClient.Transport = instrumentedRoundTripper{&http.Transport{
+		IdleConnTimeout: 10 * time.Second,
+		MaxIdleConns:    10,
+	}}
+
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(region),
-		config.WithHTTPClient(intrumentedHTTPClient),
+		config.WithHTTPClient(&intrumentedHTTPClient),
 	)
 	if err != nil {
 		return aws.Config{}, err
@@ -979,7 +982,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 		return nil, err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := defaultHTTPClient.Do(req)
 	if err != nil {
 		statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
 		return nil, err
@@ -1088,10 +1091,8 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 
 	// TODO: be more rebust against zip bombs
 	for _, f := range r.File {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			return ctx.Err()
-		default:
 		}
 		dest := filepath.Join(destinationPath, f.Name)
 		destDir := filepath.Dir(dest)
