@@ -132,11 +132,6 @@ func TestNoProxyNonexactMatch(t *testing.T) {
 	proxyURL, err = proxyFunc(r6)
 	assert.Nil(t, err)
 	assert.Nil(t, proxyURL)
-<<<<<<< HEAD
-=======
-
-	config.Datadog.SetWithoutSource("no_proxy_nonexact_match", false)
->>>>>>> origin/main
 }
 
 func TestErrorParse(t *testing.T) {
@@ -174,24 +169,13 @@ func TestBadScheme(t *testing.T) {
 func TestCreateHTTPTransport(t *testing.T) {
 	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 
-<<<<<<< HEAD
-	c.Set("skip_ssl_validation", false)
+	c.SetWithoutSource("skip_ssl_validation", false)
 	transport := CreateHTTPTransport(c)
 	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
 
-	c.Set("skip_ssl_validation", true)
+	c.SetWithoutSource("skip_ssl_validation", true)
 	transport = CreateHTTPTransport(c)
-=======
-	mockConfig := config.Mock(t)
-	mockConfig.SetWithoutSource("skip_ssl_validation", false)
-	transport := CreateHTTPTransport()
-	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
-	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
-
-	mockConfig.SetWithoutSource("skip_ssl_validation", true)
-	transport = CreateHTTPTransport()
->>>>>>> origin/main
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
 
