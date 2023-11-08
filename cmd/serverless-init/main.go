@@ -18,12 +18,14 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
+	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	logger "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -43,6 +45,26 @@ func main() {
 }
 
 func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
+	if err := config.SetupLogger(
+		loggerName,
+		"error", // will be re-set later with the value from the env var
+		"",      // logFile -> by setting this to an empty string, we don't write the logs to any file
+		"",      // syslog URI
+		false,   // syslog_rfc
+		true,    // log_to_console
+		false,   // log_format_json
+	); err != nil {
+		logger.Errorf("Unable to setup logger: %s", err)
+	}
+
+	if logLevel := os.Getenv(logLevelEnvVar); len(logLevel) > 0 {
+		if err := config.ChangeLogLevel(logLevel); err != nil {
+			logger.Errorf("Unable to change the log level: %s", err)
+		}
+	}
+
+	tracelog.SetLogger(corelogger{})
+
 	// load proxy settings
 	setupProxy()
 
@@ -91,8 +113,10 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]str
 }
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
-	config.Datadog.Set("use_v2_api.series", false)
-	metricAgent := &metrics.ServerlessMetricAgent{}
+	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
+	metricAgent := &metrics.ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 0,
+	}
 	// we don't want to add the container_id tag to metrics for cardinality reasons
 	tags = tag.WithoutContainerID(tags)
 	tagArray := tag.GetBaseTagsArrayWithMetadataTags(tags)

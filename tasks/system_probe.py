@@ -12,6 +12,7 @@ import tempfile
 from pathlib import Path
 from subprocess import check_output
 
+import requests
 from invoke import task
 from invoke.exceptions import Exit
 
@@ -102,7 +103,7 @@ def ninja_define_co_re_compiler(nw):
 def ninja_define_exe_compiler(nw):
     nw.rule(
         name="execlang",
-        command="clang -MD -MF $out.d $exeflags $in -o $out $exelibs",
+        command="clang -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
         depfile="$out.d",
     )
 
@@ -302,7 +303,10 @@ def ninja_runtime_compilation_files(nw, gobin):
         "pkg/security/ebpf/compile.go": "runtime-security",
     }
 
-    nw.rule(name="headerincl", command="go generate -mod=mod -tags linux_bpf $in", depfile="$out.d")
+    nw.rule(
+        name="headerincl", command="go generate -run=\"include_headers\" -mod=mod -tags linux_bpf $in", depfile="$out.d"
+    )
+    nw.rule(name="integrity", command="go generate -run=\"integrity\" -mod=mod -tags linux_bpf $in", depfile="$out.d")
     hash_dir = os.path.join(bc_dir, "runtime")
     rc_dir = os.path.join(build_dir, "runtime")
     for in_path, out_filename in runtime_compiler_files.items():
@@ -310,10 +314,15 @@ def ninja_runtime_compilation_files(nw, gobin):
         hash_file = os.path.join(hash_dir, f"{out_filename}.go")
         nw.build(
             inputs=[in_path],
-            outputs=[c_file],
             implicit=toolpaths,
-            implicit_outputs=[hash_file],
+            outputs=[c_file],
             rule="headerincl",
+        )
+        nw.build(
+            inputs=[in_path],
+            implicit=toolpaths + [c_file],
+            outputs=[hash_file],
+            rule="integrity",
         )
 
 
@@ -528,6 +537,7 @@ def clean(
     ctx.run("go clean -cache")
 
 
+@task
 def build_sysprobe_binary(
     ctx,
     race=False,
@@ -536,6 +546,7 @@ def build_sysprobe_binary(
     python_runtimes='3',
     go_mod="mod",
     arch=CURRENT_ARCH,
+    binary=BIN_PATH,
     bundle_ebpf=False,
     strip_binary=False,
 ):
@@ -559,7 +570,7 @@ def build_sysprobe_binary(
         "race_opt": " -race" if race else "",
         "build_type": "" if incremental_build else " -a",
         "go_build_tags": " ".join(build_tags),
-        "agent_bin": BIN_PATH,
+        "agent_bin": binary,
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
@@ -1370,6 +1381,7 @@ def check_for_ninja(ctx):
         ctx.run("where ninja")
     else:
         ctx.run("which ninja")
+    ctx.run("ninja --version")
 
 
 def is_bpftool_compatible(ctx):
@@ -1455,6 +1467,9 @@ def generate_minimized_btfs(
     if input_bpf_programs == "":
         ctx.run(f"mkdir -p {output_dir}/dummy_data")
         return
+
+    if os.path.isdir(input_bpf_programs):
+        input_bpf_programs = glob.glob(f"{input_bpf_programs}/*.o")
 
     ctx.run(f"mkdir -p {output_dir}")
 
@@ -1590,11 +1605,33 @@ def print_failed_tests(_, output_dir):
 
 
 @task
-def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
-    import yaml
-
+def save_test_dockers(ctx, output_dir, arch, windows=is_windows, use_crane=False):
     if windows:
         return
+
+    # only download images not present in preprepared vm disk
+    resp = requests.get('https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/docker.ls')
+    docker_ls = {line for line in resp.text.split('\n') if line.strip()}
+
+    images = _test_docker_image_list()
+    for image in images - docker_ls:
+        output_path = image.translate(str.maketrans('', '', string.punctuation))
+        output_file = f"{os.path.join(output_dir, output_path)}.tar"
+        if use_crane:
+            ctx.run(f"crane pull --platform linux/{arch} {image} {output_file}")
+        else:
+            ctx.run(f"docker pull --platform linux/{arch} {image}")
+            ctx.run(f"docker save {image} > {output_file}")
+
+
+@task
+def test_docker_image_list(_):
+    images = _test_docker_image_list()
+    print('\n'.join(images))
+
+
+def _test_docker_image_list():
+    import yaml
 
     docker_compose_paths = glob.glob("./pkg/network/protocols/**/*/docker-compose.yml", recursive=True)
     # Add relative docker-compose paths
@@ -1615,10 +1652,7 @@ def save_test_dockers(ctx, output_dir, arch, windows=is_windows):
 
     # Special use-case in javatls
     images.remove("${IMAGE_VERSION}")
-    for image in images:
-        output_path = image.translate(str.maketrans('', '', string.punctuation))
-        ctx.run(f"docker pull --platform linux/{arch} {image}")
-        ctx.run(f"docker save {image} > {os.path.join(output_dir, output_path)}.tar")
+    return images
 
 
 @task
@@ -1637,6 +1671,7 @@ def start_microvms(
     stack_name="kernel-matrix-testing-system",
     vmconfig=None,
     local=False,
+    provision=False,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -1651,6 +1686,7 @@ def start_microvms(
         f"--dependencies-dir {dependencies_dir}" if dependencies_dir else "",
         f"--name {stack_name}",
         f"--vmconfig {vmconfig}" if vmconfig else "",
+        "--run-provision" if provision else "",
         "--local" if local else "",
     ]
 
@@ -1658,3 +1694,34 @@ def start_microvms(
     ctx.run(
         f"cd ./test/new-e2e && go run ./scenarios/system-probe/main.go {go_args}",
     )
+
+
+@task
+def save_build_outputs(ctx, destfile):
+    ignored_extensions = {".bc"}
+    ignored_files = {"cws", "integrity", "include_headers"}
+
+    if not destfile.endswith(".tar.xz"):
+        raise Exit(message="destfile must be a .tar.xz file")
+
+    absdest = os.path.abspath(destfile)
+    count = 0
+    with tempfile.TemporaryDirectory() as stagedir:
+        with open("compile_commands.json", "r") as compiledb:
+            for outputitem in json.load(compiledb):
+                if "output" not in outputitem:
+                    continue
+
+                filedir, file = os.path.split(outputitem["output"])
+                _, ext = os.path.splitext(file)
+                if ext in ignored_extensions or file in ignored_files:
+                    continue
+
+                outdir = os.path.join(stagedir, filedir)
+                ctx.run(f"mkdir -p {outdir}")
+                ctx.run(f"cp {outputitem['output']} {outdir}/")
+                count += 1
+
+        if count == 0:
+            raise Exit(message="no build outputs captured")
+        ctx.run(f"tar -C {stagedir} -cJf {absdest} .")

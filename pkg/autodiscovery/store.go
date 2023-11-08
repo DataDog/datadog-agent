@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 )
 
 // store holds useful mappings for the AD
@@ -47,6 +48,16 @@ type store struct {
 	// templateCache stores templates by their AD identifiers.
 	templateCache *templateCache
 
+	// idsOfChecksWithSecrets maps the IDs of check instances received from the
+	// Cluster Agent that contain resolved secrets to the IDs that they had
+	// before decrypting their secrets.
+	// This is needed because the ID of a check instance with secrets changes
+	// when its secrets are decrypted. In some configurations the Cluster Agent
+	// does not resolve the secrets (config option secret_backend_skip_checks
+	// set to true), but the Cluster Check Runner does. We need this mapping to
+	// be able to match the 2 IDs.
+	idsOfChecksWithSecrets map[checkid.ID]checkid.ID
+
 	// m is a Mutex protecting access to all fields in this type except
 	// templateCache.
 	m sync.RWMutex
@@ -55,14 +66,15 @@ type store struct {
 // newStore creates a store
 func newStore() *store {
 	s := store{
-		serviceToConfigs:  make(map[string][]integration.Config),
-		serviceToTagsHash: make(map[string]string),
-		templateToConfigs: make(map[string][]integration.Config),
-		loadedConfigs:     make(map[string]integration.Config),
-		nameToJMXMetrics:  make(map[string]integration.Data),
-		adIDToServices:    make(map[string]map[string]struct{}),
-		entityToService:   make(map[string]listeners.Service),
-		templateCache:     newTemplateCache(),
+		serviceToConfigs:       make(map[string][]integration.Config),
+		serviceToTagsHash:      make(map[string]string),
+		templateToConfigs:      make(map[string][]integration.Config),
+		loadedConfigs:          make(map[string]integration.Config),
+		nameToJMXMetrics:       make(map[string]integration.Data),
+		adIDToServices:         make(map[string]map[string]struct{}),
+		entityToService:        make(map[string]listeners.Service),
+		templateCache:          newTemplateCache(),
+		idsOfChecksWithSecrets: make(map[checkid.ID]checkid.ID),
 	}
 
 	return &s
@@ -192,5 +204,30 @@ func (s *store) removeServiceForADID(entity string, adIdentifiers []string) {
 				delete(s.adIDToServices, adID)
 			}
 		}
+	}
+}
+
+func (s *store) setIDsOfChecksWithSecrets(checkIDs map[checkid.ID]checkid.ID) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	for idWithResolvedSecrets, idWithEncryptedSecrets := range checkIDs {
+		s.idsOfChecksWithSecrets[idWithResolvedSecrets] = idWithEncryptedSecrets
+	}
+}
+
+func (s *store) getIDOfCheckWithEncryptedSecrets(idCheckWithResolvedSecrets checkid.ID) checkid.ID {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	return s.idsOfChecksWithSecrets[idCheckWithResolvedSecrets]
+}
+
+func (s *store) deleteMappingsOfCheckIDsWithSecrets(checkIDs []checkid.ID) {
+	s.m.Lock()
+	defer s.m.Unlock()
+
+	for _, checkID := range checkIDs {
+		delete(s.idsOfChecksWithSecrets, checkID)
 	}
 }

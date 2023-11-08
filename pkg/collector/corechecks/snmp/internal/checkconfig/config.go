@@ -7,15 +7,16 @@ package checkconfig
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"net"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/cihub/seelog"
 	"gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -29,7 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/profile"
 )
 
 // Using high oid batch size might lead to snmp calls timing out.
@@ -64,7 +67,7 @@ type DeviceDigest string
 
 // InitConfig is used to deserialize integration init config
 type InitConfig struct {
-	Profiles                     profileConfigMap                  `yaml:"profiles"`
+	Profiles                     profile.ProfileConfigMap          `yaml:"profiles"`
 	GlobalMetrics                []profiledefinition.MetricsConfig `yaml:"global_metrics"`
 	OidBatchSize                 Number                            `yaml:"oid_batch_size"`
 	BulkMaxRepetitions           Number                            `yaml:"bulk_max_repetitions"`
@@ -166,7 +169,7 @@ type CheckConfig struct {
 	MetricTags            []profiledefinition.MetricTagConfig
 	OidBatchSize          int
 	BulkMaxRepetitions    uint32
-	Profiles              profileConfigMap
+	Profiles              profile.ProfileConfigMap
 	ProfileTags           []string
 	Profile               string
 	ProfileDef            *profiledefinition.ProfileDefinition
@@ -204,6 +207,11 @@ func (c *CheckConfig) SetProfile(profile string) error {
 	definition := c.Profiles[profile].Definition
 	c.ProfileDef = &definition
 	c.Profile = profile
+
+	if log.ShouldLog(seelog.DebugLvl) {
+		profileDefJSON, _ := json.Marshal(definition)
+		log.Debugf("Profile content `%s`: %s", profile, string(profileDefJSON))
+	}
 
 	if definition.Device.Vendor != "" {
 		tags = append(tags, "device_vendor:"+definition.Device.Vendor)
@@ -488,25 +496,9 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		return nil, err
 	}
 
-	// Profile Configs
-	var profiles profileConfigMap
-	if len(initConfig.Profiles) > 0 {
-		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
-		//   There are possibly multiple init configs
-		customProfiles, err := loadProfiles(initConfig.Profiles)
-		if err != nil {
-			return nil, fmt.Errorf("failed to load custom profiles: %s", err)
-		}
-		profiles = customProfiles
-	} else {
-		defaultProfiles, err := loadDefaultProfiles()
-		if err != nil {
-			return nil, fmt.Errorf("failed to load default profiles: %s", err)
-		}
-		profiles = defaultProfiles
-	}
-	for _, profileDef := range profiles {
-		profiledefinition.NormalizeMetrics(profileDef.Definition.Metrics)
+	profiles, err := profile.GetProfiles(initConfig.Profiles)
+	if err != nil {
+		return nil, err
 	}
 	c.Profiles = profiles
 
@@ -531,8 +523,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	c.RequestedMetrics = append(c.RequestedMetrics, uptimeMetricConfig)
 	profiledefinition.NormalizeMetrics(c.RequestedMetrics)
 	c.RequestedMetricTags = instance.MetricTags
-	errors := ValidateEnrichMetrics(c.RequestedMetrics)
-	errors = append(errors, ValidateEnrichMetricTags(c.RequestedMetricTags)...)
+	errors := configvalidation.ValidateEnrichMetrics(c.RequestedMetrics)
+	errors = append(errors, configvalidation.ValidateEnrichMetricTags(c.RequestedMetricTags)...)
 	if len(errors) > 0 {
 		return nil, fmt.Errorf("validation errors: %s", strings.Join(errors, "\n"))
 	}
@@ -678,7 +670,7 @@ func (c *CheckConfig) parseScalarOids(metrics []profiledefinition.MetricsConfig,
 		oids = append(oids, metric.Symbol.OID)
 	}
 	for _, metricTag := range metricTags {
-		oids = append(oids, metricTag.OID)
+		oids = append(oids, metricTag.Symbol.OID)
 	}
 	if c.CollectDeviceMetadata {
 		for resource, metadataConfig := range metadataConfigs {
@@ -706,7 +698,7 @@ func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig,
 			oids = append(oids, symbol.OID)
 		}
 		for _, metricTag := range metric.MetricTags {
-			oids = append(oids, metricTag.Column.OID)
+			oids = append(oids, metricTag.Symbol.OID)
 		}
 	}
 	if c.CollectDeviceMetadata {
@@ -721,45 +713,11 @@ func (c *CheckConfig) parseColumnOids(metrics []profiledefinition.MetricsConfig,
 				}
 			}
 			for _, tagConfig := range metadataConfig.IDTags {
-				oids = append(oids, tagConfig.Column.OID)
+				oids = append(oids, tagConfig.Symbol.OID)
 			}
 		}
 	}
 	return oids
-}
-
-// GetProfileForSysObjectID return a profile for a sys object id
-func GetProfileForSysObjectID(profiles profileConfigMap, sysObjectID string) (string, error) {
-	tmpSysOidToProfile := map[string]string{}
-	var matchedOids []string
-
-	for profile, profConfig := range profiles {
-		for _, oidPattern := range profConfig.Definition.SysObjectIds {
-			found, err := filepath.Match(oidPattern, sysObjectID)
-			if err != nil {
-				log.Debugf("pattern error: %s", err)
-				continue
-			}
-			if !found {
-				continue
-			}
-			if prevMatchedProfile, ok := tmpSysOidToProfile[oidPattern]; ok {
-				if profiles[prevMatchedProfile].isUserProfile && !profConfig.isUserProfile {
-					continue
-				}
-				if profiles[prevMatchedProfile].isUserProfile == profConfig.isUserProfile {
-					return "", fmt.Errorf("profile %s has the same sysObjectID (%s) as %s", profile, oidPattern, prevMatchedProfile)
-				}
-			}
-			tmpSysOidToProfile[oidPattern] = profile
-			matchedOids = append(matchedOids, oidPattern)
-		}
-	}
-	oid, err := getMostSpecificOid(matchedOids)
-	if err != nil {
-		return "", fmt.Errorf("failed to get most specific profile for sysObjectID `%s`, for matched oids %v: %s", sysObjectID, matchedOids, err)
-	}
-	return tmpSysOidToProfile[oid], nil
 }
 
 func getSubnetFromTags(tags []string) (string, error) {

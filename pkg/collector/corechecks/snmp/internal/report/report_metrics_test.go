@@ -20,7 +20,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/checkconfig"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/configvalidation"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
@@ -384,7 +384,7 @@ func Test_metricSender_reportMetrics(t *testing.T) {
 				{Symbols: []profiledefinition.SymbolConfig{{Name: "constantMetric", ConstantValueOne: true}}, MetricTags: profiledefinition.MetricTagConfigList{
 					{
 						Tag:    "status",
-						Column: profiledefinition.SymbolConfig{Name: "status", OID: "1.2.3.4"},
+						Symbol: profiledefinition.SymbolConfigCompat{Name: "status", OID: "1.2.3.4"},
 					},
 				}},
 			},
@@ -471,8 +471,8 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "no scalar oids found",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
-				{Tag: "snmp_host", OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"},
+				{Tag: "my_symbol", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"}},
+				{Tag: "snmp_host", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.3.6.1.2.1.1.5.0", Name: "sysName"}},
 			},
 			values:       &valuestore.ResultValueStore{},
 			expectedTags: []string{},
@@ -481,7 +481,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "report scalar tags with regex",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{OID: "1.2.3", Name: "mySymbol", Match: "^([a-zA-Z]+)([0-9]+)$", Tags: map[string]string{
+				{Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"}, Match: "^([a-zA-Z]+)([0-9]+)$", Tags: map[string]string{
 					"word":   "\\1",
 					"number": "\\2",
 				}},
@@ -497,9 +497,63 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			expectedLogs: []logCount{},
 		},
 		{
+			name: "use extract_value to test symbol modifiers",
+			metricsTags: []profiledefinition.MetricTagConfig{
+				{
+					Tag: "my-tag-key",
+					Symbol: profiledefinition.SymbolConfigCompat{
+						OID:          "1.2.3",
+						Name:         "mySymbol",
+						ExtractValue: "\\w+-(\\w+)-.*",
+					},
+				},
+			},
+			values: &valuestore.ResultValueStore{
+				ScalarValues: valuestore.ScalarResultValuesType{
+					"1.2.3": valuestore.ResultValue{
+						Value: "aa-bb-cc;",
+					},
+				},
+			},
+			expectedTags: []string{"my-tag-key:bb"},
+			expectedLogs: []logCount{},
+		},
+		{
+			name: "one of the metric tags with regex error",
+			metricsTags: []profiledefinition.MetricTagConfig{
+				{
+					Tag: "my-tag-key",
+					Symbol: profiledefinition.SymbolConfigCompat{
+						OID:          "1.2.3",
+						Name:         "mySymbol",
+						ExtractValue: "\\w+-(\\w+)-.*",
+					},
+				},
+				{
+					Tag: "my-invalid-regex-key",
+					Symbol: profiledefinition.SymbolConfigCompat{
+						OID:          "1.2.3",
+						Name:         "mySymbol",
+						ExtractValue: ".*", // invalid regex without match group
+					},
+				},
+			},
+			values: &valuestore.ResultValueStore{
+				ScalarValues: valuestore.ScalarResultValuesType{
+					"1.2.3": valuestore.ResultValue{
+						Value: "aa-bb-cc;",
+					},
+				},
+			},
+			expectedTags: []string{"my-tag-key:bb"},
+			expectedLogs: []logCount{
+				{"error extracting value from", 1},
+			},
+		},
+		{
 			name: "error converting tag value",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol"},
+				{Tag: "my_symbol", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"}},
 			},
 			values: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -515,7 +569,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "tag value mapping",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
+				{Tag: "my_symbol", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"}, Mapping: map[string]string{"1": "one", "2": "two"}},
 			},
 			values: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -530,7 +584,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "invalid tag value mapping",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{"1": "one", "2": "two"}},
+				{Tag: "my_symbol", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"}, Mapping: map[string]string{"1": "one", "2": "two"}},
 			},
 			values: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -545,7 +599,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 		{
 			name: "empty tag value mapping",
 			metricsTags: []profiledefinition.MetricTagConfig{
-				{Tag: "my_symbol", OID: "1.2.3", Name: "mySymbol", Mapping: map[string]string{}},
+				{Tag: "my_symbol", Symbol: profiledefinition.SymbolConfigCompat{OID: "1.2.3", Name: "mySymbol"}, Mapping: map[string]string{}},
 			},
 			values: &valuestore.ResultValueStore{
 				ScalarValues: valuestore.ScalarResultValuesType{
@@ -570,7 +624,7 @@ func Test_metricSender_getCheckInstanceMetricTags(t *testing.T) {
 			mockSender := mocksender.NewMockSender("foo")
 			metricSender := MetricSender{sender: mockSender}
 
-			checkconfig.ValidateEnrichMetricTags(tt.metricsTags)
+			configvalidation.ValidateEnrichMetricTags(tt.metricsTags)
 			tags := metricSender.GetCheckInstanceMetricTags(tt.metricsTags, tt.values)
 
 			assert.ElementsMatch(t, tt.expectedTags, tags)

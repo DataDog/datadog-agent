@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
@@ -69,8 +70,8 @@ type RuntimeSecurityConfig struct {
 	// HostServiceName string
 	HostServiceName string
 
-	// AgentMonitoringEvents determines if the monitoring events of the agent should be sent to Datadog
-	CustomEventEnabled bool
+	// InternalMonitoringEnabled determines if the monitoring events of the agent should be sent to Datadog
+	InternalMonitoringEnabled bool
 
 	// ActivityDumpEnabled defines if the activity dump manager should be enabled
 	ActivityDumpEnabled bool
@@ -255,7 +256,7 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		LogTags:     coreconfig.SystemProbe.GetStringSlice("runtime_security_config.log_tags"),
 
 		// custom events
-		CustomEventEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.agent_monitoring_events"),
+		InternalMonitoringEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.internal_monitoring.enabled"),
 
 		// activity dump
 		ActivityDumpEnabled:                   coreconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled"),
@@ -464,6 +465,14 @@ func parseHashAlgorithmStringSlice(algorithms []string) []model.HashAlgorithm {
 		}
 	}
 	return output
+}
+
+// GetFamilyAddress returns the address famility to use for system-probe <-> security-agent communication
+func GetFamilyAddress(path string) (string, string) {
+	if strings.HasPrefix(path, "/") {
+		return "unix", path
+	}
+	return "tcp", path
 }
 
 var (

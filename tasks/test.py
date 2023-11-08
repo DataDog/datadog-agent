@@ -74,7 +74,7 @@ def environ(env):
     original_environ = os.environ.copy()
     os.environ.update(env)
     yield
-    for var in env.keys():
+    for var in env:
         if var in original_environ:
             os.environ[var] = original_environ[var]
         else:
@@ -86,7 +86,6 @@ TOOL_LIST = [
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/goware/modvendor',
-    'github.com/mgechev/revive',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v2',
@@ -158,20 +157,24 @@ def test_core(
     module_class: GoModule,
     operation_name: str,
     command,
-    skip_module_class=False,
+    skip_module_class: bool = False,
+    headless_mode: bool = False,
 ):
     """
     Run the command function on each module of the modules list.
     """
     modules_results = []
-    print(f"--- Flavor {flavor.name}: {operation_name}")
+    if not headless_mode:
+        print(f"--- Flavor {flavor.name}: {operation_name}")
     for module in modules:
         module_result = None
         if not skip_module_class:
             module_result = module_class(path=module.full_path())
-        print(f"----- Module '{module.full_path()}'")
+        if not headless_mode:
+            print(f"----- Module '{module.full_path()}'")
         if not module.condition():
-            print("----- Skipped")
+            if not headless_mode:
+                print("----- Skipped")
             continue
 
         command(modules_results, module, module_result)
@@ -257,7 +260,7 @@ class ModuleTestResult(ModuleResult):
 
                             if action == "fail":
                                 failed_packages.add(package)
-                            elif action == "pass" and package in failed_tests.keys():
+                            elif action == "pass" and package in failed_tests:
                                 # The package was retried and fully succeeded, removing from the list of packages to report
                                 failed_packages.remove(package)
 
@@ -297,6 +300,7 @@ def lint_flavor(
     concurrency: int,
     timeout=None,
     golangci_lint_kwargs: str = "",
+    headless_mode: bool = False,
 ):
     """
     Runs linters for given flavor, build tags, and modules.
@@ -306,6 +310,7 @@ def lint_flavor(
         with ctx.cd(module.full_path()):
             lint_results = run_golangci_lint(
                 ctx,
+                module_path=module.path,
                 targets=module.lint_targets,
                 rtloader_root=rtloader_root,
                 build_tags=build_tags,
@@ -313,6 +318,7 @@ def lint_flavor(
                 concurrency=concurrency,
                 timeout=timeout,
                 golangci_lint_kwargs=golangci_lint_kwargs,
+                headless_mode=headless_mode,
             )
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
@@ -320,7 +326,7 @@ def lint_flavor(
                     module_result.failed = True
         module_results.append(module_result)
 
-    return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command)
+    return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode)
 
 
 def build_stdlib(
@@ -453,7 +459,7 @@ def codecov_flavor(
     return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
 
-def process_input_args(input_module, input_targets, input_flavors):
+def process_input_args(input_module, input_targets, input_flavors, headless_mode=False):
     """
     Takes the input module, targets and flavors arguments from inv test and inv codecov,
     sets default values for them & casts them to the expected types.
@@ -468,7 +474,8 @@ def process_input_args(input_module, input_targets, input_flavors):
     elif isinstance(input_targets, str):
         modules = [GoModule(".", targets=input_targets.split(','))]
     else:
-        print("Using default modules and targets")
+        if not headless_mode:
+            print("Using default modules and targets")
         modules = DEFAULT_MODULES.values()
 
     if not input_flavors:
@@ -493,8 +500,8 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
     """
 
     success = True
-    for phase in module_results.keys():
-        for flavor in module_results[phase].keys():
+    for phase in module_results:
+        for flavor in module_results[phase]:
             for module_result in module_results[phase][flavor]:
                 if module_result is not None:
                     module_failed, failure_string = module_result.get_failure(flavor)
@@ -503,6 +510,16 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
                         print(failure_string)
 
     return success
+
+
+def sanitize_env_vars():
+    """
+    Sanitizes environment variables
+    We want to ignore all `DD_` variables, as they will interfere with the behavior of some unit tests
+    """
+    for env in os.environ:
+        if env.startswith("DD_"):
+            del os.environ[env]
 
 
 @task(iterable=['flavors'])
@@ -533,6 +550,7 @@ def test(
     rerun_fails=None,
     go_mod="mod",
     junit_tar="",
+    only_modified_packages=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -551,21 +569,9 @@ def test(
         inv test --module=. --race
     """
 
-    # Format:
-    # {
-    #     "phase1": {
-    #         "flavor1": [module_result1, module_result2],
-    #         "flavor2": [module_result3, module_result4],
-    #     }
-    # }
     modules_results_per_phase = defaultdict(dict)
 
-    # Sanitize environment variables
-    # We want to ignore all `DD_` variables, as they will interfere with the behavior
-    # of some unit tests
-    for env in os.environ.keys():
-        if env.startswith("DD_"):
-            del os.environ[env]
+    sanitize_env_vars()
 
     # Run linters first
 
@@ -582,8 +588,6 @@ def test(
             cpus=cpus,
         )
 
-    # Process input arguments
-
     modules, flavors = process_input_args(module, targets, flavors)
 
     unit_tests_tags = {
@@ -593,8 +597,6 @@ def test(
         for f in flavors
     }
 
-    timeout = int(timeout)
-
     ldflags, gcflags, env = get_build_flags(
         ctx,
         rtloader_root=rtloader_root,
@@ -602,45 +604,18 @@ def test(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
+        race=race,
     )
 
-    if sys.platform == 'win32':
-        env['CGO_LDFLAGS'] += ' -Wl,--allow-multiple-definition'
+    # Use stdout if no profile is set
+    test_profiler = TestProfiler() if profile else None
 
-    if profile:
-        test_profiler = TestProfiler()
-    else:
-        test_profiler = None  # Use stdout
+    race_opt = "-race" if race else ""
+    # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
+    covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
+    build_cpus_opt = f"-p {cpus}" if cpus else ""
 
-    race_opt = ""
-    covermode_opt = ""
-    build_cpus_opt = ""
-    if cpus:
-        build_cpus_opt = f"-p {cpus}"
-    if race:
-        # race doesn't appear to be supported on non-x64 platforms
-        if arch == "x86":
-            print("\n -- Warning... disabling race test, not supported on this platform --\n")
-        else:
-            race_opt = "-race"
-
-        # Needed to fix an issue when using -race + gcc 10.x on Windows
-        # https://github.com/bazelbuild/rules_go/issues/2614
-        if sys.platform == 'win32':
-            ldflags += " -linkmode=external"
-
-    if coverage:
-        if race:
-            # atomic is quite expensive but it's the only way to run
-            # both the coverage and the race detector at the same time
-            # without getting false positives from the cover counter
-            covermode_opt = "-covermode=atomic"
-        else:
-            covermode_opt = "-covermode=count"
-
-    coverprofile = ""
-    if coverage:
-        coverprofile = f"-coverprofile={PROFILE_COV}"
+    coverprofile = f"-coverprofile={PROFILE_COV}" if coverage else ""
 
     nocache = '-count=1' if not cache else ''
 
@@ -650,9 +625,7 @@ def test(
         print(f"Removing existing '{save_result_json}' file")
         os.remove(save_result_json)
 
-    test_run_arg = ""
-    if test_run_name != "":
-        test_run_arg = f"-run {test_run_name}"
+    test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} {nocache} std cmd'
@@ -667,7 +640,7 @@ def test(
         "covermode_opt": covermode_opt,
         "coverprofile": coverprofile,
         "test_run_arg": test_run_arg,
-        "timeout": timeout,
+        "timeout": int(timeout),
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
         # Used to print failed tests at the end of the go test command
@@ -685,6 +658,9 @@ def test(
             args=args,
             test_profiler=test_profiler,
         )
+        if only_modified_packages:
+            modules = get_modified_packages(ctx)
+
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
@@ -701,7 +677,7 @@ def test(
     # Output
     if junit_tar:
         junit_files = []
-        for flavor in modules_results_per_phase["test"].keys():
+        for flavor in modules_results_per_phase["test"]:
             for module_test_result in modules_results_per_phase["test"][flavor]:
                 if module_test_result.junit_file_path:
                     junit_files.append(module_test_result.junit_file_path)
@@ -744,8 +720,9 @@ def run_lint_go(
     cpus=None,
     timeout=None,
     golangci_lint_kwargs="",
+    headless_mode=False,
 ):
-    modules, flavors = process_input_args(module, targets, flavors)
+    modules, flavors = process_input_args(module, targets, flavors, headless_mode)
 
     linter_tags = {
         f: build_tags
@@ -754,8 +731,6 @@ def run_lint_go(
         )
         for f in flavors
     }
-
-    # Lint
 
     modules_lint_results_per_flavor = {flavor: [] for flavor in flavors}
 
@@ -770,6 +745,7 @@ def run_lint_go(
             concurrency=cpus,
             timeout=timeout,
             golangci_lint_kwargs=golangci_lint_kwargs,
+            headless_mode=headless_mode,
         )
 
     return modules_lint_results_per_flavor
@@ -790,6 +766,7 @@ def lint_go(
     cpus=None,
     timeout: int = None,
     golangci_lint_kwargs="",
+    headless_mode=False,
 ):
     """
     Run go linters on the given module and targets.
@@ -802,6 +779,7 @@ def lint_go(
     If no module or target is set the tests are run against all modules and targets.
 
     --timeout is the number of minutes after which the linter should time out.
+    --headless-mode allows you to output the result in a single json file.
 
     Example invokation:
         inv lint-go --targets=./pkg/collector/check,./pkg/aggregator
@@ -831,12 +809,14 @@ def lint_go(
         cpus=cpus,
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
+        headless_mode=headless_mode,
     )
 
     success = process_module_results(modules_results_per_phase)
 
     if success:
-        print(color_message("All linters passed", "green"))
+        if not headless_mode:
+            print(color_message("All linters passed", "green"))
     else:
         # Exit if any of the modules failed on any phase
         raise Exit(code=1)
@@ -1018,14 +998,24 @@ def lint_filenames(ctx):
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, debug=False):
     """
     Run all the available integration tests
     """
-    agent_integration_tests(ctx, install_deps, race, remote_docker)
-    dsd_integration_tests(ctx, install_deps, race, remote_docker)
-    dca_integration_tests(ctx, install_deps, race, remote_docker)
-    trace_integration_tests(ctx, install_deps, race)
+    tests = [
+        lambda: agent_integration_tests(ctx, install_deps, race, remote_docker),
+        lambda: dsd_integration_tests(ctx, install_deps, race, remote_docker),
+        lambda: dca_integration_tests(ctx, install_deps, race, remote_docker),
+        lambda: trace_integration_tests(ctx, install_deps, race),
+    ]
+    for t in tests:
+        try:
+            t()
+        except Exit as e:
+            if e.code != 0:
+                raise
+            elif debug:
+                print(e.message)
 
 
 @task
@@ -1122,3 +1112,59 @@ def junit_macos_repack(_, infile, outfile):
     contain correct job name and job URL.
     """
     repack_macos_junit_tar(infile, outfile)
+
+
+@task
+def get_modified_packages(ctx) -> List[GoModule]:
+
+    modified_files = get_modified_files(ctx)
+    modified_go_files = [
+        f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
+    ]
+
+    modules_to_test = {}
+    go_mod_modified_modules = set()
+
+    for modified_file in modified_go_files:
+        match_precision = 0
+        best_module_path = None
+
+        # Since several modules can match the path we take only the most precise one
+        for module_path in DEFAULT_MODULES:
+            if module_path in modified_file:
+                if len(module_path) > match_precision:
+                    match_precision = len(module_path)
+                    best_module_path = module_path
+
+        # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
+        if best_module_path in go_mod_modified_modules:
+            continue
+
+        # If we modify the go.mod or go.sum we run the tests for the whole module
+        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
+            modules_to_test[best_module_path] = DEFAULT_MODULES[best_module_path]
+            go_mod_modified_modules.add(best_module_path)
+            continue
+
+        if best_module_path in modules_to_test:
+            if (
+                modules_to_test[best_module_path].targets is not None
+                and os.path.dirname(modified_file) not in modules_to_test[best_module_path].targets
+            ):
+                modules_to_test[best_module_path].targets.append(os.path.dirname(modified_file))
+        else:
+            modules_to_test[best_module_path] = GoModule(best_module_path, targets=[os.path.dirname(modified_file)])
+
+    print("Running tests for the following modules:")
+    for module in modules_to_test:
+        print(f"- {module}: ")
+
+    return modules_to_test.values()
+
+
+def get_modified_files(ctx):
+    last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
+    print(f"Checking diff from {last_main_commit} commit on main branch")
+
+    modified_files = ctx.run(f"git diff --name-only {last_main_commit}", hide=True).stdout.splitlines()
+    return modified_files

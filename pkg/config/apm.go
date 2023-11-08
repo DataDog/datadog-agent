@@ -73,7 +73,12 @@ func setupAPM(config Config) {
 	config.BindEnvAndSetDefault("apm_config.windows_pipe_security_descriptor", "D:AI(A;;GA;;;WD)", "DD_APM_WINDOWS_PIPE_SECURITY_DESCRIPTOR") //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.remote_tagger", true, "DD_APM_REMOTE_TAGGER")                                                     //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.peer_service_aggregation", false, "DD_APM_PEER_SERVICE_AGGREGATION")                              //nolint:errcheck
+	config.BindEnvAndSetDefault("apm_config.peer_tags_aggregation", false, "DD_APM_PEER_TAGS_AGGREGATION")                                    //nolint:errcheck
 	config.BindEnvAndSetDefault("apm_config.compute_stats_by_span_kind", false, "DD_APM_COMPUTE_STATS_BY_SPAN_KIND")                          //nolint:errcheck
+	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled", false, "DD_APM_INSTRUMENTATION_ENABLED")
+	config.BindEnvAndSetDefault("apm_config.instrumentation.enabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_ENABLED_NAMESPACES")
+	config.BindEnvAndSetDefault("apm_config.instrumentation.disabled_namespaces", []string{}, "DD_APM_INSTRUMENTATION_DISABLED_NAMESPACES")
+	config.BindEnv("apm_config.instrumentation.lib_versions", "DD_APM_INSTRUMENTATION_LIB_VERSIONS")
 
 	config.BindEnv("apm_config.max_catalog_services", "DD_APM_MAX_CATALOG_SERVICES")
 	config.BindEnv("apm_config.receiver_timeout", "DD_APM_RECEIVER_TIMEOUT")
@@ -170,6 +175,15 @@ func setupAPM(config Config) {
 		out, err := parseAnalyzedSpans(in)
 		if err != nil {
 			log.Errorf(`Bad format for "apm_config.analyzed_spans" it should be of the form \"service_name|operation_name=rate,other_service|other_operation=rate\", error: %v`, err)
+		}
+		return out
+	})
+
+	config.BindEnv("apm_config.peer_tags", "DD_APM_PEER_TAGS")
+	config.SetEnvKeyTransformer("apm_config.peer_tags", func(in string) interface{} {
+		var out []string
+		if err := json.Unmarshal([]byte(in), &out); err != nil {
+			log.Warnf(`"apm_config.peer_tags" can not be parsed: %v`, err)
 		}
 		return out
 	})

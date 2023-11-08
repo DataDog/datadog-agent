@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/viper"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -144,7 +145,6 @@ func load() (*Config, error) {
 	if cfg.GetBool(spNS("enable_oom_kill")) {
 		c.EnabledModules[OOMKillProbeModule] = struct{}{}
 	}
-
 	if cfg.GetBool(secNS("enabled")) ||
 		cfg.GetBool(secNS("fim_enabled")) ||
 		cfg.GetBool(evNS("process.enabled")) ||
@@ -177,7 +177,7 @@ func load() (*Config, error) {
 
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
-	cfg.Set(spNS("enabled"), c.Enabled)
+	cfg.Set(spNS("enabled"), c.Enabled, model.SourceAgentRuntime)
 
 	return c, nil
 }

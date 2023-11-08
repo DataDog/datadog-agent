@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
@@ -24,10 +24,10 @@ import (
 const LoggerName config.LoggerName = "PROCESS"
 
 // DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
-var DaemonLogParams = logComponent.LogForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)
+var DaemonLogParams = logComponent.ForDaemon(string(LoggerName), "process_config.log_file", config.DefaultProcessAgentLogFile)
 
 // OneShotLogParams are the log params that are given to commands
-var OneShotLogParams = logComponent.LogForOneShot(string(LoggerName), "info", true)
+var OneShotLogParams = logComponent.ForOneShot(string(LoggerName), "info", true)
 
 // GlobalParams contains the values of agent-global Cobra flags.
 //
@@ -143,7 +143,7 @@ func SetHostMountEnv(logger logComponent.Component) {
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams:         configComponent.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
-		SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-		LogParams:            logComponent.LogForOneShot(string(LoggerName), "info", true),
+		SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+		LogParams:            logComponent.ForOneShot(string(LoggerName), "info", true),
 	}
 }

@@ -25,7 +25,7 @@ namespace CustomActions.Tests.InstallState
                     "DDAGENTUSER_NAME",
                     "PROJECTLOCATION",
                     "APPLICATIONDATADIRECTORY",
-                    "WindowsBuild");
+                    "DDAGENT_WINDOWSBUILD");
         }
 
         [Theory]
@@ -33,12 +33,12 @@ namespace CustomActions.Tests.InstallState
         public void ReadInstallState_Can_Read_Registry_Keys()
         {
             Test.WithRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey, new()
-                {
-                    ["installedDomain"] = "testDomain",
-                    ["installedUser"] = "testUser",
-                    ["InstallPath"] = @"C:\datadog",
-                    ["ConfigRoot"] = @"D:\data"
-                })
+            {
+                ["installedDomain"] = "testDomain",
+                ["installedUser"] = "testUser",
+                ["InstallPath"] = @"C:\datadog",
+                ["ConfigRoot"] = @"D:\data"
+            })
                 .WithRegistryKey(Registries.LocalMachine, @"Software\Microsoft\Windows NT\CurrentVersion", new()
                 {
                     ["CurrentBuild"] = "z_1234567890",
@@ -52,7 +52,7 @@ namespace CustomActions.Tests.InstallState
                 .Contain("DDAGENTUSER_NAME", @"testDomain\testUser").And
                 .Contain("PROJECTLOCATION", @"C:\datadog").And
                 .Contain("APPLICATIONDATADIRECTORY", @"D:\data").And
-                .Contain("WindowsBuild", "z_1234567890");
+                .Contain("DDAGENT_WINDOWSBUILD", "z_1234567890");
         }
 
     }

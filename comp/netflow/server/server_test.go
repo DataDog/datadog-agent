@@ -15,17 +15,21 @@ import (
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxtest"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/aggregator"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
-	"github.com/DataDog/datadog-agent/comp/ndmtmp/sender"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
+
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
+
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
-	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
 )
 
 type dummyFlowProcessor struct {
@@ -33,7 +37,7 @@ type dummyFlowProcessor struct {
 	stopped          bool
 }
 
-func (d *dummyFlowProcessor) FlowRoutine(workers int, addr string, port int, reuseport bool) error {
+func (d *dummyFlowProcessor) FlowRoutine(workers int, addr string, port int, reuseport bool) error { //nolint:revive // TODO fix revive unused-parameter
 	return utils.UDPStoppableRoutine(make(chan struct{}), "test_udp", func(msg interface{}) error {
 		d.receivedMessages <- msg
 		return nil
@@ -61,11 +65,12 @@ func replaceWithDummyFlowProcessor(server *Server) *dummyFlowProcessor {
 var testOptions = fx.Options(
 	Module,
 	nfconfig.MockModule,
-	sender.Module,
-	forwarder.MockModule,
-	hostname.MockModule,
+	forwarderimpl.MockModule,
+	hostnameimpl.MockModule,
 	log.MockModule,
-	aggregator.MockModule,
+	demultiplexer.MockModule,
+	defaultforwarder.MockModule,
+	config.MockModule,
 	fx.Invoke(func(lc fx.Lifecycle, c Component) {
 		// Set the internal flush frequency to a small number so tests don't take forever
 		c.(*Server).FlowAgg.FlushFlowsToSendInterval = 100 * time.Millisecond
@@ -80,7 +85,8 @@ var testOptions = fx.Options(
 )
 
 func TestStartServerAndStopServer(t *testing.T) {
-	port := testutil.GetFreePort()
+	port, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	var component Component
 	app := fxtest.New(t, fx.Options(
 		testOptions,

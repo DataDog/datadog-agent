@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package types contains all the types needed by FlareProviders without the underlying implementation and dependencies.
+// Package types contains all the types needed by Flare providers without the underlying implementation and dependencies.
 // This allows components to offer flare capabilities without linking to the flare dependencies when the flare feature
 // is not built in the binary.
 package types
@@ -140,23 +140,16 @@ type FlareBuilder interface {
 // be called everytime a flare is created.
 type FlareCallback func(fb FlareBuilder) error
 
-// FlareProvider represents a callback to be used when creating a flare
-type FlareProvider struct {
-	Callback FlareCallback
-}
-
 // Provider is provided by other components to register themselves to provide flare data.
 type Provider struct {
 	fx.Out
 
-	Provider FlareProvider `group:"flare"`
+	Provider FlareCallback `group:"flare"`
 }
 
 // NewProvider returns a new Provider to be called when a flare is created
 func NewProvider(callback FlareCallback) Provider {
 	return Provider{
-		Provider: FlareProvider{
-			Callback: callback,
-		},
+		Provider: callback,
 	}
 }

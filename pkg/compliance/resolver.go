@@ -69,7 +69,7 @@ func DefaultDockerProvider(ctx context.Context) (docker.CommonAPIClient, error) 
 }
 
 // DefaultLinuxAuditProvider returns the default Linux Audit client.
-func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) {
+func DefaultLinuxAuditProvider(ctx context.Context) (LinuxAuditClient, error) { //nolint:revive // TODO fix revive unused-parameter
 	return newLinuxAuditClient()
 }
 
@@ -195,13 +195,13 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 	// the resolved inputs.
 	rootPath := r.opts.HostRoot
 	if pid := r.opts.HostRootPID; pid > 0 {
-		containerID, ok := getProcessContainerID(pid)
+		containerID, ok := utils.GetProcessContainerID(pid)
 		if ok {
-			rootPath, ok = getProcessRootPath(pid)
+			rootPath, ok = utils.GetProcessRootPath(pid)
 			if !ok {
 				return nil, fmt.Errorf("could not resolve the root path to run the resolver for container ID=%q", resolvingContext.ContainerID)
 			}
-			resolvingContext.ContainerID = containerID
+			resolvingContext.ContainerID = string(containerID)
 		}
 	}
 
@@ -366,7 +366,7 @@ func (r *defaultResolver) resolveFile(ctx context.Context, rootPath string, spec
 	return
 }
 
-func (r *defaultResolver) resolveFilePath(ctx context.Context, rootPath, path, parser string) (interface{}, error) {
+func (r *defaultResolver) resolveFilePath(ctx context.Context, rootPath, path, parser string) (interface{}, error) { //nolint:revive // TODO fix revive unused-parameter
 	path = r.pathNormalize(rootPath, path)
 	file, err := r.getFileMeta(path)
 	if err != nil {
@@ -499,7 +499,7 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 }
 
 func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
-	f, err := os.Open("/etc/group")
+	f, err := os.Open(r.pathNormalizeToHostRoot("/etc/group"))
 	if err != nil {
 		return nil, err
 	}
@@ -797,7 +797,7 @@ var rpmDbs = []string{
 	"/var/lib/rpm/Packages",
 }
 
-func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) {
+func (r *defaultResolver) resolvePackage(ctx context.Context, spec InputSpecPackage) (pkg *packageInfo, err error) { //nolint:revive // TODO fix revive unused-parameter
 	if len(spec.Names) == 0 {
 		return nil, nil
 	}

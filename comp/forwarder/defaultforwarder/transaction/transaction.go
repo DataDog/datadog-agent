@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package transaction defines the transaction of the forwarder
 package transaction
 
 import (
@@ -75,7 +76,7 @@ var (
 var trace *httptrace.ClientTrace
 var traceOnce sync.Once
 
-// Trace is an httptrace.ClientTrace instance that traces the events within HTTP client requests.
+// GetClientTrace is an httptrace.ClientTrace instance that traces the events within HTTP client requests.
 func GetClientTrace(log log.Component) *httptrace.ClientTrace {
 	traceOnce.Do(func() {
 		trace = &httptrace.ClientTrace{

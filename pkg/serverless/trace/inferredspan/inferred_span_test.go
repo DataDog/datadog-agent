@@ -7,14 +7,11 @@ package inferredspan
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/api"
-	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 )
 
 func TestInferredSpanCheck(t *testing.T) {
@@ -57,8 +54,8 @@ func TestFilterFunctionTags(t *testing.T) {
 	}
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("tags", []string{"tag1:value1"})
-	mockConfig.Set("extra_tags", []string{"extra:tag"})
+	mockConfig.SetWithoutSource("tags", []string{"tag1:value1"})
+	mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag"})
 
 	filteredTags := FilterFunctionTags(tagsToFilter)
 
@@ -89,118 +86,6 @@ func TestFilterFunctionTags(t *testing.T) {
 	assert.Equal(t, filteredTags["region"], "test")
 	assert.Equal(t, filteredTags["account_id"], "test")
 	assert.Equal(t, filteredTags["aws_account"], "test")
-}
-
-func TestCompleteInferredSpanWithNoError(t *testing.T) {
-	var inferredSpan InferredSpan
-	startTime := time.Now()
-
-	inferredSpan.generateInferredSpan(time.Now())
-	inferredSpan.Span.TraceID = 2350923428932752492
-	inferredSpan.Span.SpanID = 1304592378509342580
-	inferredSpan.Span.Start = startTime.UnixNano()
-	inferredSpan.Span.Name = "aws.mock"
-	inferredSpan.Span.Service = "aws.mock"
-	inferredSpan.Span.Resource = "test-function"
-	inferredSpan.Span.Type = "http"
-	inferredSpan.Span.Meta = map[string]string{
-		stage: "dev",
-	}
-
-	duration := 1 * time.Second
-	endTime := startTime.Add(duration)
-	isError := false
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
-
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError, 1234, sampler.PriorityAutoKeep)
-	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
-	assert.Equal(t, "aws.mock", span.Name)
-	assert.Equal(t, "aws.mock", span.Service)
-	assert.Equal(t, "test-function", span.Resource)
-	assert.Equal(t, "http", span.Type)
-	assert.Equal(t, "dev", span.Meta["stage"])
-	assert.Equal(t, uint64(1234), span.TraceID)
-	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
-	assert.Equal(t, duration.Nanoseconds(), span.Duration)
-	assert.Equal(t, int32(0), inferredSpan.Span.Error)
-}
-
-func TestCompleteInferredSpanWithError(t *testing.T) {
-	var inferredSpan InferredSpan
-	startTime := time.Now()
-
-	inferredSpan.generateInferredSpan(time.Now())
-	inferredSpan.Span.TraceID = 2350923428932752492
-	inferredSpan.Span.SpanID = 1304592378509342580
-	inferredSpan.Span.Start = startTime.UnixNano()
-	inferredSpan.Span.Name = "aws.mock"
-	inferredSpan.Span.Service = "aws.mock"
-	inferredSpan.Span.Resource = "test-function"
-	inferredSpan.Span.Type = "http"
-	inferredSpan.Span.Meta = map[string]string{
-		stage: "dev",
-	}
-
-	duration := 1 * time.Second
-	endTime := startTime.Add(duration)
-	isError := true
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
-
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, endTime, isError, 1234, sampler.PriorityAutoKeep)
-	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
-	assert.Equal(t, "aws.mock", span.Name)
-	assert.Equal(t, "aws.mock", span.Service)
-	assert.Equal(t, "test-function", span.Resource)
-	assert.Equal(t, "http", span.Type)
-	assert.Equal(t, "dev", span.Meta["stage"])
-	assert.Equal(t, uint64(1234), span.TraceID)
-	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
-	assert.Equal(t, duration.Nanoseconds(), span.Duration)
-	assert.Equal(t, int32(1), inferredSpan.Span.Error)
-}
-
-func TestCompleteInferredSpanWithAsync(t *testing.T) {
-	var inferredSpan InferredSpan
-	// Start of inferred span
-	startTime := time.Now()
-	duration := 2 * time.Second
-	// mock invocation end time
-	lambdaInvocationStartTime := startTime.Add(duration)
-	inferredSpan.generateInferredSpan(lambdaInvocationStartTime)
-	inferredSpan.IsAsync = true
-	inferredSpan.Span.TraceID = 2350923428932752492
-	inferredSpan.Span.SpanID = 1304592378509342580
-	inferredSpan.Span.Start = startTime.UnixNano()
-	inferredSpan.Span.Name = "aws.mock"
-	inferredSpan.Span.Service = "aws.mock"
-	inferredSpan.Span.Resource = "test-function"
-	inferredSpan.Span.Type = "http"
-	inferredSpan.Span.Meta = map[string]string{
-		stage: "dev",
-	}
-	isError := false
-	var tracePayload *api.Payload
-	mockProcessTrace := func(payload *api.Payload) {
-		tracePayload = payload
-	}
-
-	inferredSpan.CompleteInferredSpan(mockProcessTrace, time.Now(), isError, 1234, sampler.PriorityAutoKeep)
-	span := tracePayload.TracerPayload.Chunks[0].Spans[0]
-	assert.Equal(t, "aws.mock", span.Name)
-	assert.Equal(t, "aws.mock", span.Service)
-	assert.Equal(t, "test-function", span.Resource)
-	assert.Equal(t, "http", span.Type)
-	assert.Equal(t, "dev", span.Meta["stage"])
-	assert.Equal(t, uint64(1234), span.TraceID)
-	assert.Equal(t, inferredSpan.Span.SpanID, span.SpanID)
-	assert.Equal(t, duration.Nanoseconds(), span.Duration)
-	assert.Equal(t, int32(0), inferredSpan.Span.Error)
 }
 
 func TestIsInferredSpansEnabledWhileTrue(t *testing.T) {

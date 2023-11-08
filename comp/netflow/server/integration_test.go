@@ -16,13 +16,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
+
+	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
+
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	nfconfig "github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
-	"github.com/DataDog/datadog-agent/pkg/epforwarder"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func singleListenerConfig(flowType common.FlowType, port uint16) *nfconfig.NetflowConfig {
@@ -45,8 +49,23 @@ var setTimeNow = fx.Invoke(func(c Component) {
 	}
 })
 
+func assertFlowEventsCount(t *testing.T, port uint16, srv *Server, packetData []byte, expectedEvents uint64) bool {
+	return assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		err := testutil.SendUDPPacket(port, packetData)
+		assert.NoError(c, err, "error sending udp packet")
+		if err != nil {
+			return
+		}
+
+		netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 1*time.Second, 2)
+		assert.Equal(c, expectedEvents, netflowEvents)
+		assert.NoError(c, err)
+	}, 10*time.Second, 10*time.Millisecond)
+}
+
 func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
-	port := testutil.GetFreePort()
+	port, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(
 		testOptions,
@@ -65,16 +84,13 @@ func TestNetFlow_IntegrationTest_NetFlow5(t *testing.T) {
 	// Flows will have 2x bytes/packets after aggregation
 	packetData, err := testutil.GetNetFlow5Packet()
 	require.NoError(t, err, "error getting packet")
-	err = testutil.SendUDPPacket(port, packetData)
-	require.NoError(t, err, "error sending udp packet")
 
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 30*time.Second, 2)
-	assert.Equal(t, uint64(2), netflowEvents)
-	assert.NoError(t, err)
+	assertFlowEventsCount(t, port, srv, packetData, 2)
 }
 
 func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
-	port := testutil.GetFreePort()
+	port, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(
 		testOptions,
@@ -91,16 +107,13 @@ func TestNetFlow_IntegrationTest_NetFlow9(t *testing.T) {
 
 	packetData, err := testutil.GetNetFlow9Packet()
 	require.NoError(t, err, "error getting packet")
-	err = testutil.SendUDPPacket(port, packetData)
-	require.NoError(t, err, "error sending udp packet")
 
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 30*time.Second, 6)
-	assert.Equal(t, uint64(29), netflowEvents)
-	assert.NoError(t, err)
+	assertFlowEventsCount(t, port, srv, packetData, 29)
 }
 
 func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
-	port := testutil.GetFreePort()
+	port, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
 	var epForwarder forwarder.MockComponent
 	srv := fxutil.Test[Component](t, fx.Options(
 		testOptions,
@@ -115,13 +128,8 @@ func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(7)
 	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
 
-	data, err := testutil.GetSFlow5Packet()
+	packetData, err := testutil.GetSFlow5Packet()
 	require.NoError(t, err, "error getting sflow data")
 
-	err = testutil.SendUDPPacket(port, data)
-	require.NoError(t, err, "error sending udp packet")
-
-	netflowEvents, err := flowaggregator.WaitForFlowsToBeFlushed(srv.FlowAgg, 30*time.Second, 6)
-	assert.Equal(t, uint64(7), netflowEvents)
-	assert.NoError(t, err)
+	assertFlowEventsCount(t, port, srv, packetData, 7)
 }
