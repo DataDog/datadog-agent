@@ -178,3 +178,24 @@ filters:
 		assertOptionalValue(t, assert.Equal, config.instance.Query, "banana")
 	}
 }
+
+// TestInvalidRegexp tests that we get an error for regexp patterns we expect are not supported
+// https://github.com/google/re2/wiki/Syntax
+func TestInvalidRegexp(t *testing.T) {
+	tcs := []struct {
+		name       string
+		pattern    string
+		errorMatch string
+	}{
+		{"lookahead", "(?=foo)", "invalid or unsupported Perl syntax: `(?=`"},
+		{"lookbehind", "(?<=foo)", "invalid or unsupported Perl syntax: `(?<`"},
+		{"negative lookahead", "(?!foo)", "invalid or unsupported Perl syntax: `(?!`"},
+		{"negative lookbehind", "(?<!foo)", "invalid or unsupported Perl syntax: `(?<`"},
+	}
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := compileRegexPatterns([]string{tc.pattern})
+			assert.ErrorContains(t, err, tc.errorMatch)
+		})
+	}
+}
