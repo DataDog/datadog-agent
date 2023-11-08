@@ -338,7 +338,9 @@ tags:
 }
 
 func Test_Run_customIfSpeed(t *testing.T) {
-	report.TimeNow = 30
+	report.TimeNow = func() float64 {
+		return 30
+	}
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()

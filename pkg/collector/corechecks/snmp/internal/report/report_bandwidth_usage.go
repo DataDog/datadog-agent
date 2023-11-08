@@ -123,7 +123,7 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 	if ok && interfaceRate.ifSpeed == ifSpeed {
 		log.Debugf("in the calculate rate and in the if statement ok, interfaceID: %s", interfaceID)
 		// calculate the delta
-		currentTimestamp := TimeNow
+		currentTimestamp := TimeNow()
 		delta := (usageValue - interfaceRate.previousSample) / (currentTimestamp - interfaceRate.previousTs)
 		log.Debugf("interfaceID: %s | usageValue: %f, previousVal: %f, currentTs: %f, previousTs:%f", interfaceID, usageValue, interfaceRate.previousSample, currentTimestamp, interfaceRate.previousTs)
 		// update the map previous as the current for next rate
@@ -146,7 +146,7 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 		ms.interfaceRateMap.rates[interfaceID] = InterfaceRate{
 			ifSpeed:        ifSpeed,
 			previousSample: usageValue,
-			previousTs:     TimeNow,
+			previousTs:     TimeNow(),
 		}
 		log.Debugf("new entry in interface map: interface ID: %s, ifSpeed: %d, previous sample: %f, ts: %f", interfaceID, ifSpeed, usageValue, TimeNow())
 		// do not send a sample to metrics, send error for ifSpeed change (previous entry conflicted)
@@ -158,7 +158,7 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 }
 
 // TimeNow is the unix time to use for rate (delta) calculations
-var TimeNow = timeNowNano()
+var TimeNow = timeNowNano
 
 // Helper function to determine the timestamp for the rate metric sample, lifted from pkg/aggregator
 func timeNowNano() float64 {
