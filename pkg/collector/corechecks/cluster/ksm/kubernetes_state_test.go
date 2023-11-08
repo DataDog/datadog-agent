@@ -1640,7 +1640,7 @@ func TestKSMCheckInitTags(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-			conf.Set("tags", tt.tagsInConfig)
+			conf.SetWithoutSource("tags", tt.tagsInConfig)
 
 			k := &KSMCheck{
 				instance:            tt.fields.instance,

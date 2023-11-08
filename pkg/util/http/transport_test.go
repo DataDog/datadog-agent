@@ -99,7 +99,7 @@ func TestNoProxyNonexactMatch(t *testing.T) {
 	r6, _ := http.NewRequest("GET", "http://sub.no_proxy2.com/api/v1?arg=21", nil)
 
 	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	c.Set("no_proxy_nonexact_match", true)
+	c.SetWithoutSource("no_proxy_nonexact_match", true)
 
 	// Testing some nonexact matching cases as documented here: https://github.com/golang/net/blob/master/http/httpproxy/proxy.go#L38
 	proxies := &pkgconfigmodel.Proxy{
@@ -132,6 +132,11 @@ func TestNoProxyNonexactMatch(t *testing.T) {
 	proxyURL, err = proxyFunc(r6)
 	assert.Nil(t, err)
 	assert.Nil(t, proxyURL)
+<<<<<<< HEAD
+=======
+
+	config.Datadog.SetWithoutSource("no_proxy_nonexact_match", false)
+>>>>>>> origin/main
 }
 
 func TestErrorParse(t *testing.T) {
@@ -169,6 +174,7 @@ func TestBadScheme(t *testing.T) {
 func TestCreateHTTPTransport(t *testing.T) {
 	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 
+<<<<<<< HEAD
 	c.Set("skip_ssl_validation", false)
 	transport := CreateHTTPTransport(c)
 	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
@@ -176,6 +182,16 @@ func TestCreateHTTPTransport(t *testing.T) {
 
 	c.Set("skip_ssl_validation", true)
 	transport = CreateHTTPTransport(c)
+=======
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("skip_ssl_validation", false)
+	transport := CreateHTTPTransport()
+	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
+	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
+
+	mockConfig.SetWithoutSource("skip_ssl_validation", true)
+	transport = CreateHTTPTransport()
+>>>>>>> origin/main
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
 
@@ -234,7 +250,7 @@ func TestMinTLSVersionFromConfig(t *testing.T) {
 			func(t *testing.T) {
 				cfg := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
 				if test.minTLSVersion != "" {
-					cfg.Set("min_tls_version", test.minTLSVersion)
+					cfg.SetWithoutSource("min_tls_version", test.minTLSVersion)
 				}
 				got := minTLSVersionFromConfig(cfg)
 				require.Equal(t, test.expect, got)
