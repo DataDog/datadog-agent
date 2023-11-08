@@ -20,7 +20,6 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
-	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
@@ -231,17 +230,17 @@ func (p *protocol) processHTTP2(data []byte) {
 func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	http2Map, _, err := mgr.GetMap(inFlightMap)
 	if err != nil {
-		log.Errorf("error getting http_in_flight map: %s", err)
+		log.Errorf("error getting %q map: %s", inFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner(http2Map, new(netebpf.ConnTuple), new(EbpfTx))
+	mapCleaner, err := ddebpf.NewMapCleaner(http2Map, new(http2StreamKey), new(EbpfTx))
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
-	ttl := p.cfg.HTTP2IdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTP2MapCleanerInterval, func(now int64, key, val interface{}) bool {
+	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
 		http2Txn, ok := val.(*EbpfTx)
 		if !ok {
 			return false
