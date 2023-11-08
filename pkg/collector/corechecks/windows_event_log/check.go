@@ -106,8 +106,6 @@ func (c *Check) fetchEventsLoop(sender sender.Sender) {
 		}
 	}()
 
-	var addBookmarkToSubOnce sync.Once
-
 	// Fetch new events
 	for {
 		select {
@@ -134,12 +132,6 @@ func (c *Check) fetchEventsLoop(sender sender.Sender) {
 				err := c.bookmarkSaver.updateBookmark(event)
 				if err != nil {
 					c.Warnf(err.Error())
-				} else {
-					// If we don't have a bookmark when we create the subscription we have
-					// to add it later once we've updated it at least once.
-					addBookmarkToSubOnce.Do(func() {
-						c.sub.SetBookmark(c.bookmarkSaver.bookmark)
-					})
 				}
 
 				// Must close event handle when we are done with it

@@ -13,18 +13,22 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/subscription"
 )
 
 type bookmarkSaver struct {
 	// inputs
+	sub               evtsubscribe.PullSubscription
 	bookmark          evtbookmark.Bookmark
 	bookmarkFrequency int
-	saveBookmark      func(bookmarkXML string) error
+	save              func(bookmarkXML string) error
 
 	// track how often to save
 	eventsSinceLastBookmark int
 	lastBookmark            string
 	mu                      sync.Mutex
+
+	addBookmarkToSubOnce sync.Once
 }
 
 func (b *bookmarkSaver) updateBookmark(event *evtapi.EventRecord) error {
@@ -49,11 +53,7 @@ func (b *bookmarkSaver) updateBookmark(event *evtapi.EventRecord) error {
 	// The bookmark is only saved/persisted according to the bookmarkFrequency
 	b.eventsSinceLastBookmark++
 	if b.bookmarkFrequency > 0 && b.eventsSinceLastBookmark >= b.bookmarkFrequency {
-		err = b.saveBookmark(b.lastBookmark)
-		if err != nil {
-			return err
-		}
-		b.resetBookmarkTracking()
+		return b.saveBookmark(b.lastBookmark)
 	}
 	return nil
 }
@@ -65,10 +65,26 @@ func (b *bookmarkSaver) saveLastBookmark() error {
 	defer b.mu.Unlock()
 
 	if b.bookmarkFrequency > 0 && b.eventsSinceLastBookmark > 0 && b.lastBookmark != "" {
-		err := b.saveBookmark(b.lastBookmark)
-		b.resetBookmarkTracking()
+		return b.saveBookmark(b.lastBookmark)
+	}
+	return nil
+}
+
+func (b *bookmarkSaver) saveBookmark(bookmarkXML string) error {
+	err := b.save(bookmarkXML)
+	if err != nil {
 		return err
 	}
+
+	// bookmark saved successfully so we can reset our counters
+	b.resetBookmarkTracking()
+
+	// If we don't have a bookmark when we create the subscription we have
+	// to add it later once we've updated it at least once.
+	b.addBookmarkToSubOnce.Do(func() {
+		b.sub.SetBookmark(b.bookmark)
+	})
+
 	return nil
 }
 

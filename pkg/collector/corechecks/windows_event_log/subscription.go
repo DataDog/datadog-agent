@@ -82,18 +82,6 @@ func (c *Check) initSubscription() error {
 		}
 	}
 
-	c.bookmarkSaver = &bookmarkSaver{
-		bookmark:          bookmark,
-		bookmarkFrequency: bookmarkFrequency,
-		saveBookmark: func(bookmarkXML string) error {
-			err := persistentcache.Write(c.bookmarkPersistentCacheKey(), bookmarkXML)
-			if err != nil {
-				return fmt.Errorf("failed to persist bookmark: %w", err)
-			}
-			return nil
-		},
-	}
-
 	// Batch count
 	opts = append(opts, evtsubscribe.WithEventBatchCount(uint(payloadSize)))
 
@@ -112,6 +100,19 @@ func (c *Check) initSubscription() error {
 		channelPath,
 		query,
 		opts...)
+
+	c.bookmarkSaver = &bookmarkSaver{
+		sub:               c.sub,
+		bookmark:          bookmark,
+		bookmarkFrequency: bookmarkFrequency,
+		save: func(bookmarkXML string) error {
+			err := persistentcache.Write(c.bookmarkPersistentCacheKey(), bookmarkXML)
+			if err != nil {
+				return fmt.Errorf("failed to persist bookmark: %w", err)
+			}
+			return nil
+		},
+	}
 
 	// Create a render context for System event values
 	c.systemRenderContext, err = c.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
