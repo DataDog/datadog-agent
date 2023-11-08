@@ -317,6 +317,11 @@ func (l *KubeEndpointsListener) createService(kep *v1.Endpoints, checkServiceAnn
 	eps := processEndpoints(kep, tags)
 
 	for i := 0; i < len(eps); i++ {
+		if l.containerFilters == nil {
+			eps[i].metricsExcluded = false
+			eps[i].globalExcluded = false
+			continue
+		}
 		eps[i].metricsExcluded = l.containerFilters.IsExcluded(
 			containers.MetricsFilter,
 			kep.GetAnnotations(),
