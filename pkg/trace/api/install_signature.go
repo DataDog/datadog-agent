@@ -1,10 +1,11 @@
 package api
 
 import (
-	"encoding/json"
-	"github.com/google/uuid"
 	"io"
 	"os"
+
+	"encoding/json"
+	"github.com/google/uuid"
 )
 
 type InstallSignature struct {
