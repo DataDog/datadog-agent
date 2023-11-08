@@ -33,7 +33,7 @@ func (c *Check) initSubscription() error {
 		bookmarkXML, err = persistentcache.Read(c.bookmarkPersistentCacheKey())
 		if err != nil {
 			// persistentcache.Read() does not return error if key does not exist
-			return fmt.Errorf("error reading bookmark from persistent cache %s: %w", c.bookmarkPersistentCacheKey(), err)
+			log.Errorf("error reading bookmark from persistent cache %s, will start at %s events: %v", c.bookmarkPersistentCacheKey(), *c.config.instance.Start, err)
 		}
 	}
 	if bookmarkXML != "" {
