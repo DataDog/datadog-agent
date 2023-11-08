@@ -71,9 +71,9 @@ func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *ne
 	dnsClient := new(dns.Client)
 	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
 	require.NoError(t, err)
-	defer dnsConn.Close()
 	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
 	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+	_ = dnsConn.Close()
 	require.NoError(t, err)
 
 	return dnsClientAddr, dnsServerAddr
@@ -1004,21 +1004,14 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 	require.NoError(t, err)
 
 	var conn net.Conn
+	conn, err = net.Dial("tcp", "2.2.2.2:"+port)
+	require.NoError(t, err, "error connecting to client")
 	t.Cleanup(func() {
-		if conn != nil {
-			conn.Close()
-		}
+		conn.Close()
 	})
 
 	var incoming, outgoing *network.ConnectionStats
 	require.Eventually(t, func() bool {
-		if conn == nil {
-			conn, err = net.Dial("tcp", "2.2.2.2:"+port)
-			if !assert.NoError(t, err, "error connecting to client") {
-				return false
-			}
-		}
-
 		_, err = conn.Write([]byte("ping"))
 		if !assert.NoError(t, err, "error writing in client") {
 			return false
@@ -1038,7 +1031,7 @@ func (s *TracerSuite) TestDNATIntraHostIntegration() {
 
 		t.Logf("incoming: %+v, outgoing: %+v", incoming, outgoing)
 
-		return outgoing != nil && incoming != nil
+		return outgoing != nil && incoming != nil && outgoing.IPTranslation != nil
 	}, 3*time.Second, 100*time.Millisecond, "failed to get both incoming and outgoing connection")
 
 	assert.True(t, outgoing.IntraHost, "did not find outgoing connection classified as local: %v", outgoing)
@@ -1786,6 +1779,46 @@ func (s *TracerSuite) TestPreexistingConnectionDirection() {
 	assert.Equal(t, addrPort(server.address), int(incoming.SPort))
 	assert.Equal(t, c.LocalAddr().(*net.TCPAddr).Port, int(incoming.DPort))
 	assert.Equal(t, network.INCOMING, incoming.Direction)
+}
+
+func (s *TracerSuite) TestPreexistingEmptyIncomingConnectionDirection() {
+	t := s.T()
+	// Start the client and server before we enable the system probe to test that the tracer picks
+	// up the pre-existing connection
+
+	ch := make(chan struct{})
+	server := NewTCPServer(func(c net.Conn) {
+		<-ch
+		c.Close()
+	})
+	require.NoError(t, server.Run())
+	t.Cleanup(server.Shutdown)
+
+	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
+	require.NoError(t, err)
+
+	// Enable BPF-based system probe
+	tr := setupTracer(t, testConfig())
+
+	// close the server connection so the tracer picks it up
+	close(ch)
+
+	var conn *network.ConnectionStats
+	require.Eventually(t, func() bool {
+		conns := getConnections(t, tr)
+		t.Log(conns) // for debugging failures
+		conn, _ = findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		return conn != nil
+	}, 3*time.Second, 100*time.Millisecond)
+
+	m := conn.Monotonic
+	assert.Zero(t, m.SentBytes, "sent bytes should be 0")
+	assert.Zero(t, m.RecvBytes, "recv bytes should be 0")
+	assert.Zero(t, m.SentPackets, "sent packets should be 0")
+	assert.Zero(t, m.RecvPackets, "recv packets should be 0")
+	assert.Zero(t, m.TCPEstablished, "tcp established should be 0")
+	assert.Equal(t, uint32(1), m.TCPClosed, "tcp closed should be 1")
+	assert.Equal(t, network.INCOMING, conn.Direction, "connection direction should be incoming")
 }
 
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {
