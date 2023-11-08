@@ -80,14 +80,14 @@ static __always_inline bool read_var_int(struct __sk_buff *skb, skb_info_t *skb_
 }
 
 //get_dynamic_counter returns the current dynamic counter by the conn tup.
-static __always_inline __u64 *get_dynamic_counter(struct __sk_buff* skb, conn_tuple_t *tup) {
+static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
     __u64 counter = 0;
     bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
 }
 
 // parse_field_indexed is handling the case which the header frame is part of the static table.
-static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, conn_tuple_t *tup, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, __u32 stream_id) {
+static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
     if (headers_to_process == NULL) {
         return;
     }
@@ -120,7 +120,7 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
-static __always_inline bool parse_field_literal(struct __sk_buff *skb, conn_tuple_t *tup, skb_info_t *skb_info, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, __u32 stream_id) {
+static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
 
     __u8 str_len = 0;
     if (!read_var_int(skb, skb_info, MAX_6_BITS, &str_len)) {
@@ -156,7 +156,7 @@ end:
 }
 
 // This function reads the http2 headers frame.
-static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length, __u32 stream_id) {
+static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
@@ -167,7 +167,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     __u8 max_bits = 0;
     __u8 index = 0;
 
-    __u64 *global_dynamic_counter = get_dynamic_counter(skb, tup);
+    __u64 *global_dynamic_counter = get_dynamic_counter(tup);
     if (global_dynamic_counter == NULL) {
         return 0;
     }
@@ -205,13 +205,13 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            parse_field_indexed(dynamic_index, tup, current_header, index, *global_dynamic_counter, &interesting_headers, stream_id);
+            parse_field_indexed(dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers);
         } else {
             __sync_fetch_and_add(global_dynamic_counter, 1);
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            if (!parse_field_literal(skb, tup, skb_info, current_header, index, *global_dynamic_counter, &interesting_headers, stream_id)) {
+            if (!parse_field_literal(skb, skb_info, current_header, index, *global_dynamic_counter, &interesting_headers)) {
                 break;
             }
         }
@@ -299,11 +299,9 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
     }
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
-    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length, current_frame_header->stream_id);
+    __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length);
     process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers);
 }
-
-
 
 static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_ctx_t *http2_ctx, struct http2_frame *current_frame) {
     http2_ctx->http2_stream_key.stream_id = current_frame->stream_id;
@@ -321,13 +319,11 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     bool is_rst = current_frame->type == kRSTStreamFrame;
     // If rst, and stream is empty (no status code, or no response) then delete from inflight
     if (is_rst && (current_stream->response_status_code == 0 || current_stream->request_started == 0)) {
-
         bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
         return;
     }
     if (is_rst || ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM)) {
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
-    } else {
     }
 
     return;
@@ -525,10 +521,6 @@ int socket__http2_handle_first_frame(struct __sk_buff *skb) {
     }
     bpf_memcpy(&dispatcher_args_copy.tup, &args->tup, sizeof(conn_tuple_t));
     bpf_memcpy(&dispatcher_args_copy.skb_info, &args->skb_info, sizeof(skb_info_t));
-
-    if (dispatcher_args_copy.tup.sport != 6400 && dispatcher_args_copy.tup.dport != 6400) {
-        return 0;
-    }
 
     // If we detected a tcp termination we should stop processing the packet, and clear its dynamic table by deleting the counter.
     if (is_tcp_termination(&dispatcher_args_copy.skb_info)) {
