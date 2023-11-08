@@ -1169,3 +1169,8 @@ def get_modified_files(ctx):
 
     modified_files = ctx.run(f"git diff --name-only {last_main_commit}", hide=True).stdout.splitlines()
     return modified_files
+
+
+@task
+def send_unit_tests_stats(_):
+    pass

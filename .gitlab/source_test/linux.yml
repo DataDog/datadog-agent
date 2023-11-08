@@ -18,6 +18,7 @@
     KUBERNETES_CPU_REQUEST: 16
     KUBERNETES_MEMORY_REQUEST: 16Gi
     KUBERNETES_MEMORY_LIMIT: 16Gi
+    TEST_OUTPUT_FILE: test_output.json
   script:
     - !reference [.retrieve_linux_go_tools_deps]
     - inv -e install-tools
@@ -25,12 +26,12 @@
     - pushd test/kitchen
     - inv -e kitchen.invoke-unit-tests
     - popd
-    - inv -e test $FLAVORS --skip-linters --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json test_output.json --junit-tar "junit-${CI_JOB_NAME}.tgz" $EXTRAPARAMS
+    - inv -e test $FLAVORS --skip-linters --race --profile --rerun-fails=2 --python-runtimes "$PYTHON_RUNTIMES" --cpus $KUBERNETES_CPU_REQUEST $EXTRA_OPTS --save-result-json $TEST_OUTPUT_FILE --junit-tar "junit-${CI_JOB_NAME}.tgz" $EXTRAPARAMS
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
-      - test_output.json
+      - $TEST_OUTPUT_FILE
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
@@ -84,8 +85,20 @@ tests_deb-x64-py3-fast:
     PYTHON_RUNTIMES: '3'
     CONDA_ENV: ddpy3
     EXTRAPARAMS: '--only-modified-packages'
+    TEST_OUTPUT_FILE: test_output_fast.json
   allow_failure: true
 
+stats-fast-tests-deb-x64-py3:
+  stage: source_test
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  dependencies: ["tests_deb-x64-py3-fast", "tests_deb-x64-py3"]
+  script:
+    - echo "===================== FAST TEST ====================="
+    - cat test_output_fast.json
+    - echo "===================== NORMAL TEST ====================="
+    - cat test_output.json
+    - echo "===================== END ====================="
 
 lint_linux-x64:
   extends:
@@ -247,3 +260,5 @@ go_mod_tidy_check:
     - !reference [.retrieve_linux_go_deps]
   script:
     - inv -e check-mod-tidy
+
+
