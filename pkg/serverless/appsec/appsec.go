@@ -112,7 +112,7 @@ func (a *AppSec) Monitor(addresses map[string]any) []any {
 	}
 	defer ctx.Close()
 	timeout := a.cfg.WafTimeout
-	res, err := ctx.Run(addresses, timeout)
+	res, err := ctx.Run(waf.RunAddressData{Persistent: addresses}, timeout)
 	if err != nil {
 		if err == waf.ErrTimeout {
 			log.Debugf("appsec: waf timeout value of %s reached", timeout)
@@ -123,7 +123,7 @@ func (a *AppSec) Monitor(addresses map[string]any) []any {
 	}
 
 	dt, _ := ctx.TotalRuntime()
-	if len(res.Events) > 0 {
+	if res.HasEvents() {
 		log.Debugf("appsec: security events found in %s: %v", time.Duration(dt), res.Events)
 	}
 	if !a.eventsRateLimiter.Allow() {
