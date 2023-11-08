@@ -52,13 +52,11 @@ func (c *Check) initSubscription() error {
 
 	// Check persistent cache for bookmark
 	var bookmark evtbookmark.Bookmark
-	bookmarkXML := ""
-	if val, isSet := c.config.instance.BookmarkFrequency.Get(); isSet && val > 0 {
-		bookmarkXML, err = persistentcache.Read(c.bookmarkPersistentCacheKey())
-		if err != nil {
-			// persistentcache.Read() does not return error if key does not exist
-			log.Errorf("error reading bookmark from persistent cache %s, will start at %s events: %v", c.bookmarkPersistentCacheKey(), startMode, err)
-		}
+	bookmarkXML, err := persistentcache.Read(c.bookmarkPersistentCacheKey())
+	if err != nil {
+		// persistentcache.Read() does not return error if key does not exist
+		bookmarkXML = ""
+		log.Errorf("error reading bookmark from persistent cache %s, will start at %s events: %v", c.bookmarkPersistentCacheKey(), startMode, err)
 	}
 	if bookmarkXML != "" {
 		// load bookmark
