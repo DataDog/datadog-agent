@@ -114,6 +114,8 @@ func TestMultiFakeintakeSuite(t *testing.T) {
 
 // SetupSuite waits for both fakeintakes to be ready before running tests.
 func (v *multiFakeIntakeSuite) SetupSuite() {
+	v.Suite.SetupSuite() // need to call the original definition of SetupSuite
+
 	fakeintake1 := v.Env().Fakeintake1
 	fakeintake2 := v.Env().Fakeintake2
 
