@@ -14,6 +14,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -145,7 +146,7 @@ func setConfigValue(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	value := html.UnescapeString(r.Form.Get("value"))
 
-	if err := settings.SetRuntimeSetting(setting, value, settings.SourceCLI); err != nil {
+	if err := settings.SetRuntimeSetting(setting, value, model.SourceCLI); err != nil {
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
 		switch err.(type) {
 		case *settings.SettingNotFoundError:

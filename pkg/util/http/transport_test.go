@@ -94,7 +94,7 @@ func TestNoProxyNonexactMatch(t *testing.T) {
 	r5, _ := http.NewRequest("GET", "http://no_proxy2.com/api/v1?arg=21", nil)
 	r6, _ := http.NewRequest("GET", "http://sub.no_proxy2.com/api/v1?arg=21", nil)
 
-	config.Datadog.Set("no_proxy_nonexact_match", true)
+	config.Datadog.SetWithoutSource("no_proxy_nonexact_match", true)
 
 	// Testing some nonexact matching cases as documented here: https://github.com/golang/net/blob/master/http/httpproxy/proxy.go#L38
 	proxies := &config.Proxy{
@@ -128,7 +128,7 @@ func TestNoProxyNonexactMatch(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Nil(t, proxyURL)
 
-	config.Datadog.Set("no_proxy_nonexact_match", false)
+	config.Datadog.SetWithoutSource("no_proxy_nonexact_match", false)
 }
 
 func TestErrorParse(t *testing.T) {
@@ -165,12 +165,12 @@ func TestCreateHTTPTransport(t *testing.T) {
 	setupTest(t)
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("skip_ssl_validation", false)
+	mockConfig.SetWithoutSource("skip_ssl_validation", false)
 	transport := CreateHTTPTransport()
 	assert.False(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
 
-	mockConfig.Set("skip_ssl_validation", true)
+	mockConfig.SetWithoutSource("skip_ssl_validation", true)
 	transport = CreateHTTPTransport()
 	assert.True(t, transport.TLSClientConfig.InsecureSkipVerify)
 	assert.Equal(t, transport.TLSClientConfig.MinVersion, uint16(tls.VersionTLS12))
@@ -229,7 +229,7 @@ func TestMinTLSVersionFromConfig(t *testing.T) {
 			func(t *testing.T) {
 				cfg := config.Mock(t)
 				if test.minTLSVersion != "" {
-					cfg.Set("min_tls_version", test.minTLSVersion)
+					cfg.SetWithoutSource("min_tls_version", test.minTLSVersion)
 				}
 				got := minTLSVersionFromConfig(cfg)
 				require.Equal(t, test.expect, got)
