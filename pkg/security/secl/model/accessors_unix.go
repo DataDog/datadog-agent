@@ -263,7 +263,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "chmod.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -492,7 +492,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chown.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "chown.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -972,7 +972,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "exec.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -1264,7 +1264,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "exec.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -1754,7 +1754,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "exit.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2046,7 +2046,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "exit.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2350,7 +2350,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "link.file.destination.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2525,7 +2525,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Source)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "link.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2745,7 +2745,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.LoadModule.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "load_module.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2974,7 +2974,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "mkdir.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -3167,7 +3167,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.MMap.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "mmap.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -3531,7 +3531,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "open.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -4186,7 +4186,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -4813,7 +4813,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -5574,7 +5574,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "process.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -5866,7 +5866,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "process.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -6353,7 +6353,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -6717,7 +6717,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -7600,7 +7600,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -8227,7 +8227,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -8988,7 +8988,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -9280,7 +9280,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -9767,7 +9767,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -10131,7 +10131,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -10561,7 +10561,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.RemoveXAttr.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "removexattr.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -10763,7 +10763,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "rename.file.destination.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -10938,7 +10938,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.Old)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "rename.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -11131,7 +11131,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "rmdir.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -11486,7 +11486,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.SetXAttr.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "setxattr.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -12150,7 +12150,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -12777,7 +12777,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -13538,7 +13538,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -13830,7 +13830,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -14317,7 +14317,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -14681,7 +14681,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -15102,7 +15102,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Splice.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "splice.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -15313,7 +15313,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "unlink.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -15533,7 +15533,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "utimes.file.in_upper_layer":
 		return &eval.BoolEvaluator{
