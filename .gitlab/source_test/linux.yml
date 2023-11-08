@@ -95,6 +95,7 @@ stats-fast-tests-deb-x64-py3:
   needs: ["tests_deb-x64-py3-fast", "tests_deb-x64-py3"]
   dependencies: ["tests_deb-x64-py3-fast", "tests_deb-x64-py3"]
   script:
+    - ls
     - echo "===================== FAST TEST ====================="
     - cat test_output_fast.json
     - echo "===================== NORMAL TEST ====================="
