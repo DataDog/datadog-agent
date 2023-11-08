@@ -25,7 +25,7 @@ func TestStartError(t *testing.T) {
 		store: workloadmetaStore,
 	}
 
-	err := c.Start(context.TODO(), &workloadmetaStore)
+	err := c.Start(context.TODO(), workloadmetaStore)
 	assert.Error(t, err)
 }
 
