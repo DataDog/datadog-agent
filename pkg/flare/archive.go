@@ -104,11 +104,8 @@ func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSend
 	getExpVar(fb) //nolint:errcheck
 	getWindowsData(fb)
 
-	if config.Datadog.GetBool("telemetry.enabled") {
-		telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry",
-			config.Datadog.GetString("expvar_port"))
-		fb.AddFileFromFunc("telemetry.log", func() ([]byte, error) { return getHTTPCallContent(telemetryURL) })
-	}
+	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", config.Datadog.GetString("expvar_port"))
+	fb.AddFileFromFunc("telemetry.log", func() ([]byte, error) { return getHTTPCallContent(telemetryURL) })
 
 	if config.IsRemoteConfigEnabled(config.Datadog) {
 		if err := exportRemoteConfig(fb); err != nil {

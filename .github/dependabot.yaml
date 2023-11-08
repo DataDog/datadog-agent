@@ -31,6 +31,13 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 100
+    groups:
+      franz-go:
+        patterns:
+          - "github.com/twmb/franz-go*"
+      bun:
+        patterns:
+          - "github.com/uptrace/bun*"
   - package-ecosystem: gomod
     directory: /pkg/trace
     labels:

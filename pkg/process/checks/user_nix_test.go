@@ -20,7 +20,7 @@ import (
 
 func TestLookupUserWithId(t *testing.T) {
 	cfg := config.Mock(t)
-	cfg.Set("process_config.cache_lookupid", true)
+	cfg.SetWithoutSource("process_config.cache_lookupid", true)
 
 	for _, tc := range []struct {
 		name          string
@@ -93,7 +93,7 @@ func TestLookupIdConfigSetting(t *testing.T) {
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.cache_lookupid", true)
+		cfg.SetWithoutSource("process_config.cache_lookupid", true)
 
 		p := NewLookupIDProbe(cfg)
 		p.lookupId = testLookupIdFunc
@@ -106,7 +106,7 @@ func TestLookupIdConfigSetting(t *testing.T) {
 
 	t.Run("disabled", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.cache_lookupid", false)
+		cfg.SetWithoutSource("process_config.cache_lookupid", false)
 
 		p := NewLookupIDProbe(cfg)
 		p.lookupId = testLookupIdFunc

@@ -216,7 +216,7 @@ func (d *dispatcher) run(ctx context.Context) {
 			// Rebalance if needed
 			if d.advancedDispatching {
 				// Rebalance checks distribution
-				d.rebalance()
+				d.rebalance(false)
 			}
 		}
 	}

@@ -86,7 +86,6 @@ TOOL_LIST = [
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/goware/modvendor',
-    'github.com/mgechev/revive',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v2',
@@ -513,6 +512,16 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
     return success
 
 
+def sanitize_env_vars():
+    """
+    Sanitizes environment variables
+    We want to ignore all `DD_` variables, as they will interfere with the behavior of some unit tests
+    """
+    for env in os.environ:
+        if env.startswith("DD_"):
+            del os.environ[env]
+
+
 @task(iterable=['flavors'])
 def test(
     ctx,
@@ -541,6 +550,7 @@ def test(
     rerun_fails=None,
     go_mod="mod",
     junit_tar="",
+    only_modified_packages=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -559,21 +569,9 @@ def test(
         inv test --module=. --race
     """
 
-    # Format:
-    # {
-    #     "phase1": {
-    #         "flavor1": [module_result1, module_result2],
-    #         "flavor2": [module_result3, module_result4],
-    #     }
-    # }
     modules_results_per_phase = defaultdict(dict)
 
-    # Sanitize environment variables
-    # We want to ignore all `DD_` variables, as they will interfere with the behavior
-    # of some unit tests
-    for env in os.environ:
-        if env.startswith("DD_"):
-            del os.environ[env]
+    sanitize_env_vars()
 
     # Run linters first
 
@@ -590,8 +588,6 @@ def test(
             cpus=cpus,
         )
 
-    # Process input arguments
-
     modules, flavors = process_input_args(module, targets, flavors)
 
     unit_tests_tags = {
@@ -601,8 +597,6 @@ def test(
         for f in flavors
     }
 
-    timeout = int(timeout)
-
     ldflags, gcflags, env = get_build_flags(
         ctx,
         rtloader_root=rtloader_root,
@@ -610,45 +604,18 @@ def test(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
+        race=race,
     )
 
-    if sys.platform == 'win32':
-        env['CGO_LDFLAGS'] += ' -Wl,--allow-multiple-definition'
+    # Use stdout if no profile is set
+    test_profiler = TestProfiler() if profile else None
 
-    if profile:
-        test_profiler = TestProfiler()
-    else:
-        test_profiler = None  # Use stdout
+    race_opt = "-race" if race else ""
+    # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
+    covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
+    build_cpus_opt = f"-p {cpus}" if cpus else ""
 
-    race_opt = ""
-    covermode_opt = ""
-    build_cpus_opt = ""
-    if cpus:
-        build_cpus_opt = f"-p {cpus}"
-    if race:
-        # race doesn't appear to be supported on non-x64 platforms
-        if arch == "x86":
-            print("\n -- Warning... disabling race test, not supported on this platform --\n")
-        else:
-            race_opt = "-race"
-
-        # Needed to fix an issue when using -race + gcc 10.x on Windows
-        # https://github.com/bazelbuild/rules_go/issues/2614
-        if sys.platform == 'win32':
-            ldflags += " -linkmode=external"
-
-    if coverage:
-        if race:
-            # atomic is quite expensive but it's the only way to run
-            # both the coverage and the race detector at the same time
-            # without getting false positives from the cover counter
-            covermode_opt = "-covermode=atomic"
-        else:
-            covermode_opt = "-covermode=count"
-
-    coverprofile = ""
-    if coverage:
-        coverprofile = f"-coverprofile={PROFILE_COV}"
+    coverprofile = f"-coverprofile={PROFILE_COV}" if coverage else ""
 
     nocache = '-count=1' if not cache else ''
 
@@ -658,9 +625,7 @@ def test(
         print(f"Removing existing '{save_result_json}' file")
         os.remove(save_result_json)
 
-    test_run_arg = ""
-    if test_run_name != "":
-        test_run_arg = f"-run {test_run_name}"
+    test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
     stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} {nocache} std cmd'
@@ -675,7 +640,7 @@ def test(
         "covermode_opt": covermode_opt,
         "coverprofile": coverprofile,
         "test_run_arg": test_run_arg,
-        "timeout": timeout,
+        "timeout": int(timeout),
         "verbose": '-v' if verbose else '',
         "nocache": nocache,
         # Used to print failed tests at the end of the go test command
@@ -693,6 +658,9 @@ def test(
             args=args,
             test_profiler=test_profiler,
         )
+        if only_modified_packages:
+            modules = get_modified_packages(ctx)
+
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
@@ -1144,3 +1112,59 @@ def junit_macos_repack(_, infile, outfile):
     contain correct job name and job URL.
     """
     repack_macos_junit_tar(infile, outfile)
+
+
+@task
+def get_modified_packages(ctx) -> List[GoModule]:
+
+    modified_files = get_modified_files(ctx)
+    modified_go_files = [
+        f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
+    ]
+
+    modules_to_test = {}
+    go_mod_modified_modules = set()
+
+    for modified_file in modified_go_files:
+        match_precision = 0
+        best_module_path = None
+
+        # Since several modules can match the path we take only the most precise one
+        for module_path in DEFAULT_MODULES:
+            if module_path in modified_file:
+                if len(module_path) > match_precision:
+                    match_precision = len(module_path)
+                    best_module_path = module_path
+
+        # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
+        if best_module_path in go_mod_modified_modules:
+            continue
+
+        # If we modify the go.mod or go.sum we run the tests for the whole module
+        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
+            modules_to_test[best_module_path] = DEFAULT_MODULES[best_module_path]
+            go_mod_modified_modules.add(best_module_path)
+            continue
+
+        if best_module_path in modules_to_test:
+            if (
+                modules_to_test[best_module_path].targets is not None
+                and os.path.dirname(modified_file) not in modules_to_test[best_module_path].targets
+            ):
+                modules_to_test[best_module_path].targets.append(os.path.dirname(modified_file))
+        else:
+            modules_to_test[best_module_path] = GoModule(best_module_path, targets=[os.path.dirname(modified_file)])
+
+    print("Running tests for the following modules:")
+    for module in modules_to_test:
+        print(f"- {module}: ")
+
+    return modules_to_test.values()
+
+
+def get_modified_files(ctx):
+    last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
+    print(f"Checking diff from {last_main_commit} commit on main branch")
+
+    modified_files = ctx.run(f"git diff --name-only {last_main_commit}", hide=True).stdout.splitlines()
+    return modified_files
