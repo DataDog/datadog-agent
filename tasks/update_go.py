@@ -23,7 +23,7 @@ def go_version(_):
         "image_tag": "Tag from buildimages with format v<build_id>_<commit_id>",
         "test_version": "Whether the image is a test image or not",
         "warn": "Don't exit in case of matching error, just warn.",
-        "release_note": "Whether to create a release note or not. The default behaviour is to create a release note"
+        "release_note": "Whether to create a release note or not. The default behaviour is to create a release note",
     }
 )
 def update_go(
