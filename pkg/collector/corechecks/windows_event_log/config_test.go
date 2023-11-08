@@ -11,8 +11,16 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/util"
+
 	"github.com/stretchr/testify/assert"
 )
+
+func assertOptionalValue[T any](t *testing.T, assertCompare assert.ComparisonAssertionFunc, o util.Optional[T], expected T) bool {
+	actual, isSet := o.Get()
+	return assert.True(t, isSet, fmt.Sprintf("%v is not set", o)) &&
+		assertCompare(t, expected, actual, fmt.Sprintf("%v does not match expcted value", o))
+}
 
 func TestConfigPrecedence(t *testing.T) {
 	// values that are different from defaults to be used for testing
@@ -41,20 +49,20 @@ func TestConfigPrecedence(t *testing.T) {
 	//
 	config, err := unmarshalConfig([]byte(""), []byte(""))
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.Query, defaultConfigQuery)
-		assert.Equal(t, *config.instance.Start, defaultConfigStart)
-		assert.Nil(t, config.instance.Timeout)
-		assert.Equal(t, *config.instance.PayloadSize, defaultConfigPayloadSize)
-		assert.Equal(t, *config.instance.BookmarkFrequency, defaultConfigPayloadSize)
-		assert.Equal(t, *config.instance.TagEventID, defaultConfigTagEventID)
-		assert.Equal(t, *config.instance.TagSID, defaultConfigTagSID)
-		assert.Equal(t, *config.instance.EventPriority, defaultConfigEventPriority)
-		assert.Equal(t, *config.instance.AuthType, defaultConfigAuthType)
-		assert.Nil(t, config.instance.Server)
-		assert.Nil(t, config.instance.User)
-		assert.Nil(t, config.instance.Domain)
-		assert.Nil(t, config.instance.Password)
-		assert.Equal(t, *config.instance.InterpretMessages, defaultConfigInterpretMessages)
+		assertOptionalValue(t, assert.Equal, config.instance.Query, defaultConfigQuery)
+		assertOptionalValue(t, assert.Equal, config.instance.Start, defaultConfigStart)
+		assert.False(t, config.instance.Timeout.IsSet())
+		assertOptionalValue(t, assert.Equal, config.instance.PayloadSize, defaultConfigPayloadSize)
+		assertOptionalValue(t, assert.Equal, config.instance.BookmarkFrequency, defaultConfigPayloadSize)
+		assertOptionalValue(t, assert.Equal, config.instance.TagEventID, defaultConfigTagEventID)
+		assertOptionalValue(t, assert.Equal, config.instance.TagSID, defaultConfigTagSID)
+		assertOptionalValue(t, assert.Equal, config.instance.EventPriority, defaultConfigEventPriority)
+		assertOptionalValue(t, assert.Equal, config.instance.AuthType, defaultConfigAuthType)
+		assert.False(t, config.instance.Server.IsSet())
+		assert.False(t, config.instance.User.IsSet())
+		assert.False(t, config.instance.Domain.IsSet())
+		assert.False(t, config.instance.Password.IsSet())
+		assertOptionalValue(t, assert.Equal, config.instance.InterpretMessages, defaultConfigInterpretMessages)
 	}
 
 	//
@@ -65,8 +73,8 @@ payload_size: %d
 `, differentPayloadSize))
 	config, err = unmarshalConfig(instanceConfig1, []byte(""))
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.PayloadSize, differentPayloadSize)
-		assert.Equal(t, *config.instance.BookmarkFrequency, differentPayloadSize)
+		assertOptionalValue(t, assert.Equal, config.instance.PayloadSize, differentPayloadSize)
+		assertOptionalValue(t, assert.Equal, config.instance.BookmarkFrequency, differentPayloadSize)
 	}
 
 	//
@@ -78,8 +86,8 @@ bookmark_frequency: %d
 `, differentPayloadSize, differentBookmarkFrequency))
 	config, err = unmarshalConfig(instanceConfig2, []byte(""))
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.PayloadSize, differentPayloadSize)
-		assert.Equal(t, *config.instance.BookmarkFrequency, differentBookmarkFrequency)
+		assertOptionalValue(t, assert.Equal, config.instance.PayloadSize, differentPayloadSize)
+		assertOptionalValue(t, assert.Equal, config.instance.BookmarkFrequency, differentBookmarkFrequency)
 	}
 
 	//
@@ -96,12 +104,12 @@ legacy_mode_v2: %v
 		differentLegacyMode, differentLegacyModeV2))
 	config, err = unmarshalConfig([]byte(""), initConfig1)
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.TagEventID, differentTagEventID)
-		assert.Equal(t, *config.instance.TagSID, differentTagSID)
-		assert.Equal(t, *config.instance.EventPriority, differentEventPriority)
-		assert.Equal(t, *config.instance.InterpretMessages, differentInterpretMessages)
-		assert.Equal(t, *config.instance.LegacyMode, differentLegacyMode)
-		assert.Equal(t, *config.instance.LegacyModeV2, differentLegacyModeV2)
+		assertOptionalValue(t, assert.Equal, config.instance.TagEventID, differentTagEventID)
+		assertOptionalValue(t, assert.Equal, config.instance.TagSID, differentTagSID)
+		assertOptionalValue(t, assert.Equal, config.instance.EventPriority, differentEventPriority)
+		assertOptionalValue(t, assert.Equal, config.instance.InterpretMessages, differentInterpretMessages)
+		assertOptionalValue(t, assert.Equal, config.instance.LegacyMode, differentLegacyMode)
+		assertOptionalValue(t, assert.Equal, config.instance.LegacyModeV2, differentLegacyModeV2)
 	}
 
 	//
@@ -118,12 +126,12 @@ legacy_mode_v2: %v
 		defaultConfigLegacyMode, defaultConfigLegacyModeV2))
 	config, err = unmarshalConfig(instanceConfig3, initConfig1)
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.TagEventID, defaultConfigTagEventID)
-		assert.Equal(t, *config.instance.TagSID, defaultConfigTagSID)
-		assert.Equal(t, *config.instance.EventPriority, defaultConfigEventPriority)
-		assert.Equal(t, *config.instance.InterpretMessages, defaultConfigInterpretMessages)
-		assert.Equal(t, *config.instance.LegacyMode, defaultConfigLegacyMode)
-		assert.Equal(t, *config.instance.LegacyModeV2, defaultConfigLegacyModeV2)
+		assertOptionalValue(t, assert.Equal, config.instance.TagEventID, defaultConfigTagEventID)
+		assertOptionalValue(t, assert.Equal, config.instance.TagSID, defaultConfigTagSID)
+		assertOptionalValue(t, assert.Equal, config.instance.EventPriority, defaultConfigEventPriority)
+		assertOptionalValue(t, assert.Equal, config.instance.InterpretMessages, defaultConfigInterpretMessages)
+		assertOptionalValue(t, assert.Equal, config.instance.LegacyMode, defaultConfigLegacyMode)
+		assertOptionalValue(t, assert.Equal, config.instance.LegacyModeV2, defaultConfigLegacyModeV2)
 	}
 
 	//
@@ -137,10 +145,10 @@ bookmark_frequency: %v
 `, differentStart, differentAuthType, differentPayloadSize, differentBookmarkFrequency))
 	config, err = unmarshalConfig(instanceConfig6, nil)
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.Start, differentStart)
-		assert.Equal(t, *config.instance.AuthType, differentAuthType)
-		assert.Equal(t, *config.instance.PayloadSize, differentPayloadSize)
-		assert.Equal(t, *config.instance.BookmarkFrequency, differentBookmarkFrequency)
+		assertOptionalValue(t, assert.Equal, config.instance.Start, differentStart)
+		assertOptionalValue(t, assert.Equal, config.instance.AuthType, differentAuthType)
+		assertOptionalValue(t, assert.Equal, config.instance.PayloadSize, differentPayloadSize)
+		assertOptionalValue(t, assert.Equal, config.instance.BookmarkFrequency, differentBookmarkFrequency)
 	}
 
 	//
@@ -153,7 +161,7 @@ filters:
 `)
 	config, err = unmarshalConfig(instanceConfig4, []byte(""))
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.Query, "*[System[EventID=1000]]")
+		assertOptionalValue(t, assert.Equal, config.instance.Query, "*[System[EventID=1000]]")
 	}
 
 	//
@@ -167,6 +175,6 @@ filters:
 `)
 	config, err = unmarshalConfig(instanceConfig5, []byte(""))
 	if assert.NoError(t, err) {
-		assert.Equal(t, *config.instance.Query, "banana")
+		assertOptionalValue(t, assert.Equal, config.instance.Query, "banana")
 	}
 }

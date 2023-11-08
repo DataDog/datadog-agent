@@ -59,7 +59,9 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	providerName, err := vals.String(evtapi.EvtSystemProviderName)
 	if err == nil {
 		ddevent.AggregationKey = providerName
-		ddevent.Title = fmt.Sprintf("%s/%s", *c.config.instance.ChannelPath, providerName)
+		if val, isSet := c.config.instance.ChannelPath.Get(); isSet {
+			ddevent.Title = fmt.Sprintf("%s/%s", val, providerName)
+		}
 	}
 
 	// formatted message
@@ -71,7 +73,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	}
 
 	// Optional: Tag EventID
-	if *c.config.instance.TagEventID {
+	if isaffirmative(c.config.instance.TagEventID) {
 		eventid, err := vals.UInt(evtapi.EvtSystemEventID)
 		if err == nil {
 			tag := fmt.Sprintf("event_id:%d", eventid)
@@ -80,7 +82,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	}
 
 	// Optional: Tag SID
-	if *c.config.instance.TagSID {
+	if isaffirmative(c.config.instance.TagSID) {
 		sid, err := vals.SID(evtapi.EvtSystemUserID)
 		if err == nil {
 			// https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-lookupaccountsidw
@@ -135,7 +137,7 @@ func (c *Check) getEventMessage(providerName string, winevent *evtapi.EventRecor
 	// * Code 15027: The message resource is present but the message was not found in the message table.
 	// * Code 15028: The message ID for the desired message could not be found.
 	// Optional: try to provide some information by including any strings from the EventData in the message.
-	if *c.config.instance.InterpretMessages {
+	if isaffirmative(c.config.instance.InterpretMessages) {
 		// Render the values
 		var eventValues evtapi.EvtVariantValues
 		eventValues, err = c.evtapi.EvtRenderEventValues(c.userRenderContext, winevent.EventRecordHandle)

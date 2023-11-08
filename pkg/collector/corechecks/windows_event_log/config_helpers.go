@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"regexp"
 
+	agentEvent "github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 )
 
@@ -26,11 +28,12 @@ func compileRegexPatterns(patterns []string) ([]*regexp.Regexp, error) {
 	return res, nil
 }
 
-func serverIsLocal(server *string) bool {
-	return server == nil ||
-		len(*server) == 0 ||
-		*server == "localhost" ||
-		*server == "127.0.0.1"
+func serverIsLocal(server util.Optional[string]) bool {
+	val, isSet := server.Get()
+	return !isSet ||
+		len(val) == 0 ||
+		val == "localhost" ||
+		val == "127.0.0.1"
 }
 
 func evtRPCFlagsFromString(flags string) (uint, error) {
@@ -47,4 +50,29 @@ func evtRPCFlagsFromString(flags string) (uint, error) {
 	default:
 		return 0, fmt.Errorf("invalid RPC auth type: '%s', must be one of default, negotiate, kerberos, ntlm", flags)
 	}
+}
+
+func evtRPCFlagsFromOption(authType util.Optional[string]) (uint, error) {
+	val, isSet := authType.Get()
+	if !isSet {
+		return 0, fmt.Errorf("option is not set")
+	}
+	return evtRPCFlagsFromString(val)
+}
+
+func isaffirmative(o util.Optional[bool]) bool {
+	val, isSet := o.Get()
+	return isSet && val
+}
+
+func getEventPriorityFromOption(o util.Optional[string]) (agentEvent.EventPriority, error) {
+	val, isSet := o.Get()
+	if !isSet {
+		return "", fmt.Errorf("option is not set")
+	}
+	eventPriority, err := agentEvent.GetEventPriorityFromString(val)
+	if err != nil {
+		return "", fmt.Errorf("invalid instance config `event_priority`: %w", err)
+	}
+	return eventPriority, nil
 }

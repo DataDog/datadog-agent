@@ -26,14 +26,38 @@ func (c *Check) initSubscription() error {
 		opts = append(opts, evtsubscribe.WithWindowsEventLogAPI(c.evtapi))
 	}
 
+	// The check should have already confirmed that these options are set/valid in validateConfig
+	// but since Optional.Get returns multiple values we have to create a new name/variable anyway
+	// so we might as well check they are set here, too.
+	startMode, isSet := c.config.instance.Start.Get()
+	if !isSet {
+		return fmt.Errorf("start mode is not set")
+	}
+	bookmarkFrequency, isSet := c.config.instance.BookmarkFrequency.Get()
+	if !isSet {
+		return fmt.Errorf("bookmark frequency is not set")
+	}
+	payloadSize, isSet := c.config.instance.PayloadSize.Get()
+	if !isSet {
+		return fmt.Errorf("payload size is not set")
+	}
+	channelPath, isSet := c.config.instance.ChannelPath.Get()
+	if !isSet {
+		return fmt.Errorf("channel path is not set")
+	}
+	query, isSet := c.config.instance.Query.Get()
+	if !isSet {
+		return fmt.Errorf("query is not set")
+	}
+
 	// Check persistent cache for bookmark
 	var bookmark evtbookmark.Bookmark
 	bookmarkXML := ""
-	if *c.config.instance.BookmarkFrequency > 0 {
+	if val, isSet := c.config.instance.BookmarkFrequency.Get(); isSet && val > 0 {
 		bookmarkXML, err = persistentcache.Read(c.bookmarkPersistentCacheKey())
 		if err != nil {
 			// persistentcache.Read() does not return error if key does not exist
-			log.Errorf("error reading bookmark from persistent cache %s, will start at %s events: %v", c.bookmarkPersistentCacheKey(), *c.config.instance.Start, err)
+			log.Errorf("error reading bookmark from persistent cache %s, will start at %s events: %v", c.bookmarkPersistentCacheKey(), startMode, err)
 		}
 	}
 	if bookmarkXML != "" {
@@ -42,7 +66,7 @@ func (c *Check) initSubscription() error {
 			evtbookmark.WithWindowsEventLogAPI(c.evtapi),
 			evtbookmark.FromXML(bookmarkXML))
 		if err != nil {
-			log.Errorf("error loading bookmark, will start at %s events: %v", *c.config.instance.Start, err)
+			log.Errorf("error loading bookmark, will start at %s events: %v", startMode, err)
 		} else {
 			opts = append(opts, evtsubscribe.WithStartAfterBookmark(bookmark))
 		}
@@ -53,14 +77,14 @@ func (c *Check) initSubscription() error {
 		if err != nil {
 			return err
 		}
-		if *c.config.instance.Start == "oldest" {
+		if startMode == "oldest" {
 			opts = append(opts, evtsubscribe.WithStartAtOldestRecord())
 		}
 	}
 
 	c.bookmarkSaver = &bookmarkSaver{
 		bookmark:          bookmark,
-		bookmarkFrequency: *c.config.instance.BookmarkFrequency,
+		bookmarkFrequency: bookmarkFrequency,
 		saveBookmark: func(bookmarkXML string) error {
 			err := persistentcache.Write(c.bookmarkPersistentCacheKey(), bookmarkXML)
 			if err != nil {
@@ -71,7 +95,7 @@ func (c *Check) initSubscription() error {
 	}
 
 	// Batch count
-	opts = append(opts, evtsubscribe.WithEventBatchCount(uint(*c.config.instance.PayloadSize)))
+	opts = append(opts, evtsubscribe.WithEventBatchCount(uint(payloadSize)))
 
 	// session
 	err = c.initSession()
@@ -85,8 +109,8 @@ func (c *Check) initSubscription() error {
 
 	// Create the subscription
 	c.sub = evtsubscribe.NewPullSubscription(
-		*c.config.instance.ChannelPath,
-		*c.config.instance.Query,
+		channelPath,
+		query,
 		opts...)
 
 	// Create a render context for System event values
@@ -141,22 +165,23 @@ func (c *Check) initSession() error {
 	}
 
 	// remote session
-	flags, err := evtRPCFlagsFromString(*c.config.instance.AuthType)
+	flags, err := evtRPCFlagsFromOption(c.config.instance.AuthType)
 	if err != nil {
 		return err
 	}
+
 	var server, user, domain, password string
-	if c.config.instance.Server != nil {
-		server = *c.config.instance.Server
+	if val, isSet := c.config.instance.Server.Get(); isSet {
+		server = val
 	}
-	if c.config.instance.User != nil {
-		user = *c.config.instance.User
+	if val, isSet := c.config.instance.User.Get(); isSet {
+		user = val
 	}
-	if c.config.instance.Domain != nil {
-		domain = *c.config.instance.Domain
+	if val, isSet := c.config.instance.Domain.Get(); isSet {
+		domain = val
 	}
-	if c.config.instance.Password != nil {
-		password = *c.config.instance.Password
+	if val, isSet := c.config.instance.Password.Get(); isSet {
+		password = val
 	}
 	session, err := evtsession.NewRemote(
 		c.evtapi,

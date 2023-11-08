@@ -211,49 +211,51 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 
 func (c *Check) validateConfig() error {
 	var err error
-	c.eventPriority, err = agentEvent.GetEventPriorityFromString(*c.config.instance.EventPriority)
+	c.eventPriority, err = getEventPriorityFromOption(c.config.instance.EventPriority)
 	if err != nil {
 		return fmt.Errorf("invalid instance config `event_priority`: %w", err)
 	}
-	if *c.config.instance.LegacyMode && *c.config.instance.LegacyModeV2 {
+	if isaffirmative(c.config.instance.LegacyMode) && isaffirmative(c.config.instance.LegacyModeV2) {
 		return fmt.Errorf("legacy_mode and legacy_mode_v2 are both true. Each instance must set a single mode to true")
 	}
-	if *c.config.instance.LegacyMode {
+	if isaffirmative(c.config.instance.LegacyMode) {
 		// wrap ErrSkipCheckInstance for graceful skipping
 		return fmt.Errorf("%w: unsupported configuration: legacy_mode: true", agentCheck.ErrSkipCheckInstance)
 	}
-	if *c.config.instance.LegacyModeV2 {
+	if isaffirmative(c.config.instance.LegacyModeV2) {
 		// wrap ErrSkipCheckInstance for graceful skipping
 		return fmt.Errorf("%w: unsupported configuration: legacy_mode_v2: true", agentCheck.ErrSkipCheckInstance)
 	}
-	if c.config.instance.Timeout != nil {
+	if c.config.instance.Timeout.IsSet() {
 		// timeout option is deprecated. Now that the subscription runs in the background in a select
 		// style, a timeout on the "wait for events" operation is no longer applicable.
 		c.Warn("instance config `timeout` is deprecated. It is no longer used by the check and can be removed.")
 	}
-	if len(*c.config.instance.ChannelPath) == 0 {
+	if val, isSet := c.config.instance.ChannelPath.Get(); !isSet || len(val) == 0 {
 		return fmt.Errorf("instance config `path` must be provided and not be empty")
 	}
-	if len(*c.config.instance.Query) == 0 {
+	if val, isSet := c.config.instance.Query.Get(); !isSet || len(val) == 0 {
+		// Query should always be set by this point, but might be ""
 		return fmt.Errorf("instance config `query` if provided must not be empty")
 	}
-	if *c.config.instance.Start != "now" && *c.config.instance.Start != "oldest" {
-		return fmt.Errorf("invalid instance config `start`: '%s'", *c.config.instance.Start)
+	startMode, isSet := c.config.instance.Start.Get()
+	if !isSet || (startMode != "now" && startMode != "oldest") {
+		return fmt.Errorf("invalid instance config `start`: '%s'", startMode)
 	}
-	_, err = evtRPCFlagsFromString(*c.config.instance.AuthType)
+	_, err = evtRPCFlagsFromOption(c.config.instance.AuthType)
 	if err != nil {
 		return fmt.Errorf("invalid instance config `auth_type`: %w", err)
 	}
 
-	if c.config.instance.IncludedMessages != nil {
-		c.includedMessages, err = compileRegexPatterns(c.config.instance.IncludedMessages)
+	if val, isSet := c.config.instance.IncludedMessages.Get(); isSet {
+		c.includedMessages, err = compileRegexPatterns(val)
 		if err != nil {
 			return fmt.Errorf("invalid instance config `included_messages`: %w", err)
 		}
 	}
 
-	if c.config.instance.ExcludedMessages != nil {
-		c.excludedMessages, err = compileRegexPatterns(c.config.instance.ExcludedMessages)
+	if val, isSet := c.config.instance.ExcludedMessages.Get(); isSet {
+		c.excludedMessages, err = compileRegexPatterns(val)
 		if err != nil {
 			return fmt.Errorf("invalid instance config `excluded_messages`: %w", err)
 		}

@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	"github.com/DataDog/datadog-agent/pkg/util"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -36,26 +37,26 @@ type Config struct {
 }
 
 type instanceConfig struct {
-	ChannelPath       *string        `yaml:"path"`
-	Query             *string        `yaml:"query"`
-	Start             *string        `yaml:"start"`
-	Timeout           *int           `yaml:"timeout"`
-	PayloadSize       *int           `yaml:"payload_size"`
-	BookmarkFrequency *int           `yaml:"bookmark_frequency"`
-	LegacyMode        *bool          `yaml:"legacy_mode"`
-	LegacyModeV2      *bool          `yaml:"legacy_mode_v2"`
-	EventPriority     *string        `yaml:"event_priority"`
-	TagEventID        *bool          `yaml:"tag_event_id"`
-	TagSID            *bool          `yaml:"tag_sid"`
-	Filters           *filtersConfig `yaml:"filters"`
-	IncludedMessages  []string       `yaml:"included_messages"`
-	ExcludedMessages  []string       `yaml:"excluded_messages"`
-	AuthType          *string        `yaml:"auth_type"`
-	Server            *string        `yaml:"server"`
-	User              *string        `yaml:"user"`
-	Domain            *string        `yaml:"domain"`
-	Password          *string        `yaml:"password"`
-	InterpretMessages *bool          `yaml:"interpret_messages"`
+	ChannelPath       util.Optional[string]        `yaml:"path"`
+	Query             util.Optional[string]        `yaml:"query"`
+	Start             util.Optional[string]        `yaml:"start"`
+	Timeout           util.Optional[int]           `yaml:"timeout"`
+	PayloadSize       util.Optional[int]           `yaml:"payload_size"`
+	BookmarkFrequency util.Optional[int]           `yaml:"bookmark_frequency"`
+	LegacyMode        util.Optional[bool]          `yaml:"legacy_mode"`
+	LegacyModeV2      util.Optional[bool]          `yaml:"legacy_mode_v2"`
+	EventPriority     util.Optional[string]        `yaml:"event_priority"`
+	TagEventID        util.Optional[bool]          `yaml:"tag_event_id"`
+	TagSID            util.Optional[bool]          `yaml:"tag_sid"`
+	Filters           util.Optional[filtersConfig] `yaml:"filters"`
+	IncludedMessages  util.Optional[[]string]      `yaml:"included_messages"`
+	ExcludedMessages  util.Optional[[]string]      `yaml:"excluded_messages"`
+	AuthType          util.Optional[string]        `yaml:"auth_type"`
+	Server            util.Optional[string]        `yaml:"server"`
+	User              util.Optional[string]        `yaml:"user"`
+	Domain            util.Optional[string]        `yaml:"domain"`
+	Password          util.Optional[string]        `yaml:"password"`
+	InterpretMessages util.Optional[bool]          `yaml:"interpret_messages"`
 }
 
 type filtersConfig struct {
@@ -65,12 +66,12 @@ type filtersConfig struct {
 }
 
 type initConfig struct {
-	TagEventID        *bool   `yaml:"tag_event_id"`
-	TagSID            *bool   `yaml:"tag_sid"`
-	EventPriority     *string `yaml:"event_priority"`
-	InterpretMessages *bool   `yaml:"interpret_messages"`
-	LegacyMode        *bool   `yaml:"legacy_mode"`
-	LegacyModeV2      *bool   `yaml:"legacy_mode_v2"`
+	TagEventID        util.Optional[bool]   `yaml:"tag_event_id"`
+	TagSID            util.Optional[bool]   `yaml:"tag_sid"`
+	EventPriority     util.Optional[string] `yaml:"event_priority"`
+	InterpretMessages util.Optional[bool]   `yaml:"interpret_messages"`
+	LegacyMode        util.Optional[bool]   `yaml:"legacy_mode"`
+	LegacyModeV2      util.Optional[bool]   `yaml:"legacy_mode_v2"`
 }
 
 func (f *filtersConfig) Sources() []string {
@@ -115,88 +116,59 @@ func (c *Config) unmarshal(instance integration.Data, initConfig integration.Dat
 }
 
 func (c *Config) genQuery() error {
-	if c.instance.Query != nil {
+	if c.instance.Query.IsSet() {
 		return nil
 	}
-	if c.instance.Filters == nil {
-		def := defaultConfigQuery
-		c.instance.Query = &def
+	filters, isSet := c.instance.Filters.Get()
+	if !isSet {
+		c.instance.Query.Set(defaultConfigQuery)
 		return nil
 	}
-	query, err := queryFromFilter(c.instance.Filters)
+	query, err := queryFromFilter(&filters)
 	if err != nil {
 		return err
 	}
-	c.instance.Query = &query
+	c.instance.Query.Set(query)
 	return nil
+}
+
+func setOptionalDefault[T any](optional *util.Optional[T], def T) {
+	if !optional.IsSet() {
+		optional.Set(def)
+	}
+}
+
+func setOptionalDefaultWithInitConfig[T any](instance *util.Optional[T], shared util.Optional[T], def T) {
+	if !instance.IsSet() {
+		if val, isSet := shared.Get(); isSet {
+			instance.Set(val)
+		} else {
+			instance.Set(def)
+		}
+	}
 }
 
 // Sets default values for the instance configuration.
 // initConfig fields will override hardcoded defaults.
 func (c *Config) setDefaults() {
+	//
 	// instance fields
-	if c.instance.ChannelPath == nil {
-		def := ""
-		c.instance.ChannelPath = &def
-	}
+	//
+	setOptionalDefault(&c.instance.Query, defaultConfigQuery)
+	setOptionalDefault(&c.instance.Start, defaultConfigStart)
+	setOptionalDefault(&c.instance.PayloadSize, defaultConfigPayloadSize)
+	// bookmark frequency defaults to the payload size
+	defaultBookmarkFrequency, _ := c.instance.PayloadSize.Get()
+	setOptionalDefault(&c.instance.BookmarkFrequency, defaultBookmarkFrequency)
+	setOptionalDefault(&c.instance.AuthType, defaultConfigAuthType)
 
-	if c.instance.Query == nil {
-		def := defaultConfigQuery
-		c.instance.Query = &def
-	}
-
-	if c.instance.Start == nil {
-		def := defaultConfigStart
-		c.instance.Start = &def
-	}
-
-	if c.instance.PayloadSize == nil {
-		def := defaultConfigPayloadSize
-		c.instance.PayloadSize = &def
-	}
-
-	if c.instance.BookmarkFrequency == nil {
-		def := *c.instance.PayloadSize
-		c.instance.BookmarkFrequency = &def
-	}
-
-	if c.instance.AuthType == nil {
-		def := defaultConfigAuthType
-		c.instance.AuthType = &def
-	}
-
+	//
 	// instance fields with initConfig defaults
-	if c.instance.TagEventID == nil {
-		def := defaultConfigTagEventID
-		if c.init.TagEventID != nil {
-			def = *c.init.TagEventID
-		}
-		c.instance.TagEventID = &def
-	}
-
-	if c.instance.TagSID == nil {
-		def := defaultConfigTagSID
-		if c.init.TagSID != nil {
-			def = *c.init.TagSID
-		}
-		c.instance.TagSID = &def
-	}
-
-	if c.instance.EventPriority == nil {
-		def := defaultConfigEventPriority
-		if c.init.EventPriority != nil {
-			def = *c.init.EventPriority
-		}
-		c.instance.EventPriority = &def
-	}
-
-	if c.instance.InterpretMessages == nil {
-		def := defaultConfigInterpretMessages
-		if c.init.InterpretMessages != nil {
-			def = *c.init.InterpretMessages
-		}
-		c.instance.InterpretMessages = &def
-	}
+	//
+	setOptionalDefaultWithInitConfig(&c.instance.TagEventID, c.init.TagEventID, defaultConfigTagEventID)
+	setOptionalDefaultWithInitConfig(&c.instance.TagSID, c.init.TagSID, defaultConfigTagSID)
+	setOptionalDefaultWithInitConfig(&c.instance.EventPriority, c.init.EventPriority, defaultConfigEventPriority)
+	setOptionalDefaultWithInitConfig(&c.instance.InterpretMessages, c.init.InterpretMessages, defaultConfigInterpretMessages)
 
 	// Legacy mode options
 	c.processLegacyModeOptions()
@@ -204,30 +176,23 @@ func (c *Config) setDefaults() {
 
 func (c *Config) processLegacyModeOptions() {
 	// use initConfig option if instance value is unset
-	if c.instance.LegacyMode == nil {
-		if c.init.LegacyMode != nil {
-			c.instance.LegacyMode = c.init.LegacyMode
+	if !c.instance.LegacyMode.IsSet() {
+		if val, isSet := c.init.LegacyMode.Get(); isSet {
+			c.instance.LegacyMode.Set(val)
 		}
 	}
-	if c.instance.LegacyModeV2 == nil {
-		if c.init.LegacyModeV2 != nil {
-			c.instance.LegacyModeV2 = c.init.LegacyModeV2
+	if !c.instance.LegacyModeV2.IsSet() {
+		if val, isSet := c.init.LegacyModeV2.Get(); isSet {
+			c.instance.LegacyModeV2.Set(val)
 		}
 	}
 
 	// If legacy_mode and legacy_mode_v2 are unset, default to legacy mode for configuration backwards compatibility
-	if c.instance.LegacyMode == nil && (c.instance.LegacyModeV2 == nil || !*c.instance.LegacyModeV2) {
-		def := true
-		c.instance.LegacyMode = &def
+	if !c.instance.LegacyMode.IsSet() && !isaffirmative(c.instance.LegacyModeV2) {
+		c.instance.LegacyMode.Set(true)
 	}
 
 	// if option is unset, default to false
-	if c.instance.LegacyMode == nil {
-		val := defaultConfigLegacyMode
-		c.instance.LegacyMode = &val
-	}
-	if c.instance.LegacyModeV2 == nil {
-		val := defaultConfigLegacyModeV2
-		c.instance.LegacyModeV2 = &val
-	}
+	setOptionalDefault(&c.instance.LegacyMode, defaultConfigLegacyMode)
+	setOptionalDefault(&c.instance.LegacyModeV2, defaultConfigLegacyModeV2)
 }
