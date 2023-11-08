@@ -130,9 +130,9 @@ func (c *collector) Pull(ctx context.Context) error {
 			containerEntity.CollectorTags = tags
 		} else {
 			// Parse tags from garden.Container.Properties["logs_config"]["tags"]["app_name"]
-			if logConfigJson, found := containerInfo.Info.Properties["log_config"]; found {
+			if logConfigJSON, found := containerInfo.Info.Properties["log_config"]; found {
 				var config map[string]interface{}
-				if err := json.Unmarshal([]byte(logConfigJson), &config); err == nil {
+				if err := json.Unmarshal([]byte(logConfigJSON), &config); err == nil {
 					if appName := ddjson.GetNestedValue(config, "tags", "app_name"); appName != nil {
 						containerEntity.CollectorTags = []string{
 							fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, appName.(string)),
