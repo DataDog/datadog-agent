@@ -116,13 +116,13 @@ func (suite *PodTestSuite) SetupTest() {
 	require.NoError(suite.T(), err)
 	suite.testServer = ts
 
-	mockConfig.Set("kubernetes_kubelet_host", "127.0.0.1")
-	mockConfig.Set("kubernetes_http_kubelet_port", kubeletPort)
-	mockConfig.Set("kubernetes_https_kubelet_port", kubeletPort)
-	mockConfig.Set("kubelet_tls_verify", false)
-	mockConfig.Set("orchestrator_explorer.enabled", true)
-	mockConfig.Set("orchestrator_explorer.run_on_node_agent", false)
-	mockConfig.Set("orchestrator_explorer.manifest_collection.enabled", true)
+	mockConfig.SetWithoutSource("kubernetes_kubelet_host", "127.0.0.1")
+	mockConfig.SetWithoutSource("kubernetes_http_kubelet_port", kubeletPort)
+	mockConfig.SetWithoutSource("kubernetes_https_kubelet_port", kubeletPort)
+	mockConfig.SetWithoutSource("kubelet_tls_verify", false)
+	mockConfig.SetWithoutSource("orchestrator_explorer.enabled", true)
+	mockConfig.SetWithoutSource("orchestrator_explorer.run_on_node_agent", false)
+	mockConfig.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
 
 	kubeutil, _ := kubelet.GetKubeUtilWithRetrier()
 	require.NotNil(suite.T(), kubeutil)

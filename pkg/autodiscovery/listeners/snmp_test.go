@@ -33,7 +33,7 @@ func TestSNMPListener(t *testing.T) {
 	}
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("snmp_listener", listenerConfig)
+	mockConfig.SetWithoutSource("snmp_listener", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 		for {
@@ -81,7 +81,7 @@ func TestSNMPListenerSubnets(t *testing.T) {
 	}
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("snmp_listener", listenerConfig)
+	mockConfig.SetWithoutSource("snmp_listener", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 		for {
@@ -132,7 +132,7 @@ func TestSNMPListenerIgnoredAdresses(t *testing.T) {
 	}
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("snmp_listener", listenerConfig)
+	mockConfig.SetWithoutSource("snmp_listener", listenerConfig)
 
 	worker = func(l *SNMPListener, jobs <-chan snmpJob) {
 		for {

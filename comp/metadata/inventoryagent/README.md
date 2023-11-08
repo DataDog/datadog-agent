@@ -14,8 +14,15 @@ The `Set` method from the component allow the rest of the codebase to add any in
 
 ## Agent Configuration
 
-`full_configuration` and `provided_configuration` are scrubbed from any sensitive information (same logic than for the
-flare).
+The agent configurations are scrubbed from any sensitive information (same logic than for the flare).
+This include the following:
+`full_configuration`
+`provided_configuration`
+`file_configuration`
+`environment_variable_configuration`
+`agent_runtime_configuration`
+`remote_configuration`
+`cli_configuration`
 
 Sending Agent configuration can be disabled using `inventories_configuration_enabled`.
 

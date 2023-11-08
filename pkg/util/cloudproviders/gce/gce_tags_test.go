@@ -106,8 +106,8 @@ func TestGetHostTagsWithProjectID(t *testing.T) {
 	server := mockMetadataRequest(t)
 	defer server.Close()
 	defer cache.Cache.Delete(tagsCacheKey)
-	config.Datadog.Set("gce_send_project_id_tag", true)
-	defer config.Datadog.Set("gce_send_project_id_tag", false)
+	config.Datadog.SetWithoutSource("gce_send_project_id_tag", true)
+	defer config.Datadog.SetWithoutSource("gce_send_project_id_tag", false)
 	tags, err := GetTags(ctx)
 	require.Nil(t, err)
 	testTags(t, tags, expectedTagsWithProjectID)
@@ -133,9 +133,9 @@ func TestGetHostTagsWithNonDefaultTagFilters(t *testing.T) {
 	ctx := context.Background()
 	mockConfig := config.Mock(t)
 	defaultExclude := mockConfig.GetStringSlice("exclude_gce_tags")
-	defer mockConfig.Set("exclude_gce_tags", defaultExclude)
+	defer mockConfig.SetWithoutSource("exclude_gce_tags", defaultExclude)
 
-	mockConfig.Set("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
+	mockConfig.SetWithoutSource("exclude_gce_tags", append([]string{"cluster-name"}, defaultExclude...))
 
 	server := mockMetadataRequest(t)
 	defer server.Close()

@@ -156,6 +156,10 @@ func (s *MetricsStore) GetByKey(key string) (item interface{}, exists bool, err 
 // Replace will delete the contents of the store, using instead the
 // given list.
 func (s *MetricsStore) Replace(list []interface{}, _ string) error {
+	s.mutex.Lock()
+	s.metrics = map[types.UID][]DDMetricsFam{}
+	s.mutex.Unlock()
+
 	for _, o := range list {
 		err := s.Add(o)
 		if err != nil {

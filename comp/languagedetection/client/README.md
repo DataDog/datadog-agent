@@ -10,7 +10,7 @@ The client subscribe to process and pod events in workloadmeta. It handles only 
 
 There are two main periods the client operates in terms of sending data to the Cluster-Agent:
 
-1. The `freshly updated pods period` that sends information about newly updated pods as soon as possible. It awaits a few seconds, such that there is a high chance that all processes in a pod are scanned and thus tries limiting the amount of messages sent.
+1. The `freshDataPeriod` that sends information about new updated pods as soon as possible. It awaits a few seconds, such that there is a high chance that all processes in a pod are scanned and thus tries limiting the amount of messages sent.
 2. The `periodical flush period` is dedicated to sending accumulated data in intervals of a few minutes. This mechanism ensures a `retry`.
 
 Moreover, since there can be a race between the Kubelet and the process-check, if the pod of a given process is not found, the client waits until the kubelet data is pulled before trying again.
