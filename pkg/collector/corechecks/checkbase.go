@@ -126,8 +126,8 @@ func (c *CheckBase) CommonConfigure(senderManager sender.SenderManager, integrat
 		// Set custom tags configured for this check
 		if len(commonOptions.Tags) > 0 {
 			s, err := c.GetSender()
-			// sort.UniqInPlace is called as well in the aggregator. In removes duplicates and sorts the tags.
-			// calling it here can avoid some useless work in the aggregator.
+			// sort.UniqInPlace is called as well in the aggregator. It removes duplicates and sorts the tags.
+			// Calling it here can avoid some additional work in the aggregator.
 			commonOptions.Tags = sort.UniqInPlace(commonOptions.Tags)
 			if err != nil {
 				log.Errorf("failed to retrieve a sender for check %s: %s", string(c.ID()), err)
