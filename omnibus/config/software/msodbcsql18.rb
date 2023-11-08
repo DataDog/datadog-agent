@@ -10,8 +10,14 @@ relative_path "msodbcsql18-#{version}"
 
 build do
   if debian_target? && !arm_target?
-    command "mkdir -p #{install_dir}/embedded/msodbcsql"
+    command "mkdir -p #{install_dir}/embedded/msodbcsql/lib"
     command "dpkg-deb -R #{project_dir}/#{name}-#{name}_#{version}_amd64.deb #{project_dir}/#{relative_path}"
-    move "#{project_dir}/#{relative_path}/*", "#{install_dir}/embedded/msodbcsql/", :force=>true
+    # Fix rpath first
+    command "patchelf --force-rpath --set-rpath '#{install_dir}/embedded/lib' '#{project_dir}/#{relative_path}/opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.3.so.2.1'"
+    # Manually move the files we need and ensure the symlink aren't broken
+    move "#{project_dir}/#{relative_path}/opt/microsoft/msodbcsql18/*", "#{install_dir}/embedded/msodbcsql/", :force => true
+    link "#{install_dir}/embedded/msodbcsql/lib64/libmsodbcsql-18.3.so.2.1", "#{install_dir}/embedded/msodbcsql/lib/libmsodbcsql-18.3.so"
+    # Also move the license bits
+    move "#{project_dir}/#{relative_path}/usr/share", "#{install_dir}/embedded/msodbcsql/", :force => true
   end
 end
