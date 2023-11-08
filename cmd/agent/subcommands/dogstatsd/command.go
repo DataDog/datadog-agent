@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
-// dogstatsd contains "agent dogstatsd" subcommands
+// Package dogstatsd contains "agent dogstatsd" subcommands
 package dogstatsd
 
 import (
@@ -35,6 +35,7 @@ type topFlags struct {
 	ntags    int
 }
 
+// Commands initializes dogstatsd sub-command tree.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	c := &cobra.Command{
 		Use:   "dogstatsd",
