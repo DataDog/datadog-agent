@@ -109,7 +109,7 @@ func rootCommand() *cobra.Command {
 		},
 	}
 
-	sideScannerCmd.PersistentFlags().StringVarP(&configPath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "side-scanner.yaml"), "specify the path to side-scanner configuration yaml file")
+	sideScannerCmd.PersistentFlags().StringVarP(&configPath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to side-scanner configuration yaml file")
 	sideScannerCmd.PersistentFlags().BoolVarP(&attachVolumes, "attach-volumes", "", false, "scan EBS snapshots by creating a dedicated volume")
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
