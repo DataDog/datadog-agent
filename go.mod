@@ -76,6 +76,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.49.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.3.0
+	// do not update datadog-operator to 1.2.1 because the indirect dependency github.com/DataDog/datadog-api-client-go/v2 v2.15.0 is trigger a huge Go heap memory increase.
 	github.com/DataDog/datadog-operator v1.1.0
 	github.com/DataDog/ebpf-manager v0.3.4
 	github.com/DataDog/go-libddwaf v1.5.0
