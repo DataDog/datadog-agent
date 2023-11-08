@@ -31,7 +31,10 @@ import (
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/collector"
+<<<<<<< HEAD
 	"github.com/DataDog/datadog-agent/pkg/status/render"
+=======
+>>>>>>> ff866964ad (use collector package to just collect check information)
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -324,7 +327,11 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
 	stats["forwarderStats"] = forwarderStats
 
+<<<<<<< HEAD
 	collector.PopulateStatus(stats)
+=======
+	collector.UpdateStatus(stats)
+>>>>>>> ff866964ad (use collector package to just collect check information)
 
 	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
 	aggregatorStats := make(map[string]interface{})
@@ -366,6 +373,7 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}
 
+<<<<<<< HEAD
 	// invAgent can be nil when generating a status page for some agent where inventory is not enabled
 	// (clusteragent, security-agent, ...).
 	//
@@ -376,6 +384,8 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 		stats["agent_metadata"] = map[string]string{}
 	}
 
+=======
+>>>>>>> ff866964ad (use collector package to just collect check information)
 	stats["snmpTrapsStats"] = traps.GetStatus()
 
 	stats["netflowStats"] = netflowServer.GetStatus()
