@@ -205,7 +205,7 @@ func TestProvider_Provide(t *testing.T) {
 				if metric.name == common.KubeletMetricsPrefix+"slis.kubernetes_healthcheck" {
 					mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
 				} else {
-					mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
+					mockSender.AssertMetric(t, "Count", metric.name, metric.value, "", metric.tags)
 				}
 			}
 		})
