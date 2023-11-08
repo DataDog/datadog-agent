@@ -35,9 +35,9 @@ func (suite *kindSuite) SetupSuite() {
 	ctx := context.Background()
 
 	stackConfig := runner.ConfigMap{
-		"ddagent:deploy":        auto.ConfigValue{Value: "true"},
-		"ddagent:fakeintake":    auto.ConfigValue{Value: "true"},
-		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
+		"ddagent:deploy":        auto.ConfigValue{Value: "false"},
+		"ddagent:fakeintake":    auto.ConfigValue{Value: "false"},
+		"ddtestworkload:deploy": auto.ConfigValue{Value: "false"},
 	}
 
 	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "kind-cluster", stackConfig, kindvm.Run, false)
@@ -52,7 +52,7 @@ func (suite *kindSuite) SetupSuite() {
 	kubeconfig := stackOutput.Outputs["kubeconfig"].Value.(string)
 
 	kubeconfigFile := path.Join(suite.T().TempDir(), "kubeconfig")
-	suite.Require().NoError(os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0600))
+	suite.Require().NoError(os.WriteFile(kubeconfigFile, []byte(kubeconfig), 0o600))
 
 	suite.K8sConfig, err = clientcmd.BuildConfigFromFlags("", kubeconfigFile)
 	suite.Require().NoError(err)

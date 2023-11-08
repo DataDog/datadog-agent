@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package params implements function parameters for [e2e.Suite]
+// Package params implements function parameters for [test.Suite]
 package params
 
-// Params implements [e2e.Suite] options
+// Params implements [test.Suite] options
 type Params struct {
 	StackName string
 
