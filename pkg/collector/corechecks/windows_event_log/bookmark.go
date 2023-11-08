@@ -32,7 +32,9 @@ func (b *bookmarkSaver) updateBookmark(event *evtapi.EventRecord) error {
 	defer b.mu.Unlock()
 
 	// Updating and rendering the bookmark is fast, and it makes the "update bookmark at end of check"
-	// logic easier by avoiding having to track/save/close the event handle, so just do it every time.
+	// logic easier by avoiding having to conditionally track/save/close the event handle, so just do it every time.
+	// DuplicateHandle() does not support event log handles, so we can't use it to separate the event
+	// from the subscription.
 	err := b.bookmark.Update(event.EventRecordHandle)
 	if err != nil {
 		return fmt.Errorf("failed to update bookmark: %w", err)

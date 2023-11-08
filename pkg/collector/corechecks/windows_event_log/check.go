@@ -57,16 +57,21 @@ type Check struct {
 	bookmarkSaver       *bookmarkSaver
 }
 
-// Run executes the check
+// Run updates sender stats, restarts the subscription if it failed, and saves the bookmark.
+// The main event collection logic runs continuously in the background, not during Run().
 func (c *Check) Run() error {
 	sender, err := c.GetSender()
 	if err != nil {
 		return err
 	}
 	// Necessary for check stats to be calculated (number of events collected, etc)
+	// Since events are collected in the background, this will update stats with the
+	// count of events collected since the last Run() call.
 	defer sender.Commit()
 
+	// Start/Restart the subscription if it is not running
 	if !c.sub.Running() {
+		// starts the event collection in the background.
 		err := c.startSubscription()
 		if err != nil {
 			return err
@@ -107,6 +112,7 @@ func (c *Check) fetchEventsLoop(sender sender.Sender) {
 	for {
 		select {
 		case <-c.fetchEventsLoopStop:
+			log.Debug("stopping subscription")
 			return
 		case events, ok := <-c.sub.GetEvents():
 			if !ok {
@@ -115,6 +121,8 @@ func (c *Check) fetchEventsLoop(sender sender.Sender) {
 				err := c.sub.Error()
 				if err != nil {
 					log.Errorf("event subscription stopped with error: %v", err)
+				} else {
+					log.Debug("event subscription stopped")
 				}
 				return
 			}
