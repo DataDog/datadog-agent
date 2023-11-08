@@ -1572,6 +1572,12 @@ api_key:
   # - ns2
   # - system-ns
 
+  ## @param trace_buffer - integer - optional
+  ## @env DD_APM_TRACE_BUFFER - integer - optional
+  ## Specifies the size of trace payloads to buffer before dropping them. If unset, trace payloads are unbuffered.
+  #
+  # trace_buffer: 100
+
   {{- if .InternalProfiling -}}
   ## @param profiling - custom object - optional
   ## Enter specific configurations for internal profiling.

@@ -1265,23 +1265,20 @@
     "file": {
       "$ref": "#/$defs/FileEvent"
     },
-    "dns": {
-      "$ref": "#/$defs/DNSEvent"
-    },
-    "network": {
-      "$ref": "#/$defs/NetworkContext"
-    },
     "exit": {
       "$ref": "#/$defs/ExitEvent"
     },
     "process": {
       "$ref": "#/$defs/ProcessContext"
     },
-    "dd": {
-      "$ref": "#/$defs/DDContext"
-    },
     "container": {
       "$ref": "#/$defs/ContainerContext"
+    },
+    "network": {
+      "$ref": "#/$defs/NetworkContext"
+    },
+    "dd": {
+      "$ref": "#/$defs/DDContext"
     },
     "security_profile": {
       "$ref": "#/$defs/SecurityProfileContext"
@@ -1309,6 +1306,9 @@
     },
     "splice": {
       "$ref": "#/$defs/SpliceEvent"
+    },
+    "dns": {
+      "$ref": "#/$defs/DNSEvent"
     },
     "bind": {
       "$ref": "#/$defs/BindEvent"

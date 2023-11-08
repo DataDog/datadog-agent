@@ -142,6 +142,11 @@ type Event struct {
 	// globals
 	Async bool `field:"event.async,handler:ResolveAsync" event:"*"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
+	// context
+	SpanContext            SpanContext            `field:"-" json:"-"`
+	NetworkContext         NetworkContext         `field:"network" event:"dns"`
+	SecurityProfileContext SecurityProfileContext `field:"-"`
+
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
 	Chown       ChownEvent    `field:"chown" event:"chown"`             // [7.27] [File] A file’s owner was changed
@@ -408,7 +413,7 @@ type FileEvent struct {
 	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
 
 	HashState HashState `field:"-"`
-	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
+	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad,weight:999"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
 
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
@@ -842,9 +847,10 @@ const PathLeafSize = PathKeySize + MaxSegmentLength + 1 + 2 + 6 // path_key + na
 
 // PathLeaf is the go representation of the eBPF path_leaf_t structure
 type PathLeaf struct {
-	Parent PathKey
-	Name   [MaxSegmentLength + 1]byte
-	Len    uint16
+	Parent  PathKey
+	Name    [MaxSegmentLength + 1]byte
+	Len     uint16
+	Padding [6]uint8
 }
 
 // GetName returns the path value as a string

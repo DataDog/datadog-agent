@@ -37,14 +37,15 @@ type protocol struct {
 }
 
 const (
-	inFlightMap          = "http2_in_flight"
-	dynamicTable         = "http2_dynamic_table"
-	dynamicTableCounter  = "http2_dynamic_counter_table"
-	http2IterationsTable = "http2_iterations"
-	staticTable          = "http2_static_table"
-	filterTailCall       = "socket__http2_filter"
-	parserTailCall       = "socket__http2_frames_parser"
-	eventStream          = "http2"
+	inFlightMap               = "http2_in_flight"
+	dynamicTable              = "http2_dynamic_table"
+	dynamicTableCounter       = "http2_dynamic_counter_table"
+	http2IterationsTable      = "http2_iterations"
+	staticTable               = "http2_static_table"
+	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
+	filterTailCall            = "socket__http2_filter"
+	parserTailCall            = "socket__http2_frames_parser"
+	eventStream               = "http2"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -81,7 +82,14 @@ var Spec = &protocols.ProtocolSpec{
 	TailCalls: []manager.TailCallRoute{
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP2),
+			Key:           uint32(protocols.ProgramHTTP2HandleFirstFrame),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: firstFrameHandlerTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2FrameFilter),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
 			},
