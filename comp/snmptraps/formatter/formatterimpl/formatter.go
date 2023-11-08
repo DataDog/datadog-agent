@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
@@ -54,7 +55,11 @@ const (
 )
 
 // newJSONFormatter creates a new JSONFormatter instance with an optional OIDResolver variable.
-func newJSONFormatter(oidResolver oidresolver.Component, sender sender.Sender, logger log.Component) (formatter.Component, error) {
+func newJSONFormatter(oidResolver oidresolver.Component, demux demultiplexer.Component, logger log.Component) (formatter.Component, error) {
+	sender, err := demux.GetDefaultSender()
+	if err != nil {
+		return nil, err
+	}
 	return JSONFormatter{oidResolver, sender, logger}, nil
 }
 

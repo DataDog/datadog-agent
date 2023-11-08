@@ -15,10 +15,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	packetModule "github.com/DataDog/datadog-agent/comp/snmptraps/packet"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 
@@ -46,11 +46,7 @@ func listenerTestSetup(t *testing.T, conf *config.TrapsConfig) *services {
 		log.MockModule,
 		configimpl.MockModule,
 		statusimpl.MockModule,
-		fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
-			mockSender := mocksender.NewMockSender("mock-sender")
-			mockSender.SetupAcceptAll()
-			return mockSender, mockSender
-		}),
+		senderhelper.Opts,
 		Module,
 		fx.Replace(conf),
 	)

@@ -10,6 +10,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter"
@@ -43,17 +44,21 @@ type dependencies struct {
 	fx.In
 	Config    config.Component
 	Formatter formatter.Component
-	Sender    sender.Sender
+	Demux     demultiplexer.Component
 	Listener  listener.Component
 	Logger    log.Component
 }
 
 // newTrapForwarder creates a simple TrapForwarder instance
 func newTrapForwarder(lc fx.Lifecycle, dep dependencies) (forwarder.Component, error) {
+	sender, err := dep.Demux.GetDefaultSender()
+	if err != nil {
+		return nil, err
+	}
 	tf := &trapForwarder{
 		trapsIn:   dep.Listener.Packets(),
 		formatter: dep.Formatter,
-		sender:    dep.Sender,
+		sender:    sender,
 		stopChan:  make(chan struct{}, 1),
 		logger:    dep.Logger,
 	}

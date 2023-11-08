@@ -18,6 +18,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
@@ -44,14 +45,17 @@ type trapListener struct {
 type dependencies struct {
 	fx.In
 	Config config.Component
-	Sender sender.Sender
+	Demux  demultiplexer.Component
 	Logger log.Component
 	Status status.Component
 }
 
 // newTrapListener creates a TrapListener and registers it with the lifecycle.
 func newTrapListener(lc fx.Lifecycle, dep dependencies) (listener.Component, error) {
-	var err error
+	sender, err := dep.Demux.GetDefaultSender()
+	if err != nil {
+		return nil, err
+	}
 	config := dep.Config.Get()
 	gosnmpListener := gosnmp.NewTrapListener()
 	gosnmpListener.Params, err = config.BuildSNMPParams(dep.Logger)
@@ -61,7 +65,7 @@ func newTrapListener(lc fx.Lifecycle, dep dependencies) (listener.Component, err
 	errorsChan := make(chan error, 1)
 	trapListener := &trapListener{
 		config:        config,
-		sender:        dep.Sender,
+		sender:        sender,
 		packets:       make(packet.PacketsChannel, config.GetPacketChannelSize()),
 		listener:      gosnmpListener,
 		errorsChannel: errorsChan,

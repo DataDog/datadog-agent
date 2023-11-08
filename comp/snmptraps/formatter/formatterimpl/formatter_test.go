@@ -16,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/oidresolverimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 
@@ -216,11 +216,7 @@ var (
 
 var testOptions = fx.Options(
 	log.MockModule,
-	fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
-		mockSender := mocksender.NewMockSender("mock-sender")
-		mockSender.SetupAcceptAll()
-		return mockSender, mockSender
-	}),
+	senderhelper.Opts,
 	oidresolverimpl.MockModule,
 	Module,
 )

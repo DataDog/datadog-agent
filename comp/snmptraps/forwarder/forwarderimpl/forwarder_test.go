@@ -22,8 +22,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/packet"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -43,11 +43,7 @@ func setUp(t *testing.T) *services {
 	s := fxutil.Test[services](t,
 		configimpl.MockModule,
 		log.MockModule,
-		fx.Provide(func() (*mocksender.MockSender, sender.Sender) {
-			mockSender := mocksender.NewMockSender("mock-sender")
-			mockSender.SetupAcceptAll()
-			return mockSender, mockSender
-		}),
+		senderhelper.Opts,
 		formatterimpl.MockModule,
 		listenerimpl.MockModule,
 		Module,
