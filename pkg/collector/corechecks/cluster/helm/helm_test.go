@@ -322,7 +322,8 @@ func TestRun_withCollectEvents(t *testing.T) {
 
 	eventsAllowedDelta := 10 * time.Second
 
-	secret, err := secretForRelease(&rel, time.Now().Add(10))
+	// The creation timestamp of the secret needs to be after the check start. Otherwise, the event will not be emitted.
+	secret, err := secretForRelease(&rel, check.startTS.Add(10))
 	require.NoError(t, err)
 
 	k8sClient := fake.NewSimpleClientset()
@@ -411,7 +412,8 @@ func TestRun_skipEventForExistingRelease(t *testing.T) {
 		Namespace: "default",
 	}
 
-	secret, err := secretForRelease(&rel, time.Now().Add(-10))
+	// The creation timestamp for the secret needs to be before the check start to simulate an existing release.
+	secret, err := secretForRelease(&rel, check.startTS.Add(-10))
 	require.NoError(t, err)
 
 	k8sClient := fake.NewSimpleClientset()
