@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -53,14 +54,23 @@ func ping(w http.ResponseWriter, r *http.Request) {
 func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.Component) {
 	statusType := mux.Vars(r)["type"]
 
-	verbose := r.URL.Query().Get("verbose") == "true"
-	status, e := status.GetStatus(verbose, invAgent)
-	if e != nil {
-		log.Errorf("Error getting status: " + e.Error())
-		w.Write([]byte("Error getting status: " + e.Error()))
+	var stats map[string]interface{}
+	var err error
+	if statusType == "collector" {
+		stats = collector.GetStatus()
+		err = nil
+	} else {
+		verbose := r.URL.Query().Get("verbose") == "true"
+		stats, err = status.GetStatus(verbose, invAgent)
+	}
+
+	if err != nil {
+		log.Errorf("Error getting status: " + err.Error())
+		w.Write([]byte("Error getting status: " + err.Error()))
 		return
 	}
-	json, _ := json.Marshal(status)
+
+	json, _ := json.Marshal(stats)
 	html, e := renderStatus(json, statusType)
 	if e != nil {
 		w.Write([]byte("Error generating status html: " + e.Error()))
@@ -69,6 +79,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.C
 
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(html))
+
 }
 
 // Sends the current agent version
