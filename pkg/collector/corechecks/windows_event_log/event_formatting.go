@@ -198,3 +198,28 @@ func (c *Check) includeMessage(message string) bool {
 
 	return true
 }
+
+func alertTypeFromLevel(level uint64) (agentEvent.EventAlertType, error) {
+	// https://docs.microsoft.com/en-us/windows/win32/wes/eventmanifestschema-leveltype-complextype#remarks
+	// https://learn.microsoft.com/en-us/windows/win32/wes/eventmanifestschema-eventdefinitiontype-complextype#attributes
+	// > If you do not specify a level, the event descriptor will contain a zero for level.
+	var alertType string
+	switch level {
+	case 0:
+		alertType = "info"
+	case 1:
+		alertType = "error"
+	case 2:
+		alertType = "error"
+	case 3:
+		alertType = "warning"
+	case 4:
+		alertType = "info"
+	case 5:
+		alertType = "info"
+	default:
+		return agentEvent.EventAlertTypeInfo, fmt.Errorf("invalid event level: '%d'", level)
+	}
+
+	return agentEvent.GetAlertTypeFromString(alertType)
+}
