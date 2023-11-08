@@ -92,7 +92,6 @@ static __always_inline __u8 find_relevant_headers_tls(tls_dispatcher_arguments_t
             break;
         }
 
-
         // END_STREAM can appear only in Headers and Data frames.
         // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
@@ -278,15 +277,17 @@ static __always_inline void process_headers_frame_tls(tls_dispatcher_arguments_t
     }
 }
 
-static __always_inline void parse_frame_tls(tls_dispatcher_arguments_t *info, http2_ctx_t *http2_ctx, __u8 frame_flags) {
+static __always_inline void parse_frame_tls(tls_dispatcher_arguments_t *info, http2_ctx_t *http2_ctx, __u8 frame_flags, frame_type_t frame_type) {
     http2_stream_t *current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
     if (current_stream == NULL) {
         return;
     }
 
-    process_headers_frame_tls(info, current_stream, &http2_ctx->dynamic_index);
+    if (frame_type == kHeadersFrame) {
+        process_headers_frame_tls(info, current_stream, &http2_ctx->dynamic_index);
+    }
 
-    if ((frame_flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
+    if (frame_flags & HTTP2_END_OF_STREAM) {
         log_debug("[grpcdebug] Got EOS");
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, info->tags);
     }
