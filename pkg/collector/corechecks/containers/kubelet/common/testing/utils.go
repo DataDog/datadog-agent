@@ -126,7 +126,7 @@ func CreateKubeletMock(response EndpointResponse, endpoint string) (*mock.Kubele
 }
 
 // StorePopulatedFromFile populates a workloadmeta.Store based on pod data from a given file.
-func StorePopulatedFromFile(store *workloadmeta.Mock, filename string, podUtils *common.PodUtils) error {
+func StorePopulatedFromFile(store workloadmeta.Mock, filename string, podUtils *common.PodUtils) error {
 	if filename == "" {
 		return nil
 	}

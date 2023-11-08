@@ -9,8 +9,8 @@
 package collectors
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/cf_container"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/cf_vm"
+	cf_container "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/container"
+	cf_vm "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/cloudfoundry/vm"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/containerd"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/docker"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/internal/ecs"

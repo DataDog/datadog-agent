@@ -11,12 +11,15 @@ import (
 
 	"code.cloudfoundry.org/garden"
 	"code.cloudfoundry.org/garden/gardenfakes"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 	"golang.org/x/exp/slices"
 )
 
@@ -68,15 +71,6 @@ var stoppedContainer = gardenfakes.FakeContainer{
 			Properties:  garden.Properties{},
 		}, nil
 	},
-}
-
-type fakeWorkloadmetaStore struct {
-	workloadmeta.Store
-	notifiedEvents []workloadmeta.CollectorEvent
-}
-
-func (store *fakeWorkloadmetaStore) Notify(events []workloadmeta.CollectorEvent) {
-	store.notifiedEvents = append(store.notifiedEvents, events...)
 }
 
 type FakeGardenUtil struct {
@@ -214,7 +208,12 @@ func (f *FakeDCAClient) PostLanguageMetadata(_ context.Context, _ *pbgo.ParentLa
 func TestStartError(t *testing.T) {
 	fakeGardenUtil := FakeGardenUtil{}
 
-	workloadmetaStore := fakeWorkloadmetaStore{}
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule,
+	))
+
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
 		store:      &workloadmetaStore,
@@ -227,7 +226,11 @@ func TestStartError(t *testing.T) {
 func TestPullNoContainers(t *testing.T) {
 	fakeGardenUtil := FakeGardenUtil{containers: nil}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fakeWorkloadmetaStore{}
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule,
+	))
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
@@ -238,7 +241,9 @@ func TestPullNoContainers(t *testing.T) {
 
 	err := c.Pull(context.TODO())
 	assert.NoError(t, err)
-	assert.Empty(t, workloadmetaStore.notifiedEvents)
+
+	evs := workloadmetaStore.GetNotifiedEvents()
+	assert.Empty(t, evs)
 }
 
 func TestPullActiveContainer(t *testing.T) {
@@ -249,7 +254,11 @@ func TestPullActiveContainer(t *testing.T) {
 		containers: containers,
 	}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fakeWorkloadmetaStore{}
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule,
+	))
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
@@ -260,9 +269,11 @@ func TestPullActiveContainer(t *testing.T) {
 
 	err := c.Pull(context.TODO())
 	assert.NoError(t, err)
-	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
 
-	event0 := workloadmetaStore.notifiedEvents[0]
+	evs := workloadmetaStore.GetNotifiedEvents()
+	assert.NotEmpty(t, evs)
+
+	event0 := evs[0]
 
 	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
 	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
@@ -286,7 +297,11 @@ func TestPullStoppedContainer(t *testing.T) {
 		containers: containers,
 	}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fakeWorkloadmetaStore{}
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule,
+	))
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
@@ -297,9 +312,11 @@ func TestPullStoppedContainer(t *testing.T) {
 
 	err := c.Pull(context.TODO())
 	assert.NoError(t, err)
-	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
 
-	event0 := workloadmetaStore.notifiedEvents[0]
+	evs := workloadmetaStore.GetNotifiedEvents()
+	assert.NotEmpty(t, evs)
+
+	event0 := evs[0]
 
 	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
 	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
@@ -323,7 +340,11 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 		containers: containers,
 	}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fakeWorkloadmetaStore{}
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule,
+	))
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
@@ -334,10 +355,12 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 
 	err := c.Pull(context.TODO())
 	assert.NoError(t, err)
-	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
+
+	evs := workloadmetaStore.GetNotifiedEvents()
+	assert.NotEmpty(t, evs)
 
 	// expect a set event of the active container
-	event0 := workloadmetaStore.notifiedEvents[0]
+	event0 := evs[0]
 
 	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
 	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)
@@ -347,10 +370,12 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 
 	err = c.Pull(context.TODO())
 	assert.NoError(t, err)
-	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
+
+	evs = workloadmetaStore.GetNotifiedEvents()
+	assert.NotEmpty(t, evs)
 
 	// expect an unset event of the previous active container
-	event1 := workloadmetaStore.notifiedEvents[1]
+	event1 := evs[1]
 	containerEntity, ok := event1.Entity.(*workloadmeta.Container)
 
 	assert.True(t, ok)
@@ -369,7 +394,11 @@ func TestPullAppNameWithDCA(t *testing.T) {
 		containers: containers,
 	}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fakeWorkloadmetaStore{}
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule,
+	))
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
@@ -380,9 +409,11 @@ func TestPullAppNameWithDCA(t *testing.T) {
 
 	err := c.Pull(context.TODO())
 	assert.NoError(t, err)
-	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
 
-	event0 := workloadmetaStore.notifiedEvents[0]
+	evs := workloadmetaStore.GetNotifiedEvents()
+	assert.NotEmpty(t, evs)
+
+	event0 := evs[0]
 	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
 	assert.True(t, ok)
 	assert.Contains(t, containerEntity.CollectorTags, "container_name:active-container-app")
@@ -396,7 +427,12 @@ func TestPullNoAppNameWithoutDCA(t *testing.T) {
 		containers: containers,
 	}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fakeWorkloadmetaStore{}
+
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule,
+	))
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
@@ -407,9 +443,11 @@ func TestPullNoAppNameWithoutDCA(t *testing.T) {
 
 	err := c.Pull(context.TODO())
 	assert.NoError(t, err)
-	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
 
-	event0 := workloadmetaStore.notifiedEvents[0]
+	evs := workloadmetaStore.GetNotifiedEvents()
+	assert.NotEmpty(t, evs)
+
+	event0 := evs[0]
 	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
 	assert.True(t, ok)
 	assert.Contains(t, containerEntity.CollectorTags, fmt.Sprintf("container_name:%s", activeContainerWithoutProperties.Handle()))

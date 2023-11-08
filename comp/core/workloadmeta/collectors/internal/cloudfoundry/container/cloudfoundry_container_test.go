@@ -8,21 +8,19 @@ import (
 	"context"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 )
 
-type fakeWorkloadmetaStore struct {
-	workloadmeta.Store
-	notifiedEvents []workloadmeta.CollectorEvent
-}
-
-func (store *fakeWorkloadmetaStore) Notify(events []workloadmeta.CollectorEvent) {
-	store.notifiedEvents = append(store.notifiedEvents, events...)
-}
-
 func TestStartError(t *testing.T) {
-	workloadmetaStore := fakeWorkloadmetaStore{}
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule,
+	))
 	c := collector{
 		store: &workloadmetaStore,
 	}
@@ -32,7 +30,11 @@ func TestStartError(t *testing.T) {
 }
 
 func TestPull(t *testing.T) {
-	workloadmetaStore := fakeWorkloadmetaStore{}
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule,
+	))
 	fakeNodeName := "fake-hostname"
 
 	c := collector{
@@ -42,9 +44,10 @@ func TestPull(t *testing.T) {
 
 	err := c.Pull(context.TODO())
 	assert.NoError(t, err)
-	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
+	evs := workloadmetaStore.GetNotifiedEvents()
+	assert.NotEmpty(t, evs)
 
-	event0 := workloadmetaStore.notifiedEvents[0]
+	event0 := evs[0]
 
 	assert.Equal(t, event0.Type, workloadmeta.EventTypeSet)
 	assert.Equal(t, event0.Source, workloadmeta.SourceClusterOrchestrator)

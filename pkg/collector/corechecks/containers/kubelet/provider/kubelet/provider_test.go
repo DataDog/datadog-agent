@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -125,6 +126,13 @@ type ProviderTestSuite struct {
 func (suite *ProviderTestSuite) SetupTest() {
 	var err error
 
+	store := fxutil.Test[workloadmeta.Mock](suite.T(), fx.Options(
+		core.MockBundle,
+		collectors.GetCatalog(),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2,
+	))
+
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
@@ -138,7 +146,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 	podUtils := common.NewPodUtils()
 
 	podsFile := "../../testdata/pods.json"
-	err := commontesting.StorePopulatedFromFile(store, podsFile, podUtils)
+	err = commontesting.StorePopulatedFromFile(store, podsFile, podUtils)
 	if err != nil {
 		suite.T().Errorf("unable to populate store from file at: %s, err: %v", podsFile, err)
 	}

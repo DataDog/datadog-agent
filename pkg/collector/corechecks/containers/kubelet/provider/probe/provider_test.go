@@ -277,7 +277,7 @@ func TestProvider_Provide(t *testing.T) {
 			}
 			tagger.SetDefaultTagger(fakeTagger)
 
-			err := commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils())
+			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils())
 			if err != nil {
 				t.Errorf("unable to populate store from file at: %s, err: %v", tt.podsFile, err)
 			}

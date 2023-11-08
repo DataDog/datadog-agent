@@ -27,17 +27,18 @@ const (
 // store is a central storage of metadata about workloads. A workload is any
 // unit of work being done by a piece of software, like a process, a container,
 // a kubernetes pod, or a task in any cloud provider.
-type workloadmetamock struct {
+type workloadMetaMock struct {
 	log    log.Component
 	config config.Component
 
-	mu    sync.RWMutex
-	store map[Kind]map[string]Entity
+	mu             sync.RWMutex
+	store          map[Kind]map[string]Entity
+	notifiedEvents []CollectorEvent
 }
 
 func newWorkloadMetaMock(deps dependencies) Mock {
 
-	mock := &workloadmetamock{
+	mock := &workloadMetaMock{
 		log:    deps.Log,
 		config: deps.Config,
 		store:  make(map[Kind]map[string]Entity),
@@ -46,7 +47,7 @@ func newWorkloadMetaMock(deps dependencies) Mock {
 	return mock
 }
 
-func (w *workloadmetamock) GetContainer(id string) (*Container, error) {
+func (w *workloadMetaMock) GetContainer(id string) (*Container, error) {
 	entity, err := w.getEntityByKind(KindContainer, id)
 	if err != nil {
 		return nil, err
@@ -56,7 +57,7 @@ func (w *workloadmetamock) GetContainer(id string) (*Container, error) {
 }
 
 // ListContainers returns metadata about all known containers.
-func (w *workloadmetamock) ListContainers() []*Container {
+func (w *workloadMetaMock) ListContainers() []*Container {
 	entities := w.listEntitiesByKind(KindContainer)
 
 	// Not very efficient
@@ -69,7 +70,7 @@ func (w *workloadmetamock) ListContainers() []*Container {
 }
 
 // ListContainersWithFilter returns metadata about the containers that pass the given filter.
-func (w *workloadmetamock) ListContainersWithFilter(filter ContainerFilterFunc) []*Container {
+func (w *workloadMetaMock) ListContainersWithFilter(filter ContainerFilterFunc) []*Container {
 	var res []*Container
 
 	for _, container := range w.ListContainers() {
@@ -81,8 +82,8 @@ func (w *workloadmetamock) ListContainersWithFilter(filter ContainerFilterFunc) 
 	return res
 }
 
-// GetProcess implements workloadmetamock#GetProcess.
-func (w *workloadmetamock) GetProcess(pid int32) (*Process, error) {
+// GetProcess implements workloadMetaMock#GetProcess.
+func (w *workloadMetaMock) GetProcess(pid int32) (*Process, error) {
 	id := string(pid)
 	entity, err := w.getEntityByKind(KindProcess, id)
 	if err != nil {
@@ -92,8 +93,8 @@ func (w *workloadmetamock) GetProcess(pid int32) (*Process, error) {
 	return entity.(*Process), nil
 }
 
-// ListProcesses implements workloadmetamock#ListProcesses.
-func (w *workloadmetamock) ListProcesses() []*Process {
+// ListProcesses implements workloadMetaMock#ListProcesses.
+func (w *workloadMetaMock) ListProcesses() []*Process {
 	entities := w.listEntitiesByKind(KindProcess)
 
 	processes := make([]*Process, 0, len(entities))
@@ -104,8 +105,8 @@ func (w *workloadmetamock) ListProcesses() []*Process {
 	return processes
 }
 
-// ListProcessesWithFilter implements workloadmetamock#ListProcessesWithFilter.
-func (w *workloadmetamock) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
+// ListProcessesWithFilter implements workloadMetaMock#ListProcessesWithFilter.
+func (w *workloadMetaMock) ListProcessesWithFilter(filter ProcessFilterFunc) []*Process {
 	var res []*Process
 
 	for _, process := range w.ListProcesses() {
@@ -118,7 +119,7 @@ func (w *workloadmetamock) ListProcessesWithFilter(filter ProcessFilterFunc) []*
 }
 
 // GetKubernetesPod returns metadata about a Kubernetes pod.
-func (w *workloadmetamock) GetKubernetesPod(id string) (*KubernetesPod, error) {
+func (w *workloadMetaMock) GetKubernetesPod(id string) (*KubernetesPod, error) {
 	entity, err := w.getEntityByKind(KindKubernetesPod, id)
 	if err != nil {
 		return nil, err
@@ -129,7 +130,7 @@ func (w *workloadmetamock) GetKubernetesPod(id string) (*KubernetesPod, error) {
 
 // GetKubernetesPodForContainer returns a KubernetesPod that contains the
 // specified containerID.
-func (w *workloadmetamock) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
+func (w *workloadMetaMock) GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -162,7 +163,7 @@ func (w *workloadmetamock) GetKubernetesPodForContainer(containerID string) (*Ku
 }
 
 // GetKubernetesPodByName implements Store#GetKubernetesPodByName
-func (w *workloadmetamock) GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error) {
+func (w *workloadMetaMock) GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error) {
 	entities := w.listEntitiesByKind(KindKubernetesPod)
 
 	// Not very efficient
@@ -177,7 +178,7 @@ func (w *workloadmetamock) GetKubernetesPodByName(podName, podNamespace string) 
 }
 
 // GetKubernetesNode returns metadata about a Kubernetes node.
-func (w *workloadmetamock) GetKubernetesNode(id string) (*KubernetesNode, error) {
+func (w *workloadMetaMock) GetKubernetesNode(id string) (*KubernetesNode, error) {
 	entity, err := w.getEntityByKind(KindKubernetesPod, id)
 	if err != nil {
 		return nil, err
@@ -187,7 +188,7 @@ func (w *workloadmetamock) GetKubernetesNode(id string) (*KubernetesNode, error)
 }
 
 // GetKubernetesDeployment implements Component#GetKubernetesDeployment
-func (w *workloadmetamock) GetKubernetesDeployment(id string) (*KubernetesDeployment, error) {
+func (w *workloadMetaMock) GetKubernetesDeployment(id string) (*KubernetesDeployment, error) {
 	entity, err := w.getEntityByKind(KindKubernetesDeployment, id)
 	if err != nil {
 		return nil, err
@@ -197,7 +198,7 @@ func (w *workloadmetamock) GetKubernetesDeployment(id string) (*KubernetesDeploy
 }
 
 // GetECSTask returns metadata about an ECS task.
-func (w *workloadmetamock) GetECSTask(id string) (*ECSTask, error) {
+func (w *workloadMetaMock) GetECSTask(id string) (*ECSTask, error) {
 	entity, err := w.getEntityByKind(KindECSTask, id)
 	if err != nil {
 		return nil, err
@@ -206,8 +207,8 @@ func (w *workloadmetamock) GetECSTask(id string) (*ECSTask, error) {
 	return entity.(*ECSTask), nil
 }
 
-// ListImages implements workloadmetamock#ListImages
-func (w *workloadmetamock) ListImages() []*ContainerImageMetadata {
+// ListImages implements workloadMetaMock#ListImages
+func (w *workloadMetaMock) ListImages() []*ContainerImageMetadata {
 	entities := w.listEntitiesByKind(KindContainerImageMetadata)
 
 	images := make([]*ContainerImageMetadata, 0, len(entities))
@@ -219,8 +220,8 @@ func (w *workloadmetamock) ListImages() []*ContainerImageMetadata {
 	return images
 }
 
-// GetImage implements workloadmetamock#GetImage
-func (w *workloadmetamock) GetImage(id string) (*ContainerImageMetadata, error) {
+// GetImage implements workloadMetaMock#GetImage
+func (w *workloadMetaMock) GetImage(id string) (*ContainerImageMetadata, error) {
 	entity, err := w.getEntityByKind(KindContainerImageMetadata, id)
 	if err != nil {
 		return nil, err
@@ -230,7 +231,7 @@ func (w *workloadmetamock) GetImage(id string) (*ContainerImageMetadata, error) 
 }
 
 // Set sets an entity in the store.
-func (w *workloadmetamock) Set(entity Entity) {
+func (w *workloadMetaMock) Set(entity Entity) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -244,7 +245,7 @@ func (w *workloadmetamock) Set(entity Entity) {
 }
 
 // Unset removes an entity from the store.
-func (w *workloadmetamock) Unset(entity Entity) {
+func (w *workloadMetaMock) Unset(entity Entity) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -257,40 +258,54 @@ func (w *workloadmetamock) Unset(entity Entity) {
 }
 
 // Start is not implemented in the testing store.
-func (w *workloadmetamock) Start(_ context.Context) {
+func (w *workloadMetaMock) Start(_ context.Context) {
 	panic("not implemented")
 }
 
 // Subscribe is not implemented in the testing store.
-func (w *workloadmetamock) Subscribe(_ string, _ SubscriberPriority, _ *Filter) chan EventBundle {
+func (w *workloadMetaMock) Subscribe(_ string, _ SubscriberPriority, _ *Filter) chan EventBundle {
 	panic("not implemented")
 }
 
 // Unsubscribe is not implemented in the testing store.
-func (w *workloadmetamock) Unsubscribe(_ chan EventBundle) {
+func (w *workloadMetaMock) Unsubscribe(_ chan EventBundle) {
 	panic("not implemented")
 }
 
 // Notify is not implemented in the testing store.
-func (w *workloadmetamock) Notify(_ []CollectorEvent) {
-	panic("not implemented")
+func (w *workloadMetaMock) Notify(events []CollectorEvent) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.notifiedEvents = append(w.notifiedEvents, events...)
+}
+
+// GetNotifiedEvents returns all registered notification events.
+func (w *workloadMetaMock) GetNotifiedEvents() []CollectorEvent {
+	w.mu.RLock()
+	defer w.mu.RUnlock()
+
+	var events []CollectorEvent
+	events = append(events, w.notifiedEvents...)
+
+	return events
 }
 
 // Dump is not implemented in the testing store.
-func (w *workloadmetamock) Dump(_ bool) WorkloadDumpResponse {
+func (w *workloadMetaMock) Dump(_ bool) WorkloadDumpResponse {
 	panic("not implemented")
 }
 
 // Reset is not implemented in the testing store.
-func (w *workloadmetamock) Reset(_ []Entity, _ Source) {
+func (w *workloadMetaMock) Reset(_ []Entity, _ Source) {
 	panic("not implemented")
 }
 
-func (w *workloadmetamock) ResetProcesses(_ []Entity, _ Source) {
+func (w *workloadMetaMock) ResetProcesses(_ []Entity, _ Source) {
 	panic("not implemented")
 }
 
-func (w *workloadmetamock) getEntityByKind(kind Kind, id string) (Entity, error) {
+func (w *workloadMetaMock) getEntityByKind(kind Kind, id string) (Entity, error) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -307,7 +322,7 @@ func (w *workloadmetamock) getEntityByKind(kind Kind, id string) (Entity, error)
 	return entity, nil
 }
 
-func (w *workloadmetamock) listEntitiesByKind(kind Kind) []Entity {
+func (w *workloadMetaMock) listEntitiesByKind(kind Kind) []Entity {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
@@ -325,7 +340,7 @@ func (w *workloadmetamock) listEntitiesByKind(kind Kind) []Entity {
 }
 
 // GetConfig returns a Config Reader for the internal injected config
-func (w *workloadmetamock) GetConfig() pkgconfig.Reader {
+func (w *workloadMetaMock) GetConfig() pkgconfig.Reader {
 	return w.config
 }
 
@@ -349,6 +364,11 @@ func newWorkloadMetaMockV2(deps dependencies) Mock {
 // Notify overrides store to allow for synchronous event processing
 func (w *workloadMetaMockV2) Notify(events []CollectorEvent) {
 	w.handleEvents(events)
+}
+
+// GetNotifiedEvents is not implemented for V2 mocks.
+func (w *workloadMetaMockV2) GetNotifiedEvents() []CollectorEvent {
+	panic("not implemented")
 }
 
 // SetEntity generates a Set event

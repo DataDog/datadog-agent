@@ -31,6 +31,9 @@ type Mock interface {
 
 	// GetConfig returns a Config Reader for the internal injected config
 	GetConfig() config.Reader
+
+	// GetConfig returns a Config Reader for the internal injected config
+	GetNotifiedEvents() []CollectorEvent
 }
 
 // MockModule defines the fx options for the mock component.
