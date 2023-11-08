@@ -564,13 +564,12 @@ type DNSEvent struct {
 	Count uint16 `field:"question.count"`                                          // SECLDoc[question.count] Definition:`the total count of questions in the DNS request`
 }
 
-// ExtraFieldHandlers handlers not hold by any field
-type ExtraFieldHandlers interface {
+// BaseExtraFieldHandlers handlers not hold by any field
+type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 	ResolveEventTime(ev *Event) time.Time
 	GetProcessService(ev *Event) string
-	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
 }
 
 // ResolveProcessCacheEntry stub implementation
