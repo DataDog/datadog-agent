@@ -78,8 +78,7 @@ import (
 )
 
 const (
-	maxSnapshotRetries  = 3
-	scansWorkerPoolSize = 40
+	maxSnapshotRetries = 3
 )
 
 var statsd *ddgostatsd.Client
@@ -89,8 +88,9 @@ var (
 		ConfigFilePath string
 	}
 
-	configPath    string
-	attachVolumes bool
+	scansWorkerPoolSize int
+	configPath          string
+	attachVolumes       bool
 
 	defaultHTTPClient = &http.Client{
 		Timeout: 10 * time.Second,
@@ -122,7 +122,7 @@ func rootCommand() *cobra.Command {
 }
 
 func runCommand() *cobra.Command {
-	return &cobra.Command{
+	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Runs the side-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -137,6 +137,8 @@ func runCommand() *cobra.Command {
 			)
 		},
 	}
+	runCmd.Flags().IntVarP(&scansWorkerPoolSize, "scans-pool-size", "", 40, "number of scans running in parallel")
+	return runCmd
 }
 
 func scanCommand() *cobra.Command {
