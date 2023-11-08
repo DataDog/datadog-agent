@@ -46,7 +46,7 @@ func compileRegexPatterns(patterns []string) ([]*regexp.Regexp, error) {
 	for i, pattern := range patterns {
 		res[i], err = regexp.Compile(pattern)
 		if err != nil {
-			return nil, fmt.Errorf("error compiling regex pattern '%s': %v", pattern, err)
+			return nil, fmt.Errorf("error compiling regex pattern '%s': %w", pattern, err)
 		}
 	}
 	return res, nil

@@ -177,23 +177,23 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.BuildID(integrationConfigDigest, data, initConfig)
 	err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source)
 	if err != nil {
-		return fmt.Errorf("configuration error: %v", err)
+		return fmt.Errorf("configuration error: %w", err)
 	}
 
 	// process configuration
 	c.config, err = unmarshalConfig(data, initConfig)
 	if err != nil {
-		return fmt.Errorf("configuration error: %v", err)
+		return fmt.Errorf("configuration error: %w", err)
 	}
 	err = c.validateConfig()
 	if err != nil {
-		return fmt.Errorf("configuration error: %v", err)
+		return fmt.Errorf("configuration error: %w", err)
 	}
 
 	// Create the event subscription
 	err = c.initSubscription()
 	if err != nil {
-		return fmt.Errorf("failed to initialize event subscription: %v", err)
+		return fmt.Errorf("failed to initialize event subscription: %w", err)
 	}
 
 	// subscription will be started on first check run.
@@ -232,14 +232,14 @@ func (c *Check) validateConfig() error {
 	if c.config.instance.IncludedMessages != nil {
 		c.includedMessages, err = compileRegexPatterns(c.config.instance.IncludedMessages)
 		if err != nil {
-			return fmt.Errorf("invalid instance config `included_messages`: %v", err)
+			return fmt.Errorf("invalid instance config `included_messages`: %w", err)
 		}
 	}
 
 	if c.config.instance.ExcludedMessages != nil {
 		c.excludedMessages, err = compileRegexPatterns(c.config.instance.ExcludedMessages)
 		if err != nil {
-			return fmt.Errorf("invalid instance config `excluded_messages`: %v", err)
+			return fmt.Errorf("invalid instance config `excluded_messages`: %w", err)
 		}
 	}
 

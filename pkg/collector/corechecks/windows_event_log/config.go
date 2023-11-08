@@ -84,12 +84,12 @@ func unmarshalConfig(instance integration.Data, initConfig integration.Data) (*C
 
 	err := c.unmarshal(instance, initConfig)
 	if err != nil {
-		return nil, fmt.Errorf("yaml parsing error: %v", err)
+		return nil, fmt.Errorf("yaml parsing error: %w", err)
 	}
 
 	err = c.genQuery()
 	if err != nil {
-		return nil, fmt.Errorf("error generating query from filters: %v", err)
+		return nil, fmt.Errorf("error generating query from filters: %w", err)
 	}
 
 	c.setDefaults()

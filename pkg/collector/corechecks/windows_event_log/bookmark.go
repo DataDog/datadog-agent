@@ -35,12 +35,12 @@ func (b *bookmarkSaver) updateBookmark(event *evtapi.EventRecord) error {
 	// logic easier by avoiding having to track/save/close the event handle, so just do it every time.
 	err := b.bookmark.Update(event.EventRecordHandle)
 	if err != nil {
-		return fmt.Errorf("failed to update bookmark: %v", err)
+		return fmt.Errorf("failed to update bookmark: %w", err)
 	}
 
 	bookmarkXML, err := b.bookmark.Render()
 	if err != nil {
-		return fmt.Errorf("failed to render bookmark XML: %v", err)
+		return fmt.Errorf("failed to render bookmark XML: %w", err)
 	}
 	b.lastBookmark = bookmarkXML
 

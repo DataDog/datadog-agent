@@ -24,7 +24,7 @@ func (c *Check) renderEventValues(winevent *evtapi.EventRecord, ddevent *agentEv
 	// Render the values
 	vals, err := c.evtapi.EvtRenderEventValues(c.systemRenderContext, winevent.EventRecordHandle)
 	if err != nil {
-		return fmt.Errorf("failed to render values: %v", err)
+		return fmt.Errorf("failed to render values: %w", err)
 	}
 	defer vals.Close()
 

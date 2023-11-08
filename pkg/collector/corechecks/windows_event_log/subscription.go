@@ -34,7 +34,7 @@ func (c *Check) initSubscription() error {
 		bookmarkXML, err = persistentcache.Read(c.bookmarkPersistentCacheKey())
 		if err != nil {
 			// persistentcache.Read() does not return error if key does not exist
-			return fmt.Errorf("error reading bookmark from persistent cache %s: %v", c.bookmarkPersistentCacheKey(), err)
+			return fmt.Errorf("error reading bookmark from persistent cache %s: %w", c.bookmarkPersistentCacheKey(), err)
 		}
 	}
 	if bookmarkXML != "" {
@@ -65,7 +65,7 @@ func (c *Check) initSubscription() error {
 		saveBookmark: func(bookmarkXML string) error {
 			err := persistentcache.Write(c.bookmarkPersistentCacheKey(), bookmarkXML)
 			if err != nil {
-				return fmt.Errorf("failed to persist bookmark: %v", err)
+				return fmt.Errorf("failed to persist bookmark: %w", err)
 			}
 			return nil
 		},
@@ -93,14 +93,14 @@ func (c *Check) initSubscription() error {
 	// Create a render context for System event values
 	c.systemRenderContext, err = c.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextSystem)
 	if err != nil {
-		return fmt.Errorf("failed to create system render context: %v", err)
+		return fmt.Errorf("failed to create system render context: %w", err)
 	}
 
 	// Create e render context for UserData/EventData event values
 	// render UserData if available, otherise EventData properties are rendered.
 	c.userRenderContext, err = c.evtapi.EvtCreateRenderContext(nil, evtapi.EvtRenderContextUser)
 	if err != nil {
-		return fmt.Errorf("failed to create user render context: %v", err)
+		return fmt.Errorf("failed to create user render context: %w", err)
 	}
 
 	return nil
@@ -114,7 +114,7 @@ func (c *Check) startSubscription() error {
 
 	err = c.sub.Start()
 	if err != nil {
-		return fmt.Errorf("failed to start event subscription: %v", err)
+		return fmt.Errorf("failed to start event subscription: %w", err)
 	}
 
 	// Start collection loop in the background so we can collect/report
