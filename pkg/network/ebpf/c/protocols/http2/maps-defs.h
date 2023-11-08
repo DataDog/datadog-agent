@@ -19,7 +19,7 @@ BPF_LRU_MAP(http2_dynamic_table, dynamic_table_index_t, dynamic_table_entry_t, 0
 BPF_HASH_MAP(http2_dynamic_counter_table, conn_tuple_t, u64, 0)
 
 /* This map is used to keep track of in-flight HTTP2 transactions for each TCP connection */
-BPF_LRU_MAP(http2_in_flight, http2_stream_key_t, http2_stream_t, 0)
+BPF_HASH_MAP(http2_in_flight, http2_stream_key_t, http2_stream_t, 0)
 
 /* This map serves the purpose of maintaining the current state of tail calls for each frame,
    identified by a tuple consisting of con_tup and skb_info.
