@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -20,9 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
-	jwriter "github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
-	"golang.org/x/time/rate"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -71,21 +70,24 @@ type APIServer struct {
 	selfTester        *selftests.SelfTester
 	cwsConsumer       *CWSConsumer
 
-	stopper startstop.Stopper
+	stopChan chan struct{}
+	stopper  startstop.Stopper
 }
 
 // GetActivityDumpStream waits for activity dumps and forwards them to the stream
 func (a *APIServer) GetActivityDumpStream(params *api.ActivityDumpStreamParams, stream api.SecurityModule_GetActivityDumpStreamServer) error {
-	// read one activity dump or timeout after one second
-	select {
-	case dump := <-a.activityDumps:
-		if err := stream.Send(dump); err != nil {
-			return err
+	for {
+		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
+		case dump := <-a.activityDumps:
+			if err := stream.Send(dump); err != nil {
+				return err
+			}
 		}
-	case <-time.After(time.Second):
-		break
 	}
-	return nil
 }
 
 // SendActivityDump queues an activity dump to the chan of activity dumps
@@ -113,33 +115,18 @@ func (a *APIServer) SendActivityDump(dump *api.ActivityDumpStreamMessage) {
 
 // GetEvents waits for security events
 func (a *APIServer) GetEvents(params *api.GetEventParams, stream api.SecurityModule_GetEventsServer) error {
-	// Read 10 security events per call
-	msgs := 10
-LOOP:
 	for {
-		// Check that the limit is not reached
-		if !a.limiter.Allow(nil) {
-			return nil
-		}
-
-		// Read one message
 		select {
+		case <-stream.Context().Done():
+			return nil
+		case <-a.stopChan:
+			return nil
 		case msg := <-a.msgs:
 			if err := stream.Send(msg); err != nil {
 				return err
 			}
-			msgs--
-		case <-time.After(time.Second):
-			break LOOP
-		}
-
-		// Stop the loop when 10 messages were retrieved
-		if msgs <= 0 {
-			break
 		}
 	}
-
-	return nil
 }
 
 // RuleEvent is a wrapper used to send an event to the backend
@@ -216,6 +203,7 @@ func (a *APIServer) start(ctx context.Context) {
 				}
 			})
 		case <-ctx.Done():
+			a.stopChan <- struct{}{}
 			return
 		}
 	}
@@ -227,7 +215,13 @@ func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
 		break
 	default:
 		// The channel is full, consume the oldest event
-		oldestMsg := <-a.msgs
+		select {
+		case oldestMsg := <-a.msgs:
+			a.expireEvent(oldestMsg)
+		default:
+			break
+		}
+
 		// Try to send the event again
 		select {
 		case a.msgs <- m:
@@ -237,7 +231,6 @@ func (a *APIServer) sendToSecurityAgent(m *api.SecurityEventMessage) {
 			a.expireEvent(m)
 			break
 		}
-		a.expireEvent(oldestMsg)
 		break
 	}
 }
@@ -269,6 +262,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		RuleID:      rule.Definition.ID,
 		RuleVersion: rule.Definition.Version,
 		Version:     version.AgentVersion,
+		OS:          runtime.GOOS,
 	}
 
 	ruleEvent := &events.Signal{
@@ -320,12 +314,8 @@ func marshalEvent(event events.Event, probe *sprobe.Probe) ([]byte, error) {
 		return serializers.MarshalEvent(ev, probe.GetResolvers())
 	}
 
-	if m, ok := event.(easyjson.Marshaler); ok {
-		w := &jwriter.Writer{
-			Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
-		}
-		m.MarshalEasyJSON(w)
-		return w.BuildBytes()
+	if ev, ok := event.(events.EventMarshaler); ok {
+		return ev.ToJSON()
 	}
 
 	return json.Marshal(event)
@@ -453,13 +443,13 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, client
 		activityDumps:  make(chan *api.ActivityDumpStreamMessage, model.MaxTracedCgroupsCount*2),
 		expiredEvents:  make(map[rules.RuleID]*atomic.Int64),
 		expiredDumps:   atomic.NewInt64(0),
-		limiter:        events.NewStdLimiter(rate.Limit(cfg.EventServerRate), cfg.EventServerBurst),
 		statsdClient:   client,
 		probe:          probe,
 		retention:      cfg.EventServerRetention,
 		cfg:            cfg,
 		stopper:        stopper,
 		selfTester:     selfTester,
+		stopChan:       make(chan struct{}),
 	}
 	return es
 }

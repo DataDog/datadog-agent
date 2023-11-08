@@ -12,8 +12,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 )
 
-const refreshUserCacheRuleID = "refresh_user_cache"
-
 // BundledPolicyProvider specify the policy provider for bundled policies
 type BundledPolicyProvider struct{}
 
@@ -21,20 +19,14 @@ type BundledPolicyProvider struct{}
 func (p *BundledPolicyProvider) LoadPolicies([]rules.MacroFilter, []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	policy := &rules.Policy{}
 
-	refreshUserCacheAction := rules.ActionDefinition{
-		InternalCallbackDefinition: &rules.InternalCallbackDefinition{},
-	}
-
 	policy.Name = "bundled_policy"
 	policy.Source = "bundled"
 	policy.Version = version.AgentVersion
-	policy.Rules = []*rules.RuleDefinition{{
-		ID:         refreshUserCacheRuleID,
-		Expression: `rename.file.destination.path in [ "/etc/passwd", "/etc/group" ]`,
-		Actions:    []rules.ActionDefinition{refreshUserCacheAction},
-		Policy:     policy,
-		Silent:     true,
-	}}
+	policy.Rules = bundledPolicyRules
+
+	for _, rule := range bundledPolicyRules {
+		rule.Policy = policy
+	}
 
 	return []*rules.Policy{policy}, nil
 }

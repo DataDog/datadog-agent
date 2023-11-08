@@ -30,6 +30,7 @@ func NewFileConfigProvider() *FileConfigProvider {
 func (c *FileConfigProvider) Collect(ctx context.Context) ([]integration.Config, error) {
 	configs, errors, err := ReadConfigFiles(WithoutAdvancedAD)
 	if err != nil {
+		telemetry.Errors.Inc(names.File)
 		return nil, err
 	}
 

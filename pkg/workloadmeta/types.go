@@ -76,6 +76,10 @@ type Store interface {
 	// when the pod actually exists.
 	GetKubernetesPodForContainer(containerID string) (*KubernetesPod, error)
 
+	// GetKubernetesPodByName returns the first pod whose name and namespace matches those passed in
+	// to this function.
+	GetKubernetesPodByName(podName, podNamespace string) (*KubernetesPod, error)
+
 	// GetKubernetesNode returns metadata about a Kubernetes node. It fetches
 	// the entity with kind KindKubernetesNode and the given ID.
 	GetKubernetesNode(id string) (*KubernetesNode, error)
@@ -307,8 +311,8 @@ func (e EntityMeta) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "Namespace:", e.Namespace)
 
 	if verbose {
-		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToString(e.Annotations))
-		_, _ = fmt.Fprintln(&sb, "Labels:", mapToString(e.Labels))
+		_, _ = fmt.Fprintln(&sb, "Annotations:", mapToScrubbedJSONString(e.Annotations))
+		_, _ = fmt.Fprintln(&sb, "Labels:", mapToScrubbedJSONString(e.Labels))
 	}
 
 	return sb.String()
@@ -781,7 +785,7 @@ func (d KubernetesDeployment) String(verbose bool) string {
 				}
 				_, _ = langSb.WriteString(string(lang.Name))
 			}
-			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]", ctype, container, langSb.String())
+			_, _ = fmt.Fprintf(&sb, "%s %s=>[%s]\n", ctype, container, langSb.String())
 		}
 	}
 	langPrinter(d.InitContainerLanguages, "InitContainer")
@@ -904,6 +908,15 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
 	}
 
+	// SBOMs are generated only once. However, when they are generated it is possible that
+	// not every RepoDigest and RepoTags are attached to the image. In that case, the SBOM
+	// will also miss metadata and will not be re-generated when new metadata is detected.
+	// Because this metadata is essential for processing, it is important to inject new metadata
+	// to the existing SBOM. Generating a new SBOM can be a more robust solution but can also be
+	// costly.
+	// Moreover we can't update the SBOM in the collector because it's not thread safe.
+	i.SBOM = updateSBOMRepoMetadata(otherImage.SBOM, otherImage.RepoTags, otherImage.RepoDigests)
+
 	return merge(i, otherImage)
 }
 
@@ -1011,7 +1024,7 @@ func (p *Process) Merge(e Entity) error {
 }
 
 // String implements Entity#String.
-func (p Process) String(verbose bool) string {
+func (p Process) String(verbose bool) string { //nolint:revive // TODO fix revive unused-parameter
 	var sb strings.Builder
 
 	_, _ = fmt.Fprintln(&sb, "----------- Entity ID -----------")

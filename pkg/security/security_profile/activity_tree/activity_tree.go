@@ -266,8 +266,8 @@ func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, err
 }
 
 // Insert inserts the event in the activity tree
-func (at *ActivityTree) Insert(event *model.Event, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
-	newEntry, err := at.insertEvent(event, false, generationType, resolvers)
+func (at *ActivityTree) Insert(event *model.Event, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
+	newEntry, err := at.insertEvent(event, false /* !dryRun */, insertMissingProcesses, generationType, resolvers)
 	if newEntry {
 		// this doesn't count the exec events which are counted separately
 		at.Stats.addedCount[event.GetEventType()][generationType].Inc()
@@ -276,13 +276,13 @@ func (at *ActivityTree) Insert(event *model.Event, generationType NodeGeneration
 }
 
 // Contains looks up the event in the activity tree
-func (at *ActivityTree) Contains(event *model.Event, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
-	newEntry, err := at.insertEvent(event, true, generationType, resolvers)
+func (at *ActivityTree) Contains(event *model.Event, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
+	newEntry, err := at.insertEvent(event, true /* dryRun */, insertMissingProcesses, generationType, resolvers)
 	return !newEntry, err
 }
 
 // insert inserts the event in the activity tree, returns true if the event generated a new entry in the tree
-func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
+func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissingProcesses bool, generationType NodeGenerationType, resolvers *resolvers.Resolvers) (bool, error) {
 	// sanity check
 	if generationType == Unknown || generationType > MaxNodeGenerationType {
 		return false, fmt.Errorf("invalid generation type: %v", generationType)
@@ -293,14 +293,15 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, generationT
 		return false, fmt.Errorf("invalid event: %s", err)
 	}
 
-	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, generationType, dryRun, resolvers)
+	// Next we'll call CreateProcessNode, which will retrieve the process node if already present, or create a new one (with all its lineage if needed).
+	node, newProcessNode, err := at.CreateProcessNode(event.ProcessCacheEntry, generationType, !insertMissingProcesses /*dryRun*/, resolvers)
 	if err != nil {
 		return false, err
 	}
-	if newProcessNode && dryRun {
+	if newProcessNode && !insertMissingProcesses {
+		// the event insertion can't be done because there was missing process nodes for the related event we want to insert
 		return true, nil
-	}
-	if node == nil {
+	} else if node == nil {
 		// a process node couldn't be found or created for this event, ignore it
 		return false, errors.New("a process node couldn't be found or created for this event")
 	}
@@ -374,7 +375,7 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 		if ancestor.FileEvent.Inode == 0 {
 			return nil
 		}
-		if current.FileEvent.Inode != ancestor.FileEvent.Inode {
+		if current.FileEvent.PathnameStr != ancestor.FileEvent.PathnameStr {
 			return ancestor
 		}
 		if process.IsBusybox(current.FileEvent.PathnameStr) && process.IsBusybox(ancestor.FileEvent.PathnameStr) {
@@ -452,9 +453,12 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 		return nil, false, nil
 	}
 
-	// check the lineage now, we have to do it only once
-	if !entry.HasCompleteLineage() {
-		return nil, false, ErrBrokenLineage
+	if _, err := entry.HasValidLineage(); err != nil {
+		// check if the node belongs to the container
+		var mn *model.ErrProcessMissingParentNode
+		if !errors.As(err, &mn) {
+			return nil, false, ErrBrokenLineage
+		}
 	}
 
 	// Check if entry or one of its parents cookies are in CookieToProcessNode while building the branch we're trying to
@@ -616,7 +620,7 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 		// = false" node. To be safe, check if the 2 top level nodes match if one of them is an "isExecChild = true" node.
 		childToRebase := (*parent.GetChildren())[childIndexToRebase]
 		if topLevelNode := branchToInsert[len(branchToInsert)-1]; !topLevelNode.IsExecChild || !childToRebase.Process.IsExecChild {
-			if childToRebase.Matches(&topLevelNode.Process, at.differentiateArgs) {
+			if childToRebase.Matches(&topLevelNode.Process, at.differentiateArgs, true) {
 				// ChildNodeToRebase and topLevelNode match and need to be merged, rebase the one in the profile, and insert
 				// the remaining nodes of the branch on top of it
 				newRebasedChild := at.rebaseTree(parent, childIndexToRebase, newParent, nil, generationType, resolvers)
@@ -675,7 +679,7 @@ func (at *ActivityTree) rebaseTree(parent ProcessNodeParent, childIndexToRebase 
 // found) and the index of the top level child that lead to the matching node (or -1 if not found).
 func (at *ActivityTree) findProcessCacheEntryInTree(tree []*ProcessNode, entry *model.ProcessCacheEntry) (*ProcessNode, int) {
 	for i, child := range tree {
-		if child.Matches(&entry.Process, at.differentiateArgs) {
+		if child.Matches(&entry.Process, at.differentiateArgs, true) {
 			return child, i
 		}
 	}
@@ -695,7 +699,7 @@ func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNo
 	for _, node := range child.Children {
 		if node.Process.IsExecChild {
 			// does this execed child match the entry ?
-			if node.Matches(&entry.Process, at.differentiateArgs) {
+			if node.Matches(&entry.Process, at.differentiateArgs, true) {
 				return node
 			}
 		}
@@ -721,7 +725,7 @@ func (at *ActivityTree) findProcessCacheEntryInChildExecedNodes(child *ProcessNo
 				// there should always be only one
 
 				// does this execed child match the entry ?
-				if node.Matches(&entry.Process, at.differentiateArgs) {
+				if node.Matches(&entry.Process, at.differentiateArgs, true) {
 					return node
 				}
 

@@ -22,6 +22,7 @@ import (
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -155,7 +156,7 @@ func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
 		iter := currentMap.Iterate()
 		var key netebpf.ConnTuple
-		var value Transaction
+		var value EbpfTx
 		for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
 			output.WriteString(spew.Sdump(key, value))
 		}
@@ -207,4 +208,9 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 		Type:  protocols.HTTP,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
+}
+
+// IsBuildModeSupported returns always true, as http module is supported by all modes.
+func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
+	return true
 }

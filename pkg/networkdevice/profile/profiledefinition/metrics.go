@@ -39,6 +39,18 @@ const (
 	ProfileMetricTypePercent ProfileMetricType = "percent"
 )
 
+// SymbolConfigCompat is used to deserialize string field or SymbolConfig.
+// For OID/Name to Symbol harmonization:
+// When users declare metric tag like:
+//
+//	metric_tags:
+//	  - OID: 1.2.3
+//	    symbol: aSymbol
+//
+// this will lead to OID stored as MetricTagConfig.OID  and name stored as MetricTagConfig.Symbol.Name
+// When this happens, in ValidateEnrichMetricTags we harmonize by moving MetricTagConfig.OID to MetricTagConfig.Symbol.OID.
+type SymbolConfigCompat SymbolConfig
+
 // SymbolConfig holds info for a single symbol/oid
 type SymbolConfig struct {
 	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
@@ -70,12 +82,13 @@ type MetricTagConfig struct {
 	// Table config
 	Index uint `yaml:"index,omitempty" json:"index,omitempty"`
 
-	// TODO: refactor to rename to `symbol` instead (keep backward compat with `column`)
-	Column SymbolConfig `yaml:"column,omitempty" json:"column,omitempty"`
+	// DEPRECATED: Column field is deprecated in favour Symbol field
+	Column SymbolConfig `yaml:"column,omitempty" json:"-"`
 
 	// Symbol config
-	OID  string `yaml:"OID,omitempty" json:"OID,omitempty"`
-	Name string `yaml:"symbol,omitempty" json:"symbol,omitempty"`
+	OID string `yaml:"OID,omitempty" json:"-"  jsonschema:"-"` // DEPRECATED replaced by Symbol field
+	// Using Symbol field below as string is deprecated
+	Symbol SymbolConfigCompat `yaml:"symbol,omitempty" json:"symbol,omitempty"`
 
 	IndexTransform []MetricIndexTransform `yaml:"index_transform,omitempty" json:"index_transform,omitempty"`
 

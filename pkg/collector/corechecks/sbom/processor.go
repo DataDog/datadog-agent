@@ -8,6 +8,7 @@
 package sbom
 
 import (
+	"context"
 	"errors"
 	"os"
 	"strings"
@@ -20,10 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/collectors/host"
 	sbomscanner "github.com/DataDog/datadog-agent/pkg/sbom/scanner"
-	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
@@ -39,29 +40,36 @@ var /* const */ (
 )
 
 type processor struct {
-	queue             chan *model.SBOMEntity
-	workloadmetaStore workloadmeta.Store
-	imageRepoDigests  map[string]string              // Map where keys are image repo digest and values are image ID
-	imageUsers        map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
-	sbomScanner       *sbomscanner.Scanner
-	hostSBOM          bool
-	hostScanOpts      sbom.ScanOptions
-	hostname          string
+	queue                 chan *model.SBOMEntity
+	workloadmetaStore     workloadmeta.Store
+	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
+	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
+	sbomScanner           *sbomscanner.Scanner
+	hostSBOM              bool
+	hostScanOpts          sbom.ScanOptions
+	hostname              string
+	hostCache             string
+	hostLastFullSBOM      time.Time
+	hostHeartbeatValidity time.Duration
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
 	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
 	hostScanOpts.NoCache = true
 	sbomScanner := sbomscanner.GetGlobalScanner()
 	if sbomScanner == nil {
 		return nil, errors.New("failed to get global SBOM scanner")
 	}
-	hostname, _ := utils.GetHostname()
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting hostname: %v", err)
+	}
 
 	return &processor{
 		queue: queue.NewQueue(maxNbItem, maxRetentionTime, func(entities []*model.SBOMEntity) {
 			encoded, err := proto.Marshal(&model.SBOMPayload{
 				Version:  1,
+				Host:     hname,
 				Source:   &sourceAgent,
 				Entities: entities,
 				DdEnv:    &envVarEnv,
@@ -73,13 +81,14 @@ func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, ma
 
 			sender.EventPlatformEvent(encoded, epforwarder.EventTypeContainerSBOM)
 		}),
-		workloadmetaStore: workloadmetaStore,
-		imageRepoDigests:  make(map[string]string),
-		imageUsers:        make(map[string]map[string]struct{}),
-		sbomScanner:       sbomScanner,
-		hostSBOM:          hostSBOM,
-		hostScanOpts:      hostScanOpts,
-		hostname:          hostname,
+		workloadmetaStore:     workloadmetaStore,
+		imageRepoDigests:      make(map[string]string),
+		imageUsers:            make(map[string]map[string]struct{}),
+		sbomScanner:           sbomScanner,
+		hostSBOM:              hostSBOM,
+		hostScanOpts:          hostScanOpts,
+		hostname:              hname,
+		hostHeartbeatValidity: hostHeartbeatValidity,
 	}, nil
 }
 
@@ -198,6 +207,7 @@ func (p *processor) processHostRefresh() {
 			InUse:              true,
 			GeneratedAt:        timestamppb.New(result.CreatedAt),
 			GenerationDuration: convertDuration(result.Duration),
+			Hash:               result.Report.ID(),
 		}
 
 		if result.Error != nil {
@@ -206,19 +216,29 @@ func (p *processor) processHostRefresh() {
 			}
 			sbom.Status = model.SBOMStatus_FAILED
 		} else {
-			report, err := result.Report.ToCycloneDX()
-			if err != nil {
-				log.Errorf("Failed to extract SBOM from report: %s", err)
-				sbom.Sbom = &model.SBOMEntity_Error{
-					Error: err.Error(),
-				}
-				sbom.Status = model.SBOMStatus_FAILED
+			log.Infof("Successfully generated SBOM for host: %v, %v", result.CreatedAt, result.Duration)
+
+			if p.hostCache != "" && p.hostCache == result.Report.ID() && result.CreatedAt.Sub(p.hostLastFullSBOM) < p.hostHeartbeatValidity {
+				sbom.Heartbeat = true
 			} else {
-				sbom.Sbom = &model.SBOMEntity_Cyclonedx{
-					Cyclonedx: convertBOM(report),
+				report, err := result.Report.ToCycloneDX()
+				if err != nil {
+					log.Errorf("Failed to extract SBOM from report: %s", err)
+					sbom.Sbom = &model.SBOMEntity_Error{
+						Error: err.Error(),
+					}
+					sbom.Status = model.SBOMStatus_FAILED
+				} else {
+					sbom.Sbom = &model.SBOMEntity_Cyclonedx{
+						Cyclonedx: convertBOM(report),
+					}
 				}
+
+				p.hostCache = result.Report.ID()
+				p.hostLastFullSBOM = result.CreatedAt
 			}
 		}
+
 		p.queue <- sbom
 	}()
 }

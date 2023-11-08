@@ -21,7 +21,7 @@ const (
 )
 
 // NewRTContainerCheck returns an instance of the RTContainerCheck.
-func NewRTContainerCheck(config ddconfig.ConfigReader) *RTContainerCheck {
+func NewRTContainerCheck(config ddconfig.Reader) *RTContainerCheck {
 	return &RTContainerCheck{
 		config: config,
 	}
@@ -33,7 +33,7 @@ type RTContainerCheck struct {
 	hostInfo          *HostInfo
 	containerProvider proccontainers.ContainerProvider
 	lastRates         map[string]*proccontainers.ContainerRateMetrics
-	config            ddconfig.ConfigReader
+	config            ddconfig.Reader
 }
 
 // Init initializes a RTContainerCheck instance.

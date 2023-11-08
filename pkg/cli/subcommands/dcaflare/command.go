@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package dcaflare defines the flare command for cluster-agent
 package dcaflare
 
 import (
@@ -10,23 +11,24 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare/helpers"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/input"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 type cliParams struct {
@@ -40,12 +42,18 @@ type cliParams struct {
 	profileBlockingRate  int
 }
 
+// GlobalParams contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath string
 }
 
 const (
-	LoggerName      = "CLUSTER"
+	// LoggerName is the logger name
+	LoggerName = "CLUSTER"
+	// DefaultLogLevel is the default log level
 	DefaultLogLevel = "off"
 )
 
@@ -76,9 +84,10 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.LogForOneShot(LoggerName, DefaultLogLevel, true),
+					LogParams:    log.ForOneShot(LoggerName, DefaultLogLevel, true),
 				}),
 				core.Bundle,
+				diagnosesendermanagerimpl.Module,
 			)
 		},
 	}
@@ -97,7 +106,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 func readProfileData(seconds int) (flare.ProfileData, error) {
 	pdata := flare.ProfileData{}
-	c := apiutil.GetClient(false)
+	c := util.GetClient(false)
 
 	fmt.Fprintln(color.Output, color.BlueString("Getting a %ds profile snapshot from datadog-cluster-agent.", seconds))
 	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof", pkgconfig.Datadog.GetInt("expvar_port"))
@@ -129,7 +138,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 			URL:  pprofURL + "/block",
 		},
 	} {
-		b, err := apiutil.DoGet(c, prof.URL, apiutil.LeaveConnectionOpen)
+		b, err := util.DoGet(c, prof.URL, util.LeaveConnectionOpen)
 		if err != nil {
 			return pdata, err
 		}
@@ -139,7 +148,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	return pdata, nil
 }
 
-func run(log log.Component, config config.Component, cliParams *cliParams) error {
+func run(cliParams *cliParams, diagnoseSenderManager diagnosesendermanager.Component) error {
 	fmt.Fprintln(color.Output, color.BlueString("Asking the Cluster Agent to build the flare archive."))
 	var (
 		profile flare.ProfileData
@@ -198,7 +207,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 			fmt.Fprintln(color.Output, color.RedString("The agent was unable to make a full flare: %s.", e.Error()))
 		}
 		fmt.Fprintln(color.Output, color.YellowString("Initiating flare locally, some logs will be missing."))
-		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, aggregator.GetSenderManager(), profile)
+		filePath, e = flare.CreateDCAArchive(true, path.GetDistPath(), logFile, profile, diagnoseSenderManager)
 		if e != nil {
 			fmt.Printf("The flare zipfile failed to be created: %s\n", e)
 			return e

@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
@@ -46,7 +45,7 @@ func TestStatus(t *testing.T) {
 	expectedStatus := status.Status{
 		Date: float64(testTime.UnixNano()),
 		Core: status.CoreStatus{
-			Metadata: host.Payload{
+			Metadata: hostMetadataUtils.Payload{
 				Meta: &hostMetadataUtils.Meta{},
 			},
 		},
@@ -72,7 +71,7 @@ func TestStatus(t *testing.T) {
 func TestNotRunning(t *testing.T) {
 	// Use different ports in case the host is running a real agent
 	cfg := config.Mock(t)
-	cfg.Set("process_config.cmd_port", 8082)
+	cfg.SetWithoutSource("process_config.cmd_port", 8082)
 
 	addressPort, err := config.GetProcessAPIAddressPort()
 	require.NoError(t, err)
@@ -88,7 +87,7 @@ func TestNotRunning(t *testing.T) {
 // a connection error
 func TestError(t *testing.T) {
 	cfg := config.Mock(t)
-	cfg.Set("ipc_address", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
+	cfg.SetWithoutSource("ipc_address", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
 	_, ipcError := config.GetIPCAddress()
 
 	var errText, expectedErrText strings.Builder

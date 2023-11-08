@@ -14,6 +14,7 @@ from . import (
     diff,
     docker_tasks,
     dogstatsd,
+    emacs,
     epforwarder,
     github_tasks,
     kmt,
@@ -53,6 +54,7 @@ from .test import (
     codecov,
     download_tools,
     e2e_tests,
+    get_modified_packages,
     install_shellcheck,
     install_tools,
     integration_tests,
@@ -68,7 +70,7 @@ from .test import (
     lint_teamassignment,
     test,
 )
-from .update_go import update_go
+from .update_go import go_version, update_go
 from .utils import generate_config
 from .windows_resources import build_messagetable
 
@@ -96,6 +98,7 @@ ns.add_task(lint_filenames)
 ns.add_task(lint_python)
 ns.add_task(lint_go)
 ns.add_task(show_linters_issues)
+ns.add_task(go_version)
 ns.add_task(update_go)
 ns.add_task(audit_tag_impact)
 ns.add_task(print_default_build_tags)
@@ -114,6 +117,8 @@ ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 
+ns.add_task(get_modified_packages)
+
 # add namespaced tasks to the root
 ns.add_collection(agent)
 ns.add_collection(cluster_agent)
@@ -124,6 +129,7 @@ ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
+ns.add_collection(emacs)
 ns.add_collection(epforwarder)
 ns.add_collection(msi)
 ns.add_collection(github_tasks, "github")

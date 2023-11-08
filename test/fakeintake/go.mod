@@ -4,8 +4,9 @@ go 1.20
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.73
-	github.com/benbjohnson/clock v1.3.0
+	github.com/benbjohnson/clock v1.3.5
 	github.com/cenkalti/backoff v2.2.1+incompatible
+	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/kr/pretty v0.3.1
 	github.com/stretchr/testify v1.8.1
 )

@@ -16,18 +16,15 @@
 package sysprobeconfig
 
 import (
-	"go.uber.org/fx"
-
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 // team: ebpf-platform
 
 // Component is the component type.
 type Component interface {
-	config.ConfigReader
+	config.Reader
 
 	// Warnings returns config warnings collected during setup.
 	Warnings() *config.Warnings
@@ -35,18 +32,3 @@ type Component interface {
 	// SysProbeObject returns the wrapper sysconfig
 	SysProbeObject() *sysconfig.Config
 }
-
-// Mock implements mock-specific methods.
-type Mock interface {
-	Component
-}
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newConfig),
-)
-
-// MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)

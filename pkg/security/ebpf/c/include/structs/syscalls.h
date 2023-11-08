@@ -14,6 +14,11 @@ struct syscall_monitor_entry_t {
     u8 dirty;
 };
 
+struct syscalls_stats_t {
+    s32 count;
+    u32 active;
+};
+
 struct syscall_table_key_t {
     u64 id;
     u64 syscall_key;

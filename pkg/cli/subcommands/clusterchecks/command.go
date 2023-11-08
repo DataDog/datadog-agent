@@ -11,6 +11,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/fatih/color"
+	"github.com/spf13/cobra"
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -19,9 +23,6 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/fatih/color"
-	"github.com/spf13/cobra"
-	"go.uber.org/fx"
 )
 
 const (
@@ -29,12 +30,17 @@ const (
 	defaultLogLevel = "off"
 )
 
+// GlobalParams contains the values of agent-global Cobra flags.
+//
+// A pointer to this type is passed to SubcommandFactory's, but its contents
+// are not valid until Cobra calls the subcommand's Run or RunE function.
 type GlobalParams struct {
 	ConfFilePath string
 }
 
 type cliParams struct {
 	checkName string
+	force     bool
 }
 
 // MakeCommand returns a `clusterchecks` command to be used by cluster-agent
@@ -67,11 +73,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			globalParams := globalParamsGetter()
 
 			return fxutil.OneShot(rebalance,
+				fx.Supply(cliParams),
 				fx.Supply(bundleParams(globalParams)),
 				core.Bundle,
 			)
 		},
 	}
+
+	rebalanceCmd.Flags().BoolVarP(&cliParams.force, "force", "f", false, "Use to force rebalance")
 
 	cmd.AddCommand(rebalanceCmd)
 
@@ -81,7 +90,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 func bundleParams(globalParams GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-		LogParams:    log.LogForOneShot(loggerName, defaultLogLevel, true),
+		LogParams:    log.ForOneShot(loggerName, defaultLogLevel, true),
 	}
 }
 
@@ -93,7 +102,8 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	return flare.GetEndpointsChecks(color.Output, cliParams.checkName)
 }
 
-func rebalance(log log.Component, config config.Component) error {
+func rebalance(_ log.Component, _ config.Component, cliParams *cliParams) error {
+
 	fmt.Println("Requesting a cluster check rebalance...")
 	c := util.GetClient(false) // FIX: get certificates right then make this true
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/rebalance", pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"))
@@ -104,7 +114,17 @@ func rebalance(log log.Component, config config.Component) error {
 		return err
 	}
 
-	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	// Construct the POST payload.
+	payload := map[string]bool{
+		"force": cliParams.force,
+	}
+	postData, err := json.Marshal(payload)
+
+	if err != nil {
+		return fmt.Errorf("error marshalling payload: %v", err)
+	}
+
+	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer(postData))
 	if err != nil {
 		var errMap = make(map[string]string)
 		json.Unmarshal(r, &errMap) //nolint:errcheck
