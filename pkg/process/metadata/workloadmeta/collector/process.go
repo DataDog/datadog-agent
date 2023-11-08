@@ -61,7 +61,12 @@ func (c *Collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		c.ddConfig.GetDuration("workloadmeta.local_process_collector.collection_interval"),
 	)
 
-	filter := workloadmeta.NewFilter([]workloadmeta.Kind{workloadmeta.KindContainer}, workloadmeta.SourceAll, workloadmeta.EventTypeAll)
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeAll,
+	}
+	filter := workloadmeta.NewFilter(&filterParams)
 	containerEvt := store.Subscribe(collectorId, workloadmeta.NormalPriority, filter)
 
 	go c.run(ctx, store, containerEvt, collectionTicker)
@@ -91,9 +96,6 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Store, container
 		}
 	}
 }
-
-// Pull is unused at the moment used due to the short frequency in which it is called.
-// In the future, we should use it to poll for processes that have been collected and store them in workload-meta.
 
 func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 	defer close(evt.Ch)

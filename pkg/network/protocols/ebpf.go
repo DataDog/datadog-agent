@@ -28,10 +28,16 @@ const (
 type ProgramType C.protocol_prog_t
 
 const (
-	ProgramHTTP             ProgramType = C.PROG_HTTP
-	ProgramHTTP2            ProgramType = C.PROG_HTTP2
+	// ProgramHTTP is the Golang representation of the C.PROG_HTTP enum
+	ProgramHTTP ProgramType = C.PROG_HTTP
+	// ProgramHTTP2HandleFirstFrame is the Golang representation of the C.PROG_HTTP2_HANDLE_FIRST_FRAME enum
+	ProgramHTTP2HandleFirstFrame ProgramType = C.PROG_HTTP2_HANDLE_FIRST_FRAME
+	// ProgramHTTP2FrameFilter is the Golang representation of the C.PROG_HTTP2_HANDLE_FRAME enum
+	ProgramHTTP2FrameFilter ProgramType = C.PROG_HTTP2_FRAME_FILTER
+	// ProgramHTTP2FrameParser is the Golang representation of the C.PROG_HTTP2_FRAME_PARSER enum
 	ProgramHTTP2FrameParser ProgramType = C.PROG_HTTP2_FRAME_PARSER
-	ProgramKafka            ProgramType = C.PROG_KAFKA
+	// ProgramKafka is the Golang representation of the C.PROG_KAFKA enum
+	ProgramKafka ProgramType = C.PROG_KAFKA
 )
 
 func Application(protoNum uint8) ProtocolType {

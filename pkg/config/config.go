@@ -517,6 +517,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_stats_port", 5000)
 	config.BindEnvAndSetDefault("dogstatsd_stats_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_stats_buffer", 10)
+	config.BindEnvAndSetDefault("dogstatsd_telemetry_enabled_listener_id", false)
 	// Control how dogstatsd-stats logs can be generated
 	config.BindEnvAndSetDefault("dogstatsd_log_file", "")
 	config.BindEnvAndSetDefault("dogstatsd_logging_enabled", true)
@@ -1113,7 +1114,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("orchestrator_explorer.run_on_node_agent", false)
 
 	// Container lifecycle configuration
-	config.BindEnvAndSetDefault("container_lifecycle.enabled", false)
+	config.BindEnvAndSetDefault("container_lifecycle.enabled", true)
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
@@ -1624,14 +1625,15 @@ func setupFipsEndpoints(config Config) error {
 	// port_range_start + 3:  profiles
 	// port_range_start + 4:  processes
 	// port_range_start + 5:  logs
-	// port_range_start + 6:  databases monitoring metrics
+	// port_range_start + 6:  databases monitoring metrics, metadata and activity
 	// port_range_start + 7:  databases monitoring samples
 	// port_range_start + 8:  network devices metadata
-	// port_range_start + 9:  network devices snmp traps (unused)
+	// port_range_start + 9:  network devices snmp traps
 	// port_range_start + 10: instrumentation telemetry
 	// port_range_start + 11: appsec events (unused)
 	// port_range_start + 12: orchestrator explorer
 	// port_range_start + 13: runtime security
+	// port_range_start + 15: network devices netflow
 
 	if !config.GetBool("fips.enabled") {
 		log.Debug("FIPS mode is disabled")
@@ -1653,6 +1655,7 @@ func setupFipsEndpoints(config Config) error {
 		appsecEvents               = 11
 		orchestratorExplorer       = 12
 		runtimeSecurity            = 13
+		networkDevicesNetflow      = 15 // 14 is reserved for compliance (#20230)
 	)
 
 	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
@@ -1695,12 +1698,16 @@ func setupFipsEndpoints(config Config) error {
 	config.Set("process_config.process_dd_url", protocol+urlFor(processes))
 
 	// Database monitoring
-	config.Set("database_monitoring.metrics.dd_url", urlFor(databasesMonitoringMetrics))
-	config.Set("database_monitoring.activity.dd_url", urlFor(databasesMonitoringMetrics))
-	config.Set("database_monitoring.samples.dd_url", urlFor(databasesMonitoringSamples))
+	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
+	// (even though the underlying IPs were the same as the ones for DBM metrics intake hostname). We're keeping 2 ports for backward compatibility reason.
+	setupFipsLogsConfig(config, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(config, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
 	// Network devices
-	config.Set("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata))
+	setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
+	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
+	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
 	// Orchestrator Explorer
 	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer))

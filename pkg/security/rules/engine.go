@@ -193,15 +193,31 @@ func (e *RuleEngine) Start(ctx context.Context, reloadChan <-chan struct{}, wg *
 	go func() {
 		defer wg.Done()
 
+		// 5 heartbeats with a period of 1 min, after that we move the period to 10 min
+		// if the policies change we go back to 5 beats every 1 min
+
 		heartbeatTicker := time.NewTicker(1 * time.Minute)
 		defer heartbeatTicker.Stop()
+
+		heartBeatCounter := 5
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
+			case <-e.policyLoader.NewPolicyReady():
+				heartBeatCounter = 5
+				heartbeatTicker.Reset(1 * time.Minute)
+				// we report a heartbeat anyway
+				e.policyMonitor.ReportHeartbeatEvent(e.eventSender)
 			case <-heartbeatTicker.C:
 				e.policyMonitor.ReportHeartbeatEvent(e.eventSender)
+				if heartBeatCounter > 0 {
+					heartBeatCounter--
+					if heartBeatCounter == 0 {
+						heartbeatTicker.Reset(10 * time.Minute)
+					}
+				}
 			}
 		}
 	}()
@@ -351,11 +367,7 @@ func (e *RuleEngine) RuleMatch(rule *rules.Rule, event eval.Event) bool {
 		return false
 	}
 
-	for _, action := range rule.Definition.Actions {
-		if action.InternalCallbackDefinition != nil && rule.ID == refreshUserCacheRuleID {
-			_ = e.probe.RefreshUserCache(ev.ContainerContext.ID)
-		}
-	}
+	e.probe.HandleActions(rule, event)
 
 	if rule.Definition.Silent {
 		return false

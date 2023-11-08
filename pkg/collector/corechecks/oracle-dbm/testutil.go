@@ -11,15 +11,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/stretchr/testify/require"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 )
 
 func initCheck(t *testing.T, senderManager sender.SenderManager, server string, port int, user string, password string, serviceName string) (Check, error) {
 	c := Check{}
-	rawInstanceConfig := []byte(fmt.Sprintf(`
-server: %s
+	rawInstanceConfig := []byte(fmt.Sprintf(`server: %s
 port: %d
 username: %s
 password: %s
@@ -30,3 +29,11 @@ service_name: %s
 
 	return c, err
 }
+
+var HOST = "localhost"
+var PORT = 1521
+var USER = "c##datadog"
+var PASSWORD = "datadog"
+var SERVICE_NAME = "XE"
+var TNS_ALIAS = "XE"
+var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/testutil/etc/netadmin"

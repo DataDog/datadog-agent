@@ -74,7 +74,6 @@ type StatementMetricsDB struct {
 	StatementMetricsKeyDB
 	SQLText       string `db:"SQL_TEXT"`
 	SQLTextLength int16  `db:"SQL_TEXT_LENGTH"`
-	SQLID         string `db:"SQL_ID"`
 	StatementMetricsMonotonicCountDB
 	StatementMetricsGaugeDB
 }
@@ -402,8 +401,8 @@ func (c *Check) StatementMetrics() (int, error) {
 		defer o.Stop()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
-		for _, statementMetricRow := range statementMetricsAll {
-
+		sendPlan := true
+		for i, statementMetricRow := range statementMetricsAll {
 			var trace bool
 			for _, t := range c.config.QueryMetrics.Trackers {
 				if len(t.ContainsText) > 0 {
@@ -420,16 +419,15 @@ func (c *Check) StatementMetrics() (int, error) {
 					}
 				}
 			}
-
 			if trace {
-				log.Infof("%s queried: %+v", c.logPrompt, statementMetricRow)
+				log.Infof("%s qm_tracker queried: %+v", c.logPrompt, statementMetricRow)
 			}
 
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
 			if exists {
 				if trace {
-					log.Infof("%s previous: %+v %+v", c.logPrompt, statementMetricRow.StatementMetricsKeyDB, previousMonotonic)
+					log.Infof("%s qm_tracker previous: %+v %+v", c.logPrompt, statementMetricRow.StatementMetricsKeyDB, previousMonotonic)
 				}
 				diff = OracleRowMonotonicCount{}
 				if diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls; diff.ParseCalls < 0 {
@@ -571,7 +569,7 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			oracleRows = append(oracleRows, oracleRow)
 			if trace {
-				log.Infof("%s payload: %+v", c.logPrompt, oracleRow)
+				log.Infof("%s qm_tracker payload: %+v", c.logPrompt, oracleRow)
 			}
 
 			if c.fqtEmitted == nil {
@@ -603,7 +601,11 @@ func (c *Check) StatementMetrics() (int, error) {
 				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 			}
 
-			if c.config.ExecutionPlans.Enabled {
+			if c.config.ExecutionPlans.Enabled && sendPlan {
+				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
+					sendPlan = false
+				}
+
 				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
 				if c.planEmitted == nil {
 					c.planEmitted = getPlanEmittedCache(c)
@@ -778,9 +780,9 @@ func (c *Check) StatementMetrics() (int, error) {
 						log.Errorf("%s failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", c.logPrompt, err, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 					}
 				}
+
 			}
 		}
-
 		c.copyToPreviousMap(newCache)
 	} else {
 		heartbeatStatement := "__other__"
@@ -796,6 +798,10 @@ func (c *Check) StatementMetrics() (int, error) {
 		}
 		oracleRows = append(oracleRows, oracleRow)
 	}
+
+	c.lastOracleRows = make([]OracleRow, len(oracleRows))
+	copy(c.lastOracleRows, oracleRows)
+
 	payload := MetricsPayload{
 		Host:                  c.dbHostname,
 		Timestamp:             float64(time.Now().UnixMilli()),
@@ -824,5 +830,6 @@ func (c *Check) StatementMetrics() (int, error) {
 	if planErrors > 0 {
 		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan errors: %d", SQLCount, planErrors)
 	}
+
 	return SQLCount, nil
 }

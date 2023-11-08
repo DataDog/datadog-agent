@@ -57,6 +57,9 @@ const (
 	BrokenProcessLineageErrorRuleID = "broken_process_lineage"
 	// BrokenProcessLineageErrorRuleDesc is the rule description for events with a broken process lineage
 	BrokenProcessLineageErrorRuleDesc = "Broken process lineage detected"
+
+	// RefreshUserCacheRuleID is the rule ID used to refresh users and groups cache
+	RefreshUserCacheRuleID = "refresh_user_cache"
 )
 
 // CustomEventCommonFields represents the fields common to all custom events
