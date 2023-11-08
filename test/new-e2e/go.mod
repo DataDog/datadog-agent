@@ -33,7 +33,7 @@ require (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.73
+	github.com/DataDog/agent-payload/v5 v5.0.99
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.1
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.15.0
