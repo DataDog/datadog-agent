@@ -571,7 +571,9 @@ api_key:
   ## - database_monitoring.metrics.dd_url
   ## - database_monitoring.activity.dd_url
   ## - database_monitoring.samples.dd_url
-  ## - network_devices.metadata.dd_url
+  ## - network_devices.metadata.logs_dd_url
+  ## - network_devices.snmp_traps.forwarder.logs_dd_url
+  ## - network_devices.netflow.forwarder.logs_dd_url
   #
   ## The agent will also ignore 'proxy.*' settings and environment variables related to proxy (HTTP_PROXY, HTTPS_PROXY,
   ## DD_PROXY_HTTP and DD_PROXY_HTTPS).
