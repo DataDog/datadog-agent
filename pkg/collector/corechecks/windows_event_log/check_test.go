@@ -525,6 +525,7 @@ func (s *GetEventsTestSuite) TestCatchInvalidRegex() {
 	for _, tc := range tcs {
 		s.Run(tc.name, func() {
 			instanceConfig := []byte(fmt.Sprintf(`
+legacy_mode: false
 path: %s
 start: oldest
 %s:
