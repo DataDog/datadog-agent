@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -40,14 +41,15 @@ type protocol struct {
 }
 
 const (
-	inFlightMap          = "http2_in_flight"
-	dynamicTable         = "http2_dynamic_table"
-	dynamicTableCounter  = "http2_dynamic_counter_table"
-	http2IterationsTable = "http2_iterations"
-	staticTable          = "http2_static_table"
-	filterTailCall       = "socket__http2_filter"
-	parserTailCall       = "socket__http2_frames_parser"
-	eventStream          = "http2"
+	inFlightMap               = "http2_in_flight"
+	dynamicTable              = "http2_dynamic_table"
+	dynamicTableCounter       = "http2_dynamic_counter_table"
+	http2IterationsTable      = "http2_iterations"
+	staticTable               = "http2_static_table"
+	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
+	filterTailCall            = "socket__http2_filter"
+	parserTailCall            = "socket__http2_frames_parser"
+	eventStream               = "http2"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -72,6 +74,9 @@ var Spec = &protocols.ProtocolSpec{
 			Name: "http2_headers_to_process",
 		},
 		{
+			Name: "http2_frames_to_process",
+		},
+		{
 			Name: "http2_stream_heap",
 		},
 		{
@@ -81,7 +86,14 @@ var Spec = &protocols.ProtocolSpec{
 	TailCalls: []manager.TailCallRoute{
 		{
 			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP2),
+			Key:           uint32(protocols.ProgramHTTP2HandleFirstFrame),
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				EBPFFuncName: firstFrameHandlerTailCall,
+			},
+		},
+		{
+			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+			Key:           uint32(protocols.ProgramHTTP2FrameFilter),
 			ProbeIdentificationPair: manager.ProbeIdentificationPair{
 				EBPFFuncName: filterTailCall,
 			},
@@ -330,4 +342,9 @@ func (p *protocol) createStaticTable(mgr *manager.Manager) error {
 		}
 	}
 	return nil
+}
+
+// IsBuildModeSupported returns always true, as http2 module is supported by all modes.
+func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
+	return true
 }

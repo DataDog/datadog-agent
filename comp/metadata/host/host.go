@@ -16,7 +16,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -54,7 +54,7 @@ type provides struct {
 	fx.Out
 
 	Comp             Component
-	MetadataProvider runner.Provider
+	MetadataProvider runnerimpl.Provider
 	FlareProvider    flaretypes.Provider
 }
 
@@ -89,7 +89,7 @@ func newHostProvider(deps dependencies) provides {
 	}
 	return provides{
 		Comp:             &h,
-		MetadataProvider: runner.NewProvider(h.collect),
+		MetadataProvider: runnerimpl.NewProvider(h.collect),
 		FlareProvider:    flaretypes.NewProvider(h.fillFlare),
 	}
 }

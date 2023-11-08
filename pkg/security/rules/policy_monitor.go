@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -71,6 +72,17 @@ func (p *PolicyMonitor) SetPolicies(policies []*rules.Policy, mErrs *multierror.
 				}
 			}
 		}
+	}
+}
+
+// ReportHeartbeatEvent sends HeartbeatEvents reporting the current set of policies
+func (p *PolicyMonitor) ReportHeartbeatEvent(sender events.EventSender) {
+	p.RLock()
+	rule, events := NewHeartbeatEvents(p.policies)
+	p.RUnlock()
+
+	for _, event := range events {
+		sender.SendEvent(rule, event, nil, "")
 	}
 }
 
@@ -146,16 +158,6 @@ func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientIn
 	sender.SendEvent(rule, event, nil, "")
 }
 
-// ReportHeartbeatEvent periodically reports to Datadog that
-func ReportHeartbeatEvent(sender events.EventSender, policies map[string]Policy) {
-	log.Infof("send heartbeat")
-
-	rule, events := NewHeartbeatEvents(policies)
-	for _, event := range events {
-		sender.SendEvent(rule, event, nil, "")
-	}
-}
-
 // RuleState defines a loaded rule
 // easyjson:json
 type RuleState struct {
@@ -183,11 +185,21 @@ type RulesetLoadedEvent struct {
 	Policies []*PolicyState `json:"policies"`
 }
 
+// ToJSON marshal using json format
+func (e RulesetLoadedEvent) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
 // HeartbeatEvent is used to report the policies that has been loaded
 // easyjson:json
 type HeartbeatEvent struct {
 	events.CustomEventCommonFields
 	Policy *PolicyState `json:"policy"`
+}
+
+// ToJSON marshal using json format
+func (e HeartbeatEvent) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
 }
 
 // PolicyStateFromRuleDefinition returns a policy state based on the rule definition

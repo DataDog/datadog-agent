@@ -229,7 +229,7 @@ int tracepoint_handle_sys_commit_creds_exit(struct tracepoint_raw_syscalls_sys_e
     return credentials_update_ret(args, args->ret);
 }
 
-struct cred_ids {
+struct __attribute__((__packed__)) cred_ids {
     kuid_t uid;
     kgid_t gid;
     kuid_t suid;

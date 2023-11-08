@@ -38,7 +38,7 @@ type provides struct {
 	//
 	// newDemultiplexer returns both demultiplexer.Component and diagnosesendermanager.Component (Note: demultiplexer.Component
 	// implements diagnosesendermanager.Component). This has the nice consequence of preventing having
-	// demultiplexer.Module and diagnosesendermanager.Module in the same fx.App because there would
+	// demultiplexer.Module and diagnosesendermanagerimpl.Module in the same fx.App because there would
 	// be two ways to create diagnosesendermanager.Component.
 	SenderManager diagnosesendermanager.Component
 }

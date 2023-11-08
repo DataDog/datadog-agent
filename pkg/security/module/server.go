@@ -11,6 +11,7 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -20,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
-	jwriter "github.com/mailru/easyjson/jwriter"
 	"go.uber.org/atomic"
 
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -262,6 +262,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		RuleID:      rule.Definition.ID,
 		RuleVersion: rule.Definition.Version,
 		Version:     version.AgentVersion,
+		OS:          runtime.GOOS,
 	}
 
 	ruleEvent := &events.Signal{
@@ -313,12 +314,8 @@ func marshalEvent(event events.Event, probe *sprobe.Probe) ([]byte, error) {
 		return serializers.MarshalEvent(ev, probe.GetResolvers())
 	}
 
-	if m, ok := event.(easyjson.Marshaler); ok {
-		w := &jwriter.Writer{
-			Flags: jwriter.NilSliceAsEmpty | jwriter.NilMapAsEmpty,
-		}
-		m.MarshalEasyJSON(w)
-		return w.BuildBytes()
+	if ev, ok := event.(events.EventMarshaler); ok {
+		return ev.ToJSON()
 	}
 
 	return json.Marshal(event)

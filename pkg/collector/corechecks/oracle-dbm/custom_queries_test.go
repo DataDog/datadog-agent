@@ -23,14 +23,6 @@ import (
 
 var chk Check
 
-var HOST = "localhost"
-var PORT = 1521
-var USER = "c##datadog"
-var PASSWORD = "datadog"
-var SERVICE_NAME = "XE"
-var TNS_ALIAS = "XE"
-var TNS_ADMIN = "/Users/nenad.noveljic/go/src/github.com/DataDog/datadog-agent/pkg/collector/corechecks/oracle-dbm/testutil/etc/netadmin"
-
 func TestBasic(t *testing.T) {
 	chk = Check{}
 
@@ -78,7 +70,7 @@ func TestCustomQueries(t *testing.T) {
 		Query:        "SELECT c1, c2 FROM t",
 		Columns:      columns,
 	}
-	
+
 	senderManager := mocksender.CreateDefaultDemultiplexer()
 	chk, err := initCheck(t, senderManager, "localhost", 1523, "a", "a", "a")
 	chk.Run()
