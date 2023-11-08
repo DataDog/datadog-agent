@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 
 	// checks implemented as components
 
@@ -197,6 +198,7 @@ func run(log log.Component,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
 	_ netflowServer.Component,
+	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
 ) error {
 	defer func() {
