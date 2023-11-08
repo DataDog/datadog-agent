@@ -1628,11 +1628,12 @@ func setupFipsEndpoints(config Config) error {
 	// port_range_start + 6:  databases monitoring metrics, metadata and activity
 	// port_range_start + 7:  databases monitoring samples
 	// port_range_start + 8:  network devices metadata
-	// port_range_start + 9:  network devices snmp traps (unused)
+	// port_range_start + 9:  network devices snmp traps
 	// port_range_start + 10: instrumentation telemetry
 	// port_range_start + 11: appsec events (unused)
 	// port_range_start + 12: orchestrator explorer
 	// port_range_start + 13: runtime security
+	// port_range_start + 15: network devices netflow
 
 	if !config.GetBool("fips.enabled") {
 		log.Debug("FIPS mode is disabled")
@@ -1654,6 +1655,7 @@ func setupFipsEndpoints(config Config) error {
 		appsecEvents               = 11
 		orchestratorExplorer       = 12
 		runtimeSecurity            = 13
+		networkDevicesNetflow      = 15 // 14 is reserved for compliance (#20230)
 	)
 
 	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
@@ -1703,7 +1705,9 @@ func setupFipsEndpoints(config Config) error {
 	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
 	// Network devices
-	config.Set("network_devices.metadata.dd_url", urlFor(networkDevicesMetadata), model.SourceAgentRuntime)
+	setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
+	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
+	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
 	// Orchestrator Explorer
 	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), model.SourceAgentRuntime)
