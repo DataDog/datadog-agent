@@ -3,6 +3,7 @@ erratic: false
 
 environment:
   DD_TELEMETRY_ENABLED: true
+  DD_API_KEY: 00000001
   DD_EXPERIMENTAL_USE_WIDE_DISTRIBUTION_BINS: false
 
 profiling_environment:

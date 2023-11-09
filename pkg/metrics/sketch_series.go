@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	// "github.com/DataDog/datadog-agent/pkg/quantile"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -37,8 +38,8 @@ func (sl SketchSeries) String() string {
 
 // A SketchPoint represents a quantile sketch at a specific time
 type SketchPoint struct {
-	Sketch *quantile.Sketch `json:"sketch"`
-	Ts     int64            `json:"ts"`
+	Sketch quantile.SketchReader `json:"sketch"`
+	Ts     int64                 `json:"ts"`
 }
 
 // SketchSeriesList is a collection of SketchSeries

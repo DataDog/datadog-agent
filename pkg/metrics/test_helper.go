@@ -84,18 +84,18 @@ func AssertSerieEqual(t *testing.T, expected, actual *Serie) {
 	AssertPointsEqual(t, expected.Points, actual.Points)
 }
 
-type sketchComparator func(exp, act *quantile.Sketch) bool
+type sketchComparator func(exp, act quantile.SketchReader) bool
 
 // AssertSketchSeriesEqual checks whether two SketchSeries are equal
 func AssertSketchSeriesEqual(t assert.TestingT, exp, act *SketchSeries) {
-	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act *quantile.Sketch) bool {
-		return exp.Equals(act)
+	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act quantile.SketchReader) bool {
+		return quantile.SketchesEqual(exp, act)
 	})
 }
 
 // AssertSketchSeriesApproxEqual checks whether two SketchSeries are approximately equal. e represents the acceptable error %
 func AssertSketchSeriesApproxEqual(t assert.TestingT, exp, act *SketchSeries, e float64) {
-	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act *quantile.Sketch) bool {
+	assertSketchSeriesEqualWithComparator(t, exp, act, func(exp, act quantile.SketchReader) bool {
 		return quantile.SketchesApproxEqual(exp, act, e)
 	})
 }

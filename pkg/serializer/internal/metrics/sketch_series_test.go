@@ -26,7 +26,7 @@ import (
 
 func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_Dogsketch) {
 	t.Helper()
-	s, b := in.Sketch, in.Sketch.Basic
+	s, b := in.Sketch, in.Sketch.Summary()
 	require.Equal(t, in.Ts, pb.Ts)
 
 	// sketch
@@ -43,10 +43,19 @@ func check(t *testing.T, in metrics.SketchPoint, pb gogen.SketchPayload_Sketch_D
 }
 
 func TestSketchSeriesListMarshal(t *testing.T) {
+	t.Run("uint16", func(t *testing.T) {
+		testSketchSeriesListMarshal[uint16](t)
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testSketchSeriesListMarshal[uint32](t)
+	})
+}
+
+func testSketchSeriesListMarshal[T uint16 | uint32](t *testing.T) {
 	sl := metrics.NewSketchesSourceTest()
 
 	for i := 0; i < 2; i++ {
-		sl.Append(Makeseries(i))
+		sl.Append(Makeseries[T](i))
 	}
 
 	serializer := SketchSeriesList{SketchesSource: sl}
@@ -64,7 +73,7 @@ func TestSketchSeriesListMarshal(t *testing.T) {
 
 	for i, pb := range pl.Sketches {
 		in := sl.Get(i)
-		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
+		require.Equal(t, Makeseries[T](i), in, "make sure we don't modify input")
 
 		assert.Equal(t, in.Host, pb.Host)
 		assert.Equal(t, in.Name, pb.Metric)
@@ -110,6 +119,15 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 }
 
 func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
+	t.Run("uint16", func(t *testing.T) {
+		testSketchSeriesMarshalSplitCompressItemTooBigIsDropped[uint16](t)
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testSketchSeriesMarshalSplitCompressItemTooBigIsDropped[uint32](t)
+	})
+}
+
+func testSketchSeriesMarshalSplitCompressItemTooBigIsDropped[T uint16 | uint32](t *testing.T) {
 
 	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
 	defer config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", oldSetting)
@@ -117,7 +135,7 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 
 	sl := metrics.NewSketchesSourceTest()
 	// A big item (to be dropped)
-	sl.Append(Makeseries(0))
+	sl.Append(Makeseries[T](0))
 
 	// A small item (no dropped)
 	sl.Append(&metrics.SketchSeries{
@@ -149,10 +167,19 @@ func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 }
 
 func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
+	t.Run("uint16", func(t *testing.T) {
+		testSketchSeriesMarshalSplitCompress[uint16](t)
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testSketchSeriesMarshalSplitCompress[uint32](t)
+	})
+}
+
+func testSketchSeriesMarshalSplitCompress[T uint16 | uint32](t *testing.T) {
 	sl := metrics.NewSketchesSourceTest()
 
 	for i := 0; i < 2; i++ {
-		sl.Append(Makeseries(i))
+		sl.Append(Makeseries[T](i))
 	}
 
 	sl.Reset()
@@ -175,7 +202,7 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 
 	for i, pb := range pl.Sketches {
 		in := sl.Get(i)
-		require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
+		require.Equal(t, Makeseries[T](i), in, "make sure we don't modify input")
 
 		assert.Equal(t, in.Host, pb.Host)
 		assert.Equal(t, in.Name, pb.Metric)
@@ -191,6 +218,15 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 }
 
 func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
+	t.Run("uint16", func(t *testing.T) {
+		testSketchSeriesMarshalSplitCompressSplit[uint16](t)
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testSketchSeriesMarshalSplitCompressSplit[uint32](t)
+	})
+}
+
+func testSketchSeriesMarshalSplitCompressSplit[T uint16 | uint32](t *testing.T) {
 	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
 	defer config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", oldSetting)
 	config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", 2000)
@@ -199,7 +235,7 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 
 	expectedPointCount := 0
 	for i := 0; i < 20; i++ {
-		sl.Append(Makeseries(i))
+		sl.Append(Makeseries[T](i))
 		expectedPointCount += i + 5
 	}
 
@@ -232,7 +268,8 @@ func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	for _, pl := range recoveredSketches {
 		for _, pb := range pl.Sketches {
 			in := sl.Get(i)
-			require.Equal(t, Makeseries(i), in, "make sure we don't modify input")
+			s := Makeseries[T](i)
+			require.Equal(t, s, in, "make sure we don't modify input")
 
 			assert.Equal(t, in.Host, pb.Host)
 			assert.Equal(t, in.Name, pb.Metric)

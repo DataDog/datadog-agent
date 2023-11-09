@@ -2,6 +2,10 @@ module github.com/DataDog/datadog-agent/pkg/metrics
 
 go 1.20
 
+replace github.com/DataDog/opentelemetry-mapping-go/pkg/quantile => github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20231116195641-f121af552d1e
+
+replace github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics => github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/otlp/metrics v0.0.0-20231116195641-f121af552d1e
+
 replace (
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ../../comp/core/telemetry/
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ../aggregator/ckey/
@@ -34,7 +38,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.50.0-rc.4 // indirect
-	github.com/DataDog/sketches-go v1.4.2 // indirect
+	github.com/DataDog/sketches-go v1.4.3 // indirect
 	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect

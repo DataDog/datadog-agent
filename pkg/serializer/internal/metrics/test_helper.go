@@ -17,7 +17,7 @@ import (
 )
 
 // Makeseries creates a metrics.SketchSeries with i+5 Sketch Points
-func Makeseries(i int) *metrics.SketchSeries {
+func Makeseries[T uint16 | uint32](i int) *metrics.SketchSeries {
 	// Makeseries is deterministic so that we can test for mutation.
 	ss := &metrics.SketchSeries{
 		Name: fmt.Sprintf("name.%d", i),
@@ -33,7 +33,7 @@ func Makeseries(i int) *metrics.SketchSeries {
 	for j := 0; j < i+5; j++ {
 		ss.Points = append(ss.Points, metrics.SketchPoint{
 			Ts:     10 * int64(j),
-			Sketch: makesketch(j),
+			Sketch: makesketch[T](j),
 		})
 	}
 
@@ -43,11 +43,12 @@ func Makeseries(i int) *metrics.SketchSeries {
 	return ss
 }
 
-func makesketch(n int) *quantile.Sketch {
-	s, c := &quantile.Sketch{}, quantile.Default()
+func makesketch[T uint16 | uint32](n int) *quantile.Sketch[T] {
+	s, c := &quantile.Sketch[T]{}, quantile.Default()
 	for i := 0; i < n; i++ {
 		s.Insert(c, float64(i))
 	}
+	s.ClearBinPool()
 	return s
 }
 

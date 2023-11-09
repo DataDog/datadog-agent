@@ -3,6 +3,7 @@ erratic: false
 
 environment:
   DD_TELEMETRY_ENABLED: true
+  DD_API_KEY: 00000001
   DD_EXPERIMENTAL_USE_WIDE_DISTRIBUTION_BINS: false
 
 profiling_environment:
@@ -18,4 +19,4 @@ profiling_environment:
   DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
   DD_PROFILING_WAIT_PROFILE: true
 
-  DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:uds_dogstatsd_to_api_150MiB_16
+  DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:uds_dogstatsd_to_api_low_32
