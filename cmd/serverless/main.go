@@ -169,8 +169,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	apikey.CheckForSingleAPIKey()
 
-	config.LoadProxyFromEnv(config.Datadog)
-
 	// Set secrets from the environment that are suffixed with
 	// KMS_ENCRYPTED or SECRET_ARN
 	apikey.SetSecretsFromEnv(os.Environ())

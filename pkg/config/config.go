@@ -1578,6 +1578,9 @@ func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEn
 	if err := config.ReadInConfig(); err != nil {
 		if IsServerless() {
 			log.Debug("No config file detected, using environment variable based configuration only")
+			// Proxy settings need to be loaded from environment variables even in the absence of a datadog.yaml file
+			// The remaining code in LoadCustom is not run to keep a low cold start time
+			LoadProxyFromEnv(config)
 			return &warnings, nil
 		}
 		return &warnings, err
