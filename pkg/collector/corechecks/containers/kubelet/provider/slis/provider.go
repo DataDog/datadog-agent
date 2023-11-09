@@ -56,7 +56,7 @@ func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Se
 		tags := p.MetricTags(metric)
 		for i, tag := range tags {
 			if strings.HasPrefix(tag, "name:") {
-				tags[i] = strings.Replace(tag, "name:", "tls_name:", 1)
+				tags[i] = strings.Replace(tag, "name:", "sli_name:", 1)
 			}
 		}
 
