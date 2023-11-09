@@ -9,6 +9,7 @@ package appsec
 
 import (
 	"encoding/json"
+	"math/rand"
 	"time"
 
 	"github.com/DataDog/appsec-internal-go/appsec"
@@ -118,10 +119,10 @@ func (a *AppSec) Monitor(addresses map[string]any) (res waf.Result) {
 	defer ctx.Close()
 	timeout := a.cfg.WafTimeout
 
-	// Naive 10% sampling for API Security, disabled for testing
-	//	if rand.Uint32()%10 == 0 {
-	addresses["waf.context.processor"] = map[string]any{"extract-schema": true}
-	//	}
+	// Ask the WAF for schema reporting if API security is enabled
+	if config.APISecurityEnabled() && config.APISecuritySampleRate() >= rand.Float64() {
+		addresses["waf.context.processor"] = map[string]any{"extract-schema": true}
+	}
 
 	res, err := ctx.Run(waf.RunAddressData{Persistent: addresses}, timeout)
 	if err != nil {

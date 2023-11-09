@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	waf "github.com/DataDog/go-libddwaf/v2"
 
 	"github.com/stretchr/testify/require"
@@ -74,6 +75,9 @@ func TestMonitor(t *testing.T) {
 	})
 
 	t.Run("api-security", func(t *testing.T) {
+		t.Setenv("DD_API_SECURITY_REQUEST_SAMPLE_RATE", "1.0")
+		t.Setenv("DD_EXPERIMENTAL_API_SECURITY_ENABLED", "true")
+		config.Refresh()
 		for _, tc := range []struct {
 			name       string
 			pathParams map[string]any

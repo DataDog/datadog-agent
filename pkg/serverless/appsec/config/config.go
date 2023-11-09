@@ -20,16 +20,19 @@ import (
 )
 
 const (
-	enabledEnvVar         = "DD_SERVERLESS_APPSEC_ENABLED"
-	rulesEnvVar           = "DD_APPSEC_RULES"
-	wafTimeoutEnvVar      = "DD_APPSEC_WAF_TIMEOUT"
-	traceRateLimitEnvVar  = "DD_APPSEC_TRACE_RATE_LIMIT"
-	obfuscatorKeyEnvVar   = "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
-	obfuscatorValueEnvVar = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
-	tracingEnabledEnvVar  = "DD_APM_TRACING_ENABLED"
+	enabledEnvVar               = "DD_SERVERLESS_APPSEC_ENABLED"
+	rulesEnvVar                 = "DD_APPSEC_RULES"
+	wafTimeoutEnvVar            = "DD_APPSEC_WAF_TIMEOUT"
+	traceRateLimitEnvVar        = "DD_APPSEC_TRACE_RATE_LIMIT"
+	obfuscatorKeyEnvVar         = "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
+	obfuscatorValueEnvVar       = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
+	tracingEnabledEnvVar        = "DD_APM_TRACING_ENABLED"
+	apiSecurityEnabledEnvVar    = "DD_EXPERIMENTAL_API_SECURITY_ENABLED"
+	apiSecuritySampleRateEnvVar = "DD_API_SECURITY_REQUEST_SAMPLE_RATE"
 )
 
 const (
+	defaultAPISecSampleRate     = 10. / 100
 	defaultWAFTimeout           = 4 * time.Millisecond
 	defaultTraceRate            = 100 // up to 100 appsec traces/s
 	defaultObfuscatorKeyRegex   = `(?i)(?:p(?:ass)?w(?:or)?d|pass(?:_?phrase)?|secret|(?:api_?|private_?|public_?)key)|token|consumer_?(?:id|key|secret)|sign(?:ed|ature)|bearer|authorization`
@@ -57,8 +60,19 @@ type ObfuscatorConfig struct {
 	ValueRegex string
 }
 
-// standalone is assigned at init by reading the environment
-var standalone bool
+// Config variables assigned at init by reading the environment
+var (
+	apiSecEnabled    bool
+	apiSecSampleRate float64
+	standalone       bool
+)
+
+// Refresh updates the configuration by reading from the environment
+func Refresh() {
+	standalone = isStandalone()
+	apiSecEnabled = apiSecurityEnabled()
+	apiSecSampleRate = apiSecuritySampleRate()
+}
 
 // IsEnabled returns true when appsec is enabled when the environment variable
 // It also returns whether the env var is actually set in the env or not
@@ -77,6 +91,16 @@ func IsEnabled() (enabled bool, set bool, err error) {
 // IsStandalone returns whether appsec is used as a standalone product (without APM tracing) or not
 func IsStandalone() bool {
 	return standalone
+}
+
+// APISecurityEnabled returns whether API security is enabled through the environment
+func APISecurityEnabled() bool {
+	return apiSecEnabled
+}
+
+// APISecuritySampleRate returns the sample rate for API Security schema collection, read from the env
+func APISecuritySampleRate() float64 {
+	return apiSecSampleRate
 }
 
 // NewConfig returns a new appsec configuration read from the environment
@@ -191,6 +215,24 @@ func isStandalone() bool {
 	return set && !enabled
 }
 
+func apiSecurityEnabled() bool {
+	enabled, _ := strconv.ParseBool(os.Getenv(apiSecurityEnabledEnvVar))
+	return enabled
+}
+
+func apiSecuritySampleRate() float64 {
+	rate, err := strconv.ParseFloat(os.Getenv(apiSecuritySampleRateEnvVar), 64)
+	if err != nil {
+		log.Debugf("appsec: could not parse %s. Defaulting to %f", apiSecuritySampleRateEnvVar, defaultAPISecSampleRate)
+		return defaultAPISecSampleRate
+	}
+	if rate < 0. || rate > 1. {
+		log.Debugf("appsec: %s value must be between 0 and 1. Defaulting to %f", apiSecuritySampleRateEnvVar, defaultAPISecSampleRate)
+		return defaultAPISecSampleRate
+	}
+	return rate
+}
+
 func init() {
-	standalone = isStandalone()
+	Refresh()
 }

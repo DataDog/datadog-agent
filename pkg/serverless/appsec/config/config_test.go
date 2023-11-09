@@ -287,8 +287,66 @@ func TestConfig(t *testing.T) {
 				if tc.env != "" {
 					require.NoError(t, os.Setenv(tracingEnabledEnvVar, tc.env))
 				}
-				standalone = isStandalone()
+				Refresh()
 				require.Equal(t, tc.standalone, IsStandalone())
+			})
+		}
+
+	})
+
+	t.Run("api security", func(t *testing.T) {
+		for _, tc := range []struct {
+			name          string
+			enabledVar    string
+			sampleRateVar string
+			enabled       bool
+			sampleRate    float64
+		}{
+			{
+				name:       "disabled",
+				sampleRate: defaultAPISecSampleRate,
+			},
+			{
+				name:       "disabled",
+				enabledVar: "false",
+				sampleRate: defaultAPISecSampleRate,
+			},
+			{
+				name:       "disabled",
+				enabledVar: "0",
+				sampleRate: defaultAPISecSampleRate,
+			},
+			{
+				name:       "disabled",
+				enabledVar: "weirdvalue",
+				sampleRate: defaultAPISecSampleRate,
+			},
+			{
+				name:       "enabled",
+				enabledVar: "true",
+				enabled:    true,
+				sampleRate: defaultAPISecSampleRate,
+			},
+			{
+				name:       "enabled",
+				enabledVar: "1",
+				enabled:    true,
+				sampleRate: defaultAPISecSampleRate,
+			},
+			{
+				name:          "sampleRate 1.0",
+				enabledVar:    "true",
+				sampleRateVar: "1.0",
+				enabled:       true,
+				sampleRate:    1.0,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Setenv(apiSecurityEnabledEnvVar, tc.enabledVar)
+				t.Setenv(apiSecuritySampleRateEnvVar, tc.sampleRateVar)
+				Refresh()
+				require.Equal(t, tc.enabled, APISecurityEnabled())
+				require.Equal(t, tc.sampleRate, APISecuritySampleRate())
 			})
 		}
 
