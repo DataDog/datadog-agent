@@ -659,7 +659,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 		var ok bool
 		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
-	}, 5*time.Second, 500*time.Millisecond)
+	}, 3*time.Second, 500*time.Millisecond)
 
 	require.NotNil(t, conn.Via, "connection is missing via: %s", conn)
 	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))

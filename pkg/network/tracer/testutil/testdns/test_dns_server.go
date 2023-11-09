@@ -141,7 +141,7 @@ func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port 
 
 	localAddrDialer := &net.Dialer{
 		LocalAddr: dnsClientAddr,
-		Timeout:   5 * time.Second,
+		Timeout:   3 * time.Second,
 	}
 
 	dnsClient := dns.Client{Net: protocol, Dialer: localAddrDialer}
