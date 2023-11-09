@@ -139,6 +139,8 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         }
         goto end;
     }
+    BPF_HISTOGRAM_INCREMENT(max_path_size, str_len);
+
     if (str_len > 180) {
         __sync_fetch_and_add(&http2_tel->large_path_outside_delta, 1);
         goto end;
@@ -701,13 +703,16 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
 
     #pragma unroll(HTTP2_FRAMES_PER_TAIL_CALL)
     for (__u8 index = 0; index < HTTP2_FRAMES_PER_TAIL_CALL; index++) {
+        // todo: does it covers the whole options?
         if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
+            __sync_fetch_and_add(&http2_tel->max_frames_iteration, 1);
             break;
         }
 
         current_frame = frames_array[tail_call_state->iteration];
         // Having this condition after assignment and not before is due to a verifier issue.
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
+            __sync_fetch_and_add(&http2_tel->iteration_limit, 1);
             break;
         }
         tail_call_state->iteration += 1;

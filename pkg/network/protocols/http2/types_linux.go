@@ -52,6 +52,8 @@ type HTTP2Telemetry struct {
 	Request_seen             uint64
 	Response_seen            uint64
 	Frame_remainder          uint64
+	Max_frames_iteration     uint64
+	Iteration_limit          uint64
 }
 
 type StaticTableEnumValue = uint8

@@ -269,6 +269,8 @@ func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) {
 		p.http2Telemetry.frameRemainder.Set(int64(http2Telemetry.Frame_remainder))
 		p.http2Telemetry.largePathInDelta.Set(int64(http2Telemetry.Large_path_in_delta))
 		p.http2Telemetry.largePathOutsideDelta.Set(int64(http2Telemetry.Large_path_outside_delta))
+		p.http2Telemetry.maxFramesIteration.Set(int64(http2Telemetry.Max_frames_iteration))
+		p.http2Telemetry.iterationLimit.Set(int64(http2Telemetry.Iteration_limit))
 
 		time.Sleep(10 * time.Second)
 		p.http2Telemetry.Log()

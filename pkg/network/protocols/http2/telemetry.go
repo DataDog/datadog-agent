@@ -26,6 +26,8 @@ type kernelTelemetry struct {
 	// largePathOutsideDelta     Count of path sizes greater than 180 bytes
 	// strLenGreaterThanFrameLoc Count of times we couldn't retrieve the path due to reaching the end of the frame.
 	// frameRemainder            Count of frames sent over more than one frame.
+	// maxFramesIteration		 Count of times we reached the max number of frames per iteration.
+	// iterationLimit		 Count of times we reached the max number of frames per iteration.
 
 	http2requests         *libtelemetry.Gauge
 	http2responses        *libtelemetry.Gauge
@@ -35,6 +37,8 @@ type kernelTelemetry struct {
 	largePathOutsideDelta *libtelemetry.Gauge
 	strLenExceedsFrame    *libtelemetry.Gauge
 	frameRemainder        *libtelemetry.Gauge
+	maxFramesIteration    *libtelemetry.Gauge
+	iterationLimit        *libtelemetry.Gauge
 }
 
 // newHTTP2KernelTelemetry hold HTTP/2 kernel metrics.
@@ -52,6 +56,8 @@ func newHTTP2KernelTelemetry(protocol string) *kernelTelemetry {
 		largePathInDelta:      metricGroup.NewGauge("largePathInDelta", libtelemetry.OptStatsd),
 		largePathOutsideDelta: metricGroup.NewGauge("largePathOutsideDelta", libtelemetry.OptStatsd),
 		frameRemainder:        metricGroup.NewGauge("frameRemainder", libtelemetry.OptStatsd),
+		maxFramesIteration:    metricGroup.NewGauge("maxFramesIteration", libtelemetry.OptStatsd),
+		iterationLimit:        metricGroup.NewGauge("iterationLimit", libtelemetry.OptStatsd),
 	}
 }
 
