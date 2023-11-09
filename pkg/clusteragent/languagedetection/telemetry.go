@@ -47,7 +47,7 @@ var (
 	SkippedPatches = telemetry.NewCounterWithOpts(
 		subsystem,
 		"skipped_patch",
-		[]string{},
+		[]string{"owner_kind", "owner_name", "namespace"},
 		"Tracks the number of times a patch was skipped because no new languages are detected",
 		commonOpts,
 	)
