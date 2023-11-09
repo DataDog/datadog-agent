@@ -12,7 +12,7 @@ type MetricSource uint16
 const (
 	MetricSourceUnknown MetricSource = iota
 	MetricSourceDogstatsd
-  
+
 	// JMX Integrations
 	MetricSourceJmxCustom
 	MetricSourceActivemq
