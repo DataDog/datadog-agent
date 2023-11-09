@@ -35,6 +35,11 @@ const (
 	InvalidIntakeEndpoint      = 17
 )
 
+// The agent will try to send a "first trace sent" event up to 5 times.
+// If all five retries fail, it will not send any more of them to avoid
+// spamming the Datadog backend.
+const maxFirstTraceFailures = 5
+
 // OnboardingEvent contains
 type OnboardingEvent struct {
 	RequestType string                 `json:"request_type"`
@@ -81,6 +86,7 @@ type telemetryCollector struct {
 	cfg                   *config.AgentConfig
 	collectedStartupError *atomic.Bool
 	collectedFirstTrace   *atomic.Bool
+	firstTraceFailures    *atomic.Int32
 }
 
 // NewCollector returns either collector, or a noop implementation if instrumentation telemetry is disabled
@@ -110,6 +116,7 @@ func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
 		cfg:                   cfg,
 		collectedStartupError: &atomic.Bool{},
 		collectedFirstTrace:   &atomic.Bool{},
+		firstTraceFailures:    &atomic.Int32{},
 	}
 }
 
@@ -185,7 +192,9 @@ func (f *telemetryCollector) SendIfFirstTrace() {
 		ev.Payload.EventName = "agent.first_trace.sent"
 		err := f.sendEvent(&ev)
 		if err != nil {
-			f.collectedFirstTrace.Store(false)
+			if f.firstTraceFailures.Inc() < maxFirstTraceFailures {
+				f.collectedFirstTrace.Store(false)
+			}
 		}
 	}()
 }
