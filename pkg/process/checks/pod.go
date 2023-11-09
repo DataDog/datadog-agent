@@ -59,7 +59,7 @@ func (c *PodCheck) IsEnabled() bool {
 		return false
 	}
 
-	log.Warn("This check will be deprecated in 7.51.0 and move to corechecks")
+	log.Warn("This Process Agent check will be deprecated in 7.51.0 and moved to the Node Agent")
 
 	if kubeClusterName == "" {
 		_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")
