@@ -267,6 +267,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		// Override the agentName if this Agent is configured to report as Heroku Dyno
 		agentName = flavor.HerokuAgent
 	}
+	if interner == nil {
+		interner = cache.NewKeyedStringInternerMemOnly(512)
+	}
 
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "aggregator", interner)
 

@@ -123,6 +123,7 @@ func (t CompositeTags) Find(callback func(tag string) bool) bool {
 	return false
 }
 
+// Apply a function to all tags.
 func (t CompositeTags) Apply(callback func(tag string) string) CompositeTags {
 	for n, tag := range t.tags1 {
 		if cache.Check(tag) {

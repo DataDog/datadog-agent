@@ -10,10 +10,10 @@ import (
 	cconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	lru "github.com/hashicorp/golang-lru"
+	"go.uber.org/atomic"
 	"math"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 	"unsafe"
 )
@@ -31,10 +31,20 @@ const growthFactor = 1.5
 
 // noFileCache indicates that no mmap should be created.
 const noFileCache = ""
+
+// OriginTimeSampler marks allocations to the Time Sampler.
 const OriginTimeSampler = "!Timesampler"
+
+// OriginContextResolver marks allocations to the Context Resolver.
 const OriginContextResolver = "!ContextResolver"
+
+// OriginCheckSampler marks allocations to the check sampler.
 const OriginCheckSampler = "!CheckSampler"
+
+// OriginBufferedAggregator marks allocations to the BufferedAggregator.
 const OriginBufferedAggregator = "!BufferedAggregator"
+
+// OriginContextLimiter marks allocations to the Context Limiter.
 const OriginContextLimiter = "!OriginContextLimiter"
 
 type stringInterner struct {
@@ -45,12 +55,12 @@ type stringInterner struct {
 	refcountLock   sync.Mutex
 }
 
+// Name of the interner - based on its origin.
 func (i *stringInterner) Name() string {
 	if i.fileBacking != nil {
 		return i.fileBacking.Name()
-	} else {
-		return "unbacked interner"
 	}
+	return "unbacked interner"
 }
 
 // bytesPerEntry returns the number
@@ -66,8 +76,8 @@ func newStringInterner(origin string, maxStringCount int, tmpPath string, closeO
 	// new larger mmap and start interning from there (up to some quota we later worry about).
 	// Old mmap gets removed when all strings referencing it get finalized.  New strings won't be
 	// created.
-	var backing *mmapHash = nil
-	var err error = nil
+	var backing *mmapHash
+	var err error
 	if tmpPath != noFileCache {
 		backing, err = newMmapHash(origin, bytesPerEntry(maxStringCount), tmpPath, closeOnRelease)
 		if err != nil {
@@ -110,17 +120,14 @@ func (i *stringInterner) loadOrStore(key []byte) string {
 					// on the heap.  Let GC take care of it normally.  The string cache
 					// already de-duplicates for us.
 					return string(key)
-				} else {
-					// Return the empty string here, and "loadOrStore's" caller will
-					// resize the interner in response.
-					return ""
 				}
-			} else {
-				return s
+				// Return the empty string here, and "loadOrStore's" caller will
+				// resize the interner in response.
+				return ""
 			}
-		} else {
-			return string(key)
+			return s
 		}
+		return string(key)
 	})
 
 	return result
@@ -131,12 +138,14 @@ func (i *stringInterner) used() int64 {
 	return used
 }
 
+// Retain some references
 func (i *stringInterner) Retain(n int32) {
 	i.refcountLock.Lock()
 	defer i.refcountLock.Unlock()
 	i.refcount += n
 }
 
+// Release some references
 func (i *stringInterner) Release(n int32) {
 	i.refcountLock.Lock()
 	defer i.refcountLock.Unlock()
@@ -157,11 +166,12 @@ func (i *stringInterner) retain() {
 	i.refcountLock.Lock()
 	defer i.refcountLock.Unlock()
 	if i.refcount < 1 {
-		log.Errorf("Dead interner being re-retained!")
+		log.Error("Dead interner being re-retained!")
 	}
-	i.refcount += 1
+	i.refcount++
 }
 
+// KeyedInterner has an origin-keyed set of interners.
 type KeyedInterner struct {
 	interners      *lru.Cache
 	maxQuota       int
@@ -182,11 +192,11 @@ func NewKeyedStringInterner(cfg cconfig.Component) *KeyedInterner {
 		tempPath := cfg.GetString("dogstatsd_string_interner_tmpdir")
 		minSizeKb := cfg.GetInt("dogstatsd_string_interner_mmap_minsizekb")
 		return NewKeyedStringInternerVals(stringInternerCacheSize, closeOnRelease, tempPath, minSizeKb)
-	} else {
-		return NewKeyedStringInternerMemOnly(stringInternerCacheSize)
 	}
+	return NewKeyedStringInternerMemOnly(stringInternerCacheSize)
 }
 
+// NewKeyedStringInternerVals takes args explicitly for initialization
 func NewKeyedStringInternerVals(stringInternerCacheSize int, closeOnRelease bool, tempPath string, minFileKb int) *KeyedInterner {
 	cache, err := lru.NewWithEvict(stringInternerCacheSize, func(_, internerUntyped interface{}) {
 		interner := internerUntyped.(*stringInterner)
@@ -223,20 +233,21 @@ func NewKeyedStringInternerMemOnly(stringInternerCacheSize int) *KeyedInterner {
 	}
 }
 
-var s_globalQueryCount uint64 = 0
-var s_failedInternalCount uint64 = 0
+var sGlobalQueryCount = atomic.NewInt64(0)
+var sFailedInternalCount = atomic.NewInt64(0)
 
+// LoadOrStoreString interns a string for an origin
 func (i *KeyedInterner) LoadOrStoreString(s string, origin string, retainer InternRetainer) string {
 	if Check(s) {
 		return i.LoadOrStore(unsafe.Slice(unsafe.StringData(s), len(s)), origin, retainer)
-	} else {
-		atomic.AddUint64(&s_failedInternalCount, 1)
-		return "<invalid>"
 	}
+	sFailedInternalCount.Add(1)
+	return "<invalid>"
 }
 
+// LoadOrStore interns a byte-array to a string, for an origin
 func (i *KeyedInterner) LoadOrStore(key []byte, origin string, retainer InternRetainer) string {
-	atomic.AddUint64(&s_globalQueryCount, 1)
+	sGlobalQueryCount.Add(1)
 	keyLen := len(key)
 	// Avoid locking for dumb stuff.
 	if keyLen == 0 {
@@ -251,10 +262,9 @@ func (i *KeyedInterner) LoadOrStore(key []byte, origin string, retainer InternRe
 func (i *KeyedInterner) makeInterner(origin string, stringMaxCount int) *stringInterner {
 	if bytesPerEntry(stringMaxCount) >= i.minFileSize {
 		return newStringInterner(origin, stringMaxCount, i.tmpPath, i.closeOnRelease)
-	} else {
-		// No file cache until we get bigger.
-		return newStringInterner(origin, stringMaxCount, noFileCache, i.closeOnRelease)
 	}
+	// No file cache until we get bigger.
+	return newStringInterner(origin, stringMaxCount, noFileCache, i.closeOnRelease)
 }
 
 func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRetainer) string {
@@ -265,12 +275,12 @@ func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRe
 
 	if i.lastReport.Before(time.Now().Add(-1 * time.Minute)) {
 		log.Debugf("*** INTERNER *** Keyed Interner has %d interners.  closeOnRelease=%v, Total Query Count: %v, Total Failures: %v", i.interners.Len(), i.closeOnRelease,
-			atomic.LoadUint64(&s_globalQueryCount), atomic.LoadUint64(&s_failedInternalCount))
+			sGlobalQueryCount.Load(), sFailedInternalCount.Load())
 		Report()
 		i.lastReport = time.Now()
 	}
 
-	var interner *stringInterner = nil
+	var interner *stringInterner
 	if i.interners.Contains(origin) {
 		internerUntyped, _ := i.interners.Get(origin)
 		interner = internerUntyped.(*stringInterner)
@@ -286,7 +296,8 @@ func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRe
 		i.interners.Add(origin, interner)
 	}
 
-	if ret := interner.loadOrStore(key); ret == "" {
+	ret := interner.loadOrStore(key)
+	if ret == "" {
 		// The only way the interner won't return a string is if it's full.  Make a new bigger one and
 		// start using that. We'll eventually migrate all the in-use strings to this from this container.
 		log.Debugf("Failed interning string.  Adding new interner for key %v, length %v", string(key), len(key))
@@ -304,25 +315,21 @@ func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRe
 		log.Debugf("Releasing old interner.  Prior: %p -> New: %p", interner, replacementInterner)
 		interner.Release(1)
 		return replacementInterner.loadOrStore(key)
-	} else {
-		interner.retain()
-		retainer.Reference(interner)
-		return ret
 	}
+	interner.retain()
+	retainer.Reference(interner)
+	return ret
 }
 
-func (i *KeyedInterner) Release(retainer InternRetainer) {
-	retainer.ReleaseAllWith(func(obj Refcounted, count int32) {
-		obj.Release(count)
-	})
-}
-
+// InternerContext saves all the arguments to LoadOrStore to avoid passing separately through function
+// calls.
 type InternerContext struct {
 	interner *KeyedInterner
 	origin   string
 	retainer InternRetainer
 }
 
+// NewInternerContext creates a new one, binding the args for future calls to LoadOrStore
 func NewInternerContext(interner *KeyedInterner, origin string, retainer InternRetainer) InternerContext {
 	return InternerContext{
 		interner: interner,
@@ -331,12 +338,13 @@ func NewInternerContext(interner *KeyedInterner, origin string, retainer InternR
 	}
 }
 
+// UseStringBytes calls LoadOrStore on the saved interner with the saved arguments.  Add
+// the given suffix to the origin.
 func (i *InternerContext) UseStringBytes(s []byte, suffix string) string {
 	// TODO: Assume that the string is almost certainly already intern'd.
 	// TODO: Validate here.
 	if i == nil {
 		return string(s)
-	} else {
-		return i.interner.LoadOrStore(s, i.origin+suffix, i.retainer)
 	}
+	return i.interner.LoadOrStore(s, i.origin+suffix, i.retainer)
 }

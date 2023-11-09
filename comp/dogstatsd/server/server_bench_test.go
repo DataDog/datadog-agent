@@ -8,6 +8,7 @@
 package server
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ func mockDemultiplexerWithFlushInterval(config config.Component, log log.Compone
 	opts.DontStartForwarders = true
 	forwarder := forwarder.NewDefaultForwarder(config, log, forwarder.NewOptions(config, log, nil))
 
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, "hostname")
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, "hostname", nil)
 	return demux
 }
 
@@ -70,7 +71,9 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		batcher := newBatcher(demux.AgentDemultiplexer)
-		parser := newParser(deps.Config, newFloat64ListPool())
+		kint := cache.NewKeyedStringInternerMemOnly(512)
+
+		parser := newParser(deps.Config, newFloat64ListPool(), kint)
 		packet := packets.Packet{
 			Contents: rawPacket,
 			Origin:   packets.NoOrigin,
@@ -115,8 +118,8 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 		}
 	}()
 	defer close(done)
-
-	parser := newParser(deps.Config, newFloat64ListPool())
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+	parser := newParser(deps.Config, newFloat64ListPool(), kint)
 	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
 
 	b.RunParallel(func(pb *testing.PB) {
@@ -170,7 +173,8 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 	defer close(done)
 
 	batcher := newBatcher(demux.AgentDemultiplexer)
-	parser := newParser(deps.Config, newFloat64ListPool())
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+	parser := newParser(deps.Config, newFloat64ListPool(), kint)
 
 	samples := make([]metrics.MetricSample, 0, 512)
 	for n := 0; n < b.N; n++ {

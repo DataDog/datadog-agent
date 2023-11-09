@@ -8,13 +8,13 @@ import (
 )
 
 func Test_mmap_hash(t *testing.T) {
-	table, err := newMmapHash(8192, "/tmp")
+	table, err := newMmapHash("", 8192, "/tmp", false)
 	assert.NoError(t, err)
 
 	foo, _ := table.lookupOrInsert([]byte("foo"))
 	bar, _ := table.lookupOrInsert([]byte("bar"))
 	tooLong := make([]byte, 4200) // larger than 4096
-	for i, _ := range tooLong {
+	for i := range tooLong {
 		tooLong[i] = byte(i % 256)
 	}
 

@@ -108,5 +108,5 @@ func newDemultiplexer(logcomp corelog.Component, cfg config.Component, fwd defau
 	opts.EnableNoAggregationPipeline = cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 	opts.UseDogstatsdContextLimiter = true
 	opts.DogstatsdMaxMetricsTags = cfg.GetInt("dogstatsd_max_metrics_tags")
-	return aggregator.InitAndStartAgentDemultiplexer(logcomp, fwd, opts, host)
+	return aggregator.InitAndStartAgentDemultiplexer(logcomp, fwd, opts, host, nil)
 }

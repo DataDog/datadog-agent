@@ -6,12 +6,14 @@
 package limiter
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestLimiter(t *testing.T) {
+	interner := cache.NewKeyedStringInternerMemOnly(512)
 	l := New(1, "pod", []string{"srv"})
 
 	// check that:
@@ -23,21 +25,21 @@ func TestLimiter(t *testing.T) {
 
 	a.Equal(l.telemetryTagNames, []string{"srv:", "pod:"})
 
-	a.True(l.Track([]string{"srv:foo", "cid:1", "pod", "pod:foo"}))
-	a.False(l.Track([]string{"srv:foo", "cid:2", "pod", "pod:foo"}))
+	a.True(l.Track([]string{"srv:foo", "cid:1", "pod", "pod:foo"}, interner))
+	a.False(l.Track([]string{"srv:foo", "cid:2", "pod", "pod:foo"}, interner))
 
-	a.True(l.Track([]string{"srv:foo", "cid:3", "pod", "pod:bar"}))
-	a.False(l.Track([]string{"srv:foo", "cid:4", "pod", "pod:bar"}))
+	a.True(l.Track([]string{"srv:foo", "cid:3", "pod", "pod:bar"}, interner))
+	a.False(l.Track([]string{"srv:foo", "cid:4", "pod", "pod:bar"}, interner))
 
-	a.True(l.Track([]string{"srv:foo", "cid:5", "pod"}))
-	a.False(l.Track([]string{"srv:foo", "cid:6", "pod"}))
-	a.False(l.Track([]string{}))
+	a.True(l.Track([]string{"srv:foo", "cid:5", "pod"}, interner))
+	a.False(l.Track([]string{"srv:foo", "cid:6", "pod"}, interner))
+	a.False(l.Track([]string{}, interner))
 
 	l.Remove([]string{})
-	a.True(l.Track([]string{}))
+	a.True(l.Track([]string{}, interner))
 
 	l.Remove([]string{"srv:bar", "pod:foo"})
-	a.True(l.Track([]string{"srv:bar", "pod:foo"}))
+	a.True(l.Track([]string{"srv:bar", "pod:foo"}, interner))
 
 	a.Equal(&entry{
 		current:       1,
@@ -50,23 +52,24 @@ func TestLimiter(t *testing.T) {
 }
 
 func TestGlobal(t *testing.T) {
+	interner := cache.NewKeyedStringInternerMemOnly(512)
 	l := NewGlobal(2, 1, "pod", []string{})
 	a := assert.New(t)
 
-	a.True(l.Track([]string{"pod:foo"}))
-	a.True(l.Track([]string{"pod:foo"}))
-	a.False(l.Track([]string{"pod:foo"}))
-	a.False(l.Track([]string{"pod:bar"})) // would exceed global limit
+	a.True(l.Track([]string{"pod:foo"}, interner))
+	a.True(l.Track([]string{"pod:foo"}, interner))
+	a.False(l.Track([]string{"pod:foo"}, interner))
+	a.False(l.Track([]string{"pod:bar"}, interner)) // would exceed global limit
 
 	l.Remove([]string{"pod:foo"})
 
-	a.False(l.Track([]string{"pod:foo"})) // would exceed per-origin limit
+	a.False(l.Track([]string{"pod:foo"}, interner)) // would exceed per-origin limit
 
-	a.True(l.Track([]string{"pod:bar"}))
-	a.False(l.Track([]string{"pod:bar"})) // would exceed per-origin limit
+	a.True(l.Track([]string{"pod:bar"}, interner))
+	a.False(l.Track([]string{"pod:bar"}, interner)) // would exceed per-origin limit
 
 	l.Remove([]string{"pod:bar"}) // removes origin entry, limit is 2 again
-	a.True(l.Track([]string{"pod:foo"}))
+	a.True(l.Track([]string{"pod:foo"}, interner))
 
 	// check for division by zero
 	l.Remove([]string{"pod:foo"})
@@ -75,26 +78,27 @@ func TestGlobal(t *testing.T) {
 }
 
 func TestExpire(t *testing.T) {
+	interner := cache.NewKeyedStringInternerMemOnly(512)
 	l := NewGlobal(2, 1, "pod", []string{})
 	a := assert.New(t)
 
 	foo := []string{"pod:foo"}
 	bar := []string{"pod:bar"}
 
-	a.True(l.Track(foo))
-	a.True(l.Track(foo))
-	a.False(l.Track(bar)) // rejected, but allocates limit to bar
+	a.True(l.Track(foo, interner))
+	a.True(l.Track(foo, interner))
+	a.False(l.Track(bar, interner)) // rejected, but allocates limit to bar
 
 	l.ExpireEntries()
 
 	l.Remove(foo)
 	// maxAge 1 means limit remains reserved for 1 tick after initial sample
-	a.False(l.Track(foo))
+	a.False(l.Track(foo, interner))
 	a.Len(l.usage, 2)
 
 	l.ExpireEntries()
 
 	a.Len(l.usage, 1)
 	l.Remove([]string{"pod:foo"})
-	a.True(l.Track([]string{"pod:foo"}))
+	a.True(l.Track([]string{"pod:foo"}, interner))
 }

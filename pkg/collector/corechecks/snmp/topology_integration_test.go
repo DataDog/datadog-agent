@@ -31,7 +31,7 @@ import (
 
 func TestTopologyPayload_LLDP(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour, nil)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	config.Datadog.Set("confd_path", invalidPath)
 
@@ -729,7 +729,7 @@ profiles:
 
 func TestTopologyPayload_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour, nil)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	config.Datadog.Set("confd_path", invalidPath)
 
@@ -1418,7 +1418,7 @@ profiles:
 // we have different data for LLDP and CDP to test that we're only using LLDP to build the links
 func TestTopologyPayload_LLDP_CDP(t *testing.T) {
 	timeNow = common.MockTimeNow
-	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour, nil)
 	invalidPath, _ := filepath.Abs(filepath.Join("internal", "test", "metadata.d"))
 	config.Datadog.Set("confd_path", invalidPath)
 

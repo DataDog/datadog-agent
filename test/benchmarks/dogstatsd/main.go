@@ -10,6 +10,7 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"math/rand"
 	"net"
 	"net/http"
@@ -217,7 +218,7 @@ func main() {
 	mockConfig.Set("dogstatsd_stats_enable", true)
 	mockConfig.Set("dogstatsd_stats_buffer", 100)
 	s := serializer.NewSerializer(f, nil)
-	aggr := aggregator.NewBufferedAggregator(s, nil, "localhost", aggregator.DefaultFlushInterval)
+	aggr := aggregator.NewBufferedAggregator(s, nil, "localhost", aggregator.DefaultFlushInterval, nil)
 	statsd, err := dogstatsd.NewServer(aggr.GetBufferedChannels(), false)
 	if err != nil {
 		log.Errorf("Problem allocating dogstatsd server: %s", err)

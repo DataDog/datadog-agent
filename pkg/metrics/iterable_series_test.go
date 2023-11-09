@@ -27,7 +27,7 @@ func TestIterableSeries(t *testing.T) {
 			for serieSource.MoveNext() {
 				names = append(names, serieSource.Current().Name)
 			}
-		}, func(_ SketchesSource) {}, nil)
+		}, func(_ SketchesSource) {})
 
 	r := require.New(t)
 	r.Len(names, 3)
@@ -74,7 +74,7 @@ func BenchmarkIterableSeries(b *testing.B) {
 				func(seriesSource SerieSource) {
 					for seriesSource.MoveNext() {
 					}
-				}, func(_ SketchesSource) {}, nil)
+				}, func(_ SketchesSource) {})
 		})
 	}
 }
@@ -95,7 +95,7 @@ func TestIterableSeriesSeveralValues(t *testing.T) {
 			for serieSource.MoveNext() {
 				series = append(series, serieSource.Current())
 			}
-		}, func(_ SketchesSource) {}, nil)
+		}, func(_ SketchesSource) {})
 
 	r := require.New(t)
 	r.Len(series, len(expected))

@@ -6,6 +6,7 @@
 package server
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"strconv"
 	"testing"
 
@@ -40,18 +41,20 @@ func TestIdentifyRandomString(t *testing.T) {
 
 func TestParseTags(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	p := newParser(cfg, newFloat64ListPool())
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+	p := newParser(cfg, newFloat64ListPool(), kint)
 	rawTags := []byte("tag:test,mytag,good:boy")
-	tags := p.parseTags(rawTags)
+	tags := p.parseTags(rawTags, cache.NewInternerContext(kint, "", &cache.SmallRetainer{}))
 	expectedTags := []string{"tag:test", "mytag", "good:boy"}
 	assert.ElementsMatch(t, expectedTags, tags)
 }
 
 func TestParseTagsEmpty(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	p := newParser(cfg, newFloat64ListPool())
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+	p := newParser(cfg, newFloat64ListPool(), kint)
 	rawTags := []byte("")
-	tags := p.parseTags(rawTags)
+	tags := p.parseTags(rawTags, cache.NewInternerContext(kint, "", &cache.SmallRetainer{}))
 	assert.Nil(t, tags)
 }
 
@@ -68,7 +71,8 @@ func TestUnsafeParseFloat(t *testing.T) {
 
 func TestUnsafeParseFloatList(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	p := newParser(cfg, newFloat64ListPool())
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+	p := newParser(cfg, newFloat64ListPool(), kint)
 	unsafeFloats, err := p.parseFloat64List([]byte("1.1234:21.5:13"))
 	assert.NoError(t, err)
 	assert.Len(t, unsafeFloats, 3)

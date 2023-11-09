@@ -17,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
-const OriginTagStore = "!ContextResolver"
-
 // Entry is used to keep track of tag slices shared by the contexts.
 type Entry struct {
 	// refs is the refcount of this entity.  If this value is zero, then the
@@ -79,7 +77,7 @@ func makeEntry(tagsBuffer *tagset.HashingTagsAccumulator, interner *cache.KeyedI
 	}
 
 	for n, t := range tagsBuffer.Copy() {
-		result.tags[n] = interner.LoadOrStoreString(t, OriginTagStore, &result.Retainer)
+		result.tags[n] = interner.LoadOrStoreString(t, cache.OriginContextResolver, &result.Retainer)
 	}
 	return result
 }

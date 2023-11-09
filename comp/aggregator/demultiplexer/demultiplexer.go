@@ -33,7 +33,8 @@ func newDemultiplexer(deps dependencies) (Component, error) {
 		deps.Log,
 		deps.SharedForwarder,
 		deps.Params.Options,
-		hostnameDetected)
+		hostnameDetected,
+		nil)
 
 	return demux, nil
 }

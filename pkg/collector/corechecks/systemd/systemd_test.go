@@ -1035,7 +1035,7 @@ unit_names:
 func TestCheckID(t *testing.T) {
 	check1 := systemdFactory()
 	check2 := systemdFactory()
-	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour)
+	aggregator.NewBufferedAggregator(nil, nil, "", 1*time.Hour, nil)
 
 	// language=yaml
 	rawInstanceConfig1 := []byte(`

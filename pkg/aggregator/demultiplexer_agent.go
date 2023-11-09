@@ -144,7 +144,8 @@ type AggregatorTestDeps struct {
 	Interner        *cache.KeyedInterner
 }
 
-func InitAndStartAgentDemultiplexerForTest(deps AggregatorTestDeps, options AgentDemultiplexerOptions, hostname string, interner *cache.KeyedInterner) *AgentDemultiplexer {
+func InitAndStartAgentDemultiplexerForTest(deps AggregatorTestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+	interner := cache.NewKeyedStringInternerMemOnly(16384)
 	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, options, hostname, interner)
 }
 
@@ -638,6 +639,7 @@ func (d *AgentDemultiplexer) GetMetricSamplePool() *metrics.MetricSamplePool {
 	return d.statsd.metricSamplePool
 }
 
+// TakeRetentions will Import() all retentions from its parameter and save them under its tag.
 func (d *AgentDemultiplexer) TakeRetentions(retentions cache.InternRetainer, tag string) {
 	if ret, ok := d.retentions[tag]; !ok {
 		ret = cache.NewRetainerBlock()
@@ -648,6 +650,7 @@ func (d *AgentDemultiplexer) TakeRetentions(retentions cache.InternRetainer, tag
 	}
 }
 
+// LogRetentions logs every retention kept.
 func (d *AgentDemultiplexer) LogRetentions() {
 	d.log.Debug("cache.Retainer: Cache Retainers:")
 	for tag, retainer := range d.retentions {

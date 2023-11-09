@@ -9,6 +9,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"net"
 	"sort"
 	"strings"
@@ -676,8 +677,9 @@ func TestNoMappingsConfig(t *testing.T) {
 	requireStart(t, s, demux)
 
 	assert.Nil(t, s.mapper)
+	kint := cache.NewKeyedStringInternerMemOnly(512)
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), kint)
 	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", false)
 	assert.NoError(t, err)
 	assert.Len(t, samples, 1)
@@ -789,9 +791,11 @@ dogstatsd_mapper_profiles:
 
 			assert.Equal(t, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
 
+			kint := cache.NewKeyedStringInternerMemOnly(512)
+
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
-				parser := newParser(deps.Config, newFloat64ListPool())
+				parser := newParser(deps.Config, newFloat64ListPool(), kint)
 				samples, err := s.parseMetricMessage(samples, parser, []byte(p), "", false)
 				assert.NoError(t, err, "Case `%s` failed. parseMetricMessage should not return error %v", err)
 				for _, sample := range samples {
@@ -866,7 +870,8 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		parser := newParser(deps.Config, newFloat64ListPool())
+		kint := cache.NewKeyedStringInternerMemOnly(512)
+		parser := newParser(deps.Config, newFloat64ListPool(), kint)
 		samples := []metrics.MetricSample{}
 		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", false)
 		assert.NoError(err)
@@ -939,8 +944,9 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	assert := assert.New(t)
 	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
+	kint := cache.NewKeyedStringInternerMemOnly(512)
 
-	parser := newParser(deps.Config, newFloat64ListPool())
+	parser := newParser(deps.Config, newFloat64ListPool(), kint)
 	parser.dsdOriginEnabled = true
 
 	// Metric
@@ -950,13 +956,13 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	assert.Equal("container_id://metric-container", metrics[0].OriginFromClient)
 
 	// Event
-	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "")
+	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container"), "", &cache.SmallRetainer{})
 	assert.NoError(err)
 	assert.NotNil(event)
 	assert.Equal("container_id://event-container", event.OriginFromClient)
 
 	// Service check
-	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "")
+	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container"), "", &cache.SmallRetainer{})
 	assert.NoError(err)
 	assert.NotNil(serviceCheck)
 	assert.Equal("container_id://service-check-container", serviceCheck.OriginFromClient)
@@ -981,8 +987,8 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 
 	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
-
-	parser := newParser(deps.Config, newFloat64ListPool())
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+	parser := newParser(deps.Config, newFloat64ListPool(), kint)
 	parser.dsdOriginEnabled = true
 
 	// Metric
@@ -996,7 +1002,7 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	}
 
 	// Event
-	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container|#dd.internal.card:none"), "")
+	event, err := s.parseEventMessage(parser, []byte("_e{10,10}:event title|test\\ntext|c:event-container|#dd.internal.card:none"), "", &cache.SmallRetainer{})
 	assert.NoError(err)
 	assert.NotNil(event)
 	if enabled {
@@ -1006,7 +1012,7 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 	}
 
 	// Service check
-	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container|#dd.internal.card:none"), "")
+	serviceCheck, err := s.parseServiceCheckMessage(parser, []byte("_sc|service-check.name|0|c:service-check-container|#dd.internal.card:none"), "", &cache.SmallRetainer{})
 	assert.NoError(err)
 	assert.NotNil(serviceCheck)
 	if enabled {

@@ -71,7 +71,9 @@ func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey, refs cache.InternRe
 
 	// Keep references for this context's dependencies.
 	entry := m[ts][ck]
-	entry.refs.Import(refs)
+	if refs != nil {
+		entry.refs.Import(refs)
+	}
 	m[ts][ck] = entry
 
 	return s.agent

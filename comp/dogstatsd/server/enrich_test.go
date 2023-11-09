@@ -7,6 +7,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -31,10 +32,16 @@ var (
 	}
 )
 
+func internerAndContext() (*cache.KeyedInterner, cache.InternerContext) {
+	interner := cache.NewKeyedStringInternerMemOnly(16384)
+	return interner, cache.NewInternerContext(interner, "", &cache.SmallRetainer{})
+}
+
 func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrichConfig) (metrics.MetricSample, error) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	parser := newParser(cfg, newFloat64ListPool())
-	parsed, err := parser.parseMetricSample(message)
+	in, ctx := internerAndContext()
+	parser := newParser(cfg, newFloat64ListPool(), in)
+	parsed, err := parser.parseMetricSample(message, ctx)
 	if err != nil {
 		return metrics.MetricSample{}, err
 	}
@@ -49,8 +56,9 @@ func parseAndEnrichSingleMetricMessage(t *testing.T, message []byte, conf enrich
 
 func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enrichConfig) ([]metrics.MetricSample, error) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	parser := newParser(cfg, newFloat64ListPool())
-	parsed, err := parser.parseMetricSample(message)
+	in, ctx := internerAndContext()
+	parser := newParser(cfg, newFloat64ListPool(), in)
+	parsed, err := parser.parseMetricSample(message, ctx)
 	if err != nil {
 		return []metrics.MetricSample{}, err
 	}
@@ -61,8 +69,9 @@ func parseAndEnrichMultipleMetricMessage(t *testing.T, message []byte, conf enri
 
 func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrichConfig) (*servicecheck.ServiceCheck, error) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	parser := newParser(cfg, newFloat64ListPool())
-	parsed, err := parser.parseServiceCheck(message)
+	in, ctx := internerAndContext()
+	parser := newParser(cfg, newFloat64ListPool(), in)
+	parsed, err := parser.parseServiceCheck(message, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -71,8 +80,9 @@ func parseAndEnrichServiceCheckMessage(t *testing.T, message []byte, conf enrich
 
 func parseAndEnrichEventMessage(t *testing.T, message []byte, conf enrichConfig) (*event.Event, error) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	parser := newParser(cfg, newFloat64ListPool())
-	parsed, err := parser.parseEvent(message)
+	in, ctx := internerAndContext()
+	parser := newParser(cfg, newFloat64ListPool(), in)
+	parsed, err := parser.parseEvent(message, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -959,8 +969,9 @@ func TestMetricBlocklistShouldBlock(t *testing.T) {
 	}
 
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	parser := newParser(cfg, newFloat64ListPool())
-	parsed, err := parser.parseMetricSample(message)
+	in, ctx := internerAndContext()
+	parser := newParser(cfg, newFloat64ListPool(), in)
+	parsed, err := parser.parseMetricSample(message, ctx)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
 	samples = enrichMetricSample(samples, parsed, "", conf)
@@ -976,8 +987,9 @@ func TestServerlessModeShouldSetEmptyHostname(t *testing.T) {
 
 	message := []byte("custom.metric.a:21|ms")
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	parser := newParser(cfg, newFloat64ListPool())
-	parsed, err := parser.parseMetricSample(message)
+	in, ctx := internerAndContext()
+	parser := newParser(cfg, newFloat64ListPool(), in)
+	parsed, err := parser.parseMetricSample(message, ctx)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
 	samples = enrichMetricSample(samples, parsed, "", conf)
@@ -996,8 +1008,9 @@ func TestMetricBlocklistShouldNotBlock(t *testing.T) {
 		defaultHostname: "default",
 	}
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	parser := newParser(cfg, newFloat64ListPool())
-	parsed, err := parser.parseMetricSample(message)
+	in, ctx := internerAndContext()
+	parser := newParser(cfg, newFloat64ListPool(), in)
+	parsed, err := parser.parseMetricSample(message, ctx)
 	assert.NoError(t, err)
 	samples := []metrics.MetricSample{}
 	samples = enrichMetricSample(samples, parsed, "", conf)

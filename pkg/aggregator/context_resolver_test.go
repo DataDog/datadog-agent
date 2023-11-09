@@ -8,6 +8,7 @@
 package aggregator
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	// stdlib
 	"testing"
 
@@ -25,13 +26,13 @@ import (
 
 // Helper functions to run tests and benchmarks for context resolver, time and check samplers.
 func testWithTagsStore(t *testing.T, test func(*testing.T, *tags.Store)) {
-	t.Run("useStore=true", func(t *testing.T) { test(t, tags.NewStore(true, "test")) })
-	t.Run("useStore=false", func(t *testing.T) { test(t, tags.NewStore(false, "test")) })
+	t.Run("useStore=true", func(t *testing.T) { test(t, tags.NewStore(true, "test", cache.NewKeyedStringInternerMemOnly(128))) })
+	t.Run("useStore=false", func(t *testing.T) { test(t, tags.NewStore(false, "test", cache.NewKeyedStringInternerMemOnly(128))) })
 }
 
 func benchWithTagsStore(t *testing.B, test func(*testing.B, *tags.Store)) {
-	t.Run("useStore=true", func(t *testing.B) { test(t, tags.NewStore(true, "test")) })
-	t.Run("useStore=false", func(t *testing.B) { test(t, tags.NewStore(false, "test")) })
+	t.Run("useStore=true", func(t *testing.B) { test(t, tags.NewStore(true, "test", cache.NewKeyedStringInternerMemOnly(128))) })
+	t.Run("useStore=false", func(t *testing.B) { test(t, tags.NewStore(false, "test", cache.NewKeyedStringInternerMemOnly(128))) })
 }
 
 func assertContext(t *testing.T, cx *Context, name string, tags []string, host string) {
@@ -78,7 +79,7 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 		SampleRate: 1,
 	}
 
-	contextResolver := newContextResolver(store, nil, nil)
+	contextResolver := newContextResolver(store, nil, nil, nil)
 
 	// Track the 2 contexts
 	contextKey1, _ := contextResolver.trackContext(&mSample1)
@@ -123,7 +124,7 @@ func testExpireContexts(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	contextResolver := newTimestampContextResolver(store, nil, nil)
+	contextResolver := newTimestampContextResolver(store, nil, nil, nil)
 
 	// Track the 2 contexts
 	contextKey1, _ := contextResolver.trackContext(&mSample1, 4)
@@ -165,7 +166,7 @@ func testExpireContextsWithKeep(t *testing.T, store *tags.Store) {
 		Tags:       []string{"foo", "bar", "baz"},
 		SampleRate: 1,
 	}
-	contextResolver := newTimestampContextResolver(store, nil, nil)
+	contextResolver := newTimestampContextResolver(store, nil, nil, nil)
 
 	// Track the 2 contexts
 	contextKey1, _ := contextResolver.trackContext(&mSample1, 4)
@@ -242,7 +243,7 @@ func TestCountBasedExpireContexts(t *testing.T) {
 }
 
 func testTagDeduplication(t *testing.T, store *tags.Store) {
-	resolver := newContextResolver(store, nil, nil)
+	resolver := newContextResolver(store, nil, nil, nil)
 
 	ckey, _ := resolver.trackContext(&metrics.MetricSample{
 		Name: "foo",
@@ -280,7 +281,8 @@ func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator) {
 }
 
 func TestOriginTelemetry(t *testing.T) {
-	r := newContextResolver(tags.NewStore(true, "test"), nil, nil)
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+	r := newContextResolver(tags.NewStore(true, "test", kint), nil, nil, kint)
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"ook"}})
 	r.trackContext(&mockSample{"foo", []string{"foo"}, []string{"eek"}})
 	r.trackContext(&mockSample{"foo", []string{"bar"}, []string{"ook"}})
@@ -314,7 +316,8 @@ func TestOriginTelemetry(t *testing.T) {
 func TestLimiterTelemetry(t *testing.T) {
 	l := limiter.New(2, "pod", []string{"pod", "srv"})
 	tl := tags_limiter.New(4)
-	r := newContextResolver(tags.NewStore(true, "test"), l, tl)
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+	r := newContextResolver(tags.NewStore(true, "test", kint), l, tl, kint)
 	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"pod:bar"}})
 	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}})
 	r.trackContext(&mockSample{"bar", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}})
@@ -372,9 +375,10 @@ func TestLimiterTelemetry(t *testing.T) {
 }
 
 func TestTimestampContextResolverLimit(t *testing.T) {
-	store := tags.NewStore(true, "")
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+	store := tags.NewStore(true, "", kint)
 	limiter := limiter.New(1, "pod", []string{})
-	r := newTimestampContextResolver(store, limiter, nil)
+	r := newTimestampContextResolver(store, limiter, nil, kint)
 
 	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"pod:bar"}}, 42)
 	r.trackContext(&mockSample{"foo", []string{"pod:foo", "srv:foo"}, []string{"srv:bar"}}, 42)

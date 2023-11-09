@@ -6,6 +6,7 @@
 package tags
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -15,7 +16,9 @@ import (
 )
 
 func TestStore(t *testing.T) {
-	c := NewStore(true, "test")
+	interner := cache.NewKeyedStringInternerMemOnly(512)
+
+	c := NewStore(true, "test", interner)
 
 	t1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
 	t2 := tagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
@@ -84,7 +87,8 @@ func TestStore(t *testing.T) {
 }
 
 func TestStoreDisabled(t *testing.T) {
-	c := NewStore(false, "test")
+	interner := cache.NewKeyedStringInternerMemOnly(512)
+	c := NewStore(false, "test", interner)
 
 	t1 := tagset.NewHashingTagsAccumulatorWithTags([]string{"1"})
 	t2 := tagset.NewHashingTagsAccumulatorWithTags([]string{"2"})
@@ -119,7 +123,8 @@ func TestStoreDisabled(t *testing.T) {
 }
 
 func BenchmarkRefCounting(b *testing.B) {
-	st := NewStore(true, "foo")
+	interner := cache.NewKeyedStringInternerMemOnly(512)
+	st := NewStore(true, "foo", interner)
 	tagsBuffer := tagset.NewHashingTagsAccumulator()
 
 	// Entries are only removed in Shrink, which isn't called in this

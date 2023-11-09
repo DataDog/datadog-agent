@@ -2,10 +2,8 @@ package cache
 
 import "unsafe"
 
-/*import (
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
+import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -27,7 +25,7 @@ var (
 	tlmSIRStrBytes = telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
 		"Number of times string with specific length were added",
 		[]float64{1, 2, 4, 8, 16, 32, 64, 128})
-)*/
+)
 
 // stringInterner is a string cache providing a longer life for strings,
 // helping to avoid GC runs because they're re-used many times instead of
@@ -51,7 +49,7 @@ type lruStringCache struct {
 
 func newLruStringCache(maxSize int, tlmEnabled bool) lruStringCache {
 	if tlmEnabled {
-		//tlmSIRNew.Inc()
+		tlmSIRNew.Inc()
 	}
 	return lruStringCache{
 		strings:    make(map[string]*stringCacheItem),
@@ -64,7 +62,6 @@ func newLruStringCache(maxSize int, tlmEnabled bool) lruStringCache {
 // if not, it may evict the least recently used entry to make space.  It uses the allocator arg function
 // to create the string, in case there's a separate backing store for it.
 func (c *lruStringCache) lookupOrInsert(key []byte, allocator func(key []byte) string) string {
-	// TODO: replace with a wrap over hashicorp/golang-lru.  It's not less code, but less to test.
 	if len(key) < 1 {
 		return ""
 	}
@@ -76,7 +73,7 @@ func (c *lruStringCache) lookupOrInsert(key []byte, allocator func(key []byte) s
 	// See https://github.com/golang/go/commit/f5f5a8b6209f84961687d993b93ea0d397f5d5bf
 	if s, found := c.strings[string(key)]; found {
 		if c.tlmEnabled {
-			//tlmSIRHits.Inc()
+			tlmSIRHits.Inc()
 		}
 		// If we found it, it's now the least recently used item, so rearrange it
 		// in the LRU linked list.
@@ -115,9 +112,9 @@ func (c *lruStringCache) lookupOrInsert(key []byte, allocator func(key []byte) s
 		delete(c.strings, last.s)
 
 		if c.tlmEnabled {
-			/*			tlmSIResets.Inc()
-						tlmSIRBytes.Sub(float64(c.curBytes))
-						tlmSIRSize.Sub(float64(len(c.strings))) */
+			tlmSIResets.Inc()
+			tlmSIRBytes.Sub(float64(c.curBytes))
+			tlmSIRSize.Sub(float64(len(c.strings)))
 			c.curBytes -= lastLen
 		}
 
@@ -152,10 +149,10 @@ func (c *lruStringCache) lookupOrInsert(key []byte, allocator func(key []byte) s
 
 	if c.tlmEnabled {
 		length := len(s.s)
-		/*tlmSIRMiss.Inc()
+		tlmSIRMiss.Inc()
 		tlmSIRSize.Inc()
 		tlmSIRBytes.Add(float64(length))
-		tlmSIRStrBytes.Observe(float64(length)) */
+		tlmSIRStrBytes.Observe(float64(length))
 		c.curBytes += length
 	}
 

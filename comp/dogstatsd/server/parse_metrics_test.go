@@ -6,6 +6,7 @@
 package server
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"testing"
 	"time"
 
@@ -21,8 +22,10 @@ func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte)
 		config.MockModule,
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
-	parser := newParser(cfg, newFloat64ListPool())
-	return parser.parseMetricSample(rawSample)
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+
+	parser := newParser(cfg, newFloat64ListPool(), kint)
+	return parser.parseMetricSample(rawSample, cache.NewInternerContext(kint, "", &cache.SmallRetainer{}))
 }
 
 const epsilon = 0.00001

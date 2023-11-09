@@ -7,6 +7,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -33,7 +34,9 @@ var (
 
 func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 	cfg := fxutil.Test[config.Component](b, config.MockModule)
-	parser := newParser(cfg, newFloat64ListPool())
+	interner := cache.NewKeyedStringInternerMemOnly(16384)
+	parser := newParser(cfg, newFloat64ListPool(), interner)
+	retainerCtx := cache.NewInternerContext(interner, "", &cache.SmallRetainer{})
 
 	conf := enrichConfig{
 		defaultHostname:           "default-hostname",
@@ -48,7 +51,7 @@ func runParseMetricBenchmark(b *testing.B, multipleValues bool) {
 
 			for n := 0; n < sb.N; n++ {
 
-				parsed, err := parser.parseMetricSample(rawSample)
+				parsed, err := parser.parseMetricSample(rawSample, retainerCtx)
 				if err != nil {
 					continue
 				}

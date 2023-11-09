@@ -9,6 +9,7 @@ package aggregator
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"math"
 	"sort"
 	"testing"
@@ -35,7 +36,8 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 }
 
 func testTimeSampler() *TimeSampler {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), nil, nil, "host")
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test", kint), nil, nil, "host", kint)
 	return sampler
 }
 
@@ -516,7 +518,7 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nil, nil, "host")
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nil, nil, "host", nil)
 
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -552,11 +554,13 @@ func BenchmarkTimeSamplerWithLimiter(b *testing.B) {
 		Timestamp:  12345.0,
 	}
 
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+
 	for limit := range []int{0, 1, 2, 3} {
-		store := tags.NewStore(false, "test")
+		store := tags.NewStore(false, "test", kint)
 		limiter := limiter.New(limit, "pod", []string{"pod"})
 		tagsLimiter := tags_limiter.New(5)
-		sampler := NewTimeSampler(TimeSamplerID(0), 10, store, limiter, tagsLimiter, "host")
+		sampler := NewTimeSampler(TimeSamplerID(0), 10, store, limiter, tagsLimiter, "host", nil)
 
 		b.Run(fmt.Sprintf("limit=%d", limit), func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
@@ -571,6 +575,6 @@ func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metric
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 
-	sampler.flush(timestamp, &series, &sketches)
+	sampler.flush(timestamp, &series, &sketches, &cache.SmallRetainer{})
 	return series, sketches
 }

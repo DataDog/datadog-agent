@@ -59,11 +59,14 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 		cache.CheckDefault(metricSampleContext.GetHost()), cr.taggerBuffer, cr.metricBuffer)
 }
 
-func newContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter, interner *cache.KeyedInterner) *contextResolver {
+func newContextResolver(store *tags.Store, contextsLimiter *limiter.Limiter, tagsLimiter *tags_limiter.Limiter, interner *cache.KeyedInterner) *contextResolver {
+	if interner == nil {
+		interner = cache.NewKeyedStringInternerMemOnly(512)
+	}
 	return &contextResolver{
 		contextsByKey:   make(map[ckey.ContextKey]*Context),
 		countsByMtype:   make([]uint64, metrics.NumMetricTypes),
-		tagsCache:       cache,
+		tagsCache:       store,
 		keyGenerator:    ckey.NewKeyGenerator(),
 		taggerBuffer:    tagset.NewHashingTagsAccumulator(),
 		metricBuffer:    tagset.NewHashingTagsAccumulator(),
@@ -122,9 +125,8 @@ func (cr *contextResolver) referenceContext(contextKey ckey.ContextKey) (cache.S
 		ctx.metricTags.Retainer.CopyTo(&refs)
 		ctx.references.CopyTo(&refs)
 		return refs, true
-	} else {
-		return refs, false
 	}
+	return refs, false
 }
 
 func (cr *contextResolver) tryAdd(taggerKey ckey.TagsKey) bool {

@@ -54,7 +54,7 @@ func initF() {
 	opts.DontStartForwarders = true
 	log := log.NewTemporaryLoggerWithoutInit()
 	forwarder := defaultforwarder.NewDefaultForwarder(pkgconfig.Datadog, log, defaultforwarder.NewOptions(pkgconfig.Datadog, log, nil))
-	demux := InitAndStartAgentDemultiplexer(log, forwarder, opts, defaultHostname)
+	demux := InitAndStartAgentDemultiplexer(log, forwarder, opts, defaultHostname, nil)
 
 	demux.Aggregator().tlmContainerTagsEnabled = false // do not use a ContainerImpl
 	recurrentSeries = metrics.Series{}
@@ -152,7 +152,7 @@ func TestAddServiceCheckDefaultValues(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
+	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval, nil)
 
 	agg.addServiceCheck(servicecheck.ServiceCheck{
 		// leave Host and Ts fields blank
@@ -184,7 +184,7 @@ func TestAddEventDefaultValues(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval)
+	agg := NewBufferedAggregator(s, nil, "resolved-hostname", DefaultFlushInterval, nil)
 
 	agg.addEvent(event.Event{
 		// only populate required fields
@@ -233,7 +233,7 @@ func TestDefaultData(t *testing.T) {
 	// -
 
 	s := &MockSerializerIterableSerie{}
-	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval)
+	agg := NewBufferedAggregator(s, nil, "hostname", DefaultFlushInterval, nil)
 	start := time.Now()
 
 	// Check only the name for `datadog.agent.up` as the timestamp may not be the same.
@@ -582,7 +582,7 @@ func TestTags(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			defer pkgconfig.Datadog.Set("basic_telemetry_add_container_tags", nil)
 			pkgconfig.Datadog.Set("basic_telemetry_add_container_tags", tt.tlmContainerTagsEnabled)
-			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second)
+			agg := NewBufferedAggregator(nil, nil, tt.hostname, time.Second, nil)
 			agg.agentTags = tt.agentTags
 			agg.globalTags = tt.globalTags
 			assert.ElementsMatch(t, tt.want, agg.tags(tt.withVersion))

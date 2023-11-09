@@ -183,7 +183,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
 	deps := fxutil.Test[AggregatorTestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
-	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, opts, "")
+	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, opts, "", nil)
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)

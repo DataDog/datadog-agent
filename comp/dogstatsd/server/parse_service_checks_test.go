@@ -6,6 +6,7 @@
 package server
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -16,8 +17,9 @@ import (
 
 func parseServiceCheck(t *testing.T, rawServiceCheck []byte) (dogstatsdServiceCheck, error) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	parser := newParser(cfg, newFloat64ListPool())
-	return parser.parseServiceCheck(rawServiceCheck)
+	kint := cache.NewKeyedStringInternerMemOnly(512)
+	parser := newParser(cfg, newFloat64ListPool(), kint)
+	return parser.parseServiceCheck(rawServiceCheck, cache.NewInternerContext(kint, "", &cache.SmallRetainer{}))
 }
 
 func TestServiceCheckMinimal(t *testing.T) {

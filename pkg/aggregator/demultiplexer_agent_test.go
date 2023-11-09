@@ -54,7 +54,7 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 
 	opts := demuxTestOptions()
 	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), opts, "")
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), opts, "", nil)
 
 	batch := testDemuxSamples(t)
 
@@ -74,7 +74,7 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	mockSerializer := &MockSerializerIterableSerie{}
 	opts.EnableNoAggregationPipeline = true
 	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), opts, "")
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), opts, "", nil)
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
 	go demux.Run()

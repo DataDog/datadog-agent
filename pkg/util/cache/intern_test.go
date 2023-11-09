@@ -15,6 +15,21 @@ type localRetainer struct {
 	retentions map[Refcounted]int32
 }
 
+func (r *localRetainer) ReferenceN(obj Refcounted, n int32) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (r *localRetainer) CopyTo(dest InternRetainer) {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (r *localRetainer) Import(source InternRetainer) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func newRetainer() *localRetainer {
 	return &localRetainer{
 		retentions: make(map[Refcounted]int32),
@@ -22,8 +37,9 @@ func newRetainer() *localRetainer {
 }
 
 func (r *localRetainer) Reference(obj Refcounted) {
-	r.retentions[obj] += 1
+	r.retentions[obj]++
 }
+
 func (r *localRetainer) ReleaseAllWith(callback func(obj Refcounted, count int32)) {
 	for k, v := range r.retentions {
 		callback(k, v)
@@ -40,9 +56,8 @@ func (r *localRetainer) ReleaseAll() {
 
 func TestInternLoadOrStoreValue(t *testing.T) {
 	assert := assert.New(t)
-	sInterner, err := NewKeyedStringInterner(3, -1, true)
+	sInterner := NewKeyedStringInternerMemOnly(3)
 	retainer := newRetainer()
-	assert.NoError(err)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -61,30 +76,31 @@ func TestInternLoadOrStoreValue(t *testing.T) {
 	// Now test that the retainer is correct
 	assert.Equal(1, len(retainer.retentions))
 	for _, v := range retainer.retentions {
-		assert.Equal(4, v)
+		assert.Equal(4, int(v))
 	}
-	sInterner.Release(retainer)
+	retainer.ReleaseAll()
 	assert.Equal(0, len(retainer.retentions))
 }
 
 func TestInternLoadOrStorePointer(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := newStringInterner(4, "/tmp")
+	sInterner := NewKeyedStringInternerMemOnly(4)
+	retainer := newRetainer()
 
 	foo := []byte("foo")
 	bar := []byte("bar")
 	boo := []byte("boo")
 
-	v := sInterner.loadOrStore(foo)
+	v := sInterner.loadOrStore(foo, "", retainer)
 	assert.Equal("foo", v)
-	v2 := sInterner.loadOrStore(foo)
+	v2 := sInterner.loadOrStore(foo, "", retainer)
 	assert.Equal(&v, &v2, "must point to the same address")
-	v2 = sInterner.loadOrStore(bar)
+	v2 = sInterner.loadOrStore(bar, "", retainer)
 	assert.NotEqual(&v, &v2, "must point to a different address")
-	v3 := sInterner.loadOrStore(bar)
+	v3 := sInterner.loadOrStore(bar, "", retainer)
 	assert.Equal(&v2, &v3, "must point to the same address")
 
-	v4 := sInterner.loadOrStore(boo)
+	v4 := sInterner.loadOrStore(boo, "", retainer)
 	assert.NotEqual(&v, &v4, "must point to a different address")
 	assert.NotEqual(&v2, &v4, "must point to a different address")
 	assert.NotEqual(&v3, &v4, "must point to a different address")
@@ -92,38 +108,53 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 
 func TestInternLoadOrStoreReset(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := newStringInterner(4, "/tmp")
+	sInterner := NewKeyedStringInternerMemOnly(4)
+	retainer := newRetainer()
+	cacheLen := func() int {
+		internerUntyped, ok := sInterner.interners.Get("")
+		if !ok {
+			return 0
+		}
+		interner := internerUntyped.(*stringInterner)
+		return len(interner.cache.strings)
+	}
+	assertCacheContains := func(s, comment string) {
+		internerUntyped, ok := sInterner.interners.Get("")
+		if !ok {
+			assert.Fail("No interner to hold key: " + comment)
+		}
+		interner := internerUntyped.(*stringInterner)
+		assert.Contains(interner.cache.strings, s, comment)
+	}
 
-	sInterner.loadOrStore([]byte("foo"))
-	assert.Equal(1, len(sInterner.cache.strings))
-	sInterner.loadOrStore([]byte("bar"))
-	sInterner.loadOrStore([]byte("bar"))
-	assert.Equal(2, len(sInterner.cache.strings))
-	sInterner.loadOrStore([]byte("boo"))
-	assert.Equal(3, len(sInterner.cache.strings))
-	sInterner.loadOrStore([]byte("far"))
-	sInterner.loadOrStore([]byte("far"))
-	sInterner.loadOrStore([]byte("far"))
+	sInterner.loadOrStore([]byte("foo"), "", retainer)
+	assert.Equal(1, cacheLen())
+	sInterner.loadOrStore([]byte("bar"), "", retainer)
+	sInterner.loadOrStore([]byte("bar"), "", retainer)
+	assert.Equal(2, cacheLen())
+	sInterner.loadOrStore([]byte("boo"), "", retainer)
+	assert.Equal(3, cacheLen())
+	sInterner.loadOrStore([]byte("far"), "", retainer)
+	sInterner.loadOrStore([]byte("far"), "", retainer)
+	sInterner.loadOrStore([]byte("far"), "", retainer)
 	// Foo is the 4th-least recently used.
-	assert.Contains(sInterner.cache.strings, "foo", "first element still in cache")
-	assert.Equal(4, len(sInterner.cache.strings))
-	sInterner.loadOrStore([]byte("val"))
+	assertCacheContains("foo", "first element still in cache")
+	assert.Equal(4, cacheLen())
+	sInterner.loadOrStore([]byte("val"), "", retainer)
 	// Something got bumped
-	assert.Equal(4, len(sInterner.cache.strings))
+	assert.Equal(4, cacheLen())
 	// Foo was it.
-	assert.NotContains(sInterner.cache.strings, "foo", "oldest element evicted")
-	sInterner.loadOrStore([]byte("val"))
-	assert.Equal(4, len(sInterner.cache.strings))
+	assertCacheContains("foo", "oldest element evicted")
+	sInterner.loadOrStore([]byte("val"), "", retainer)
+	assert.Equal(4, cacheLen())
 }
 
 func NoTestLoadSeveralGenerations(t *testing.T) {
-	assert := assert.New(t)
-	interner, err := NewKeyedStringInterner(8, -1, true)
-	assert.NoError(err)
+	interner := NewKeyedStringInternerMemOnly(8)
 	retainer := newRetainer()
 
 	// Start generating random strings until we fill a few gigabytes of memory.
-	var totalUsed uint64 = 0
+	var totalUsed uint64
 	for totalUsed < (64 * 1073741824) {
 		text := make([]byte, 64)
 		interner.LoadOrStore(text, "", retainer)
@@ -131,5 +162,5 @@ func NoTestLoadSeveralGenerations(t *testing.T) {
 		totalUsed += uint64(len(s))
 	}
 
-	interner.Release(retainer)
+	retainer.ReleaseAll()
 }

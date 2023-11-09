@@ -19,7 +19,6 @@ import (
 
 	log "github.com/cihub/seelog"
 
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -205,7 +204,7 @@ func main() {
 	f := &forwarderBenchStub{}
 	s := serializer.NewSerializer(f, nil)
 
-	agg = aggregator.NewBufferedAggregator(s, nil, "hostname", time.Duration(*flushIval)*time.Second)
+	agg = aggregator.NewBufferedAggregator(s, nil, "hostname", time.Duration(*flushIval)*time.Second, nil)
 
 	aggregator.SetDefaultAggregator(agg)
 	sender, err := aggregator.GetSender(checkid.ID("benchmark check"))
