@@ -16,6 +16,7 @@ import (
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -318,7 +319,7 @@ func (e EntityMeta) String(verbose bool) string {
 	return sb.String()
 }
 
-// ContainerImage is the an image used by a container.
+// ContainerImage is the image used by a container.
 type ContainerImage struct {
 	ID        string
 	RawName   string
@@ -446,9 +447,10 @@ type Container struct {
 	State      ContainerState
 	// CollectorTags represent tags coming from the collector itself
 	// and that it would be impossible to compute later on
-	CollectorTags   []string
-	Owner           *EntityID
-	SecurityContext *ContainerSecurityContext
+	CollectorTags    []string
+	Owner            *EntityID
+	SecurityContext  *ContainerSecurityContext
+	IsPauseContainer bool
 }
 
 // GetID implements Entity#GetID.
@@ -494,6 +496,9 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Hostname:", c.Hostname)
 		_, _ = fmt.Fprintln(&sb, "Network IPs:", mapToString(c.NetworkIPs))
 		_, _ = fmt.Fprintln(&sb, "PID:", c.PID)
+		if c.IsPauseContainer {
+			_, _ = fmt.Fprint(&sb, "Is Pause Container:", c.IsPauseContainer)
+		}
 	}
 
 	if len(c.Ports) > 0 && verbose {
@@ -569,7 +574,14 @@ type ContainerFilterFunc func(container *Container) bool
 type ProcessFilterFunc func(process *Process) bool
 
 // GetRunningContainers is a function that evaluates to true for running containers.
-var GetRunningContainers ContainerFilterFunc = func(container *Container) bool { return container.State.Running }
+// Pause containers are only reported if the agent has been configured to NOT exclude pause containers.
+var GetRunningContainers ContainerFilterFunc = func(container *Container) bool {
+	// TODO: Relying on the global config object seems fragile
+	if !config.Datadog.GetBool("exclude_pause_container") {
+		return container.State.Running
+	}
+	return container.State.Running && !container.IsPauseContainer
+}
 
 // KubernetesPod is an Entity representing a Kubernetes Pod.
 type KubernetesPod struct {

@@ -67,6 +67,13 @@ func (c *ContainerTagger) Start(ctx context.Context) {
 			Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
 			Source:    workloadmeta.SourceClusterOrchestrator,
 			EventType: workloadmeta.EventTypeAll,
+			IncludeFunc: func(entity workloadmeta.Entity) bool {
+				container, ok := entity.(*workloadmeta.Container)
+				if ok {
+					return container.IsPauseContainer
+				}
+				return false
+			},
 		}
 		filter := workloadmeta.NewFilter(&filterParams)
 
@@ -156,9 +163,9 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 
 // updateTagsInContainer runs a script inside the container that handles updating the agent with the given tags
 func updateTagsInContainer(container garden.Container, tags []string) (int, error) {
-	shell_path := config.Datadog.GetString("cloud_foundry_container_tagger.shell_path")
+	shellPath := config.Datadog.GetString("cloud_foundry_container_tagger.shellPath")
 	process, err := container.Run(garden.ProcessSpec{
-		Path: shell_path,
+		Path: shellPath,
 		Args: []string{"/home/vcap/app/.datadog/scripts/update_agent_config.sh"},
 		User: "vcap",
 		Env:  []string{fmt.Sprintf("DD_NODE_AGENT_TAGS=%s", strings.Join(tags, ","))},

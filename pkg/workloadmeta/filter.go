@@ -5,21 +5,25 @@
 
 package workloadmeta
 
+import "github.com/DataDog/datadog-agent/pkg/config"
+
 // Filter allows a subscriber to filter events by entity kind, event source, and
 // event type.
 //
 // A nil filter matches all events.
 type Filter struct {
-	kinds     map[Kind]struct{}
-	source    Source
-	eventType EventType
+	kinds       map[Kind]struct{}
+	source      Source
+	eventType   EventType
+	includeFunc func(entity Entity) bool
 }
 
 // FilterParams are the parameters used to create a Filter
 type FilterParams struct {
-	Kinds     []Kind
-	Source    Source
-	EventType EventType
+	Kinds       []Kind
+	Source      Source
+	EventType   EventType
+	IncludeFunc func(entity Entity) bool
 }
 
 // NewFilter creates a new filter for subscribing to workloadmeta events.
@@ -51,10 +55,22 @@ func NewFilter(filterParams *FilterParams) *Filter {
 		filterParams.Source = SourceAll
 	}
 
+	// TODO: Convert IncludeFunc into options or slice of functions if there needs to be additional defaults
+	if filterParams.IncludeFunc == nil && !config.Datadog.GetBool("exclude_pause_container") {
+		filterParams.IncludeFunc = func(entity Entity) bool {
+			container, ok := entity.(*Container)
+			if ok {
+				return container.IsPauseContainer
+			}
+			return false
+		}
+	}
+
 	return &Filter{
-		kinds:     kindSet,
-		source:    filterParams.Source,
-		eventType: filterParams.EventType,
+		kinds:       kindSet,
+		source:      filterParams.Source,
+		eventType:   filterParams.EventType,
+		includeFunc: filterParams.IncludeFunc,
 	}
 }
 
@@ -80,6 +96,16 @@ func (f *Filter) MatchSource(source Source) bool {
 // the filter is nil, or has EventTypeAll, it always matches.
 func (f *Filter) MatchEventType(eventType EventType) bool {
 	return f.EventType() == EventTypeAll || f.EventType() == eventType
+}
+
+// MatchIncludeFunc returns true if the filter has a function that matches the provided entity. This filter is for entities that are usually not included, like pause containers.
+// If the filter is nil, it does not match.
+func (f *Filter) MatchIncludeFunc(entity Entity) bool {
+	if f == nil || entity == nil || f.includeFunc == nil {
+		return false
+	}
+
+	return f.includeFunc(entity)
 }
 
 // Source returns the source this filter is filtering by. If the filter is nil,

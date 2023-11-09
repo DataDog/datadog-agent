@@ -80,11 +80,11 @@ type exitInfo struct {
 }
 
 type collector struct {
-	store                  workloadmeta.Store
-	containerdClient       cutil.ContainerdItf
-	filterPausedContainers *containers.Filter
-	eventsChan             <-chan *containerdevents.Envelope
-	errorsChan             <-chan error
+	store                workloadmeta.Store
+	containerdClient     cutil.ContainerdItf
+	pauseContainerFilter *containers.Filter
+	eventsChan           <-chan *containerdevents.Envelope
+	errorsChan           <-chan error
 
 	// Container exit info (mainly exit code and exit timestamp) are attached to the corresponding task events.
 	// contToExitInfo caches the exit info of a task to enrich the container deletion event when it's received later.
@@ -130,7 +130,7 @@ func (c *collector) Start(ctx context.Context, store workloadmeta.Store) error {
 		return err
 	}
 
-	c.filterPausedContainers, err = containers.GetPauseContainerFilter()
+	c.pauseContainerFilter, err = containers.GetPauseContainerFilter()
 	if err != nil {
 		return err
 	}
@@ -231,18 +231,7 @@ func (c *collector) generateInitialContainerEvents(namespace string) ([]workload
 	}
 
 	for _, container := range existingContainers {
-		// if ignoreContainer returns an error, keep the container
-		// regardless.  it might've been because of network errors, so
-		// it's better to keep a container we should've ignored than
-		// ignoring a container we should've kept
-		ignore, err := c.ignoreContainer(namespace, container)
-		if err != nil {
-			log.Debugf("Error while deciding to ignore event %s, keeping it: %s", container.ID(), err)
-		} else if ignore {
-			continue
-		}
-
-		ev, err := createSetEvent(container, namespace, c.containerdClient)
+		ev, err := c.createSetEvent(container, namespace)
 		if err != nil {
 			log.Warnf(err.Error())
 			continue
@@ -282,15 +271,6 @@ func (c *collector) handleContainerEvent(ctx context.Context, containerdEvent *c
 	containerID, container, err := c.extractContainerFromEvent(ctx, containerdEvent)
 	if err != nil {
 		return fmt.Errorf("cannot extract container from event: %w", err)
-	}
-
-	if container != nil {
-		ignore, err := c.ignoreContainer(containerdEvent.Namespace, container)
-		if err != nil {
-			log.Debugf("Error while deciding to ignore event %s, keeping it: %s", container.ID(), err)
-		} else if ignore {
-			return nil
-		}
 	}
 
 	workloadmetaEvent, err := c.buildCollectorEvent(containerdEvent, containerID, container)
@@ -343,27 +323,6 @@ func (c *collector) extractContainerFromEvent(ctx context.Context, containerdEve
 	}
 
 	return containerID, container, nil
-}
-
-// ignoreContainer returns whether a containerd event should be ignored.
-// The ignored events are the ones that refer to a "pause" container.
-func (c *collector) ignoreContainer(namespace string, container containerd.Container) (bool, error) {
-	isSandbox, err := c.containerdClient.IsSandbox(namespace, container)
-	if err != nil {
-		return false, err
-	}
-
-	if isSandbox {
-		return true, nil
-	}
-
-	info, err := c.containerdClient.Info(namespace, container)
-	if err != nil {
-		return false, err
-	}
-
-	// Only the image name is relevant to exclude paused containers
-	return c.filterPausedContainers.IsExcluded(nil, "", info.Image, ""), nil
 }
 
 func subscribeFilters() []string {
