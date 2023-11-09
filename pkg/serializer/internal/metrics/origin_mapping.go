@@ -31,8 +31,35 @@ func MetricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceSolr,
 		metrics.MetricSourceSonarqube,
 		metrics.MetricSourceTomcat,
-		metrics.MetricSourceWeblogic:
-		return 11
+		metrics.MetricSourceWeblogic,
+		metrics.MetricSourceContainer,
+		metrics.MetricSourceContainerd,
+		metrics.MetricSourceCri,
+		metrics.MetricSourceDocker,
+		metrics.MetricSourceNtp,
+		metrics.MetricSourceSystemd,
+		metrics.MetricSourceHelm,
+		metrics.MetricSourceKubernetesAPIServer,
+		metrics.MetricSourceKubernetesStateCore,
+		metrics.MetricSourceOrchestrator,
+		metrics.MetricSourceWinproc,
+		metrics.MetricSourceFileHandle,
+		metrics.MetricSourceWinkmem,
+		metrics.MetricSourceIo,
+		metrics.MetricSourceUptime,
+		metrics.MetricSourceSbom,
+		metrics.MetricSourceMemory,
+		metrics.MetricSourceTCPQueueLength,
+		metrics.MetricSourceOomKill,
+		metrics.MetricSourceContainerLifecycle,
+		metrics.MetricSourceJetson,
+		metrics.MetricSourceContainerImage,
+		metrics.MetricSourceCPU,
+		metrics.MetricSourceLoad,
+		metrics.MetricSourceDisk,
+		metrics.MetricSourceNetwork,
+		metrics.MetricSourceSnmp:
+		return 11 // integration_metrics
 	default:
 		return 0
 	}
