@@ -20,6 +20,8 @@ import (
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	trapsConf "github.com/DataDog/datadog-agent/comp/snmptraps/config"
+	traps "github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -30,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/apm"
 	"github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/status/jmx"
@@ -382,7 +383,7 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 		stats["agent_metadata"] = map[string]string{}
 	}
 
-	if traps.IsEnabled(config.Datadog) {
+	if trapsConf.IsEnabled(config.Datadog) {
 		stats["snmpTrapsStats"] = traps.GetStatus()
 	}
 

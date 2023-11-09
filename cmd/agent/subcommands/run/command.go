@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	snmptrapsServer "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 
 	// checks implemented as components
 
@@ -73,6 +74,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/comp/snmptraps"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -87,7 +89,6 @@ import (
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
@@ -215,6 +216,7 @@ func run(log log.Component,
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
 	_ netflowServer.Component,
+	_ snmptrapsServer.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
 ) error {
@@ -368,6 +370,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		ndmtmp.Bundle,
 		netflow.Bundle,
+		snmptraps.Bundle,
 		fx.Provide(func(demultiplexer demultiplexer.Component) optional.Option[collector.Collector] {
 			return optional.NewOption(common.LoadCollector(demultiplexer))
 		}),
@@ -587,14 +590,6 @@ func startAgent(
 		pkgTelemetry.RegisterStatsSender(sender)
 	}
 
-	// Start SNMP trap server
-	if traps.IsEnabled(pkgconfig.Datadog) {
-		err = traps.StartServer(hostnameDetected, demultiplexer, pkgconfig.Datadog, log)
-		if err != nil {
-			log.Errorf("Failed to start snmp-traps server: %s", err)
-		}
-	}
-
 	// Append version and timestamp to version history log file if this Agent is different than the last run version
 	installinfo.LogVersionHistory()
 
@@ -673,7 +668,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}
-	traps.StopServer()
 	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
