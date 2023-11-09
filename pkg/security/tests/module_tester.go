@@ -311,7 +311,8 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
-		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil
+		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
+		to.preStartCallback == nil && opts.preStartCallback == nil
 }
 
 type testModule struct {
