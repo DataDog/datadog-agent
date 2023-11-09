@@ -109,7 +109,7 @@ func getResponse(ctx context.Context, url string) (string, error) {
 		return "", fmt.Errorf("cloud provider is disabled by configuration")
 	}
 
-	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout)
+	return httputils.Get(ctx, url, map[string]string{"Metadata": "true"}, timeout, config.Datadog)
 }
 
 // GetHostname returns hostname based on Azure instance metadata.

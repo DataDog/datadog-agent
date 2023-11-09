@@ -22,9 +22,9 @@ func TestContainerCheck(t *testing.T) {
 	// Make sure the container check can be enabled if the process check is disabled
 	t.Run("containers enabled; rt enabled", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.process_collection.enabled", false)
-		cfg.Set("process_config.container_collection.enabled", true)
-		cfg.Set("process_config.disable_realtime_checks", false)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
+		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.disable_realtime_checks", false)
 		config.SetFeatures(t, config.Docker)
 
 		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
@@ -36,9 +36,9 @@ func TestContainerCheck(t *testing.T) {
 	// Make sure that disabling RT disables the rt container check
 	t.Run("containers enabled; rt disabled", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.process_collection.enabled", false)
-		cfg.Set("process_config.container_collection.enabled", true)
-		cfg.Set("process_config.disable_realtime_checks", true)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
+		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.disable_realtime_checks", true)
 		config.SetFeatures(t, config.Docker)
 
 		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
@@ -49,8 +49,8 @@ func TestContainerCheck(t *testing.T) {
 	// Make sure the container check cannot be enabled if we cannot access containers
 	t.Run("cannot access containers", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.process_collection.enabled", false)
-		cfg.Set("process_config.container_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", false)
+		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 
 		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 
@@ -61,8 +61,8 @@ func TestContainerCheck(t *testing.T) {
 	// Make sure the container and process check are mutually exclusive
 	t.Run("mutual exclusion", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.process_collection.enabled", true)
-		cfg.Set("process_config.container_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
 		config.SetFeatures(t, config.Docker)
 
 		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
@@ -95,8 +95,8 @@ func TestDisableRealTime(t *testing.T) {
 			assert := assert.New(t)
 
 			mockConfig := config.Mock(t)
-			mockConfig.Set("process_config.disable_realtime_checks", tc.disableRealtime)
-			mockConfig.Set("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
+			mockConfig.SetWithoutSource("process_config.disable_realtime_checks", tc.disableRealtime)
+			mockConfig.SetWithoutSource("process_config.process_discovery.enabled", false) // Not an RT check so we don't care
 			config.SetFeatures(t, config.Docker)
 
 			enabledChecks := getEnabledChecks(t, mockConfig, config.MockSystemProbe(t))

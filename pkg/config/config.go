@@ -1118,7 +1118,7 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
-	config.BindEnvAndSetDefault("container_image.enabled", false)
+	config.BindEnvAndSetDefault("container_image.enabled", true)
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// Remote process collector
@@ -1356,8 +1356,8 @@ func LoadProxyFromEnv(config Config) {
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
-		config.Set("proxy.http", p.HTTP)
-		config.Set("proxy.https", p.HTTPS)
+		config.Set("proxy.http", p.HTTP, model.SourceEnvVar)
+		config.Set("proxy.https", p.HTTPS, model.SourceEnvVar)
 
 		// If this is set to an empty []string, viper will have a type conflict when merging
 		// this config during secrets resolution. It unmarshals empty yaml lists to type
@@ -1366,7 +1366,7 @@ func LoadProxyFromEnv(config Config) {
 		for idx := range p.NoProxy {
 			noProxy[idx] = p.NoProxy[idx]
 		}
-		config.Set("proxy.no_proxy", noProxy)
+		config.Set("proxy.no_proxy", noProxy, model.SourceEnvVar)
 	}
 }
 
@@ -1676,26 +1676,26 @@ func setupFipsEndpoints(config Config) error {
 	protocol := "http://"
 	if config.GetBool("fips.https") {
 		protocol = "https://"
-		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"))
+		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), model.SourceAgentRuntime)
 	}
 
 	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
 	// config_template.yaml
 
 	// Metrics
-	config.Set("dd_url", protocol+urlFor(metrics))
+	config.Set("dd_url", protocol+urlFor(metrics), model.SourceAgentRuntime)
 
 	// Logs
 	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
 
 	// APM
-	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces))
+	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), model.SourceAgentRuntime)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile")
-	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry))
+	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", model.SourceAgentRuntime)
+	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), model.SourceAgentRuntime)
 
 	// Processes
-	config.Set("process_config.process_dd_url", protocol+urlFor(processes))
+	config.Set("process_config.process_dd_url", protocol+urlFor(processes), model.SourceAgentRuntime)
 
 	// Database monitoring
 	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
@@ -1710,7 +1710,7 @@ func setupFipsEndpoints(config Config) error {
 	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
 	// Orchestrator Explorer
-	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer))
+	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), model.SourceAgentRuntime)
 
 	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
@@ -1719,9 +1719,9 @@ func setupFipsEndpoints(config Config) error {
 }
 
 func setupFipsLogsConfig(config Config, configPrefix string, url string) {
-	config.Set(configPrefix+"use_http", true)
-	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"))
-	config.Set(configPrefix+"logs_dd_url", url)
+	config.Set(configPrefix+"use_http", true, model.SourceAgentRuntime)
+	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), model.SourceAgentRuntime)
+	config.Set(configPrefix+"logs_dd_url", url, model.SourceAgentRuntime)
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
@@ -1774,7 +1774,7 @@ func sanitizeAPIKeyConfig(config Config, key string) {
 	if !config.IsKnown(key) {
 		return
 	}
-	config.Set(key, strings.TrimSpace(config.GetString(key)))
+	config.Set(key, strings.TrimSpace(config.GetString(key)), model.SourceAgentRuntime)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1786,11 +1786,11 @@ func sanitizeExternalMetricsProviderChunkSize(config Config) {
 	chunkSize := config.GetInt("external_metrics_provider.chunk_size")
 	if chunkSize <= 0 {
 		log.Warnf("external_metrics_provider.chunk_size cannot be negative: %d", chunkSize)
-		config.Set("external_metrics_provider.chunk_size", 1)
+		config.Set("external_metrics_provider.chunk_size", 1, model.SourceAgentRuntime)
 	}
 	if chunkSize > maxExternalMetricsProviderChunkSize {
 		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize, maxExternalMetricsProviderChunkSize)
-		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize)
+		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize, model.SourceAgentRuntime)
 	}
 }
 
@@ -1891,7 +1891,7 @@ func setTracemallocEnabled(config Config) bool {
 	}
 
 	// update config with the actual effective tracemalloc
-	config.Set("tracemalloc_debug", wTracemalloc)
+	config.Set("tracemalloc_debug", wTracemalloc, model.SourceAgentRuntime)
 	return traceMallocEnabledWithPy2
 }
 
@@ -1910,7 +1910,7 @@ func setNumWorkers(config Config) {
 	}
 
 	// update config with the actual effective number of workers
-	config.Set("check_runners", numWorkers)
+	config.Set("check_runners", numWorkers, model.SourceAgentRuntime)
 }
 
 // GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper

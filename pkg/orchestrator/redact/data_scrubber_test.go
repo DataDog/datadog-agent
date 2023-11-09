@@ -47,7 +47,7 @@ func benchmarkMatching(nbContainers int, b *testing.B) {
 	b.Run("simplified", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
-				ScrubContainer(&c, scrubber)
+				scrubContainer(&c, scrubber)
 			}
 		}
 	})
@@ -74,7 +74,7 @@ func benchmarkMatchingCustomRegex(nbContainers int, b *testing.B) {
 	b.Run("simplified", func(b *testing.B) {
 		for n := 0; n < b.N; n++ {
 			for _, c := range containersBenchmarks {
-				ScrubContainer(&c, scrubber)
+				scrubContainer(&c, scrubber)
 			}
 		}
 	})
