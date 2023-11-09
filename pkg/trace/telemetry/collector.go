@@ -70,6 +70,7 @@ type OnboardingEventError struct {
 type TelemetryCollector interface {
 	SendStartupSuccess()
 	SendStartupError(code int, err error)
+	SendIfFirstTrace()
 }
 
 type telemetryCollector struct {
@@ -79,6 +80,7 @@ type telemetryCollector struct {
 	userAgent             string
 	cfg                   *config.AgentConfig
 	collectedStartupError *atomic.Bool
+	collectedFirstTrace   *atomic.Bool
 }
 
 // NewCollector returns either collector, or a noop implementation if instrumentation telemetry is disabled
@@ -107,6 +109,7 @@ func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
 
 		cfg:                   cfg,
 		collectedStartupError: &atomic.Bool{},
+		collectedFirstTrace:   &atomic.Bool{},
 	}
 }
 
@@ -115,15 +118,16 @@ func NewNoopCollector() TelemetryCollector {
 	return &noopTelemetryCollector{}
 }
 
-func (f *telemetryCollector) sendEvent(event *OnboardingEvent) {
+func (f *telemetryCollector) sendEvent(event *OnboardingEvent) (err error) {
 	body, err := json.Marshal(event)
 	if err != nil {
-		return
+		return err
 	}
 	bodyLen := strconv.Itoa(len(body))
 	for _, endpoint := range f.endpoints {
-		req, err := http.NewRequest("POST", endpoint.Host, bytes.NewReader(body))
-		if err != nil {
+		req, reqErr := http.NewRequest("POST", endpoint.Host, bytes.NewReader(body))
+		if reqErr != nil {
+			err = reqErr
 			continue
 		}
 		req.Header.Add("Content-Type", "application/json")
@@ -131,14 +135,16 @@ func (f *telemetryCollector) sendEvent(event *OnboardingEvent) {
 		req.Header.Add("DD-Api-Key", endpoint.APIKey)
 		req.Header.Add("Content-Length", bodyLen)
 
-		resp, err := f.client.Do(req)
-		if err != nil {
+		resp, reqErr := f.client.Do(req)
+		if reqErr != nil {
+			err = reqErr
 			continue
 		}
 		// Unconditionally read the body and ignore any errors
 		_, _ = io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 	}
+	return err
 }
 
 func newOnboardingTelemetryPayload(config *config.AgentConfig) OnboardingEvent {
@@ -170,6 +176,20 @@ func (f *telemetryCollector) SendStartupSuccess() {
 	f.sendEvent(&ev)
 }
 
+func (f *telemetryCollector) SendIfFirstTrace() {
+	if swapped := f.collectedFirstTrace.CompareAndSwap(false, true); !swapped {
+		return
+	}
+	go func() {
+		ev := newOnboardingTelemetryPayload(f.cfg)
+		ev.Payload.EventName = "agent.first_trace.sent"
+		err := f.sendEvent(&ev)
+		if err != nil {
+			f.collectedFirstTrace.Store(false)
+		}
+	}()
+}
+
 func (f *telemetryCollector) SendStartupError(code int, err error) {
 	f.collectedStartupError.Store(true)
 	ev := newOnboardingTelemetryPayload(f.cfg)
@@ -183,3 +203,4 @@ type noopTelemetryCollector struct{}
 
 func (*noopTelemetryCollector) SendStartupSuccess()                  {}
 func (*noopTelemetryCollector) SendStartupError(code int, err error) {}
+func (*noopTelemetryCollector) SendIfFirstTrace()                    {}
