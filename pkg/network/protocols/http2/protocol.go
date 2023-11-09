@@ -362,33 +362,3 @@ func (p *protocol) createStaticTable(mgr *manager.Manager) error {
 func (*protocol) IsBuildModeSupported(buildmode.Type) bool {
 	return true
 }
-
-func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
-	http2Map, _, err := mgr.GetMap(inFlightMap)
-	if err != nil {
-		log.Errorf("error getting %q map: %s", inFlightMap, err)
-		return
-	}
-	mapCleaner, err := ddebpf.NewMapCleaner(http2Map, new(http2StreamKey), new(EbpfTx))
-	if err != nil {
-		log.Errorf("error creating map cleaner: %s", err)
-		return
-	}
-
-	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		http2Txn, ok := val.(*EbpfTx)
-		if !ok {
-			return false
-		}
-
-		if updated := int64(http2Txn.Response_last_seen); updated > 0 {
-			return (now - updated) > ttl
-		}
-
-		started := int64(http2Txn.Request_started)
-		return started > 0 && (now-started) > ttl
-	})
-
-	p.mapCleaner = mapCleaner
-}
