@@ -1068,6 +1068,17 @@ func InitConfig(config Config) {
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_all.namespaces", []string{})
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.pod_endpoint", "/inject-pod-cws")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.include", []string{})
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.exclude", []string{})
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.container_registry", "")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "datadog/cws-instrumentation")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "master")
+	config.BindEnv("admission_controller.cws_instrumentation.init_resources.cpu")
+	config.BindEnv("admission_controller.cws_instrumentation.init_resources.memory")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.

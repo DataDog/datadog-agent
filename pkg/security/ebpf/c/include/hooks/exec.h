@@ -222,6 +222,9 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         // ensure pid and ppid point to the same cookie
         event->pid_entry.cookie = parent_pid_entry->cookie;
 
+        // ensure pid and ppid point to the same user session
+        event->pid_entry.user_session_id = parent_pid_entry->user_session_id;
+
         // ensure pid and ppid have the same credentials
         event->pid_entry.credentials = parent_pid_entry->credentials;
 
