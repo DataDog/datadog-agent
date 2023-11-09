@@ -488,12 +488,14 @@ func (s *KubeEndpointService) GetCheckNames(context.Context) []string {
 // HasFilter returns whether the kube endpoint should not collect certain metrics
 // due to filtering applied.
 func (s *KubeEndpointService) HasFilter(filter containers.FilterType) bool {
-	if filter == containers.MetricsFilter {
+	switch filter {
+	case containers.MetricsFilter:
 		return s.metricsExcluded
-	} else if filter == containers.GlobalFilter {
+	case containers.GlobalFilter:
 		return s.globalExcluded
+	default:
+		return false
 	}
-	return false
 }
 
 // GetExtraConfig isn't supported
