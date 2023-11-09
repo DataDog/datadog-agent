@@ -51,6 +51,9 @@ type OnboardingEventPayload struct {
 
 // OnboardingEventTags ...
 type OnboardingEventTags struct {
+	InstallID     string `json:"install_id,omitempty"`
+	InstallType   string `json:"install_type,omitempty"`
+	InstallTime   int64  `json:"install_time,omitempty"`
 	AgentPlatform string `json:"agent_platform,omitempty"`
 	AgentVersion  string `json:"agent_version,omitempty"`
 	AgentHostname string `json:"agent_hostname,omitempty"`
@@ -139,7 +142,7 @@ func (f *telemetryCollector) sendEvent(event *OnboardingEvent) {
 }
 
 func newOnboardingTelemetryPayload(config *config.AgentConfig) OnboardingEvent {
-	return OnboardingEvent{
+	ev := OnboardingEvent{
 		RequestType: "apm-onboarding-event",
 		ApiVersion:  "v1",
 		Payload: OnboardingEventPayload{
@@ -150,6 +153,12 @@ func newOnboardingTelemetryPayload(config *config.AgentConfig) OnboardingEvent {
 			},
 		},
 	}
+	if config.InstallSignature.Found {
+		ev.Payload.Tags.InstallID = config.InstallSignature.InstallID
+		ev.Payload.Tags.InstallType = config.InstallSignature.InstallType
+		ev.Payload.Tags.InstallTime = config.InstallSignature.InstallTime
+	}
+	return ev
 }
 
 func (f *telemetryCollector) SendStartupSuccess() {
