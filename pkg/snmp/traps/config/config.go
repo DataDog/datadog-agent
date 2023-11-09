@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/snmplog"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
+
+	"gopkg.in/yaml.v2" //JMW
 )
 
 // UserV3 contains the definition of one SNMPv3 user with its username and its auth
@@ -45,14 +47,19 @@ type TrapsConfig struct {
 
 // ReadConfig builds the traps configuration from the Agent configuration.
 func ReadConfig(host string, conf config.Component) (*TrapsConfig, error) {
+	out, _ := yaml.Marshal(conf)
+	fmt.Printf("JMW ReadConfig() yaml.Marshal(conf) =\n----------\n%s\n----------\n", out)
+
 	var c = &TrapsConfig{}
 	err := conf.UnmarshalKey("network_devices.snmp_traps", &c)
+	//JMWconf.UnmarshalKey("network_devices.snmp_traps", &c)
+	//JMWerr := errors.New("JMW error")
 	if err != nil {
 		return nil, err
 	}
 
 	if !c.Enabled {
-		return nil, errors.New("traps listener is disabled")
+		return nil, errors.New("traps listener is disabled") //JMW1FAIL
 	}
 	if err := c.SetDefaults(host, conf.GetString("network_devices.namespace")); err != nil {
 		return c, err

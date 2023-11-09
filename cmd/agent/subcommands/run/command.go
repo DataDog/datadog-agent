@@ -128,6 +128,8 @@ import (
 
 	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
+
+	"gopkg.in/yaml.v2" //JMW
 )
 
 type cliParams struct {
@@ -508,8 +510,11 @@ func startAgent(
 		pkgTelemetry.RegisterStatsSender(sender)
 	}
 
-	// Start SNMP trap server
-	if traps.IsEnabled(pkgconfig.Datadog) {
+	out, _ := yaml.Marshal(pkgconfig.Datadog)
+	log.Warnf("JMW getSharedFxOption() yaml.Marshal(pkgconfig.Datadog) =\n----------\n%s\n----------\n", out)
+
+	// Start SNMP trap server JMW0
+	if traps.IsEnabled(pkgconfig.Datadog) { //JMWA
 		err = traps.StartServer(hostnameDetected, demultiplexer, pkgconfig.Datadog, log)
 		if err != nil {
 			log.Errorf("Failed to start snmp-traps server: %s", err)

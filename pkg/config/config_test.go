@@ -715,9 +715,11 @@ network_devices:
   metadata:
     logs_dd_url: somehost:1234
   snmp_traps:
+    enabled: true
     forwarder:
       logs_dd_url: somehost:1234
   netflow:
+    enabled: true
     forwarder:
       logs_dd_url: somehost:1234
 
@@ -818,6 +820,8 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseHTTPURL+"12", c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL+"13", c.GetString("runtime_security_config.endpoints.logs_dd_url"))
 		assert.Equal(t, expectedBaseURL+"15", c.GetString("network_devices.netflow.forwarder.logs_dd_url"))
+		assert.Equal(t, true, c.GetBool("network_devices.netflow.enabled"))
+		assert.Equal(t, true, c.GetBool("network_devices.snmp_traps.enabled"))
 
 	} else {
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("dd_url"))
@@ -834,6 +838,8 @@ func assertFipsProxyExpectedConfig(t *testing.T, expectedBaseHTTPURL, expectedBa
 		assert.Equal(t, expectedBaseHTTPURL, c.GetString("orchestrator_explorer.orchestrator_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("runtime_security_config.endpoints.logs_dd_url"))
 		assert.Equal(t, expectedBaseURL, c.GetString("network_devices.netflow.forwarder.logs_dd_url"))
+		assert.Equal(t, true, c.GetBool("network_devices.netflow.enabled"))
+		assert.Equal(t, true, c.GetBool("network_devices.snmp_traps.enabled"))
 	}
 }
 

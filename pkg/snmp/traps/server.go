@@ -22,6 +22,8 @@ import (
 	oidresolver "github.com/DataDog/datadog-agent/pkg/snmp/traps/oid_resolver"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/status"
+
+	"gopkg.in/yaml.v2" //JMW
 )
 
 // TrapServer manages an SNMP trap listener.
@@ -39,7 +41,10 @@ var (
 
 // StartServer starts the global trap server.
 func StartServer(agentHostname string, demux aggregator.Demultiplexer, conf config.Component, logger log.Component) error {
-	config, err := trapsconfig.ReadConfig(agentHostname, conf)
+	out, _ := yaml.Marshal(conf)
+	logger.Warnf("JMW StartServer() yaml.Marshal(conf) =\n----------\n%s\n----------\n", out)
+
+	config, err := trapsconfig.ReadConfig(agentHostname, conf) //JMW1
 	if err != nil {
 		return err
 	}
@@ -56,7 +61,7 @@ func StartServer(agentHostname string, demux aggregator.Demultiplexer, conf conf
 		return err
 	}
 	status := status.New()
-	server, err := NewTrapServer(config, formatter, sender, logger, status)
+	server, err := NewTrapServer(config, formatter, sender, logger, status) //JMW2
 	serverInstance = server
 	return err
 }
@@ -78,7 +83,7 @@ func IsRunning() bool {
 func NewTrapServer(config *trapsconfig.TrapsConfig, formatter formatter.Formatter, aggregator sender.Sender, logger log.Component, status status.Manager) (*TrapServer, error) {
 	packets := make(packet.PacketsChannel, config.GetPacketChannelSize())
 
-	listener, err := startSNMPTrapListener(config, aggregator, packets, logger, status)
+	listener, err := startSNMPTrapListener(config, aggregator, packets, logger, status) //JMW3
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +111,7 @@ func startSNMPTrapForwarder(formatter formatter.Formatter, aggregator sender.Sen
 	return trapForwarder, nil
 }
 func startSNMPTrapListener(c *trapsconfig.TrapsConfig, aggregator sender.Sender, packets packet.PacketsChannel, logger log.Component, status status.Manager) (*listener.TrapListener, error) {
-	trapListener, err := listener.NewTrapListener(c, aggregator, packets, logger, status)
+	trapListener, err := listener.NewTrapListener(c, aggregator, packets, logger, status) //JMW4
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +142,7 @@ func (s *TrapServer) Stop() {
 
 // IsEnabled returns whether SNMP trap collection is enabled in the Agent configuration.
 func IsEnabled(conf config.Component) bool {
-	return conf.GetBool("network_devices.snmp_traps.enabled")
+	return conf.GetBool("network_devices.snmp_traps.enabled") //JMWA
 }
 
 // GetStatus returns key-value data for use in status reporting of the traps server.
