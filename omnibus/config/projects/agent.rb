@@ -313,15 +313,6 @@ end
 # Include traps db file in snmp.d/traps_db/
 dependency 'snmp-traps'
 
-# this dependency puts few files out of the omnibus install dir and move them
-# in the final destination. This way such files will be listed in the packages
-# manifest and owned by the package manager. This is the only point in the build
-# process where we operate outside the omnibus install dir, thus the need of
-# the `extra_package_file` directive.
-# This must be the last dependency in the project.
-dependency 'datadog-agent-finalize'
-dependency 'datadog-cf-finalize'
-
 # Additional software
 if windows_target?
   if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
@@ -332,8 +323,19 @@ if windows_target?
   end
   if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     dependency 'datadog-windows-procmon-driver'
+    ## this is a duplicate of the above dependency in linux
+    dependency 'datadog-security-agent-policies'
   end
 end
+
+# this dependency puts few files out of the omnibus install dir and move them
+# in the final destination. This way such files will be listed in the packages
+# manifest and owned by the package manager. This is the only point in the build
+# process where we operate outside the omnibus install dir, thus the need of
+# the `extra_package_file` directive.
+# This must be the last dependency in the project.
+dependency 'datadog-agent-finalize'
+dependency 'datadog-cf-finalize'
 
 if linux_target?
   extra_package_file '/etc/init/datadog-agent.conf'
