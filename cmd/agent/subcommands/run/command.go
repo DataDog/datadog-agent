@@ -297,7 +297,11 @@ func getSharedFxOption() fx.Option {
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
 		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
-		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component) {
+		//
+		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
+		// in the function args to order the execution. This pattern might be worth revising because it is
+		// error prone.
+		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, _ workloadmeta.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
 					// Main context passed to components

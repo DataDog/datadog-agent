@@ -76,13 +76,14 @@ func newWorkloadMeta(deps dependencies) Component {
 	}
 
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
+
+		// Set global
+		SetGlobalStore(wm)
+
 		// create and setup the Autoconfig instance
 		if deps.Params.InitHelper != nil {
 			return deps.Params.InitHelper(c, wm)
 		}
-
-		// Set global
-		SetGlobalStore(wm)
 
 		// Main context passed to components
 		mainCtx, _ := common.GetMainCtxCancel()
