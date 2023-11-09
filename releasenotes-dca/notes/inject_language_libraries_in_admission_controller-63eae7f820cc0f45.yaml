@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Enable `APM` library injection in `cluster-agent` admission controller based on automatic language detection annotations.
+    [Beta] Enable `APM` library injection in `cluster-agent` admission controller based on automatic language detection annotations.

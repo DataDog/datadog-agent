@@ -200,7 +200,7 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) ([]libInfo, bool)
 		libInfoList = extractLibrariesFromAnnotations(pod, containerRegistry, libInfoMap)
 
 		// If user doesn't provide langages information, try getting the languages from process languages auto-detection. The langages information are available in workloadmeta-store and attached on the pod's owner.
-		if len(libInfoList) == 0 {
+		if len(libInfoList) == 0 && config.Datadog.GetBool("admission_controller.inject_auto_detected_libraries") {
 			libInfoList = extractLibrariesFromOwnerAnnotations(pod, containerRegistry)
 			if len(libInfoList) > 0 {
 				autoDetected = true
