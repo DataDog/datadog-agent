@@ -163,10 +163,15 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_dynamic_instrumentation_enabled"] = pkgconfig.SystemProbe.GetBool("dynamic_instrumentation.enabled")
 	ia.data["feature_remote_configuration_enabled"] = ia.conf.GetBool("remote_configuration.enabled")
 
+	ia.data["feature_container_images_enabled"] = ia.conf.GetBool("container_image.enabled")
+
 	ia.data["feature_cws_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.enabled")
 	ia.data["feature_cws_network_enabled"] = pkgconfig.SystemProbe.GetBool("event_monitoring_config.network.enabled")
 	ia.data["feature_cws_security_profiles_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.activity_dump.enabled")
 	ia.data["feature_cws_remote_config_enabled"] = pkgconfig.SystemProbe.GetBool("runtime_security_config.remote_configuration.enabled")
+
+	ia.data["feature_csm_vm_containers_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("container_image.enabled") && ia.conf.GetBool("sbom.container_image.enabled")
+	ia.data["feature_csm_vm_hosts_enabled"] = ia.conf.GetBool("sbom.enabled") && ia.conf.GetBool("sbom.host.enabled")
 
 	ia.data["feature_process_enabled"] = ia.conf.GetBool("process_config.process_collection.enabled")
 	ia.data["feature_process_language_detection_enabled"] = ia.conf.GetBool("language_detection.enabled")
@@ -233,6 +238,21 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	}
 	if providedConf, err := ia.getProvidedAgentConfiguration(); err == nil {
 		data["provided_configuration"] = providedConf
+	}
+	if fileConf, err := ia.getAgentFileConfiguration(); err == nil {
+		data["file_configuration"] = fileConf
+	}
+	if envVarConf, err := ia.getAgentEnvVarConfiguration(); err == nil {
+		data["environment_variable_configuration"] = envVarConf
+	}
+	if agentRuntimeConf, err := ia.getAgentRuntimeConfiguration(); err == nil {
+		data["agent_runtime_configuration"] = agentRuntimeConf
+	}
+	if remoteConf, err := ia.getAgentRemoteConfiguration(); err == nil {
+		data["remote_configuration"] = remoteConf
+	}
+	if cliConf, err := ia.getAgentCliConfiguration(); err == nil {
+		data["cli_configuration"] = cliConf
 	}
 
 	return &Payload{

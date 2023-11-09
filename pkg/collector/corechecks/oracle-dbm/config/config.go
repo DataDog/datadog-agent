@@ -41,6 +41,7 @@ type QueryMetricsConfig struct {
 	DisableLastActive  bool                        `yaml:"disable_last_active"`
 	Lookback           int64                       `yaml:"lookback"`
 	Trackers           []queryMetricsTrackerConfig `yaml:"trackers"`
+	MaxRunTime         int64                       `yaml:"max_run_time"`
 }
 
 type SysMetricsConfig struct {
@@ -89,6 +90,14 @@ type CustomQuery struct {
 	Tags         []string             `yaml:"tags"`
 }
 
+type asmConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
+type resourceManagerConfig struct {
+	Enabled bool `yaml:"enabled"`
+}
+
 // InstanceConfig is used to deserialize integration instance config.
 type InstanceConfig struct {
 	Server                             string                 `yaml:"server"`
@@ -119,6 +128,8 @@ type InstanceConfig struct {
 	CustomQueries                      []CustomQuery          `yaml:"custom_queries"`
 	MetricCollectionInterval           int64                  `yaml:"metric_collection_interval"`
 	DatabaseInstanceCollectionInterval uint64                 `yaml:"database_instance_collection_interval"`
+	Asm                                asmConfig              `yaml:"asm"`
+	ResourceManager                    resourceManagerConfig  `yaml:"resource_manager"`
 }
 
 // CheckConfig holds the config needed for an integration instance to run.
@@ -136,6 +147,19 @@ Port: '%d'
 `, c.Server, c.ServiceName, c.Port)
 }
 
+// GetDefaultObfuscatorOptions return default obfuscator options
+func GetDefaultObfuscatorOptions() obfuscate.SQLConfig {
+	return obfuscate.SQLConfig{
+		DBMS:                          common.IntegrationName,
+		TableNames:                    true,
+		CollectCommands:               true,
+		CollectComments:               true,
+		ObfuscationMode:               obfuscate.ObfuscateAndNormalize,
+		RemoveSpaceBetweenParentheses: true,
+		KeepNull:                      true,
+	}
+}
+
 // NewCheckConfig builds a new check config.
 func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data) (*CheckConfig, error) {
 	instance := InstanceConfig{}
@@ -145,17 +169,16 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	var defaultMetricCollectionInterval int64 = 60
 	instance.MetricCollectionInterval = defaultMetricCollectionInterval
 
-	instance.ObfuscatorOptions.DBMS = common.IntegrationName
-	instance.ObfuscatorOptions.TableNames = true
-	instance.ObfuscatorOptions.CollectCommands = true
-	instance.ObfuscatorOptions.CollectComments = true
+	instance.ObfuscatorOptions = GetDefaultObfuscatorOptions()
 
 	instance.QuerySamples.Enabled = true
 
 	instance.QueryMetrics.Enabled = true
 	instance.QueryMetrics.CollectionInterval = defaultMetricCollectionInterval
 	instance.QueryMetrics.DBRowsLimit = 10000
+	instance.QueryMetrics.MaxRunTime = 20
 
+	instance.ExecutionPlans.Enabled = true
 	instance.ExecutionPlans.PlanCacheRetention = 15
 
 	instance.SysMetrics.Enabled = true
@@ -163,8 +186,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	instance.ProcessMemory.Enabled = true
 	instance.SharedMemory.Enabled = true
 	instance.InactiveSessions.Enabled = true
-
-	instance.ExecutionPlans.Enabled = true
+	instance.Asm.Enabled = true
+	instance.ResourceManager.Enabled = true
 
 	instance.UseGlobalCustomQueries = "true"
 

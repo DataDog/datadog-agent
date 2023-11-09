@@ -88,38 +88,38 @@ func TestInitDataErrorInstallInfo(t *testing.T) {
 func TestInitData(t *testing.T) {
 	// TODO: (components) - until system probe configuration is migrated to a component we use the old mock here.
 	systemProbeMock := pkgconfig.MockSystemProbe(t)
-	systemProbeMock.Set("dynamic_instrumentation.enabled", true)
-	systemProbeMock.Set("remote_configuration.enabled", true)
-	systemProbeMock.Set("runtime_security_config.enabled", true)
-	systemProbeMock.Set("event_monitoring_config.network.enabled", true)
-	systemProbeMock.Set("runtime_security_config.activity_dump.enabled", true)
-	systemProbeMock.Set("runtime_security_config.remote_configuration.enabled", true)
-	systemProbeMock.Set("network_config.enabled", true)
-	systemProbeMock.Set("service_monitoring_config.enable_http_monitoring", true)
-	systemProbeMock.Set("service_monitoring_config.tls.native.enabled", true)
-	systemProbeMock.Set("service_monitoring_config.enabled", true)
-	systemProbeMock.Set("data_streams_config.enabled", true)
-	systemProbeMock.Set("service_monitoring_config.tls.java.enabled", true)
-	systemProbeMock.Set("service_monitoring_config.enable_http2_monitoring", true)
-	systemProbeMock.Set("service_monitoring_config.tls.istio.enabled", true)
-	systemProbeMock.Set("service_monitoring_config.enable_http_stats_by_status_code", true)
-	systemProbeMock.Set("service_monitoring_config.tls.go.enabled", true)
-	systemProbeMock.Set("system_probe_config.enable_tcp_queue_length", true)
-	systemProbeMock.Set("system_probe_config.enable_oom_kill", true)
-	systemProbeMock.Set("windows_crash_detection.enabled", true)
-	systemProbeMock.Set("system_probe_config.enable_co_re", true)
-	systemProbeMock.Set("system_probe_config.enable_runtime_compiler", true)
-	systemProbeMock.Set("system_probe_config.enable_kernel_header_download", true)
-	systemProbeMock.Set("system_probe_config.allow_precompiled_fallback", true)
-	systemProbeMock.Set("system_probe_config.telemetry_enabled", true)
-	systemProbeMock.Set("system_probe_config.max_conns_per_message", 10)
-	systemProbeMock.Set("network_config.collect_tcp_v4", true)
-	systemProbeMock.Set("network_config.collect_tcp_v6", true)
-	systemProbeMock.Set("network_config.collect_udp_v4", true)
-	systemProbeMock.Set("network_config.collect_udp_v6", true)
-	systemProbeMock.Set("network_config.enable_protocol_classification", true)
-	systemProbeMock.Set("network_config.enable_gateway_lookup", true)
-	systemProbeMock.Set("network_config.enable_root_netns", true)
+	systemProbeMock.SetWithoutSource("dynamic_instrumentation.enabled", true)
+	systemProbeMock.SetWithoutSource("remote_configuration.enabled", true)
+	systemProbeMock.SetWithoutSource("runtime_security_config.enabled", true)
+	systemProbeMock.SetWithoutSource("event_monitoring_config.network.enabled", true)
+	systemProbeMock.SetWithoutSource("runtime_security_config.activity_dump.enabled", true)
+	systemProbeMock.SetWithoutSource("runtime_security_config.remote_configuration.enabled", true)
+	systemProbeMock.SetWithoutSource("network_config.enabled", true)
+	systemProbeMock.SetWithoutSource("service_monitoring_config.enable_http_monitoring", true)
+	systemProbeMock.SetWithoutSource("service_monitoring_config.tls.native.enabled", true)
+	systemProbeMock.SetWithoutSource("service_monitoring_config.enabled", true)
+	systemProbeMock.SetWithoutSource("data_streams_config.enabled", true)
+	systemProbeMock.SetWithoutSource("service_monitoring_config.tls.java.enabled", true)
+	systemProbeMock.SetWithoutSource("service_monitoring_config.enable_http2_monitoring", true)
+	systemProbeMock.SetWithoutSource("service_monitoring_config.tls.istio.enabled", true)
+	systemProbeMock.SetWithoutSource("service_monitoring_config.enable_http_stats_by_status_code", true)
+	systemProbeMock.SetWithoutSource("service_monitoring_config.tls.go.enabled", true)
+	systemProbeMock.SetWithoutSource("system_probe_config.enable_tcp_queue_length", true)
+	systemProbeMock.SetWithoutSource("system_probe_config.enable_oom_kill", true)
+	systemProbeMock.SetWithoutSource("windows_crash_detection.enabled", true)
+	systemProbeMock.SetWithoutSource("system_probe_config.enable_co_re", true)
+	systemProbeMock.SetWithoutSource("system_probe_config.enable_runtime_compiler", true)
+	systemProbeMock.SetWithoutSource("system_probe_config.enable_kernel_header_download", true)
+	systemProbeMock.SetWithoutSource("system_probe_config.allow_precompiled_fallback", true)
+	systemProbeMock.SetWithoutSource("system_probe_config.telemetry_enabled", true)
+	systemProbeMock.SetWithoutSource("system_probe_config.max_conns_per_message", 10)
+	systemProbeMock.SetWithoutSource("network_config.collect_tcp_v4", true)
+	systemProbeMock.SetWithoutSource("network_config.collect_tcp_v6", true)
+	systemProbeMock.SetWithoutSource("network_config.collect_udp_v4", true)
+	systemProbeMock.SetWithoutSource("network_config.collect_udp_v6", true)
+	systemProbeMock.SetWithoutSource("network_config.enable_protocol_classification", true)
+	systemProbeMock.SetWithoutSource("network_config.enable_gateway_lookup", true)
+	systemProbeMock.SetWithoutSource("network_config.enable_root_netns", true)
 
 	overrides := map[string]any{
 		"language_detection.enabled":       true,
@@ -141,6 +141,10 @@ func TestInitData(t *testing.T) {
 		"process_config.container_collection.enabled": true,
 		"remote_configuration.enabled":                true,
 		"process_config.process_collection.enabled":   true,
+		"container_image.enabled":                     true,
+		"sbom.enabled":                                true,
+		"sbom.container_image.enabled":                true,
+		"sbom.host.enabled":                           true,
 	}
 	ia := getTestInventoryPayload(t, overrides)
 
@@ -165,12 +169,15 @@ func TestInitData(t *testing.T) {
 		"feature_processes_container_enabled":        true,
 		"feature_remote_configuration_enabled":       true,
 		"feature_process_enabled":                    true,
+		"feature_container_images_enabled":           true,
 
 		"feature_dynamic_instrumentation_enabled":      true,
 		"feature_cws_enabled":                          true,
 		"feature_cws_network_enabled":                  true,
 		"feature_cws_security_profiles_enabled":        true,
 		"feature_cws_remote_config_enabled":            true,
+		"feature_csm_vm_containers_enabled":            true,
+		"feature_csm_vm_hosts_enabled":                 true,
 		"feature_networks_enabled":                     true,
 		"feature_networks_http_enabled":                true,
 		"feature_networks_https_enabled":               true,

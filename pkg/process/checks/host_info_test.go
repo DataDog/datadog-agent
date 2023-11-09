@@ -84,8 +84,8 @@ func TestInvalidHostname(t *testing.T) {
 	cfg := config.Mock(t)
 
 	// Lower the GRPC timeout, otherwise the test will time out in CI
-	cfg.Set("process_config.grpc_connection_timeout_secs", 1)
-	cfg.Set("hostname", "localhost")
+	cfg.SetWithoutSource("process_config.grpc_connection_timeout_secs", 1)
+	cfg.SetWithoutSource("hostname", "localhost")
 
 	expectedHostname, _ := os.Hostname()
 

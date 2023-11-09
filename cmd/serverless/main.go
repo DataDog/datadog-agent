@@ -16,11 +16,13 @@ import (
 
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
 	"github.com/DataDog/datadog-agent/pkg/serverless/apikey"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec"
+	appsecConfig "github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/debug"
@@ -69,8 +71,12 @@ const (
 
 func main() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
-	config.Datadog.Set("use_v2_api.series", false)
+	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
 	stopCh := make(chan struct{})
+
+	// Disable remote configuration for now as it just spams the debug logs
+	// and provides no value.
+	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
 
 	// run the agent
 	serverlessDaemon, err := runAgent(stopCh)
@@ -199,7 +205,9 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	lambdaSpanChan := make(chan *pb.Span)
 	lambdaInitMetricChan := make(chan *serverlessLogs.LambdaInitMetric)
 	coldStartSpanId := random.Random.Uint64()
-	metricAgent := &metrics.ServerlessMetricAgent{}
+	metricAgent := &metrics.ServerlessMetricAgent{
+		SketchesBucketOffset: time.Second * 10,
+	}
 	metricAgent.Start(daemon.FlushTimeout, &metrics.MetricConfig{}, &metrics.MetricDogStatsD{})
 	serverlessDaemon.SetStatsdServer(metricAgent)
 	serverlessDaemon.SetupLogCollectionHandler(logsAPICollectionRoute, logChannel, config.Datadog.GetBool("serverless.logs_enabled"), config.Datadog.GetBool("enhanced_metrics"), lambdaInitMetricChan)
@@ -311,6 +319,13 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// to detect the finished request spans and run the complete AppSec
 		// monitoring logic, and ultimately adding the AppSec events to them.
 		ta.ModifySpan = appsecProxyProcessor.WrapSpanModifier(serverlessDaemon.ExecutionContext, ta.ModifySpan)
+		// Set the default rate limiting to approach 1 trace/min in live circumstances to limit non ASM related traces as much as possible.
+		// This limit is decided in the Standalone ASM Billing RFC and ensures reducing non ASM-related trace throughput
+		// while keeping billing and service catalog running correctly.
+		// In case of ASM event, the trace priority will be set to manual keep
+		if appsecConfig.IsStandalone() {
+			ta.PrioritySampler.UpdateTargetTPS(1. / 120)
+		}
 	} else if enabled, _ := strconv.ParseBool(os.Getenv("DD_EXPERIMENTAL_ENABLE_PROXY")); enabled {
 		// start the experimental proxy if enabled
 		log.Debug("Starting the experimental runtime api proxy")

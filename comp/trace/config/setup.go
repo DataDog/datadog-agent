@@ -23,6 +23,7 @@ import (
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -222,6 +223,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
 	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
+	if c.PeerServiceAggregation {
+		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
+	}
+	c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
 	if core.IsSet("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
@@ -845,7 +850,7 @@ func SetHandler() http.Handler {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}
-				coreconfig.Datadog.Set("log_level", lvl)
+				coreconfig.Datadog.Set("log_level", lvl, model.SourceAgentRuntime)
 				log.Infof("Switched log level to %s", lvl)
 			default:
 				log.Infof("Unsupported config change requested (key: %q).", key)
