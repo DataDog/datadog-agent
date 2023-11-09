@@ -79,13 +79,12 @@ func (c *Check) Configure(
 	if err != nil {
 		return err
 	}
-
-	if !c.config.OrchestrationCollectionEnabled {
-		log.Warn("orchestrator pod check is configured but the feature is disabled")
+	if !c.config.CoreCheck {
+		log.Warn("The corecheck version for pods is currently disabled. See the changelog.")
 		return nil
 	}
-	if !c.config.CoreCheck {
-		log.Warn("the corecheck version for pods is currently disabled")
+	if !c.config.OrchestrationCollectionEnabled {
+		log.Warn("orchestrator pod check is configured but the feature is disabled")
 		return nil
 	}
 	if c.config.KubeClusterName == "" {
