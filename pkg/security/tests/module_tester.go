@@ -931,6 +931,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
+		testMod.opts.dynamicOpts = opts.dynamicOpts
 		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 			return testMod, err
 		}
