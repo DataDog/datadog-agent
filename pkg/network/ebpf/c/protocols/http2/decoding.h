@@ -656,9 +656,9 @@ int uprobe__http2_tls_entry(struct pt_regs *ctx) {
 
         http2_tls_state_t new_state = { 0 };
         new_state.relevant = is_headers_or_rst_frame || is_data_end_of_stream;
-        new_state.stream_id = frame_header.stream_id;
-        new_state.frame_flags = frame_header.flags;
-        new_state.frame_type = frame_header.type;
+        if (new_state.relevant) {
+            new_state.header = frame_header;
+        }
 
         key.length = frame_header.length;
         bpf_map_update_elem(&http2_tls_states, &key, &new_state, BPF_ANY);
@@ -714,9 +714,9 @@ int uprobe__http2_tls_frames_parser_from_state(struct pt_regs *ctx) {
     http2_ctx->http2_stream_key.tup = info->tup;
     normalize_tuple(&http2_ctx->http2_stream_key.tup);
     http2_ctx->dynamic_index.tup = info->tup;
-    http2_ctx->http2_stream_key.stream_id = state->stream_id;
+    http2_ctx->http2_stream_key.stream_id = state->header.stream_id;
 
-    parse_frame_tls(info, http2_ctx, state->frame_flags, state->frame_type);
+    parse_frame_tls(info, http2_ctx, &state->header);
 
 state_delete:
     bpf_map_delete_elem(&http2_tls_states, &key);
@@ -767,7 +767,7 @@ int uprobe__http2_tls_frames_parser_no_state(struct pt_regs *ctx) {
         log_debug("[grpcdebug] frame_parser - no state: offset %u, frame type %u", current_frame.offset, current_frame.frame.type);
         info->off = current_frame.offset;
 
-        parse_frame_tls(info, http2_ctx, current_frame.frame.flags, current_frame.frame.type);
+        parse_frame_tls(info, http2_ctx, &current_frame.frame);
     }
 
 exit:

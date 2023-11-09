@@ -144,9 +144,7 @@ typedef struct {
 
 typedef struct {
     bool relevant;
-    __u32 stream_id;
-    __u8 frame_flags;
-    frame_type_t frame_type;
+    struct http2_frame header;
 } http2_tls_state_t;
 
 #endif
