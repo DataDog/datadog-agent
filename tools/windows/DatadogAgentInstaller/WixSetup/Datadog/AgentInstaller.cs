@@ -374,7 +374,7 @@ namespace WixSetup.Datadog
         {
             return new PermissionEx
             {
-                User = "Everyone",
+                User = "[DDAGENTUSER_PROCESSED_FQ_NAME]",
                 ServicePauseContinue = true,
                 ServiceQueryStatus = true,
                 ServiceStart = true,
