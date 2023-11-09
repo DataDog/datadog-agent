@@ -617,7 +617,13 @@ func TestSubscribe(t *testing.T) {
 				},
 			},
 			filter: NewFilter(&FilterParams{
-				IncludePauseContainers: true,
+				IncludeFunc: func(entity Entity) bool {
+					container, ok := entity.(*Container)
+					if ok {
+						return container.IsPauseContainer
+					}
+					return false
+				},
 			}),
 			expected: []EventBundle{
 				{},

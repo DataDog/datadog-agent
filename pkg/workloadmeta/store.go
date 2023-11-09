@@ -183,7 +183,7 @@ func (s *store) Subscribe(name string, priority SubscriberPriority, filter *Filt
 				entity := cachedEntity.get(sub.filter.Source())
 				if entity != nil {
 					container, ok := entity.(*Container)
-					if ok && !sub.filter.MatchIncludePauseContainers() && container.IsPauseContainer {
+					if ok && container.IsPauseContainer && !sub.filter.MatchIncludeFunc(entity) {
 						continue
 					}
 
@@ -687,7 +687,7 @@ func (s *store) handleEvents(evs []CollectorEvent) {
 
 			// Pause containers are stored in the workloadmeta store but not sent to subscribers unless they have specified that they would like to include pause containers
 			container, ok := ev.Entity.(*Container)
-			if ok && !filter.MatchIncludePauseContainers() && container.IsPauseContainer {
+			if ok && container.IsPauseContainer && !filter.MatchIncludeFunc(ev.Entity) {
 				continue
 			}
 

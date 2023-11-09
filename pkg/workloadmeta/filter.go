@@ -5,25 +5,23 @@
 
 package workloadmeta
 
-import "github.com/DataDog/datadog-agent/pkg/config"
-
 // Filter allows a subscriber to filter events by entity kind, event source, and
 // event type.
 //
 // A nil filter matches all events.
 type Filter struct {
-	kinds                  map[Kind]struct{}
-	source                 Source
-	eventType              EventType
-	includePauseContainers bool
+	kinds       map[Kind]struct{}
+	source      Source
+	eventType   EventType
+	includeFunc func(entity Entity) bool
 }
 
 // FilterParams are the parameters used to create a Filter
 type FilterParams struct {
-	Kinds                  []Kind
-	Source                 Source
-	EventType              EventType
-	IncludePauseContainers bool
+	Kinds       []Kind
+	Source      Source
+	EventType   EventType
+	IncludeFunc func(entity Entity) bool
 }
 
 // NewFilter creates a new filter for subscribing to workloadmeta events.
@@ -56,10 +54,10 @@ func NewFilter(filterParams *FilterParams) *Filter {
 	}
 
 	return &Filter{
-		kinds:                  kindSet,
-		source:                 filterParams.Source,
-		eventType:              filterParams.EventType,
-		includePauseContainers: filterParams.IncludePauseContainers || !config.Datadog.GetBool("exclude_pause_container"),
+		kinds:       kindSet,
+		source:      filterParams.Source,
+		eventType:   filterParams.EventType,
+		includeFunc: filterParams.IncludeFunc,
 	}
 }
 
@@ -87,10 +85,14 @@ func (f *Filter) MatchEventType(eventType EventType) bool {
 	return f.EventType() == EventTypeAll || f.EventType() == eventType
 }
 
-// MatchIncludePauseContainers returns true if the filter has the includePauseContainers param set to true. If the filter
-// is nil, it does not match.
-func (f *Filter) MatchIncludePauseContainers() bool {
-	return f.IncludePauseContainer()
+// MatchIncludeFunc returns true if the filter has a function that matches the provided entity. This filter is for entities that are usually not included, like pause containers.
+// If the filter is nil, it does not match.
+func (f *Filter) MatchIncludeFunc(entity Entity) bool {
+	if f == nil || entity == nil || f.includeFunc == nil {
+		return false
+	}
+
+	return f.includeFunc(entity)
 }
 
 // Source returns the source this filter is filtering by. If the filter is nil,
@@ -111,14 +113,4 @@ func (f *Filter) EventType() EventType {
 	}
 
 	return f.eventType
-}
-
-// IncludePauseContainer returns whether the filter allows pause containers through. If the filter
-// is nil, it returns false.
-func (f *Filter) IncludePauseContainer() bool {
-	if f == nil {
-		return false
-	}
-
-	return f.includePauseContainers
 }
