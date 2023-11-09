@@ -65,9 +65,8 @@ JMXFetch
       instance_bean_count: {{ .instance_bean_count }}
       instance_attribute_count: {{ .instance_attribute_count }}
       instance_metric_count: {{ .instance_metric_count }}
-      instance_domains_queried: {{ .instance_domains_queried }}
-      instance_wildcard_query_count: {{ .instance_wildcard_query_count }}
-      instance_attribute_match_ratio: {{ .instance_attribute_match_ratio }}
+      instance_wildcard_domain_query_count: {{ .instance_wildcard_domain_query_count }}
+      instance_bean_match_ratio: {{ .instance_bean_match_ratio }}
           {{- end -}}
       {{- end }}
     {{- end }}
