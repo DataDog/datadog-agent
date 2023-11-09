@@ -258,7 +258,7 @@ func TestDropEmptyConnections(t *testing.T) {
 		state.storeClosedConnections([]ConnectionStats{conn2})
 
 		conns := state.clients[clientID].closedConnections
-		i, _ := state.clients[clientID].closedConnectionsKeys[0]
+		i := state.clients[clientID].closedConnectionsKeys[0]
 		assert.Equal(t, 3, len(conns))
 		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
 		assert.Equal(t, 2, i)
