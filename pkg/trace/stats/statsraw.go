@@ -74,7 +74,6 @@ func (s *groupedStats) export(a Aggregation) (*pb.ClientGroupedStats, error) {
 		OkSummary:      okSummary,
 		ErrorSummary:   errSummary,
 		Synthetics:     a.Synthetics,
-		PeerService:    a.PeerService,
 		SpanKind:       a.SpanKind,
 		PeerTags:       s.peerTags,
 	}, nil
@@ -149,11 +148,11 @@ func (sb *RawBucket) Export() map[PayloadAggregationKey]*pb.ClientStatsBucket {
 }
 
 // HandleSpan adds the span to this bucket stats, aggregated with the finest grain matching given aggregators
-func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, peerTagKeys []string) {
+func (sb *RawBucket) HandleSpan(s *pb.Span, weight float64, isTop bool, origin string, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) {
 	if aggKey.Env == "" {
 		panic("env should never be empty")
 	}
-	aggr, peerTags := NewAggregationFromSpan(s, origin, aggKey, enablePeerSvcAgg, peerTagKeys)
+	aggr, peerTags := NewAggregationFromSpan(s, origin, aggKey, enablePeerTagsAgg, peerTagKeys)
 	sb.add(s, weight, isTop, aggr, peerTags)
 }
 
