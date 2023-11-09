@@ -230,6 +230,10 @@ func (d *Destination) sendAndRetry(payload *message.Payload, output chan *messag
 			}
 		}
 
+		if err != nil {
+			log.Warnf("Could not send payload, fatal: %v", err)
+		}
+
 		metrics.LogsSent.Add(int64(len(payload.Messages)))
 		metrics.TlmLogsSent.Add(float64(len(payload.Messages)))
 		output <- payload
