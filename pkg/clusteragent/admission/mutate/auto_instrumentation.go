@@ -238,6 +238,9 @@ func extractLibrariesFromOwnerAnnotations(pod *corev1.Pod, registry string) []li
 
 	// TODO [Workloadmeta][Component Framework]: Use workloadmeta store as a component
 	store := workloadmeta.GetGlobalStore()
+	if store == nil {
+		return libList
+	}
 
 	// Currently we only support deployments
 	switch ownerKind {
