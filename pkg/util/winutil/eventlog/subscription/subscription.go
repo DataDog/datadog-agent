@@ -218,9 +218,6 @@ func (q *pullSubscription) Start() error {
 		return fmt.Errorf("Query subscription is already started")
 	}
 
-	// reset subscription error state
-	q.err = nil
-
 	var bookmarkHandle evtapi.EventBookmarkHandle
 	if q.bookmark != nil {
 		bookmarkHandle = q.bookmark.Handle()
@@ -266,6 +263,11 @@ func (q *pullSubscription) Start() error {
 	q.eventsChannel = make(chan []*evtapi.EventRecord)
 
 	q.notifyStop = make(chan struct{})
+
+	// after sub is ready, reset subscription error state
+	// doing this later lets callers reference the error
+	// until the sub actually starts again.
+	q.err = nil
 
 	// start goroutine to query events for channel
 	q.getEventsLoopWaiter.Add(1)

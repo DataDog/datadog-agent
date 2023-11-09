@@ -74,6 +74,10 @@ func (c *Check) Run() error {
 		// starts the event collection in the background.
 		err := c.startSubscription()
 		if err != nil {
+			err = fmt.Errorf("subscription is not running, failed to start: %w", err)
+			if c.sub.Error() != nil {
+				err = fmt.Errorf("%w, last stop reason: %w", err, c.sub.Error())
+			}
 			return err
 		}
 	}
@@ -85,7 +89,7 @@ func (c *Check) Run() error {
 	// save/persist in addition to the count periodic bookmark_frequency option.
 	err = c.bookmarkSaver.saveLastBookmark()
 	if err != nil {
-		c.Warnf(err.Error())
+		c.Warnf("error saving bookmark: %v", err)
 	}
 
 	return nil
@@ -102,7 +106,7 @@ func (c *Check) fetchEventsLoop(sender sender.Sender) {
 	defer func() {
 		err := c.bookmarkSaver.saveLastBookmark()
 		if err != nil {
-			c.Warnf(err.Error())
+			c.Warnf("error saving bookmark: %v", err)
 		}
 	}()
 
@@ -131,7 +135,7 @@ func (c *Check) fetchEventsLoop(sender sender.Sender) {
 				// bookmarkSaver manages whether or not to save/persist the bookmark
 				err := c.bookmarkSaver.updateBookmark(event)
 				if err != nil {
-					c.Warnf(err.Error())
+					c.Warnf("%v", err)
 				}
 
 				// Must close event handle when we are done with it
