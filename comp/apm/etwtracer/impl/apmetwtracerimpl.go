@@ -287,8 +287,11 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 			ev.header.Size = uint16(unsafe.Sizeof(ev)) + e.UserDataLength
 			_, writeErr := pidCtx.conn.Write(etwutil.GoBytes(unsafe.Pointer(&ev), int(ev.header.Size)))
 			if writeErr != nil {
-				a.log.Warnf("Could not write ETW event for PID %d, %v", pid, writeErr)
-				a.removePID(pid)
+				a.log.Errorf("Could not write ETW event for PID %d, %v", pid, writeErr)
+				err = a.removePID(pid)
+				if err != nil {
+					a.log.Errorf("Could not remove PID %d, %v", pid, writeErr)
+				}
 			}
 		})
 	}()
