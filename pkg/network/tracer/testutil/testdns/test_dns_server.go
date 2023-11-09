@@ -9,10 +9,10 @@
 package testdns
 
 import (
-	"fmt"
 	"net"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/miekg/dns"
 	"github.com/stretchr/testify/require"
@@ -130,48 +130,33 @@ func respond(req *dns.Msg, writer dns.ResponseWriter, record string) {
 
 func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port string, protocol string) (string, int, []*dns.Msg, error) {
 	t.Helper()
-	//clientIP := getOutboundIP(t, serverIP).String()
+	clientIP := getOutboundIP(t, serverIP).String()
 
-	//var dnsClientAddr net.Addr
-	//if protocol == "tcp" {
-	//	dnsClientAddr = &net.TCPAddr{IP: net.ParseIP(clientIP)}
-	//} else {
-	//	dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP)}
-	//}
+	var dnsClientAddr net.Addr
+	if protocol == "tcp" {
+		dnsClientAddr = &net.TCPAddr{IP: net.ParseIP(clientIP)}
+	} else {
+		dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP)}
+	}
 
-	//localAddrDialer := &net.Dialer{
-	//	LocalAddr: dnsClientAddr,
-	//	Timeout:   5 * time.Second,
-	//}
+	localAddrDialer := &net.Dialer{
+		LocalAddr: dnsClientAddr,
+		Timeout:   5 * time.Second,
+	}
 
-	//localAddrDialer := &net.Dialer{
-	//	Timeout: 5 * time.Second,
-	//}
-
-	dnsClient := new(dns.Client)
-	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP.String()), Port: 53}
-	//dnsClient := dns.Client{Net: protocol, Dialer: localAddrDialer}
-	//dnsHost := net.JoinHostPort(serverIP.String(), port)
-	conn, err := dnsClient.Dial(dnsServerAddr.String())
+	dnsClient := dns.Client{Net: protocol, Dialer: localAddrDialer}
+	dnsHost := net.JoinHostPort(serverIP.String(), port)
+	conn, err := dnsClient.Dial(dnsHost)
 	if err != nil {
 		return "", 0, nil, err
 	}
 
 	var clientPort int
-	var clientIP2 string
 	if protocol == "tcp" {
-		localConn := conn.Conn.(*net.TCPConn).LocalAddr().(*net.TCPAddr)
-		clientIP2 = localConn.IP.String()
-		clientPort = localConn.Port
+		clientPort = conn.Conn.(*net.TCPConn).LocalAddr().(*net.TCPAddr).Port
 	} else { // UDP
-		localAddr := conn.LocalAddr().(*net.UDPAddr)
-		fmt.Println("localAddr: ", localAddr)
-		localConn := conn.Conn.(*net.UDPConn).LocalAddr().(*net.UDPAddr)
-		clientIP2 = localConn.IP.String()
-		clientPort = localConn.Port
+		clientPort = conn.Conn.(*net.UDPConn).LocalAddr().(*net.UDPAddr).Port
 	}
-	fmt.Println("clientIP2: ", clientIP2)
-
 	var reps []*dns.Msg
 	msg := new(dns.Msg)
 	msg.RecursionDesired = true
@@ -183,7 +168,7 @@ func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port 
 
 	_ = conn.Close()
 
-	return clientIP2, clientPort, reps, nil
+	return clientIP, clientPort, reps, nil
 }
 
 func SendDNSQueries(

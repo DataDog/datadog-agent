@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
@@ -62,22 +61,6 @@ var kv = kernel.MustHostVersion()
 
 func platformInit() {
 	// linux-specific tasks here
-}
-
-func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
-	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
-	queryMsg := new(dns.Msg)
-	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
-	queryMsg.RecursionDesired = true
-	dnsClient := new(dns.Client)
-	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-	require.NoError(t, err)
-	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
-	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
-	_ = dnsConn.Close()
-	require.NoError(t, err)
-
-	return dnsClientAddr, dnsServerAddr
 }
 
 func (s *TracerSuite) TestTCPRemoveEntries() {
@@ -764,8 +747,6 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	m.EXPECT().IsAWS().Return(true)
 	cloud = m
 
-	dnsAddr := net.ParseIP("8.8.8.8")
-	destDomain := "google.com"
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	tr, err := newTracer(cfg)
@@ -887,24 +868,21 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		require.Nil(t, conn.Via)
 
 		// try connecting to something outside
+		dnsAddr := net.ParseIP("8.8.8.8")
+		destDomain := "google.com"
 		var dnsClientAddr, dnsServerAddr *net.UDPAddr
-		kernel.WithNS(test2Ns, func() error {
-			dnsClientAddr2, dnsServerAddr2 := doDNSQuery(t, destDomain, dnsAddr.String())
-			var clientIP string
-			var clientPort int
-			require.EventuallyWithT(t, func(c *assert.CollectT) {
+		var clientIP string
+		var clientPort int
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			kernel.WithNS(test2Ns, func() error {
 				clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{destDomain}, dnsAddr, "udp")
-				assert.NoError(c, err)
-			}, 5*time.Second, 100*time.Millisecond, "failed to find connection")
+				return nil
+			})
+			assert.NoError(c, err)
+		}, 5*time.Second, 100*time.Millisecond, "failed to find connection")
 
-			dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
-			dnsServerAddr = &net.UDPAddr{IP: dnsAddr, Port: 53}
-
-			fmt.Println("clientAddr1: ", dnsClientAddr)
-			fmt.Println("clientAddr2: ", dnsClientAddr2)
-			fmt.Println("serverAddr: ", dnsServerAddr2)
-			return nil
-		})
+		dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
+		dnsServerAddr = &net.UDPAddr{IP: dnsAddr, Port: 53}
 
 		iif := ipRouteGet(t, "", dnsClientAddr.IP.String(), nil)
 		ifi := ipRouteGet(t, dnsClientAddr.IP.String(), dnsAddr.String(), iif)
