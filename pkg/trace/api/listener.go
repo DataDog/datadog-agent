@@ -78,12 +78,16 @@ func (ln *measuredListener) flushMetrics() {
 
 type onCloseConn struct {
 	net.Conn
-	onClose func()
+	closeOnce sync.Once
+	onClose   func()
 }
 
 func (c *onCloseConn) Close() error {
-	err := c.Conn.Close()
-	c.onClose()
+	var err error
+	c.closeOnce.Do(func() {
+		err = c.Conn.Close()
+		c.onClose()
+	})
 	return err
 }
 
