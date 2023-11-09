@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 
@@ -53,14 +54,14 @@ type Mapping struct {
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
-func ReadConfig(conf config.Component) (*NetflowConfig, error) {
+func ReadConfig(conf config.Component, logger log.Component) (*NetflowConfig, error) {
 	var mainConfig NetflowConfig
 
 	err := conf.UnmarshalKey("network_devices.netflow", &mainConfig)
 	if err != nil {
 		return nil, err
 	}
-	if err = mainConfig.SetDefaults(conf.GetString("network_devices.namespace")); err != nil {
+	if err = mainConfig.SetDefaults(conf.GetString("network_devices.namespace"), logger); err != nil {
 		return nil, err
 	}
 	return &mainConfig, nil
@@ -68,7 +69,7 @@ func ReadConfig(conf config.Component) (*NetflowConfig, error) {
 
 // SetDefaults sets default values wherever possible, returning an error if
 // any values are malformed.
-func (mainConfig *NetflowConfig) SetDefaults(namespace string) error {
+func (mainConfig *NetflowConfig) SetDefaults(namespace string, logger log.Component) error {
 	for i := range mainConfig.Listeners {
 		listenerConfig := &mainConfig.Listeners[i]
 
@@ -97,6 +98,16 @@ func (mainConfig *NetflowConfig) SetDefaults(namespace string) error {
 			return fmt.Errorf("invalid namespace `%s` error: %s", listenerConfig.Namespace, err)
 		}
 		listenerConfig.Namespace = normalizedNamespace
+
+		for i := range listenerConfig.Mapping {
+			mapping := &listenerConfig.Mapping[i]
+			fieldType, ok := common.DefaultFieldTypes[mapping.Destination]
+
+			if ok && mapping.Type != fieldType {
+				logger.Warnf("invalid type %s for netflow mapping of field %s, will use %s", mapping.Type, mapping.Destination, fieldType)
+				mapping.Type = fieldType
+			}
+		}
 	}
 
 	if mainConfig.StopTimeout == 0 {

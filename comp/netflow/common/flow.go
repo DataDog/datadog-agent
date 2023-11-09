@@ -101,6 +101,30 @@ var (
 	Varint FieldType = "varint"
 	// Bytes type is used to configure a hex additional field
 	Bytes FieldType = "bytes"
+	// DefaultFieldTypes contains types for default payload fields
+	DefaultFieldTypes = map[string]FieldType{
+		"direction":         Varint,
+		"start":             Varint,
+		"end":               Varint,
+		"bytes":             Varint,
+		"packets":           Varint,
+		"ether_type":        Varint,
+		"ip_protocol":       Varint,
+		"exporter.ip":       Bytes,
+		"source.ip":         Bytes,
+		"source.port":       Varint,
+		"source.mac":        Varint,
+		"source.mask":       Varint,
+		"destination.ip":    Bytes,
+		"destination.port":  Varint,
+		"destination.mac":   Varint,
+		"destination.mask":  Varint,
+		"ingress.interface": Varint,
+		"egress.interface":  Varint,
+		"tcp_flags":         Varint,
+		"next_hop.ip":       Bytes,
+		"tos":               Varint,
+	}
 )
 
 // AggregationHash return a hash used as aggregation key

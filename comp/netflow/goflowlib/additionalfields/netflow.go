@@ -17,31 +17,6 @@ import (
 	"github.com/netsampler/goflow2/producer"
 )
 
-// defaultFieldsTypes contains types for default payload fields
-var defaultFieldTypes = map[string]common.FieldType{
-	"direction":         common.Varint,
-	"start":             common.Varint,
-	"end":               common.Varint,
-	"bytes":             common.Varint,
-	"packets":           common.Varint,
-	"ether_type":        common.Varint,
-	"ip_protocol":       common.Varint,
-	"exporter.ip":       common.Bytes,
-	"source.ip":         common.Bytes,
-	"source.port":       common.Varint,
-	"source.mac":        common.Varint,
-	"source.mask":       common.Varint,
-	"destination.ip":    common.Bytes,
-	"destination.port":  common.Varint,
-	"destination.mac":   common.Varint,
-	"destination.mask":  common.Varint,
-	"ingress.interface": common.Varint,
-	"egress.interface":  common.Varint,
-	"tcp_flags":         common.Varint,
-	"next_hop.ip":       common.Bytes,
-	"tos":               common.Varint,
-}
-
 func decodeUNumberWithEndianness(b []byte, out *uint64, endianness common.EndianType) error {
 	if endianness == common.LittleEndian {
 		return producer.DecodeUNumberLE(b, out)
@@ -50,13 +25,6 @@ func decodeUNumberWithEndianness(b []byte, out *uint64, endianness common.Endian
 }
 
 func mapAdditionalField(additionalFields common.AdditionalFields, v []byte, cfg config.Mapping) {
-	// Use correct type for default fields
-	fieldType, ok := defaultFieldTypes[cfg.Destination]
-
-	if ok {
-		cfg.Type = fieldType
-	}
-
 	// TODO : Add more types (IP address, timestamp, ...)
 	if cfg.Type == common.Varint {
 		var dstVar uint64

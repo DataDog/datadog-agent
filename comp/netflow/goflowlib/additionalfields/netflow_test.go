@@ -155,22 +155,6 @@ func Test_ProcessMessageNetFlowAdditionalFields(t *testing.T) {
 			config:                  map[uint16]config.Mapping{},
 			expectedCollectedFields: nil,
 		},
-		{
-			name: "Custom default field",
-			fields: []netflow.DataField{{
-				Type:  123,
-				Value: []byte{45},
-			}},
-			config: map[uint16]config.Mapping{
-				123: {
-					Field:       123,
-					Destination: "ip_protocol",
-				},
-			},
-			expectedCollectedFields: []common.AdditionalFields{{
-				"ip_protocol": uint64(45),
-			}},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
