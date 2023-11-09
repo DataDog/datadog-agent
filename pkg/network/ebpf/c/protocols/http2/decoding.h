@@ -124,10 +124,10 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 
 static __always_inline __u32 get_bucket_index(__u32 size) {
-    if (size < 120) {
+    if (size < HTTP2_MAX_PATH_LEN) {
         return 0;
     }
-    __s32 bucket_idx = (size - 120) / 10;
+    __s32 bucket_idx = (size - HTTP2_MAX_PATH_LEN) / 10;
     bucket_idx = bucket_idx > 6 ? 6 : bucket_idx;
     bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
     return bucket_idx;
