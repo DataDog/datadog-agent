@@ -8,7 +8,6 @@
 package mutate
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -145,9 +144,9 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			namespace:      "default",
 			registry:       "registry",
 			expectedLibList: []libInfo{
-				{ctrName: "container-1", lang: "java", image: fmt.Sprintf(imageFormat, "registry", "java", "latest")},
-				{ctrName: "container-1", lang: "js", image: fmt.Sprintf(imageFormat, "registry", "js", "latest")},
-				{ctrName: "container-2", lang: "python", image: fmt.Sprintf(imageFormat, "registry", "python", "latest")},
+				{ctrName: "container-1", lang: "java", image: libImageName("registry", "java", "latest")},
+				{ctrName: "container-1", lang: "js", image: libImageName("registry", "js", "latest")},
+				{ctrName: "container-2", lang: "python", image: libImageName("registry", "python", "latest")},
 			},
 		},
 		{
@@ -156,9 +155,9 @@ func TestGetLibListFromDeploymentAnnotations(t *testing.T) {
 			namespace:      "custom",
 			registry:       "registry",
 			expectedLibList: []libInfo{
-				{ctrName: "container-1", lang: "ruby", image: fmt.Sprintf(imageFormat, "registry", "ruby", "latest")},
-				{ctrName: "container-1", lang: "python", image: fmt.Sprintf(imageFormat, "registry", "python", "latest")},
-				{ctrName: "container-2", lang: "java", image: fmt.Sprintf(imageFormat, "registry", "java", "latest")},
+				{ctrName: "container-1", lang: "ruby", image: libImageName("registry", "ruby", "latest")},
+				{ctrName: "container-1", lang: "python", image: libImageName("registry", "python", "latest")},
+				{ctrName: "container-2", lang: "java", image: libImageName("registry", "java", "latest")},
 			},
 		},
 	}
