@@ -7,7 +7,7 @@ APP_MANIFEST RT_MANIFEST ddtray.exe.manifest
 
 #define MAIN_ICON 1
 
-MAIN_ICON ICON "..\\..\\omnibus\\resources\\agent\\msi\\assets\\project.ico"
+MAIN_ICON ICON "..\\..\\tools\\windows\\DatadogAgentInstaller\\WixSetup\\assets\\project.ico"
 
 #define VS_VERSION_INFO 1
 VS_VERSION_INFO VERSIONINFO
