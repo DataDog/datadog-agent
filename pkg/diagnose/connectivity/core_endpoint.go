@@ -60,13 +60,15 @@ func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagno
 	client := forwarder.NewHTTPClient(config.Datadog)
 
 	// Create diagnosis for logs
-	endpoints, err := getLogsHTTPEndpoints()
-	url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main)
+	if config.Datadog.GetBool("logs_enabled") {
+		endpoints, err := getLogsHTTPEndpoints()
+		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main)
 
-	name := fmt.Sprintf("Connectivity to %s", url)
-	diag := createDiagnosis(name, url, "", err)
+		name := fmt.Sprintf("Connectivity to %s", url)
+		diag := createDiagnosis(name, url, "", err)
 
-	diagnoses = append(diagnoses, diag)
+		diagnoses = append(diagnoses, diag)
+	}
 
 	// Send requests to all endpoints for all domains
 	for _, domainResolver := range domainResolvers {
