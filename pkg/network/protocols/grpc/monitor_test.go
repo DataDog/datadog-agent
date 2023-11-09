@@ -77,22 +77,6 @@ func getClientsArray(t *testing.T, size int) ([]*grpc.Client, func()) {
 	}
 }
 
-func getClientsArray2(t *testing.T, size int) ([]*grpc.Client, func()) {
-	res := make([]*grpc.Client, size)
-	for i := 0; i < size; i++ {
-		client, err := grpc.NewClient(srvAddr, grpc.Options{})
-		require.NoError(t, err)
-		//t.Cleanup(client.Close)
-		res[i] = &client
-	}
-
-	return res, func() {
-		for i := 0; i < size; i++ {
-			res[i].Close()
-		}
-	}
-}
-
 func getClientsIndex(index, totalCount int) int {
 	return index % totalCount
 }
@@ -571,7 +555,7 @@ func (s *USMgRPCSuite) TestParallelGRPCScenarios() {
 		{
 			name: "simple unary - multiple requests",
 			runClients: func(t *testing.T, clientsCount int) {
-				clients, cleanup := getClientsArray2(t, clientsCount)
+				clients, cleanup := getClientsArray(t, clientsCount)
 				defer cleanup()
 				wg := sync.WaitGroup{}
 				for i := 0; i < 100; i++ {
