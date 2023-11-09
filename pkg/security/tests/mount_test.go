@@ -44,7 +44,7 @@ func TestMount(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +160,7 @@ func TestMountPropagated(t *testing.T) {
 		Expression: fmt.Sprintf(`chmod.file.path == "{{.Root}}/dir1-bind-mounted/test-drive/test-file"`),
 	}}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +318,7 @@ func TestMountSnapshot(t *testing.T) {
 	defer tmpfsMountA.unmount(0)
 	defer bindMountA.unmount(0)
 
-	test, err := newTestModule(t, nil, nil, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -412,7 +412,7 @@ func TestMountEvent(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}

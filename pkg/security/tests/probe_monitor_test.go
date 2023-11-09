@@ -31,8 +31,7 @@ func TestRulesetLoaded(t *testing.T) {
 		Expression: `open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaa" && open.flags & O_CREAT != 0`,
 	}
 
-	probeMonitorOpts := testOpts{}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,8 +73,7 @@ func TestHeartbeatSent(t *testing.T) {
 		Expression: `open.file.path == "/aaaaaaaaaaaaaaaaaaaaaaaaa" && open.flags & O_CREAT != 0`,
 	}
 
-	probeMonitorOpts := testOpts{}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, probeMonitorOpts)
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,7 +110,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		Expression: `open.file.path =~ "*/a/**" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, opts)
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}

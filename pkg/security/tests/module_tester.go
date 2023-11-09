@@ -855,7 +855,24 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 	return emconfig, secconfig, nil
 }
 
-func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
+type tmOpts struct {
+	staticOpts testOpts
+}
+
+type optFunc = func(opts *tmOpts)
+
+func withStaticOpts(opts testOpts) optFunc {
+	return func(tmo *tmOpts) {
+		tmo.staticOpts = opts
+	}
+}
+
+func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
+	var opts tmOpts
+	for _, opt := range fopts {
+		opt(&opts)
+	}
+
 	var proFile *os.File
 	if withProfile {
 		var err error
@@ -879,7 +896,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.testDir)
+	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.staticOpts.testDir)
 	if err != nil {
 		return nil, err
 	}
@@ -901,7 +918,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 	}
 
-	if testMod != nil && opts.Equal(testMod.opts) {
+	if testMod != nil && opts.staticOpts.Equal(testMod.opts) {
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
@@ -909,11 +926,11 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			return testMod, err
 		}
 
-		if opts.preStartCallback != nil {
-			opts.preStartCallback(testMod)
+		if opts.staticOpts.preStartCallback != nil {
+			opts.staticOpts.preStartCallback(testMod)
 		}
 
-		if !opts.disableRuntimeSecurity {
+		if !opts.staticOpts.disableRuntimeSecurity {
 			if err = testMod.reloadPolicies(); err != nil {
 				return testMod, err
 			}
@@ -927,7 +944,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
-	emconfig, secconfig, err := genTestConfigs(st.root, opts, st.root)
+	emconfig, secconfig, err := genTestConfigs(st.root, opts.staticOpts, st.root)
 	if err != nil {
 		return nil, err
 	}
@@ -938,7 +955,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	testMod = &testModule{
 		secconfig:     secconfig,
-		opts:          opts,
+		opts:          opts.staticOpts,
 		st:            st,
 		t:             t,
 		cmdWrapper:    cmdWrapper,
@@ -957,8 +974,8 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			TTYFallbackEnabled:     true,
 		},
 	}
-	if opts.tagsResolver != nil {
-		emopts.ProbeOpts.TagsResolver = opts.tagsResolver
+	if opts.staticOpts.tagsResolver != nil {
+		emopts.ProbeOpts.TagsResolver = opts.staticOpts.tagsResolver
 	} else {
 		emopts.ProbeOpts.TagsResolver = NewFakeResolver()
 	}
@@ -969,7 +986,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	testMod.probe = testMod.eventMonitor.Probe
 
 	var ruleSetloadedErr *multierror.Error
-	if !opts.disableRuntimeSecurity {
+	if !opts.staticOpts.disableRuntimeSecurity {
 		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
@@ -1005,17 +1022,17 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, errors.New("failed to runtime compile module")
 	}
 
-	if opts.preStartCallback != nil {
-		opts.preStartCallback(testMod)
+	if opts.staticOpts.preStartCallback != nil {
+		opts.staticOpts.preStartCallback(testMod)
 	}
 
 	if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 		return nil, err
 	}
 
-	if opts.snapshotRuleMatchHandler != nil {
+	if opts.staticOpts.snapshotRuleMatchHandler != nil {
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
-			opts.snapshotRuleMatchHandler(testMod, e, r)
+			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
 		})
 		defer testMod.RegisterRuleEventHandler(nil)
 	}
