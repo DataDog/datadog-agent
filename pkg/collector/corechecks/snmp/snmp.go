@@ -63,13 +63,14 @@ func (c *Check) Run() error {
 
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
+			deviceID := deviceCk.GetDeviceID()
 			hostname, err := deviceCk.GetDeviceHostname()
 			if err != nil {
 				log.Warnf("error getting hostname for device %s: %s", deviceCk.GetIPAddress(), err)
 				continue
 			}
 			// `interface_configs` option not supported by SNMP corecheck autodiscovery
-			deviceCk.SetSender(report.NewMetricSender(sender, hostname, nil, c.interfaceRateMap))
+			deviceCk.SetSender(report.NewMetricSender(sender, hostname, deviceID, nil, c.interfaceRateMap))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -80,10 +81,11 @@ func (c *Check) Run() error {
 		sender.Gauge("snmp.discovered_devices_count", float64(len(discoveredDevices)), "", tags)
 	} else {
 		hostname, err := c.singleDeviceCk.GetDeviceHostname()
+		deviceID := c.singleDeviceCk.GetDeviceID()
 		if err != nil {
 			return err
 		}
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, c.config.InterfaceConfigs, c.interfaceRateMap))
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, deviceID, c.config.InterfaceConfigs, c.interfaceRateMap))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 

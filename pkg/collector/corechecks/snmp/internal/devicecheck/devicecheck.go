@@ -89,6 +89,11 @@ func (d *DeviceCheck) GetIPAddress() string {
 	return d.config.IPAddress
 }
 
+// GetDeviceID returns device ID
+func (d *DeviceCheck) GetDeviceID() string {
+	return d.config.DeviceID
+}
+
 // GetIDTags returns device IDTags
 func (d *DeviceCheck) GetIDTags() []string {
 	return d.config.DeviceIDTags

@@ -6,7 +6,11 @@
 package report
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,21 +25,20 @@ import (
 )
 
 const (
-	hostname  string = "mockhost"
-	fullIndex string = "9"
-	ifSpeed   uint64 = 80 * (1e6)
+	mockDeviceID          string = "namespace:deviceIP"
+	fullIndex             string = "9"
+	mockInterfaceIDPrefix string = mockDeviceID + ":" + fullIndex
+	ifSpeed               uint64 = 80 * (1e6)
 )
 
 // Mock interface rate map with previous metric samples for the interface with ifSpeed of 30
 func interfaceRateMapWithPrevious() *InterfaceRateMap {
-	interfaceID := hostname + fullIndex
-	return MockInterfaceRateMap(interfaceID, ifSpeed, ifSpeed, 30, 5, 15)
+	return MockInterfaceRateMap(mockInterfaceIDPrefix, ifSpeed, ifSpeed, 30, 5, 15)
 }
 
 // Mock interface rate map with previous metric samples where the ifSpeed is taken from configuration files
 func interfaceRateMapWithConfig() *InterfaceRateMap {
-	interfaceID := hostname + fullIndex
-	return MockInterfaceRateMap(interfaceID, 160_000_000, 40_000_000, 20, 10, 15)
+	return MockInterfaceRateMap(mockInterfaceIDPrefix, 160_000_000, 40_000_000, 20, 10, 15)
 }
 
 func Test_metricSender_calculateRate(t *testing.T) {
@@ -139,13 +142,13 @@ func Test_metricSender_calculateRate(t *testing.T) {
 			}
 			ms := &MetricSender{
 				sender:           sender,
-				hostname:         hostname,
+				deviceID:         mockDeviceID,
 				interfaceConfigs: tt.interfaceConfigs,
 				interfaceRateMap: interfaceRateMapWithPrevious(),
 			}
 
 			usageName := bandwidthMetricNameToUsage[tt.symbols[0].Name]
-			interfaceID := hostname + fullIndex + usageName
+			interfaceID := mockInterfaceIDPrefix + "." + usageName
 			err := ms.calculateRate(interfaceID, ifSpeed, tt.usageValue, usageName, tt.tags)
 
 			// Expect no errors
@@ -153,7 +156,7 @@ func Test_metricSender_calculateRate(t *testing.T) {
 
 			// Expect rate to be submitted as Gauge with expected value
 			for _, metric := range tt.expectedMetric {
-				sender.AssertMetric(t, "Gauge", metric.name, metric.value, hostname, tt.tags)
+				sender.AssertMetric(t, "Gauge", metric.name, metric.value, "", tt.tags)
 			}
 
 			// Check that the map was updated with current values for next check run
@@ -164,16 +167,16 @@ func Test_metricSender_calculateRate(t *testing.T) {
 	}
 }
 
-func Test_metricSender_calculateRate_errors(t *testing.T) {
+func Test_metricSender_calculateRate_logs(t *testing.T) {
 	tests := []struct {
-		name             string
-		symbols          []profiledefinition.SymbolConfig
-		fullIndex        string
-		values           *valuestore.ResultValueStore
-		tags             []string
-		interfaceConfigs []snmpintegration.InterfaceConfig
-		expectedError    error
-		usageValue       float64
+		name               string
+		symbols            []profiledefinition.SymbolConfig
+		fullIndex          string
+		values             *valuestore.ResultValueStore
+		tags               []string
+		interfaceConfigs   []snmpintegration.InterfaceConfig
+		expectedLogMessage string
+		usageValue         float64
 	}{
 		{
 			name:      "snmp.ifBandwidthOutUsage.Rate ifHCInOctets erred",
@@ -202,7 +205,7 @@ func Test_metricSender_calculateRate_errors(t *testing.T) {
 					},
 				},
 			},
-			expectedError: fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "mockhost9ifBandwidthInUsage"),
+			expectedLogMessage: fmt.Sprintf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "namespace:deviceIP:9.ifBandwidthInUsage"),
 			// ((5000000 * 8) / (100 * 1000000)) * 100 = 40.0
 			usageValue: 40,
 		},
@@ -232,13 +235,20 @@ func Test_metricSender_calculateRate_errors(t *testing.T) {
 					},
 				},
 			},
-			expectedError: fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "mockhost9ifBandwidthOutUsage"),
+			expectedLogMessage: fmt.Sprintf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "namespace:deviceIP:9.ifBandwidthOutUsage"),
 			// ((1000000 * 8) / (100 * 1000000)) * 100 = 8.0
 			usageValue: 8,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var b bytes.Buffer
+			w := bufio.NewWriter(&b)
+
+			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
+			assert.Nil(t, err)
+			log.SetupLogger(l, "InfoLvl")
+
 			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
@@ -247,7 +257,7 @@ func Test_metricSender_calculateRate_errors(t *testing.T) {
 			}
 			ms := &MetricSender{
 				sender:           sender,
-				hostname:         hostname,
+				deviceID:         mockDeviceID,
 				interfaceConfigs: tt.interfaceConfigs,
 				interfaceRateMap: interfaceRateMapWithPrevious(),
 			}
@@ -256,9 +266,14 @@ func Test_metricSender_calculateRate_errors(t *testing.T) {
 
 			for _, symbol := range tt.symbols {
 				usageName := bandwidthMetricNameToUsage[symbol.Name]
-				interfaceID := hostname + fullIndex + usageName
+				interfaceID := mockDeviceID + ":" + fullIndex + "." + usageName
 				err := ms.calculateRate(interfaceID, newIfSpeed, tt.usageValue, usageName, tt.tags)
-				assert.Equal(t, tt.expectedError, err)
+				assert.Nil(t, err)
+
+				w.Flush()
+				logs := b.String()
+
+				assert.Contains(t, logs, tt.expectedLogMessage)
 
 				// Check that the map was updated with current values for next check run
 				assert.Equal(t, newIfSpeed, ms.interfaceRateMap.rates[interfaceID].ifSpeed)
@@ -678,7 +693,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				sender:           sender,
 				interfaceConfigs: tt.interfaceConfigs,
 				interfaceRateMap: tt.rateMap,
-				hostname:         hostname,
+				deviceID:         mockDeviceID,
 			}
 			for _, symbol := range tt.symbols {
 				err := ms.sendBandwidthUsageMetric(symbol, tt.fullIndex, tt.values, tt.tags)
@@ -686,7 +701,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			}
 
 			for _, metric := range tt.expectedMetric {
-				sender.AssertMetric(t, "Gauge", metric.name, metric.value, hostname, tt.tags)
+				sender.AssertMetric(t, "Gauge", metric.name, metric.value, "", tt.tags)
 			}
 		})
 	}
@@ -945,13 +960,13 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 			ms := &MetricSender{
 				sender:           sender,
 				interfaceRateMap: interfaceRateMapWithPrevious(),
-				hostname:         hostname,
+				deviceID:         mockDeviceID,
 			}
 			tags := []string{"foo:bar"}
 			ms.sendInterfaceVolumeMetrics(tt.symbol, tt.fullIndex, tt.values, tags)
 
 			for _, metric := range tt.expectedMetric {
-				sender.AssertMetric(t, metric.metricMethod, metric.name, metric.value, hostname, tags)
+				sender.AssertMetric(t, metric.metricMethod, metric.name, metric.value, "", tags)
 			}
 		})
 	}

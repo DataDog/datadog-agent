@@ -350,7 +350,7 @@ func Test_Run_customIfSpeed(t *testing.T) {
 
 	chk := Check{
 		sessionFactory:   sessionFactory,
-		interfaceRateMap: report.MockInterfaceRateMap("1", 50_000_000, 40_000_000, 20, 10, 15),
+		interfaceRateMap: report.MockInterfaceRateMap("default:1.2.3.4:1", 50_000_000, 40_000_000, 20, 10, 15),
 	}
 
 	senderManager := deps.Demultiplexer
