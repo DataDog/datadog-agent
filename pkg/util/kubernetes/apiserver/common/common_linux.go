@@ -5,7 +5,7 @@
 
 //go:build kubeapiserver && linux
 
-package leaderelection
+package common
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
-func getSelfPodName() (string, error) {
+func GetSelfPodName() (string, error) {
 	if podName, ok := os.LookupEnv("DD_POD_NAME"); ok {
 		return podName, nil
 	}

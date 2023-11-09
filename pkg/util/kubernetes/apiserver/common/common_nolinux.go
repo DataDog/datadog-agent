@@ -5,13 +5,13 @@
 
 //go:build kubeapiserver && !linux
 
-package leaderelection
+package common
 
 import (
 	"os"
 )
 
-func getSelfPodName() (string, error) {
+func GetSelfPodName() (string, error) {
 	if podName, ok := os.LookupEnv("DD_POD_NAME"); ok {
 		return podName, nil
 	}

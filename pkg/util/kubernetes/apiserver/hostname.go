@@ -10,7 +10,6 @@ package apiserver
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
@@ -24,7 +23,7 @@ func HostNodeName(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("could not connect to the apiserver: %s", err)
 	}
-	podName, err := os.Hostname()
+	podName, err := common.GetSelfPodName()
 	if err != nil {
 		return "", fmt.Errorf("could not fetch our hostname: %s", err)
 	}
