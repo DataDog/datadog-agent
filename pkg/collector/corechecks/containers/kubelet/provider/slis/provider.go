@@ -65,7 +65,7 @@ func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Se
 			}
 		}
 		
-		if typePresent == true {
+		if typePresent {
 			tags = lo.Filter(tags, func(x string, index int) bool {
 				return x != "type:"
 			})
