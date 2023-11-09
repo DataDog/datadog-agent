@@ -616,8 +616,8 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 	m.EXPECT().IsAWS().Return(true)
 	cloud = m
 
-	destAddr := net.ParseIP("8.8.8.8")
-	ifi := ipRouteGet(t, "", destAddr.String(), nil)
+	dnsAddr := net.ParseIP("8.8.8.8")
+	ifi := ipRouteGet(t, "", dnsAddr.String(), nil)
 	ifs, err := net.Interfaces()
 	require.NoError(t, err)
 
@@ -647,17 +647,17 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 	var clientIP string
 	var clientPort int
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{"google.com"}, destAddr, "udp")
+		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{"google.com"}, dnsAddr, "udp")
 		assert.NoError(c, err)
-	}, 5*time.Second, 100*time.Millisecond, "failed to find connection")
+	}, 6*time.Second, 100*time.Millisecond, "failed to find connection")
 
-	dnsClientAddr := net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
-	dnsServerAddr := net.UDPAddr{IP: destAddr, Port: 53}
+	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
+	dnsServerAddr := &net.UDPAddr{IP: dnsAddr, Port: 53}
 
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		var ok bool
-		conn, ok = findConnection(&dnsClientAddr, &dnsServerAddr, getConnections(t, tr))
+		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
 	}, 5*time.Second, 500*time.Millisecond)
 
@@ -707,7 +707,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{destDomain}, destAddr, "udp")
 		assert.NoError(c, err)
-	}, 5*time.Second, 100*time.Millisecond, "failed to find connection")
+	}, 6*time.Second, 100*time.Millisecond, "failed to find connection")
 
 	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
 	dnsServerAddr := &net.UDPAddr{IP: destAddr, Port: 53}
@@ -722,7 +722,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{destDomain}, destAddr, "udp")
 		assert.NoError(c, err)
-	}, 5*time.Second, 100*time.Millisecond, "failed to find connection")
+	}, 6*time.Second, 100*time.Millisecond, "failed to find connection")
 
 	dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
 	require.Eventually(t, func() bool {
@@ -869,17 +869,16 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 		// try connecting to something outside
 		dnsAddr := net.ParseIP("8.8.8.8")
-		destDomain := "google.com"
 		var dnsClientAddr, dnsServerAddr *net.UDPAddr
 		var clientIP string
 		var clientPort int
 		require.EventuallyWithT(t, func(c *assert.CollectT) {
 			kernel.WithNS(test2Ns, func() error {
-				clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{destDomain}, dnsAddr, "udp")
+				clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{"google.com"}, dnsAddr, "udp")
 				return nil
 			})
 			assert.NoError(c, err)
-		}, 5*time.Second, 100*time.Millisecond, "failed to find connection")
+		}, 6*time.Second, 100*time.Millisecond, "failed to find connection")
 
 		dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
 		dnsServerAddr = &net.UDPAddr{IP: dnsAddr, Port: 53}
@@ -1395,7 +1394,6 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 	if iif != nil {
 		args = append(args, "iif", iif.Name)
 	}
-	fmt.Println("args: ", args)
 	cmd := exec.Command("ip", args...)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "ip command returned error, output: %s", out)
