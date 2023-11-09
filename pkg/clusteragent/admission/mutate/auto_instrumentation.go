@@ -199,7 +199,7 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) ([]libInfo, bool)
 	if shouldInject(pod) {
 		libInfoList = extractLibrariesFromAnnotations(pod, containerRegistry, libInfoMap)
 
-		// Try getting the languages from the owner of the pod from workloadmeta
+		// If user doesn't provide langages information, try getting the languages from process languages auto-detection. The langages information are available in workloadmeta-store and attached on the pod's owner.
 		if len(libInfoList) == 0 {
 			libInfoList = extractLibrariesFromOwnerAnnotations(pod, containerRegistry)
 			if len(libInfoList) > 0 {
