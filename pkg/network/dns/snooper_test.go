@@ -58,8 +58,7 @@ func TestDNSOverUDPSnooping(t *testing.T) {
 	defer reverseDNS.Close()
 
 	// Connect to golang.org. This will result in a DNS lookup which will be captured by socketFilterSnooper
-	_, _, reps, err := testdns.SendDNSQueries(t, []string{"golang.org"}, testdns.GetServerIP(t), "udp")
-	require.NoError(t, err)
+	_, _, reps := testdns.SendDNSQueriesAndCheckError(t, []string{"golang.org"}, testdns.GetServerIP(t), "udp")
 	rep := reps[0]
 	require.NotNil(t, rep)
 	require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
@@ -80,8 +79,7 @@ func TestDNSOverTCPSnooping(t *testing.T) {
 	reverseDNS := initDNSTestsWithDomainCollection(t, false)
 	defer reverseDNS.Close()
 
-	_, _, reps, err := testdns.SendDNSQueries(t, []string{"golang.org"}, testdns.GetServerIP(t), "tcp")
-	require.NoError(t, err)
+	_, _, reps := testdns.SendDNSQueriesAndCheckError(t, []string{"golang.org"}, testdns.GetServerIP(t), "tcp")
 	rep := reps[0]
 	require.NotNil(t, rep)
 	require.Equal(t, rep.Rcode, mdns.RcodeSuccess)
@@ -162,8 +160,7 @@ func TestDNSOverTCPSuccessfulResponseCountWithoutDomain(t *testing.T) {
 		"google.com",
 		"acm.org",
 	}
-	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, domains, testdns.GetServerIP(t), "tcp")
-	require.NoError(t, err)
+	queryIP, queryPort, reps := testdns.SendDNSQueriesAndCheckError(t, domains, testdns.GetServerIP(t), "tcp")
 
 	// Check that all the queries succeeded
 	for _, rep := range reps {
@@ -197,8 +194,7 @@ func TestDNSOverTCPSuccessfulResponseCount(t *testing.T) {
 		"acm.org",
 	}
 	serverIP := testdns.GetServerIP(t)
-	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, domains, serverIP, "tcp")
-	require.NoError(t, err)
+	queryIP, queryPort, reps := testdns.SendDNSQueriesAndCheckError(t, domains, serverIP, "tcp")
 
 	// Check that all the queries succeeded
 	for _, rep := range reps {
@@ -233,7 +229,7 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		"nonexistenent.net.com",
 		"missingdomain.com",
 	}
-	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, domains, testdns.GetServerIP(t), "tcp")
+	queryIP, queryPort, reps, _ := testdns.SendDNSQueries(t, domains, testdns.GetServerIP(t), "tcp")
 	for _, rep := range reps {
 		require.NotNil(t, rep)
 		require.Equal(t, rep.Rcode, mdns.RcodeNameError) // All the queries should have failed
@@ -255,8 +251,7 @@ func TestDNSFailedResponseCount(t *testing.T) {
 		"failedserver.com",
 		"failedservertoo.com",
 	}
-	queryIP, queryPort, reps, err = testdns.SendDNSQueries(t, domains, net.ParseIP(localhost), "udp")
-	require.NoError(t, err)
+	queryIP, queryPort, reps = testdns.SendDNSQueriesAndCheckError(t, domains, net.ParseIP(localhost), "udp")
 	for _, rep := range reps {
 		require.NotNil(t, rep)
 		require.Equal(t, rep.Rcode, mdns.RcodeServerFailure) // All the queries should have failed
@@ -338,8 +333,7 @@ func TestDNSOverUDPTimeoutCount(t *testing.T) {
 
 	invalidServerIP := "8.8.8.90"
 	domainQueried := "agafsdfsdasdfsd"
-	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
-	require.NoError(t, err)
+	queryIP, queryPort, reps := testdns.SendDNSQueriesAndCheckError(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
 	require.Nil(t, reps[0])
 
 	var allStats StatsByKeyByNameByType
@@ -361,8 +355,7 @@ func TestDNSOverUDPTimeoutCountWithoutDomain(t *testing.T) {
 
 	invalidServerIP := "8.8.8.90"
 	domainQueried := "agafsdfsdasdfsd"
-	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
-	require.NoError(t, err)
+	queryIP, queryPort, reps := testdns.SendDNSQueriesAndCheckError(t, []string{domainQueried}, net.ParseIP(invalidServerIP), "udp")
 	require.Nil(t, reps[0])
 
 	key := getKey(queryIP, queryPort, invalidServerIP, syscall.IPPROTO_UDP)
@@ -405,8 +398,7 @@ func TestDNSOverIPv6(t *testing.T) {
 	domain := "missingdomain.com"
 	serverIP := testdns.GetServerIP(t)
 
-	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, []string{domain}, serverIP, "udp")
-	require.NoError(t, err)
+	queryIP, queryPort, reps := testdns.SendDNSQueriesAndCheckError(t, []string{domain}, serverIP, "udp")
 	require.NotNil(t, reps[0])
 
 	key := getKey(queryIP, queryPort, serverIP.String(), syscall.IPPROTO_UDP)
@@ -433,8 +425,7 @@ func TestDNSNestedCNAME(t *testing.T) {
 
 	serverIP := testdns.GetServerIP(t)
 
-	queryIP, queryPort, reps, err := testdns.SendDNSQueries(t, []string{domain}, serverIP, "udp")
-	require.NoError(t, err)
+	queryIP, queryPort, reps := testdns.SendDNSQueriesAndCheckError(t, []string{domain}, serverIP, "udp")
 	require.NotNil(t, reps[0])
 
 	key := getKey(queryIP, queryPort, serverIP.String(), syscall.IPPROTO_UDP)

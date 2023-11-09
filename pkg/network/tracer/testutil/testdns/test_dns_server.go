@@ -160,6 +160,18 @@ func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port 
 	return clientIP, clientPort, reps, nil
 }
 
+func SendDNSQueriesAndCheckError(
+	t *testing.T,
+	domains []string,
+	serverIP net.IP,
+	protocol string,
+) (string, int, []*dns.Msg) {
+	t.Helper()
+	ip, port, resp, err := SendDNSQueriesOnPort(t, domains, serverIP, "53", protocol)
+	require.NoError(t, err)
+	return ip, port, resp
+}
+
 func SendDNSQueries(
 	t *testing.T,
 	domains []string,
