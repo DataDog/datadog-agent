@@ -1675,7 +1675,6 @@ func setupFipsEndpoints(config Config) error {
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"
 	if config.GetBool("fips.https") {
-		log.Warnf("JMW FIPS using https???????????")
 		protocol = "https://"
 		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), model.SourceAgentRuntime)
 	}
@@ -1706,22 +1705,20 @@ func setupFipsEndpoints(config Config) error {
 	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
 	// Network devices
-	// JMW
-	//setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
-	//setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
-	//setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
-	// JMW should we set/overwrite dd_url too?
-	setupFipsLogsConfig(config, "network_devices.metadata.logs_dd_url", urlFor(networkDevicesMetadata))
-	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.logs_dd_url", urlFor(networkDevicesSnmpTraps))
-	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.logs_dd_url", urlFor(networkDevicesNetflow))
+	setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
+	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
+	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
-	log.Warnf("JMW network_devices.metadata.dd_url = %s", config.GetString("network_devices.metadata.dd_url"))
-	log.Warnf("JMW network_devices.snmp_traps.forwarder.dd_url = %s", config.GetString("network_devices.snmp_traps.forwarder.dd_url"))
-	log.Warnf("JMW network_devices.netflow.forwarder.dd_url = %s", config.GetString("network_devices.netflow.forwarder.dd_url"))
+	//fmt.Printf("JMWJMW network_devices.metadata.dd_url = %s\n", config.GetString("network_devices.metadata.dd_url"))
+	//fmt.Printf("JMWJMW network_devices.snmp_traps.forwarder.dd_url = %s\n", config.GetString("network_devices.snmp_traps.forwarder.dd_url"))
+	//fmt.Printf("JMWJMW network_devices.netflow.forwarder.dd_url = %s\n", config.GetString("network_devices.netflow.forwarder.dd_url"))
 
-	log.Warnf("JMW network_devices.metadata.logs_dd_url = %s", config.GetString("network_devices.metadata.logs_dd_url"))
-	log.Warnf("JMW network_devices.snmp_traps.forwarder.logs_dd_url = %s", config.GetString("network_devices.snmp_traps.forwarder.logs_dd_url"))
-	log.Warnf("JMW network_devices.netflow.forwarder.logs_dd_url = %s", config.GetString("network_devices.netflow.forwarder.logs_dd_url"))
+	//fmt.Printf("JMWJMW network_devices.metadata.logs_dd_url = %s\n", config.GetString("network_devices.metadata.logs_dd_url"))
+	//fmt.Printf("JMWJMW network_devices.snmp_traps.forwarder.logs_dd_url = %s\n", config.GetString("network_devices.snmp_traps.forwarder.logs_dd_url"))
+	//fmt.Printf("JMWJMW network_devices.netflow.forwarder.logs_dd_url = %s\n", config.GetString("network_devices.netflow.forwarder.logs_dd_url"))
+	log.Warnf("JMW network_devices.metadata.logs_dd_url = %s\n", config.GetString("network_devices.metadata.logs_dd_url"))
+	log.Warnf("JMW network_devices.snmp_traps.forwarder.logs_dd_url = %s\n", config.GetString("network_devices.snmp_traps.forwarder.logs_dd_url"))
+	log.Warnf("JMW network_devices.netflow.forwarder.logs_dd_url = %s\n", config.GetString("network_devices.netflow.forwarder.logs_dd_url"))
 
 	// Orchestrator Explorer
 	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), model.SourceAgentRuntime)
@@ -1733,13 +1730,23 @@ func setupFipsEndpoints(config Config) error {
 }
 
 func setupFipsLogsConfig(config Config, configPrefix string, url string) {
+
+	//if strings.HasPrefix(configPrefix, "network_devices") {
+	//fmt.Printf("JMW configPrefix = %s url = %s\n", configPrefix, url)
+	//fmt.Printf("JMW before %s = %v\n", configPrefix+"use_http", config.GetBool(configPrefix+"use_http"))
+	//fmt.Printf("JMW before %s = %v\n", configPrefix+"logs_no_ssl", config.GetBool(configPrefix+"logs_no_ssl"))
+	//fmt.Printf("JMW before %s = %v\n", configPrefix+"logs_dd_url", config.GetString(configPrefix+"logs_dd_url"))
+	//}
+
 	config.Set(configPrefix+"use_http", true, model.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), model.SourceAgentRuntime)
 	config.Set(configPrefix+"logs_dd_url", url, model.SourceAgentRuntime)
 
-	log.Warnf("JMW network_devices.metadata.logs_dd_url.use_http = %s", config.GetString("network_devices.metadata.logs_dd_url.use_http"))
-	log.Warnf("JMW network_devices.snmp_traps.forwarder.logs_dd_url.use_http = %s", config.GetString("network_devices.snmp_traps.forwarder.logs_dd_url.use_http"))
-	log.Warnf("JMW network_devices.netflow.forwarder.logs_dd_url.use_http = %s", config.GetString("network_devices.netflow.forwarder.logs_dd_url.use_http"))
+	//if strings.HasPrefix(configPrefix, "network_devices") {
+	//fmt.Printf("JMW after %s = %v\n", configPrefix+"use_http", config.GetBool(configPrefix+"use_http"))
+	//fmt.Printf("JMW after %s = %v\n", configPrefix+"logs_no_ssl", config.GetBool(configPrefix+"logs_no_ssl"))
+	//fmt.Printf("JMW after %s = %v\n", configPrefix+"logs_dd_url", config.GetString(configPrefix+"logs_dd_url"))
+	//}
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
