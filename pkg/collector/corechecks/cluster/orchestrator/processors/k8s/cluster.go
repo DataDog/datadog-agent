@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
+
 	jsoniter "github.com/json-iterator/go"
 	"github.com/twmb/murmur3"
 	corev1 "k8s.io/api/core/v1"
