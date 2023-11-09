@@ -14,6 +14,7 @@ import re
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Dict, List
 
 from invoke import task
@@ -27,6 +28,7 @@ from .flavor import AgentFlavor
 from .go import run_golangci_lint
 from .libs.common.color import color_message
 from .libs.copyright import CopyrightLinter
+from .libs.datadog_api import create_count, send_metrics
 from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar, repack_macos_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
@@ -1171,5 +1173,97 @@ def get_modified_files(ctx):
 
 
 @task
-def send_unit_tests_stats(_):
-    pass
+def send_unit_tests_stats(_, job_name):
+    fast_success = True
+    classic_success = True
+
+    n_test_classic = 0
+    n_test_fast = 0
+    series = []
+
+    with open("test_output.json", "r") as f:
+        for line in f:
+            json_line = json.loads(line)
+            if json_line["Action"] == "fail":
+                classic_success = False
+                n_test_classic += 1
+            if json_line["Action"] == "pass":
+                n_test_classic += 1
+
+    with open("test_output_fast.json", "r") as f:
+        for line in f:
+            json_line = json.loads(line)
+            if json_line["Action"] == "fail":
+                fast_success = False
+                n_test_fast += 1
+            if json_line["Action"] == "pass":
+                n_test_fast += 1
+
+    timestamp = int(datetime.now().timestamp())
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.executed",
+            timestamp,
+            n_test_classic,
+            tags=[
+                "experimentation:fast-tests",
+                "test_type:classic",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}",
+            ],
+        )
+    )
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.executed",
+            timestamp,
+            n_test_fast,
+            tags=[
+                "experimentation:fast-tests",
+                "test_type:fast",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}-fast",
+            ],
+        )
+    )
+
+    if fast_success == classic_success:
+        false_positive = 0
+        false_negative = 0
+    elif fast_success:
+        false_positive = 1
+        false_negative = 0
+    else:
+        false_positive = 0
+        false_negative = 1
+
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.false_positive",
+            timestamp,
+            false_positive,
+            tags=[
+                "experimentation:fast-tests",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}",
+            ],
+        )
+    )
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.false_negative",
+            timestamp,
+            false_negative,
+            tags=[
+                "experimentation:fast-tests",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}",
+            ],
+        )
+    )
+
+    send_metrics(series)
