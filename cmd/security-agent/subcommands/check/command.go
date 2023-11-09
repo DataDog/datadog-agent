@@ -116,7 +116,7 @@ func RunCheck(log log.Component, config config.Component, statsd statsd.Componen
 	var statsdClient ddgostatsd.ClientInterface
 	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
 	if metricsEnabled {
-		cl, err := statsd.GetForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
+		cl, err := statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
 		if err != nil {
 			log.Warnf("Error creating statsd Client: %s", err)
 		} else {

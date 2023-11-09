@@ -229,7 +229,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 
 	stopper = startstop.NewSerialStopper()
 
-	statsdClient, err := statsd.GetForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
+	statsdClient, err := statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
 	if err != nil {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
