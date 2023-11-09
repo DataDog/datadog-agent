@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
+	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
@@ -84,6 +85,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			hostMetadata host.Component,
 			invAgent inventoryagent.Component,
 			_ netflowServer.Component,
+			_ trapserver.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server, demultiplexer)
