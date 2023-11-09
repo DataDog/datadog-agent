@@ -148,9 +148,13 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	if err != nil {
 		log.Warnf("error collecting processes for filter and extraction: %s", err)
 	} else {
+		// TODO: Batching?
+		// Seems to be ok to run batch by batch
 		c.dockerFilter.Filter(conns)
 	}
+	// TODO: Batching?
 	// Resolve the Raddr side of connections for local containers
+	// If process-event-stream is enabled - we can skip this function
 	LocalResolver.Resolve(conns)
 
 	c.notifyProcessConnRates(c.config, conns)
@@ -158,6 +162,7 @@ func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResu
 	log.Debugf("collected connections in %s", time.Since(start))
 
 	groupID := nextGroupID()
+	// TODO: Batching?
 	messages := batchConnections(c.hostInfo, c.maxConnsPerMessage, groupID, conns.Conns, conns.Dns, c.networkID, conns.ConnTelemetryMap, conns.CompilationTelemetryByAsset, conns.KernelHeaderFetchResult, conns.CORETelemetryByAsset, conns.PrebuiltEBPFAssets, conns.Domains, conns.Routes, conns.Tags, conns.AgentConfiguration, c.serviceExtractor)
 	return StandardRunResult(messages), nil
 }

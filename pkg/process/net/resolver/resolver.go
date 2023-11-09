@@ -92,6 +92,7 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 		// first
 		cid := conn.Laddr.ContainerId
 		if cid == "" {
+			// Guy: Seems to be fine with batching
 			cid = l.ctrForPid[int(conn.Pid)]
 		}
 
@@ -168,6 +169,8 @@ func (l *LocalResolver) Resolve(c *model.Connections) {
 			}
 		}
 
+		// Guy: This is the issue
+		// If we have process-event-stream by default, we can move it to system-probe.
 		if conn.Raddr.ContainerId = l.addrToCtrID[model.ContainerAddr{
 			Ip:       raddr.Addr().String(),
 			Port:     int32(raddr.Port()),
