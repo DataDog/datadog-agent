@@ -22,7 +22,7 @@ func applyOrCreateInstallSignature(c *config.AgentConfig) {
 	}
 
 	// Try to read it from disk
-	signaturePath := filepath.Join(c.ConfigPath, "install.json")
+	signaturePath := filepath.Join(filepath.Dir(c.ConfigPath), "install.json")
 	err := readInstallSignatureFromDisk(signaturePath, s)
 	if err == nil {
 		s.Found = true
@@ -40,7 +40,6 @@ func applyOrCreateInstallSignature(c *config.AgentConfig) {
 		return
 	}
 	s.Found = true
-	return
 }
 
 func readInstallSignatureFromDisk(path string, s *config.InstallSignatureConfig) (err error) {
