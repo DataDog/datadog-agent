@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/bpfmap"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -1508,6 +1509,8 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.monitors = NewMonitors(p)
 
+	monitoredMapConstants := bpfmap.MonitoredMapConstants()
+
 	numCPU, err := utils.NumCPU()
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse CPU count: %w", err)
@@ -1520,6 +1523,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		RingBufferSize:          uint32(p.Config.Probe.EventStreamBufferSize),
 		PathResolutionEnabled:   p.Opts.PathResolutionEnabled,
 		SecurityProfileMaxCount: p.Config.RuntimeSecurity.SecurityProfileMaxCount,
+		BpfLRUStatsMaxCount:     len(monitoredMapConstants),
 	})
 
 	if config.RuntimeSecurity.ActivityDumpEnabled {
@@ -1624,6 +1628,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, getCGroupWriteConstants())
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, monitoredMapConstants...)
 
 	// if we are using tracepoints to probe syscall exits, i.e. if we are using an old kernel version (< 4.12)
 	// we need to use raw_syscall tracepoints for exits, as syscall are not trace when running an ia32 userspace

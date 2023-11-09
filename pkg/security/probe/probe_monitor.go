@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/approver"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/bpfmap"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/discarder"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/monitors/runtime"
@@ -24,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
+// Monitors regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitors struct {
 	probe *Probe
 
@@ -34,6 +35,7 @@ type Monitors struct {
 	cgroupsMonitor     *cgroups.Monitor
 	approverMonitor    *approver.Monitor
 	syscallsMonitor    *syscalls.Monitor
+	bpfMapMonitor      *bpfmap.Monitor
 }
 
 // NewMonitors returns a new instance of a ProbeMonitor
@@ -70,8 +72,13 @@ func (m *Monitors) Init() error {
 	if p.Opts.SyscallsMonitorEnabled {
 		m.syscallsMonitor, err = syscalls.NewSyscallsMonitor(p.Manager, p.StatsdClient)
 		if err != nil {
-			return fmt.Errorf("couldn't create the approver monitor: %w", err)
+			return fmt.Errorf("couldn't create the syscall monitor: %w", err)
 		}
+	}
+
+	m.bpfMapMonitor, err = bpfmap.NewBPFMapMonitor(p.Manager, p.Opts.StatsdClient)
+	if err != nil {
+		return fmt.Errorf("couldn't create the BPF map monitor: %w", err)
 	}
 
 	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.StatsdClient, p.resolvers.CGroupResolver)
@@ -82,6 +89,11 @@ func (m *Monitors) Init() error {
 // GetEventStreamMonitor returns the perf buffer monitor
 func (m *Monitors) GetEventStreamMonitor() *eventstream.Monitor {
 	return m.eventStreamMonitor
+}
+
+// GetBPFMapMonitor returns the BPF map monitor
+func (m *Monitors) GetBPFMapMonitor() *bpfmap.Monitor {
+	return m.bpfMapMonitor
 }
 
 // SendStats sends statistics about the probe to Datadog
@@ -142,9 +154,11 @@ func (m *Monitors) SendStats() error {
 
 	if m.probe.Opts.SyscallsMonitorEnabled {
 		if err := m.syscallsMonitor.SendStats(); err != nil {
-			return fmt.Errorf("failed to send evaluation set stats: %w", err)
+			return fmt.Errorf("failed to send syscall stats: %w", err)
 		}
 	}
+
+	m.bpfMapMonitor.SendStats()
 
 	return nil
 }

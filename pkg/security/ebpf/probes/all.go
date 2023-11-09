@@ -148,6 +148,7 @@ type MapSpecEditorOpts struct {
 	RingBufferSize          uint32
 	PathResolutionEnabled   bool
 	SecurityProfileMaxCount int
+	BpfLRUStatsMaxCount     int
 }
 
 // AllMapSpecEditors returns the list of map editors
@@ -184,6 +185,10 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts) map[string]manager.Ma
 		},
 		"secprofs_syscalls": {
 			MaxEntries: uint32(opts.SecurityProfileMaxCount),
+			EditorFlag: manager.EditMaxEntries,
+		},
+		"bpf_lru_stats": {
+			MaxEntries: uint32(opts.BpfLRUStatsMaxCount),
 			EditorFlag: manager.EditMaxEntries,
 		},
 	}

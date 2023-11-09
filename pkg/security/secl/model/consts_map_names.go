@@ -12,6 +12,7 @@ var bpfMapNames = []string{
 	"basename_approv",
 	"bb_approver_sta",
 	"bb_discarder_st",
+	"bpf_lru_stats",
 	"bpf_maps",
 	"bpf_progs",
 	"buffer_selector",

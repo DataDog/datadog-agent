@@ -1,6 +1,8 @@
 #ifndef _HOOKS_COMMIT_CREDS_H_
 #define _HOOKS_COMMIT_CREDS_H_
 
+#include "bpf_map_monitoring.h"
+
 #include "constants/syscall_macro.h"
 #include "helpers/syscalls.h"
 #include "helpers/events_predicates.h"
@@ -25,7 +27,7 @@ int __attribute__((always_inline)) credentials_update_ret(void *ctx, int retval)
     }
 
     u32 pid = bpf_get_current_pid_tgid() >> 32;
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_lru_map_lookup_elem_with_telemetry(pid_cache, &pid, 1);
     if (!pid_entry) {
         return 0;
     }
@@ -256,7 +258,7 @@ int hook_commit_creds(ctx_t *ctx) {
     // update pid_cache entry for the current process
     u32 pid = bpf_get_current_pid_tgid() >> 32;
     u8 new_entry = 0;
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &pid);
+    struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_lru_map_lookup_elem_with_telemetry(pid_cache, &pid, 1);
     if (!pid_entry) {
         new_entry = 1;
         pid_entry = &new_pid_entry;
