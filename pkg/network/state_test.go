@@ -198,6 +198,73 @@ func TestRetrieveClosedConnection(t *testing.T) {
 	})
 }
 
+func TestDropEmptyConnections(t *testing.T) {
+	conn := ConnectionStats{
+		Pid:    123,
+		Type:   TCP,
+		Family: AFINET,
+		Source: util.AddressFromString("127.0.0.1"),
+		Dest:   util.AddressFromString("127.0.0.1"),
+		SPort:  31890,
+		DPort:  80,
+		Monotonic: StatCounters{
+			SentBytes:   12345,
+			RecvBytes:   6789,
+			Retransmits: 2,
+		},
+		Last: StatCounters{
+			SentBytes:   12345,
+			RecvBytes:   6789,
+			Retransmits: 2,
+		},
+		IntraHost: true,
+		Cookie:    1,
+	}
+
+	clientID := "1"
+
+	t.Run("drop empty connection", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 1
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		conns := state.clients[clientID].closedConnections
+		_, ok := state.clients[clientID].closedConnectionsKeys[0]
+
+		assert.Equal(t, 1, len(conns))
+		assert.Equal(t, []ConnectionStats{conn}, conns)
+		assert.False(t, ok)
+
+	})
+	t.Run("merge empty connection", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		emptyconn := ConnectionStats{}
+		emptyconn.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{emptyconn})
+
+		conn2 := conn
+		conn2.Cookie = 2
+		conn2.LastUpdateEpoch = 100
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closedConnections
+		i, _ := state.clients[clientID].closedConnectionsKeys[0]
+		assert.Equal(t, 3, len(conns))
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+		assert.Equal(t, 2, i)
+	})
+}
+
 func buildBasicTelemetry() map[ConnTelemetryType]int64 {
 	var res = make(map[ConnTelemetryType]int64)
 	for i, telType := range MonotonicConnTelemetryTypes {

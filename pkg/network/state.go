@@ -145,6 +145,7 @@ type client struct {
 	closedConnectionsKeys map[StatCookie]int
 
 	closedConnections []ConnectionStats
+	emptyConnsIndex   int
 	stats             map[StatCookie]StatCounters
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
@@ -477,6 +478,20 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 					stateTelemetry.statsCookieCollisions.Inc()
 					// pick the latest one
 					if c.LastUpdateEpoch > client.closedConnections[i].LastUpdateEpoch {
+						if !isEmpty(c) && i >= client.emptyConnsIndex {
+							if i == client.emptyConnsIndex {
+								client.closedConnections[i] = c
+								client.emptyConnsIndex++
+								continue
+							}
+							emptyConn := client.closedConnections[client.emptyConnsIndex]
+							client.closedConnections[client.emptyConnsIndex] = c
+							client.closedConnections[i] = emptyConn
+							client.closedConnectionsKeys[c.Cookie] = client.emptyConnsIndex
+							client.closedConnectionsKeys[emptyConn.Cookie] = i
+							client.emptyConnsIndex++
+							continue
+						}
 						client.closedConnections[i] = c
 					}
 				}
@@ -485,11 +500,36 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 
 			if uint32(len(client.closedConnections)) >= ns.maxClosedConns {
 				stateTelemetry.closedConnDropped.Inc(c.Type.String())
+				// Drop if c is empty or closedConnections does not have empty connections
+				if isEmpty(c) || !isEmpty(client.closedConnections[len(client.closedConnections)-1]) {
+					continue
+				}
+				delete(client.closedConnectionsKeys, client.closedConnections[client.emptyConnsIndex].Cookie)
+				client.closedConnections[client.emptyConnsIndex] = c
+				client.closedConnectionsKeys[c.Cookie] = client.emptyConnsIndex
+				client.emptyConnsIndex++
 				continue
 			}
 
-			client.closedConnections = append(client.closedConnections, c)
-			client.closedConnectionsKeys[c.Cookie] = len(client.closedConnections) - 1
+			if isEmpty(c) {
+				client.closedConnections = append(client.closedConnections, c)
+				client.closedConnectionsKeys[c.Cookie] = len(client.closedConnections) - 1
+				continue
+			}
+
+			if client.emptyConnsIndex >= len(client.closedConnections) {
+				client.closedConnections = append(client.closedConnections, c)
+				client.closedConnectionsKeys[c.Cookie] = len(client.closedConnections) - 1
+				client.emptyConnsIndex = len(client.closedConnections)
+				continue
+			}
+
+			emptyConn := client.closedConnections[client.emptyConnsIndex]
+			client.closedConnections[client.emptyConnsIndex] = c
+			client.closedConnections = append(client.closedConnections, emptyConn)
+			client.closedConnectionsKeys[c.Cookie] = client.emptyConnsIndex
+			client.closedConnectionsKeys[emptyConn.Cookie] = len(client.closedConnections) - 1
+			client.emptyConnsIndex++
 		}
 	}
 }
@@ -1137,5 +1177,13 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 
 	a.ProtocolStack.MergeWith(b.ProtocolStack)
 
+	return false
+}
+
+func isEmpty(conn ConnectionStats) bool {
+	if conn.Monotonic.RecvBytes == 0 && conn.Monotonic.RecvPackets == 0 &&
+		conn.Monotonic.SentBytes == 0 && conn.Monotonic.SentPackets == 0 {
+		return true
+	}
 	return false
 }
