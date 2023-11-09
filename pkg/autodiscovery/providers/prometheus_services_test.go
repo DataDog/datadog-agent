@@ -259,7 +259,7 @@ func TestPrometheusServicesCollect(t *testing.T) {
 		},
 	}
 
-	config.Datadog.Set("prometheus_scrape.version", 2)
+	config.Datadog.SetWithoutSource("prometheus_scrape.version", 2)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			ctx := context.Background()

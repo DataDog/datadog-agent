@@ -23,8 +23,8 @@ func TestPodCheck(t *testing.T) {
 		defer clustername.ResetClusterName()
 
 		cfg := config.Mock(t)
-		cfg.Set("orchestrator_explorer.enabled", true)
-		cfg.Set("cluster_name", "test")
+		cfg.SetWithoutSource("orchestrator_explorer.enabled", true)
+		cfg.SetWithoutSource("cluster_name", "test")
 
 		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 		assertContainsCheck(t, enabledChecks, PodCheckName)
@@ -35,7 +35,7 @@ func TestPodCheck(t *testing.T) {
 		defer clustername.ResetClusterName()
 
 		cfg := config.Mock(t)
-		cfg.Set("orchestrator_explorer.enabled", false)
+		cfg.SetWithoutSource("orchestrator_explorer.enabled", false)
 
 		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 		assertNotContainsCheck(t, enabledChecks, PodCheckName)

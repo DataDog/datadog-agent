@@ -343,8 +343,8 @@ func (p *Probe) playSnapshot() {
 		event.Exec.Process = &entry.Process
 		event.ProcessContext.Process.ContainerID = entry.ContainerID
 
-		if !entry.HasCompleteLineage() {
-			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
+		if _, err := entry.HasValidLineage(); err != nil {
+			event.Error = &model.ErrProcessBrokenLineage{Err: err}
 		}
 
 		events = append(events, event)
@@ -516,14 +516,6 @@ func (p *Probe) onEventLost(perfMapName string, perEvent map[string]uint64) {
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
 func (p *Probe) setProcessContext(eventType model.EventType, event *model.Event) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
-	if !eventWithNoProcessContext(eventType) {
-		if !isResolved {
-			event.Error = &ErrNoProcessContext{Err: errors.New("process context not resolved")}
-		} else if !entry.HasValidLineage() {
-			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
-			p.resolvers.ProcessResolver.CountBrokenLineage()
-		}
-	}
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -537,6 +529,15 @@ func (p *Probe) setProcessContext(eventType model.EventType, event *model.Event)
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
+	}
+
+	if !eventWithNoProcessContext(eventType) {
+		if !isResolved {
+			event.Error = &model.ErrNoProcessContext{Err: errors.New("process context not resolved")}
+		} else if _, err := entry.HasValidLineage(); err != nil {
+			event.Error = &model.ErrProcessBrokenLineage{Err: err}
+			p.resolvers.ProcessResolver.CountBrokenLineage()
+		}
 	}
 
 	// flush exited process
@@ -1540,10 +1541,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		seclog.Warnf("constant fetcher failed: %v", err)
 		return nil, err
 	}
-	// the constant fetching mechanism can be quite memory intensive, between kernel header downloading,
-	// runtime compilation, BTF parsing...
-	// let's ensure the GC has run at this point before doing further memory intensive stuff
-	runtime.GC()
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 

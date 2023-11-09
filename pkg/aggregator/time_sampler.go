@@ -105,11 +105,12 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 		}
 
 		// Add sample to bucket
-		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil); err != nil {
+		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil, config.Datadog); err != nil {
 			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
 		}
 	}
 }
+
 func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ctx, _ := s.contextResolver.get(ck)
 	ss := &metrics.SketchSeries{
@@ -169,8 +170,8 @@ func (s *TimeSampler) flushSeries(cutoffTime int64, series metrics.SerieSink) {
 func (s *TimeSampler) dedupSerieBySerieSignature(
 	rawSeries []*metrics.Serie,
 	serieSink metrics.SerieSink,
-	serieBySignature map[SerieSignature]*metrics.Serie) {
-
+	serieBySignature map[SerieSignature]*metrics.Serie,
+) {
 	// clear the map. Reuse serieBySignature
 	for k := range serieBySignature {
 		delete(serieBySignature, k)
@@ -279,7 +280,7 @@ func (s *TimeSampler) countersSampleZeroValue(timestamp int64, contextMetrics me
 			}
 			// Add a zero value sample to the counter
 			// It is ok to add a 0 sample to a counter that was already sampled in the bucket, it won't change its value
-			contextMetrics.AddSample(counterContext, sample, float64(timestamp), s.interval, nil) //nolint:errcheck
+			contextMetrics.AddSample(counterContext, sample, float64(timestamp), s.interval, nil, config.Datadog) //nolint:errcheck
 
 			// Update the tracked context so that the contextResolver doesn't expire counter contexts too early
 			// i.e. while we are still sending zeros for them

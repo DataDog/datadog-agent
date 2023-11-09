@@ -67,7 +67,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
 			mockConfFunc: func(conf *config.MockConfig) {
-				conf.Set("kubernetes_node_label_as_cluster_name", "custom-label")
+				conf.SetWithoutSource("kubernetes_node_label_as_cluster_name", "custom-label")
 			},
 			nodeLabels: map[string]string{
 				"custom-label": "bar",
@@ -82,7 +82,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
 			mockConfFunc: func(conf *config.MockConfig) {
-				conf.Set("kubernetes_node_label_as_cluster_name", "custom-label")
+				conf.SetWithoutSource("kubernetes_node_label_as_cluster_name", "custom-label")
 			},
 			nodeLabels: map[string]string{
 				"ad.datadoghq.com/cluster-name": "foo",
@@ -124,7 +124,7 @@ func TestNodeInfo_GetNodeClusterNameLabel(t *testing.T) {
 				ku.On("GetNodename").Return("node-name", nil)
 			},
 			mockConfFunc: func(conf *config.MockConfig) {
-				conf.Set("kubernetes_node_label_as_cluster_name", "custom-label")
+				conf.SetWithoutSource("kubernetes_node_label_as_cluster_name", "custom-label")
 			},
 			currentClusterName: "bar",
 			nodeLabels: map[string]string{
