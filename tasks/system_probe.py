@@ -304,9 +304,9 @@ def ninja_runtime_compilation_files(nw, gobin):
     }
 
     nw.rule(
-        name="headerincl", command="go generate -run=\"include_headers\" -mod=mod -tags linux_bpf $in", depfile="$out.d"
+        name="headerincl", command=f"go generate -run=\"include_headers\" -mod=mod -tags {BPF_TAG} $in", depfile="$out.d"
     )
-    nw.rule(name="integrity", command="go generate -run=\"integrity\" -mod=mod -tags linux_bpf $in", depfile="$out.d")
+    nw.rule(name="integrity", command=f"go generate -run=\"integrity\" -mod=mod -tags {BPF_TAG} $in", depfile="$out.d")
     hash_dir = os.path.join(bc_dir, "runtime")
     rc_dir = os.path.join(build_dir, "runtime")
     for in_path, out_filename in runtime_compiler_files.items():
