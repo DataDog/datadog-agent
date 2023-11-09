@@ -119,17 +119,11 @@ func (v *multiFakeIntakeSuite) SetupSuite() {
 	fakeintake1 := v.Env().Fakeintake1
 	fakeintake2 := v.Env().Fakeintake2
 
-	// Wait for the fakeintake to be ready to avoid 503
+	// Wait for the fakeintakes to be ready to avoid 503
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		assert.NoError(c, fakeintake1.Client.GetServerHealth())
-		assert.NoError(c, fakeintake2.Client.GetServerHealth())
+		assert.NoError(c, fakeintake1.GetServerHealth())
+		assert.NoError(c, fakeintake2.GetServerHealth())
 	}, intakeMaxWaitTime, intakeTick)
-}
-
-// BeforeTest flushes both fakeintakes before starting each test.
-func (v *multiFakeIntakeSuite) SetupTest() {
-	v.NoError(v.Env().Fakeintake1.FlushServerAndResetAggregators())
-	v.NoError(v.Env().Fakeintake2.FlushServerAndResetAggregators())
 }
 
 // TestNSSFailover tests that the agent correctly picks-up an NSS change of the intake.
