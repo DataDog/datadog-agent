@@ -239,6 +239,21 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	if providedConf, err := ia.getProvidedAgentConfiguration(); err == nil {
 		data["provided_configuration"] = providedConf
 	}
+	if fileConf, err := ia.getAgentFileConfiguration(); err == nil {
+		data["file_configuration"] = fileConf
+	}
+	if envVarConf, err := ia.getAgentEnvVarConfiguration(); err == nil {
+		data["environment_variable_configuration"] = envVarConf
+	}
+	if agentRuntimeConf, err := ia.getAgentRuntimeConfiguration(); err == nil {
+		data["agent_runtime_configuration"] = agentRuntimeConf
+	}
+	if remoteConf, err := ia.getAgentRemoteConfiguration(); err == nil {
+		data["remote_configuration"] = remoteConf
+	}
+	if cliConf, err := ia.getAgentCliConfiguration(); err == nil {
+		data["cli_configuration"] = cliConf
+	}
 
 	return &Payload{
 		Hostname:  ia.hostname,

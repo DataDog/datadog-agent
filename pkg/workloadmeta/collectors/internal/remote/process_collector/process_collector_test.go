@@ -36,26 +36,22 @@ type mockServer struct {
 
 	responses     []*pbgo.ProcessStreamResponse
 	errorResponse bool // first response is an error
-
-	currentResponse int
 }
 
-func (s *mockServer) StreamEntities(req *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error { //nolint:revive // TODO fix revive unused-parameter
+// StreamEntities sends the responses back to the client
+func (s *mockServer) StreamEntities(_ *pbgo.ProcessStreamEntitiesRequest, out pbgo.ProcessEntityStream_StreamEntitiesServer) error {
 	// Handle error response for the first request
 	if s.errorResponse {
 		s.errorResponse = false // Reset error response for subsequent requests
 		return xerrors.New("dummy first error")
 	}
 
-	if s.currentResponse >= len(s.responses) {
-		return nil
+	for _, response := range s.responses {
+		err := out.Send(response)
+		if err != nil {
+			panic(err)
+		}
 	}
-
-	err := out.Send(s.responses[s.currentResponse])
-	if err != nil {
-		panic(err)
-	}
-	s.currentResponse++
 
 	return nil
 }
@@ -237,12 +233,11 @@ func TestCollection(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			mockConfig := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-			mockConfig.Set("language_detection.enabled", true)
+			mockConfig.SetWithoutSource("language_detection.enabled", true)
 			// remote process collector server (process agent)
 			server := &mockServer{
-				responses:       test.serverResponses,
-				errorResponse:   test.errorResponse,
-				currentResponse: 0,
+				responses:     test.serverResponses,
+				errorResponse: test.errorResponse,
 			}
 			grpcServer := grpc.NewServer()
 			pbgo.RegisterProcessEntityStreamServer(grpcServer, server)
@@ -254,6 +249,7 @@ func TestCollection(t *testing.T) {
 				err := grpcServer.Serve(lis)
 				require.NoError(t, err)
 			}()
+			defer grpcServer.Stop()
 
 			_, portStr, err := net.SplitHostPort(lis.Addr().String())
 			require.NoError(t, err)
@@ -273,35 +269,30 @@ func TestCollection(t *testing.T) {
 			mockStore.Notify(test.preEvents)
 
 			ctx, cancel := context.WithCancel(context.TODO())
-			// Start collection
+
+			// Subscribe to the mockStore
+			ch := mockStore.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
+
+			// Collect process data
 			err = collector.Start(ctx, mockStore)
 			require.NoError(t, err)
 
-			ch := mockStore.Subscribe(dummySubscriber, workloadmeta.NormalPriority, nil)
-			doneCh := make(chan struct{})
-
-			numberOfReponse := len(test.serverResponses)
-			if test.errorResponse {
-				numberOfReponse++
+			// Number of events expected. Each response can hold multiple events, either Set or Unset
+			numberOfEvents := len(test.preEvents)
+			for _, ev := range test.serverResponses {
+				numberOfEvents += len(ev.SetEvents) + len(ev.UnsetEvents)
 			}
-			go func() {
-				for i := 0; i < numberOfReponse; i++ {
-					bundle := <-ch
-					close(bundle.Ch)
-				}
-				close(doneCh)
-				mockStore.Unsubscribe(ch)
-			}()
 
-			<-doneCh
-
-			// wait that the store gets populated
-			time.Sleep(time.Second)
-
+			// Keep listening to workloadmeta until enough events are received. It is possible that the
+			// first bundle does not hold any events. Thus, it is required to look at the number of events
+			// in the bundle.
+			for i := 0; i < numberOfEvents; {
+				bundle := <-ch
+				close(bundle.Ch)
+				i += len(bundle.Events)
+			}
+			mockStore.Unsubscribe(ch)
 			cancel()
-
-			// wait that the stream goroutine terminates
-			time.Sleep(time.Second)
 
 			// Verify final state
 			for i := range test.expectedProcesses {

@@ -7,7 +7,7 @@
 #include "helpers/filesystem.h"
 #include "helpers/utils.h"
 
-// used during the snapshot thus this kprobe will present only at the snapshot
+// used by both snapshot and process resolver fallback
 HOOK_ENTRY("security_inode_getattr")
 int hook_security_inode_getattr(ctx_t *ctx) {
     if (!is_runtime_request()) {

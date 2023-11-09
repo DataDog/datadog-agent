@@ -473,7 +473,7 @@ func (c *DCAClient) PostLanguageMetadata(ctx context.Context, data *pbgo.ParentL
 		return err
 	}
 
-	// https://host:port/api/v1/languagedetection
-	err = c.doJSONQuery(ctx, languageDetectionPath, "POST", bytes.NewBuffer(queryBody), nil, false)
+	// query https://host:port/api/v1/languagedetection without expecting a response
+	_, err = c.doQuery(ctx, languageDetectionPath, "POST", bytes.NewBuffer(queryBody), false, false)
 	return err
 }
