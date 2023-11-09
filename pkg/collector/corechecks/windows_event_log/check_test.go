@@ -87,7 +87,7 @@ func (s *GetEventsTestSuite) testsetup() {
 	// they will load bookmarks from previous runs.
 	testDir := s.T().TempDir()
 	mockConfig := agentConfig.Mock(s.T())
-	mockConfig.Set("run_path", testDir)
+	mockConfig.SetWithoutSource("run_path", testDir)
 }
 
 func (s *GetEventsTestSuite) SetupTest() {
@@ -895,7 +895,7 @@ payload_size: %d
 					for i := 0; i < b.N; i++ {
 						// create tmpdir to store bookmark
 						testDir := b.TempDir()
-						mockConfig.Set("run_path", testDir)
+						mockConfig.SetWithoutSource("run_path", testDir)
 						// create check
 						check, err := newCheck(ti.API(), sender, instanceConfig)
 						require.NoError(b, err)
