@@ -139,7 +139,6 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         }
         goto end;
     }
-    BPF_HISTOGRAM_INCREMENT(max_path_size, str_len);
 
     if (str_len > 180) {
         __sync_fetch_and_add(&http2_tel->large_path_outside_delta, 1);
