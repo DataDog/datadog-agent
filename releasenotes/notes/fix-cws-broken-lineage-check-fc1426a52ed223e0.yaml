@@ -8,4 +8,4 @@
 ---
 fixes:
   - |
-    Fix the CWS broken lineage check for process activity.
+    Fix the broken lineage check for process activity in CWS.
