@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -21,7 +22,6 @@ type ProfilingRuntimeSetting struct {
 
 	Config       config.ReaderWriter
 	ConfigPrefix string
-	source       Source
 }
 
 // NewProfilingRuntimeSetting returns a new ProfilingRuntimeSetting
@@ -29,7 +29,6 @@ func NewProfilingRuntimeSetting(settingName string, service string) *ProfilingRu
 	return &ProfilingRuntimeSetting{
 		SettingName: settingName,
 		Service:     service,
-		source:      SourceDefault,
 	}
 }
 
@@ -58,7 +57,7 @@ func (l *ProfilingRuntimeSetting) Get() (interface{}, error) {
 }
 
 // Set changes the value of the runtime setting
-func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
+func (l *ProfilingRuntimeSetting) Set(v interface{}, source model.Source) error {
 	var profile bool
 	var err error
 
@@ -116,18 +115,12 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source Source) error {
 		}
 		err := profiling.Start(settings)
 		if err == nil {
-			cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", true)
+			cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", true, source)
 		}
 	} else {
 		profiling.Stop()
-		cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", false)
+		cfg.Set(l.ConfigPrefix+"internal_profiling.enabled", false, source)
 	}
 
-	l.source = source
 	return nil
-}
-
-// GetSource returns the source of the ProfilingRuntimeSetting
-func (l *ProfilingRuntimeSetting) GetSource() Source {
-	return l.source
 }

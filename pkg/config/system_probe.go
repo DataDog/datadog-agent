@@ -91,6 +91,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("log_to_syslog", false)
 	cfg.BindEnvAndSetDefault("log_to_console", true)
 	cfg.BindEnvAndSetDefault("log_format_json", false)
+	cfg.BindEnvAndSetDefault("log_file_max_size", "10Mb")
+	cfg.BindEnvAndSetDefault("log_file_max_rolls", 1)
 
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
@@ -248,7 +250,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "http_notification_threshold"))
 	cfg.BindEnv(join(smNS, "http_notification_threshold"))
-	// Default value (160) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
 	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
 

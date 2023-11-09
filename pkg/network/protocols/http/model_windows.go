@@ -8,7 +8,6 @@
 package http
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"strconv"
@@ -124,30 +123,7 @@ func (tx *WinHttpTransaction) Incomplete() bool {
 }
 
 func (tx *WinHttpTransaction) Path(buffer []byte) ([]byte, bool) {
-	bLen := bytes.IndexByte(tx.RequestFragment, 0)
-	if bLen == -1 {
-		bLen = len(tx.RequestFragment)
-	}
-	// trim null byte + after
-	b := tx.RequestFragment[:bLen]
-	// find first space after request method
-	i := bytes.IndexByte(b, ' ')
-	i++
-	// ensure we found a space, it isn't at the end, and the next chars are '/' or '*'
-	if i == 0 || i == len(b) || (b[i] != '/' && b[i] != '*') {
-		return nil, false
-	}
-	// trim to start of path
-	b = b[i:]
-	// capture until we find the slice end, a space, or a question mark (we ignore the query parameters)
-	var j int
-	for j = 0; j < len(b) && b[j] != ' ' && b[j] != '?'; j++ {
-	}
-	n := copy(buffer, b[:j])
-	// indicate if we knowingly captured the entire path
-	fullPath := n <= len(b)
-	return buffer[:n], fullPath
-
+	return computePath(buffer, tx.RequestFragment)
 }
 func (tx *WinHttpTransaction) SetStatusCode(code uint16) {
 	tx.Txn.ResponseStatusCode = code
@@ -167,10 +143,4 @@ func (tx *WinHttpTransaction) RequestStarted() uint64 {
 
 func (tx *WinHttpTransaction) SetRequestMethod(m Method) {
 	tx.Txn.RequestMethod = uint32(m)
-}
-
-func isEncrypted(tx Transaction) bool { //nolint:revive // TODO fix revive unused-parameter
-	// TODO: add windows-specifc implementation for this
-	// Note this only affects internal-telemetry so it's OK to leave as it is for now
-	return false
 }

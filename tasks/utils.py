@@ -23,7 +23,7 @@ GITHUB_ORG = "DataDog"
 REPO_NAME = "datadog-agent"
 GITHUB_REPO_NAME = f"{GITHUB_ORG}/{REPO_NAME}"
 REPO_PATH = f"github.com/{GITHUB_REPO_NAME}"
-ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"stable", "beta", "none"}
+ALLOWED_REPO_NON_NIGHTLY_BRANCHES = {"dev", "stable", "beta", "none"}
 ALLOWED_REPO_NIGHTLY_BRANCHES = {"nightly", "oldnightly"}
 ALLOWED_REPO_ALL_BRANCHES = ALLOWED_REPO_NON_NIGHTLY_BRANCHES.union(ALLOWED_REPO_NIGHTLY_BRANCHES)
 if sys.platform == "darwin":
@@ -122,6 +122,7 @@ def get_build_flags(
     major_version='7',
     python_runtimes='3',
     headless_mode=False,
+    race=False,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -179,6 +180,9 @@ def get_build_flags(
         env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"
 
+    if sys.platform == 'win32':
+        env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + ' -Wl,--allow-multiple-definition'
+
     extra_cgo_flags = " -Werror -Wno-deprecated-declarations"
     if rtloader_headers:
         extra_cgo_flags += f" -I{rtloader_headers}"
@@ -212,6 +216,12 @@ def get_build_flags(
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
+
+    # Needed to fix an issue when using -race + gcc 10.x on Windows
+    # https://github.com/bazelbuild/rules_go/issues/2614
+    if race:
+        if sys.platform == 'win32':
+            ldflags += " -linkmode=external"
 
     return ldflags, gcflags, env
 
@@ -362,7 +372,9 @@ def cache_version(ctx, git_sha_length=7, prefix=None):
             ctx, git_sha_length, prefix, major_version_hint=maj_version
         )
         packed_data[maj_version] = [version, pre, commits_since_version, git_sha, pipeline_id]
-    packed_data["nightly"] = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
+    bucket_branch = os.getenv("BUCKET_BRANCH")
+    packed_data["nightly"] = is_allowed_repo_nightly_branch(bucket_branch)
+    packed_data["dev"] = bucket_branch == "dev"
     with open(AGENT_VERSION_CACHE_NAME, "w") as file:
         json.dump(packed_data, file, indent=4)
 
@@ -397,7 +409,8 @@ def get_version(
                 cache_data = json.load(file)
 
             version, pre, commits_since_version, git_sha, pipeline_id = cache_data[major_version]
-            is_nightly = cache_data["nightly"]
+            # Dev's versions behave the same as nightly
+            is_nightly = cache_data["nightly"] or cache_data["dev"]
 
             if pre:
                 version = f"{version}-{pre}"
@@ -412,8 +425,9 @@ def get_version(
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
             ctx, git_sha_length, prefix, major_version_hint=major_version
         )
-
-        is_nightly = is_allowed_repo_nightly_branch(os.getenv("BUCKET_BRANCH"))
+        # Dev's versions behave the same as nightly
+        bucket_branch = os.getenv("BUCKET_BRANCH")
+        is_nightly = is_allowed_repo_nightly_branch(bucket_branch) or bucket_branch == "dev"
         if pre:
             version = f"{version}-{pre}"
 
