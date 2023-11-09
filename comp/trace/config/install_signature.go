@@ -72,7 +72,7 @@ func generateNewInstallSignature(s *config.InstallSignatureConfig) (err error) {
 		InstallType: defaultInstallType,
 		InstallTime: time.Now().Unix(),
 	}
-	return
+	return nil
 }
 
 func writeInstallSignatureToDisk(path string, s *config.InstallSignatureConfig) error {
