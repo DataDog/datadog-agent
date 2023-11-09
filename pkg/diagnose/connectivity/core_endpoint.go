@@ -62,12 +62,24 @@ func diagnose(diagCfg diagnosis.Config, _ sender.DiagnoseSenderManager) []diagno
 	// Create diagnosis for logs
 	if config.Datadog.GetBool("logs_enabled") {
 		endpoints, err := getLogsHTTPEndpoints()
-		url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main)
 
-		name := fmt.Sprintf("Connectivity to %s", url)
-		diag := createDiagnosis(name, url, "", err)
+		if err != nil {
+			diagnoses = append(diagnoses, diagnosis.Diagnosis{
+				Result:      diagnosis.DiagnosisFail,
+				Name:        "Endpoints configuration",
+				Diagnosis:   "Misconfiguration of agent endpoints",
+				Remediation: "Please validate agent configuration",
+				RawError:    err.Error(),
+			})
+		} else {
+			url, err := logshttp.CheckConnectivityDiagnose(endpoints.Main)
 
-		diagnoses = append(diagnoses, diag)
+			name := fmt.Sprintf("Connectivity to %s", url)
+			diag := createDiagnosis(name, url, "", err)
+
+			diagnoses = append(diagnoses, diag)
+		}
+
 	}
 
 	// Send requests to all endpoints for all domains
