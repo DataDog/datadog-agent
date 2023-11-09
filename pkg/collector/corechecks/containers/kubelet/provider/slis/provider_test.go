@@ -35,32 +35,32 @@ func TestProvider_Provide(t *testing.T) {
 		{
 			name:  common.KubeletMetricsPrefix + "slis.kubernetes_healthcheck",
 			value: 1,
-			tags:  []string{"sli_name:log", "type:healthz"},
+			tags:  []string{"sli_name:log"},
 		},
 		{
 			name:  common.KubeletMetricsPrefix + "slis.kubernetes_healthcheck",
 			value: 1,
-			tags:  []string{"sli_name:ping", "type:healthz"},
+			tags:  []string{"sli_name:ping"},
 		},
 		{
 			name:  common.KubeletMetricsPrefix + "slis.kubernetes_healthcheck",
 			value: 1,
-			tags:  []string{"sli_name:syncloop", "type:healthz"},
+			tags:  []string{"sli_name:syncloop"},
 		},
 		{
 			name:  common.KubeletMetricsPrefix + "slis.kubernetes_healthchecks_total",
 			value: 14319,
-			tags:  []string{"sli_name:log", "status:success", "type:healthz"},
+			tags:  []string{"sli_name:log", "status:success"},
 		},
 		{
 			name:  common.KubeletMetricsPrefix + "slis.kubernetes_healthchecks_total",
 			value: 14321,
-			tags:  []string{"sli_name:ping", "status:success", "type:healthz"},
+			tags:  []string{"sli_name:ping", "status:success"},
 		},
 		{
 			name:  common.KubeletMetricsPrefix + "slis.kubernetes_healthchecks_total",
 			value: 14319,
-			tags:  []string{"sli_name:syncloop", "status:success", "type:healthz"},
+			tags:  []string{"sli_name:syncloop", "status:success"},
 		},
 	}
 
