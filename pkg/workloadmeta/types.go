@@ -16,6 +16,7 @@ import (
 	"github.com/mohae/deepcopy"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
@@ -573,7 +574,14 @@ type ContainerFilterFunc func(container *Container) bool
 type ProcessFilterFunc func(process *Process) bool
 
 // GetRunningContainers is a function that evaluates to true for running containers.
-var GetRunningContainers ContainerFilterFunc = func(container *Container) bool { return container.State.Running }
+// Pause containers are only reported if the agent has been configured to NOT exclude pause containers.
+var GetRunningContainers ContainerFilterFunc = func(container *Container) bool {
+	// TODO: Relying on the global config object seems fragile
+	if !config.Datadog.GetBool("exclude_pause_container") {
+		return container.State.Running
+	}
+	return container.State.Running && !container.IsPauseContainer
+}
 
 // KubernetesPod is an Entity representing a Kubernetes Pod.
 type KubernetesPod struct {
