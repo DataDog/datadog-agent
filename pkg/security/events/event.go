@@ -19,6 +19,7 @@ type AgentContext struct {
 	PolicyVersion string `json:"policy_version,omitempty"`
 	Version       string `json:"version,omitempty"`
 	OS            string `json:"os,omitempty"`
+	Arch          string `json:"arch,omitempty"`
 }
 
 // Signal - Rule event wrapper used to send an event to the backend
