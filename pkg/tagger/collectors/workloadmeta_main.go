@@ -127,16 +127,7 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 		}
 	}()
 
-	filterParams := workloadmeta.FilterParams{
-		IncludeFunc: func(entity workloadmeta.Entity) bool {
-			container, ok := entity.(*workloadmeta.Container)
-			if ok {
-				return container.IsPauseContainer
-			}
-			return false
-		},
-	}
-	ch := c.store.Subscribe(name, workloadmeta.TaggerPriority, workloadmeta.NewFilter(&filterParams))
+	ch := c.store.Subscribe(name, workloadmeta.TaggerPriority, nil)
 
 	log.Infof("workloadmeta tagger collector started")
 
