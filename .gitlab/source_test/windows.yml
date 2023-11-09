@@ -37,7 +37,7 @@
     expire_in: 2 weeks
     when: always
     paths:
-      - test_output.json
+      - $TEST_OUTPUT_FILE
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
