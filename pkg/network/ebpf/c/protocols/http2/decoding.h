@@ -122,6 +122,43 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
 
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
+
+static __always_inline __u32 get_bucket_index(__u32 size) {
+    if (size < 120) {
+        return 0;
+    }
+    __s32 bucket_idx = (size - 120) / 10;
+    bucket_idx = bucket_idx > 6 ? 6 : bucket_idx;
+    bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
+    return bucket_idx;
+}
+
+static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_tel, __u32 bucket_idx) {
+    switch (bucket_idx) {
+        case 0:
+            __sync_fetch_and_add(&http2_tel->path_size_bucket0, 1);
+            break;
+        case 1:
+            __sync_fetch_and_add(&http2_tel->path_size_bucket1, 1);
+            break;
+        case 2:
+            __sync_fetch_and_add(&http2_tel->path_size_bucket2, 1);
+            break;
+        case 3:
+            __sync_fetch_and_add(&http2_tel->path_size_bucket3, 1);
+            break;
+        case 4:
+            __sync_fetch_and_add(&http2_tel->path_size_bucket4, 1);
+            break;
+        case 5:
+            __sync_fetch_and_add(&http2_tel->path_size_bucket5, 1);
+            break;
+        case 6:
+            __sync_fetch_and_add(&http2_tel->path_size_bucket6, 1);
+            break;
+        }
+}
+
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
 static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel) {
@@ -140,15 +177,10 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    if (str_len > 180) {
-        __sync_fetch_and_add(&http2_tel->large_path_outside_delta, 1);
-        goto end;
-    }
-    if (str_len > HTTP2_MAX_PATH_LEN) {
-        __sync_fetch_and_add(&http2_tel->large_path_in_delta, 1);
-        goto end;
-    }
-    if (index != kIndexPath || headers_to_process == NULL) {
+    __u32 bucket_idx = get_bucket_index(str_len);
+    update_path_size_telemetry(http2_tel, bucket_idx);
+
+    if ((str_len > HTTP2_MAX_PATH_LEN) || index != kIndexPath || headers_to_process == NULL) {
         goto end;
     }
 

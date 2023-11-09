@@ -267,8 +267,14 @@ func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) {
 		p.http2Telemetry.endOfStreamRST.Set(int64(http2Telemetry.End_of_stream_rst))
 		p.http2Telemetry.strLenExceedsFrame.Set(int64(http2Telemetry.Str_len_exceeds_frame))
 		p.http2Telemetry.frameRemainder.Set(int64(http2Telemetry.Frame_remainder))
-		p.http2Telemetry.largePathInDelta.Set(int64(http2Telemetry.Large_path_in_delta))
-		p.http2Telemetry.largePathOutsideDelta.Set(int64(http2Telemetry.Large_path_outside_delta))
+		p.http2Telemetry.pathSizeBucket0.Set(int64(http2Telemetry.Path_size_bucket0))
+		p.http2Telemetry.pathSizeBucket1.Set(int64(http2Telemetry.Path_size_bucket1))
+		p.http2Telemetry.pathSizeBucket2.Set(int64(http2Telemetry.Path_size_bucket2))
+		p.http2Telemetry.pathSizeBucket3.Set(int64(http2Telemetry.Path_size_bucket3))
+		p.http2Telemetry.pathSizeBucket4.Set(int64(http2Telemetry.Path_size_bucket4))
+		p.http2Telemetry.pathSizeBucket5.Set(int64(http2Telemetry.Path_size_bucket5))
+		p.http2Telemetry.pathSizeBucket6.Set(int64(http2Telemetry.Path_size_bucket6))
+
 		p.http2Telemetry.maxFramesIteration.Set(int64(http2Telemetry.Max_frames_iteration))
 		p.http2Telemetry.iterationLimit.Set(int64(http2Telemetry.Iteration_limit))
 
