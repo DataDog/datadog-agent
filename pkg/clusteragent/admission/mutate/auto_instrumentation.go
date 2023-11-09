@@ -253,6 +253,8 @@ func extractLibrariesFromOwnerAnnotations(pod *corev1.Pod, registry string) []li
 	switch ownerKind {
 	case "Deployment":
 		libList = getLibListFromDeploymentAnnotations(store, ownerName, pod.Namespace, registry)
+	default:
+		log.Debugf("This ownerKind:%s is not yet supported by the process language auto-detection feature", ownerKind)
 	}
 
 	return libList
