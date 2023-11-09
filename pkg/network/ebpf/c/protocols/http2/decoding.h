@@ -177,8 +177,10 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    __u32 bucket_idx = get_bucket_index(str_len);
-    update_path_size_telemetry(http2_tel, bucket_idx);
+    if (index == kIndexPath) {
+        __u32 bucket_idx = get_bucket_index(str_len);
+        update_path_size_telemetry(http2_tel, bucket_idx);
+    }
 
     if ((str_len > HTTP2_MAX_PATH_LEN) || index != kIndexPath || headers_to_process == NULL) {
         goto end;
