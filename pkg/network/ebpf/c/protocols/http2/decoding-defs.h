@@ -13,6 +13,8 @@
 // check when we exceed this
 #define HTTP2_MAX_FRAMES_TO_FILTER  100
 
+#define HTTP2_MAX_FRAMES_TO_FILTER_DELTA  10
+
 // A limit of max headers which we process in the request/response.
 // check when we exceed this
 #define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 25
@@ -148,6 +150,7 @@ typedef struct {
     __u64 response_seen;
     __u64 frame_remainder;
     __u64 max_frames_iteration;
+    __u64 max_frames_to_filter;
 } http2_telemetry_t;
 
 #endif

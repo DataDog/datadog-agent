@@ -35,6 +35,7 @@ type kernelTelemetry struct {
 	// frameRemainder            Count of frames sent over more than one frame.
 	// maxFramesIteration		 Count of times we reached the max number of frames per iteration.
 	// iterationLimit		     Count of times we reached the max number of frames per iteration.
+	// maxFramesToFilter		 Count of times we have left with more frames to filter than the max number of frames to filter.
 
 	http2requests      *libtelemetry.Gauge
 	http2responses     *libtelemetry.Gauge
@@ -50,6 +51,7 @@ type kernelTelemetry struct {
 	strLenExceedsFrame *libtelemetry.Gauge
 	frameRemainder     *libtelemetry.Gauge
 	maxFramesIteration *libtelemetry.Gauge
+	maxFramesToFilter  *libtelemetry.Gauge
 }
 
 // newHTTP2KernelTelemetry hold HTTP/2 kernel metrics.
@@ -73,7 +75,7 @@ func newHTTP2KernelTelemetry(protocol string) *kernelTelemetry {
 		pathSizeBucket6:    metricGroup.NewGauge("pathSizeBucket6", libtelemetry.OptStatsd),
 		frameRemainder:     metricGroup.NewGauge("frameRemainder", libtelemetry.OptStatsd),
 		maxFramesIteration: metricGroup.NewGauge("maxFramesIteration", libtelemetry.OptStatsd),
-	}
+		maxFramesToFilter:  metricGroup.NewGauge("maxFramesToFilter", libtelemetry.OptStatsd)}
 }
 
 func (t *kernelTelemetry) Log() {
