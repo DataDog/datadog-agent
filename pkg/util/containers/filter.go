@@ -168,8 +168,7 @@ func GetSharedMetricFilter() (*Filter, error) {
 
 // GetPauseContainerFilter returns a filter only excluding pause containers
 func GetPauseContainerFilter() (*Filter, error) {
-	var excludeList []string
-	excludeList = append(excludeList,
+	excludeList := []string{
 		pauseContainerGCR,
 		pauseContainerOpenshift,
 		pauseContainerOpenshift3,
@@ -187,7 +186,7 @@ func GetPauseContainerFilter() (*Filter, error) {
 		pauseContainerCDK,
 		pauseContainerGiantSwarm,
 		pauseContainerRegistryK8sIo,
-	)
+	}
 
 	return NewFilter(GlobalFilter, nil, excludeList)
 }

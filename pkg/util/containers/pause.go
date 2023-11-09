@@ -11,7 +11,7 @@ const pauseContainerNameValue = "POD"
 const sandboxLabelKey = "io.cri-containerd.kind"
 const sandboxLabelValue = "sandbox"
 
-// IsPauseContainer returns whether a container is a pause container based on the container labels
+// IsPauseContainer returns whether a container is a pause container based on the container labels and image name
 // This util can be used to exclude pause container in best-effort
 // Note: Pause containers can still be excluded based on the image name via the container filtering module
 func IsPauseContainer(labels map[string]string, imageName string, pauseContainerFilter *Filter) bool {
@@ -24,17 +24,20 @@ func IsPauseContainer(labels map[string]string, imageName string, pauseContainer
 	// they only have io.kubernetes.pod.name
 	// See https://github.com/containerd/cri/issues/922
 	_, podFound := labels[podNameLabel]
-	isPauseContainerByLabels := !ctrFound && podFound
+	if !ctrFound && podFound {
+		return true
+	}
 
 	// Sandbox containers are pause containers in CRI
-	// Ref:
-	// - https://github.com/containerd/cri/blob/release/1.4/pkg/server/helpers.go#L74
-	isPauseContainerBySandbox := labels[sandboxLabelKey] == sandboxLabelValue
+	// See https://github.com/containerd/cri/blob/release/1.4/pkg/server/helpers.go#L74
+	if val, ok := labels[sandboxLabelKey]; ok && val == sandboxLabelValue {
+		return true
+	}
 
 	var isPauseContainerByImageName bool
 	if pauseContainerFilter != nil {
 		isPauseContainerByImageName = pauseContainerFilter.IsExcluded(nil, "", imageName, "")
 	}
 
-	return isPauseContainerByLabels || isPauseContainerBySandbox || isPauseContainerByImageName
+	return isPauseContainerByImageName
 }
