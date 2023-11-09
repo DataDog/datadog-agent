@@ -13,6 +13,7 @@ import (
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 )
@@ -41,7 +42,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forw
 	log := log.NewTemporaryLoggerWithoutInit()
 	forwarder := forwarder.NewSyncForwarder(config.Datadog, log, keysPerDomain, forwarderTimeout)
 	serializer := serializer.NewSerializer(forwarder, nil)
-	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize)
+	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled())
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
 	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, nil, nil, "")

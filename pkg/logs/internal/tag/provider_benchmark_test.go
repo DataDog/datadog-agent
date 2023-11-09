@@ -18,7 +18,7 @@ func setupConfig(tags []string) (*config.MockConfig, time.Time) {
 	startTime := config.StartTime
 	config.StartTime = time.Now()
 
-	mockConfig.Set("tags", tags)
+	mockConfig.SetWithoutSource("tags", tags)
 
 	return mockConfig, startTime
 }
@@ -31,11 +31,11 @@ func BenchmarkProviderExpectedTags(b *testing.B) {
 		config.StartTime = start
 	}()
 
-	defer m.Set("tags", nil)
+	defer m.SetWithoutSource("tags", nil)
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
-	m.Set("logs_config.expected_tags_duration", "1m")
-	defer m.Set("logs_config.expected_tags_duration", 0)
+	m.SetWithoutSource("logs_config.expected_tags_duration", "1m")
+	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
 
 	p := NewProvider("foo")
 
@@ -57,8 +57,8 @@ func BenchmarkProviderExpectedTagsEmptySlice(b *testing.B) {
 	}
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
-	m.Set("logs_config.expected_tags_duration", "1m")
-	defer m.Set("logs_config.expected_tags_duration", 0)
+	m.SetWithoutSource("logs_config.expected_tags_duration", "1m")
+	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
 
 	p := NewProvider("foo")
 
@@ -80,8 +80,8 @@ func BenchmarkProviderExpectedTagsNil(b *testing.B) {
 	}
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
-	m.Set("logs_config.expected_tags_duration", "1m")
-	defer m.Set("logs_config.expected_tags_duration", 0)
+	m.SetWithoutSource("logs_config.expected_tags_duration", "1m")
+	defer m.SetWithoutSource("logs_config.expected_tags_duration", 0)
 
 	p := NewProvider("foo")
 
@@ -98,10 +98,10 @@ func BenchmarkProviderNoExpectedTags(b *testing.B) {
 		config.StartTime = start
 	}()
 
-	defer m.Set("tags", nil)
+	defer m.SetWithoutSource("tags", nil)
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
-	m.Set("logs_config.expected_tags_duration", "0")
+	m.SetWithoutSource("logs_config.expected_tags_duration", "0")
 
 	p := NewProvider("foo")
 
@@ -118,10 +118,10 @@ func BenchmarkProviderNoExpectedTagsNil(b *testing.B) {
 		config.StartTime = start
 	}()
 
-	defer m.Set("tags", nil)
+	defer m.SetWithoutSource("tags", nil)
 
 	// Setting a test-friendly value for the deadline (test should not take 1m)
-	m.Set("logs_config.expected_tags_duration", "0")
+	m.SetWithoutSource("logs_config.expected_tags_duration", "0")
 
 	p := NewProvider("foo")
 

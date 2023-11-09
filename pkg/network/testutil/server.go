@@ -121,7 +121,6 @@ func StartServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 	port, err = strconv.Atoi(portStr)
 	assert.Nil(t, err)
 
-	require.NoError(t, err)
 	go func() {
 		close(ch)
 

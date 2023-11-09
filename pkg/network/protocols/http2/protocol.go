@@ -18,6 +18,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -25,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type protocol struct {
@@ -33,6 +35,7 @@ type protocol struct {
 	telemetry *http.Telemetry
 	// TODO: Do we need to duplicate?
 	statkeeper     *http.StatKeeper
+	mapCleaner     *ddebpf.MapCleaner
 	eventsConsumer *events.Consumer
 }
 
@@ -49,7 +52,7 @@ const (
 )
 
 var Spec = &protocols.ProtocolSpec{
-	Factory: newHttpProtocol,
+	Factory: newHTTP2Protocol,
 	Maps: []*manager.Map{
 		{
 			Name: inFlightMap,
@@ -104,7 +107,7 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
+func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableHTTP2Monitoring {
 		return nil, nil
 	}
@@ -178,11 +181,17 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	return
 }
 
-func (p *protocol) PostStart(_ *manager.Manager) error {
+func (p *protocol) PostStart(mgr *manager.Manager) error {
+	// Setup map cleaner after manager start.
+	p.setupMapCleaner(mgr)
+
 	return nil
 }
 
 func (p *protocol) Stop(_ *manager.Manager) {
+	// mapCleaner handles nil pointer receivers
+	p.mapCleaner.Stop()
+
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
 	}
@@ -216,6 +225,36 @@ func (p *protocol) processHTTP2(data []byte) {
 	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
 	p.telemetry.Count(tx)
 	p.statkeeper.Process(tx)
+}
+
+func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
+	http2Map, _, err := mgr.GetMap(inFlightMap)
+	if err != nil {
+		log.Errorf("error getting %q map: %s", inFlightMap, err)
+		return
+	}
+	mapCleaner, err := ddebpf.NewMapCleaner(http2Map, new(http2StreamKey), new(EbpfTx))
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+		return
+	}
+
+	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
+		http2Txn, ok := val.(*EbpfTx)
+		if !ok {
+			return false
+		}
+
+		if updated := int64(http2Txn.Response_last_seen); updated > 0 {
+			return (now - updated) > ttl
+		}
+
+		started := int64(http2Txn.Request_started)
+		return started > 0 && (now-started) > ttl
+	})
+
+	p.mapCleaner = mapCleaner
 }
 
 // GetStats returns a map of HTTP2 stats stored in the following format:

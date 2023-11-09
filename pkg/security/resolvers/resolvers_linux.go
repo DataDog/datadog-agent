@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime"
 	"sort"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -213,7 +212,6 @@ func (r *Resolvers) Snapshot() error {
 		return err
 	}
 
-	runtime.GC()
 	return nil
 }
 

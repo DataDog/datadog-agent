@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-package util
+package buf
 
 import (
 	"context"
@@ -49,7 +49,8 @@ func TestBufferedChanContext(t *testing.T) {
 	r.Nil(v)
 
 	// `Put`` must return false as the channel is canceled.
-	for ok := c.Put(0); ok == true; ok = c.Put(0) {
+	for ok := c.Put(0); ok == true; {
+		ok = c.Put(0)
 	}
 }
 

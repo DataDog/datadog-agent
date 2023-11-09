@@ -34,7 +34,7 @@ func NewSyncForwarder(config config.Component, log log.Component, keysPerDomain 
 		defaultForwarder: NewDefaultForwarder(config, log, NewOptions(config, log, keysPerDomain)),
 		client: &http.Client{
 			Timeout:   timeout,
-			Transport: utilhttp.CreateHTTPTransport(),
+			Transport: utilhttp.CreateHTTPTransport(config),
 		},
 	}
 }

@@ -141,4 +141,13 @@ __attribute__((always_inline)) struct process_event_t *new_process_event(u8 is_f
     return evt;
 }
 
+bool __attribute__((always_inline)) is_current_kworker_dying() {
+    char comm[16];
+    bpf_get_current_comm(comm, sizeof(comm));
+    return comm[0] == 'k' && comm[1] == 'w' && comm[2] == 'o' && comm[3] == 'r'
+        && comm[4] == 'k' && comm[5] == 'e' && comm[6] == 'r' && comm[7] == '/'
+        && comm[8] == 'd' && comm[9] == 'y' && comm[10] == 'i' && comm[11] == 'n'
+        && comm[12] == 'g';
+}
+
 #endif

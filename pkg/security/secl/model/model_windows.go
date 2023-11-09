@@ -78,3 +78,8 @@ type PIDContext struct {
 
 // NetworkDeviceContext defines a network device context
 type NetworkDeviceContext struct{}
+
+// ExtraFieldHandlers handlers not hold by any field
+type ExtraFieldHandlers interface {
+	BaseExtraFieldHandlers
+}
