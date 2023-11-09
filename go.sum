@@ -181,10 +181,10 @@ github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f/go.mod h1:oXfOhM/Kr
 github.com/DisposaBoy/JsonConfigReader v0.0.0-20130112093355-33a99fdf1d5e/go.mod h1:GCzqZQHydohgVLSIqRKZeTt8IGb1Y4NaFfim3H40uUI=
 github.com/DisposaBoy/JsonConfigReader v0.0.0-20201129172854-99cf318d67e7 h1:AJKJCKcb/psppPl/9CUiQQnTG+Bce0/cIweD5w5Q7aQ=
 github.com/DisposaBoy/JsonConfigReader v0.0.0-20201129172854-99cf318d67e7/go.mod h1:GCzqZQHydohgVLSIqRKZeTt8IGb1Y4NaFfim3H40uUI=
-github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/otlp/metrics v0.0.0-20231109012736-5291a7b6d4ef h1:N4F/ISRVK5ZcqXeWvlsTBOfNplpUCcjj01nGn7QfNaY=
-github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/otlp/metrics v0.0.0-20231109012736-5291a7b6d4ef/go.mod h1:Rj9iSVbiS66vXtQ48gcZReslXXmkihN0R7oxFu16NwE=
-github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20231109012736-5291a7b6d4ef h1:yVFB7bjsKiSwwds+3/YCVtvsCUKVemvk3lgAbMeG24U=
-github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20231109012736-5291a7b6d4ef/go.mod h1:T0t5wBUPB2L9IYMZJ+0bZQtkQGP2A1+Ynf5e4Be/hQs=
+github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/otlp/metrics v0.0.0-20231109042616-68d3745e2a4d h1:IwsF0VFab72wP75clxMX+cdWSvJHVrfaFD0Cy8csjns=
+github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/otlp/metrics v0.0.0-20231109042616-68d3745e2a4d/go.mod h1:Rj9iSVbiS66vXtQ48gcZReslXXmkihN0R7oxFu16NwE=
+github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20231109042616-68d3745e2a4d h1:OMXRMXEQdJn3jEx5SdhNFKXMRxZUHxYFJ7y7cK2w51g=
+github.com/GeorgeHahn/opentelemetry-mapping-go/pkg/quantile v0.0.0-20231109042616-68d3745e2a4d/go.mod h1:T0t5wBUPB2L9IYMZJ+0bZQtkQGP2A1+Ynf5e4Be/hQs=
 github.com/GoogleCloudPlatform/docker-credential-gcr v2.0.5+incompatible h1:juIaKLLVhqzP55d8x4cSVgwyQv76Z55/fRv/UBr2KkQ=
 github.com/GoogleCloudPlatform/docker-credential-gcr v2.0.5+incompatible/go.mod h1:BB1eHdMLYEFuFdBlRMb0N7YGVdM5s6Pt0njxgvfbGGs=
 github.com/MakeNowJust/heredoc v1.0.0 h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ4pzQ=
