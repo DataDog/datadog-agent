@@ -366,6 +366,10 @@ func extractResources(spec *kubelet.ContainerSpec) workloadmeta.ContainerResourc
 		resources.CPURequest = pointer.Ptr(cpuReq.AsApproximateFloat64() * 100) // For 100Mi, AsApproximate returns 0.1, we return 10%
 	}
 
+	if memoryReq, found := spec.Resources.Requests[kubelet.ResourceMemory]; found {
+		resources.MemoryRequest = pointer.Ptr(uint64(memoryReq.Value()))
+	}
+
 	return resources
 }
 

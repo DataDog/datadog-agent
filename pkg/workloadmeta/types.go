@@ -420,14 +420,18 @@ func (c ContainerPort) String(verbose bool) string {
 
 // ContainerResources is resources requests or limitations for a container
 type ContainerResources struct {
-	CPURequest *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
+	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
+	MemoryRequest *uint64  // Bytes
 }
 
 // String returns a string representation of ContainerPort.
-func (cr ContainerResources) String(verbose bool) string {
+func (cr ContainerResources) String(bool) string {
 	var sb strings.Builder
 	if cr.CPURequest != nil {
 		_, _ = fmt.Fprintln(&sb, "TargetCPUUsage:", *cr.CPURequest)
+	}
+	if cr.MemoryRequest != nil {
+		_, _ = fmt.Fprintln(&sb, "TargetMemoryUsage:", *cr.MemoryRequest)
 	}
 	return sb.String()
 }
