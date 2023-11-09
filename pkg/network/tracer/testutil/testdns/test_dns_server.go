@@ -9,6 +9,7 @@
 package testdns
 
 import (
+	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -28,6 +29,7 @@ const localhostAddr = "127.0.0.1"
 //
 // see server#start to see which domains are handled.
 func GetServerIP(t *testing.T) net.IP {
+	t.Helper()
 	var srv *server
 	serverOnce.Do(func() {
 		srv = newServer()
@@ -124,4 +126,85 @@ func respond(req *dns.Msg, writer dns.ResponseWriter, record string) {
 	}
 	resp.Answer = []dns.RR{rr}
 	_ = writer.WriteMsg(resp)
+}
+
+func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port string, protocol string) (string, int, []*dns.Msg, error) {
+	t.Helper()
+	//clientIP := getOutboundIP(t, serverIP).String()
+
+	//var dnsClientAddr net.Addr
+	//if protocol == "tcp" {
+	//	dnsClientAddr = &net.TCPAddr{IP: net.ParseIP(clientIP)}
+	//} else {
+	//	dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP)}
+	//}
+
+	//localAddrDialer := &net.Dialer{
+	//	LocalAddr: dnsClientAddr,
+	//	Timeout:   5 * time.Second,
+	//}
+
+	//localAddrDialer := &net.Dialer{
+	//	Timeout: 5 * time.Second,
+	//}
+
+	dnsClient := new(dns.Client)
+	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP.String()), Port: 53}
+	//dnsClient := dns.Client{Net: protocol, Dialer: localAddrDialer}
+	//dnsHost := net.JoinHostPort(serverIP.String(), port)
+	conn, err := dnsClient.Dial(dnsServerAddr.String())
+	if err != nil {
+		return "", 0, nil, err
+	}
+
+	var clientPort int
+	var clientIP2 string
+	if protocol == "tcp" {
+		localConn := conn.Conn.(*net.TCPConn).LocalAddr().(*net.TCPAddr)
+		clientIP2 = localConn.IP.String()
+		clientPort = localConn.Port
+	} else { // UDP
+		localAddr := conn.LocalAddr().(*net.UDPAddr)
+		fmt.Println("localAddr: ", localAddr)
+		localConn := conn.Conn.(*net.UDPConn).LocalAddr().(*net.UDPAddr)
+		clientIP2 = localConn.IP.String()
+		clientPort = localConn.Port
+	}
+	fmt.Println("clientIP2: ", clientIP2)
+
+	var reps []*dns.Msg
+	msg := new(dns.Msg)
+	msg.RecursionDesired = true
+	for _, domain := range domains {
+		msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+		rep, _, _ := dnsClient.ExchangeWithConn(msg, conn)
+		reps = append(reps, rep)
+	}
+
+	_ = conn.Close()
+
+	return clientIP2, clientPort, reps, nil
+}
+
+func SendDNSQueries(
+	t *testing.T,
+	domains []string,
+	serverIP net.IP,
+	protocol string,
+) (string, int, []*dns.Msg, error) {
+	t.Helper()
+	return SendDNSQueriesOnPort(t, domains, serverIP, "53", protocol)
+}
+
+// Get the preferred outbound IP of this machine
+func getOutboundIP(t *testing.T, serverIP net.IP) net.IP {
+	t.Helper()
+	if serverIP.IsLoopback() {
+		return serverIP
+	}
+	conn, err := net.Dial("udp", serverIP.String()+":80")
+	require.NoError(t, err)
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	_ = conn.Close()
+	return localAddr.IP
 }

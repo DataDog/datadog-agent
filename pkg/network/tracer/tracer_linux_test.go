@@ -51,6 +51,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -632,7 +633,8 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 	m.EXPECT().IsAWS().Return(true)
 	cloud = m
 
-	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
+	destAddr := net.ParseIP("8.8.8.8")
+	ifi := ipRouteGet(t, "", destAddr.String(), nil)
 	ifs, err := net.Interfaces()
 	require.NoError(t, err)
 
@@ -659,14 +661,22 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 
 	initTracerState(t, tr)
 
-	dnsClientAddr, dnsServerAddr := doDNSQuery(t, "google.com", "8.8.8.8")
+	var clientIP string
+	var clientPort int
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{"google.com"}, destAddr, "udp")
+		assert.NoError(c, err)
+	}, 5*time.Second, 100*time.Millisecond, "failed to find connection")
+
+	dnsClientAddr := net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
+	dnsServerAddr := net.UDPAddr{IP: destAddr, Port: 53}
 
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		var ok bool
-		conn, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
+		conn, ok = findConnection(&dnsClientAddr, &dnsServerAddr, getConnections(t, tr))
 		return ok
-	}, 3*time.Second, 500*time.Millisecond)
+	}, 5*time.Second, 500*time.Millisecond)
 
 	require.NotNil(t, conn.Via, "connection is missing via: %s", conn)
 	require.Equal(t, conn.Via.Subnet.Alias, fmt.Sprintf("subnet-%d", ifi.Index))
@@ -684,6 +694,8 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	m.EXPECT().IsAWS().Return(true)
 	cloud = m
 
+	destAddr := net.ParseIP("8.8.8.8")
+	destDomain := "google.com"
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	// create the tracer without starting it
@@ -693,7 +705,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
-	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
+	ifi := ipRouteGet(t, "", destAddr.String(), nil)
 	calls := 0
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		if hwAddr.String() == ifi.HardwareAddr.String() {
@@ -707,20 +719,32 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 
 	initTracerState(t, tr)
 
-	// do two dns queries to prompt more than one subnet lookup attempt
-	localAddr, remoteAddr := doDNSQuery(t, "google.com", "8.8.8.8")
+	var clientIP string
+	var clientPort int
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{destDomain}, destAddr, "udp")
+		assert.NoError(c, err)
+	}, 5*time.Second, 100*time.Millisecond, "failed to find connection")
+
+	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
+	dnsServerAddr := &net.UDPAddr{IP: destAddr, Port: 53}
 	var c *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		var ok bool
-		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
 	}, 3*time.Second, 500*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
 
-	localAddr, remoteAddr = doDNSQuery(t, "google.com", "8.8.8.8")
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{destDomain}, destAddr, "udp")
+		assert.NoError(c, err)
+	}, 5*time.Second, 100*time.Millisecond, "failed to find connection")
+
+	dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
 	require.Eventually(t, func() bool {
 		var ok bool
-		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
 	}, 3*time.Second, 500*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
@@ -740,6 +764,8 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 	m.EXPECT().IsAWS().Return(true)
 	cloud = m
 
+	dnsAddr := net.ParseIP("8.8.8.8")
+	destDomain := "google.com"
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	tr, err := newTracer(cfg)
@@ -863,12 +889,25 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		// try connecting to something outside
 		var dnsClientAddr, dnsServerAddr *net.UDPAddr
 		kernel.WithNS(test2Ns, func() error {
-			dnsClientAddr, dnsServerAddr = doDNSQuery(t, "google.com", "8.8.8.8")
+			dnsClientAddr2, dnsServerAddr2 := doDNSQuery(t, destDomain, dnsAddr.String())
+			var clientIP string
+			var clientPort int
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{destDomain}, dnsAddr, "udp")
+				assert.NoError(c, err)
+			}, 5*time.Second, 100*time.Millisecond, "failed to find connection")
+
+			dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
+			dnsServerAddr = &net.UDPAddr{IP: dnsAddr, Port: 53}
+
+			fmt.Println("clientAddr1: ", dnsClientAddr)
+			fmt.Println("clientAddr2: ", dnsClientAddr2)
+			fmt.Println("serverAddr: ", dnsServerAddr2)
 			return nil
 		})
 
 		iif := ipRouteGet(t, "", dnsClientAddr.IP.String(), nil)
-		ifi := ipRouteGet(t, dnsClientAddr.IP.String(), "8.8.8.8", iif)
+		ifi := ipRouteGet(t, dnsClientAddr.IP.String(), dnsAddr.String(), iif)
 
 		require.Eventually(t, func() bool {
 			var ok bool
@@ -1378,6 +1417,7 @@ func ipRouteGet(t *testing.T, from, dest string, iif *net.Interface) *net.Interf
 	if iif != nil {
 		args = append(args, "iif", iif.Name)
 	}
+	fmt.Println("args: ", args)
 	cmd := exec.Command("ip", args...)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "ip command returned error, output: %s", out)

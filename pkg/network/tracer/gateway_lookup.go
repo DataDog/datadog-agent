@@ -149,7 +149,7 @@ func (g *gatewayLookup) Lookup(cs *network.ConnectionStats) *network.Via {
 			gatewayLookupTelemetry.subnetLookups.Inc()
 			if s, err = g.subnetForHwAddrFunc(ifi.HardwareAddr); err != nil {
 				gatewayLookupTelemetry.subnetLookupErrors.Inc()
-				log.Debugf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
+				log.Errorf("error getting subnet info for interface index %d: %s", r.IfIndex, err)
 
 				// cache an empty result so that we don't keep hitting the
 				// ec2 metadata endpoint for this interface
