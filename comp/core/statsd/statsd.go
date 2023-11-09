@@ -72,7 +72,7 @@ func createClient(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientI
 	}
 
 	if addr == "" {
-		addr = net.JoinHostPort("locahost", strconv.Itoa(8125))
+		addr = net.JoinHostPort("127.0.0.1", strconv.Itoa(8125))
 	}
 
 	options = append(
