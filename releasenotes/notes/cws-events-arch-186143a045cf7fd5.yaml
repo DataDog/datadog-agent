@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CWS: add ``arch`` field into agent context included in CWS events.
