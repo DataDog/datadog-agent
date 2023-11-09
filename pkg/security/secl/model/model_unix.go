@@ -341,6 +341,10 @@ type Process struct {
 	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
 
 	Source uint64 `field:"-" json:"-"`
+
+	// lineage
+	hasValidLineage *bool `field:"-"`
+	lineageError    error `field:"-"`
 }
 
 // ExecEvent represents a exec event
