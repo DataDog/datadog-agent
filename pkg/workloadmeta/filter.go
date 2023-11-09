@@ -5,6 +5,8 @@
 
 package workloadmeta
 
+import "github.com/DataDog/datadog-agent/pkg/config"
+
 // Filter allows a subscriber to filter events by entity kind, event source, and
 // event type.
 //
@@ -51,6 +53,17 @@ func NewFilter(filterParams *FilterParams) *Filter {
 	// This is enforced in the matching functions, but putting here for clarity
 	if filterParams.Source == "" {
 		filterParams.Source = SourceAll
+	}
+
+	// TODO: Convert IncludeFunc into options or slice of functions if there needs to be additional defaults
+	if filterParams.IncludeFunc == nil && !config.Datadog.GetBool("exclude_pause_container") {
+		filterParams.IncludeFunc = func(entity Entity) bool {
+			container, ok := entity.(*Container)
+			if ok {
+				return container.IsPauseContainer
+			}
+			return false
+		}
 	}
 
 	return &Filter{
