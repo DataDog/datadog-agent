@@ -9,7 +9,6 @@ package resolvers
 import (
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers/hash"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tags"
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -19,7 +18,6 @@ import (
 type Resolvers struct {
 	ProcessResolver *process.Resolver
 	TagsResolver    tags.Resolver
-	HashResolver    *hash.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -31,15 +29,9 @@ func NewResolvers(config *config.Config, statsdClient statsd.ClientInterface, sc
 
 	tagsResolver := tags.NewResolver(config.Probe)
 
-	hashResolver, err := hash.NewResolver(config.RuntimeSecurity, statsdClient)
-	if err != nil {
-		return nil, err
-	}
-
 	resolvers := &Resolvers{
 		ProcessResolver: processResolver,
 		TagsResolver:    tagsResolver,
-		HashResolver:    hashResolver,
 	}
 	return resolvers, nil
 }

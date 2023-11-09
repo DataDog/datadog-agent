@@ -878,3 +878,9 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 
 	return buff, nil
 }
+
+// ExtraFieldHandlers handlers not hold by any field
+type ExtraFieldHandlers interface {
+	BaseExtraFieldHandlers
+	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
+}
