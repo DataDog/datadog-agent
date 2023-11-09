@@ -61,7 +61,7 @@ func TestStoreGenerators(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := config.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 			for k, v := range tt.cfg {
-				cfg.Set(k, v)
+				cfg.SetWithoutSource(k, v)
 			}
 			expectedStores := collectResultStoreGenerator(tt.expectedStoresGenerator)
 			stores := collectResultStoreGenerator(storeGenerators(cfg))

@@ -54,6 +54,7 @@ from .test import (
     codecov,
     download_tools,
     e2e_tests,
+    get_modified_packages,
     install_shellcheck,
     install_tools,
     integration_tests,
@@ -115,6 +116,8 @@ ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
+
+ns.add_task(get_modified_packages)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)

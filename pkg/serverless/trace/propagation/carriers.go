@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/aws/aws-lambda-go/events"
 	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
 )
@@ -23,10 +24,12 @@ const (
 	awsTraceHeader   = "AWSTraceHeader"
 	datadogSQSHeader = "_datadog"
 
-	rootPrefix    = "Root="
-	parentPrefix  = "Parent="
-	rootPadding   = len(rootPrefix + "1-00000000-00000000")
-	parentPadding = len(parentPrefix)
+	rootPrefix     = "Root="
+	parentPrefix   = "Parent="
+	sampledPrefix  = "Sampled="
+	rootPadding    = len(rootPrefix + "1-00000000-00000000")
+	parentPadding  = len(parentPrefix)
+	sampledPadding = len(sampledPrefix)
 )
 
 var rootRegex = regexp.MustCompile("Root=1-[0-9a-fA-F]{8}-00000000[0-9a-fA-F]{16}")
@@ -42,6 +45,7 @@ func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) 
 		startPart int
 		traceID   string
 		parentID  string
+		sampled   string
 		err       error
 	)
 	length := len(value)
@@ -59,8 +63,12 @@ func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) 
 			if parentID == "" {
 				parentID = part[parentPadding:]
 			}
+		} else if strings.HasPrefix(part, sampledPrefix) {
+			if sampled == "" {
+				sampled = part[sampledPadding:]
+			}
 		}
-		if traceID != "" && parentID != "" {
+		if traceID != "" && parentID != "" && sampled != "" {
 			break
 		}
 		startPart = endPart + 1
@@ -73,6 +81,9 @@ func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) 
 	tc.ParentID, err = strconv.ParseUint(parentID, 16, 64)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse parent ID from AWSTraceHeader: %w", err)
+	}
+	if sampled == "1" {
+		tc.SamplingPriority = sampler.PriorityAutoKeep
 	}
 	if tc.TraceID == 0 || tc.ParentID == 0 {
 		return nil, errors.New("AWSTraceHeader does not contain trace ID and parent ID")

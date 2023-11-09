@@ -47,6 +47,16 @@ func (m *StatsPayload) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if m.SplitPayload {
+		i--
+		if m.SplitPayload {
+			dAtA[i] = 1
+		} else {
+			dAtA[i] = 0
+		}
+		i--
+		dAtA[i] = 0x30
+	}
 	if m.ClientComputed {
 		i--
 		if m.ClientComputed {
@@ -323,13 +333,6 @@ func (m *ClientGroupedStats) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x7a
 	}
-	if len(m.PeerService) > 0 {
-		i -= len(m.PeerService)
-		copy(dAtA[i:], m.PeerService)
-		i = encodeVarint(dAtA, i, uint64(len(m.PeerService)))
-		i--
-		dAtA[i] = 0x72
-	}
 	if m.TopLevelHits != 0 {
 		i = encodeVarint(dAtA, i, uint64(m.TopLevelHits))
 		i--
@@ -442,6 +445,9 @@ func (m *StatsPayload) SizeVT() (n int) {
 		n += 1 + l + sov(uint64(l))
 	}
 	if m.ClientComputed {
+		n += 2
+	}
+	if m.SplitPayload {
 		n += 2
 	}
 	n += len(m.unknownFields)
@@ -585,10 +591,6 @@ func (m *ClientGroupedStats) SizeVT() (n int) {
 	}
 	if m.TopLevelHits != 0 {
 		n += 1 + sov(uint64(m.TopLevelHits))
-	}
-	l = len(m.PeerService)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
 	}
 	l = len(m.SpanKind)
 	if l > 0 {
@@ -783,6 +785,26 @@ func (m *StatsPayload) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			m.ClientComputed = bool(v != 0)
+		case 6:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SplitPayload", wireType)
+			}
+			var v int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				v |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			m.SplitPayload = bool(v != 0)
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -1743,38 +1765,6 @@ func (m *ClientGroupedStats) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 14:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field PeerService", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.PeerService = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
 		case 15:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field SpanKind", wireType)
