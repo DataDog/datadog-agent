@@ -146,9 +146,11 @@ func (k *KubeletCheck) Run() error {
 	}
 
 	for _, provider := range k.providers {
-		err = provider.Provide(kc, sender)
-		if err != nil {
-			_ = k.Warnf("Error reporting metrics: %s", err)
+		if provider != nil {
+			err = provider.Provide(kc, sender)
+			if err != nil {
+				_ = k.Warnf("Error reporting metrics: %s", err)
+			}
 		}
 	}
 
