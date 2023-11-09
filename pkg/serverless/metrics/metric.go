@@ -13,7 +13,6 @@ import (
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -129,7 +128,7 @@ func buildDemultiplexer(multipleEndpointConfig MultipleEndpointConfig, forwarder
 		log.Errorf("Misconfiguration of agent endpoints: %s", err)
 		return nil
 	}
-	return aggregator.InitAndStartServerlessDemultiplexer(resolver.NewSingleDomainResolvers(keysPerDomain), forwarderTimeout)
+	return aggregator.InitAndStartServerlessDemultiplexer(keysPerDomain, forwarderTimeout)
 }
 
 func buildMetricBlocklist(userProvidedList []string) []string {
