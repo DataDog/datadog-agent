@@ -98,7 +98,7 @@ func TestHeartbeatSent(t *testing.T) {
 	})
 }
 
-func truncatedParents(t *testing.T, opts testOpts) {
+func truncatedParents(t *testing.T, staticOpts testOpts, dynamicOpts dynamicTestOpts) {
 	var truncatedParents string
 	for i := 0; i < model.MaxPathDepth; i++ {
 		truncatedParents += "a/"
@@ -110,7 +110,7 @@ func truncatedParents(t *testing.T, opts testOpts) {
 		Expression: `open.file.path =~ "*/a/**" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(opts))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(staticOpts), withDynamicOpts(dynamicOpts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -176,9 +176,9 @@ func cleanupABottomUp(path string) {
 }
 
 func TestTruncatedParentsMap(t *testing.T) {
-	truncatedParents(t, testOpts{disableERPCDentryResolution: true, disableAbnormalPathCheck: true})
+	truncatedParents(t, testOpts{disableERPCDentryResolution: true}, dynamicTestOpts{disableAbnormalPathCheck: true})
 }
 
 func TestTruncatedParentsERPC(t *testing.T) {
-	truncatedParents(t, testOpts{disableMapDentryResolution: true, disableAbnormalPathCheck: true})
+	truncatedParents(t, testOpts{disableMapDentryResolution: true}, dynamicTestOpts{disableAbnormalPathCheck: true})
 }

@@ -265,12 +265,15 @@ type testOpts struct {
 	disableERPCDentryResolution                bool
 	disableMapDentryResolution                 bool
 	envsWithValue                              []string
-	disableAbnormalPathCheck                   bool
 	disableRuntimeSecurity                     bool
 	enableSBOM                                 bool
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
+}
+
+type dynamicTestOpts struct {
+	disableAbnormalPathCheck bool
 }
 
 func (s *stringSlice) String() string {
@@ -308,7 +311,6 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
 		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
-		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
@@ -318,7 +320,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 type testModule struct {
 	sync.RWMutex
 	secconfig     *secconfig.Config
-	opts          testOpts
+	opts          tmOpts
 	st            *simpleTest
 	t             testing.TB
 	eventMonitor  *eventmonitor.EventMonitor
@@ -856,7 +858,8 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 }
 
 type tmOpts struct {
-	staticOpts testOpts
+	staticOpts  testOpts
+	dynamicOpts dynamicTestOpts
 }
 
 type optFunc = func(opts *tmOpts)
@@ -864,6 +867,12 @@ type optFunc = func(opts *tmOpts)
 func withStaticOpts(opts testOpts) optFunc {
 	return func(tmo *tmOpts) {
 		tmo.staticOpts = opts
+	}
+}
+
+func withDynamicOpts(opts dynamicTestOpts) optFunc {
+	return func(tmo *tmOpts) {
+		tmo.dynamicOpts = opts
 	}
 }
 
@@ -918,7 +927,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 	}
 
-	if testMod != nil && opts.staticOpts.Equal(testMod.opts) {
+	if testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
@@ -955,7 +964,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	testMod = &testModule{
 		secconfig:     secconfig,
-		opts:          opts.staticOpts,
+		opts:          opts,
 		st:            st,
 		t:             t,
 		cmdWrapper:    cmdWrapper,
@@ -1636,11 +1645,11 @@ func (tm *testModule) validateSyscallsInFlight() {
 }
 
 func (tm *testModule) Close() {
-	if !tm.opts.disableRuntimeSecurity {
+	if !tm.opts.staticOpts.disableRuntimeSecurity {
 		tm.eventMonitor.SendStats()
 	}
 
-	if !tm.opts.disableAbnormalPathCheck {
+	if !tm.opts.dynamicOpts.disableAbnormalPathCheck {
 		tm.validateAbnormalPaths()
 	}
 
