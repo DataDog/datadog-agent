@@ -274,9 +274,7 @@ func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) {
 		p.http2Telemetry.pathSizeBucket4.Set(int64(http2Telemetry.Path_size_bucket4))
 		p.http2Telemetry.pathSizeBucket5.Set(int64(http2Telemetry.Path_size_bucket5))
 		p.http2Telemetry.pathSizeBucket6.Set(int64(http2Telemetry.Path_size_bucket6))
-
 		p.http2Telemetry.maxFramesIteration.Set(int64(http2Telemetry.Max_frames_iteration))
-		p.http2Telemetry.iterationLimit.Set(int64(http2Telemetry.Iteration_limit))
 
 		time.Sleep(10 * time.Second)
 		p.http2Telemetry.Log()

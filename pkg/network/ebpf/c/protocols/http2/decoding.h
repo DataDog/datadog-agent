@@ -523,7 +523,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
     return false;
 }
 
-static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index) {
+static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
@@ -549,10 +549,15 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
         is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-        if (interesting_frame_index < HTTP2_MAX_FRAMES_ITERATIONS && (is_headers_or_rst_frame || is_data_end_of_stream)) {
-            frames_array[interesting_frame_index].frame = current_frame;
-            frames_array[interesting_frame_index].offset = skb_info->data_off;
-            interesting_frame_index++;
+
+        if (is_headers_or_rst_frame || is_data_end_of_stream) {
+            if (interesting_frame_index < HTTP2_MAX_FRAMES_ITERATIONS) {
+                frames_array[interesting_frame_index].frame = current_frame;
+                frames_array[interesting_frame_index].offset = skb_info->data_off;
+                interesting_frame_index++;
+            } else {
+                __sync_fetch_and_add(&http2_tel->max_frames_iteration, 1);
+            }
         }
         skb_info->data_off += current_frame.length;
     }
@@ -654,6 +659,11 @@ int socket__http2_filter(struct __sk_buff *skb) {
         return 0;
     }
 
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+    if (http2_tel == NULL) {
+        return 0;
+    }
+
     // Some functions might change and override fields in dispatcher_args_copy.skb_info. Since it is used as a key
     // in a map, we cannot allow it to be modified. Thus, having a local copy of skb_info.
     skb_info_t local_skb_info = dispatcher_args_copy.skb_info;
@@ -661,7 +671,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     // The verifier cannot tell if `iteration_value->frames_count` is 0 or 1, so we have to help it. The value is
     // 1 if we have found an interesting frame in `socket__http2_handle_first_frame`, otherwise it is 0.
     // filter frames
-    iteration_value->frames_count = find_relevant_headers(skb, &local_skb_info, iteration_value->frames_array, iteration_value->frames_count);
+    iteration_value->frames_count = find_relevant_headers(skb, &local_skb_info, iteration_value->frames_array, iteration_value->frames_count, http2_tel);
 
     frame_header_remainder_t new_frame_state = {0};
     if (local_skb_info.data_off > local_skb_info.data_end) {
@@ -734,16 +744,13 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
 
     #pragma unroll(HTTP2_FRAMES_PER_TAIL_CALL)
     for (__u8 index = 0; index < HTTP2_FRAMES_PER_TAIL_CALL; index++) {
-        // todo: does it covers the whole options?
         if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
-            __sync_fetch_and_add(&http2_tel->max_frames_iteration, 1);
             break;
         }
 
         current_frame = frames_array[tail_call_state->iteration];
         // Having this condition after assignment and not before is due to a verifier issue.
         if (tail_call_state->iteration >= tail_call_state->frames_count) {
-            __sync_fetch_and_add(&http2_tel->iteration_limit, 1);
             break;
         }
         tail_call_state->iteration += 1;

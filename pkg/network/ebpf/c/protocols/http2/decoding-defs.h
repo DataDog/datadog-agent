@@ -148,7 +148,6 @@ typedef struct {
     __u64 response_seen;
     __u64 frame_remainder;
     __u64 max_frames_iteration;
-    __u64 iteration_limit;
 } http2_telemetry_t;
 
 #endif
