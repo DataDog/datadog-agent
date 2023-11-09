@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -195,6 +196,11 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) []libInfo {
 		libInfoList = extractLibrariesFromAnnotations(pod, containerRegistry, libInfoMap)
 	}
 
+	// Try getting the languages from the owner of the pod from workloadmeta
+	if len(libInfoList) == 0 {
+		libInfoList = extractLibrariesFromOwnerAnnotations(pod, containerRegistry)
+	}
+
 	if len(libInfoList) == 0 {
 		// Inject all if admission.datadoghq.com/all-lib.version exists
 		// without any other language-specific annotations.
@@ -218,6 +224,28 @@ func extractLibInfo(pod *corev1.Pod, containerRegistry string) []libInfo {
 	}
 
 	return libInfoList
+}
+
+// extractLibrariesFromOwnerAnnotations constructs the libraries to be injected if the languages
+// were stored in workloadmeta store based on owner annotations.
+func extractLibrariesFromOwnerAnnotations(pod *corev1.Pod, registry string) []libInfo {
+	libList := []libInfo{}
+
+	ownerName, ownerKind, found := getOwnerNameAndKind(pod)
+	if !found {
+		return libList
+	}
+
+	// TODO [Workloadmeta][Component Framework]: Use workloadmeta store as a component
+	store := workloadmeta.GetGlobalStore()
+
+	// Currently we only support deployments
+	switch ownerKind {
+	case "Deployment":
+		libList = getLibListFromDeploymentAnnotations(store, ownerName, pod.Namespace, registry)
+	}
+
+	return libList
 }
 
 func extractLibrariesFromAnnotations(
