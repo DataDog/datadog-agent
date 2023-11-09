@@ -130,11 +130,7 @@ func respond(req *dns.Msg, writer dns.ResponseWriter, record string) {
 
 func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port string, protocol string) (string, int, []*dns.Msg, error) {
 	t.Helper()
-	localAddrDialer := &net.Dialer{
-		Timeout: 3 * time.Second,
-	}
-
-	dnsClient := dns.Client{Net: protocol, Dialer: localAddrDialer}
+	dnsClient := dns.Client{Net: protocol, Timeout: 3 * time.Second}
 	dnsHost := net.JoinHostPort(serverIP.String(), port)
 	conn, err := dnsClient.Dial(dnsHost)
 	if err != nil {
