@@ -1,2 +1,4 @@
+ad_identifiers:
+  - _kube_orchestrator
 instances:
   - {}
