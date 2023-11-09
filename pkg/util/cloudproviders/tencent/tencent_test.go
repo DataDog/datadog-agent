@@ -21,8 +21,8 @@ import (
 func TestGetInstanceID(t *testing.T) {
 	ctx := context.Background()
 	holdValue := config.Datadog.Get("cloud_provider_metadata")
-	defer config.Datadog.Set("cloud_provider_metadata", holdValue)
-	config.Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+	defer config.Datadog.SetWithoutSource("cloud_provider_metadata", holdValue)
+	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
 
 	expected := "ins-nad6bga0"
 	var lastRequest *http.Request
@@ -43,8 +43,8 @@ func TestGetInstanceID(t *testing.T) {
 func TestGetHostAliases(t *testing.T) {
 	ctx := context.Background()
 	holdValue := config.Datadog.Get("cloud_provider_metadata")
-	defer config.Datadog.Set("cloud_provider_metadata", holdValue)
-	config.Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+	defer config.Datadog.SetWithoutSource("cloud_provider_metadata", holdValue)
+	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
 
 	expected := "ins-nad6bga0"
 	var lastRequest *http.Request
@@ -65,8 +65,8 @@ func TestGetHostAliases(t *testing.T) {
 
 func TestGetNTPHosts(t *testing.T) {
 	holdValue := config.Datadog.Get("cloud_provider_metadata")
-	defer config.Datadog.Set("cloud_provider_metadata", holdValue)
-	config.Datadog.Set("cloud_provider_metadata", []string{"tencent"})
+	defer config.Datadog.SetWithoutSource("cloud_provider_metadata", holdValue)
+	config.Datadog.SetWithoutSource("cloud_provider_metadata", []string{"tencent"})
 
 	ctx := context.Background()
 	expectedHosts := []string{"ntpupdate.tencentyun.com"}

@@ -2622,6 +2622,9 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 		return
 	}
 	out.BaseEventSerializer = new(BaseEventSerializer)
+	out.NetworkContextSerializer = new(NetworkContextSerializer)
+	out.DDContextSerializer = new(DDContextSerializer)
+	out.SecurityProfileContextSerializer = new(SecurityProfileContextSerializer)
 	out.SELinuxEventSerializer = new(SELinuxEventSerializer)
 	out.BPFEventSerializer = new(BPFEventSerializer)
 	out.MMapEventSerializer = new(MMapEventSerializer)
@@ -2645,6 +2648,36 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 			continue
 		}
 		switch key {
+		case "network":
+			if in.IsNull() {
+				in.Skip()
+				out.NetworkContextSerializer = nil
+			} else {
+				if out.NetworkContextSerializer == nil {
+					out.NetworkContextSerializer = new(NetworkContextSerializer)
+				}
+				(*out.NetworkContextSerializer).UnmarshalEasyJSON(in)
+			}
+		case "dd":
+			if in.IsNull() {
+				in.Skip()
+				out.DDContextSerializer = nil
+			} else {
+				if out.DDContextSerializer == nil {
+					out.DDContextSerializer = new(DDContextSerializer)
+				}
+				(*out.DDContextSerializer).UnmarshalEasyJSON(in)
+			}
+		case "security_profile":
+			if in.IsNull() {
+				in.Skip()
+				out.SecurityProfileContextSerializer = nil
+			} else {
+				if out.SecurityProfileContextSerializer == nil {
+					out.SecurityProfileContextSerializer = new(SecurityProfileContextSerializer)
+				}
+				easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers20(in, out.SecurityProfileContextSerializer)
+			}
 		case "selinux":
 			if in.IsNull() {
 				in.Skip()
@@ -2763,7 +2796,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 				if out.AnomalyDetectionSyscallEventSerializer == nil {
 					out.AnomalyDetectionSyscallEventSerializer = new(AnomalyDetectionSyscallEventSerializer)
 				}
-				easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers20(in, out.AnomalyDetectionSyscallEventSerializer)
+				easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(in, out.AnomalyDetectionSyscallEventSerializer)
 			}
 		case "usr":
 			if in.IsNull() {
@@ -2791,16 +2824,6 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 				}
 				(*out.FileEventSerializer).UnmarshalEasyJSON(in)
 			}
-		case "network":
-			if in.IsNull() {
-				in.Skip()
-				out.NetworkContextSerializer = nil
-			} else {
-				if out.NetworkContextSerializer == nil {
-					out.NetworkContextSerializer = new(NetworkContextSerializer)
-				}
-				(*out.NetworkContextSerializer).UnmarshalEasyJSON(in)
-			}
 		case "exit":
 			if in.IsNull() {
 				in.Skip()
@@ -2821,16 +2844,6 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 				}
 				(*out.ProcessContextSerializer).UnmarshalEasyJSON(in)
 			}
-		case "dd":
-			if in.IsNull() {
-				in.Skip()
-				out.DDContextSerializer = nil
-			} else {
-				if out.DDContextSerializer == nil {
-					out.DDContextSerializer = new(DDContextSerializer)
-				}
-				(*out.DDContextSerializer).UnmarshalEasyJSON(in)
-			}
 		case "container":
 			if in.IsNull() {
 				in.Skip()
@@ -2840,16 +2853,6 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 					out.ContainerContextSerializer = new(ContainerContextSerializer)
 				}
 				(*out.ContainerContextSerializer).UnmarshalEasyJSON(in)
-			}
-		case "security_profile":
-			if in.IsNull() {
-				in.Skip()
-				out.SecurityProfileContextSerializer = nil
-			} else {
-				if out.SecurityProfileContextSerializer == nil {
-					out.SecurityProfileContextSerializer = new(SecurityProfileContextSerializer)
-				}
-				easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(in, out.SecurityProfileContextSerializer)
 			}
 		default:
 			in.SkipRecursive()
@@ -2865,10 +2868,40 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 	out.RawByte('{')
 	first := true
 	_ = first
-	if in.SELinuxEventSerializer != nil {
-		const prefix string = ",\"selinux\":"
+	if in.NetworkContextSerializer != nil {
+		const prefix string = ",\"network\":"
 		first = false
 		out.RawString(prefix[1:])
+		(*in.NetworkContextSerializer).MarshalEasyJSON(out)
+	}
+	if in.DDContextSerializer != nil {
+		const prefix string = ",\"dd\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		(*in.DDContextSerializer).MarshalEasyJSON(out)
+	}
+	if in.SecurityProfileContextSerializer != nil {
+		const prefix string = ",\"security_profile\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers20(out, *in.SecurityProfileContextSerializer)
+	}
+	if in.SELinuxEventSerializer != nil {
+		const prefix string = ",\"selinux\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
 		(*in.SELinuxEventSerializer).MarshalEasyJSON(out)
 	}
 	if in.BPFEventSerializer != nil {
@@ -2979,7 +3012,7 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 		} else {
 			out.RawString(prefix)
 		}
-		easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers20(out, *in.AnomalyDetectionSyscallEventSerializer)
+		easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(out, *in.AnomalyDetectionSyscallEventSerializer)
 	}
 	if in.UserContextSerializer != nil {
 		const prefix string = ",\"usr\":"
@@ -3021,16 +3054,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 		}
 		(*in.FileEventSerializer).MarshalEasyJSON(out)
 	}
-	if in.NetworkContextSerializer != nil {
-		const prefix string = ",\"network\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		(*in.NetworkContextSerializer).MarshalEasyJSON(out)
-	}
 	if in.ExitEventSerializer != nil {
 		const prefix string = ",\"exit\":"
 		if first {
@@ -3051,16 +3074,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 		}
 		(*in.ProcessContextSerializer).MarshalEasyJSON(out)
 	}
-	if in.DDContextSerializer != nil {
-		const prefix string = ",\"dd\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		(*in.DDContextSerializer).MarshalEasyJSON(out)
-	}
 	if in.ContainerContextSerializer != nil {
 		const prefix string = ",\"container\":"
 		if first {
@@ -3070,16 +3083,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(
 			out.RawString(prefix)
 		}
 		(*in.ContainerContextSerializer).MarshalEasyJSON(out)
-	}
-	if in.SecurityProfileContextSerializer != nil {
-		const prefix string = ",\"security_profile\":"
-		if first {
-			first = false
-			out.RawString(prefix[1:])
-		} else {
-			out.RawString(prefix)
-		}
-		easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(out, *in.SecurityProfileContextSerializer)
 	}
 	out.RawByte('}')
 }
@@ -3093,7 +3096,49 @@ func (v EventSerializer) MarshalEasyJSON(w *jwriter.Writer) {
 func (v *EventSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers19(l, v)
 }
-func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(in *jlexer.Lexer, out *SecurityProfileContextSerializer) {
+func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(in *jlexer.Lexer, out *AnomalyDetectionSyscallEventSerializer) {
+	isTopLevel := in.IsStart()
+	if in.IsNull() {
+		if isTopLevel {
+			in.Consumed()
+		}
+		in.Skip()
+		return
+	}
+	in.Delim('{')
+	for !in.IsDelim('}') {
+		key := in.UnsafeFieldName(false)
+		in.WantColon()
+		if in.IsNull() {
+			in.Skip()
+			in.WantComma()
+			continue
+		}
+		switch key {
+		case "syscall":
+			out.Syscall = string(in.String())
+		default:
+			in.SkipRecursive()
+		}
+		in.WantComma()
+	}
+	in.Delim('}')
+	if isTopLevel {
+		in.Consumed()
+	}
+}
+func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(out *jwriter.Writer, in AnomalyDetectionSyscallEventSerializer) {
+	out.RawByte('{')
+	first := true
+	_ = first
+	{
+		const prefix string = ",\"syscall\":"
+		out.RawString(prefix[1:])
+		out.String(string(in.Syscall))
+	}
+	out.RawByte('}')
+}
+func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers20(in *jlexer.Lexer, out *SecurityProfileContextSerializer) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -3151,7 +3196,7 @@ func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 		in.Consumed()
 	}
 }
-func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(out *jwriter.Writer, in SecurityProfileContextSerializer) {
+func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers20(out *jwriter.Writer, in SecurityProfileContextSerializer) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -3185,48 +3230,6 @@ func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers21(
 			}
 			out.RawByte(']')
 		}
-	}
-	out.RawByte('}')
-}
-func easyjsonDdc0fdbeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers20(in *jlexer.Lexer, out *AnomalyDetectionSyscallEventSerializer) {
-	isTopLevel := in.IsStart()
-	if in.IsNull() {
-		if isTopLevel {
-			in.Consumed()
-		}
-		in.Skip()
-		return
-	}
-	in.Delim('{')
-	for !in.IsDelim('}') {
-		key := in.UnsafeFieldName(false)
-		in.WantColon()
-		if in.IsNull() {
-			in.Skip()
-			in.WantComma()
-			continue
-		}
-		switch key {
-		case "syscall":
-			out.Syscall = string(in.String())
-		default:
-			in.SkipRecursive()
-		}
-		in.WantComma()
-	}
-	in.Delim('}')
-	if isTopLevel {
-		in.Consumed()
-	}
-}
-func easyjsonDdc0fdbeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers20(out *jwriter.Writer, in AnomalyDetectionSyscallEventSerializer) {
-	out.RawByte('{')
-	first := true
-	_ = first
-	{
-		const prefix string = ",\"syscall\":"
-		out.RawString(prefix[1:])
-		out.String(string(in.Syscall))
 	}
 	out.RawByte('}')
 }

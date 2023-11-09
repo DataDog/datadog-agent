@@ -162,6 +162,7 @@ func TestStatsWriter(t *testing.T) {
 		}
 		assert.Equal(extractCounts([]*pb.StatsPayload{stats}), extractCounts(payloads))
 		for _, p := range payloads {
+			assert.True(p.SplitPayload)
 			assert.Equal("agentenv", p.AgentEnv)
 			assert.Equal("agenthost", p.AgentHostname)
 			assert.Equal("agent-version", p.AgentVersion)
@@ -189,6 +190,7 @@ func TestStatsWriter(t *testing.T) {
 		payloads := sw.buildPayloads(&pb.StatsPayload{Stats: []*pb.ClientStatsPayload{stats}}, 1337)
 		assert.Equal(1, len(payloads))
 		s := payloads[0].Stats
+		assert.False(payloads[0].SplitPayload)
 		assert.Equal(3, len(s[0].Stats))
 		assert.Equal(5, len(s[0].Stats[0].Stats))
 		assert.Equal(5, len(s[0].Stats[1].Stats))

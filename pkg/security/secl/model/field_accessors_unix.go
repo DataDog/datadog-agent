@@ -3878,7 +3878,7 @@ func (ev *Event) GetNetworkDestinationIp() net.IPNet {
 	if ev.GetEventType().String() != "dns" {
 		return zeroValue
 	}
-	return ev.BaseEvent.NetworkContext.Destination.IPNet
+	return ev.NetworkContext.Destination.IPNet
 }
 
 // GetNetworkDestinationPort returns the value of the field, resolving if necessary
@@ -3887,7 +3887,7 @@ func (ev *Event) GetNetworkDestinationPort() uint16 {
 	if ev.GetEventType().String() != "dns" {
 		return zeroValue
 	}
-	return ev.BaseEvent.NetworkContext.Destination.Port
+	return ev.NetworkContext.Destination.Port
 }
 
 // GetNetworkDeviceIfindex returns the value of the field, resolving if necessary
@@ -3896,7 +3896,7 @@ func (ev *Event) GetNetworkDeviceIfindex() uint32 {
 	if ev.GetEventType().String() != "dns" {
 		return zeroValue
 	}
-	return ev.BaseEvent.NetworkContext.Device.IfIndex
+	return ev.NetworkContext.Device.IfIndex
 }
 
 // GetNetworkDeviceIfname returns the value of the field, resolving if necessary
@@ -3905,7 +3905,7 @@ func (ev *Event) GetNetworkDeviceIfname() string {
 	if ev.GetEventType().String() != "dns" {
 		return zeroValue
 	}
-	return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.BaseEvent.NetworkContext.Device)
+	return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
 }
 
 // GetNetworkL3Protocol returns the value of the field, resolving if necessary
@@ -3914,7 +3914,7 @@ func (ev *Event) GetNetworkL3Protocol() uint16 {
 	if ev.GetEventType().String() != "dns" {
 		return zeroValue
 	}
-	return ev.BaseEvent.NetworkContext.L3Protocol
+	return ev.NetworkContext.L3Protocol
 }
 
 // GetNetworkL4Protocol returns the value of the field, resolving if necessary
@@ -3923,7 +3923,7 @@ func (ev *Event) GetNetworkL4Protocol() uint16 {
 	if ev.GetEventType().String() != "dns" {
 		return zeroValue
 	}
-	return ev.BaseEvent.NetworkContext.L4Protocol
+	return ev.NetworkContext.L4Protocol
 }
 
 // GetNetworkSize returns the value of the field, resolving if necessary
@@ -3932,7 +3932,7 @@ func (ev *Event) GetNetworkSize() uint32 {
 	if ev.GetEventType().String() != "dns" {
 		return zeroValue
 	}
-	return ev.BaseEvent.NetworkContext.Size
+	return ev.NetworkContext.Size
 }
 
 // GetNetworkSourceIp returns the value of the field, resolving if necessary
@@ -3941,7 +3941,7 @@ func (ev *Event) GetNetworkSourceIp() net.IPNet {
 	if ev.GetEventType().String() != "dns" {
 		return zeroValue
 	}
-	return ev.BaseEvent.NetworkContext.Source.IPNet
+	return ev.NetworkContext.Source.IPNet
 }
 
 // GetNetworkSourcePort returns the value of the field, resolving if necessary
@@ -3950,7 +3950,7 @@ func (ev *Event) GetNetworkSourcePort() uint16 {
 	if ev.GetEventType().String() != "dns" {
 		return zeroValue
 	}
-	return ev.BaseEvent.NetworkContext.Source.Port
+	return ev.NetworkContext.Source.Port
 }
 
 // GetOpenFileChangeTime returns the value of the field, resolving if necessary

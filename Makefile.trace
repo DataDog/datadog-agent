@@ -22,8 +22,6 @@ install:
 
 ci:
 	# task used by CI
-	go get -u github.com/mgechev/revive
-	revive -set_exit_status=1 ./cmd/trace-agent ./internal/filters ./internal/api ./internal/test ./internal/info ./internal/quantile ./internal/obfuscate ./internal/sampler ./internal/metrics ./internal/watchdog ./internal/writer ./internal/flags ./internal/osutil
 	go install ./cmd/trace-agent
 	go test -v -race ./...
 

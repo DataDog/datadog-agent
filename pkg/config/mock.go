@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 var (
@@ -23,8 +25,13 @@ type MockConfig struct {
 }
 
 // Set is used for setting configuration in tests
-func (c *MockConfig) Set(key string, value interface{}) {
-	c.Config.Set(key, value)
+func (c *MockConfig) Set(key string, value interface{}, source model.Source) {
+	c.Config.Set(key, value, source)
+}
+
+// SetWithoutSource is used for setting configuration in tests
+func (c *MockConfig) SetWithoutSource(key string, value interface{}) {
+	c.Config.SetWithoutSource(key, value)
 }
 
 // Mock is creating and returning a mock config

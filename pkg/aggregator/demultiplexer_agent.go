@@ -19,6 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
@@ -152,7 +154,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 
 	if config.Datadog.GetBool("telemetry.enabled") && config.Datadog.GetBool("telemetry.dogstatsd_origin") && !config.Datadog.GetBool("aggregator_use_tags_store") {
 		log.Warn("DogStatsD origin telemetry is not supported when aggregator_use_tags_store is disabled.")
-		config.Datadog.Set("telemetry.dogstatsd_origin", false)
+		config.Datadog.Set("telemetry.dogstatsd_origin", false, model.SourceAgentRuntime)
 	}
 
 	// prepare the serializer
@@ -169,7 +171,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	// ---------------
 
 	bufferSize := config.Datadog.GetInt("aggregator_buffer_size")
-	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize)
+	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled())
 
 	_, statsdPipelinesCount := GetDogStatsDWorkerAndPipelineCount()
 	log.Debug("the Demultiplexer will use", statsdPipelinesCount, "pipelines")
@@ -215,7 +217,6 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 
 		// Output
 		dataOutputs: dataOutputs{
-
 			forwarders: forwarders{
 				shared:        sharedForwarder,
 				orchestrator:  orchestratorForwarder,

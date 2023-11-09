@@ -13,48 +13,52 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-const (
-	redactedValue = "********"
-	replacedValue = "-"
-)
+// RemoveLastAppliedConfigurationAnnotation redacts the whole
+// "kubectl.kubernetes.io/last-applied-configuration" annotation value. As it
+// may contain duplicate information and secrets.
+func RemoveLastAppliedConfigurationAnnotation(annotations map[string]string) {
+	if _, found := annotations[v1.LastAppliedConfigAnnotation]; found {
+		annotations[v1.LastAppliedConfigAnnotation] = redactedAnnotationValue
+	}
+}
 
 // ScrubPodTemplateSpec scrubs a pod template.
 func ScrubPodTemplateSpec(template *v1.PodTemplateSpec, scrubber *DataScrubber) {
-	ScrubAnnotations(template.Annotations, scrubber)
+	scrubAnnotations(template.Annotations, scrubber)
 
 	for c := 0; c < len(template.Spec.InitContainers); c++ {
-		ScrubContainer(&template.Spec.InitContainers[c], scrubber)
+		scrubContainer(&template.Spec.InitContainers[c], scrubber)
 	}
 	for c := 0; c < len(template.Spec.Containers); c++ {
-		ScrubContainer(&template.Spec.Containers[c], scrubber)
+		scrubContainer(&template.Spec.Containers[c], scrubber)
 	}
 }
 
 // ScrubPod scrubs a pod.
 func ScrubPod(p *v1.Pod, scrubber *DataScrubber) {
-	ScrubAnnotations(p.Annotations, scrubber)
+	scrubAnnotations(p.Annotations, scrubber)
 
 	for c := 0; c < len(p.Spec.InitContainers); c++ {
-		ScrubContainer(&p.Spec.InitContainers[c], scrubber)
+		scrubContainer(&p.Spec.InitContainers[c], scrubber)
 	}
 	for c := 0; c < len(p.Spec.Containers); c++ {
-		ScrubContainer(&p.Spec.Containers[c], scrubber)
+		scrubContainer(&p.Spec.Containers[c], scrubber)
 	}
 }
 
-// ScrubAnnotations scrubs sensitive information from pod annotations.
-func ScrubAnnotations(annotations map[string]string, scrubber *DataScrubber) {
+// scrubAnnotations scrubs sensitive information from pod annotations.
+func scrubAnnotations(annotations map[string]string, scrubber *DataScrubber) {
 	for k, v := range annotations {
 		annotations[k] = scrubber.ScrubAnnotationValue(v)
 	}
 }
 
-// ScrubContainer scrubs sensitive information in the command line & env vars
-func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
+// scrubContainer scrubs sensitive information in the command line & env vars
+func scrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	// scrub env vars
 	for e := 0; e < len(c.Env); e++ {
 		if scrubber.ContainsSensitiveWord(c.Env[e].Name) {
-			c.Env[e].Value = redactedValue
+			c.Env[e].Value = redactedSecret
 		}
 	}
 
@@ -62,7 +66,7 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 		if r := recover(); r != nil {
 			log.Errorf("Failed to parse cmd from pod, obscuring whole command")
 			// we still want to obscure to be safe
-			c.Command = []string{redactedValue}
+			c.Command = []string{redactedSecret}
 		}
 	}()
 
@@ -84,12 +88,5 @@ func ScrubContainer(c *v1.Container, scrubber *DataScrubber) {
 	}
 	if len(c.Args) > 0 {
 		c.Args = scrubbedMergedCommand[words:]
-	}
-}
-
-// RemoveLastAppliedConfigurationAnnotation redacts the whole "kubectl.kubernetes.io/last-applied-configuration" annotation. As it may contain duplicate information and secrets.
-func RemoveLastAppliedConfigurationAnnotation(annotations map[string]string) {
-	if _, found := annotations[v1.LastAppliedConfigAnnotation]; found {
-		annotations[v1.LastAppliedConfigAnnotation] = replacedValue
 	}
 }
