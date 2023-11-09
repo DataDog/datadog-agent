@@ -508,7 +508,7 @@ namespace WixSetup.Datadog
                     When.After,
                     // This is the earliest we can schedule this action
                     // during an uninstall
-                    Step.InstallValidate,
+                    Step.InstallInitialize,
                     // Run when REMOVE="ALL" which runs also on upgrade
                     // This ensures this product can be removed before
                     // the new one is installed.
