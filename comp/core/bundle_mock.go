@@ -38,5 +38,5 @@ var MockBundle = fxutil.Bundle(
 	sysprobeconfigimpl.MockModule,
 	telemetry.Module,
 	hostnameimpl.MockModule,
-	statsd.Module,
+	statsd.MockModule,
 )

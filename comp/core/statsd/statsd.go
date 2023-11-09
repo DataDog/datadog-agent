@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"sync"
 
 	"go.uber.org/fx"
 
@@ -22,28 +23,47 @@ var Module = fxutil.Component(
 	fx.Provide(newStatsdService),
 )
 
-type service struct{}
-
-// Get returns a pre-configured statsd client
-func (hs *service) Get(options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
-	return GetClient("", options...)
+type service struct {
+	sync.Mutex
+	// The default shared client.
+	client ddgostatsd.ClientInterface
 }
 
-// GetForAddr returns a pre-configured statsd client that defaults to `addr` if no env var is set
-func (hs *service) GetForAddr(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
-	return GetClient(addr, options...)
+// Get returns a pre-configured and shared statsd client (requires STATSD_URL env var to be set)
+func (hs *service) Get() (ddgostatsd.ClientInterface, error) {
+	hs.Lock()
+	defer hs.Unlock()
+
+	if hs.client == nil {
+		var err error
+		hs.client, err = hs.Create()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return hs.client, nil
 }
 
-// GetForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
-func (hs *service) GetForHostPort(host string, port int, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
-	return GetClient(net.JoinHostPort(host, strconv.Itoa(port)), options...)
+// Create returns a pre-configured statsd client
+func (hs *service) Create(options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	return createClient("", options...)
+}
+
+// CreateForAddr returns a pre-configured statsd client that defaults to `addr` if no env var is set
+func (hs *service) CreateForAddr(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	return createClient(addr, options...)
+}
+
+// CreateForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
+func (hs *service) CreateForHostPort(host string, port int, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+	return createClient(net.JoinHostPort(host, strconv.Itoa(port)), options...)
 }
 
 var _ Component = (*service)(nil)
 
-// GetClient returns a pre-configured statsd client that defaults to `addr` if no env var is set
+// createClient returns a pre-configured statsd client that defaults to `addr` if no env var is set
 // It is exported for callers that might not support components.
-func GetClient(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
+func createClient(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error) {
 	// We default to STATSD_URL because it's more likely to be what the user wants, the provided
 	// address if often a fallback using UDP.
 

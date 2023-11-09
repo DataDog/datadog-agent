@@ -14,12 +14,16 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// Get a pre-configured statsd client
-	Get(options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error)
+	// Get a pre-configured and shared statsd client (requires STATSD_URL to be set)
+	// The client gets created uppon the first Get() call
+	Get() (ddgostatsd.ClientInterface, error)
 
-	// GetForAddr returns a pre-configured statsd client that defaults to `addr` if no env var is set
-	GetForAddr(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error)
+	// Create a pre-configured statsd client
+	Create(options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error)
 
-	// GetForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
-	GetForHostPort(host string, port int, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error)
+	// CreateForAddr returns a pre-configured statsd client that defaults to `addr` if no env var is set
+	CreateForAddr(addr string, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error)
+
+	// CreateForHostPort returns a pre-configured statsd client that defaults to `host:port` if no env var is set
+	CreateForHostPort(host string, port int, options ...ddgostatsd.Option) (ddgostatsd.ClientInterface, error)
 }
