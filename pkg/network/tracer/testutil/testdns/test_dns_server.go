@@ -130,18 +130,8 @@ func respond(req *dns.Msg, writer dns.ResponseWriter, record string) {
 
 func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port string, protocol string) (string, int, []*dns.Msg, error) {
 	t.Helper()
-	clientIP := getOutboundIP(t, serverIP).String()
-
-	var dnsClientAddr net.Addr
-	if protocol == "tcp" {
-		dnsClientAddr = &net.TCPAddr{IP: net.ParseIP(clientIP)}
-	} else {
-		dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP)}
-	}
-
 	localAddrDialer := &net.Dialer{
-		LocalAddr: dnsClientAddr,
-		Timeout:   3 * time.Second,
+		Timeout: 3 * time.Second,
 	}
 
 	dnsClient := dns.Client{Net: protocol, Dialer: localAddrDialer}
@@ -152,10 +142,13 @@ func SendDNSQueriesOnPort(t *testing.T, domains []string, serverIP net.IP, port 
 	}
 
 	var clientPort int
+	var clientIP string
 	if protocol == "tcp" {
 		clientPort = conn.Conn.(*net.TCPConn).LocalAddr().(*net.TCPAddr).Port
+		clientIP = conn.Conn.(*net.TCPConn).LocalAddr().(*net.TCPAddr).IP.String()
 	} else { // UDP
 		clientPort = conn.Conn.(*net.UDPConn).LocalAddr().(*net.UDPAddr).Port
+		clientIP = conn.Conn.(*net.UDPConn).LocalAddr().(*net.UDPAddr).IP.String()
 	}
 	var reps []*dns.Msg
 	msg := new(dns.Msg)
@@ -179,17 +172,4 @@ func SendDNSQueries(
 ) (string, int, []*dns.Msg, error) {
 	t.Helper()
 	return SendDNSQueriesOnPort(t, domains, serverIP, "53", protocol)
-}
-
-// Get the preferred outbound IP of this machine
-func getOutboundIP(t *testing.T, serverIP net.IP) net.IP {
-	t.Helper()
-	if serverIP.IsLoopback() {
-		return serverIP
-	}
-	conn, err := net.Dial("udp", serverIP.String()+":80")
-	require.NoError(t, err)
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	_ = conn.Close()
-	return localAddr.IP
 }
