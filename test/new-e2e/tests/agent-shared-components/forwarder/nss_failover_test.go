@@ -228,21 +228,10 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *client.Fakeintake, i
 		// give time to the agent to send things
 		time.Sleep(intakeUnusedWaitTime)
 
-		// check metrics
-		metricNames, err := intake.GetMetricNames()
+		stats, err := intake.RouteStats()
 		require.NoError(t, err)
-		assert.Empty(t, metricNames)
 
-		// check logs
-		logs, err := intake.FilterLogs(logService)
-		require.NoError(t, err)
-		assert.Empty(t, logs)
-
-		// check flares
-		_, err = intake.GetLatestFlare()
-		if assert.Error(t, err) {
-			require.ErrorIs(t, err, fi.ErrNoFlareAvailable)
-		}
+		assert.Empty(t, stats)
 	}
 
 	require.EventuallyWithT(v.T(), checkFn, intakeMaxWaitTime, intakeTick+intakeUnusedWaitTime)
