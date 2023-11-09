@@ -8,7 +8,4 @@
 ---
 features:
   - |
-    List new features here, or remove this section.
-enhancements:
-  - |
     Adds the following CPU manager metrics to the kubelet core check: `kubernetes_core.kubelet.cpu_manager.pinning_errors_total`, `kubernetes_core.kubelet.cpu_manager.pinning_requests_total`.
