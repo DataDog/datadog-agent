@@ -30,14 +30,14 @@ const (
 	DefaultHardStopTimeout = 15 * time.Second
 	// EnvHardStopTimeoutOverride is an environment variable that a user can set
 	// to override DefaultHardStopTimeout.
-	EnvHardStopTimeoutOverride = "DD_SERVICE_STOP_TIMEOUT_SECONDS"
+	EnvHardStopTimeoutOverride = "DD_WINDOWS_SERVICE_STOP_TIMEOUT_SECONDS"
 )
 
 // DefaultSettings provides default values to Service implementations when embedded
 type DefaultSettings struct{}
 
 // HardStopTimeout provides a default hard stop timeout for Service implementations,
-// and allows a user to override the default by setting the DD_SERVICE_STOP_TIMEOUT_SECONDS
+// and allows a user to override the default by setting the DD_WINDOWS_SERVICE_STOP_TIMEOUT_SECONDS
 // environment variable.
 func (s *DefaultSettings) HardStopTimeout() time.Duration {
 	timeString, found := os.LookupEnv(EnvHardStopTimeoutOverride)
