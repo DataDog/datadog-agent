@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/samber/lo"
 	"strings"
 )
 
@@ -54,10 +55,20 @@ func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Se
 	for _, metric := range metricFam.Samples {
 		metricSuffix := string(metric.Metric["__name__"])
 		tags := p.MetricTags(metric)
+		typePresent := false
 		for i, tag := range tags {
 			if strings.HasPrefix(tag, "name:") {
 				tags[i] = strings.Replace(tag, "name:", "sli_name:", 1)
 			}
+			if strings.HasPrefix(tag, "type:") {
+				typePresent = true
+			}
+		}
+		
+		if typePresent == true {
+			tags = lo.Filter(tags, func(x string, index int) bool {
+				return x != "type:"
+			})
 		}
 
 		if metricSuffix == "kubernetes_healthchecks_total" {
