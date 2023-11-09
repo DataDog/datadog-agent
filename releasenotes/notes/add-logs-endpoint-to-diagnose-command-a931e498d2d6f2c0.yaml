@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add a diagnosis for connecting to the agent logs endpoints. This is accessible through the `agent diagnose` command.
+    Add a diagnosis for connecting to the agent logs endpoints. This is accessible through the ``agent diagnose`` command.
