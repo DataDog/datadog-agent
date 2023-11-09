@@ -42,6 +42,16 @@
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/Fedora-Cloud-Base-38.arm64.qcow2.xz"
                 },
                 {
+                    "dir": "debian-10-generic-arm64.qcow2",
+                    "tag": "debian_10",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/debian-10-generic-arm64.qcow2.xz-test-only"
+                },
+                {
+                    "dir": "debian-11-generic-arm64.qcow2",
+                    "tag": "debian_11",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/debian-11-generic-arm64.qcow2.xz-test-only"
+                },
+                {
                     "dir": "debian-12-generic-arm64.qcow2",
                     "tag": "debian_12",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-12-generic-arm64.qcow2.xz"
