@@ -14,9 +14,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 )
 
-// HostNodeName retrieves the hostname from the apiserver, assuming our hostname
-// is the pod name. It connects to the apiserver, and returns the node name where
-// our pod is scheduled.
+// HostNodeName retrieves the hostname from the apiserver, pod name will be retrieved from DD_POD_NAME.
+// It connects to the apiserver, and returns the node name where our pod is scheduled.
 // Tested in the TestHostnameProvider integration test
 func HostNodeName(ctx context.Context) (string, error) {
 	c, err := GetAPIClient()
