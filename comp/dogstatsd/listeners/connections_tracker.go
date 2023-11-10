@@ -13,7 +13,6 @@ import (
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	logger "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // ConnectionTracker tracks connections and closes them gracefully.
@@ -68,24 +67,26 @@ func (t *ConnectionTracker) HandleConnections() {
 		case conn := <-t.connToTrack:
 			log.Debugf("dogstatsd-%s: tracking new connection %s", t.name, conn.RemoteAddr().String())
 
-			t.connections[conn] = struct{}{}
-			t.activeConnections.Inc()
+			if requestStop {
+				//Close it immediately if we are shutting down.
+				conn.Close()
+			} else {
+				t.connections[conn] = struct{}{}
+				t.activeConnections.Inc()
+			}
 		case conn := <-t.connToClose:
 			err := conn.Close()
 			log.Infof("dogstatsd-%s: failed to close connection: %v", t.name, err)
 
-			delete(t.connections, conn)
-			t.activeConnections.Dec()
-			if requestStop && len(t.connections) == 0 {
-				logger.Debugf("dogstatsd-%s: all connections closed", t.name)
-				stop = true
+			if _, ok := t.connections[conn]; !ok {
+				log.Warnf("dogstatsd-%s: connection wasn't tracked", t.name)
+			} else {
+				delete(t.connections, conn)
+				t.activeConnections.Dec()
 			}
 		case <-t.stopChan:
 			log.Infof("dogstatsd-%s: stopping connections", t.name)
 			requestStop = true
-			if len(t.connections) == 0 {
-				stop = true
-			}
 
 			var err error
 			for c := range t.connections {
@@ -118,11 +119,19 @@ func (t *ConnectionTracker) HandleConnections() {
 			}
 
 		}
+
+		// Stop if we are requested to stop and all connections are closed. We might drop
+		// some work in the channels but that should be fine.
+		if requestStop && len(t.connections) == 0 {
+			log.Debugf("dogstatsd-%s: all connections closed", t.name)
+			stop = true
+		}
 	}
 	t.stoppedChan <- struct{}{}
 }
 
 // Stop stops the connection tracker.
+// To be called one the listener is stopped, after the server socket has been close.
 func (t *ConnectionTracker) Stop() {
 	if t.activeConnections.Load() == 0 {
 		return
