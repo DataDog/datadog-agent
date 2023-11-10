@@ -322,7 +322,9 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 		timing.Since("datadog.trace_agent.trace_writer.flush_duration", time.Now().Add(-data.duration))
 		w.stats.Bytes.Add(int64(data.bytes))
 		w.stats.Payloads.Inc()
-		w.telemetryCollector.SendIfFirstTrace()
+		if !w.telemetryCollector.SentFirstTrace() {
+			go w.telemetryCollector.SendFirstTrace()
+		}
 
 	case eventTypeRejected:
 		log.Warnf("Trace writer payload rejected by edge: %v", data.err)

@@ -75,7 +75,8 @@ type OnboardingEventError struct {
 type TelemetryCollector interface {
 	SendStartupSuccess()
 	SendStartupError(code int, err error)
-	SendIfFirstTrace()
+	SentFirstTrace() bool
+	SendFirstTrace()
 }
 
 type telemetryCollector struct {
@@ -183,20 +184,20 @@ func (f *telemetryCollector) SendStartupSuccess() {
 	f.sendEvent(&ev)
 }
 
-func (f *telemetryCollector) SendIfFirstTrace() {
-	if swapped := f.collectedFirstTrace.CompareAndSwap(false, true); !swapped {
-		return
-	}
-	go func() {
-		ev := newOnboardingTelemetryPayload(f.cfg)
-		ev.Payload.EventName = "agent.first_trace.sent"
-		err := f.sendEvent(&ev)
-		if err != nil {
-			if f.firstTraceFailures.Inc() < maxFirstTraceFailures {
-				f.collectedFirstTrace.Store(false)
-			}
+func (f *telemetryCollector) SentFirstTrace() bool {
+	swapped := f.collectedFirstTrace.CompareAndSwap(false, true)
+	return !swapped
+}
+
+func (f *telemetryCollector) SendFirstTrace() {
+	ev := newOnboardingTelemetryPayload(f.cfg)
+	ev.Payload.EventName = "agent.first_trace.sent"
+	err := f.sendEvent(&ev)
+	if err != nil {
+		if f.firstTraceFailures.Inc() < maxFirstTraceFailures {
+			f.collectedFirstTrace.Store(false)
 		}
-	}()
+	}
 }
 
 func (f *telemetryCollector) SendStartupError(code int, err error) {
@@ -212,4 +213,5 @@ type noopTelemetryCollector struct{}
 
 func (*noopTelemetryCollector) SendStartupSuccess()                  {}
 func (*noopTelemetryCollector) SendStartupError(code int, err error) {}
-func (*noopTelemetryCollector) SendIfFirstTrace()                    {}
+func (*noopTelemetryCollector) SendFirstTrace()                      {}
+func (*noopTelemetryCollector) SentFirstTrace() bool                 { return true }
