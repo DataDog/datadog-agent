@@ -34,6 +34,10 @@ func applyOrCreateInstallSignature(c *config.AgentConfig) {
 		return
 	}
 
+	if c.ConfigPath == "" {
+		return
+	}
+
 	// If not found, try to write it to disk
 	err = generateNewInstallSignature(s)
 	if err != nil {
