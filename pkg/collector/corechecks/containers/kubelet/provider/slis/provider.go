@@ -10,6 +10,8 @@
 package slis
 
 import (
+	"strings"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
@@ -17,7 +19,6 @@ import (
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/samber/lo"
-	"strings"
 )
 
 // Provider provides the metrics related to data collected from the `/metrics/probes` Kubelet endpoint
