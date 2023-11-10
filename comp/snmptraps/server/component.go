@@ -11,4 +11,7 @@ package server
 // team: network-device-monitoring
 
 // Component is the component type.
-type Component interface{}
+type Component interface {
+	Running() bool
+	Error() error
+}
