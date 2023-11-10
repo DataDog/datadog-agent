@@ -262,7 +262,6 @@ type testOpts struct {
 	anomalyDetectionMinimumStablePeriodDNS     time.Duration
 	anomalyDetectionWarmupPeriod               time.Duration
 	disableDiscarders                          bool
-	eventsCountThreshold                       int
 	disableERPCDentryResolution                bool
 	disableMapDentryResolution                 bool
 	envsWithValue                              []string
@@ -306,14 +305,14 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.anomalyDetectionWarmupPeriod == opts.anomalyDetectionWarmupPeriod &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
-		to.eventsCountThreshold == opts.eventsCountThreshold &&
 		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
 		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
-		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil
+		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
+		to.preStartCallback == nil && opts.preStartCallback == nil
 }
 
 type testModule struct {
@@ -736,10 +735,6 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 		return nil, nil, err
 	}
 
-	if opts.eventsCountThreshold == 0 {
-		opts.eventsCountThreshold = 100000000
-	}
-
 	if opts.activityDumpRateLimiter == 0 {
 		opts.activityDumpRateLimiter = 500
 	}
@@ -803,7 +798,6 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 		"AnomalyDetectionMinimumStablePeriodExec":    opts.anomalyDetectionMinimumStablePeriodExec,
 		"AnomalyDetectionMinimumStablePeriodDNS":     opts.anomalyDetectionMinimumStablePeriodDNS,
 		"AnomalyDetectionWarmupPeriod":               opts.anomalyDetectionWarmupPeriod,
-		"EventsCountThreshold":                       opts.eventsCountThreshold,
 		"ErpcDentryResolutionEnabled":                erpcDentryResolutionEnabled,
 		"MapDentryResolutionEnabled":                 mapDentryResolutionEnabled,
 		"LogPatterns":                                logPatterns,
