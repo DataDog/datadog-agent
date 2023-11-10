@@ -9,15 +9,15 @@
 package {{.Name}}
 
 import (
-    "net"
+    {{range .Imports }}
+		"{{.}}"
+	{{end}}
+	
 	"reflect"
 
 	{{if ne $.SourcePkg $.TargetPkg}}"{{.SourcePkg}}"{{end}}
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
-
-// Aliases used to avoid compilation error in case of unused imported package
-type NetIP = net.IP
 
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {

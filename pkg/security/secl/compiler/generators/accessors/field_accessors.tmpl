@@ -9,7 +9,10 @@
 package {{.Name}}
 
 import (
-    "net"
+    {{range .Imports }}
+		"{{.}}"
+	{{end}}
+
     "time"
 
     "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"

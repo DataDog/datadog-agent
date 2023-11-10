@@ -15,9 +15,6 @@ import (
 	"reflect"
 )
 
-// Aliases used to avoid compilation error in case of unused imported package
-type NetIP = net.IP
-
 func (m *Model) GetIterator(field eval.Field) (eval.Iterator, error) {
 	switch field {
 	case "process.ancestors":

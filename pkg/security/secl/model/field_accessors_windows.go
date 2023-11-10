@@ -11,7 +11,6 @@ package model
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"net"
 	"time"
 )
 
@@ -394,69 +393,6 @@ func (ev *Event) GetExitPpid() uint32 {
 		return zeroValue
 	}
 	return ev.Exit.Process.PPid
-}
-
-// GetNetworkDestinationIp returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkDestinationIp() net.IPNet {
-	zeroValue := net.IPNet{}
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Destination.IPNet
-}
-
-// GetNetworkDestinationPort returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkDestinationPort() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Destination.Port
-}
-
-// GetNetworkL3Protocol returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkL3Protocol() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.L3Protocol
-}
-
-// GetNetworkL4Protocol returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkL4Protocol() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.L4Protocol
-}
-
-// GetNetworkSize returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkSize() uint32 {
-	zeroValue := uint32(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Size
-}
-
-// GetNetworkSourceIp returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkSourceIp() net.IPNet {
-	zeroValue := net.IPNet{}
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Source.IPNet
-}
-
-// GetNetworkSourcePort returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkSourcePort() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Source.Port
 }
 
 // GetProcessAncestorsCmdline returns the value of the field, resolving if necessary
