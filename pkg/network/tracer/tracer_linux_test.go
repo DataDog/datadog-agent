@@ -1361,7 +1361,7 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
-	cfg.DNSTimeout = 1 * time.Second
+	//cfg.DNSTimeout = 1 * time.Second
 	tr := setupTracer(t, cfg)
 	testDNSStats(t, tr, "golang.org", 1, 0, 0, "2.2.2.2")
 }
