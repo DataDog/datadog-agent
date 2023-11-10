@@ -21,6 +21,7 @@ relative_path "msodbcsql18-#{version}"
 
 build do
   if !arm_target?
+    command "mkdir -p #{project_dir}/#{relative_path}"
     command "mkdir -p #{install_dir}/embedded/msodbcsql/lib"
     if debian_target?
       command "dpkg-deb -R #{project_dir}/#{name}-#{name}_#{version}_amd64.deb #{project_dir}/#{relative_path}"
