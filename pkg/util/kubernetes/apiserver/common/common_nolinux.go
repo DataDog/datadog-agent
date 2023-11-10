@@ -5,13 +5,14 @@
 
 //go:build kubeapiserver && !linux
 
-package leaderelection
+package common
 
 import (
 	"os"
 )
 
-func getSelfPodName() (string, error) {
+// GetSelfPodName returns hostname from DD_POD_NAME in helm chart, if not found, use os.hostname
+func GetSelfPodName() (string, error) {
 	if podName, ok := os.LookupEnv("DD_POD_NAME"); ok {
 		return podName, nil
 	}
