@@ -119,14 +119,15 @@ func (rd *RuleDefinition) MergeWith(rd2 *RuleDefinition) error {
 
 // ActionDefinition describes a rule action section
 type ActionDefinition struct {
-	Set                        *SetDefinition `yaml:"set"`
-	InternalCallbackDefinition *InternalCallbackDefinition
-	Kill                       *KillDefinition `yaml:"kill"`
+	Set              *SetDefinition `yaml:"set"`
+	InternalCallback *InternalCallbackDefinition
+	Kill             *KillDefinition     `yaml:"kill"`
+	CoreDump         *CoreDumpDefinition `yaml:"coredump"`
 }
 
 // Check returns an error if the action in invalid
 func (a *ActionDefinition) Check() error {
-	if a.Set == nil && a.InternalCallbackDefinition == nil && a.Kill == nil {
+	if a.Set == nil && a.InternalCallback == nil && a.Kill == nil && a.CoreDump == nil {
 		return errors.New("either 'set' or 'kill' section of an action must be specified")
 	}
 
@@ -173,6 +174,14 @@ type InternalCallbackDefinition struct{}
 // KillDefinition describes the 'kill' section of a rule action
 type KillDefinition struct {
 	Signal string `yaml:"signal"`
+}
+
+// CoreDump describes the 'coredump' action
+type CoreDumpDefinition struct {
+	Process       bool `yaml:"process"`
+	Mount         bool `yaml:"mount"`
+	Dentry        bool `yaml:"dentry"`
+	NoCompression bool `yaml:"no_compression"`
 }
 
 // Rule describes a rule of a ruleset

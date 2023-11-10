@@ -60,6 +60,10 @@ const (
 
 	// RefreshUserCacheRuleID is the rule ID used to refresh users and groups cache
 	RefreshUserCacheRuleID = "refresh_user_cache"
+
+	// InternalCoreDumpRuleID
+	InternalCoreDumpRuleID   = "internal_core_dump"
+	InternalCoreDumpRuleDesc = "Internal Core Dump"
 )
 
 // CustomEventCommonFields represents the fields common to all custom events
@@ -92,6 +96,7 @@ func AllCustomRuleIDs() []string {
 		AnomalyDetectionRuleID,
 		NoProcessContextErrorRuleID,
 		BrokenProcessLineageErrorRuleID,
+		InternalCoreDumpRuleID,
 	}
 }
 
