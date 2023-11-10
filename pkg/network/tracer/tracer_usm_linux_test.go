@@ -818,7 +818,7 @@ func testHTTPGoTLSCaptureNewProcess(t *testing.T, cfg *config.Config) {
 	// Setup
 	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
 		EnableTLS:       true,
-		EnableKeepAlive: true,
+		EnableKeepAlive: false,
 	})
 	t.Cleanup(closeServer)
 
@@ -859,7 +859,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	// Setup
 	closeServer := testutil.HTTPServer(t, serverAddr, testutil.Options{
 		EnableTLS:       true,
-		EnableKeepAlive: true,
+		EnableKeepAlive: false,
 	})
 	t.Cleanup(closeServer)
 
