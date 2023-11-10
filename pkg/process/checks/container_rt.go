@@ -134,6 +134,7 @@ func convertToContainerStat(container *model.Container) *model.ContainerStat {
 		TotalPct:     container.TotalPct,
 		CpuUsageNs:   container.CpuUsageNs,
 		CpuLimit:     container.CpuLimit,
+		CpuRequest:   container.CpuRequest,
 		MemUsage:     container.MemUsage,
 		MemRss:       container.MemRss,
 		MemCache:     container.MemCache,

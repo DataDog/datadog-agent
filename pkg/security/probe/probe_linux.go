@@ -309,7 +309,7 @@ func (p *Probe) Setup() error {
 
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
 
-	if err := p.updateProbes(defaultEventTypes, true, needRawSyscalls); err != nil {
+	if err := p.updateProbes(defaultEventTypes, needRawSyscalls); err != nil {
 		return err
 	}
 
@@ -1107,7 +1107,7 @@ func (p *Probe) validEventTypeForConfig(eventType string) bool {
 
 // updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes, needRawSyscalls bool) error {
+func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscalls bool) error {
 	// event types enabled either by event handlers or by rules
 	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
 	eventTypes = append(eventTypes, ruleEventTypes...)
@@ -1123,11 +1123,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes,
 		}
 	}
 
-	var activatedProbes []manager.ProbesSelector
-
-	if useSnapshotProbes {
-		activatedProbes = append(activatedProbes, probes.SnapshotSelectors(p.useFentry)...)
-	}
+	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
@@ -1439,7 +1435,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		}
 	}
 
-	if err := p.updateProbes(rs.GetEventTypes(), false, needRawSyscalls); err != nil {
+	if err := p.updateProbes(rs.GetEventTypes(), needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
@@ -1477,7 +1473,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			approvers:          make(map[eval.EventType]kfilters.ActiveApprovers),
 			managerOptions:     ebpf.NewDefaultOptions(),
 			Erpc:               nerpc,
-			erpcRequest:        &erpc.Request{},
+			erpcRequest:        erpc.NewERPCRequest(0),
 			isRuntimeDiscarded: !opts.DontDiscardRuntime,
 		},
 	}
@@ -1541,10 +1537,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		seclog.Warnf("constant fetcher failed: %v", err)
 		return nil, err
 	}
-	// the constant fetching mechanism can be quite memory intensive, between kernel header downloading,
-	// runtime compilation, BTF parsing...
-	// let's ensure the GC has run at this point before doing further memory intensive stuff
-	runtime.GC()
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
