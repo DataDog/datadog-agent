@@ -39,22 +39,9 @@ if ($Env:TARGET_ARCH -eq "x86") {
 }
 
 mkdir  .\bin\agent
-if ($Env:DEBUG_CUSTOMACTION) {
-    & inv -e customaction.build --arch=$archflag --debug
-} else {
-    & inv -e customaction.build --arch=$archflag
-}
 
 # Generate the datadog.yaml config file to be used in integration tests
 & inv -e generate-config --build-type="agent-py2py3" --output-file="./datadog.yaml"
-
-& $UT_BUILD_ROOT\bin\agent\customaction-tests.exe
-$err = $LASTEXITCODE
-Write-Host Test result is $err
-if($err -ne 0){
-    Write-Host -ForegroundColor Red "custom action test failed $err"
-    [Environment]::Exit($err)
-}
 
 # NG installer unit tests
 if ($Env:DEBUG_CUSTOMACTION) {
