@@ -36,10 +36,6 @@ type ControllerContext struct {
 	StopCh              chan struct{}
 }
 
-var (
-	ControllerStartInstallTime = strconv.FormatInt(time.Now().Unix(), 10)
-)
-
 // StartControllers starts the secret and webhook controllers
 func StartControllers(ctx ControllerContext) error {
 	if !config.Datadog.GetBool("admission_controller.enabled") {

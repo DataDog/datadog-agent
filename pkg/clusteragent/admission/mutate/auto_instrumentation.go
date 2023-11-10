@@ -22,7 +22,6 @@ import (
 	"k8s.io/client-go/dynamic"
 	k8s "k8s.io/client-go/kubernetes"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -172,7 +171,7 @@ func injectApmTelemetryConfig(pod *corev1.Pod) {
 	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
 	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
 	if instrumentationInstallTime == "" {
-		instrumentationInstallTime = admission.ControllerStartInstallTime
+		instrumentationInstallTime = common.ClusterAgentStartTime
 	}
 	instrumentationInstallTimeEnvVar := corev1.EnvVar{
 		Name:  instrumentationInstallTimeEnvVarName,
