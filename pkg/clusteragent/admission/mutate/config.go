@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -27,10 +28,12 @@ import (
 
 const (
 	// Env vars
-	agentHostEnvVarName    = "DD_AGENT_HOST"
-	ddEntityIDEnvVarName   = "DD_ENTITY_ID"
-	traceURLEnvVarName     = "DD_TRACE_AGENT_URL"
-	dogstatsdURLEnvVarName = "DD_DOGSTATSD_URL"
+	agentHostEnvVarName                  = "DD_AGENT_HOST"
+	ddEntityIDEnvVarName                 = "DD_ENTITY_ID"
+	traceURLEnvVarName                   = "DD_TRACE_AGENT_URL"
+	dogstatsdURLEnvVarName               = "DD_DOGSTATSD_URL"
+	instrumentationInstallTypeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TYPE"
+	instrumentationInstallTimeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TIME"
 
 	// Config injection modes
 	hostIP  = "hostip"
@@ -39,6 +42,10 @@ const (
 
 	// Volume name
 	datadogVolumeName = "datadog"
+
+	// Values for Env variable DD_INSTRUMENTATION_INSTALL_TYPE
+	singleStepInstrumentationInstallType   = "k8s_single_step"
+	localLibraryInstrumentationInstallType = "k8s_lib_injection"
 )
 
 var (
@@ -75,6 +82,21 @@ var (
 	dogstatsdURLSocketEnvVar = corev1.EnvVar{
 		Name:  dogstatsdURLEnvVarName,
 		Value: config.Datadog.GetString("admission_controller.inject_config.dogstatsd_socket"),
+	}
+
+	singleStepInstrumentationInstallTypeEnvVar = corev1.EnvVar{
+		Name:  instrumentationInstallTypeEnvVarName,
+		Value: singleStepInstrumentationInstallType,
+	}
+
+	localLibraryInstrumentationInstallTypeEnvVar = corev1.EnvVar{
+		Name:  instrumentationInstallTypeEnvVarName,
+		Value: localLibraryInstrumentationInstallType,
+	}
+
+	instrumentationInstallTimeEnvVar = corev1.EnvVar{
+		Name:  instrumentationInstallTimeEnvVarName,
+		Value: strconv.FormatInt(time.Now().Unix(), 10),
 	}
 )
 
@@ -118,6 +140,12 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 
 	injectedEntity = injectEnv(pod, ddEntityIDEnvVar)
 
+	if isApmInstrumentationEnabled(pod.Namespace) {
+		_ = injectEnv(pod, singleStepInstrumentationInstallTypeEnvVar)
+	} else {
+		_ = injectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
+	}
+	_ = injectEnv(pod, instrumentationInstallTimeEnvVar)
 	return nil
 }
 
