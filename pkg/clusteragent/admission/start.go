@@ -9,6 +9,7 @@
 package admission
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
@@ -34,6 +35,10 @@ type ControllerContext struct {
 	DiscoveryClient     discovery.DiscoveryInterface
 	StopCh              chan struct{}
 }
+
+var (
+	ControllerStartInstallTime = strconv.FormatInt(time.Now().Unix(), 10)
+)
 
 // StartControllers starts the secret and webhook controllers
 func StartControllers(ctx ControllerContext) error {
