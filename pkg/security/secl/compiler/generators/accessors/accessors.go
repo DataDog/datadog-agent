@@ -26,6 +26,7 @@ import (
 	"github.com/Masterminds/sprig/v3"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/structtag"
+	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/tools/go/packages"
@@ -109,6 +110,10 @@ func isBasicType(kind string) bool {
 		return true
 	}
 	return false
+}
+
+func isNetType(kind string) bool {
+	return kind == "net.IPNet"
 }
 
 func isBasicTypeForGettersOnly(kind string) bool {
@@ -527,6 +532,12 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				if len(fieldType) == 0 {
 					continue
+				}
+
+				if isNetType((fieldType)) {
+					if !slices.Contains(module.Imports, "net") {
+						module.Imports = append(module.Imports, "net")
+					}
 				}
 
 				alias := seclField.name

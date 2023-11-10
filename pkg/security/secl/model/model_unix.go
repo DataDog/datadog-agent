@@ -143,9 +143,8 @@ type Event struct {
 	Async bool `field:"event.async,handler:ResolveAsync" event:"*"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
 	// context shared with all events
-	SpanContext            SpanContext            `field:"-" json:"-"`
-	NetworkContext         NetworkContext         `field:"network" event:"dns"`
-	SecurityProfileContext SecurityProfileContext `field:"-"`
+	SpanContext    SpanContext    `field:"-" json:"-"`
+	NetworkContext NetworkContext `field:"network" event:"dns"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed
@@ -889,6 +888,11 @@ func (dfh *DefaultFieldHandlers) ResolveHashes(eventType EventType, process *Pro
 // ResolveK8SExtra resolves the K8S user session extra field
 func (dfh *DefaultFieldHandlers) ResolveK8SExtra(_ *Event, _ *UserSessionContext) map[string][]string {
 	return nil
+}
+
+// GetWorkloadID returns an ID that represents the workload
+func (e *Event) GetWorkloadID() string {
+	return e.SecurityProfileContext.Name
 }
 
 // ExtraFieldHandlers handlers not hold by any field

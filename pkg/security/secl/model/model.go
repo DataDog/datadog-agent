@@ -171,8 +171,9 @@ type BaseEvent struct {
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
-	ProcessContext   *ProcessContext   `field:"process" event:"*"`
-	ContainerContext *ContainerContext `field:"container" event:"*"`
+	ProcessContext         *ProcessContext        `field:"process" event:"*"`
+	ContainerContext       *ContainerContext      `field:"container" event:"*"`
+	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
 	PIDContext        PIDContext         `field:"-" json:"-"`
@@ -284,11 +285,6 @@ func (e *Event) RemoveFromFlags(flag uint32) {
 	e.Flags ^= flag
 }
 
-// HasProfile returns true if we found a profile for that event
-func (e *Event) HasProfile() bool {
-	return e.SecurityProfileContext.Name != ""
-}
-
 // GetType returns the event type
 func (e *Event) GetType() string {
 	return EventType(e.Type).String()
@@ -308,11 +304,6 @@ func (e *Event) GetTags() []string {
 		tags = append(tags, e.ContainerContext.Tags...)
 	}
 	return tags
-}
-
-// GetWorkloadID returns an ID that represents the workload
-func (e *Event) GetWorkloadID() string {
-	return e.SecurityProfileContext.Name
 }
 
 // Retain the event
