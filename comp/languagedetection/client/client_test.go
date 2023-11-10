@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,7 +52,7 @@ func newTestClient(t *testing.T, store workloadmeta.Store) (*client, chan *pbgo.
 		log.MockModule,
 	))
 
-	optComponent := newClient(deps).(util.Optional[Component])
+	optComponent := newClient(deps).(optional.Option[Component])
 	comp, _ := optComponent.Get()
 	client := comp.(*client)
 	client.langDetectionCl = mockDCAClient
@@ -85,7 +85,7 @@ func TestClientEnabled(t *testing.T) {
 				log.MockModule,
 			))
 
-			optionalCl := newClient(deps).(util.Optional[Component])
+			optionalCl := newClient(deps).(optional.Option[Component])
 			assert.Equal(t, testCase.isSet, optionalCl.IsSet())
 		})
 	}

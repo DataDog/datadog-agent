@@ -12,6 +12,8 @@ type MetricSource uint16
 const (
 	MetricSourceUnknown MetricSource = iota
 	MetricSourceDogstatsd
+
+	// JMX Integrations
 	MetricSourceJmxCustom
 	MetricSourceActivemq
 	MetricSourceCassandra
@@ -28,6 +30,35 @@ const (
 	MetricSourceSonarqube
 	MetricSourceTomcat
 	MetricSourceWeblogic
+
+	// Core Checks
+	MetricSourceContainer
+	MetricSourceContainerd
+	MetricSourceCri
+	MetricSourceDocker
+	MetricSourceNtp
+	MetricSourceSystemd
+	MetricSourceHelm
+	MetricSourceKubernetesAPIServer
+	MetricSourceKubernetesStateCore
+	MetricSourceOrchestrator
+	MetricSourceWinproc
+	MetricSourceFileHandle
+	MetricSourceWinkmem
+	MetricSourceIo
+	MetricSourceUptime
+	MetricSourceSbom
+	MetricSourceMemory
+	MetricSourceTCPQueueLength
+	MetricSourceOomKill
+	MetricSourceContainerLifecycle
+	MetricSourceJetson
+	MetricSourceContainerImage
+	MetricSourceCPU
+	MetricSourceLoad
+	MetricSourceDisk
+	MetricSourceNetwork
+	MetricSourceSnmp
 )
 
 // String returns a string representation of MetricSource
@@ -67,9 +98,125 @@ func (ms MetricSource) String() string {
 		return "tomcat"
 	case MetricSourceWeblogic:
 		return "weblogic"
+	case MetricSourceContainer:
+		return "container"
+	case MetricSourceContainerd:
+		return "containerd"
+	case MetricSourceCri:
+		return "cri"
+	case MetricSourceDocker:
+		return "docker"
+	case MetricSourceNtp:
+		return "ntp"
+	case MetricSourceSystemd:
+		return "systemd"
+	case MetricSourceHelm:
+		return "helm"
+	case MetricSourceKubernetesAPIServer:
+		return "kubernetes_apiserver"
+	case MetricSourceKubernetesStateCore:
+		return "kubernetes_state_core"
+	case MetricSourceOrchestrator:
+		return "orchestrator"
+	case MetricSourceWinproc:
+		return "winproc"
+	case MetricSourceFileHandle:
+		return "file_handle"
+	case MetricSourceWinkmem:
+		return "winkmem"
+	case MetricSourceIo:
+		return "io"
+	case MetricSourceUptime:
+		return "uptime"
+	case MetricSourceSbom:
+		return "sbom"
+	case MetricSourceMemory:
+		return "memory"
+	case MetricSourceTCPQueueLength:
+		return "tcp_queue_length"
+	case MetricSourceOomKill:
+		return "oom_kill"
+	case MetricSourceContainerLifecycle:
+		return "container_lifecycle"
+	case MetricSourceJetson:
+		return "jetson"
+	case MetricSourceContainerImage:
+		return "container_image"
+	case MetricSourceCPU:
+		return "cpu"
+	case MetricSourceLoad:
+		return "load"
+	case MetricSourceDisk:
+		return "disk"
+	case MetricSourceNetwork:
+		return "network"
+	case MetricSourceSnmp:
+		return "snmp"
 	default:
 		return "<unknown>"
 
+	}
+}
+
+// CoreCheckToMetricSource returns a MetricSource given the name
+func CoreCheckToMetricSource(name string) MetricSource {
+	switch name {
+	case "container":
+		return MetricSourceContainer
+	case "containerd":
+		return MetricSourceContainerd
+	case "cri":
+		return MetricSourceCri
+	case "docker":
+		return MetricSourceDocker
+	case "ntp":
+		return MetricSourceNtp
+	case "systemd":
+		return MetricSourceSystemd
+	case "helm":
+		return MetricSourceHelm
+	case "kubernetes_apiserver":
+		return MetricSourceKubernetesAPIServer
+	case "kubernetes_state_core":
+		return MetricSourceKubernetesStateCore
+	case "orchestrator":
+		return MetricSourceOrchestrator
+	case "winproc":
+		return MetricSourceWinproc
+	case "file_handle":
+		return MetricSourceFileHandle
+	case "winkmem":
+		return MetricSourceWinkmem
+	case "io":
+		return MetricSourceIo
+	case "uptime":
+		return MetricSourceUptime
+	case "sbom":
+		return MetricSourceSbom
+	case "memory":
+		return MetricSourceMemory
+	case "tcp_queue_length":
+		return MetricSourceTCPQueueLength
+	case "oom_kill":
+		return MetricSourceOomKill
+	case "container_lifecycle":
+		return MetricSourceContainerLifecycle
+	case "jetson":
+		return MetricSourceJetson
+	case "container_image":
+		return MetricSourceContainerImage
+	case "cpu":
+		return MetricSourceCPU
+	case "load":
+		return MetricSourceLoad
+	case "disk":
+		return MetricSourceDisk
+	case "network":
+		return MetricSourceNetwork
+	case "snmp":
+		return MetricSourceSnmp
+	default:
+		return MetricSourceUnknown
 	}
 }
 

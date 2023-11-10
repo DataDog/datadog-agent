@@ -106,7 +106,12 @@ func newProvider() *GenericProvider {
 // The best collector may change depending on other collectors availability.
 // You should not cache the result from this function.
 func (mp *GenericProvider) GetCollector(runtime string) Collector {
-	return mp.collectors[Runtime(runtime)]
+	// we can't return mp.collectors[runtime] directly because it will return a typed nil
+	if runtime, found := mp.collectors[Runtime(runtime)]; found {
+		return runtime
+	}
+
+	return nil
 }
 
 // GetMetaCollector returns the meta collector.

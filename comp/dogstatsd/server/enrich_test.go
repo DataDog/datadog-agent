@@ -1317,7 +1317,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "opt-out, entity id present, uds origin present",
 			args: args{
-				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid", "dd.internal.card:none", "host:", "jmx_domain:org.apache", "jmx_check_name:customcheck"},
+				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid", "dd.internal.card:none", "host:", "jmx_domain:org.apache", "dd.internal.jmx_check_name:customcheck"},
 				originFromUDS: "originID",
 				originFromMsg: []byte("none"),
 				conf: enrichConfig{
@@ -1369,30 +1369,30 @@ func TestEnrichTagsWithJMXCheckName(t *testing.T) {
 		wantedMetricSource metrics.MetricSource
 	}{
 		{
-			name:               "jmx_check_name:kafka, should give MetricSourceKafka",
-			jmxCheckName:       "jmx_check_name:kafka",
-			tags:               []string{"env:prod", "jmx_check_name:kafka"},
+			name:               "dd.internal.jmx_check_name:kafka, should give MetricSourceKafka",
+			jmxCheckName:       "dd.internal.jmx_check_name:kafka",
+			tags:               []string{"env:prod", "dd.internal.jmx_check_name:kafka"},
 			wantedTags:         []string{"env:prod"},
 			wantedMetricSource: metrics.MetricSourceKafka,
 		},
 		{
-			name:               "jmx_check_name:cassandra, should give MetricSourceCassandra",
-			jmxCheckName:       "jmx_check_name:cassandra",
-			tags:               []string{"foo", "jmx_check_name:cassandra"},
+			name:               "dd.internal.jmx_check_name:cassandra, should give MetricSourceCassandra",
+			jmxCheckName:       "dd.internal.jmx_check_name:cassandra",
+			tags:               []string{"foo", "dd.internal.jmx_check_name:cassandra"},
 			wantedTags:         []string{"foo"},
 			wantedMetricSource: metrics.MetricSourceCassandra,
 		},
 		{
-			name:               "jmx_check_name:tomcat, with jmx_domain tag should still set MetricSource",
-			jmxCheckName:       "jmx_check_name:tomcat",
-			tags:               []string{"foo", "jmx_domain:testdomain", "jmx_check_name:tomcat"},
+			name:               "dd.internal.jmx_check_name:tomcat, with jmx_domain tag should still set MetricSource",
+			jmxCheckName:       "dd.internal.jmx_check_name:tomcat",
+			tags:               []string{"foo", "jmx_domain:testdomain", "dd.internal.jmx_check_name:tomcat"},
 			wantedTags:         []string{"foo", "jmx_domain:testdomain"},
 			wantedMetricSource: metrics.MetricSourceTomcat,
 		},
 		{
-			name:               "jmx_check_name:thisisacustomcheck, should give MetricSourceJmxCustom",
-			jmxCheckName:       "jmx_check_name:thisisacustomcheck",
-			tags:               []string{"env:prod", "jmx_check_name:thisisacustomcheck"},
+			name:               "dd.internal.jmx_check_name:thisisacustomcheck, should give MetricSourceJmxCustom",
+			jmxCheckName:       "dd.internal.jmx_check_name:thisisacustomcheck",
+			tags:               []string{"env:prod", "dd.internal.jmx_check_name:thisisacustomcheck"},
 			wantedTags:         []string{"env:prod"},
 			wantedMetricSource: metrics.MetricSourceJmxCustom,
 		},

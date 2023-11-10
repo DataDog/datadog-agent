@@ -68,6 +68,7 @@ from .test import (
     lint_python,
     lint_releasenote,
     lint_teamassignment,
+    send_unit_tests_stats,
     test,
 )
 from .update_go import go_version, update_go
@@ -118,6 +119,7 @@ ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 
 ns.add_task(get_modified_packages)
+ns.add_task(send_unit_tests_stats)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
