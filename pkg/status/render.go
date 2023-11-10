@@ -16,9 +16,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
-	traps "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
