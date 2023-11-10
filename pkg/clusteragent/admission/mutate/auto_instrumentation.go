@@ -338,6 +338,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetecte
 			metrics.MutationAttempts.Inc(metrics.LibInjectionMutationType, strconv.FormatBool(injected), langStr, strconv.FormatBool(autoDetected))
 		}()
 
+		_ = injectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
 		var err error
 		switch lib.lang {
 		case java:

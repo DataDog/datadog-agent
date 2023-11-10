@@ -915,6 +915,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			),
 			expectedEnvs: []corev1.EnvVar{
 				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_lib_injection",
+				},
+				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
 					Value: "true",
 				},
@@ -987,6 +991,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			),
 			expectedEnvs: []corev1.EnvVar{
 				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_lib_injection",
+				},
+				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
 					Value: "0.30",
 				},
@@ -998,18 +1006,44 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:         "inject python",
-			pod:          fakePodWithParent("ns", map[string]string{"admission.datadoghq.com/python-lib.version": "latest", "admission.datadoghq.com/python-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`}, map[string]string{"admission.datadoghq.com/enabled": "true"}, []corev1.EnvVar{}, "", ""),
-			expectedEnvs: []corev1.EnvVar{{Name: "DD_TRACE_SAMPLE_RATE", Value: "0.30"}, {Name: "PYTHONPATH", Value: "/datadog-lib/"}},
-			wantErr:      false,
+			name: "inject python",
+			pod:  fakePodWithParent("ns", map[string]string{"admission.datadoghq.com/python-lib.version": "latest", "admission.datadoghq.com/python-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`}, map[string]string{"admission.datadoghq.com/enabled": "true"}, []corev1.EnvVar{}, "", ""),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.30",
+				},
+				{
+					Name:  "PYTHONPATH",
+					Value: "/datadog-lib/",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_lib_injection",
+				},
+			},
+			wantErr: false,
 			setupConfig: func() {
 			},
 		},
 		{
-			name:         "inject node",
-			pod:          fakePodWithParent("ns", map[string]string{"admission.datadoghq.com/js-lib.version": "latest", "admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`}, map[string]string{"admission.datadoghq.com/enabled": "true"}, []corev1.EnvVar{}, "", ""),
-			expectedEnvs: []corev1.EnvVar{{Name: "DD_TRACE_SAMPLE_RATE", Value: "0.30"}, {Name: "NODE_OPTIONS", Value: " --require=/datadog-lib/node_modules/dd-trace/init"}},
-			wantErr:      false,
+			name: "inject node",
+			pod:  fakePodWithParent("ns", map[string]string{"admission.datadoghq.com/js-lib.version": "latest", "admission.datadoghq.com/js-lib.config.v1": `{"version":1,"tracing_sampling_rate":0.3}`}, map[string]string{"admission.datadoghq.com/enabled": "true"}, []corev1.EnvVar{}, "", ""),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_TRACE_SAMPLE_RATE",
+					Value: "0.30",
+				},
+				{
+					Name:  "NODE_OPTIONS",
+					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_lib_injection",
+				},
+			},
+			wantErr: false,
 			setupConfig: func() {
 			},
 		},
@@ -1047,6 +1081,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Name:  "NODE_OPTIONS",
 					Value: " --require=/datadog-lib/node_modules/dd-trace/init",
 				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_lib_injection",
+				},
 			},
 			wantErr: false,
 		},
@@ -1067,6 +1105,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				"",
 			),
 			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_lib_injection",
+				},
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
 					Value: "true",
@@ -1140,6 +1182,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			),
 			expectedEnvs: []corev1.EnvVar{
 				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_lib_injection",
+				},
+				{
 					Name:  "PYTHONPATH",
 					Value: "/datadog-lib/",
 				},
@@ -1199,6 +1245,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 			),
 			expectedEnvs: []corev1.EnvVar{
 				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_lib_injection",
+				},
+				{
 					Name:  "JAVA_TOOL_OPTIONS",
 					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
@@ -1254,8 +1304,16 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Name:  "DD_LOGS_INJECTION",
 					Value: "false",
 				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
 			}, "replicaset", "test-deployment-123"),
 			expectedEnvs: append(injectAllEnvs(), []corev1.EnvVar{
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
 				{
 					Name:  "DD_SERVICE",
 					Value: "user-deployment",
@@ -1301,21 +1359,45 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: default service name for ReplicaSet",
-			pod:  fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-deployment-123"),
+			pod: fakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{{Name: "DD_INSTRUMENTATION_INSTALL_TYPE", Value: "k8s_single_step"}},
+				"replicaset",
+				"test-deployment-123",
+			),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
 				Name:  "DD_SERVICE",
 				Value: "test-deployment",
-			}),
+			},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+			),
 			wantErr:     false,
 			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 		},
 		{
 			name: "Single Step Instrumentation: default service name for StatefulSet",
-			pod:  fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "statefulset", "test-statefulset-123"),
+			pod: fakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{{Name: "DD_INSTRUMENTATION_INSTALL_TYPE", Value: "k8s_single_step"}},
+				"statefulset",
+				"test-statefulset-123",
+			),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
 				Name:  "DD_SERVICE",
 				Value: "test-statefulset-123",
-			}),
+			},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+			),
 			wantErr:     false,
 			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 		},
@@ -1338,11 +1420,22 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 		},
 		{
 			name: "Single Step Instrumentation: enabled namespaces should be instrumented",
-			pod:  fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-app-123"),
+			pod: fakePodWithParent(
+				"ns",
+				map[string]string{},
+				map[string]string{},
+				[]corev1.EnvVar{{Name: "DD_INSTRUMENTATION_INSTALL_TYPE", Value: "k8s_single_step"}},
+				"replicaset", "test-app-123",
+			),
 			expectedEnvs: append(append(injectAllEnvs(), expBasicConfig()...), corev1.EnvVar{
 				Name:  "DD_SERVICE",
 				Value: "test-app",
-			}),
+			},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
+					Value: "k8s_single_step",
+				},
+			),
 			wantErr: false,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false)

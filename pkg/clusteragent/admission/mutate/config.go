@@ -95,11 +95,6 @@ var (
 		Name:  instrumentationInstallTypeEnvVarName,
 		Value: localLibraryInstrumentationInstallType,
 	}
-
-	instrumentationInstallTimeEnvVar = corev1.EnvVar{
-		Name:  instrumentationInstallTimeEnvVarName,
-		Value: strconv.FormatInt(time.Now().Unix(), 10),
-	}
 )
 
 // InjectConfig adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
@@ -145,12 +140,18 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	// Inject env variables used for Onboarding KPIs propagation
 	if isApmInstrumentationEnabled(pod.Namespace) {
 		// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
+		// DD_INSTRUMENTATION_INSTALL_TYPE:k8s_lib_injection will be injected during auto_instrumentation
 		_ = injectEnv(pod, singleStepInstrumentationInstallTypeEnvVar)
-	} else {
-		// if local library injection is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_lib_injection
-		_ = injectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
 	}
 	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
+	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
+	if instrumentationInstallTime == "" {
+		instrumentationInstallTime = strconv.FormatInt(time.Now().Unix(), 10)
+	}
+	instrumentationInstallTimeEnvVar := corev1.EnvVar{
+		Name:  instrumentationInstallTimeEnvVarName,
+		Value: instrumentationInstallTime,
+	}
 	_ = injectEnv(pod, instrumentationInstallTimeEnvVar)
 	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
 	instrumentationInstallIDEnvVar := corev1.EnvVar{

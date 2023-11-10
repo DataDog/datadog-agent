@@ -9,7 +9,9 @@ package mutate
 
 import (
 	"os"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
@@ -148,7 +150,9 @@ func TestInjectApmSingleStepInstallType(t *testing.T) {
 	mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 
 	uuid := uuid.New().String()
+	installTime := strconv.FormatInt(time.Now().Unix(), 10)
 	t.Setenv("DD_INSTRUMENTATION_INSTALL_ID", uuid)
+	t.Setenv("DD_INSTRUMENTATION_INSTALL_TIME", installTime)
 
 	pod := fakePodWithNamespaceAndLabel("namespace", "admission.datadoghq.com/enabled", "true")
 	pod = withContainer(pod, "foo-pod-container")
@@ -156,8 +160,12 @@ func TestInjectApmSingleStepInstallType(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_INSTRUMENTATION_INSTALL_TYPE", "k8s_single_step"))
 	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_INSTRUMENTATION_INSTALL_ID", uuid))
+	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_INSTRUMENTATION_INSTALL_TIME", installTime))
 
-	t.Cleanup(func() { os.Unsetenv("DD_INSTRUMENTATION_INSTALL_ID") })
+	t.Cleanup(func() {
+		os.Unsetenv("DD_INSTRUMENTATION_INSTALL_ID")
+		os.Unsetenv("DD_INSTRUMENTATION_INSTALL_TIME")
+	})
 }
 
 func TestInjectApmLocalLibraryInstallType(t *testing.T) {
@@ -166,14 +174,19 @@ func TestInjectApmLocalLibraryInstallType(t *testing.T) {
 	mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", "ns2")
 
 	uuid := uuid.New().String()
+	installTime := strconv.FormatInt(time.Now().Unix(), 10)
 	t.Setenv("DD_INSTRUMENTATION_INSTALL_ID", uuid)
+	t.Setenv("DD_INSTRUMENTATION_INSTALL_TIME", installTime)
 
 	pod := fakePodWithNamespaceAndLabel("ns2", "admission.datadoghq.com/enabled", "true")
 	pod = withContainer(pod, "foo-pod-container")
 	err := injectConfig(pod, "", nil)
 	assert.Nil(t, err)
-	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_INSTRUMENTATION_INSTALL_TYPE", "k8s_lib_injection"))
 	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_INSTRUMENTATION_INSTALL_ID", uuid))
+	assert.Contains(t, pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_INSTRUMENTATION_INSTALL_TIME", installTime))
 
-	t.Cleanup(func() { os.Unsetenv("DD_INSTRUMENTATION_INSTALL_ID") })
+	t.Cleanup(func() {
+		os.Unsetenv("DD_INSTRUMENTATION_INSTALL_ID")
+		os.Unsetenv("DD_INSTRUMENTATION_INSTALL_TIME")
+	})
 }
