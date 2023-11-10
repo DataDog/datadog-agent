@@ -64,16 +64,17 @@ func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Se
 				typePresent = true
 			}
 		}
-		
+
 		if typePresent {
 			tags = lo.Filter(tags, func(x string, index int) bool {
 				return x != "type:"
 			})
 		}
 
-		if metricSuffix == "kubernetes_healthchecks_total" {
+		switch metricSuffix {
+		case "kubernetes_healthchecks_total":
 			sender.Count(common.KubeletMetricsPrefix+"slis."+metricSuffix, float64(metric.Value), "", tags)
-		} else {
+		case "kubernetes_healthcheck":
 			sender.Gauge(common.KubeletMetricsPrefix+"slis."+metricSuffix, float64(metric.Value), "", tags)
 		}
 	}
