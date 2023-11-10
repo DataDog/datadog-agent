@@ -57,6 +57,10 @@ def run_golangci_lint(
     verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []
+    import time
+
+    print("Sleeping for 1 day to debug git diff logging on the runner")
+    time.sleep(86400)
     for target in targets:
         print(f"running golangci on {target}")
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
