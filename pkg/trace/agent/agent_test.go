@@ -2269,7 +2269,7 @@ func TestSetFirstTraceTags(t *testing.T) {
 
 	t.Run("NoConfigNoAction", func(t *testing.T) {
 		traceAgent.setFirstTraceTags(root)
-		_, ok := root.Meta[tagInstallId]
+		_, ok := root.Meta[tagInstallID]
 		assert.False(t, ok)
 		_, ok = root.Meta[tagInstallType]
 		assert.False(t, ok)
@@ -2283,7 +2283,7 @@ func TestSetFirstTraceTags(t *testing.T) {
 	traceAgent = NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
 	t.Run("SettingTagsFromInstallSignature", func(t *testing.T) {
 		traceAgent.setFirstTraceTags(root)
-		assert.Equal(t, cfg.InstallSignature.InstallID, root.Meta[tagInstallId])
+		assert.Equal(t, cfg.InstallSignature.InstallID, root.Meta[tagInstallID])
 		assert.Equal(t, cfg.InstallSignature.InstallType, root.Meta[tagInstallType])
 		assert.Equal(t, fmt.Sprintf("%v", cfg.InstallSignature.InstallTime), root.Meta[tagInstallTime])
 
@@ -2298,7 +2298,7 @@ func TestSetFirstTraceTags(t *testing.T) {
 			Duration: time.Millisecond.Nanoseconds(),
 		}
 		traceAgent.setFirstTraceTags(anotherRoot)
-		_, ok := anotherRoot.Meta[tagInstallId]
+		_, ok := anotherRoot.Meta[tagInstallID]
 		assert.False(t, ok)
 		_, ok = anotherRoot.Meta[tagInstallType]
 		assert.False(t, ok)
@@ -2324,7 +2324,7 @@ func TestSetFirstTraceTags(t *testing.T) {
 		}
 
 		traceAgent.setFirstTraceTags(root)
-		assert.Equal(t, cfg.InstallSignature.InstallID, root.Meta[tagInstallId])
+		assert.Equal(t, cfg.InstallSignature.InstallID, root.Meta[tagInstallID])
 		assert.Equal(t, "k8s_single_step", root.Meta[tagInstallType])
 		assert.Equal(t, strconv.FormatInt(timestamp, 10), root.Meta[tagInstallTime])
 	})

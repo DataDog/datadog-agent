@@ -36,9 +36,9 @@ const (
 	// DEPRECATED: Tracer hostname is now specified as a TracerPayload field.
 	tagHostname = "_dd.hostname"
 
-	// tagInstallId, tagInstallType, and tagInstallTime are included in the first trace sent by the agent,
+	// tagInstallID, tagInstallType, and tagInstallTime are included in the first trace sent by the agent,
 	// and used to track successful onboarding onto APM.
-	tagInstallId   = "_dd.install.id"
+	tagInstallID   = "_dd.install.id"
 	tagInstallType = "_dd.install.type"
 	tagInstallTime = "_dd.install.time"
 
@@ -239,8 +239,8 @@ func (a *Agent) setFirstTraceTags(root *pb.Span) {
 	a.firstSpanOnce.Do(func() {
 		// The install time and type can also be set on the trace by the tracer,
 		// in which case we do not want the agent to overwrite them.
-		if _, ok := traceutil.GetMeta(root, tagInstallId); !ok {
-			traceutil.SetMeta(root, tagInstallId, a.conf.InstallSignature.InstallID)
+		if _, ok := traceutil.GetMeta(root, tagInstallID); !ok {
+			traceutil.SetMeta(root, tagInstallID, a.conf.InstallSignature.InstallID)
 		}
 		if _, ok := traceutil.GetMeta(root, tagInstallType); !ok {
 			traceutil.SetMeta(root, tagInstallType, a.conf.InstallSignature.InstallType)
