@@ -55,7 +55,7 @@ type Tailer struct {
 // NewTailer returns a new tailer.
 func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool) *Tailer {
 	if len(source.Config.ProcessingRules) > 0 && processRawMessage {
-		log.Warn("The logs processing rules currently apply to the raw JSON-structured log. These rules can now be applied to the message content only, and this behavior will be the default behavior in a future version of the Agent.")
+		log.Warn("The logs processing rules currently apply to the raw journald JSON-structured log. These rules can now be applied to the message content only, and this behavior will be the default behavior in a future version of the Agent.")
 		log.Warn("In order to immediately switch to this new behavior, set 'process_raw_message' to 'false' in your logs integration config and adapt your processing rules accordingly.")
 		log.Warn("Please contact Datadog support for more information.")
 		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, 1, []string{"tailer:journald"})
