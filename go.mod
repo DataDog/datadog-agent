@@ -49,6 +49,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil/
+	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http/
 	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
@@ -76,8 +77,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.49.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.2
 	github.com/DataDog/datadog-go/v5 v5.3.0
-	github.com/DataDog/datadog-operator v1.2.1
-	github.com/DataDog/ebpf-manager v0.3.4
+	// do not update datadog-operator to 1.2.1 because the indirect dependency github.com/DataDog/datadog-api-client-go/v2 v2.15.0 is trigger a huge Go heap memory increase.
+	github.com/DataDog/datadog-operator v1.1.0
+	github.com/DataDog/ebpf-manager v0.3.6
 	github.com/DataDog/go-libddwaf v1.5.0
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
@@ -94,7 +96,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.2.1
 	github.com/Masterminds/sprig/v3 v3.2.3 // indirect
 	github.com/Microsoft/go-winio v0.6.1
-	github.com/Microsoft/hcsshim v0.10.0-rc.8
+	github.com/Microsoft/hcsshim v0.12.0-rc.1
 	github.com/acobaugh/osrelease v0.1.0
 	github.com/alecthomas/participle v0.7.1 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
@@ -109,7 +111,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/cilium/ebpf v0.12.0
+	github.com/cilium/ebpf v0.12.3
 	github.com/clbanning/mxj v1.8.4
 	github.com/containerd/containerd v1.7.4
 	github.com/containernetworking/cni v1.1.2
@@ -164,7 +166,7 @@ require (
 	github.com/mholt/archiver/v3 v3.5.1
 	github.com/miekg/dns v1.1.55
 	github.com/mitchellh/mapstructure v1.5.1-0.20220423185008-bf980b35cac4
-	github.com/moby/sys/mountinfo v0.6.2
+	github.com/moby/sys/mountinfo v0.7.1
 	github.com/mohae/deepcopy v0.0.0-20170603005431-491d3605edfb
 	github.com/netsampler/goflow2 v1.3.3
 	github.com/olekukonko/tablewriter v0.0.5
@@ -186,7 +188,7 @@ require (
 	github.com/samber/lo v1.38.1
 	github.com/samuel/go-zookeeper v0.0.0-20190923202752-2cc03de413da
 	github.com/secure-systems-lab/go-securesystemslib v0.7.0
-	github.com/shirou/gopsutil/v3 v3.23.9
+	github.com/shirou/gopsutil/v3 v3.23.10
 	github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/skydive-project/go-debouncer v1.0.0
@@ -230,10 +232,10 @@ require (
 	go.uber.org/zap v1.26.0
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.5.0
-	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
+	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
 	golang.org/x/net v0.17.0
 	golang.org/x/sync v0.4.0
-	golang.org/x/sys v0.13.0
+	golang.org/x/sys v0.14.1-0.20231108175955-e4099bfacb8c
 	golang.org/x/text v0.14.0
 	golang.org/x/time v0.3.0
 	golang.org/x/tools v0.14.0
@@ -339,7 +341,6 @@ require (
 	github.com/caarlos0/env/v6 v6.10.1 // indirect
 	github.com/cavaliergopher/grab/v3 v3.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/containerd/cgroups v1.1.0 // indirect
 	github.com/containerd/continuity v0.4.2-0.20230616210509-1e0d26eb2381 // indirect
 	github.com/containerd/fifo v1.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
@@ -461,7 +462,7 @@ require (
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d // indirect
 	github.com/nwaples/rardecode v1.1.0 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
-	github.com/opencontainers/runc v1.1.5 // indirect
+	github.com/opencontainers/runc v1.1.8 // indirect
 	github.com/opencontainers/selinux v1.11.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
@@ -595,6 +596,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/http v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/json v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.0.0-00010101000000-000000000000
@@ -623,7 +625,7 @@ require (
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-api-client-go/v2 v2.15.0 // indirect
+	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
 	github.com/DataDog/go-sqllexer v0.0.8 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
@@ -633,7 +635,6 @@ require (
 	github.com/ebitengine/purego v0.5.0-alpha.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
-	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
 	github.com/google/cel-go v0.12.7 // indirect
 	github.com/google/gnostic v0.6.9 // indirect

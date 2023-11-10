@@ -500,7 +500,7 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64,
 
 	if entry.Pid != 1 {
 		parent := p.entryCache[entry.PPid]
-		if entry.PPid >= 1 && (parent == nil || parent.FileEvent.Inode != inode) {
+		if entry.PPid >= 1 && inode != 0 && (parent == nil || parent.FileEvent.Inode != inode) {
 			if candidate := p.resolve(entry.PPid, entry.PPid, inode, true); candidate != nil {
 				parent = candidate
 			} else {
@@ -522,7 +522,7 @@ func (p *Resolver) insertForkEntry(entry *model.ProcessCacheEntry, inode uint64,
 func (p *Resolver) insertExecEntry(entry *model.ProcessCacheEntry, inode uint64, source uint64) {
 	prev := p.entryCache[entry.Pid]
 	if prev != nil {
-		if prev.FileEvent.Inode != inode {
+		if inode != 0 && prev.FileEvent.Inode != inode {
 			entry.IsParentMissing = true
 			p.inodeErrStats.Inc()
 		}
@@ -1196,7 +1196,7 @@ func (p *Resolver) syncCache(proc *process.Process, filledProc *utils.FilledProc
 			seclog.Errorf("couldn't push proc_cache entry to kernel space: %s", err)
 		}
 	}
-	pidCacheEntryB := make([]byte, 72)
+	pidCacheEntryB := make([]byte, 80)
 	_, err = entry.Process.MarshalPidCache(pidCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal pid_cache entry: %s", err)

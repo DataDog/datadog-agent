@@ -22,10 +22,11 @@ namespace WixSetup
             {
                 System.IO.File.Copy(path, "wix/WixSetup.g.wxs", overwrite: true);
             };
-#endif
-
+            project.BuildMsi();
+#else
             project
                 .BuildMsiCmd();
+#endif
         }
 
         private static void Main()

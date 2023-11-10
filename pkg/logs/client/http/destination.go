@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -346,7 +347,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 		return &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(),
+			Transport: httputils.CreateHTTPTransport(pkgconfig.Datadog),
 		}
 	}
 }

@@ -44,6 +44,13 @@ func ConvertFlow(srcFlow *flowpb.FlowMessage, namespace string) *common.Flow {
 	}
 }
 
+// ConvertFlowWithAdditionalFields convert goflow flow structure and additional fields to internal flow structure
+func ConvertFlowWithAdditionalFields(srcFlow *common.FlowMessageWithAdditionalFields, namespace string) *common.Flow {
+	flow := ConvertFlow(srcFlow.FlowMessage, namespace)
+	applyAdditionalFields(flow, srcFlow.AdditionalFields)
+	return flow
+}
+
 func convertFlowType(flowType flowpb.FlowMessage_FlowType) common.FlowType {
 	var flowTypeStr common.FlowType
 	switch flowType {
@@ -59,4 +66,80 @@ func convertFlowType(flowType flowpb.FlowMessage_FlowType) common.FlowType {
 		flowTypeStr = common.TypeUnknown
 	}
 	return flowTypeStr
+}
+
+func applyAdditionalFields(flow *common.Flow, additionalFields common.AdditionalFields) {
+	for destination, fieldValue := range additionalFields {
+		applied := applyAdditionalField(flow, destination, fieldValue)
+		if applied {
+			// We replaced a field of common.Flow with an additional field, no need to keep it in the map
+			delete(additionalFields, destination)
+		}
+	}
+	flow.AdditionalFields = additionalFields
+}
+
+func applyAdditionalField(flow *common.Flow, destination string, fieldValue any) bool {
+	// Make sure FlowFieldsTypes includes the type of the following fields
+	switch destination {
+	case "direction":
+		setValue(&flow.Direction, fieldValue)
+	case "start":
+		setValue(&flow.StartTimestamp, fieldValue)
+	case "end":
+		setValue(&flow.EndTimestamp, fieldValue)
+	case "bytes":
+		setValue(&flow.Bytes, fieldValue)
+	case "packets":
+		setValue(&flow.Packets, fieldValue)
+	case "ether_type":
+		setValue(&flow.EtherType, fieldValue)
+	case "ip_protocol":
+		setValue(&flow.IPProtocol, fieldValue)
+	case "exporter.ip":
+		setValue(&flow.ExporterAddr, fieldValue)
+	case "source.ip":
+		setValue(&flow.SrcAddr, fieldValue)
+	case "source.port":
+		var port uint64
+		setValue(&port, fieldValue)
+		flow.SrcPort = int32(port)
+	case "source.mac":
+		setValue(&flow.SrcMac, fieldValue)
+	case "source.mask":
+		setValue(&flow.SrcMask, fieldValue)
+	case "destination.ip":
+		setValue(&flow.DstAddr, fieldValue)
+	case "destination.port":
+		var port uint64
+		setValue(&port, fieldValue)
+		flow.DstPort = int32(port)
+	case "destination.mac":
+		setValue(&flow.DstMac, fieldValue)
+	case "destination.mask":
+		setValue(&flow.DstMask, fieldValue)
+	case "ingress.interface":
+		setValue(&flow.InputInterface, fieldValue)
+	case "egress.interface":
+		setValue(&flow.OutputInterface, fieldValue)
+	case "tcp_flags":
+		setValue(&flow.TCPFlags, fieldValue)
+	case "next_hop.ip":
+		setValue(&flow.NextHop, fieldValue)
+	case "tos":
+		setValue(&flow.Tos, fieldValue)
+	default:
+		return false
+	}
+	return true
+}
+
+type flowFieldsTypes interface {
+	uint64 | uint32 | []byte
+}
+
+func setValue[T flowFieldsTypes](field *T, value any) {
+	if v, ok := value.(T); ok {
+		*field = v
+	}
 }

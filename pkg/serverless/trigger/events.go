@@ -154,6 +154,13 @@ func GetEventType(payload map[string]any) AWSEventType {
 		return LambdaFunctionURLEvent
 	}
 
+	// Ultimately check this is a Kong API Gateway event as a last resort.
+	// This is because Kong API Gateway events are a subset of API Gateway events
+	// as of https://github.com/Kong/kong/blob/348c980/kong/plugins/aws-lambda/request-util.lua#L248-L260
+	if isKongAPIGatewayEvent(payload) {
+		return APIGatewayEvent
+	}
+
 	return Unknown
 }
 
@@ -167,7 +174,7 @@ func Unmarshal(payload []byte) (map[string]any, error) {
 }
 
 func isAPIGatewayEvent(event map[string]any) bool {
-	return json.GetNestedValue(event, "requestcontext") != nil &&
+	return json.GetNestedValue(event, "requestcontext", "stage") != nil &&
 		json.GetNestedValue(event, "httpmethod") != nil &&
 		json.GetNestedValue(event, "resource") != nil &&
 		!isAPIGatewayLambdaAuthorizerRequestParametersEvent(event)
@@ -185,6 +192,16 @@ func isAPIGatewayV2Event(event map[string]any) bool {
 	return version == "2.0" &&
 		json.GetNestedValue(event, "rawquerystring") != nil &&
 		!strings.Contains(domainName, "lambda-url")
+}
+
+// Kong API Gateway events are regular API Gateway events with a few missing
+// fields (cf. https://github.com/Kong/kong/blob/348c980/kong/plugins/aws-lambda/request-util.lua#L248-L260)
+// As a result, this function must be called after isAPIGatewayEvent() and
+// related API Gateway event payload checks. It returns true when httpmethod and
+// resource are present.
+func isKongAPIGatewayEvent(event map[string]any) bool {
+	return json.GetNestedValue(event, "httpmethod") != nil &&
+		json.GetNestedValue(event, "resource") != nil
 }
 
 func isAPIGatewayWebsocketEvent(event map[string]any) bool {

@@ -17,8 +17,8 @@ import (
 
 func setupConfig() pkgconfigmodel.Config {
 	c := pkgconfigmodel.NewConfig("test", "DD", strings.NewReplacer(".", "_"))
-	c.Set("histogram_aggregates", []string{"max", "median", "avg", "count"})
-	c.Set("histogram_percentiles", []string{"0.95"})
+	c.SetWithoutSource("histogram_aggregates", []string{"max", "median", "avg", "count"})
+	c.SetWithoutSource("histogram_percentiles", []string{"0.95"})
 	return c
 }
 

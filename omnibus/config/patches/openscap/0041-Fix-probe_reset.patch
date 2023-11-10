@@ -1,7 +1,7 @@
-From 01600dce05253383f072463fda377a3e61da10d1 Mon Sep 17 00:00:00 2001
+From 0d30830efc9ea187e7b79e73a42005ebbecbb153 Mon Sep 17 00:00:00 2001
 From: David du Colombier <djc@datadoghq.com>
 Date: Wed, 4 Oct 2023 17:04:21 +0200
-Subject: [PATCH] Fix probe_reset
+Subject: [PATCH 41/44] Fix probe_reset
 
 The probe_reset function didn't work properly,
 because its second argument was always NULL.
@@ -9,7 +9,7 @@ because its second argument was always NULL.
 This changes fixes the probe_reset function by
 passing the probe as the second argument.
 
-This change also call probe_ncache_clear to clear
+This change also calls probe_ncache_clear to clear
 the ncache instead of calling probe_ncache_free and
 probe_ncache_new, like it was done in change
 057873ac7c816b5e067c49442bd4f55b77121e9c.

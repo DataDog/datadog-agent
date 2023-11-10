@@ -112,8 +112,8 @@ func TestSketchSeriesMarshalSplitCompressEmpty(t *testing.T) {
 func TestSketchSeriesMarshalSplitCompressItemTooBigIsDropped(t *testing.T) {
 
 	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
-	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
-	config.Datadog.Set("serializer_max_uncompressed_payload_size", 100)
+	defer config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", oldSetting)
+	config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", 100)
 
 	sl := metrics.NewSketchesSourceTest()
 	// A big item (to be dropped)
@@ -197,8 +197,8 @@ func TestSketchSeriesMarshalSplitCompress(t *testing.T) {
 
 func TestSketchSeriesMarshalSplitCompressSplit(t *testing.T) {
 	oldSetting := config.Datadog.Get("serializer_max_uncompressed_payload_size")
-	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", oldSetting)
-	config.Datadog.Set("serializer_max_uncompressed_payload_size", 2000)
+	defer config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", oldSetting)
+	config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", 2000)
 
 	sl := metrics.NewSketchesSourceTest()
 

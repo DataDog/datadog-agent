@@ -81,7 +81,6 @@ type ContainerIOStats struct {
 // ContainerPIDStats stores stats about threads & processes.
 type ContainerPIDStats struct {
 	// Common fields
-	PIDs        []int
 	ThreadCount *float64
 	ThreadLimit *float64
 }

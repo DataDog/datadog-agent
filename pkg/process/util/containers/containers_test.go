@@ -58,7 +58,7 @@ func TestGetContainers(t *testing.T) {
 	cID1Metrics := mock.GetFullSampleContainerEntry()
 	cID1Metrics.ContainerStats.Timestamp = testTime
 	cID1Metrics.NetworkStats.Timestamp = testTime
-	cID1Metrics.ContainerStats.PID.PIDs = []int{1, 2, 3}
+	cID1Metrics.PIDs = []int{1, 2, 3}
 	metricsCollector.SetContainerEntry("cID1", cID1Metrics)
 	metadataProvider.SetEntity(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -137,7 +137,7 @@ func TestGetContainers(t *testing.T) {
 	cID4Metrics := mock.GetFullSampleContainerEntry()
 	cID4Metrics.ContainerStats.Timestamp = testTime
 	cID4Metrics.NetworkStats.Timestamp = testTime
-	cID4Metrics.ContainerStats.PID.PIDs = []int{4, 5}
+	cID4Metrics.PIDs = []int{4, 5}
 	metricsCollector.SetContainerEntry("cID4", cID4Metrics)
 	metadataProvider.SetEntity(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -173,7 +173,7 @@ func TestGetContainers(t *testing.T) {
 	cID5Metrics.ContainerStats.CPU.DefaultedLimit = true
 	cID5Metrics.ContainerStats.Timestamp = testTime
 	cID5Metrics.NetworkStats.Timestamp = testTime
-	cID5Metrics.ContainerStats.PID.PIDs = []int{6, 7}
+	cID5Metrics.PIDs = []int{6, 7}
 	cID5Metrics.ContainerStats.Memory.WorkingSet = nil
 	cID5Metrics.ContainerStats.Memory.CommitBytes = pointer.Ptr(355.0)
 	metricsCollector.SetContainerEntry("cID5", cID5Metrics)
@@ -236,7 +236,7 @@ func TestGetContainers(t *testing.T) {
 	cID7Metrics := mock.GetFullSampleContainerEntry()
 	cID7Metrics.ContainerStats.Timestamp = testTime
 	cID7Metrics.NetworkStats.Timestamp = testTime
-	cID7Metrics.ContainerStats.PID.PIDs = []int{1, 2, 3}
+	cID7Metrics.PIDs = []int{1, 2, 3}
 	metricsCollector.SetContainerEntry("cID7", cID7Metrics)
 	metadataProvider.SetEntity(&workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
