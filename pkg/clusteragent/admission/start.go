@@ -9,7 +9,6 @@
 package admission
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/controllers/secret"
