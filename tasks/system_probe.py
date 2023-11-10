@@ -566,6 +566,8 @@ def build_sysprobe_binary(
         ldflags += ' -s -w'
     if not ebpfless:
         build_tags.append(BPF_TAG)
+    else:
+        build_tags.append('ebpfless')
 
     cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'

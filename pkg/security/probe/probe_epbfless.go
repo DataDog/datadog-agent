@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
@@ -139,6 +140,8 @@ func (p *Probe) Start() error {
 	}
 
 	go p.server.Serve(lis)
+
+	seclog.Infof("starting listening for ebpf less events on : %s", p.Config.RuntimeSecurity.EBPFLessSocket)
 
 	return nil
 }
