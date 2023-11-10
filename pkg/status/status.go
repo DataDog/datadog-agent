@@ -24,8 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/externalmetrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/collector/check"
-	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -116,38 +114,6 @@ func GetAndFormatStatus(invAgent inventoryagent.Component) ([]byte, error) {
 	}
 
 	st, err := render.FormatStatus(statusJSON)
-	if err != nil {
-		return nil, err
-	}
-
-	return []byte(st), nil
-}
-
-// GetCheckStatusJSON gets the status of a single check as JSON
-func GetCheckStatusJSON(c check.Check, cs *checkstats.Stats) ([]byte, error) {
-	s := collector.GetStatusInfo()
-
-	checks := s["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
-
-	checks[c.String()] = make(map[checkid.ID]interface{})
-	checks[c.String()].(map[checkid.ID]interface{})[c.ID()] = cs
-
-	statusJSON, err := json.Marshal(s)
-	if err != nil {
-		return nil, err
-	}
-
-	return statusJSON, nil
-}
-
-// GetCheckStatus gets the status of a single check as human-readable text
-func GetCheckStatus(c check.Check, cs *checkstats.Stats) ([]byte, error) {
-	statusJSON, err := GetCheckStatusJSON(c, cs)
-	if err != nil {
-		return nil, err
-	}
-
-	st, err := render.FormatCheckStats(statusJSON)
 	if err != nil {
 		return nil, err
 	}
