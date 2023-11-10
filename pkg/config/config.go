@@ -1682,6 +1682,16 @@ func setupFipsEndpoints(config Config) error {
 	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
 	// config_template.yaml
 
+	// We're creating a temporary configuration which will be merged to the main config later.
+	// Internally, Viper uses multiple storages for the configuration values and values from datadog.yaml are stored
+	// in a different place from where overrides (created with config.Set(...)) are stored.
+	// Some products are using UnmarshalKey() which either uses overriden data or either configuration file data but not
+	// both at the same time (see https://github.com/spf13/viper/issues/1106)
+	//
+	// Because of that we cannot rely on Set() because it creates overriden data and then UnmarshalKey() will only use the
+	// option created with Set() instead of using option from Set() + option from configuration file.
+	// Instead we merge all the options we need into the main configuration (basically we dynamically add data to the place
+	// where configuration file data are stored)
 	fipsConfig := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Metrics
 	fipsConfig.Set("dd_url", protocol+urlFor(metrics), model.SourceAgentRuntime)
