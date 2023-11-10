@@ -3,7 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+<<<<<<< HEAD
 // Package render has all the formating options for status output
+=======
+// package render has all the formating options for status output
+
+>>>>>>> 3cd3dfcc0d (move format functions and templates to status render subpackage)
 package render
 
 import (
@@ -83,7 +88,6 @@ func FormatDCAStatus(data []byte) (string, error) {
 	stats["pyLoaderStats"] = nil
 	stats["pythonInit"] = nil
 	stats["inventories"] = nil
-
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 
@@ -141,7 +145,6 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	if renderError != "" || err != nil {
 		return renderError, err
 	}
-
 	title := fmt.Sprintf("Datadog Security Agent (v%s)", stats["version"])
 	stats["title"] = title
 
