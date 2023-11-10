@@ -406,6 +406,28 @@ func (api *API) EvtFormatMessage(
 	Values evtapi.EvtVariantValues, //nolint:revive // TODO fix revive unused-parameter
 	Flags uint) (string, error) {
 
+	// `EvtFormatMessage` has a bug in its size calculations that can cause a crash.
+	//
+	// `BufferUsed` output includes the null term character.
+	// `BufferSize` is compared to the same value written to `BufferUsed`, so
+	// that implies BufferSize should also include the null term character.
+	// However, `EvtFormatMessage` (internal symbol EventRendering::MessageRender)
+	// instead calls `memcpy(Buffer, data, (BufferUsed*2)+2)`, which copies a second
+	// null term char into the buffer
+	// * even if `Buffer` is NULL
+	// * even if the +2 causes the memcpy to exceed the input `BufferSize`
+	// * even if the `BufferSize` and source size are 0.
+	// The source data buffer appears to have three null-term chars, so the source buffer
+	// shouldn't be overrun.
+	// This is particularly problematic because the Microsoft example code and the common
+	// GetSize/Alloc/GetData pattern means our first call passes Buffer=NULL and BufferSize=0.
+	// To fix this we must
+	// * Provide a `DummyBuf` to the first `EvtFormatMessage` call so we can safely
+	//   receive the extra null term char when the output value has size 0.
+	// * Allocate space for BufferUsed+1, but don't include our extra space in
+	//   the BufferSize argument to the second `EvtFormatMessage` call.
+	// DummyBuf must be at least 2 bytes wide.
+	var DummyBuf uint64
 	var BufferUsed uint32
 
 	r1, _, lastErr := evtFormatMessage.Call(
@@ -415,8 +437,8 @@ func (api *API) EvtFormatMessage(
 		uintptr(0),
 		uintptr(0),
 		uintptr(Flags),
-		uintptr(0),
-		uintptr(0),
+		uintptr(0), // Intentionally 0 and not sizeof(DummyBuf)
+		uintptr(unsafe.Pointer(&DummyBuf)),
 		uintptr(unsafe.Pointer(&BufferUsed)))
 	// EvtFormatMessage returns C FALSE (0) on error
 	if r1 == 0 {
@@ -432,7 +454,8 @@ func (api *API) EvtFormatMessage(
 	}
 
 	// Allocate buffer space (BufferUsed is size in characters)
-	Buffer := make([]uint16, BufferUsed)
+	// Allocate an extra character due to EvtFormatMessage bug
+	Buffer := make([]uint16, BufferUsed+1)
 
 	r1, _, lastErr = evtFormatMessage.Call(
 		uintptr(PublisherMetadata),
@@ -441,7 +464,7 @@ func (api *API) EvtFormatMessage(
 		uintptr(0),
 		uintptr(0),
 		uintptr(Flags),
-		uintptr(BufferUsed),
+		uintptr(BufferUsed), // ensure this value is 1 less than we allocate
 		uintptr(unsafe.Pointer(unsafe.SliceData(Buffer))),
 		uintptr(unsafe.Pointer(&BufferUsed)))
 	// EvtFormatMessage returns C FALSE (0) on error
