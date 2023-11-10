@@ -73,8 +73,10 @@ var (
 	}
 
 	counterMetrics = map[string]string{
-		"kubelet_evictions":           "kubelet.evictions",
-		"kubelet_pleg_discard_events": "kubelet.pleg.discard_events",
+		"kubelet_evictions":                          "kubelet.evictions",
+		"kubelet_pleg_discard_events":                "kubelet.pleg.discard_events",
+		"kubelet_cpu_manager_pinning_errors_total":   "kubelet.cpu_manager.pinning_errors_total",
+		"kubelet_cpu_manager_pinning_requests_total": "kubelet.cpu_manager.pinning_requests_total",
 	}
 
 	volumeMetrics = map[string]string{
