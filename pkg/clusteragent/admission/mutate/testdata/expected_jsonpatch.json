@@ -2,46 +2,38 @@
     {
         "op": "replace",
         "path": "/spec/containers/0/env/0/name",
-        "value": "DD_INSTRUMENTATION_INSTALL_ID"
+        "value": "DD_ENTITY_ID"
     },
     {
-        "op": "replace",
-        "path": "/spec/containers/0/env/0/value",
-        "value": "abcd"
+        "op": "remove",
+        "path": "/spec/containers/0/env/0/value"
+    },
+    {
+        "op": "add",
+        "path": "/spec/containers/0/env/0/valueFrom",
+        "value": {
+            "fieldRef": {
+                "fieldPath": "metadata.uid"
+            }
+        }
     },
     {
         "op": "replace",
         "path": "/spec/containers/0/env/1/name",
-        "value": "DD_INSTRUMENTATION_INSTALL_TIME"
+        "value": "DD_AGENT_HOST"
     },
     {
-        "op": "replace",
-        "path": "/spec/containers/0/env/1/value",
-        "value": "12345"
+        "op": "remove",
+        "path": "/spec/containers/0/env/1/value"
     },
     {
-        "value": {
-          "name": "DD_ENTITY_ID",
-          "valueFrom": {
-            "fieldRef": {
-              "fieldPath": "metadata.uid"
-            }
-          }
-        },
         "op": "add",
-        "path": "/spec/containers/0/env/-"
-    },
-    {
+        "path": "/spec/containers/0/env/1/valueFrom",
         "value": {
-          "name": "DD_AGENT_HOST",
-          "valueFrom": {
             "fieldRef": {
-              "fieldPath": "status.hostIP"
+                "fieldPath": "status.hostIP"
             }
-          }
-        },
-        "op": "add",
-        "path": "/spec/containers/0/env/-"
+        }
     },
     {
         "op": "add",

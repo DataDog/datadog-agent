@@ -9,9 +9,13 @@ package mutate
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -891,6 +895,10 @@ func injectAllEnvs() []corev1.EnvVar {
 
 func TestInjectAutoInstrumentation(t *testing.T) {
 	var mockConfig *config.MockConfig
+	uuid := uuid.New().String()
+	installTime := strconv.FormatInt(time.Now().Unix(), 10)
+	t.Setenv("DD_INSTRUMENTATION_INSTALL_ID", uuid)
+	t.Setenv("DD_INSTRUMENTATION_INSTALL_TIME", installTime)
 	tests := []struct {
 		name         string
 		pod          *corev1.Pod
@@ -917,6 +925,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
 				},
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -995,6 +1011,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "k8s_lib_injection",
 				},
 				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				{
 					Name:  "DD_TRACE_SAMPLE_RATE",
 					Value: "0.30",
 				},
@@ -1021,6 +1045,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
 				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
 			},
 			wantErr: false,
 			setupConfig: func() {
@@ -1041,6 +1073,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
 				},
 			},
 			wantErr: false,
@@ -1085,6 +1125,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
 				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
 			},
 			wantErr: false,
 		},
@@ -1108,6 +1156,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_lib_injection",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
 				},
 				{
 					Name:  "DD_RUNTIME_METRICS_ENABLED",
@@ -1186,6 +1242,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "k8s_lib_injection",
 				},
 				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				{
 					Name:  "PYTHONPATH",
 					Value: "/datadog-lib/",
 				},
@@ -1249,6 +1313,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Value: "k8s_lib_injection",
 				},
 				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+				{
 					Name:  "JAVA_TOOL_OPTIONS",
 					Value: " -javaagent:/datadog-lib/dd-java-agent.jar -XX:OnError=/datadog-lib/continuousprofiler/tmp/dd_crash_uploader.sh -XX:ErrorFile=/datadog-lib/continuousprofiler/tmp/hs_err_pid_%p.log",
 				},
@@ -1270,8 +1342,17 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				"",
 				"",
 			),
-			expectedEnvs: []corev1.EnvVar{},
-			wantErr:      false,
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+			},
+			wantErr: false,
 		},
 		{
 			name: "Single Step Instrumentation: user configuration is respected",
@@ -1304,15 +1385,19 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Name:  "DD_LOGS_INJECTION",
 					Value: "false",
 				},
-				{
-					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
-					Value: "k8s_single_step",
-				},
 			}, "replicaset", "test-deployment-123"),
 			expectedEnvs: append(injectAllEnvs(), []corev1.EnvVar{
 				{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
 				},
 				{
 					Name:  "DD_SERVICE",
@@ -1353,9 +1438,18 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				map[string]string{}, map[string]string{
 					"admission.datadoghq.com/enabled": "false",
 				}, []corev1.EnvVar{}, "replicaset", "test-deployment-123"),
-			expectedEnvs: []corev1.EnvVar{},
-			wantErr:      false,
-			setupConfig:  func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+			},
+			wantErr:     false,
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 		},
 		{
 			name: "Single Step Instrumentation: default service name for ReplicaSet",
@@ -1363,7 +1457,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				"ns",
 				map[string]string{},
 				map[string]string{},
-				[]corev1.EnvVar{{Name: "DD_INSTRUMENTATION_INSTALL_TYPE", Value: "k8s_single_step"}},
+				[]corev1.EnvVar{},
 				"replicaset",
 				"test-deployment-123",
 			),
@@ -1375,6 +1469,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
 				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
 			),
 			wantErr:     false,
 			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
@@ -1385,7 +1487,7 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				"ns",
 				map[string]string{},
 				map[string]string{},
-				[]corev1.EnvVar{{Name: "DD_INSTRUMENTATION_INSTALL_TYPE", Value: "k8s_single_step"}},
+				[]corev1.EnvVar{},
 				"statefulset",
 				"test-statefulset-123",
 			),
@@ -1397,22 +1499,48 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
 				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
 			),
 			wantErr:     false,
 			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true) },
 		},
 		{
-			name:         "Single Step Instrumentation: default service name (disabled)",
-			pod:          fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-deployment-123"),
-			expectedEnvs: []corev1.EnvVar{},
-			wantErr:      false,
-			setupConfig:  func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
+			name: "Single Step Instrumentation: default service name (disabled)",
+			pod:  fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-deployment-123"),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+			},
+			wantErr:     false,
+			setupConfig: func() { mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", false) },
 		},
 		{
-			name:         "Single Step Instrumentation: disabled namespaces should not be instrumented",
-			pod:          fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-app-123"),
-			expectedEnvs: []corev1.EnvVar{},
-			wantErr:      false,
+			name: "Single Step Instrumentation: disabled namespaces should not be instrumented",
+			pod:  fakePodWithParent("ns", map[string]string{}, map[string]string{}, []corev1.EnvVar{}, "replicaset", "test-app-123"),
+			expectedEnvs: []corev1.EnvVar{
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
+				},
+			},
+			wantErr: false,
 			setupConfig: func() {
 				mockConfig.SetWithoutSource("apm_config.instrumentation.enabled", true)
 				mockConfig.SetWithoutSource("apm_config.instrumentation.disabled_namespaces", []string{"ns"})
@@ -1434,6 +1562,14 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				corev1.EnvVar{
 					Name:  "DD_INSTRUMENTATION_INSTALL_TYPE",
 					Value: "k8s_single_step",
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_TIME",
+					Value: installTime,
+				},
+				corev1.EnvVar{
+					Name:  "DD_INSTRUMENTATION_INSTALL_ID",
+					Value: uuid,
 				},
 			),
 			wantErr: false,
@@ -1489,6 +1625,10 @@ func TestInjectAutoInstrumentation(t *testing.T) {
 				}
 			}
 			require.Equal(t, len(tt.expectedEnvs), envCount)
+		})
+		t.Cleanup(func() {
+			os.Unsetenv("DD_INSTRUMENTATION_INSTALL_ID")
+			os.Unsetenv("DD_INSTRUMENTATION_INSTALL_TIME")
 		})
 	}
 }

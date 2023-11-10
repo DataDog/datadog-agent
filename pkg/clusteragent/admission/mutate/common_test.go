@@ -358,11 +358,6 @@ func Test_injectVolume(t *testing.T) {
 }
 
 func TestJSONPatchCorrectness(t *testing.T) {
-	uuid := "abcd"
-	installTime := "12345"
-	t.Setenv("DD_INSTRUMENTATION_INSTALL_ID", uuid)
-	t.Setenv("DD_INSTRUMENTATION_INSTALL_TIME", installTime)
-
 	pod := fakePodWithContainer("foo", fakeContainer("container"))
 	withLabels(pod, map[string]string{admCommon.EnabledLabelKey: "true"})
 	podJSON, err := json.Marshal(pod)
@@ -374,11 +369,6 @@ func TestJSONPatchCorrectness(t *testing.T) {
 	expected, err := os.ReadFile("./testdata/expected_jsonpatch.json")
 	assert.NoError(t, err)
 	assert.JSONEq(t, string(expected), string(jsonPatch))
-
-	t.Cleanup(func() {
-		os.Unsetenv("DD_INSTRUMENTATION_INSTALL_ID")
-		os.Unsetenv("DD_INSTRUMENTATION_INSTALL_TIME")
-	})
 }
 
 func BenchmarkJSONPatch(b *testing.B) {
