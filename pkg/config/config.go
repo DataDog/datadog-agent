@@ -1684,16 +1684,6 @@ func setupFipsEndpoints(config Config) error {
 	os.Unsetenv("HTTP_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 
-	// HTTP for now, will soon be updated to HTTPS
-	protocol := "http://"
-	if config.GetBool("fips.https") {
-		protocol = "https://"
-		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), pkgconfigmodel.SourceAgentRuntime)
-	}
-
-	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
-	// config_template.yaml
-
 	// We're creating a temporary configuration which will be merged to the main config later.
 	// Internally, Viper uses multiple storages for the configuration values and values from datadog.yaml are stored
 	// in a different place from where overrides (created with config.Set(...)) are stored.
@@ -1705,6 +1695,18 @@ func setupFipsEndpoints(config Config) error {
 	// Instead we merge all the options we need into the main configuration (basically we dynamically add data to the place
 	// where configuration file data are stored)
 	fipsConfig := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	fipsConfig.Set("fips.https", config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
+
+	// HTTP for now, will soon be updated to HTTPS
+	protocol := "http://"
+	if config.GetBool("fips.https") {
+		protocol = "https://"
+		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), pkgconfigmodel.SourceAgentRuntime)
+	}
+
+	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
+	// config_template.yaml
+
 	// Metrics
 	fipsConfig.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
 
@@ -1728,7 +1730,7 @@ func setupFipsEndpoints(config Config) error {
 	setupFipsLogsConfig(fipsConfig, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
 	// Network devices
-	//setupFipsLogsConfig(fipsConfig, "network_devices.metadata.", urlFor(networkDevicesMetadata))
+	setupFipsLogsConfig(fipsConfig, "network_devices.metadata.", urlFor(networkDevicesMetadata))
 	setupFipsLogsConfig(fipsConfig, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
 	setupFipsLogsConfig(fipsConfig, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
@@ -1739,8 +1741,7 @@ func setupFipsEndpoints(config Config) error {
 	setupFipsLogsConfig(fipsConfig, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
 
 	// Merge the configurations
-	config.MergeConfigMap(fipsConfig.AllSettings())
-	return nil
+	return config.MergeConfigMap(fipsConfig.AllSettings())
 }
 
 func setupFipsLogsConfig(config Config, configPrefix string, url string) {
