@@ -5,6 +5,8 @@ New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets featur
 $Env:Python2_ROOT_DIR=$Env:TEST_EMBEDDED_PY2
 $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
 
+$test_output_file = if ($Env:TEST_OUTPUT_FILE) { $Env:TEST_OUTPUT_FILE } else { "test_output.json" }
+
 if ($Env:TARGET_ARCH -eq "x64") {
     & ridk enable
 }
@@ -81,7 +83,7 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e test --skip-linters --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --cpus 8 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\$Env:TEST_OUTPUT_FILE $Env:EXTRA_OPTS
+& inv -e test --skip-linters --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --cpus 8 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\$test_output_file $Env:EXTRA_OPTS
 
 $err = $LASTEXITCODE
 Write-Host Test result is $err
