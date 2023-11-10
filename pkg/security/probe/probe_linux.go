@@ -1473,7 +1473,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			approvers:          make(map[eval.EventType]kfilters.ActiveApprovers),
 			managerOptions:     ebpf.NewDefaultOptions(),
 			Erpc:               nerpc,
-			erpcRequest:        &erpc.Request{},
+			erpcRequest:        erpc.NewERPCRequest(0),
 			isRuntimeDiscarded: !opts.DontDiscardRuntime,
 		},
 	}
