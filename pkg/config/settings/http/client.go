@@ -86,6 +86,39 @@ func (rc *runtimeSettingsHTTPClient) Get(key string) (interface{}, error) {
 	return nil, fmt.Errorf("unable to get value for this setting: %v", key)
 }
 
+func (rc *runtimeSettingsHTTPClient) GetWithSources(key string) (map[string]interface{}, error) {
+	r, err := util.DoGet(rc.c, fmt.Sprintf("%s/%s?sources=true", rc.baseURL, key), util.LeaveConnectionOpen)
+	if err != nil {
+		var errMap = make(map[string]string)
+		_ = json.Unmarshal(r, &errMap)
+		// If the error has been marshalled into a json object, check it and return it properly
+		if e, found := errMap["error"]; found {
+			return nil, fmt.Errorf(e)
+		}
+		return nil, err
+	}
+
+	var setting = make(map[string]interface{})
+	err = json.Unmarshal(r, &setting)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, found := setting["value"]; !found {
+		return nil, fmt.Errorf("unable to get value for this setting: %v", key)
+	}
+
+	if _, found := setting["sources_value"]; !found {
+		return nil, fmt.Errorf("unable to get sources value for this setting: %v", key)
+	}
+
+	if _, found := setting["sources_hierarchy"]; !found {
+		return nil, fmt.Errorf("unable to get sources hierarchy for this setting: %v", key)
+	}
+
+	return setting, nil
+}
+
 func (rc *runtimeSettingsHTTPClient) Set(key string, value string) (bool, error) {
 	settingsList, err := rc.List()
 	if err != nil {

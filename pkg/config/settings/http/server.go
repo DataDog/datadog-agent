@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -25,6 +26,7 @@ var Server = struct {
 	GetFullDatadogConfig     func(...string) http.HandlerFunc
 	GetFullSystemProbeConfig func(...string) http.HandlerFunc
 	GetValue                 http.HandlerFunc
+	GetValueWithSources      http.HandlerFunc
 	SetValue                 http.HandlerFunc
 	ListConfigurable         http.HandlerFunc
 }{
@@ -129,7 +131,15 @@ func getConfigValue(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	body, err := json.Marshal(map[string]interface{}{"value": val})
+
+	resp := map[string]interface{}{"value": val}
+	if r.URL.Query().Get("sources") == "true" {
+		sourcesHierarchy, sourcesVal := config.Datadog.GetAllSources(setting)
+		resp["sources_value"] = sourcesVal
+		resp["sources_hierarchy"] = sourcesHierarchy
+	}
+
+	body, err := json.Marshal(resp)
 	if err != nil {
 		log.Errorf("Unable to marshal runtime setting value response: %s", err)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
@@ -138,6 +148,22 @@ func getConfigValue(w http.ResponseWriter, r *http.Request) {
 	}
 	_, _ = w.Write(body)
 }
+
+// func getConfigValueWithSources(w http.ResponseWriter, r *http.Request) {
+// 	vars := mux.Vars(r)
+// 	setting := vars["setting"]
+// 	log.Infof("Got a request to read a setting value with sources: %s", setting)
+
+// 	sourcesVal := config.Datadog.GetWithSources(setting)
+// 	body, err := json.Marshal(map[string]map[model.Source]interface{}{"sources_value": sourcesVal})
+// 	if err != nil {
+// 		log.Errorf("Unable to marshal runtime setting value response: %s", err)
+// 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
+// 		http.Error(w, string(body), http.StatusInternalServerError)
+// 		return
+// 	}
+// 	_, _ = w.Write(body)
+// }
 
 func setConfigValue(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)

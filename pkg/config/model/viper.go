@@ -211,6 +211,15 @@ func (c *safeConfig) Get(key string) interface{} {
 	return val
 }
 
+// GetAllSources returns the value of a key for each source
+func (c *safeConfig) GetAllSources(key string) ([]Source, map[Source]interface{}) {
+	values := make(map[Source]interface{})
+	for _, source := range sources {
+		values[source] = c.configSources[source].Get(key)
+	}
+	return sources, values
+}
+
 // GetString wraps Viper for concurrent access
 func (c *safeConfig) GetString(key string) string {
 	c.RLock()
