@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/system"
 )
 
+// GetSelfPodName returns hostname from DD_POD_NAME in helm chart, if not found, use os.hostname
 func GetSelfPodName() (string, error) {
 	if podName, ok := os.LookupEnv("DD_POD_NAME"); ok {
 		return podName, nil
