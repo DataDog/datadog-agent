@@ -25,8 +25,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
-	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -1368,8 +1368,8 @@ func LoadProxyFromEnv(config Config) {
 	// We have to set each value individually so both config.Get("proxy")
 	// and config.Get("proxy.http") work
 	if isSet {
-		config.Set("proxy.http", p.HTTP, model.SourceEnvVar)
-		config.Set("proxy.https", p.HTTPS, model.SourceEnvVar)
+		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceEnvVar)
+		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceEnvVar)
 
 		// If this is set to an empty []string, viper will have a type conflict when merging
 		// this config during secrets resolution. It unmarshals empty yaml lists to type
@@ -1378,7 +1378,7 @@ func LoadProxyFromEnv(config Config) {
 		for idx := range p.NoProxy {
 			noProxy[idx] = p.NoProxy[idx]
 		}
-		config.Set("proxy.no_proxy", noProxy, model.SourceEnvVar)
+		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceEnvVar)
 	}
 }
 
@@ -1545,8 +1545,8 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 	defer func() {
 		// Environment feature detection needs to run before applying override funcs
 		// as it may provide such overrides
-		env.DetectFeatures(config)
-		model.ApplyOverrideFuncs(config)
+		pkgconfigenv.DetectFeatures(config)
+		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
 	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)
@@ -1688,26 +1688,26 @@ func setupFipsEndpoints(config Config) error {
 	protocol := "http://"
 	if config.GetBool("fips.https") {
 		protocol = "https://"
-		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), model.SourceAgentRuntime)
+		config.Set("skip_ssl_validation", !config.GetBool("fips.tls_verify"), pkgconfigmodel.SourceAgentRuntime)
 	}
 
 	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
 	// config_template.yaml
 
 	// Metrics
-	config.Set("dd_url", protocol+urlFor(metrics), model.SourceAgentRuntime)
+	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
 
 	// Logs
 	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
 
 	// APM
-	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), model.SourceAgentRuntime)
+	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", model.SourceAgentRuntime)
-	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), model.SourceAgentRuntime)
+	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", pkgconfigmodel.SourceAgentRuntime)
+	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), pkgconfigmodel.SourceAgentRuntime)
 
 	// Processes
-	config.Set("process_config.process_dd_url", protocol+urlFor(processes), model.SourceAgentRuntime)
+	config.Set("process_config.process_dd_url", protocol+urlFor(processes), pkgconfigmodel.SourceAgentRuntime)
 
 	// Database monitoring
 	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
@@ -1722,7 +1722,7 @@ func setupFipsEndpoints(config Config) error {
 	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
 	// Orchestrator Explorer
-	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), model.SourceAgentRuntime)
+	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), pkgconfigmodel.SourceAgentRuntime)
 
 	// CWS
 	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
@@ -1731,9 +1731,9 @@ func setupFipsEndpoints(config Config) error {
 }
 
 func setupFipsLogsConfig(config Config, configPrefix string, url string) {
-	config.Set(configPrefix+"use_http", true, model.SourceAgentRuntime)
-	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), model.SourceAgentRuntime)
-	config.Set(configPrefix+"logs_dd_url", url, model.SourceAgentRuntime)
+	config.Set(configPrefix+"use_http", true, pkgconfigmodel.SourceAgentRuntime)
+	config.Set(configPrefix+"logs_no_ssl", !config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
+	config.Set(configPrefix+"logs_dd_url", url, pkgconfigmodel.SourceAgentRuntime)
 }
 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
@@ -1786,7 +1786,7 @@ func sanitizeAPIKeyConfig(config Config, key string) {
 	if !config.IsKnown(key) {
 		return
 	}
-	config.Set(key, strings.TrimSpace(config.GetString(key)), model.SourceAgentRuntime)
+	config.Set(key, strings.TrimSpace(config.GetString(key)), pkgconfigmodel.SourceAgentRuntime)
 }
 
 // sanitizeExternalMetricsProviderChunkSize ensures the value of `external_metrics_provider.chunk_size` is within an acceptable range
@@ -1798,11 +1798,11 @@ func sanitizeExternalMetricsProviderChunkSize(config Config) {
 	chunkSize := config.GetInt("external_metrics_provider.chunk_size")
 	if chunkSize <= 0 {
 		log.Warnf("external_metrics_provider.chunk_size cannot be negative: %d", chunkSize)
-		config.Set("external_metrics_provider.chunk_size", 1, model.SourceAgentRuntime)
+		config.Set("external_metrics_provider.chunk_size", 1, pkgconfigmodel.SourceAgentRuntime)
 	}
 	if chunkSize > maxExternalMetricsProviderChunkSize {
 		log.Warnf("external_metrics_provider.chunk_size has been set to %d, which is higher than the maximum allowed value %d. Using %d.", chunkSize, maxExternalMetricsProviderChunkSize, maxExternalMetricsProviderChunkSize)
-		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize, model.SourceAgentRuntime)
+		config.Set("external_metrics_provider.chunk_size", maxExternalMetricsProviderChunkSize, pkgconfigmodel.SourceAgentRuntime)
 	}
 }
 
@@ -1848,36 +1848,11 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 	return false
 }
 
-func isLocalAddress(address string) (string, error) {
-	if address == "localhost" {
-		return address, nil
-	}
-	ip := net.ParseIP(address)
-	if ip == nil {
-		return "", fmt.Errorf("address was set to an invalid IP address: %s", address)
-	}
-	for _, cidr := range []string{
-		"127.0.0.0/8", // IPv4 loopback
-		"::1/128",     // IPv6 loopback
-	} {
-		_, block, err := net.ParseCIDR(cidr)
-		if err != nil {
-			return "", err
-		}
-		if block.Contains(ip) {
-			return address, nil
-		}
-	}
-	return "", fmt.Errorf("address was set to a non-loopback IP address: %s", address)
-}
+var isLocalAddress = pkgconfigenv.IsLocalAddress
 
 // GetIPCAddress returns the IPC address or an error if the address is not local
 func GetIPCAddress() (string, error) {
-	address, err := isLocalAddress(Datadog.GetString("ipc_address"))
-	if err != nil {
-		return "", fmt.Errorf("ipc_address: %s", err)
-	}
-	return address, nil
+	return pkgconfigenv.GetIPCAddress(Datadog)
 }
 
 // pathExists returns true if the given path exists
@@ -1903,7 +1878,7 @@ func setTracemallocEnabled(config Config) bool {
 	}
 
 	// update config with the actual effective tracemalloc
-	config.Set("tracemalloc_debug", wTracemalloc, model.SourceAgentRuntime)
+	config.Set("tracemalloc_debug", wTracemalloc, pkgconfigmodel.SourceAgentRuntime)
 	return traceMallocEnabledWithPy2
 }
 
@@ -1922,7 +1897,7 @@ func setNumWorkers(config Config) {
 	}
 
 	// update config with the actual effective number of workers
-	config.Set("check_runners", numWorkers, model.SourceAgentRuntime)
+	config.Set("check_runners", numWorkers, pkgconfigmodel.SourceAgentRuntime)
 }
 
 // GetDogstatsdMappingProfiles returns mapping profiles used in DogStatsD mapper

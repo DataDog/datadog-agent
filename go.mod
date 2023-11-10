@@ -43,6 +43,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/trace => ./pkg/trace
 	github.com/DataDog/datadog-agent/pkg/util/backoff => ./pkg/util/backoff
 	github.com/DataDog/datadog-agent/pkg/util/buf => ./pkg/util/buf/
+	github.com/DataDog/datadog-agent/pkg/util/cache => ./pkg/util/cache
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ./pkg/util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/common => ./pkg/util/common
 	github.com/DataDog/datadog-agent/pkg/util/compression => ./pkg/util/compression
@@ -52,9 +53,11 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http/
 	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/optional => ./pkg/util/optional
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ./pkg/util/pointer
 	github.com/DataDog/datadog-agent/pkg/util/scrubber => ./pkg/util/scrubber
 	github.com/DataDog/datadog-agent/pkg/util/sort => ./pkg/util/sort/
+	github.com/DataDog/datadog-agent/pkg/util/statstracker => ./pkg/util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ./pkg/util/system/socket/
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
@@ -591,6 +594,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/tagset v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/cache v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/common v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/compression v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.0.0-00010101000000-000000000000
@@ -598,7 +602,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/http v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/json v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.0.0-00010101000000-000000000000
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0

@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package util
+// Package statstracker keeps track of simple stats in the Agent.
+package statstracker
 
 import (
 	"fmt"
@@ -19,12 +20,12 @@ type taggedPoint struct {
 	count     int64
 }
 
-// StatsTracker Keeps track of simple stats over its lifetime and a configurable time range.
-// StatsTracker is designed to be memory efficient by aggregating data into buckets. For example
+// Tracker Keeps track of simple stats over its lifetime and a configurable time range.
+// Tracker is designed to be memory efficient by aggregating data into buckets. For example
 // a time frame of 24 hours with a bucketFrame of 1 hour will ensure that only 24 points are ever
 // kept in memory. New data is considered in the stats immediately while old data is removed by
 // dropping expired aggregated buckets.
-type StatsTracker struct {
+type Tracker struct {
 	allTimeAvg           int64
 	allTimePeak          int64
 	totalPoints          int64
@@ -38,16 +39,16 @@ type StatsTracker struct {
 	lock                 *sync.Mutex
 }
 
-// NewStatsTracker Creates a new StatsTracker instance
-func NewStatsTracker(timeFrame time.Duration, bucketSize time.Duration) *StatsTracker {
-	return NewStatsTrackerWithTimeProvider(timeFrame, bucketSize, func() int64 {
+// NewTracker Creates a new Tracker instance
+func NewTracker(timeFrame time.Duration, bucketSize time.Duration) *Tracker {
+	return NewTrackerWithTimeProvider(timeFrame, bucketSize, func() int64 {
 		return time.Now().UnixNano()
 	})
 }
 
-// NewStatsTrackerWithTimeProvider Creates a new StatsTracker instance with a time provider closure (mostly for testing)
-func NewStatsTrackerWithTimeProvider(timeFrame time.Duration, bucketSize time.Duration, timeProvider timeProvider) *StatsTracker {
-	return &StatsTracker{
+// NewTrackerWithTimeProvider Creates a new Tracker instance with a time provider closure (mostly for testing)
+func NewTrackerWithTimeProvider(timeFrame time.Duration, bucketSize time.Duration, timeProvider timeProvider) *Tracker {
+	return &Tracker{
 		aggregatedAvgPoints:  make([]*taggedPoint, 0),
 		aggregatedPeakPoints: make([]*taggedPoint, 0),
 		timeFrame:            int64(timeFrame),
@@ -58,7 +59,7 @@ func NewStatsTrackerWithTimeProvider(timeFrame time.Duration, bucketSize time.Du
 }
 
 // Add Records a new value to the stats tracker
-func (s *StatsTracker) Add(value int64) {
+func (s *Tracker) Add(value int64) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -88,14 +89,14 @@ func (s *StatsTracker) Add(value int64) {
 }
 
 // AllTimeAvg Gets the all time average of values seen so far
-func (s *StatsTracker) AllTimeAvg() int64 {
+func (s *Tracker) AllTimeAvg() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.allTimeAvg
 }
 
 // MovingAvg Gets the moving average of values within the time frame
-func (s *StatsTracker) MovingAvg() int64 {
+func (s *Tracker) MovingAvg() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -114,14 +115,14 @@ func (s *StatsTracker) MovingAvg() int64 {
 }
 
 // AllTimePeak Gets the largest value seen so far
-func (s *StatsTracker) AllTimePeak() int64 {
+func (s *Tracker) AllTimePeak() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.allTimePeak
 }
 
 // MovingPeak Gets the largest value seen within the time frame
-func (s *StatsTracker) MovingPeak() int64 {
+func (s *Tracker) MovingPeak() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
@@ -139,7 +140,7 @@ func (s *StatsTracker) MovingPeak() int64 {
 	return largest
 }
 
-func (s *StatsTracker) dropOldPoints(now int64) {
+func (s *Tracker) dropOldPoints(now int64) {
 	if s.avgPointsHead != nil && s.avgPointsHead.timeStamp < now-s.bucketFrame {
 		// Pop off the oldest values
 		if len(s.aggregatedAvgPoints) > 0 {
@@ -164,12 +165,12 @@ func (s *StatsTracker) dropOldPoints(now int64) {
 }
 
 // InfoKey returns the key
-func (s *StatsTracker) InfoKey() string {
+func (s *Tracker) InfoKey() string {
 	return "Pipeline Latency"
 }
 
-// Info returns the StatsTracker as a formatted string slice.
-func (s *StatsTracker) Info() []string {
+// Info returns the Tracker as a formatted string slice.
+func (s *Tracker) Info() []string {
 	AllTimeAvgLatency := s.AllTimeAvg() / int64(time.Millisecond)
 	AllTimePeakLatency := s.AllTimePeak() / int64(time.Millisecond)
 	RecentAvgLatency := s.MovingAvg() / int64(time.Millisecond)

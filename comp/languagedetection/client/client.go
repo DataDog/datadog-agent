@@ -18,9 +18,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -97,7 +97,7 @@ func newClient(
 	deps dependencies,
 ) Component {
 	if !deps.Config.GetBool("language_detection.enabled") || !deps.Config.GetBool("cluster_agent.enabled") {
-		return util.NewNoneOptional[Component]()
+		return optional.NewNoneOption[Component]()
 	}
 
 	ctx := context.Background()
@@ -122,7 +122,7 @@ func newClient(
 		OnStop:  cl.stop,
 	})
 
-	return util.NewOptional[Component](cl)
+	return optional.NewOption[Component](cl)
 }
 
 // start starts streaming languages to the Cluster-Agent

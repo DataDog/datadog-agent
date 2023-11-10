@@ -90,6 +90,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// runtime init routines
@@ -193,7 +194,7 @@ func run(log log.Component,
 	demultiplexer demultiplexer.Component,
 	sharedSerializer serializer.MetricSerializer,
 	cliParams *cliParams,
-	logsAgent util.Optional[logsAgent.Component],
+	logsAgent optional.Option[logsAgent.Component],
 	otelcollector otelcollector.Component,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
@@ -321,7 +322,7 @@ func startAgent(
 	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
 	rcclient rcclient.Component,
-	logsAgent util.Optional[logsAgent.Component],
+	logsAgent optional.Option[logsAgent.Component],
 	sharedForwarder defaultforwarder.Component,
 	sharedSerializer serializer.MetricSerializer,
 	otelcollector otelcollector.Component,
