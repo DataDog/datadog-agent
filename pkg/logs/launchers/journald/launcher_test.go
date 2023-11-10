@@ -35,6 +35,7 @@ func (m *MockJournal) SeekCursor(cursor string) error             { return nil }
 func (m *MockJournal) NextSkip(skip uint64) (uint64, error)       { return 0, nil }
 func (m *MockJournal) Close() error                               { return nil }
 func (m *MockJournal) Next() (uint64, error)                      { return 0, nil }
+func (m *MockJournal) Previous() (uint64, error)                  { return 0, nil }
 func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) { return nil, sdjournal.ErrExpired }
 func (m *MockJournal) GetCursor() (string, error)                 { return "", nil }
 

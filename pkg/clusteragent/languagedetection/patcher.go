@@ -9,23 +9,28 @@ package languagedetection
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
+	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/util/retry"
 )
 
 // OwnersLanguages maps an owner to the detected languages of each container
-type OwnersLanguages map[NamespacedOwnerReference]ContainersLanguages
+type OwnersLanguages map[NamespacedOwnerReference]langUtil.ContainersLanguages
 
 // LanguagePatcher defines an object that patches kubernetes resources with language annotations
 type LanguagePatcher struct {
 	k8sClient dynamic.Interface
+	store     workloadmeta.Store
 }
 
 // NewLanguagePatcher initializes and returns a new patcher with a dynamic k8s client
@@ -39,11 +44,12 @@ func NewLanguagePatcher() (*LanguagePatcher, error) {
 	k8sClient := apiCl.DynamicCl
 	return &LanguagePatcher{
 		k8sClient: k8sClient,
+		store:     workloadmeta.GetGlobalStore(),
 	}, nil
 }
 
-func (lp *LanguagePatcher) getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails) ContainersLanguages {
-	containerslanguages := NewContainersLanguages()
+func (lp *LanguagePatcher) getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails) langUtil.ContainersLanguages {
+	containerslanguages := langUtil.NewContainersLanguages()
 
 	for _, containerLanguageDetails := range podDetail.ContainerDetails {
 		container := containerLanguageDetails.ContainerName
@@ -83,58 +89,68 @@ func (lp *LanguagePatcher) getOwnersLanguages(requestData *pbgo.ParentLanguageAn
 	return &ownerslanguages
 }
 
-// Updates the existing annotations based on the detected languages.
-// Currently we only add languages to the annotations.
-func (lp *LanguagePatcher) getUpdatedOwnerAnnotations(currentAnnotations map[string]string, containerslanguages ContainersLanguages) (map[string]string, int) {
-	if currentAnnotations == nil {
-		currentAnnotations = make(map[string]string)
+func (lp *LanguagePatcher) detectedNewLanguages(namespacedOwnerRef *NamespacedOwnerReference, detectedLanguages langUtil.ContainersLanguages) bool {
+	// Currently we only support deployment owners
+	id := fmt.Sprintf("%s/%s", namespacedOwnerRef.namespace, namespacedOwnerRef.Name)
+	owner, err := lp.store.GetKubernetesDeployment(id)
+
+	if err != nil {
+		return true
 	}
 
-	// Add the existing language annotations into containers languages object
-	existingContainersLanguages := NewContainersLanguages()
-	existingContainersLanguages.ParseAnnotations(currentAnnotations)
+	existingContainersLanguages := langUtil.NewContainersLanguages()
 
-	// Append the potentially new languages to the containers languages object
-	languagesBeforeUpdate := existingContainersLanguages.TotalLanguages()
-	for container, languageset := range containerslanguages {
-		existingContainersLanguages.GetOrInitializeLanguageset(container).Merge(languageset)
-	}
-	languagesAfterUpdate := existingContainersLanguages.TotalLanguages()
-
-	// Convert containers languages into annotations map
-	updatedLanguageAnnotations := existingContainersLanguages.ToAnnotations()
-
-	for annotationKey, annotationValue := range updatedLanguageAnnotations {
-		currentAnnotations[annotationKey] = annotationValue
+	for container, languages := range owner.ContainerLanguages {
+		for _, language := range languages {
+			existingContainersLanguages.GetOrInitializeLanguageset(container).Add(string(language.Name))
+		}
 	}
 
-	addedLanguages := languagesAfterUpdate - languagesBeforeUpdate
-	return currentAnnotations, addedLanguages
+	for container, languages := range owner.InitContainerLanguages {
+		for _, language := range languages {
+			existingContainersLanguages.GetOrInitializeLanguageset(fmt.Sprintf("init.%s", container)).Add(string(language.Name))
+		}
+	}
+
+	for container, languages := range detectedLanguages {
+		for language := range languages {
+			if _, found := existingContainersLanguages.GetOrInitializeLanguageset(container)[language]; !found {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // patches the owner with the corresponding language annotations
-func (lp *LanguagePatcher) patchOwner(namespacedOwnerRef *NamespacedOwnerReference, containerslanguages ContainersLanguages) error {
+func (lp *LanguagePatcher) patchOwner(namespacedOwnerRef *NamespacedOwnerReference, containerslanguages langUtil.ContainersLanguages) error {
 	ownerGVR, err := getGVR(namespacedOwnerRef)
 	if err != nil {
 		return err
 	}
 
+	if !lp.detectedNewLanguages(namespacedOwnerRef, containerslanguages) {
+		// No need to patch
+		SkippedPatches.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.namespace)
+		return nil
+	}
+
 	retryErr := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-		owner, err := lp.k8sClient.Resource(ownerGVR).Namespace(namespacedOwnerRef.namespace).Get(context.TODO(), namespacedOwnerRef.Name, metav1.GetOptions{})
+
+		langAnnotations := containerslanguages.ToAnnotations()
+
+		// Serialize the patch data
+		patchData, err := json.Marshal(map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"annotations": langAnnotations,
+			},
+		})
 		if err != nil {
 			return err
 		}
 
-		currentAnnotations := owner.GetAnnotations()
-		updatedAnnotations, addedLanguages := lp.getUpdatedOwnerAnnotations(currentAnnotations, containerslanguages)
-		if addedLanguages == 0 {
-			// No need to patch owner because no new languages were added
-			SkippedPatches.Inc()
-			return nil
-		}
-		owner.SetAnnotations(updatedAnnotations)
-
-		_, err = lp.k8sClient.Resource(ownerGVR).Namespace(namespacedOwnerRef.namespace).Update(context.TODO(), owner, metav1.UpdateOptions{})
+		_, err = lp.k8sClient.Resource(ownerGVR).Namespace(namespacedOwnerRef.namespace).Patch(context.TODO(), namespacedOwnerRef.Name, types.MergePatchType, patchData, metav1.PatchOptions{})
 		if err != nil {
 			PatchRetries.Inc(namespacedOwnerRef.Kind, namespacedOwnerRef.Name, namespacedOwnerRef.namespace)
 		}

@@ -13,14 +13,16 @@ import (
 	"strconv"
 	"strings"
 
+	authenticationv1 "k8s.io/api/authentication/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
+
 	admCommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	apiCommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-
-	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/dynamic"
 )
 
 const (
@@ -77,7 +79,7 @@ var (
 )
 
 // InjectConfig adds the DD_AGENT_HOST and DD_ENTITY_ID env vars to the pod template if they don't exist
-func InjectConfig(rawPod []byte, ns string, dc dynamic.Interface) ([]byte, error) {
+func InjectConfig(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ kubernetes.Interface) ([]byte, error) {
 	return mutate(rawPod, ns, injectConfig, dc)
 }
 

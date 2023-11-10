@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
+	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -96,7 +98,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(params),
 			core.Bundle,
-			diagnosesendermanager.Module,
+			diagnosesendermanagerimpl.Module,
 		)
 	}
 
@@ -229,7 +231,7 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, diagnos
 	// This prevents log-spam from "pkg/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
-	pkgconfig.Datadog.Set("language_detection.enabled", "false")
+	pkgconfig.Datadog.Set("language_detection.enabled", "false", model.SourceAgentRuntime)
 
 	err := pkgconfig.SetupJMXLogger(cliParams.logFile, "", false, true, false)
 	if err != nil {

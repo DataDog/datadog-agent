@@ -19,7 +19,7 @@ third_party_licenses "../LICENSE-3rdparty.csv"
 
 homepage 'http://www.datadoghq.com'
 
-if windows?
+if windows_target?
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
@@ -32,12 +32,12 @@ end
 
 install_dir INSTALL_DIR
 
-if windows?
+if windows_target?
   python_2_embedded PYTHON_2_EMBEDDED_DIR
   python_3_embedded PYTHON_3_EMBEDDED_DIR
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  if redhat? || suse?
+  if redhat_target? || suse_target?
     maintainer 'Datadog, Inc <package@datadoghq.com>'
 
     # NOTE: with script dependencies, we only care about preinst/postinst/posttrans,
@@ -51,7 +51,7 @@ else
     runtime_script_dependency :pre, "coreutils"
     runtime_script_dependency :pre, "findutils"
     runtime_script_dependency :pre, "grep"
-    if redhat?
+    if redhat_target?
       runtime_script_dependency :pre, "glibc-common"
       runtime_script_dependency :pre, "shadow-utils"
     else
@@ -62,11 +62,11 @@ else
     maintainer 'Datadog Packages <package@datadoghq.com>'
   end
 
-  if debian?
+  if debian_target?
     runtime_recommended_dependency 'datadog-signing-keys (>= 1:1.3.1)'
   end
 
-  if osx?
+  if osx_target?
     unless ENV['SKIP_SIGN_MAC'] == 'true'
       code_signing_identity 'Developer ID Application: Datadog, Inc. (JKFCB4CN7C)'
     end
@@ -289,11 +289,11 @@ dependency 'agent-dependencies'
 dependency 'datadog-agent'
 
 # System-probe
-if linux? && !heroku?
+if linux_target? && !heroku_target?
   dependency 'system-probe'
 end
 
-if osx?
+if osx_target?
   dependency 'datadog-agent-mac-app'
 end
 
@@ -306,12 +306,27 @@ if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3'
 end
 
-if linux?
+if linux_target?
   dependency 'datadog-security-agent-policies'
 end
 
 # Include traps db file in snmp.d/traps_db/
 dependency 'snmp-traps'
+
+# Additional software
+if windows_target?
+  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+    dependency 'datadog-windows-filter-driver'
+  end
+  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
+    dependency 'datadog-windows-apminject'
+  end
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+    dependency 'datadog-windows-procmon-driver'
+    ## this is a duplicate of the above dependency in linux
+    dependency 'datadog-security-agent-policies'
+  end
+end
 
 # this dependency puts few files out of the omnibus install dir and move them
 # in the final destination. This way such files will be listed in the packages
@@ -322,27 +337,14 @@ dependency 'snmp-traps'
 dependency 'datadog-agent-finalize'
 dependency 'datadog-cf-finalize'
 
-# Additional software
-if windows?
-  if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-    dependency 'datadog-windows-filter-driver'
-  end
-  if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-    dependency 'datadog-windows-apminject'
-  end
-  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-    dependency 'datadog-windows-procmon-driver'
-  end
-end
-
-if linux?
+if linux_target?
   extra_package_file '/etc/init/datadog-agent.conf'
   extra_package_file '/etc/init/datadog-agent-process.conf'
   extra_package_file '/etc/init/datadog-agent-sysprobe.conf'
   extra_package_file '/etc/init/datadog-agent-trace.conf'
   extra_package_file '/etc/init/datadog-agent-security.conf'
   systemd_directory = "/usr/lib/systemd/system"
-  if debian?
+  if debian_target?
     systemd_directory = "/lib/systemd/system"
 
     extra_package_file "/etc/init.d/datadog-agent"
@@ -361,13 +363,13 @@ if linux?
 end
 
 # all flavors use the same package scripts
-if linux?
-  if debian?
+if linux_target?
+  if debian_target?
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-deb"
   else
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-rpm"
   end
-elsif osx?
+elsif osx_target?
     package_scripts_path "#{Omnibus::Config.project_root}/package-scripts/agent-dmg"
 end
 
@@ -376,7 +378,7 @@ resources_path "#{Omnibus::Config.project_root}/resources/agent"
 exclude '\.git*'
 exclude 'bundler\/git'
 
-if windows?
+if windows_target?
   FORBIDDEN_SYMBOLS = [
     "github.com/golang/glog"
   ]
@@ -412,7 +414,7 @@ if windows?
 
 end
 
-if linux? or windows?
+if linux_target? or windows_target?
   # the stripper will drop the symbols in a `.debug` folder in the installdir
   # we want to make sure that directory is not in the main build, while present
   # in the debug package.

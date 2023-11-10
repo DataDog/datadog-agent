@@ -107,9 +107,12 @@ int __attribute__((always_inline)) handle_do_fork(ctx_t *ctx) {
     LOAD_CONSTANT("do_fork_input", input);
 
     if (input == DO_FORK_STRUCT_INPUT) {
+        u64 exit_signal_offset;
+        LOAD_CONSTANT("kernel_clone_args_exit_signal_offset", exit_signal_offset);
+
         void *args = (void *)CTX_PARM1(ctx);
         int exit_signal;
-        bpf_probe_read(&exit_signal, sizeof(int), (void *)args + 32);
+        bpf_probe_read(&exit_signal, sizeof(int), (void *)args + exit_signal_offset);
 
         if (exit_signal == SIGCHLD) {
             syscall.fork.is_thread = 0;
@@ -159,13 +162,12 @@ int hook__do_fork(ctx_t *ctx) {
 
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
-    // inherit netns
-    u32 pid = 0;
+    u32 pid = 0, parent_pid = 0;
     bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
-
+    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->parent_pid);
     // ignore the rest if kworker
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
-    if (!syscall || syscall->fork.is_kthread) {
+    if (!syscall || syscall->fork.is_kthread || parent_pid == 2) {
         u32 value = 1;
         // mark as ignored fork not from syscall, ex: kworkers
         bpf_map_update_elem(&pid_ignored, &pid, &value, BPF_ANY);
@@ -175,8 +177,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         return 0;
     }
 
-    u32 parent_pid = 0;
-    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->parent_pid);
+    // inherit netns
     u32 *netns = bpf_map_lookup_elem(&netns_cache, &parent_pid);
     if (netns != NULL) {
         u32 child_netns_entry = *netns;
@@ -220,6 +221,9 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     if (parent_pid_entry) {
         // ensure pid and ppid point to the same cookie
         event->pid_entry.cookie = parent_pid_entry->cookie;
+
+        // ensure pid and ppid point to the same user session
+        event->pid_entry.user_session_id = parent_pid_entry->user_session_id;
 
         // ensure pid and ppid have the same credentials
         event->pid_entry.credentials = parent_pid_entry->credentials;
@@ -283,6 +287,9 @@ int hook_do_exit(ctx_t *ctx) {
         struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
+        } else if (is_current_kworker_dying()) {
+            pop_syscall(EVENT_ANY);
+            return 0;
         }
 
         // send the entry to maintain userspace cache
@@ -315,8 +322,12 @@ int hook_do_exit(ctx_t *ctx) {
 
 HOOK_ENTRY("exit_itimers")
 int hook_exit_itimers(ctx_t *ctx) {
-    void *signal = (void *)CTX_PARM1(ctx);
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
+    if (!syscall) {
+        return 0;
+    }
 
+    void *signal = (void *)CTX_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 

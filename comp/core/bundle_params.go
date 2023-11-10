@@ -8,7 +8,7 @@ package core
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 )
 
 // BundleParams defines the parameters for this bundle.
@@ -30,4 +30,4 @@ type ConfigParams = config.Params
 type LogParams = log.Params
 
 // SysprobeConfigParams defines the parameters of the system-probe config component
-type SysprobeConfigParams = sysprobeconfig.Params
+type SysprobeConfigParams = sysprobeconfigimpl.Params

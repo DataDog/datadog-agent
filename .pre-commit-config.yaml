@@ -36,6 +36,11 @@ repos:
       args: [ "-w", "-s" ]
 - repo: local
   hooks:
+    - id: protected-branches
+      name: protected-branches
+      description: checks that the commit isn't created on a protected branch
+      entry: 'python3 tasks/git-hooks/protected-branches.py'
+      language: system
     - id: revive
       name: revive
       description: revive

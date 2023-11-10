@@ -345,6 +345,9 @@ func TestGetRuntimeRetries(t *testing.T) {
 	// create empty environ file
 	os.MkdirAll("./testGetRuntimeRetries/13", os.ModePerm)
 	f, _ := os.OpenFile("./testGetRuntimeRetries/13/environ", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	defer func() {
+		os.RemoveAll("./testGetRuntimeRetries/")
+	}()
 	f.Close()
 
 	output := make(chan string)

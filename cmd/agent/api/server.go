@@ -34,7 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -56,7 +56,7 @@ func StartServer(
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
-	serverDebug dogstatsdDebug.Component,
+	serverDebug dogstatsddebug.Component,
 	logsAgent pkgUtil.Optional[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,

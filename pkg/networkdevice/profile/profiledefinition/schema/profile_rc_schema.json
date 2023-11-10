@@ -156,12 +156,16 @@
         },
         "device": {
           "$ref": "#/$defs/DeviceMeta"
+        },
+        "version": {
+          "type": "integer"
         }
       },
       "additionalProperties": false,
       "type": "object",
       "required": [
-        "name"
+        "name",
+        "version"
       ]
     },
     "StringArray": {

@@ -11,6 +11,7 @@ from . import (
     cluster_agent_cloudfoundry,
     components,
     customaction,
+    cws_instrumentation,
     diff,
     docker_tasks,
     dogstatsd,
@@ -54,6 +55,7 @@ from .test import (
     codecov,
     download_tools,
     e2e_tests,
+    get_modified_packages,
     install_shellcheck,
     install_tools,
     integration_tests,
@@ -116,6 +118,8 @@ ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
 
+ns.add_task(get_modified_packages)
+
 # add namespaced tasks to the root
 ns.add_collection(agent)
 ns.add_collection(cluster_agent)
@@ -140,6 +144,7 @@ ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)
 ns.add_collection(security_agent)
+ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
 ns.add_collection(kmt)

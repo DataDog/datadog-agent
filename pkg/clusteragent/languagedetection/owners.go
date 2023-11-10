@@ -5,6 +5,7 @@
 
 //go:build kubeapiserver
 
+// Package languagedetection contains the DCA handler functions to patch kubernetes resources with language annotations
 package languagedetection
 
 import (
@@ -19,8 +20,8 @@ import (
 )
 
 const (
-	kindDeployment string = "deployment"
-	kindReplicaset string = "replicaset"
+	kindDeployment = "Deployment"
+	kindReplicaset = "ReplicaSet"
 )
 
 // Currently only deployments are supported

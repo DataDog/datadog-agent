@@ -128,14 +128,44 @@ func (tx *EbpfTx) DynamicTags() []string {
 func (tx *EbpfTx) String() string {
 	var output strings.Builder
 	output.WriteString("http2.ebpfTx{")
-	output.WriteString("Method: '" + tx.Method().String() + "', ")
-	buf := make([]byte, 0, tx.Path_size)
+	output.WriteString(fmt.Sprintf("[%s] [%s ⇄ %s] ", tx.family(), tx.sourceEndpoint(), tx.destEndpoint()))
+	output.WriteString(" Method: '" + tx.Method().String() + "', ")
+	buf := make([]byte, len(tx.Request_path))
 	path, ok := tx.Path(buf)
 	if ok {
-		output.WriteString("Path: '" + string(path))
+		output.WriteString("Path: '" + string(path) + "'")
 	}
 	output.WriteString("}")
 	return output.String()
+}
+
+func (tx *EbpfTx) family() ebpf.ConnFamily {
+	if tx.Tup.Metadata&uint32(ebpf.IPv6) != 0 {
+		return ebpf.IPv6
+	}
+	return ebpf.IPv4
+}
+
+func (tx *EbpfTx) sourceAddress() util.Address {
+	if tx.family() == ebpf.IPv4 {
+		return util.V4Address(uint32(tx.Tup.Saddr_l))
+	}
+	return util.V6Address(tx.Tup.Saddr_l, tx.Tup.Saddr_h)
+}
+
+func (tx *EbpfTx) sourceEndpoint() string {
+	return net.JoinHostPort(tx.sourceAddress().String(), strconv.Itoa(int(tx.Tup.Sport)))
+}
+
+func (tx *EbpfTx) destAddress() util.Address {
+	if tx.family() == ebpf.IPv4 {
+		return util.V4Address(uint32(tx.Tup.Daddr_l))
+	}
+	return util.V6Address(tx.Tup.Daddr_l, tx.Tup.Daddr_h)
+}
+
+func (tx *EbpfTx) destEndpoint() string {
+	return net.JoinHostPort(tx.destAddress().String(), strconv.Itoa(int(tx.Tup.Dport)))
 }
 
 func (t http2StreamKey) family() ebpf.ConnFamily {

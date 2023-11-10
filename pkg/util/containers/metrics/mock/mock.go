@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build test
+
 // Package mock implements a fake metrics collector to be used in tests.
 package mock
 
@@ -15,20 +17,20 @@ import (
 
 // MetricsProvider can be used to create tests
 type MetricsProvider struct {
-	collectors    map[string]provider.Collector
+	collectors    map[provider.Runtime]provider.Collector
 	metaCollector provider.MetaCollector
 }
 
 // NewMetricsProvider creates a mock provider
 func NewMetricsProvider() *MetricsProvider {
 	return &MetricsProvider{
-		collectors: make(map[string]provider.Collector),
+		collectors: make(map[provider.Runtime]provider.Collector),
 	}
 }
 
 // GetCollector emulates the MetricsProvider interface
 func (mp *MetricsProvider) GetCollector(runtime string) provider.Collector {
-	return mp.collectors[runtime]
+	return mp.collectors[provider.Runtime(runtime)]
 }
 
 // GetMetaCollector returns the registered MetaCollector
@@ -37,14 +39,11 @@ func (mp *MetricsProvider) GetMetaCollector() provider.MetaCollector {
 }
 
 // RegisterCollector registers a collector
-func (mp *MetricsProvider) RegisterCollector(collectorMeta provider.CollectorMetadata) {
-	if collector, err := collectorMeta.Factory(); err != nil {
-		mp.collectors[collectorMeta.ID] = collector
-	}
+func (mp *MetricsProvider) RegisterCollector(provider.CollectorFactory) {
 }
 
 // RegisterConcreteCollector registers a collector
-func (mp *MetricsProvider) RegisterConcreteCollector(runtime string, c provider.Collector) {
+func (mp *MetricsProvider) RegisterConcreteCollector(runtime provider.Runtime, c provider.Collector) {
 	mp.collectors[runtime] = c
 }
 
@@ -54,19 +53,20 @@ func (mp *MetricsProvider) RegisterMetaCollector(c provider.MetaCollector) {
 }
 
 // RemoveCollector removes a collector
-func (mp *MetricsProvider) RemoveCollector(runtime string) {
+func (mp *MetricsProvider) RemoveCollector(runtime provider.Runtime) {
 	delete(mp.collectors, runtime)
 }
 
 // Clear removes all collectors
 func (mp *MetricsProvider) Clear() {
-	mp.collectors = make(map[string]provider.Collector)
+	mp.collectors = make(map[provider.Runtime]provider.Collector)
 }
 
 // ContainerEntry allows to customize mock responses
 type ContainerEntry struct {
 	ContainerStats *provider.ContainerStats
 	NetworkStats   *provider.ContainerNetworkStats
+	PIDs           []int
 	OpenFiles      *uint64
 	Error          error
 }
@@ -76,6 +76,8 @@ type Collector struct {
 	id         string
 	containers map[string]ContainerEntry
 }
+
+var _ provider.Collector = &Collector{}
 
 // NewCollector creates a MockCollector
 func NewCollector(id string) *Collector {
@@ -106,7 +108,7 @@ func (mp *Collector) Clear() {
 }
 
 // GetContainerStats returns stats from MockContainerEntry
-func (mp *Collector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) { //nolint:revive // TODO fix revive unused-parameter
+func (mp *Collector) GetContainerStats(_, containerID string, _ time.Duration) (*provider.ContainerStats, error) {
 	if entry, found := mp.containers[containerID]; found {
 		return entry.ContainerStats, entry.Error
 	}
@@ -115,7 +117,7 @@ func (mp *Collector) GetContainerStats(containerNS, containerID string, cacheVal
 }
 
 // GetContainerOpenFilesCount returns stats from MockContainerEntry
-func (mp *Collector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) { //nolint:revive // TODO fix revive unused-parameter
+func (mp *Collector) GetContainerOpenFilesCount(_, containerID string, _ time.Duration) (*uint64, error) {
 	if entry, found := mp.containers[containerID]; found {
 		return entry.OpenFiles, entry.Error
 	}
@@ -124,7 +126,7 @@ func (mp *Collector) GetContainerOpenFilesCount(containerNS, containerID string,
 }
 
 // GetContainerNetworkStats returns stats from MockContainerEntry
-func (mp *Collector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) { //nolint:revive // TODO fix revive unused-parameter
+func (mp *Collector) GetContainerNetworkStats(_, containerID string, _ time.Duration) (*provider.ContainerNetworkStats, error) {
 	if entry, found := mp.containers[containerID]; found {
 		return entry.NetworkStats, entry.Error
 	}
@@ -132,8 +134,17 @@ func (mp *Collector) GetContainerNetworkStats(containerNS, containerID string, c
 	return nil, fmt.Errorf("container not found")
 }
 
+// GetPIDs returns pids from MockContainerEntry
+func (mp *Collector) GetPIDs(_, containerID string, _ time.Duration) ([]int, error) {
+	if entry, found := mp.containers[containerID]; found {
+		return entry.PIDs, entry.Error
+	}
+
+	return nil, fmt.Errorf("container not found")
+}
+
 // GetContainerIDForPID returns a container ID for given PID.
-func (mp *Collector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) { //nolint:revive // TODO fix revive unused-parameter
+func (mp *Collector) GetContainerIDForPID(int, time.Duration) (string, error) {
 	return "", nil
 }
 

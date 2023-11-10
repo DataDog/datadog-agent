@@ -17,6 +17,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 
 	lru "github.com/hashicorp/golang-lru/v2"
 )
@@ -540,13 +541,16 @@ var (
 		"CLASS_ANY":    255,
 	}
 
-	// seclConstants are constants supported in runtime security agent rules
-	// generate_constants:SecL constants,SecL constants are the supported generic SecL constants.
-	seclConstants = map[string]interface{}{
+	// BooleanConstants holds the evaluator for boolean constants
+	// generate_constants:Boolean constants,Boolean constants are the supported boolean constants.
+	BooleanConstants = map[string]interface{}{
 		// boolean
 		"true":  &eval.BoolEvaluator{Value: true},
 		"false": &eval.BoolEvaluator{Value: false},
 	}
+
+	// seclConstants are constants supported in runtime security agent rules
+	seclConstants = map[string]interface{}{}
 
 	// L3ProtocolConstants is the list of supported L3 protocols
 	// generate_constants:L3 protocols,L3 protocols are the supported Layer 3 protocols.
@@ -844,11 +848,11 @@ func initMMapFlagsConstants() {
 }
 
 func initSignalConstants() {
-	for k, v := range signalConstants {
+	for k, v := range SignalConstants {
 		seclConstants[k] = &eval.IntEvaluator{Value: v}
 	}
 
-	for k, v := range signalConstants {
+	for k, v := range SignalConstants {
 		signalStrings[v] = k
 	}
 }
@@ -909,7 +913,14 @@ func initBPFMapNamesConstants() {
 	seclConstants["CWS_MAP_NAMES"] = &eval.StringArrayEvaluator{Values: bpfMapNames}
 }
 
+func initBoolConstants() {
+	for k, v := range BooleanConstants {
+		seclConstants[k] = v
+	}
+}
+
 func initConstants() {
+	initBoolConstants()
 	initErrorConstants()
 	initOpenConstants()
 	initFileModeConstants()
@@ -934,6 +945,7 @@ func initConstants() {
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
+	usersession.InitUserSessionTypes()
 }
 
 func bitmaskToStringArray(bitmask int, intToStrMap map[int]string) []string {

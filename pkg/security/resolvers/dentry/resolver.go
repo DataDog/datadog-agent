@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"syscall"
 	"unsafe"
 
@@ -21,8 +22,6 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"go.uber.org/atomic"
 	"golang.org/x/sys/unix"
-
-	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 
@@ -61,7 +60,7 @@ type Resolver struct {
 	erpcSegment           []byte
 	erpcSegmentSize       int
 	useBPFProgWriteUser   bool
-	erpcRequest           erpc.Request
+	erpcRequest           *erpc.Request
 	erpcStatsZero         []eRPCStats
 	numCPU                int
 	challenge             uint32
@@ -463,7 +462,7 @@ func (dr *Resolver) requestResolve(op uint8, pathKey model.PathKey) (uint32, err
 		dr.preventSegmentMajorPageFault()
 	}
 
-	return challenge, dr.erpc.Request(&dr.erpcRequest)
+	return challenge, dr.erpc.Request(dr.erpcRequest)
 }
 
 // ResolveNameFromERPC resolves the name of the provided inode / mount id / path id
@@ -784,7 +783,7 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, e *
 		statsdClient:  statsdClient,
 		cache:         make(map[uint32]*lru.Cache[model.PathKey, PathEntry]),
 		erpc:          e,
-		erpcRequest:   erpc.Request{},
+		erpcRequest:   erpc.NewERPCRequest(0),
 		erpcStatsZero: make([]eRPCStats, numCPU),
 		hitsCounters:  hitsCounters,
 		missCounters:  missCounters,

@@ -33,11 +33,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -71,11 +73,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// TODO: Similar to the agent itself, once the security agent is represented as a component, and not a function (start),
 			// this will use `fxutil.Run` instead of `fxutil.OneShot`.
+
+			// note that any changes to the arguments to OneShot need to be reflected into
+			// the service initialization in ../../main_windows.go
 			return fxutil.OneShot(start,
 				fx.Supply(params),
 				fx.Supply(core.BundleParams{
 					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths),
-					SysprobeConfigParams: sysprobeconfig.NewParams(sysprobeconfig.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle,
@@ -197,7 +202,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 
 	// Setup expvar server
 	port := config.GetString("security_agent.expvar_port")
-	pkgconfig.Datadog.Set("expvar_port", port)
+	pkgconfig.Datadog.Set("expvar_port", port, model.SourceAgentRuntime)
 	if config.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
@@ -212,7 +217,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		}
 	}()
 
-	hostnameDetected, err := utils.GetHostname()
+	hostnameDetected, err := utils.GetHostnameWithContext(ctx)
 	if err != nil {
 		log.Warnf("Could not resolve hostname from core-agent: %v", err)
 		hostnameDetected, err = hostname.Get(ctx)
