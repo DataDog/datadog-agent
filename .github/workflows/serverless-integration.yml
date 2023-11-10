@@ -63,7 +63,7 @@ jobs:
           timeout_minutes: 45
           max_attempts: 2
           command: |
-            RAWLOGS_DIR="${{ steps.rawlogs.outputs.dir }}/${{ matrix.architecture }}}"
+            RAWLOGS_DIR="${{ steps.rawlogs.outputs.dir }}/${{ matrix.architecture }}"
             cd go/src/github.com/DataDog/datadog-agent
             ARCHITECTURE=${{ matrix.architecture }} RAWLOGS_DIR=$RAWLOGS_DIR \
                 ./test/integration/serverless/run.sh ${{ matrix.suite }}

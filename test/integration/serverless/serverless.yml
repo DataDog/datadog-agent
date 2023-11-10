@@ -71,7 +71,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
     environment:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
-      DD_LAMBDA_HANDLER: src/metric.appSecHandler
+      DD_LAMBDA_HANDLER: src/trace.simpleTest
       DD_SERVERLESS_APPSEC_ENABLED: true
 
   appsec-python:

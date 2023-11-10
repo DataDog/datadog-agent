@@ -13,16 +13,6 @@ async function myHandler(event, context) {
   };
 }
 
-async function appSecHandler(event, context) {
-  return {
-    statusCode: 200,
-    body: 'ok',
-    headers: {
-      'Content-Encoding': 'text/plain',
-    },
-  };
-}
-
 async function myTimeoutHandler(event, context) {
   if (shouldSendMetric) {
     sendDistributionMetric("serverless.lambda-extension.integration-test.count", 1);
