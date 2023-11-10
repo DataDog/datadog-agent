@@ -17,6 +17,7 @@ import (
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/samber/lo"
 )
 
 // metricTransformerFunc is used to tweak or generate new metrics from a given KSM metric
