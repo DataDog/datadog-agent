@@ -1159,7 +1159,7 @@ def get_modified_packages(ctx) -> List[GoModule]:
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
-        print(f"- {module}: ")
+        print(f"- {module}: {modules_to_test[module].targets}")
 
     return modules_to_test.values()
 
@@ -1189,15 +1189,16 @@ def send_unit_tests_stats(_, job_name):
                 n_test_classic += 1
             if json_line["Action"] == "pass":
                 n_test_classic += 1
-
-    with open("test_output_fast.json", "r") as f:
-        for line in f:
-            json_line = json.loads(line)
-            if json_line["Action"] == "fail":
-                fast_success = False
-                n_test_fast += 1
-            if json_line["Action"] == "pass":
-                n_test_fast += 1
+    # If the fast tests are not run, we don't have the output file and we consider the job successful since it did not run any test
+    if os.path.isfile("test_output_fast.json"):
+        with open("test_output_fast.json", "r") as f:
+            for line in f:
+                json_line = json.loads(line)
+                if json_line["Action"] == "fail":
+                    fast_success = False
+                    n_test_fast += 1
+                if json_line["Action"] == "pass":
+                    n_test_fast += 1
 
     timestamp = int(datetime.now().timestamp())
     series.append(
