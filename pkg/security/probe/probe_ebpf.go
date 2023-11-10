@@ -1454,7 +1454,7 @@ func (p *EBPFProbe) GetFieldHandlers() model.FieldHandlers {
 
 // DumpProcessCache dumps the process cache
 func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
-	return p.Resolvers.ProcessResolver.Dump(withArgs)
+	return p.Resolvers.ProcessResolver.ToDot(withArgs)
 }
 
 // NewEBPFProbe instantiates a new runtime security agent probe
@@ -1984,6 +1984,14 @@ func (p *EBPFProbe) HandleActions(ctx *eval.Context, rule *rules.Rule) {
 				}
 				return p.processKiller.KillFromUserspace(pid, sig, ev)
 			})
+		case action.CoreDump != nil:
+			if p.config.RuntimeSecurity.InternalMonitoringEnabled {
+				dump := NewCoreDump(action.CoreDump, p.Resolvers, serializers.NewEventSerializer(ev, nil))
+				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc)
+				event := events.NewCustomEvent(model.UnknownEventType, dump)
+
+				p.probe.DispatchCustomEvent(rule, event)
+			}
 		}
 	}
 }
