@@ -10,6 +10,7 @@ package mutate
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -34,6 +35,7 @@ const (
 	dogstatsdURLEnvVarName               = "DD_DOGSTATSD_URL"
 	instrumentationInstallTypeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TYPE"
 	instrumentationInstallTimeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TIME"
+	instrumentationInstallIdEnvVarName   = "DD_INSTRUMENTATION_INSTALL_ID"
 
 	// Config injection modes
 	hostIP  = "hostip"
@@ -140,12 +142,23 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 
 	injectedEntity = injectEnv(pod, ddEntityIDEnvVar)
 
+	// Inject env variables used for Onboarding KPIs propogation
 	if isApmInstrumentationEnabled(pod.Namespace) {
+		// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
 		_ = injectEnv(pod, singleStepInstrumentationInstallTypeEnvVar)
 	} else {
+		// if local library injection is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_lib_injection
 		_ = injectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
 	}
+	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
 	_ = injectEnv(pod, instrumentationInstallTimeEnvVar)
+	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
+	instrumentationInstallIdEnvVar := corev1.EnvVar{
+		Name:  instrumentationInstallIdEnvVarName,
+		Value: os.Getenv(instrumentationInstallIdEnvVarName),
+	}
+	_ = injectEnv(pod, instrumentationInstallIdEnvVar)
+
 	return nil
 }
 
