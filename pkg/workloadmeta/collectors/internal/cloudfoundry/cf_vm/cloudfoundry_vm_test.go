@@ -20,7 +20,23 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var activeContainer = gardenfakes.FakeContainer{
+var activeContainerWithoutProperties = gardenfakes.FakeContainer{
+	HandleStub: func() string {
+		return "container-handle-0"
+	},
+	InfoStub: func() (garden.ContainerInfo, error) {
+		return garden.ContainerInfo{
+			State:       "active",
+			Events:      nil,
+			HostIP:      "container-host-ip-0",
+			ContainerIP: "container-ip-0",
+			ExternalIP:  "container-external-ip-0",
+			Properties:  garden.Properties{},
+		}, nil
+	},
+}
+
+var activeContainerWithProperties = gardenfakes.FakeContainer{
 	HandleStub: func() string {
 		return "container-handle-1"
 	},
@@ -31,7 +47,9 @@ var activeContainer = gardenfakes.FakeContainer{
 			HostIP:      "container-host-ip-1",
 			ContainerIP: "container-ip-1",
 			ExternalIP:  "container-external-ip-1",
-			Properties:  garden.Properties{},
+			Properties: garden.Properties{
+				"log_config": "{\"guid\":\"app-guid-1\",\"index\":0,\"source_name\":\"CELL\",\"tags\":{\"app_id\":\"app-id-1\",\"app_name\":\"app-name-1\"}}",
+			},
 		}, nil
 	},
 }
@@ -184,8 +202,8 @@ func (f *FakeDCAClient) GetKubernetesClusterID() (string, error) {
 
 func (f *FakeDCAClient) GetCFAppsMetadataForNode(_ string) (map[string][]string, error) {
 	return map[string][]string{
-		activeContainer.Handle():  {"container_name:active-container-app"},
-		stoppedContainer.Handle(): {"container_name:stopped-container-app"},
+		activeContainerWithoutProperties.Handle(): {"container_name:active-container-app"},
+		stoppedContainer.Handle():                 {"container_name:stopped-container-app"},
 	}, nil
 }
 
@@ -225,7 +243,7 @@ func TestPullNoContainers(t *testing.T) {
 
 func TestPullActiveContainer(t *testing.T) {
 	containers := []garden.Container{
-		&activeContainer,
+		&activeContainerWithoutProperties,
 	}
 	fakeGardenUtil := FakeGardenUtil{
 		containers: containers,
@@ -254,7 +272,7 @@ func TestPullActiveContainer(t *testing.T) {
 
 	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
 	assert.Equal(t, containerEntity.Runtime, workloadmeta.ContainerRuntimeGarden)
-	assert.Equal(t, containerEntity.ID, activeContainer.Handle())
+	assert.Equal(t, containerEntity.ID, activeContainerWithoutProperties.Handle())
 	assert.Equal(t, containerEntity.State.Status, workloadmeta.ContainerStatusRunning)
 	assert.True(t, containerEntity.State.Running)
 	assert.NotEmpty(t, containerEntity.CollectorTags)
@@ -299,7 +317,7 @@ func TestPullStoppedContainer(t *testing.T) {
 
 func TestPullDetectsDeletedContainers(t *testing.T) {
 	containers := []garden.Container{
-		&activeContainer,
+		&activeContainerWithoutProperties,
 	}
 	fakeGardenUtil := FakeGardenUtil{
 		containers: containers,
@@ -340,12 +358,12 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 	assert.Equal(t, event1.Type, workloadmeta.EventTypeUnset)
 	assert.Equal(t, event1.Source, workloadmeta.SourceClusterOrchestrator)
 	assert.Equal(t, containerEntity.Kind, workloadmeta.KindContainer)
-	assert.Equal(t, containerEntity.ID, activeContainer.Handle())
+	assert.Equal(t, containerEntity.ID, activeContainerWithoutProperties.Handle())
 }
 
 func TestPullAppNameWithDCA(t *testing.T) {
 	containers := []garden.Container{
-		&activeContainer,
+		&activeContainerWithoutProperties,
 	}
 	fakeGardenUtil := FakeGardenUtil{
 		containers: containers,
@@ -370,9 +388,9 @@ func TestPullAppNameWithDCA(t *testing.T) {
 	assert.Contains(t, containerEntity.CollectorTags, "container_name:active-container-app")
 }
 
-func TestPullAppNameWitoutDCA(t *testing.T) {
+func TestPullNoAppNameWithoutDCA(t *testing.T) {
 	containers := []garden.Container{
-		&activeContainer,
+		&activeContainerWithoutProperties,
 	}
 	fakeGardenUtil := FakeGardenUtil{
 		containers: containers,
@@ -394,5 +412,32 @@ func TestPullAppNameWitoutDCA(t *testing.T) {
 	event0 := workloadmetaStore.notifiedEvents[0]
 	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
 	assert.True(t, ok)
-	assert.Contains(t, containerEntity.CollectorTags, fmt.Sprintf("container_name:%s", activeContainer.Handle()))
+	assert.Contains(t, containerEntity.CollectorTags, fmt.Sprintf("container_name:%s", activeContainerWithoutProperties.Handle()))
+}
+
+func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
+	containers := []garden.Container{
+		&activeContainerWithProperties,
+	}
+	fakeGardenUtil := FakeGardenUtil{
+		containers: containers,
+	}
+	fakeDCAClient := FakeDCAClient{}
+	workloadmetaStore := fakeWorkloadmetaStore{}
+
+	c := collector{
+		gardenUtil: &fakeGardenUtil,
+		store:      &workloadmetaStore,
+		dcaClient:  &fakeDCAClient,
+		dcaEnabled: false, // disabled DCA
+	}
+
+	err := c.Pull(context.TODO())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
+
+	event0 := workloadmetaStore.notifiedEvents[0]
+	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
+	assert.True(t, ok)
+	assert.Contains(t, containerEntity.CollectorTags, fmt.Sprintf("container_name:%s", "app-name-1"))
 }

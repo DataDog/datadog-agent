@@ -10,6 +10,7 @@ using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
 using Microsoft.Deployment.WindowsInstaller;
 using Datadog.CustomActions.RollbackData;
+using Datadog.CustomActions.Rollback;
 
 namespace Datadog.CustomActions
 {
@@ -491,6 +492,10 @@ namespace Datadog.CustomActions
                         $"Failed to enable SeRestorePrivilege. Some file permissions may not be able to be set/rolled back: {e}");
                 }
 
+                // Let's make sure the SE_DACL_AUTO_INHERITED flag is correctly set
+                // Resetting it on %PROJECTLOCATION% will propagate to the subfolders
+                RestoreDaclRollbackCustomAction.RestoreAutoInheritedFlag(_session.Property("PROJECTLOCATION"));
+
                 SetBaseInheritablePermissions();
 
                 ResetConfigurationPermissions();
@@ -625,7 +630,7 @@ namespace Datadog.CustomActions
         /// </summary>
         /// <param name="sid"></param>
         /// <param name="filePath"></param>
-        private void removeAgentAccess(SecurityIdentifier sid, string filePath)
+        private void RemoveAgentAccess(SecurityIdentifier sid, string filePath)
         {
             var fileSystemSecurity = _fileSystemServices.GetAccessControl(filePath, AccessControlSections.All);
             _session.Log(
@@ -702,7 +707,7 @@ namespace Datadog.CustomActions
                         {
                             if (_fileSystemServices.Exists(filePath))
                             {
-                                removeAgentAccess(securityIdentifier, filePath);
+                                RemoveAgentAccess(securityIdentifier, filePath);
                             }
                         }
                         catch (Exception e)

@@ -226,7 +226,7 @@ func TestInjectAutoInstruConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := injectAutoInstruConfig(tt.pod, tt.libsToInject)
+			err := injectAutoInstruConfig(tt.pod, tt.libsToInject, false)
 			require.False(t, (err != nil) != tt.wantErr)
 			if err != nil {
 				return
@@ -606,7 +606,7 @@ func TestExtractLibInfo(t *testing.T) {
 			if tt.setupConfig != nil {
 				tt.setupConfig()
 			}
-			libsToInject := extractLibInfo(tt.pod, tt.containerRegistry)
+			libsToInject, _ := extractLibInfo(tt.pod, tt.containerRegistry)
 			require.ElementsMatch(t, tt.expectedLibsToInject, libsToInject)
 		})
 	}

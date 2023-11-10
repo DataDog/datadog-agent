@@ -30,6 +30,12 @@ Package checks implements the "checks" bundle, for all of the component based ag
 
 Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 
+### [comp/checks/winregistry](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks/winregistry)
+
+*Datadog Team*: windows-agent
+
+Package winregistry implements the Windows Registry check
+
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -249,47 +255,6 @@ supported Datadog intakes.
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/remote-config/rcclient)
 
 
-
-## [comp/snmptraps](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/snmptraps) (Component Bundle)
-
-*Datadog Team*: network-device-monitoring
-
-Package snmptraps implements the a server that listens for SNMP trap data
-and sends it to the backend.
-
-### [comp/snmptraps/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/snmptraps/config)
-
-Package config implements the configuration type for the traps server and
-a component that provides it.
-
-### [comp/snmptraps/formatter](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/snmptraps/formatter)
-
-Package formatter provides a component for formatting SNMP traps.
-
-### [comp/snmptraps/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/snmptraps/forwarder)
-
-Package forwarder defines a component that receives trap data from the
-listener component, formats it properly, and sends it to the backend.
-
-### [comp/snmptraps/listener](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/snmptraps/listener)
-
-Package listener implements a component that listens for SNMP messages,
-parses them, and publishes messages on a channel.
-
-### [comp/snmptraps/oidresolver](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/snmptraps/oidresolver)
-
-Package oidresolver resolves OIDs
-
-### [comp/snmptraps/server](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/snmptraps/server)
-
-Package server implements a component that runs the traps server.
-It listens for SNMP trap messages on a configured port, parses and
-reformats them, and sends the resulting data to the backend.
-
-### [comp/snmptraps/status](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/snmptraps/status)
-
-Package status exposes the expvars we use for status tracking to the
-component system.
 
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray) (Component Bundle)
 

@@ -138,6 +138,19 @@ func (f *flowAccumulator) add(flowToAdd *common.Flow) {
 		aggFlow.flow.EndTimestamp = common.Max(aggFlow.flow.EndTimestamp, flowToAdd.EndTimestamp)
 		aggFlow.flow.SequenceNum = common.Max(aggFlow.flow.SequenceNum, flowToAdd.SequenceNum)
 		aggFlow.flow.TCPFlags |= flowToAdd.TCPFlags
+
+		// keep first non-null value for custom fields
+		if flowToAdd.AdditionalFields != nil {
+			if aggFlow.flow.AdditionalFields == nil {
+				aggFlow.flow.AdditionalFields = make(common.AdditionalFields)
+			}
+
+			for field, value := range flowToAdd.AdditionalFields {
+				if _, ok := aggFlow.flow.AdditionalFields[field]; !ok {
+					aggFlow.flow.AdditionalFields[field] = value
+				}
+			}
+		}
 	}
 	f.flows[aggHash] = aggFlow
 }

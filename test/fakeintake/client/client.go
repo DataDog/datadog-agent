@@ -66,6 +66,9 @@ const (
 	flareEndpoint            = "/support/flare"
 )
 
+// ErrNoFlareAvailable is returned when no flare is available
+var ErrNoFlareAvailable = errors.New("no flare available")
+
 type Client struct {
 	fakeIntakeURL string
 
@@ -158,7 +161,7 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 	}
 
 	if len(payloads) == 0 {
-		return flare.Flare{}, errors.New("no flare available")
+		return flare.Flare{}, ErrNoFlareAvailable
 	}
 
 	return flare.ParseRawFlare(payloads[len(payloads)-1])
@@ -424,6 +427,11 @@ func (c *Client) GetConnectionsNames() ([]string, error) {
 		return []string{}, err
 	}
 	return c.connectionAggregator.GetNames(), nil
+}
+
+// URL returns the client's URL
+func (c *Client) URL() string {
+	return c.fakeIntakeURL
 }
 
 // GetProcesses fetches fakeintake on `/api/v1/collector` endpoint and returns
