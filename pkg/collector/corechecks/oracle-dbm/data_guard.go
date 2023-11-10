@@ -37,7 +37,7 @@ func (c *Check) dataGuard() error {
 	var d vDatabase
 	err = getWrapper(c, &d, "SELECT database_role, open_mode FROM v$database")
 	if err != nil {
-		return fmt.Errorf("%s failed to query database role %w", c.logPrompt)
+		return fmt.Errorf("%s failed to query database role %w", c.logPrompt, err)
 	}
 	c.databaseRole = d.DatabaseRole
 	c.openMode = d.OpenMode

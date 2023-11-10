@@ -171,7 +171,6 @@ func (c *Check) Run() error {
 	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
 
 	if metricIntervalExpired {
-		log.Tracef("%s fixtags here2", c.logPrompt)
 		if c.dbmEnabled {
 			err := c.dataGuard()
 			if err != nil {
@@ -224,7 +223,6 @@ func (c *Check) Run() error {
 	}
 
 	if c.dbmEnabled {
-		//if c.config.QuerySamples.Enabled && c.openMode != "MOUNTED" {
 		if c.config.QuerySamples.Enabled {
 			err := c.SampleSession()
 			if err != nil {
