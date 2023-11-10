@@ -3,11 +3,18 @@ default_version "18.3.2.1-1"
 
 dependency "unixodbc"
 
+# Dynamically build source url and sha256 based on the linux platform and architecture
+# The source url and sha256 are taken from the official Microsoft ODBC Driver for SQL Server page:
+
+arch = if arm_target?
+  "arm64"
+else
+  "amd64"
+end
+
 if arm_target? 
-  arch "arm64"
   source sha256: "d9bb2d2e165e9d86f6b5de75b2baa24c9f0f25107471bcf82254d27f5dafff30"
 else
-  arch "amd64"
   source sha256: "ae8eea58236e46c3f4eae05823cf7f0531ac58f12d90bc24245830b847c052ee"
 end
 
