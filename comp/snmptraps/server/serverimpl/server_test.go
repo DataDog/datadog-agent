@@ -8,44 +8,47 @@
 package serverimpl
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/forwarderimpl"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	ndmtestutils "github.com/DataDog/datadog-agent/pkg/networkdevice/testutils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestStartStop(t *testing.T) {
+	confdPath, err := os.MkdirTemp("", "trapsdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(confdPath)
+	snmpD := filepath.Join(confdPath, "snmp.d")
+	tdb := filepath.Join(snmpD, "traps_db")
+	require.NoError(t, os.Mkdir(snmpD, 0777))
+	require.NoError(t, os.Mkdir(tdb, 0777))
+	require.NoError(t, os.WriteFile(filepath.Join(tdb, "foo.json"), []byte{}, 0666))
 	freePort, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	server := fxutil.Test[server.Component](t,
 		log.MockModule,
-		configimpl.MockModule,
-		formatterimpl.MockModule,
 		senderhelper.Opts,
-		hostnameimpl.MockModule,
-		forwarderimpl.Module,
-		statusimpl.MockModule,
-		listenerimpl.Module,
-		Module,
-		fx.Replace(&config.TrapsConfig{
-			Enabled:          true,
-			Port:             freePort,
-			CommunityStrings: []string{"public"},
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{
+				"confd_path":                                   confdPath,
+				"network_devices.snmp_traps.enabled":           true,
+				"network_devices.snmp_traps.port":              freePort,
+				"network_devices.snmp_traps.community_strings": []string{"public"},
+			},
 		}),
+		hostnameimpl.MockModule,
+		Module,
 	)
 	assert.NotEmpty(t, server)
 }
