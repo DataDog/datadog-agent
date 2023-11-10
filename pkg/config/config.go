@@ -1469,11 +1469,17 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_API_KEY_SECRET_ARN":        {},
-		"DD_DOTNET_TRACER_HOME":        {},
-		"DD_SERVERLESS_APPSEC_ENABLED": {},
-		"DD_SERVICE":                   {},
-		"DD_VERSION":                   {},
+		"DD_APM_FLUSH_DEADLINE_MILLISECONDS": {},
+		"DD_API_KEY_SECRET_ARN":              {},
+		"DD_FLUSH_TO_LOG":                    {},
+		"DD_KMS_API_KEY":                     {},
+		"DD_LAMBDA_HANDLER":                  {},
+		"DD_LOGS_INJECTION":                  {},
+		"DD_MERGE_XRAY_TRACES":               {},
+		"DD_DOTNET_TRACER_HOME":              {},
+		"DD_SERVERLESS_APPSEC_ENABLED":       {},
+		"DD_SERVICE":                         {},
+		"DD_VERSION":                         {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
