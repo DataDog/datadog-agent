@@ -23,7 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
-	trapserver "github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
@@ -46,8 +45,8 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	// runtime init routines
 )
 
@@ -75,7 +74,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			capture replay.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
-			logsAgent util.Optional[logsAgent.Component],
+			logsAgent optional.Option[logsAgent.Component],
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
@@ -83,7 +82,6 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			hostMetadata host.Component,
 			invAgent inventoryagent.Component,
 			_ netflowServer.Component,
-			_ trapserver.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server, demultiplexer)

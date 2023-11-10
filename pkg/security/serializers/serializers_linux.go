@@ -167,6 +167,23 @@ type ProcessCredentialsSerializer struct {
 	Destination interface{} `json:"destination,omitempty"`
 }
 
+// UserSessionContextSerializer serializes the user session context to JSON
+// easyjson:json
+type UserSessionContextSerializer struct {
+	// Unique identifier of the user session on the host
+	ID string `json:"id,omitempty"`
+	// Type of the user session
+	SessionType string `json:"session_type,omitempty"`
+	// Username of the Kubernetes "kubectl exec" session
+	K8SUsername string `json:"k8s_username,omitempty"`
+	// UID of the Kubernetes "kubectl exec" session
+	K8SUID string `json:"k8s_uid,omitempty"`
+	// Groups of the Kubernetes "kubectl exec" session
+	K8SGroups []string `json:"k8s_groups,omitempty"`
+	// Extra of the Kubernetes "kubectl exec" session
+	K8SExtra map[string][]string `json:"k8s_extra,omitempty"`
+}
+
 // ProcessSerializer serializes a process to JSON
 // easyjson:json
 type ProcessSerializer struct {
@@ -198,6 +215,8 @@ type ProcessSerializer struct {
 	ExitTime *utils.EasyjsonTime `json:"exit_time,omitempty"`
 	// Credentials associated with the process
 	Credentials *ProcessCredentialsSerializer `json:"credentials,omitempty"`
+	// Context of the user session for this event
+	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
 	// File information of the executable
 	Executable *FileSerializer `json:"executable,omitempty"`
 	// File information of the interpreter
@@ -580,6 +599,10 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 			CredentialsSerializer: credsSerializer,
 		}
 
+		if ps.UserSession.ID != 0 {
+			psSerializer.UserSession = newUserSessionContextSerializer(&ps.UserSession, e, resolvers)
+		}
+
 		if len(ps.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID: ps.ContainerID,
@@ -599,6 +622,17 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 		Credentials: &ProcessCredentialsSerializer{
 			CredentialsSerializer: &CredentialsSerializer{},
 		},
+	}
+}
+
+func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Event, _ *resolvers.Resolvers) *UserSessionContextSerializer {
+	return &UserSessionContextSerializer{
+		ID:          fmt.Sprintf("%x", ctx.ID),
+		SessionType: ctx.SessionType.String(),
+		K8SUsername: e.FieldHandlers.ResolveK8SUsername(e, ctx),
+		K8SUID:      e.FieldHandlers.ResolveK8SUID(e, ctx),
+		K8SGroups:   e.FieldHandlers.ResolveK8SGroups(e, ctx),
+		K8SExtra:    e.FieldHandlers.ResolveK8SExtra(e, ctx),
 	}
 }
 

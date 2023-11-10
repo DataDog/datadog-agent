@@ -70,7 +70,6 @@
 
 /.gitlab/deploy_dca.yml                             @DataDog/container-integrations @DataDog/agent-platform
 
-# @DataDog/windows-agent owns the vcpkg job
 /.gitlab/deps_build.yml                              @DataDog/ebpf-platform @DataDog/agent-platform @DataDog/windows-agent
 /.gitlab/windows_python_build.yml                    @DataDog/windows-agent
 
@@ -147,6 +146,7 @@
 /cmd/cluster-agent/commands/            @DataDog/container-integrations @DataDog/platform-integrations
 /cmd/cluster-agent-cloudfoundry/        @DataDog/platform-integrations
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/platform-integrations
+/cmd/cws-instrumentation/               @DataDog/agent-security
 /cmd/dogstatsd/                         @DataDog/agent-metrics-logs
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
@@ -217,7 +217,6 @@
 /comp/otelcol @DataDog/opentelemetry
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
-/comp/snmptraps @DataDog/network-device-monitoring
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
@@ -290,6 +289,7 @@
 /pkg/collector/corechecks/system/winproc/         @DataDog/windows-agent
 /pkg/collector/corechecks/systemd/      @DataDog/agent-integrations
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
+/pkg/collector/corechecks/windows_event_log/ @DataDog/windows-agent
 /pkg/config/                            @DataDog/agent-shared-components
 /pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
 /pkg/config/apm.go                      @DataDog/agent-apm
@@ -465,22 +465,23 @@
 /test/kitchen/test/integration/win-reinstall-option/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
-/test/fakeintake/                       @DataDog/agent-e2e-testing
-/test/new-e2e/                          @DataDog/agent-e2e-testing
-/test/new-e2e/language-detection        @DataDog/processes
-/test/new-e2e/system-probe              @DataDog/ebpf-platform
-/test/new-e2e/scenarios/system-probe    @DataDog/ebpf-platform
-/test/new-e2e/tests/agent-subcommands   @DataDog/agent-shared-components
-/test/new-e2e/tests/containers          @DataDog/container-integrations
-/test/new-e2e/tests/language-detection  @DataDog/processes
-/test/new-e2e/tests/ndm                 @DataDog/network-device-monitoring
-/test/new-e2e/tests/npm                 @DataDog/Networks
-/test/new-e2e/tests/agent-platform      @DataDog/agent-platform
-/test/system/                           @DataDog/agent-shared-components
-/test/system/dogstatsd/                 @DataDog/agent-metrics-logs
-/test/benchmarks/apm_scripts/           @DataDog/agent-apm
-/test/regression/                       @DataDog/single-machine-performance
-/test/workload-checks/                  @DataDog/single-machine-performance
+/test/fakeintake/                             @DataDog/agent-e2e-testing
+/test/new-e2e/                                @DataDog/agent-e2e-testing
+/test/new-e2e/language-detection              @DataDog/processes
+/test/new-e2e/system-probe                    @DataDog/ebpf-platform
+/test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
+/test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
+/test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
+/test/new-e2e/tests/containers                @DataDog/container-integrations
+/test/new-e2e/tests/language-detection        @DataDog/processes
+/test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
+/test/new-e2e/tests/npm                       @DataDog/Networks
+/test/new-e2e/tests/agent-platform            @DataDog/agent-platform
+/test/system/                                 @DataDog/agent-shared-components
+/test/system/dogstatsd/                       @DataDog/agent-metrics-logs
+/test/benchmarks/apm_scripts/                 @DataDog/agent-apm
+/test/regression/                             @DataDog/single-machine-performance
+/test/workload-checks/                        @DataDog/single-machine-performance
 
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform
