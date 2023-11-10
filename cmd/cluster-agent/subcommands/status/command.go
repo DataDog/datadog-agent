@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -97,7 +97,7 @@ func run(log log.Component, config config.Component, cliParams *cliParams) error
 	} else if cliParams.jsonStatus {
 		s = string(r)
 	} else {
-		formattedStatus, err := status.FormatDCAStatus(r)
+		formattedStatus, err := render.FormatDCAStatus(r)
 		if err != nil {
 			return err
 		}

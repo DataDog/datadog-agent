@@ -33,6 +33,7 @@ import (
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/collector"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -114,7 +115,7 @@ func GetAndFormatStatus(invAgent inventoryagent.Component) ([]byte, error) {
 		return nil, err
 	}
 
-	st, err := FormatStatus(statusJSON)
+	st, err := render.FormatStatus(statusJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +147,7 @@ func GetCheckStatus(c check.Check, cs *checkstats.Stats) ([]byte, error) {
 		return nil, err
 	}
 
-	st, err := renderCheckStats(statusJSON, c.String())
+	st, err := render.FormatCheckStats(statusJSON)
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +229,7 @@ func GetAndFormatDCAStatus() ([]byte, error) {
 		log.Infof("Error while marshalling %q", err)
 		return nil, err
 	}
-	st, err := FormatDCAStatus(statusJSON)
+	st, err := render.FormatDCAStatus(statusJSON)
 	if err != nil {
 		log.Infof("Error formatting the status %q", err)
 		return nil, err
@@ -251,7 +252,7 @@ func GetAndFormatSecurityAgentStatus(runtimeStatus, complianceStatus map[string]
 		return nil, err
 	}
 
-	st, err := FormatSecurityAgentStatus(statusJSON)
+	st, err := render.FormatSecurityAgentStatus(statusJSON)
 	if err != nil {
 		return nil, err
 	}
