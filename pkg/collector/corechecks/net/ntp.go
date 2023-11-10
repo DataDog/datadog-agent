@@ -139,7 +139,7 @@ func (c *ntpConfig) parse(data []byte, initData []byte, getLocalServers func() (
 	return nil
 }
 
-// Configure configures the data from the yaml
+// Configure configure the data from the yaml
 func (c *NTPCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	cfg := new(ntpConfig)
 	err := cfg.parse(data, initConfig, getLocalDefinedNTPServers)
