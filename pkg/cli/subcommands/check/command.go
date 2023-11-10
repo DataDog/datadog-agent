@@ -41,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -183,8 +184,8 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 		if pkgconfig.Datadog.IsSet("integration_tracing_exhaustive") {
 			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
 		}
-		pkgconfig.Datadog.Set("integration_tracing", true)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true)
+		pkgconfig.Datadog.Set("integration_tracing", true, model.SourceAgentRuntime)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true, model.SourceAgentRuntime)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -497,8 +498,8 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 	}
 
 	if cliParams.generateIntegrationTraces {
-		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive)
+		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing, model.SourceAgentRuntime)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive, model.SourceAgentRuntime)
 	}
 
 	return nil

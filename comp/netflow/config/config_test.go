@@ -6,6 +6,8 @@
 package config
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"strings"
 	"testing"
 
@@ -17,6 +19,8 @@ import (
 )
 
 func TestReadConfig(t *testing.T) {
+	logger := fxutil.Test[log.Component](t, log.MockModule)
+
 	var tests = []struct {
 		name           string
 		configYaml     string
@@ -164,6 +168,47 @@ network_devices:
 `,
 			expectedError: "invalid namespace `abcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefgabcdefg` error: namespace is too long, should contain less than 100 characters",
 		},
+		{
+			name: "invalid default field mapping type",
+			configYaml: `
+network_devices:
+  netflow:
+    enabled: true
+    listeners:
+      - flow_type: netflow9
+        mapping:
+          - destination: source.port
+            field: 8
+            type: string
+`,
+			expectedConfig: NetflowConfig{
+				Enabled:                                true,
+				StopTimeout:                            5,
+				AggregatorBufferSize:                   10000,
+				AggregatorFlushInterval:                300,
+				AggregatorFlowContextTTL:               300,
+				AggregatorPortRollupThreshold:          10,
+				AggregatorRollupTrackerRefreshInterval: 300,
+				PrometheusListenerAddress:              "localhost:9090",
+				Listeners: []ListenerConfig{
+					{
+						FlowType:  common.TypeNetFlow9,
+						BindHost:  "0.0.0.0",
+						Port:      uint16(2055),
+						Workers:   1,
+						Namespace: "default",
+						Mapping: []Mapping{
+							{
+								Field:       8,
+								Destination: "source.port",
+								Endian:      "",
+								Type:        "varint", // Ensure type is correctly overridden
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -171,7 +216,7 @@ network_devices:
 			err := config.Datadog.ReadConfig(strings.NewReader(tt.configYaml))
 			require.NoError(t, err)
 
-			readConfig, err := ReadConfig(config.Datadog)
+			readConfig, err := ReadConfig(config.Datadog, logger)
 			if tt.expectedError != "" {
 				assert.ErrorContains(t, err, tt.expectedError)
 				assert.Nil(t, readConfig)

@@ -77,6 +77,7 @@ Tag: latest
 ----------- Container Info -----------
 Runtime: docker
 Running: false
+----------- Resources -----------
 `,
 				},
 			},
@@ -111,6 +112,7 @@ Health:
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
+----------- Resources -----------
 Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1 
 Hostname: 
 Network IPs: 
@@ -137,6 +139,7 @@ Health:
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
+----------- Resources -----------
 Allowed env variables: 
 Hostname: 
 Network IPs: 
@@ -163,6 +166,7 @@ Health:
 Created At: 0001-01-01 00:00:00 +0000 UTC
 Started At: 0001-01-01 00:00:00 +0000 UTC
 Finished At: 0001-01-01 00:00:00 +0000 UTC
+----------- Resources -----------
 Allowed env variables: DD_SERVICE:my-svc DD_ENV:prod DD_VERSION:v1 
 Hostname: 
 Network IPs: 

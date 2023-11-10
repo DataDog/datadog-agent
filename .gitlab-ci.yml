@@ -7,6 +7,7 @@ include:
   - /.gitlab/package_deps_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
+  - /.gitlab/source_test_stats.yml
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
   - /.gitlab/cancel-prev-pipelines.yml
@@ -27,6 +28,7 @@ include:
   - /.gitlab/deploy_common.yml
   - /.gitlab/deploy_containers.yml
   - /.gitlab/deploy_packages.yml
+  - /.gitlab/deploy_cws_instrumentation.yml
   - /.gitlab/deploy_dca.yml
   - /.gitlab/choco_build.yml
   - /.gitlab/choco_deploy.yml
@@ -62,6 +64,7 @@ stages:
   - deps_build
   - deps_fetch
   - source_test
+  - source_test_stats
   - source_test_junit_upload
   - binary_build
   - package_deps_build
@@ -80,6 +83,7 @@ stages:
   - deploy_containers
   - deploy_packages
   - trigger_release
+  - deploy_cws_instrumentation
   - deploy_dca
   - choco_build
   - choco_deploy
@@ -115,6 +119,7 @@ variables:
   DOGSTATSD_BINARIES_DIR: bin/dogstatsd
   AGENT_BINARIES_DIR: bin/agent
   CLUSTER_AGENT_BINARIES_DIR: bin/datadog-cluster-agent
+  CWS_INSTRUMENTATION_BINARIES_DIR: bin/cws-instrumentation
   CLUSTER_AGENT_CLOUDFOUNDRY_BINARIES_DIR: bin/datadog-cluster-agent-cloudfoundry
   SYSTEM_PROBE_BINARIES_DIR: bin/system-probe
   DEB_S3_BUCKET: apt.datad0g.com
@@ -169,7 +174,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 90df38e7541b
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 005d20ab699a
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
