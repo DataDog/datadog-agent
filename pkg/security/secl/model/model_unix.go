@@ -142,7 +142,7 @@ type Event struct {
 	// globals
 	Async bool `field:"event.async,handler:ResolveAsync" event:"*"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
-	// context
+	// context shared with all events
 	SpanContext            SpanContext            `field:"-" json:"-"`
 	NetworkContext         NetworkContext         `field:"network" event:"dns"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
@@ -881,8 +881,19 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 	return buff, nil
 }
 
+// ResolveHashes resolves the hash of the provided file
+func (dfh *DefaultFieldHandlers) ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string {
+	return nil
+}
+
+// ResolveK8SExtra resolves the K8S user session extra field
+func (dfh *DefaultFieldHandlers) ResolveK8SExtra(_ *Event, _ *UserSessionContext) map[string][]string {
+	return nil
+}
+
 // ExtraFieldHandlers handlers not hold by any field
 type ExtraFieldHandlers interface {
 	BaseExtraFieldHandlers
 	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
+	ResolveK8SExtra(ev *Event, ctx *UserSessionContext) map[string][]string
 }
