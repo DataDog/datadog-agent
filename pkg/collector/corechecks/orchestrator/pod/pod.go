@@ -80,7 +80,7 @@ func (c *Check) Configure(
 		return err
 	}
 	if !c.config.CoreCheck {
-		log.Warn("The corecheck version for pods is currently disabled. See the changelog.")
+		log.Warn("The Node Agent version for pods is currently disabled. See the changelog.")
 		return nil
 	}
 	if !c.config.OrchestrationCollectionEnabled {
