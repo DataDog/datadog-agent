@@ -1199,8 +1199,13 @@ def send_unit_tests_stats(_, job_name):
                     n_test_fast += 1
                 if json_line["Action"] == "pass":
                     n_test_fast += 1
+    else:
+        print("test_output_fast.json not found, assuming no tests were run")
 
     timestamp = int(datetime.now().timestamp())
+    print("Sending unit tests stats to Datadog")
+
+    print(f"Classic test executed: {n_test_classic}")
     series.append(
         create_count(
             "datadog.ci.unit_tests.executed",
@@ -1215,6 +1220,8 @@ def send_unit_tests_stats(_, job_name):
             ],
         )
     )
+
+    print(f"Fast test executed: {n_test_fast}")
     series.append(
         create_count(
             "datadog.ci.unit_tests.executed",
@@ -1229,6 +1236,9 @@ def send_unit_tests_stats(_, job_name):
             ],
         )
     )
+
+    print(f"Classic test success: {classic_success}")
+    print(f"Fast test success: {fast_success}")
 
     if fast_success == classic_success:
         false_positive = 0
