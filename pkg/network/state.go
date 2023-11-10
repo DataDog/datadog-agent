@@ -501,7 +501,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 			if uint32(len(client.closedConnections)) >= ns.maxClosedConns {
 				stateTelemetry.closedConnDropped.Inc(c.Type.String())
 				// Drop if c is empty or closedConnections does not have empty connections
-				if isEmpty(c) || !isEmpty(client.closedConnections[len(client.closedConnections)-1]) {
+				if isEmpty(c) || client.emptyConnsIndex == len(client.closedConnections) {
 					continue
 				}
 				delete(client.closedConnectionsKeys, client.closedConnections[client.emptyConnsIndex].Cookie)
