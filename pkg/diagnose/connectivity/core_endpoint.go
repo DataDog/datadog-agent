@@ -134,8 +134,7 @@ func createDiagnosisString(diagnosis string, report string) string {
 		return diagnosis
 	}
 
-	diagnosis = strings.Join([]string{diagnosis, "\n", report}, "")
-	return diagnosis
+	return strings.Join([]string{diagnosis, "\n", report}, "")
 }
 
 // sendHTTPRequestToEndpoint creates an URL based on the domain and the endpoint information
