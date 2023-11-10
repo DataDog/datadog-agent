@@ -10,7 +10,6 @@ from . import (
     cluster_agent,
     cluster_agent_cloudfoundry,
     components,
-    customaction,
     cws_instrumentation,
     diff,
     docker_tasks,
