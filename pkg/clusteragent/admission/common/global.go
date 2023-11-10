@@ -13,5 +13,6 @@ import (
 )
 
 var (
+	// ClusterAgentStartTime records the Cluster Agent start time
 	ClusterAgentStartTime = strconv.FormatInt(time.Now().Unix(), 10)
 )
