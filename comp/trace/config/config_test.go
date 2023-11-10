@@ -2162,7 +2162,7 @@ func TestLoadEnv(t *testing.T) {
 		}
 	})
 
-	env = "DD_INSTALL_ID"
+	env = "DD_INSTRUMENTATION_INSTALL_ID"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `install_id_foo_bar`)
 
@@ -2181,7 +2181,7 @@ func TestLoadEnv(t *testing.T) {
 		assert.True(t, cfg.InstallSignature.Found)
 	})
 
-	env = "DD_INSTALL_TYPE"
+	env = "DD_INSTRUMENTATION_INSTALL_TYPE"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `host_injection`)
 
@@ -2200,7 +2200,7 @@ func TestLoadEnv(t *testing.T) {
 		assert.True(t, cfg.InstallSignature.Found)
 	})
 
-	env = "DD_INSTALL_TIME"
+	env = "DD_INSTRUMENTATION_INSTALL_TIME"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, `1699621675`)
 
