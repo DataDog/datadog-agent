@@ -239,7 +239,6 @@ const (
 )
 
 type testOpts struct {
-	testDir                                    string
 	disableFilters                             bool
 	disableApprovers                           bool
 	enableActivityDump                         bool
@@ -273,6 +272,7 @@ type testOpts struct {
 }
 
 type dynamicTestOpts struct {
+	testDir                  string
 	disableAbnormalPathCheck bool
 }
 
@@ -286,8 +286,7 @@ func (s *stringSlice) Set(value string) error {
 }
 
 func (to testOpts) Equal(opts testOpts) bool {
-	return to.testDir == opts.testDir &&
-		to.disableApprovers == opts.disableApprovers &&
+	return to.disableApprovers == opts.disableApprovers &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		to.activityDumpTagRules == opts.activityDumpTagRules &&
@@ -905,7 +904,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.staticOpts.testDir)
+	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.dynamicOpts.testDir)
 	if err != nil {
 		return nil, err
 	}

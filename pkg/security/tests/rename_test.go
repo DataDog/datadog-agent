@@ -274,7 +274,7 @@ func TestRenameReuseInode(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{testDir: testDrive.Root()}))
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}

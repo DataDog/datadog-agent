@@ -610,7 +610,7 @@ func TestFilterDiscarderRetention(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{testDir: testDrive.Root()}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}
