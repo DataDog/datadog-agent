@@ -1177,6 +1177,9 @@ def send_unit_tests_stats(_, job_name):
     fast_success = True
     classic_success = True
 
+    n_test_classic = 0
+    n_test_fast = 0
+
     series = []
 
     failed_tests_classic, n_test_classic = parse_test_log("test_output.json")
