@@ -9,7 +9,6 @@
 enhancements:
   - |
     APM: OTLP: Add support for custom container tags via resource attributes prefixed by `datadog.container.tag.*`.
----
 fixes:
   - |
     APM: OTLP: Only extract DD container tags from resource attributes. Previously, container tags were also extracted from span attributes.
