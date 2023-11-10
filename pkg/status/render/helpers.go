@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package status
+package render
 
 import (
 	"encoding/json"
@@ -71,6 +71,8 @@ func Textfmap() ttemplate.FuncMap {
 		"complianceResult":   complianceResult,
 	}
 }
+
+var timeFormat = "2006-01-02 15:04:05.999 MST"
 
 func doNotEscape(value string) htemplate.HTML {
 	return htemplate.HTML(value)

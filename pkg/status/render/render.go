@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package status
+// package render has all the formating options for status output
+
+package render
 
 import (
 	"bytes"
@@ -56,40 +58,40 @@ func FormatStatus(data []byte) (string, error) {
 	stats["title"] = title
 
 	var b = new(bytes.Buffer)
-	headerFunc := func() error { return RenderStatusTemplate(b, "/header.tmpl", stats) }
+	headerFunc := func() error { return renderStatusTemplate(b, "/header.tmpl", stats) }
 	checkStatsFunc := func() error {
-		return RenderStatusTemplate(b, "/collector.tmpl", stats)
+		return renderStatusTemplate(b, "/collector.tmpl", stats)
 	}
-	jmxFetchFunc := func() error { return RenderStatusTemplate(b, "/jmxfetch.tmpl", stats) }
-	forwarderFunc := func() error { return RenderStatusTemplate(b, "/forwarder.tmpl", forwarderStats) }
-	endpointsFunc := func() error { return RenderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos) }
-	logsAgentFunc := func() error { return RenderStatusTemplate(b, "/logsagent.tmpl", logsStats) }
+	jmxFetchFunc := func() error { return renderStatusTemplate(b, "/jmxfetch.tmpl", stats) }
+	forwarderFunc := func() error { return renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats) }
+	endpointsFunc := func() error { return renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos) }
+	logsAgentFunc := func() error { return renderStatusTemplate(b, "/logsagent.tmpl", logsStats) }
 	systemProbeFunc := func() error {
 		if systemProbeStats != nil {
-			return RenderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
+			return renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
 		}
 		return nil
 	}
-	processAgentFunc := func() error { return RenderStatusTemplate(b, "/process-agent.tmpl", processAgentStatus) }
-	traceAgentFunc := func() error { return RenderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"]) }
-	aggregatorFunc := func() error { return RenderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats) }
-	dogstatsdFunc := func() error { return RenderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats) }
+	processAgentFunc := func() error { return renderStatusTemplate(b, "/process-agent.tmpl", processAgentStatus) }
+	traceAgentFunc := func() error { return renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"]) }
+	aggregatorFunc := func() error { return renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats) }
+	dogstatsdFunc := func() error { return renderStatusTemplate(b, "/dogstatsd.tmpl", dogstatsdStats) }
 	clusterAgentFunc := func() error {
 		if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
-			return RenderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
+			return renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
 		}
 		return nil
 	}
 	snmpTrapFunc := func() error {
 		if traps.IsEnabled(config.Datadog) {
-			return RenderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
+			return renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
 		}
 		return nil
 	}
 
 	netflowFunc := func() error {
 		if server.IsEnabled() {
-			return RenderStatusTemplate(b, "/netflow.tmpl", netflowStats)
+			return renderStatusTemplate(b, "/netflow.tmpl", netflowStats)
 		}
 		return nil
 	}
@@ -102,11 +104,11 @@ func FormatStatus(data []byte) (string, error) {
 		return nil
 	}
 	remoteConfigFunc := func() error {
-		return RenderStatusTemplate(b, "/remoteconfig.tmpl", stats)
+		return renderStatusTemplate(b, "/remoteconfig.tmpl", stats)
 	}
 	otlpFunc := func() error {
 		if otlp.IsDisplayed() {
-			return RenderStatusTemplate(b, "/otlp.tmpl", stats)
+			return renderStatusTemplate(b, "/otlp.tmpl", stats)
 		}
 		return nil
 	}
@@ -153,20 +155,20 @@ func FormatDCAStatus(data []byte) (string, error) {
 
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/header.tmpl", stats); err != nil {
+	if err := renderStatusTemplate(b, "/header.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := RenderStatusTemplate(b, "/collector.tmpl", stats); err != nil {
+	if err := renderStatusTemplate(b, "/collector.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := RenderStatusTemplate(b, "/forwarder.tmpl", forwarderStats); err != nil {
+	if err := renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := RenderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos); err != nil {
+	if err := renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos); err != nil {
 		errs = append(errs, err)
 	}
 	if config.Datadog.GetBool("compliance_config.enabled") {
-		if err := RenderStatusTemplate(b, "/logsagent.tmpl", logsStats); err != nil {
+		if err := renderStatusTemplate(b, "/logsagent.tmpl", logsStats); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -174,7 +176,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 		errs = append(errs, err)
 	}
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
-		if err := RenderStatusTemplate(b, "/orchestrator.tmpl", orchestratorStats); err != nil {
+		if err := renderStatusTemplate(b, "/orchestrator.tmpl", orchestratorStats); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -193,7 +195,7 @@ func FormatHPAStatus(data []byte) (string, error) {
 	}
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/custommetricsprovider.tmpl", stats); err != nil {
+	if err := renderStatusTemplate(b, "/custommetricsprovider.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -216,7 +218,7 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/header.tmpl", stats); err != nil {
+	if err := renderStatusTemplate(b, "/header.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"]); err != nil {
@@ -240,7 +242,7 @@ func FormatProcessAgentStatus(data []byte) (string, error) {
 	}
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/process-agent.tmpl", stats); err != nil {
+	if err := renderStatusTemplate(b, "/process-agent.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -258,7 +260,7 @@ func FormatMetadataMapCLI(data []byte) (string, error) {
 	}
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/metadatamapper.tmpl", stats); err != nil {
+	if err := renderStatusTemplate(b, "/metadatamapper.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -267,7 +269,8 @@ func FormatMetadataMapCLI(data []byte) (string, error) {
 	return b.String(), nil
 }
 
-func renderCheckStats(data []byte, checkName string) (string, error) {
+// FormatCheckStats takes a json bytestring and prints out the formatted collector template.
+func FormatCheckStats(data []byte) (string, error) {
 	stats, renderError, err := unmarshalStatus(data)
 	if renderError != "" || err != nil {
 		return renderError, err
@@ -275,7 +278,7 @@ func renderCheckStats(data []byte, checkName string) (string, error) {
 
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := RenderStatusTemplate(b, "/collector.tmpl", stats); err != nil {
+	if err := renderStatusTemplate(b, "/collector.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -290,13 +293,13 @@ func renderComplianceChecksStats(w io.Writer, runnerStats interface{}, complianc
 	checkStats["RunnerStats"] = runnerStats
 	checkStats["ComplianceStatus"] = complianceStatus
 	checkStats["ComplianceChecks"] = complianceChecks
-	return RenderStatusTemplate(w, "/compliance.tmpl", checkStats)
+	return renderStatusTemplate(w, "/compliance.tmpl", checkStats)
 }
 
 func renderRuntimeSecurityStats(w io.Writer, runtimeSecurityStatus interface{}) error {
 	status := make(map[string]interface{})
 	status["RuntimeSecurityStatus"] = runtimeSecurityStatus
-	return RenderStatusTemplate(w, "/runtimesecurity.tmpl", status)
+	return renderStatusTemplate(w, "/runtimesecurity.tmpl", status)
 }
 
 func renderAutodiscoveryStats(w io.Writer, adEnabledFeatures interface{}, adConfigErrors interface{}, filterErrors interface{}) error {
@@ -304,13 +307,13 @@ func renderAutodiscoveryStats(w io.Writer, adEnabledFeatures interface{}, adConf
 	autodiscoveryStats["adEnabledFeatures"] = adEnabledFeatures
 	autodiscoveryStats["adConfigErrors"] = adConfigErrors
 	autodiscoveryStats["filterErrors"] = filterErrors
-	return RenderStatusTemplate(w, "/autodiscovery.tmpl", autodiscoveryStats)
+	return renderStatusTemplate(w, "/autodiscovery.tmpl", autodiscoveryStats)
 }
 
 //go:embed templates
 var templatesFS embed.FS
 
-func RenderStatusTemplate(w io.Writer, templateName string, stats interface{}) error {
+func renderStatusTemplate(w io.Writer, templateName string, stats interface{}) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", templateName))
 	if tmplErr != nil {
 		return tmplErr
@@ -321,7 +324,7 @@ func RenderStatusTemplate(w io.Writer, templateName string, stats interface{}) e
 
 func renderErrors(w io.Writer, errs []error) error {
 	if len(errs) > 0 {
-		return RenderStatusTemplate(w, "/rendererrors.tmpl", errs)
+		return renderStatusTemplate(w, "/rendererrors.tmpl", errs)
 	}
 	return nil
 }

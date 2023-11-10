@@ -41,8 +41,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
-var timeFormat = "2006-01-02 15:04:05.999 MST"
-
 // GetStatus grabs the status from expvar and puts it into a map
 func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]interface{}, error) {
 	stats, err := getCommonStatus(invAgent)

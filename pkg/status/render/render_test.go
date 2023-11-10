@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-package status
+package render
 
 import (
 	"os"
@@ -14,7 +14,7 @@ import (
 )
 
 func TestFormatStatus(t *testing.T) {
-	agentJson, err := os.ReadFile("fixtures/agent_status.json")
+	agentJSON, err := os.ReadFile("fixtures/agent_status.json")
 	require.NoError(t, err)
 	const statusRenderErrors = "Status render errors"
 
@@ -25,7 +25,7 @@ func TestFormatStatus(t *testing.T) {
 	})
 
 	t.Run("no render errors", func(t *testing.T) {
-		actual, err := FormatStatus(agentJson)
+		actual, err := FormatStatus(agentJSON)
 		require.NoError(t, err)
 		assert.NotContains(t, actual, statusRenderErrors)
 	})
