@@ -10,11 +10,10 @@ if debian_target?
   source url: "https://packages.microsoft.com/debian/12/prod/pool/main/m/msodbcsql18/#{name}_#{version}_amd64.deb"
   source sha256: "ae8eea58236e46c3f4eae05823cf7f0531ac58f12d90bc24245830b847c052ee"
 elsif redhat_target?
-  source url: "https://packages.microsoft.com/rhel/8/prod/Packages/m/#{name}_#{version}.x86_64.rpm"
+  source url: "https://packages.microsoft.com/rhel/8/prod/Packages/m/#{name}-#{version}.x86_64.rpm"
   source sha256: "ecd8e148138ee72a452a5357e380580e2c19219c5424f4ac9350cbdf3217fad1"
 else
-  "https://packages.microsoft.com/sles/15/prod/Packages/m/#{name}_#{version}.x86_64.rpm"
-  source url: "https://packages.microsoft.com/debian/12/prod/pool/main/m/msodbcsql18/#{name}_#{version}_amd64.deb"
+  source url: "https://packages.microsoft.com/sles/15/prod/Packages/m/#{name}-#{version}.x86_64.rpm"
   source sha256: "e8b753f8730681d9308f5e3e9e2bde4e169d5e598e322a7d6e31860b73af55e6"
 end
 
