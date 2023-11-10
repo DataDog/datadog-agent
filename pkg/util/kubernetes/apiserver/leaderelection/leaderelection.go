@@ -130,7 +130,7 @@ func (le *LeaderEngine) init() error {
 	var err error
 
 	if le.HolderIdentity == "" {
-		le.HolderIdentity, err = getSelfPodName()
+		le.HolderIdentity, err = common.GetSelfPodName()
 		if err != nil {
 			log.Debugf("cannot get pod name: %s", err)
 			return err
