@@ -1684,7 +1684,7 @@ func setupFipsEndpoints(config Config) error {
 
 	fipsConfig := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Metrics
-	config.Set("dd_url", protocol+urlFor(metrics), model.SourceAgentRuntime)
+	fipsConfig.Set("dd_url", protocol+urlFor(metrics), model.SourceAgentRuntime)
 
 	// Logs
 	setupFipsLogsConfig(fipsConfig, "logs_config.", urlFor(logs))
