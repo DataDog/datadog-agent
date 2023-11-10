@@ -26,6 +26,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/anypb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestGetContainerStats_Containerd(t *testing.T) {
@@ -34,7 +35,7 @@ func TestGetContainerStats_Containerd(t *testing.T) {
 	windowsMetrics := wstats.Statistics{
 		Container: &wstats.Statistics_Windows{
 			Windows: &wstats.WindowsContainerStatistics{
-				Timestamp: currentTime,
+				Timestamp: timestamppb.New(currentTime),
 				Processor: &wstats.WindowsContainerProcessorStatistics{
 					TotalRuntimeNS:  1000,
 					RuntimeUserNS:   400,

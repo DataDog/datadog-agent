@@ -106,7 +106,7 @@ func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.Con
 }
 
 // ResolveContainerTags resolves the container tags of the event
-func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
+func (fh *FieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ID != "" {
 		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ID)
 	}
@@ -114,6 +114,46 @@ func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.Containe
 }
 
 // ResolveProcessCreatedAt resolves process creation time
-func (fh *FieldHandlers) ResolveProcessCreatedAt(ev *model.Event, e *model.Process) int {
+func (fh *FieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Process) int {
 	return int(e.ExecTime.UnixNano())
+}
+
+// ResolveK8SUsername resolves the k8s username of the event
+func (fh *FieldHandlers) ResolveK8SUsername(_ *model.Event, evtCtx *model.UserSessionContext) string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SUsername
+}
+
+// ResolveK8SUID resolves the k8s UID of the event
+func (fh *FieldHandlers) ResolveK8SUID(_ *model.Event, evtCtx *model.UserSessionContext) string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SUID
+}
+
+// ResolveK8SGroups resolves the k8s groups of the event
+func (fh *FieldHandlers) ResolveK8SGroups(_ *model.Event, evtCtx *model.UserSessionContext) []string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SGroups
+}
+
+// ResolveK8SExtra resolves the k8s extra of the event
+func (fh *FieldHandlers) ResolveK8SExtra(_ *model.Event, evtCtx *model.UserSessionContext) map[string][]string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SExtra
 }

@@ -31,7 +31,7 @@ namespace WixSetup.Datadog
 
         // Source directories
         private const string InstallerSource = @"C:\opt\datadog-agent";
-        private const string BinSource = @"C:\omnibus-ruby\src\datadog-agent\src\github.com\DataDog\datadog-agent\bin";
+        private const string BinSource = @"C:\opt\datadog-agent\bin";
         private const string EtcSource = @"C:\omnibus-ruby\src\etc\datadog-agent";
 
         private readonly AgentBinaries _agentBinaries;
@@ -374,7 +374,7 @@ namespace WixSetup.Datadog
         {
             return new PermissionEx
             {
-                User = "Everyone",
+                User = "[DDAGENTUSER_PROCESSED_FQ_NAME]",
                 ServicePauseContinue = true,
                 ServiceQueryStatus = true,
                 ServiceStart = true,
@@ -569,6 +569,13 @@ namespace WixSetup.Datadog
                     new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
                 ));
 
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
+            {
+                appData.AddDir(new Dir(new Id("security.d"),
+                                       "runtime-security.d",
+                                       new WixSharp.File($@"{EtcSource}\runtime-security.d\default.policy.example")
+                ));
+            }
             return new Dir(new Id("%CommonAppData%"), appData)
             {
                 Attributes = { { "Name", "CommonAppData" } }

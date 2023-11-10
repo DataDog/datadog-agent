@@ -140,4 +140,8 @@ var endpoints = []Endpoint{
 		Pattern: "/dogstatsd/v2/proxy",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.dogstatsdProxyHandler() },
 	},
+	{
+		Pattern: "/tracer_flare/v1",
+		Handler: func(r *HTTPReceiver) http.Handler { return r.tracerFlareHandler() },
+	},
 }
