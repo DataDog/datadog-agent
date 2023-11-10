@@ -26,7 +26,7 @@ build do
     if debian_target?
       command "dpkg-deb -R #{project_dir}/#{name}-#{name}_#{version}_amd64.deb #{project_dir}/#{relative_path}"
     else
-      command "rpm2cpio #{project_dir}/#{name}-#{name}_#{version}.x86_64.rpm | (cd #{project_dir}/#{relative_path} && cpio -idmv)"
+      command "rpm2cpio #{project_dir}/#{name}-#{name}-#{version}.x86_64.rpm | (cd #{project_dir}/#{relative_path} && cpio -idmv)"
     end
     # Fix rpath first
     command "patchelf --force-rpath --set-rpath '#{install_dir}/embedded/lib' '#{project_dir}/#{relative_path}/opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.3.so.2.1'"
