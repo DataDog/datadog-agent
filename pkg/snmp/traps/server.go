@@ -22,6 +22,7 @@ import (
 	oidresolver "github.com/DataDog/datadog-agent/pkg/snmp/traps/oid_resolver"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/status"
+	jsoniter "github.com/json-iterator/go"
 	//JMW
 )
 
@@ -40,7 +41,13 @@ var (
 
 // StartServer starts the global trap server.
 func StartServer(agentHostname string, demux aggregator.Demultiplexer, conf config.Component, logger log.Component) error {
-	logger.Warnf("JMW StartServer() before trapsconfig.ReadConfig()\n")
+	allSettings := conf.AllSettings()
+	jsonout, err := jsoniter.Marshal(allSettings)
+	if err == nil {
+		logger.Warnf("JMW before trapsconfig.ReadConfig() jsoniter.Marshal(allSettings) =\n----------\n%v\n----------\n", string(jsonout))
+	} else {
+		logger.Warnf("JMW err = %v\n", err)
+	}
 
 	config, err := trapsconfig.ReadConfig(agentHostname, conf) //JMW1
 	if err != nil {
