@@ -82,6 +82,13 @@ func (i *integrationLogsRegistryDelegate) processValue(valueName, originalVal st
 		} else {
 			log = fmt.Sprintf("value %s = '%v'", keyName, val)
 		}
+		i.sendLog("info", getPayload[valueChangedLogEvent](log, func(e *valueChangedLogEvent) {
+			e.keyPath = keyName
+			e.eventType = eventType
+			e.oldValue = nil
+			e.newValue = val
+		}))
+		i.valueMap[keyName] = val
 	} else if cachedVal != val {
 		eventType = keyChanged
 		if originalVal != "" {
@@ -89,13 +96,10 @@ func (i *integrationLogsRegistryDelegate) processValue(valueName, originalVal st
 		} else {
 			log = fmt.Sprintf("value %s changed from '%v' to '%v'", keyName, cachedVal, val)
 		}
-	}
-
-	if !ok || cachedVal != val {
 		i.sendLog("info", getPayload[valueChangedLogEvent](log, func(e *valueChangedLogEvent) {
 			e.keyPath = keyName
 			e.eventType = eventType
-			e.oldValue = nil
+			e.oldValue = cachedVal
 			e.newValue = val
 		}))
 		i.valueMap[keyName] = val
