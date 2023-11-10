@@ -65,6 +65,8 @@ type OnboardingEventTags struct {
 	Env           string `json:"env,omitempty"`
 }
 
+var receivedErrStatusCode = fmt.Errorf("received a 4XX or 5xx error code while submitting telemetry data")
+
 // OnboardingEventError ...
 type OnboardingEventError struct {
 	Code    int    `json:"code,omitempty"`
@@ -151,6 +153,10 @@ func (f *telemetryCollector) sendEvent(event *OnboardingEvent) (err error) {
 		// Unconditionally read the body and ignore any errors
 		_, _ = io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			err = receivedErrStatusCode
+		}
 	}
 	return err
 }
@@ -193,6 +199,7 @@ func (f *telemetryCollector) SendFirstTrace() {
 	ev := newOnboardingTelemetryPayload(f.cfg)
 	ev.Payload.EventName = "agent.first_trace.sent"
 	err := f.sendEvent(&ev)
+	fmt.Println(err)
 	if err != nil {
 		if f.firstTraceFailures.Inc() < maxFirstTraceFailures {
 			f.collectedFirstTrace.Store(false)
