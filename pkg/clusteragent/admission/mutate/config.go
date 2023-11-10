@@ -153,11 +153,11 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
 	_ = injectEnv(pod, instrumentationInstallTimeEnvVar)
 	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
-	instrumentationInstallIdEnvVar := corev1.EnvVar{
+	instrumentationInstallIDEnvVar := corev1.EnvVar{
 		Name:  instrumentationInstallIDEnvVarName,
 		Value: os.Getenv(instrumentationInstallIDEnvVarName),
 	}
-	_ = injectEnv(pod, instrumentationInstallIdEnvVar)
+	_ = injectEnv(pod, instrumentationInstallIDEnvVar)
 
 	return nil
 }
