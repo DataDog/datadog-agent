@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,4 +20,5 @@ var MockBundle = fxutil.Bundle(
 	serverdebugimpl.MockModule,
 	server.MockModule,
 	replay.Module,
+	statsd.MockModule,
 )

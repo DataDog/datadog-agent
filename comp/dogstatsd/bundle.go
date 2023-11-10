@@ -9,6 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug/serverdebugimpl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -19,4 +20,5 @@ var Bundle = fxutil.Bundle(
 	serverdebugimpl.Module,
 	replay.Module,
 	server.Module,
+	statsd.Module,
 )
