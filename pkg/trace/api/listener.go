@@ -78,17 +78,21 @@ func (ln *measuredListener) flushMetrics() {
 
 type onCloseConn struct {
 	net.Conn
-	onClose func()
+	onClose   func()
+	closeOnce sync.Once
 }
 
 func (c *onCloseConn) Close() error {
-	err := c.Conn.Close()
-	c.onClose()
+	var err error
+	c.closeOnce.Do(func() {
+		err = c.Conn.Close()
+		c.onClose()
+	})
 	return err
 }
 
 func OnCloseConn(c net.Conn, onclose func()) net.Conn {
-	return &onCloseConn{c, onclose}
+	return &onCloseConn{c, onclose, sync.Once{}}
 }
 
 // Accept implements net.Listener and keeps counts on connection statuses.
