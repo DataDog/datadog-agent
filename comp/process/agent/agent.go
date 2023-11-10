@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -45,11 +45,11 @@ type processAgent struct {
 	Runner runner.Component
 }
 
-func newProcessAgent(p processAgentParams) util.Optional[Component] {
+func newProcessAgent(p processAgentParams) optional.Option[Component] {
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if !checksEnabled(p.Checks) {
 		p.Log.Info(agent6DisabledMessage)
-		return util.NewNoneOptional[Component]()
+		return optional.NewNoneOption[Component]()
 	}
 
 	enabledChecks := make([]checks.Check, 0, len(p.Checks))
@@ -71,7 +71,7 @@ func newProcessAgent(p processAgentParams) util.Optional[Component] {
 		OnStop:  processAgentComponent.Stop,
 	})
 
-	return util.NewOptional[Component](processAgentComponent)
+	return optional.NewOption[Component](processAgentComponent)
 }
 
 func checksEnabled(checks []types.CheckComponent) bool {
