@@ -184,6 +184,9 @@ DEFAULT_MODULES = {
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
     "pkg/version": GoModule("pkg/version", independent=True),
     "pkg/networkdevice/profile": GoModule("pkg/networkdevice/profile", independent=True),
+    "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True),
+    "pkg/orchestrator/model": GoModule("pkg/orchestrator/model", independent=True),
+    "pkg/process/util/api": GoModule("pkg/process/util/api", independent=True),
 }
 
 MAIN_TEMPLATE = """package main
