@@ -575,12 +575,7 @@ func dumpDogstatsdContextsImpl(demux demultiplexer.Component) (string, error) {
 
 	w := bufio.NewWriter(c)
 
-	err = demux.DumpDogstatsdContexts(w)
-	if err != nil {
-		return "", err
-	}
-
-	for _, err := range []error{ w.Flush(), c.Close(), f.Close() } {
+	for _, err := range []error{demux.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {
 		if err != nil {
 			return "", err
 		}
