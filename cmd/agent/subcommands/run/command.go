@@ -129,7 +129,7 @@ import (
 	// register metadata providers
 	_ "github.com/DataDog/datadog-agent/pkg/collector/metadata"
 
-	"gopkg.in/yaml.v2" //JMW
+	jsoniter "github.com/json-iterator/go" //JMW
 )
 
 type cliParams struct {
@@ -510,8 +510,14 @@ func startAgent(
 		pkgTelemetry.RegisterStatsSender(sender)
 	}
 
-	out, _ := yaml.Marshal(pkgconfig.Datadog)
-	log.Warnf("JMW getSharedFxOption() yaml.Marshal(pkgconfig.Datadog) =\n----------\n%s\n----------\n", out)
+	allSettings := pkgconfig.Datadog.AllSettings()
+	//fmt.Printf("JMW ReadConfig() conf.AllSettings() =\n----------\n%v\n----------\n", allSettings)
+	jsonout, err := jsoniter.Marshal(allSettings)
+	if err == nil {
+		log.Warnf("JMW getSharedFxOption() jsoniter.Marshal(allSettings) =\n----------\n%v\n----------\n", string(jsonout))
+	} else {
+		log.Warnf("JMW err = %v\n", err)
+	}
 
 	// Start SNMP trap server JMW0
 	if traps.IsEnabled(pkgconfig.Datadog) { //JMWA

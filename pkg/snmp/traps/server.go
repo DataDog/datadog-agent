@@ -22,8 +22,7 @@ import (
 	oidresolver "github.com/DataDog/datadog-agent/pkg/snmp/traps/oid_resolver"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/packet"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/status"
-
-	"gopkg.in/yaml.v2" //JMW
+	//JMW
 )
 
 // TrapServer manages an SNMP trap listener.
@@ -41,8 +40,7 @@ var (
 
 // StartServer starts the global trap server.
 func StartServer(agentHostname string, demux aggregator.Demultiplexer, conf config.Component, logger log.Component) error {
-	out, _ := yaml.Marshal(conf)
-	logger.Warnf("JMW StartServer() yaml.Marshal(conf) =\n----------\n%s\n----------\n", out)
+	logger.Warnf("JMW StartServer() before trapsconfig.ReadConfig()\n")
 
 	config, err := trapsconfig.ReadConfig(agentHostname, conf) //JMW1
 	if err != nil {

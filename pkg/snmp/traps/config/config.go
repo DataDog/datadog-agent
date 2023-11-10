@@ -19,7 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps/snmplog"
 	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 
-	"gopkg.in/yaml.v2" //JMW
+	//prettyjson "github.com/hokaccha/go-prettyjson" //JMW
+	jsoniter "github.com/json-iterator/go" //JMW
 )
 
 // UserV3 contains the definition of one SNMPv3 user with its username and its auth
@@ -47,13 +48,32 @@ type TrapsConfig struct {
 
 // ReadConfig builds the traps configuration from the Agent configuration.
 func ReadConfig(host string, conf config.Component) (*TrapsConfig, error) {
-	out, _ := yaml.Marshal(conf)
-	fmt.Printf("JMW ReadConfig() yaml.Marshal(conf) =\n----------\n%s\n----------\n", out)
+	//out, _ := yaml.Marshal(conf)
+	//fmt.Printf("JMW ReadConfig() yaml.Marshal(conf) =\n----------\n%s\n----------\n", out)
+
+	allSettings := conf.AllSettings()
+	//fmt.Printf("JMW ReadConfig() conf.AllSettings() =\n----------\n%v\n----------\n", allSettings)
+	jsonout, err := jsoniter.Marshal(allSettings)
+	if err == nil {
+		fmt.Printf("JMW traps ReadConfig() jsoniter.Marshal(allSettings) =\n----------\n%v\n----------\n", string(jsonout))
+	} else {
+		fmt.Printf("JMW err = %v\n", err)
+	}
+
+	//jsonout, _ := json.MarshalIndent(conf.AllSettings(), "", " ")
+	//fmt.Printf("JMW ReadConfig() json.MarshalIndent(conf.AllSettings() =\n----------\n%v\n----------\n", jsonout)
+
+	//jsonout, err := prettyjson.Marshal(allSettings)
+	// if err == nil {
+	// 	fmt.Printf("JMW ReadConfig() prettyjson.Marshal(conf.AllSettings()) =\n----------\n%v\n----------\n", jsonout)
+	// } else {
+	// 	fmt.Printf("JMW err = %v\n", err)
+	// }
 
 	var c = &TrapsConfig{}
-	err := conf.UnmarshalKey("network_devices.snmp_traps", &c)
-	//JMWconf.UnmarshalKey("network_devices.snmp_traps", &c)
-	//JMWerr := errors.New("JMW error")
+	//JMW
+	err = conf.UnmarshalKey("network_devices.snmp_traps", &c)
+	//JMW err = errors.New("JMW error")
 	if err != nil {
 		return nil, err
 	}
