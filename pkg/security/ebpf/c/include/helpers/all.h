@@ -22,6 +22,7 @@
 #include "span.h"
 #include "syscall_macro.h"
 #include "syscalls.h"
+#include "user_sessions.h"
 #include "utils.h"
 
 #endif

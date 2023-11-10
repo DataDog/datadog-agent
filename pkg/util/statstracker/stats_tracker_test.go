@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package util
+package statstracker
 
 import (
 	"testing"
@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func setupStatsTracker(timeFrame time.Duration, bucketSize time.Duration) (*int64, *StatsTracker) {
+func setupStatsTracker(timeFrame time.Duration, bucketSize time.Duration) (*int64, *Tracker) {
 	now := time.Now().UnixNano()
-	s := NewStatsTrackerWithTimeProvider(timeFrame, bucketSize, func() int64 {
+	s := NewTrackerWithTimeProvider(timeFrame, bucketSize, func() int64 {
 		return now
 	})
 	return &now, s

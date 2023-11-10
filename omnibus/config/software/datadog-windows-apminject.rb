@@ -20,7 +20,7 @@ if ohai["platform"] == "windows"
            :target_filename => "ddapminstall.msm"
 
     build do
-        copy "ddapminstall.msm", "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/ddapminstall.msm"
+        copy "ddapminstall.msm", "#{install_dir}/bin/agent/ddapminstall.msm"
     end
 
 end
