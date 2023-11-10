@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -85,16 +86,26 @@ var statsd *ddgostatsd.Client
 
 var (
 	globalParams struct {
-		ConfigFilePath string
+		configFilePath string
+		assumedRole    string
+		attachVolumes  bool
 	}
 
-	scansWorkerPoolSize int
-	configPath          string
-	attachVolumes       bool
+	runParams struct {
+		poolSize         int
+		allowedScanTypes []string
+	}
 
 	defaultHTTPClient = &http.Client{
 		Timeout: 10 * time.Second,
 	}
+)
+
+type scanType string
+
+const (
+	ebsScanType    scanType = "ebs-scan"
+	lambdaScanType          = "lambda-scan"
 )
 
 func main() {
@@ -113,8 +124,9 @@ func rootCommand() *cobra.Command {
 		},
 	}
 
-	sideScannerCmd.PersistentFlags().StringVarP(&configPath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to side-scanner configuration yaml file")
-	sideScannerCmd.PersistentFlags().BoolVarP(&attachVolumes, "attach-volumes", "", false, "scan EBS snapshots by creating a dedicated volume")
+	sideScannerCmd.PersistentFlags().StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to side-scanner configuration yaml file")
+	sideScannerCmd.PersistentFlags().BoolVarP(&globalParams.attachVolumes, "attach-volumes", "", false, "scan EBS snapshots by creating a dedicated volume")
+	sideScannerCmd.PersistentFlags().StringVarP(&globalParams.assumedRole, "assumed-role", "", "", "force an AWS role to perform the scan")
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 
@@ -130,14 +142,15 @@ func runCommand() *cobra.Command {
 				func(_ complog.Component, _ compconfig.Component) error {
 					return runCmd()
 				},
-				fx.Supply(compconfig.NewAgentParamsWithSecrets(configPath)),
+				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
 				complog.Module,
 				compconfig.Module,
 			)
 		},
 	}
-	runCmd.Flags().IntVarP(&scansWorkerPoolSize, "workers", "", 40, "number of scans running in parallel")
+	runCmd.Flags().IntVarP(&runParams.poolSize, "workers", "", 40, "number of scans running in parallel")
+	runCmd.Flags().StringSliceVarP(&runParams.allowedScanTypes, "allowed-scans-type", "", nil, "lists of allowed scan types (ebs-scan, lambda-scan)")
 	return runCmd
 }
 
@@ -153,7 +166,7 @@ func scanCommand() *cobra.Command {
 				func(_ complog.Component, _ compconfig.Component) error {
 					return scanCmd([]byte(cliArgs.RawScan))
 				},
-				fx.Supply(compconfig.NewAgentParamsWithSecrets(configPath)),
+				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
 				complog.Module,
 				compconfig.Module,
@@ -197,7 +210,7 @@ func runCmd() error {
 
 	eventForwarder := epforwarder.NewEventPlatformForwarder()
 
-	scanner := newSideScanner(hostname, rcClient, eventForwarder)
+	scanner := newSideScanner(hostname, rcClient, eventForwarder, runParams.poolSize, runParams.allowedScanTypes)
 	scanner.start(ctx)
 	return nil
 }
@@ -225,12 +238,12 @@ func scanCmd(rawScan []byte) error {
 }
 
 type scansTask struct {
-	Type     string            `json:"type"`
+	Type     scanType          `json:"type"`
 	RawScans []json.RawMessage `json:"scans"`
 }
 
 type scanTask struct {
-	Type string
+	Type scanType
 	Scan interface{}
 }
 
@@ -242,7 +255,7 @@ func unmarshalScanTasks(b []byte) ([]scanTask, error) {
 	tasks := make([]scanTask, 0, len(task.RawScans))
 	for _, rawScan := range task.RawScans {
 		switch task.Type {
-		case "ebs-scan":
+		case ebsScanType:
 			var scan ebsScan
 			if err := json.Unmarshal(rawScan, &scan); err != nil {
 				return nil, err
@@ -251,7 +264,7 @@ func unmarshalScanTasks(b []byte) ([]scanTask, error) {
 				Type: task.Type,
 				Scan: scan,
 			})
-		case "lambda-scan":
+		case lambdaScanType:
 			var scan lambdaScan
 			if err := json.Unmarshal(rawScan, &scan); err != nil {
 				return nil, err
@@ -303,28 +316,32 @@ func (s lambdaScan) String() string {
 }
 
 type sideScanner struct {
-	hostname       string
-	log            complog.Component
-	rcClient       *remote.Client
-	eventForwarder epforwarder.EventPlatformForwarder
+	hostname         string
+	log              complog.Component
+	rcClient         *remote.Client
+	poolSize         int
+	eventForwarder   epforwarder.EventPlatformForwarder
+	allowedScanTypes []string
 
 	scansCh           chan scanTask
 	scansInProgress   map[interface{}]struct{}
 	scansInProgressMu sync.RWMutex
 }
 
-func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epforwarder.EventPlatformForwarder) *sideScanner {
+func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epforwarder.EventPlatformForwarder, poolSize int, allowedScanTypes []string) *sideScanner {
 	return &sideScanner{
-		hostname:        hostname,
-		rcClient:        rcClient,
-		eventForwarder:  eventForwarder,
-		scansCh:         make(chan scanTask),
-		scansInProgress: make(map[interface{}]struct{}),
+		hostname:         hostname,
+		rcClient:         rcClient,
+		eventForwarder:   eventForwarder,
+		poolSize:         poolSize,
+		scansCh:          make(chan scanTask),
+		scansInProgress:  make(map[interface{}]struct{}),
+		allowedScanTypes: allowedScanTypes,
 	}
 }
 
 func (s *sideScanner) start(ctx context.Context) {
-	log.Infof("starting side-scanner main loop with %d scan workers", scansWorkerPoolSize)
+	log.Infof("starting side-scanner main loop with %d scan workers", s.poolSize)
 	defer log.Infof("stopped side-scanner main loop")
 
 	s.eventForwarder.Start()
@@ -342,7 +359,7 @@ func (s *sideScanner) start(ctx context.Context) {
 	})
 
 	done := make(chan struct{})
-	for i := 0; i < scansWorkerPoolSize; i++ {
+	for i := 0; i < s.poolSize; i++ {
 		go func() {
 			for {
 				select {
@@ -357,7 +374,7 @@ func (s *sideScanner) start(ctx context.Context) {
 			}
 		}()
 	}
-	for i := 0; i < scansWorkerPoolSize; i++ {
+	for i := 0; i < s.poolSize; i++ {
 		<-done
 	}
 	<-ctx.Done()
@@ -372,6 +389,9 @@ func (s *sideScanner) pushOrSkipScan(ctx context.Context, rawConfig state.RawCon
 		return
 	}
 	for _, scan := range scans {
+		if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
+			continue
+		}
 		s.scansInProgressMu.RLock()
 		if _, ok := s.scansInProgress[scan]; ok {
 			log.Debugf("scan in progress %s; skipping", scan)
@@ -434,9 +454,9 @@ func (s *sideScanner) sendSBOM(sourceAgent string, entity *sbommodel.SBOMEntity)
 
 func launchScan(ctx context.Context, scan scanTask) (*sbommodel.SBOMEntity, error) {
 	switch scan.Type {
-	case "ebs-scan":
+	case ebsScanType:
 		return scanEBS(ctx, scan.Scan.(ebsScan))
-	case "lambda-scan":
+	case lambdaScanType:
 		return scanLambda(ctx, scan.Scan.(lambdaScan))
 	default:
 		return nil, fmt.Errorf("unknown scan type: %s", scan.Type)
@@ -583,6 +603,9 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 }
 
 func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, err error) {
+	if scan.AssumedRole == nil && globalParams.assumedRole != "" {
+		scan.AssumedRole = &globalParams.assumedRole // TODO(pierre): remove this HACK
+	}
 	if scan.Region == "" {
 		return nil, fmt.Errorf("ebs-scan: missing region")
 	}
@@ -670,7 +693,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	trivyDisabledAnalyzers = append(trivyDisabledAnalyzers, analyzer.TypeLanguages...)
 	var trivyArtifact artifact.Artifact
 
-	if scan.AttachVolume || attachVolumes {
+	if scan.AttachVolume || globalParams.attachVolumes {
 		self, err := getSelfEC2InstanceIndentity(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
@@ -923,6 +946,9 @@ func nextDeviceName() string {
 }
 
 func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEntity, err error) {
+	if scan.AssumedRole == nil && globalParams.assumedRole != "" {
+		scan.AssumedRole = &globalParams.assumedRole // TODO(pierre): remove this HACK
+	}
 	if scan.Region == "" {
 		return nil, fmt.Errorf("lambda-scan: missing region")
 	}
