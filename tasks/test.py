@@ -1273,7 +1273,7 @@ def parse_test_log(log_file):
     with open(log_file, "r") as f:
         for line in f:
             json_line = json.loads(line)
-            if f'{json_line["Package"]}/{json_line["Test"]}' in json_line:
+            if json_line["Action"] == "fail" and "Test" in json_line:
                 n_test_executed += 1
                 failed_tests.append(f'{json_line["Package"]}/{json_line["Test"]}')
             if json_line["Action"] == "pass" and "Test" in json_line:
