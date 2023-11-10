@@ -124,7 +124,6 @@ import (
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winkmem"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
-	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winregistry"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 	_ "github.com/DataDog/datadog-agent/pkg/collector/corechecks/windows_event_log"
 
