@@ -237,7 +237,7 @@ func (ad *ActivityDump) GetWorkloadSelector() *cgroupModel.WorkloadSelector {
 	if ad.selector != nil && ad.selector.IsReady() {
 		return ad.selector
 	}
-	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", ad.Tags), utils.GetTagValue("image_tag", ad.Tags))
+	selector, err := cgroupModel.NewWorkloadSelector(ad.Metadata.ContainerImageName, ad.Metadata.ContainerImageName)
 	if err != nil {
 		return nil
 	}
@@ -486,9 +486,12 @@ func (ad *ActivityDump) finalize(releaseTracedCgroupSpot bool) {
 	// look for the service tag and set the service of the dump
 	ad.Service = utils.GetTagValue("service", ad.Tags)
 
-	// add the container ID in a tag
+	// add the container metadata as tags
 	if len(ad.ContainerID) > 0 {
-		ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID)
+		ad.Tags = append(ad.Tags, "container_id:"+ad.ContainerID,
+			"image_name:"+ad.Metadata.ContainerImageName, // TODO: These tags are sometime populated by resolving tags, and sometimes by resolving the workloadmeta store
+			"image_tag:"+ad.Metadata.ContainerImageTag,
+		)
 	}
 
 	// scrub processes and retain args envs now
@@ -528,23 +531,19 @@ func (ad *ActivityDump) FindMatchingRootNodes(basename string) []*activity_tree.
 	return ad.ActivityTree.FindMatchingRootNodes(basename)
 }
 
-// GetImageNameTag returns the image name and tag for the profiled container
-func (ad *ActivityDump) GetImageNameTag() (string, string) {
+// GetContainerImageNameAndTag returns the image name and tag for the profiled container
+func (ad *ActivityDump) GetContainerImageNameAndTag() (string, string) {
 	ad.Lock()
 	defer ad.Unlock()
 
-	var imageName, imageTag string
-	for _, tag := range ad.Tags {
-		if tagName, tagValue, valid := strings.Cut(tag, ":"); valid {
-			switch tagName {
-			case "image_name":
-				imageName = tagValue
-			case "image_tag":
-				imageTag = tagValue
-			}
+	if ad.Metadata.ContainerImageName == "" || ad.Metadata.ContainerImageTag == "" {
+		err := ad.ResolveWorkloadmetaStoreContainer()
+		if err != nil {
+			seclog.Errorf("error resolving the workloadmeta store data of container ID %s", ad.Metadata.ContainerID)
 		}
 	}
-	return imageName, imageTag
+
+	return ad.Metadata.ContainerImageName, ad.Metadata.ContainerImageTag
 }
 
 // GetSelectorStr returns a string representation of the profile selector
@@ -591,6 +590,7 @@ func (ad *ActivityDump) Snapshot() error {
 
 	ad.ActivityTree.Snapshot(ad.adm.newEvent)
 
+	_ = ad.ResolveWorkloadmetaStoreContainer()
 	// try to resolve the tags now
 	_ = ad.resolveTags()
 	return nil
@@ -614,6 +614,25 @@ func (ad *ActivityDump) resolveTags() error {
 	if err != nil {
 		return fmt.Errorf("failed to resolve %s: %w", ad.Metadata.ContainerID, err)
 	}
+
+	return nil
+}
+
+// ResolveWorkloadmetaStoreContainer tries to resolve the activity dump tags
+func (ad *ActivityDump) ResolveWorkloadmetaStoreContainer() error {
+	ad.Lock()
+	defer ad.Unlock()
+	return ad.resolveWorkloadmetaStoreContainer()
+}
+
+// resolveWorkloadmetaStoreContainer thread unsafe version of ResolveWorkloadmetaStoreContainer
+func (ad *ActivityDump) resolveWorkloadmetaStoreContainer() error {
+	if ad.Metadata.ContainerID == "" {
+		return nil
+	}
+
+	container := ad.adm.resolvers.WorkloadmetaStoreResolver.ResolveContainerByContainerID(ad.Metadata.ContainerID)
+	ad.Metadata.ContainerImageName, ad.Metadata.ContainerImageTag = container.Image.Name, container.Image.Tag
 
 	return nil
 }

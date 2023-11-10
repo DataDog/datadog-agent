@@ -22,11 +22,11 @@ type DefaultResolver struct {
 // Resolver represents a cache resolver
 type Resolver interface {
 	Start(ctx context.Context) error
-	Resolve(containerID string) *workloadmeta.Container
+	ResolveContainerByContainerID(containerID string) *workloadmeta.Container
 }
 
 // Resolve returns the tags for the given id
-func (w *DefaultResolver) Resolve(containerID string) *workloadmeta.Container {
+func (w *DefaultResolver) ResolveContainerByContainerID(containerID string) *workloadmeta.Container {
 	containers := workloadmeta.GetGlobalStore().ListContainersWithFilter(func(container *workloadmeta.Container) bool { return container.ID == containerID })
 	if len(containers) == 0 {
 		return nil

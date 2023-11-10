@@ -181,7 +181,7 @@ func (rsa *RuntimeSecurityAgent) DispatchActivityDump(msg *api.ActivityDumpStrea
 	}
 	if rsa.telemetry != nil {
 		// register for telemetry for this container
-		imageName, imageTag := dump.GetImageNameTag()
+		imageName, imageTag := dump.GetContainerImageNameAndTag()
 		rsa.telemetry.registerProfiledContainer(imageName, imageTag)
 
 		raw := bytes.NewBuffer(msg.GetData())

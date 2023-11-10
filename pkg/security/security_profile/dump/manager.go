@@ -197,6 +197,10 @@ func (adm *ActivityDumpManager) resolveTags() {
 		if err != nil {
 			seclog.Warnf("couldn't resolve activity dump tags (will try again later): %v", err)
 		}
+		workloadmetaStoreResolveErr := ad.ResolveWorkloadmetaStoreContainer()
+		if workloadmetaStoreResolveErr != nil {
+			seclog.Warnf("couldn't resolve activity dump container metadata (will try again later): %v", err)
+		}
 
 		// check if we should discard this dump based on the manager dump limiter or the deny list
 		selector := ad.GetWorkloadSelector()

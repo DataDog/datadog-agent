@@ -30,6 +30,7 @@ type WorkloadSelector struct {
 }
 
 // NewWorkloadSelector returns an initialized instance of a WorkloadSelector
+// TODO: Convert all usages to use ad.Metadata.ContainerImageName, ad.Metadata.ContainerImageName instead of tags
 func NewWorkloadSelector(image string, tag string) (WorkloadSelector, error) {
 	if image == "" {
 		return WorkloadSelector{}, ErrNoImageProvided

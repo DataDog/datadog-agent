@@ -18,13 +18,15 @@ type Metadata struct {
 	LinuxDistribution string `json:"linux_distribution"`
 	Arch              string `json:"arch"`
 
-	Name              string    `json:"name"`
-	ProtobufVersion   string    `json:"protobuf_version"`
-	DifferentiateArgs bool      `json:"differentiate_args"`
-	Comm              string    `json:"comm,omitempty"`
-	ContainerID       string    `json:"-"`
-	Start             time.Time `json:"start"`
-	End               time.Time `json:"end"`
-	Size              uint64    `json:"activity_dump_size,omitempty"`
-	Serialization     string    `json:"serialization,omitempty"`
+	Name               string    `json:"name"`
+	ProtobufVersion    string    `json:"protobuf_version"`
+	DifferentiateArgs  bool      `json:"differentiate_args"`
+	Comm               string    `json:"comm,omitempty"`
+	ContainerID        string    `json:"-"`
+	ContainerImageName string    `json:"image_name"`
+	ContainerImageTag  string    `json:"image_tag"`
+	Start              time.Time `json:"start"`
+	End                time.Time `json:"end"`
+	Size               uint64    `json:"activity_dump_size,omitempty"`
+	Serialization      string    `json:"serialization,omitempty"`
 }
