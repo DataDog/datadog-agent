@@ -731,7 +731,7 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config, *secconfig.Config, error) {
+func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return nil, nil, err
@@ -778,7 +778,7 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":                            dir,
+		"TestPoliciesDir":                            cfgDir,
 		"DisableApprovers":                           opts.disableApprovers,
 		"DisableDiscarders":                          opts.disableDiscarders,
 		"EnableActivityDump":                         opts.enableActivityDump,
@@ -812,13 +812,13 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 	}
 
 	ddConfigName, sysprobeConfigName, err := func() (string, string, error) {
-		ddConfig, err := os.OpenFile(path.Join(testDir, "datadog.yaml"), os.O_CREATE|os.O_RDWR, 0o644)
+		ddConfig, err := os.OpenFile(path.Join(cfgDir, "datadog.yaml"), os.O_CREATE|os.O_RDWR, 0o644)
 		if err != nil {
 			return "", "", err
 		}
 		defer ddConfig.Close()
 
-		sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
+		sysprobeConfig, err := os.Create(path.Join(cfgDir, "system-probe.yaml"))
 		if err != nil {
 			return "", "", err
 		}
@@ -834,7 +834,7 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 		return nil, nil, err
 	}
 
-	err = spconfig.SetupOptionalDatadogConfigWithDir(testDir, ddConfigName)
+	err = spconfig.SetupOptionalDatadogConfigWithDir(cfgDir, ddConfigName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
@@ -910,7 +910,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(st.root, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(st.cfgDir, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 
@@ -954,7 +954,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
-	emconfig, secconfig, err := genTestConfigs(st.root, opts.staticOpts, st.root)
+	emconfig, secconfig, err := genTestConfigs(st.cfgDir, opts.staticOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -1710,7 +1710,8 @@ func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
 }
 
 type simpleTest struct {
-	root string
+	root   string
+	cfgDir string
 }
 
 func (t *simpleTest) Root() string {
@@ -1763,24 +1764,39 @@ func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDe
 	return nil
 }
 
+func createTempDir(tb testing.TB) (string, error) {
+	dir := tb.TempDir()
+	targetFileMode := fs.FileMode(0o711)
+
+	// chmod the root and its parent since TempDir returns a 2-layers directory `/tmp/TestNameXXXX/NNN/`
+	if err := os.Chmod(dir, targetFileMode); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(filepath.Dir(dir), targetFileMode); err != nil {
+		return "", err
+	}
+
+	return dir, nil
+}
+
 func newSimpleTest(tb testing.TB, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
 	t := &simpleTest{
 		root: testDir,
 	}
 
 	if testDir == "" {
-		t.root = tb.TempDir()
-
-		targetFileMode := fs.FileMode(0o711)
-
-		// chmod the root and its parent since TempDir returns a 2-layers directory `/tmp/TestNameXXXX/NNN/`
-		if err := os.Chmod(t.root, targetFileMode); err != nil {
+		dir, err := createTempDir(tb)
+		if err != nil {
 			return nil, err
 		}
-		if err := os.Chmod(filepath.Dir(t.root), targetFileMode); err != nil {
-			return nil, err
-		}
+		t.root = dir
 	}
+
+	cfgDir, err := createTempDir(tb)
+	if err != nil {
+		return nil, err
+	}
+	t.cfgDir = cfgDir
 
 	if err := t.load(macros, rules); err != nil {
 		return nil, err
