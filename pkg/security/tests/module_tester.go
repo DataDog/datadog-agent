@@ -334,6 +334,7 @@ type testModule struct {
 }
 
 var testMod *testModule
+var commonCfgDir string
 
 type onRuleHandler func(*model.Event, *rules.Rule)
 type onProbeEventHandler func(*model.Event)
@@ -881,6 +882,14 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		opt(&opts)
 	}
 
+	if commonCfgDir == "" {
+		cd, err := os.MkdirTemp("", "test-cfgdir")
+		if err != nil {
+			fmt.Println(err)
+		}
+		commonCfgDir = cd
+	}
+
 	var proFile *os.File
 	if withProfile {
 		var err error
@@ -909,7 +918,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(st.cfgDir, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 
@@ -953,7 +962,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
-	emconfig, secconfig, err := genTestConfigs(st.cfgDir, opts.staticOpts)
+	emconfig, secconfig, err := genTestConfigs(commonCfgDir, opts.staticOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -1089,11 +1098,10 @@ func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind
 }
 
 func (tm *testModule) reloadPolicies() error {
-	log.Debugf("reload policies with testDir: %s", tm.Root())
-	policiesDir := tm.Root()
+	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
 
 	bundledPolicyProvider := &rulesmodule.BundledPolicyProvider{}
-	policyDirProvider, err := rules.NewPoliciesDirProvider(policiesDir, false)
+	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir, false)
 	if err != nil {
 		return err
 	}
@@ -1709,8 +1717,7 @@ func swapLogLevel(logLevel seelog.LogLevel) (seelog.LogLevel, error) {
 }
 
 type simpleTest struct {
-	root   string
-	cfgDir string
+	root string
 }
 
 func (t *simpleTest) Root() string {
@@ -1791,12 +1798,6 @@ func newSimpleTest(tb testing.TB, macros []*rules.MacroDefinition, rules []*rule
 		t.root = dir
 	}
 
-	cfgDir, err := createTempDir(tb)
-	if err != nil {
-		return nil, err
-	}
-	t.cfgDir = cfgDir
-
 	if err := t.load(macros, rules); err != nil {
 		return nil, err
 	}
@@ -1857,6 +1858,10 @@ func TestMain(m *testing.M) {
 	retCode := m.Run()
 	if testMod != nil {
 		testMod.cleanup()
+	}
+
+	if commonCfgDir != "" {
+		_ = os.RemoveAll(commonCfgDir)
 	}
 	os.Exit(retCode)
 }
