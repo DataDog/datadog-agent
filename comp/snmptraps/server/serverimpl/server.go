@@ -56,10 +56,24 @@ func mapDeps(deps dependencies) injections {
 	}
 }
 
+type wrapper struct {
+	app     *fx.App
+	running bool
+	err     error
+}
+
+func (w *wrapper) Running() bool {
+	return w.running
+}
+
+func (w *wrapper) Error() error {
+	return w.err
+}
+
 // newServer configures a netflow server.
 func newServer(lc fx.Lifecycle, deps dependencies) (server.Component, error) {
 	if !trapsconfig.IsEnabled(deps.Conf) {
-		return nil, nil
+		return &wrapper{running: false}, nil
 	}
 	app := fx.New(
 		fx.Supply(mapDeps(deps)),
@@ -73,11 +87,11 @@ func newServer(lc fx.Lifecycle, deps dependencies) (server.Component, error) {
 	)
 	if err := app.Err(); err != nil {
 		deps.Logger.Errorf("Failed to initialize snmp-traps server: %s", err)
-		return nil, nil
+		return &wrapper{app: app, running: false, err: err}, nil
 	}
 	lc.Append(fx.Hook{
 		OnStart: app.Start,
 		OnStop:  app.Stop,
 	})
-	return app, nil
+	return &wrapper{app: app, running: true, err: nil}, nil
 }

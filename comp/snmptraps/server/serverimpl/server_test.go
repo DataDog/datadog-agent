@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestStartStop(t *testing.T) {
+func TestServer(t *testing.T) {
 	confdPath, err := os.MkdirTemp("", "trapsdb")
 	require.NoError(t, err)
 	defer os.RemoveAll(confdPath)
@@ -51,4 +51,48 @@ func TestStartStop(t *testing.T) {
 		Module,
 	)
 	assert.NotEmpty(t, server)
+	assert.NoError(t, server.Error())
+	assert.True(t, server.Running())
+}
+
+func TestNonBlockingFailure(t *testing.T) {
+	confdPath, err := os.MkdirTemp("", "trapsdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(confdPath)
+	freePort, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
+	server := fxutil.Test[server.Component](t,
+		log.MockModule,
+		senderhelper.Opts,
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{
+				"confd_path":                                   confdPath,
+				"network_devices.snmp_traps.enabled":           true,
+				"network_devices.snmp_traps.port":              freePort,
+				"network_devices.snmp_traps.community_strings": []string{"public"},
+			},
+		}),
+		hostnameimpl.MockModule,
+		Module,
+	)
+	assert.NotEmpty(t, server)
+	assert.ErrorContains(t, server.Error(), "no such file or directory")
+	assert.False(t, server.Running())
+}
+
+func TestDisabled(t *testing.T) {
+	server := fxutil.Test[server.Component](t,
+		log.MockModule,
+		senderhelper.Opts,
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{
+				"network_devices.snmp_traps.enabled": false,
+			},
+		}),
+		hostnameimpl.MockModule,
+		Module,
+	)
+	assert.NotNil(t, server)
+	assert.NoError(t, server.Error())
+	assert.False(t, server.Running())
 }
