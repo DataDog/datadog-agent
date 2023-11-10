@@ -22,7 +22,7 @@ var (
 	entityIDTagPrefix    = "dd.internal.entity_id:"
 	entityIDIgnoreValue  = "none"
 	CardinalityTagPrefix = constants.CardinalityTagPrefix
-	jmxCheckNamePrefix   = "jmx_check_name:"
+	jmxCheckNamePrefix   = "dd.internal.jmx_check_name:"
 )
 
 // enrichConfig contains static parameters used in various enrichment

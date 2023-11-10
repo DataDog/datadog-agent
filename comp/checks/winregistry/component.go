@@ -3,18 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build kubeapiserver && !linux
+//go:build windows
 
-package leaderelection
+// Package winregistry implements the Windows Registry check
+package winregistry
 
-import (
-	"os"
-)
+// team: windows-agent
 
-func getSelfPodName() (string, error) {
-	if podName, ok := os.LookupEnv("DD_POD_NAME"); ok {
-		return podName, nil
-	}
-
-	return os.Hostname()
+// Component is the component type.
+type Component interface {
 }

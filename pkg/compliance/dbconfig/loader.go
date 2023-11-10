@@ -120,7 +120,7 @@ func LoadDBResourceFromPID(ctx context.Context, pid int32) (resource *DBResource
 		return
 	}
 	containerID, ok := utils.GetProcessContainerID(pid)
-	if !ok || containerID == "" {
+	if !ok {
 		return
 	}
 	hostroot, ok := utils.GetProcessRootPath(pid)

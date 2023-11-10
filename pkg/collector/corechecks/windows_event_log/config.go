@@ -11,7 +11,7 @@ import (
 	"fmt"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	yaml "gopkg.in/yaml.v2"
 )
@@ -37,26 +37,26 @@ type Config struct {
 }
 
 type instanceConfig struct {
-	ChannelPath       util.Optional[string]        `yaml:"path"`
-	Query             util.Optional[string]        `yaml:"query"`
-	Start             util.Optional[string]        `yaml:"start"`
-	Timeout           util.Optional[int]           `yaml:"timeout"`
-	PayloadSize       util.Optional[int]           `yaml:"payload_size"`
-	BookmarkFrequency util.Optional[int]           `yaml:"bookmark_frequency"`
-	LegacyMode        util.Optional[bool]          `yaml:"legacy_mode"`
-	LegacyModeV2      util.Optional[bool]          `yaml:"legacy_mode_v2"`
-	EventPriority     util.Optional[string]        `yaml:"event_priority"`
-	TagEventID        util.Optional[bool]          `yaml:"tag_event_id"`
-	TagSID            util.Optional[bool]          `yaml:"tag_sid"`
-	Filters           util.Optional[filtersConfig] `yaml:"filters"`
-	IncludedMessages  util.Optional[[]string]      `yaml:"included_messages"`
-	ExcludedMessages  util.Optional[[]string]      `yaml:"excluded_messages"`
-	AuthType          util.Optional[string]        `yaml:"auth_type"`
-	Server            util.Optional[string]        `yaml:"server"`
-	User              util.Optional[string]        `yaml:"user"`
-	Domain            util.Optional[string]        `yaml:"domain"`
-	Password          util.Optional[string]        `yaml:"password"`
-	InterpretMessages util.Optional[bool]          `yaml:"interpret_messages"`
+	ChannelPath       optional.Option[string]        `yaml:"path"`
+	Query             optional.Option[string]        `yaml:"query"`
+	Start             optional.Option[string]        `yaml:"start"`
+	Timeout           optional.Option[int]           `yaml:"timeout"`
+	PayloadSize       optional.Option[int]           `yaml:"payload_size"`
+	BookmarkFrequency optional.Option[int]           `yaml:"bookmark_frequency"`
+	LegacyMode        optional.Option[bool]          `yaml:"legacy_mode"`
+	LegacyModeV2      optional.Option[bool]          `yaml:"legacy_mode_v2"`
+	EventPriority     optional.Option[string]        `yaml:"event_priority"`
+	TagEventID        optional.Option[bool]          `yaml:"tag_event_id"`
+	TagSID            optional.Option[bool]          `yaml:"tag_sid"`
+	Filters           optional.Option[filtersConfig] `yaml:"filters"`
+	IncludedMessages  optional.Option[[]string]      `yaml:"included_messages"`
+	ExcludedMessages  optional.Option[[]string]      `yaml:"excluded_messages"`
+	AuthType          optional.Option[string]        `yaml:"auth_type"`
+	Server            optional.Option[string]        `yaml:"server"`
+	User              optional.Option[string]        `yaml:"user"`
+	Domain            optional.Option[string]        `yaml:"domain"`
+	Password          optional.Option[string]        `yaml:"password"`
+	InterpretMessages optional.Option[bool]          `yaml:"interpret_messages"`
 }
 
 type filtersConfig struct {
@@ -66,12 +66,12 @@ type filtersConfig struct {
 }
 
 type initConfig struct {
-	TagEventID        util.Optional[bool]   `yaml:"tag_event_id"`
-	TagSID            util.Optional[bool]   `yaml:"tag_sid"`
-	EventPriority     util.Optional[string] `yaml:"event_priority"`
-	InterpretMessages util.Optional[bool]   `yaml:"interpret_messages"`
-	LegacyMode        util.Optional[bool]   `yaml:"legacy_mode"`
-	LegacyModeV2      util.Optional[bool]   `yaml:"legacy_mode_v2"`
+	TagEventID        optional.Option[bool]   `yaml:"tag_event_id"`
+	TagSID            optional.Option[bool]   `yaml:"tag_sid"`
+	EventPriority     optional.Option[string] `yaml:"event_priority"`
+	InterpretMessages optional.Option[bool]   `yaml:"interpret_messages"`
+	LegacyMode        optional.Option[bool]   `yaml:"legacy_mode"`
+	LegacyModeV2      optional.Option[bool]   `yaml:"legacy_mode_v2"`
 }
 
 func (f *filtersConfig) Sources() []string {
@@ -132,13 +132,13 @@ func (c *Config) genQuery() error {
 	return nil
 }
 
-func setOptionalDefault[T any](optional *util.Optional[T], def T) {
+func setOptionalDefault[T any](optional *optional.Option[T], def T) {
 	if !optional.IsSet() {
 		optional.Set(def)
 	}
 }
 
-func setOptionalDefaultWithInitConfig[T any](instance *util.Optional[T], shared util.Optional[T], def T) {
+func setOptionalDefaultWithInitConfig[T any](instance *optional.Option[T], shared optional.Option[T], def T) {
 	if !instance.IsSet() {
 		if val, isSet := shared.Get(); isSet {
 			instance.Set(val)

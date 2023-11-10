@@ -68,6 +68,7 @@ AGENT_CORECHECKS = [
     "uptime",
     "winproc",
     "jetson",
+    "orchestrator_pod",
 ]
 
 WINDOWS_CORECHECKS = [
