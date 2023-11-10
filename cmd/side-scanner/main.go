@@ -595,6 +595,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	tags := []string{
 		fmt.Sprintf("region:%s", scan.Region),
 		fmt.Sprintf("type:%s", "ebs-scan"),
+		fmt.Sprintf("hostname:%s", scan.Hostname),
 	}
 
 	if err != nil {
