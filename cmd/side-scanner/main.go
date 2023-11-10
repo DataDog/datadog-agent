@@ -541,9 +541,10 @@ func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (a
 		// make sure that the configuration is effective.
 		stsclient = sts.NewFromConfig(cfg)
 		result, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-		if err != nil || *result.Arn != *assumedRoleARN {
-			return aws.Config{}, fmt.Errorf("awsconfig: could not assumerole %q: %w", *assumedRoleARN)
+		if err != nil {
+			return aws.Config{}, fmt.Errorf("awsconfig: could not assumerole %q: %w", *assumedRoleARN, err)
 		}
+		log.Debugf("aws config: assuming role with arn=%q", *result.Arn)
 	}
 	return cfg, nil
 }
