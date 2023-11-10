@@ -353,7 +353,7 @@ func (a *Agent) Process(p *api.Payload) {
 		p.ReplaceChunk(i, pt.TraceChunk)
 
 		if !pt.TraceChunk.DroppedTrace {
-			// Now that we're definitely not sampling out this trace,
+			// Now that we know this trace has been sampled,
 			// if this is the first trace we have processed since restart,
 			// set a special set of tags on its root span to track that this
 			// customer has successfully onboarded onto APM.
