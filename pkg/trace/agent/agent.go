@@ -350,14 +350,14 @@ func (a *Agent) Process(p *api.Payload) {
 			p.RemoveChunk(i)
 			continue
 		}
-		// Now that we're definitely not sampling out this trace,
-		// if this is the first trace we have processed since restart,
-		// set a special set of tags on its root span to track that this
-		// customer has successfully onboarded onto APM.
-		a.setFirstTraceTags(root)
 		p.ReplaceChunk(i, pt.TraceChunk)
 
 		if !pt.TraceChunk.DroppedTrace {
+			// Now that we're definitely not sampling out this trace,
+			// if this is the first trace we have processed since restart,
+			// set a special set of tags on its root span to track that this
+			// customer has successfully onboarded onto APM.
+			a.setFirstTraceTags(root)
 			sampledChunks.SpanCount += int64(len(pt.TraceChunk.Spans))
 		}
 		sampledChunks.EventCount += int64(numEvents)
