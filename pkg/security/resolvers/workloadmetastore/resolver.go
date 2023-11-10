@@ -25,7 +25,7 @@ type Resolver interface {
 	ResolveContainerByContainerID(containerID string) *workloadmeta.Container
 }
 
-// Resolve returns the tags for the given id
+// ResolveContainerByContainerID returns the tags for the given id
 func (w *DefaultResolver) ResolveContainerByContainerID(containerID string) *workloadmeta.Container {
 	containers := workloadmeta.GetGlobalStore().ListContainersWithFilter(func(container *workloadmeta.Container) bool { return container.ID == containerID })
 	if len(containers) == 0 {
