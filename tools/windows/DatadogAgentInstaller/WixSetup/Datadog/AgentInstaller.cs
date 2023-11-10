@@ -573,7 +573,7 @@ namespace WixSetup.Datadog
             {
                 appData.AddDir(new Dir(new Id("security.d"),
                                        "runtime-security.d",
-                                       new Files($@"{EtcSource}\runtime-security.d\default.policy")
+                                       new WixSharp.File($@"{EtcSource}\runtime-security.d\default.policy.example")
                 ));
             }
             return new Dir(new Id("%CommonAppData%"), appData)
