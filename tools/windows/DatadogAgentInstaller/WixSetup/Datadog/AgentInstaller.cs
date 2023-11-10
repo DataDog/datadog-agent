@@ -374,7 +374,7 @@ namespace WixSetup.Datadog
         {
             return new PermissionEx
             {
-                User = "Everyone",
+                User = "[DDAGENTUSER_PROCESSED_FQ_NAME]",
                 ServicePauseContinue = true,
                 ServiceQueryStatus = true,
                 ServiceStart = true,
@@ -569,6 +569,13 @@ namespace WixSetup.Datadog
                     new Files($@"{EtcSource}\extra_package_files\EXAMPLECONFSLOCATION\*")
                 ));
 
+            if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
+            {
+                appData.AddDir(new Dir(new Id("security.d"),
+                                       "runtime-security.d",
+                                       new WixSharp.File($@"{EtcSource}\runtime-security.d\default.policy.example")
+                ));
+            }
             return new Dir(new Id("%CommonAppData%"), appData)
             {
                 Attributes = { { "Name", "CommonAppData" } }

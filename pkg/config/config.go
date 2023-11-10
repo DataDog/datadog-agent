@@ -1065,9 +1065,21 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.enabled", false)
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.fallback_to_file_provider", false)                                // to be enabled only in e2e tests
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.patcher.file_provider_path", "/etc/datadog-agent/patch/auto-instru.json") // to be used only in e2e tests
+	config.BindEnvAndSetDefault("admission_controller.inject_auto_detected_libraries", true)                                                         // allows injecting libraries for languages detected by automatic language detection feature
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.auto_instrumentation.init_resources.memory")
 	config.BindEnvAndSetDefault("admission_controller.auto_instrumentation.inject_all.namespaces", []string{})
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.enabled", false)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.pod_endpoint", "/inject-pod-cws")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.include", []string{})
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.exclude", []string{})
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", false)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.container_registry", "")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "datadog/cws-instrumentation")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "master")
+	config.BindEnv("admission_controller.cws_instrumentation.init_resources.cpu")
+	config.BindEnv("admission_controller.cws_instrumentation.init_resources.memory")
 
 	// Telemetry
 	// Enable telemetry metrics on the internals of the Agent.
@@ -1118,7 +1130,7 @@ func InitConfig(config Config) {
 	bindEnvAndSetLogsConfigKeys(config, "container_lifecycle.")
 
 	// Container image configuration
-	config.BindEnvAndSetDefault("container_image.enabled", false)
+	config.BindEnvAndSetDefault("container_image.enabled", true)
 	bindEnvAndSetLogsConfigKeys(config, "container_image.")
 
 	// Remote process collector

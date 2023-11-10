@@ -36,6 +36,7 @@ void __attribute__((always_inline)) copy_credentials(struct credentials_t* src, 
 
 void __attribute__((always_inline)) copy_pid_cache_except_exit_ts(struct pid_cache_t* src, struct pid_cache_t* dst) {
     dst->cookie = src->cookie;
+    dst->user_session_id = src->user_session_id;
     dst->ppid = src->ppid;
     dst->fork_timestamp = src->fork_timestamp;
     dst->credentials = src->credentials;
@@ -49,8 +50,12 @@ struct proc_cache_t __attribute__((always_inline)) *get_proc_from_cookie(u64 coo
     return bpf_map_lookup_elem(&proc_cache, &cookie);
 }
 
+struct pid_cache_t * __attribute__((always_inline)) get_pid_cache(u32 tgid) {
+    return (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+}
+
 struct proc_cache_t * __attribute__((always_inline)) get_proc_cache(u32 tgid) {
-    struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
+    struct pid_cache_t *pid_entry = get_pid_cache(tgid);
     if (!pid_entry) {
         return NULL;
     }

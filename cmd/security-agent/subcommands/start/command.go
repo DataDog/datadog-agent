@@ -73,6 +73,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// TODO: Similar to the agent itself, once the security agent is represented as a component, and not a function (start),
 			// this will use `fxutil.Run` instead of `fxutil.OneShot`.
+
+			// note that any changes to the arguments to OneShot need to be reflected into
+			// the service initialization in ../../main_windows.go
 			return fxutil.OneShot(start,
 				fx.Supply(params),
 				fx.Supply(core.BundleParams{

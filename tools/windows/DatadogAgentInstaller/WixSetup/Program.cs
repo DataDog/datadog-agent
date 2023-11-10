@@ -22,9 +22,10 @@ namespace WixSetup
             {
                 System.IO.File.Copy(path, "wix/WixSetup.g.wxs", overwrite: true);
             };
-            project
-                .BuildMsi();
+            // In debug mode, build the MSI directly
+            project.BuildMsi();
 #else
+            // In the CI, use the BuildMsiCmd to be able to sign the binaries before building the MSI
             project
                 .BuildMsiCmd();
 #endif
