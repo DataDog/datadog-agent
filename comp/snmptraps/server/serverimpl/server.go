@@ -7,9 +7,21 @@
 package serverimpl
 
 import (
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+
+	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/oidresolverimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
@@ -19,20 +31,53 @@ var Module = fxutil.Component(
 	fx.Provide(newServer),
 )
 
-// Server manages an SNMP trap listener.
-type Server struct {
-	listener  listener.Component
-	forwarder forwarder.Component
+type dependencies struct {
+	fx.In
+	Conf      config.Component
+	HNService hostname.Component
+	Demux     demultiplexer.Component
+	Logger    log.Component
+}
+
+type injections struct {
+	fx.Out
+	Conf      config.Component
+	HNService hostname.Component
+	Demux     demultiplexer.Component
+	Logger    log.Component
+}
+
+func mapDeps(deps dependencies) injections {
+	return injections{
+		Conf:      deps.Conf,
+		HNService: deps.HNService,
+		Demux:     deps.Demux,
+		Logger:    deps.Logger,
+	}
 }
 
 // newServer configures a netflow server.
-// Since the listener and forwarder are already registered with the lifecycle
-// tracker, this component really just exists so that there's one component to
-// register instead of requiring users to remember to depend on both the
-// listener and the forwarder.
-func newServer(l listener.Component, f forwarder.Component) server.Component {
-	return &Server{
-		listener:  l,
-		forwarder: f,
+func newServer(lc fx.Lifecycle, deps dependencies) (server.Component, error) {
+	if !trapsconfig.IsEnabled(deps.Conf) {
+		return nil, nil
 	}
+	app := fx.New(
+		fx.Supply(mapDeps(deps)),
+		configimpl.Module,
+		formatterimpl.Module,
+		forwarderimpl.Module,
+		listenerimpl.Module,
+		oidresolverimpl.Module,
+		statusimpl.Module,
+		fx.Invoke(func(_ forwarder.Component, _ listener.Component) {}),
+	)
+	if err := app.Err(); err != nil {
+		deps.Logger.Errorf("Failed to initialize snmp-traps server: %s", err)
+		return nil, nil
+	}
+	lc.Append(fx.Hook{
+		OnStart: app.Start,
+		OnStop:  app.Stop,
+	})
+	return app, nil
 }
