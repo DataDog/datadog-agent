@@ -121,8 +121,8 @@ func TestSendAPMStats(t *testing.T) {
 		_, port, err := net.SplitHostPort(srv.Listener.Addr().String())
 		require.NoError(t, err)
 		const cfgkey = "apm_config.receiver_port"
-		config.Datadog.Set(cfgkey, port)
-		defer func(old string) { config.Datadog.Set(cfgkey, old) }(config.Datadog.GetString(cfgkey))
+		config.Datadog.SetWithoutSource(cfgkey, port)
+		defer func(old string) { config.Datadog.SetWithoutSource(cfgkey, old) }(config.Datadog.GetString(cfgkey))
 		return srv
 	}
 

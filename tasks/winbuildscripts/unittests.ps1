@@ -39,22 +39,9 @@ if ($Env:TARGET_ARCH -eq "x86") {
 }
 
 mkdir  .\bin\agent
-if ($Env:DEBUG_CUSTOMACTION) {
-    & inv -e customaction.build --arch=$archflag --debug
-} else {
-    & inv -e customaction.build --arch=$archflag
-}
 
 # Generate the datadog.yaml config file to be used in integration tests
 & inv -e generate-config --build-type="agent-py2py3" --output-file="./datadog.yaml"
-
-& $UT_BUILD_ROOT\bin\agent\customaction-tests.exe
-$err = $LASTEXITCODE
-Write-Host Test result is $err
-if($err -ne 0){
-    Write-Host -ForegroundColor Red "custom action test failed $err"
-    [Environment]::Exit($err)
-}
 
 # NG installer unit tests
 if ($Env:DEBUG_CUSTOMACTION) {
@@ -81,7 +68,7 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e test --skip-linters --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --cpus 8 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\test_output.json
+& inv -e test --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --cpus 8 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\test_output.json $Env:EXTRAPARAMS
 
 $err = $LASTEXITCODE
 Write-Host Test result is $err

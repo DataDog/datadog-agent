@@ -11,9 +11,6 @@ name 'datadog-agent'
 dependency "python2" if with_python_runtime? "2"
 dependency "python3" if with_python_runtime? "3"
 
-dependency "libarchive" if windows_target?
-dependency "yaml-cpp" if windows_target?
-
 dependency "openscap" if linux_target? and !arm7l_target? and !heroku_target? # Security-agent dependency, not needed for Heroku
 
 dependency 'datadog-agent-dependencies'
@@ -70,7 +67,7 @@ build do
     end
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch #{platform}", :env => env
-    command "mv rtloader/bin/*.dll  #{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent/"
+    command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
     command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch #{platform} #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
     command "inv -e systray.build --major-version #{major_version_arg} --rebuild --arch #{platform}", env: env
   else
@@ -92,16 +89,6 @@ build do
     mkdir "#{install_dir}/scripts/"
   end
 
-  ## build the custom action library required for the install
-  if windows_target?
-    platform = windows_arch_i386? ? "x86" : "x64"
-    debug_customaction = ""
-    if ENV['DEBUG_CUSTOMACTION'] and not ENV['DEBUG_CUSTOMACTION'].empty?
-      debug_customaction = "--debug"
-    end
-    command "invoke -e customaction.build --major-version #{major_version_arg} #{debug_customaction} --arch=" + platform
-  end
-
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
   if linux_target? or (windows_target? and not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?)
@@ -113,9 +100,9 @@ build do
     copy 'bin/agent', "#{install_dir}/bin/"
   else
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
+    copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/dist', "#{install_dir}/bin/agent"
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
-    copy 'bin/agent/customaction*.pdb', "#{Omnibus::Config.package_dir()}/"
   end
 
   block do
@@ -125,7 +112,7 @@ build do
     command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
     if windows_target?
-      copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+      copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
     else
       copy 'bin/trace-agent/trace-agent', "#{install_dir}/embedded/bin"
     end
@@ -137,7 +124,7 @@ build do
     # Build the process-agent with the correct go version for windows
     command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
-    copy 'bin/process-agent/process-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+    copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
   else
     command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
     copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
@@ -149,7 +136,7 @@ build do
       if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
         ## don't bother with system probe build on x86.
         command "invoke -e system-probe.build --windows"
-        copy 'bin/system-probe/system-probe.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+        copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
       end
     end
   elsif linux_target?
@@ -168,7 +155,7 @@ build do
     if not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?)
       command "invoke -e security-agent.build --major-version #{major_version_arg}", :env => env
       if windows_target?
-        copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+        copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
       else
         copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
       end

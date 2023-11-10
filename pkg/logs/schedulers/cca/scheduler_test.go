@@ -27,7 +27,7 @@ func setup() (scheduler *Scheduler, ac *autodiscovery.AutoConfig, spy *scheduler
 func TestNothingWhenNoConfig(t *testing.T) {
 	scheduler, _, spy := setup()
 	config := coreConfig.Mock(t)
-	config.Set("logs_config.container_collect_all", false)
+	config.SetWithoutSource("logs_config.container_collect_all", false)
 
 	scheduler.Start(spy)
 
@@ -37,7 +37,7 @@ func TestNothingWhenNoConfig(t *testing.T) {
 func TestAfterACStarts(t *testing.T) {
 	scheduler, ac, spy := setup()
 	config := coreConfig.Mock(t)
-	config.Set("logs_config.container_collect_all", true)
+	config.SetWithoutSource("logs_config.container_collect_all", true)
 
 	scheduler.Start(spy)
 

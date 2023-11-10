@@ -17,6 +17,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/golang/mock/gomock"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcapgo"
@@ -158,6 +159,70 @@ func ExpectNetflow5Payloads(t *testing.T, mockEpForwarder forwarder.MockComponen
 		m := message.NewMessage(payloadBytes, nil, "", 0)
 
 		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil)
+	}
+}
+
+// ExpectPayloadWithAdditionalFields expects the payloads that should result from our
+// recorded Netflow9 pcap file with inverted source and destination ports and icmp_type custom field.
+func ExpectPayloadWithAdditionalFields(t *testing.T, mockEpForwarder forwarder.MockComponent) {
+	events := [][]byte{
+		[]byte(`
+{
+  "bytes": 114702,
+  "destination": {
+    "ip": "53.0.97.192",
+    "port": "5915",
+    "mac": "00:00:00:00:00:00",
+    "mask": "0.0.0.0/0"
+  },
+  "device": {
+    "namespace": "default"
+  },
+  "direction": "ingress",
+  "egress": {
+    "interface": {
+      "index": 4352
+    }
+  },
+  "end": 1675541179,
+  "ether_type": "IPv4",
+  "exporter": {
+    "ip": "127.0.0.1"
+  },
+  "flush_timestamp": 1550505606000,
+  "host": "my-hostname",
+  "icmp_type": "1200",
+  "ingress": {
+    "interface": {
+      "index": 27505
+    }
+  },
+  "ip_protocol": "ICMP",
+  "next_hop": {
+    "ip": ""
+  },
+  "packets": 840155153,
+  "sampling_rate": 0,
+  "source": {
+    "ip": "2.10.65.0",
+    "port": "0",
+    "mac": "00:00:00:00:00:00",
+    "mask": "0.0.0.0/0"
+  },
+  "start": 1675307019,
+  "type": "netflow9"
+}
+`),
+	}
+	for _, event := range events {
+		compactEvent := new(bytes.Buffer)
+		err := json.Compact(compactEvent, event)
+		assert.NoError(t, err)
+
+		m := message.NewMessage(compactEvent.Bytes(), nil, "", 0)
+
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(m, epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil)
+		mockEpForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), epforwarder.EventTypeNetworkDevicesNetFlow).Return(nil).Times(28)
 	}
 }
 

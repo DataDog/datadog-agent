@@ -86,7 +86,6 @@ TOOL_LIST = [
     'github.com/go-enry/go-license-detector/v4/cmd/license-detector',
     'github.com/golangci/golangci-lint/cmd/golangci-lint',
     'github.com/goware/modvendor',
-    'github.com/mgechev/revive',
     'github.com/stormcat24/protodep',
     'gotest.tools/gotestsum',
     'github.com/vektra/mockery/v2',
@@ -513,6 +512,24 @@ def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult
     return success
 
 
+def deprecating_skip_linters_flag(skip_linters):
+    """
+    We're deprecating the --skip-linters flag in the test invoke task
+
+    Displays a warning when user is running inv -e test --skip-linters
+    Also displays the command the user should run to
+    """
+    if skip_linters:
+        deprecation_msg = """Warning: the --skip-linters is deprecated for the test invoke task.
+Feel free to remove the flag when running inv -e test.
+"""
+    else:
+        deprecation_msg = """Warning: the linters were removed from the test invoke task.
+If you want to run the linters, please run inv -e lint-go instead.
+"""
+    print(deprecation_msg, file=sys.stderr)
+
+
 def sanitize_env_vars():
     """
     Sanitizes environment variables
@@ -551,6 +568,7 @@ def test(
     rerun_fails=None,
     go_mod="mod",
     junit_tar="",
+    only_modified_packages=False,
 ):
     """
     Run go tests on the given module and targets.
@@ -562,8 +580,6 @@ def test(
 
     If no module or target is set the tests are run against all modules and targets.
 
-    Also runs linters on the same modules / targets, except if the --skip-linters option is passed.
-
     Example invokation:
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
@@ -573,20 +589,7 @@ def test(
 
     sanitize_env_vars()
 
-    # Run linters first
-
-    if not skip_linters:
-        modules_results_per_phase["lint"] = run_lint_go(
-            ctx=ctx,
-            module=module,
-            targets=targets,
-            flavors=flavors,
-            build_include=build_include,
-            build_exclude=build_exclude,
-            rtloader_root=rtloader_root,
-            arch=arch,
-            cpus=cpus,
-        )
+    deprecating_skip_linters_flag(skip_linters)
 
     modules, flavors = process_input_args(module, targets, flavors)
 
@@ -658,6 +661,9 @@ def test(
             args=args,
             test_profiler=test_profiler,
         )
+        if only_modified_packages:
+            modules = get_modified_packages(ctx)
+
         modules_results_per_phase["test"][flavor] = test_flavor(
             ctx,
             flavor=flavor,
@@ -694,10 +700,7 @@ def test(
     success = process_module_results(modules_results_per_phase)
 
     if success:
-        if skip_linters:
-            print(color_message("All tests passed", "green"))
-        else:
-            print(color_message("All tests and linters passed", "green"))
+        print(color_message("All tests passed", "green"))
     else:
         # Exit if any of the modules failed on any phase
         raise Exit(code=1)
@@ -1109,3 +1112,59 @@ def junit_macos_repack(_, infile, outfile):
     contain correct job name and job URL.
     """
     repack_macos_junit_tar(infile, outfile)
+
+
+@task
+def get_modified_packages(ctx) -> List[GoModule]:
+
+    modified_files = get_modified_files(ctx)
+    modified_go_files = [
+        f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
+    ]
+
+    modules_to_test = {}
+    go_mod_modified_modules = set()
+
+    for modified_file in modified_go_files:
+        match_precision = 0
+        best_module_path = None
+
+        # Since several modules can match the path we take only the most precise one
+        for module_path in DEFAULT_MODULES:
+            if module_path in modified_file:
+                if len(module_path) > match_precision:
+                    match_precision = len(module_path)
+                    best_module_path = module_path
+
+        # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
+        if best_module_path in go_mod_modified_modules:
+            continue
+
+        # If we modify the go.mod or go.sum we run the tests for the whole module
+        if modified_file.endswith(".mod") or modified_file.endswith(".sum"):
+            modules_to_test[best_module_path] = DEFAULT_MODULES[best_module_path]
+            go_mod_modified_modules.add(best_module_path)
+            continue
+
+        if best_module_path in modules_to_test:
+            if (
+                modules_to_test[best_module_path].targets is not None
+                and os.path.dirname(modified_file) not in modules_to_test[best_module_path].targets
+            ):
+                modules_to_test[best_module_path].targets.append(os.path.dirname(modified_file))
+        else:
+            modules_to_test[best_module_path] = GoModule(best_module_path, targets=[os.path.dirname(modified_file)])
+
+    print("Running tests for the following modules:")
+    for module in modules_to_test:
+        print(f"- {module}: ")
+
+    return modules_to_test.values()
+
+
+def get_modified_files(ctx):
+    last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
+    print(f"Checking diff from {last_main_commit} commit on main branch")
+
+    modified_files = ctx.run(f"git diff --name-only {last_main_commit}", hide=True).stdout.splitlines()
+    return modified_files

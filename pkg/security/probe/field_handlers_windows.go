@@ -44,3 +44,17 @@ func (fh *FieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Proc
 func (fh *FieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string { //nolint:revive // TODO fix revive unused-parameter
 	return fh.resolvers.ProcessResolver.GetEnvs(process)
 }
+
+// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
+func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
+	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
+		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid)
+	}
+
+	if ev.ProcessCacheEntry == nil {
+		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid)
+		return ev.ProcessCacheEntry, false
+	}
+
+	return ev.ProcessCacheEntry, true
+}

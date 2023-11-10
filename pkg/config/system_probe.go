@@ -97,8 +97,8 @@ func InitSystemProbeConfig(cfg Config) {
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
 	cfg.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize)
-	cfg.BindEnvAndSetDefault("secret_backend_timeout", 30)
+	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSizeDefault)
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", secrets.SecretBackendTimeoutDefault)
 	cfg.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	cfg.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 
@@ -250,7 +250,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "http_notification_threshold"))
 	cfg.BindEnv(join(smNS, "http_notification_threshold"))
-	// Default value (160) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
 	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
 

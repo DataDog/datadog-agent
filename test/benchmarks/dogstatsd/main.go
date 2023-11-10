@@ -214,8 +214,8 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	mockConfig.Set("dogstatsd_stats_enable", true)
-	mockConfig.Set("dogstatsd_stats_buffer", 100)
+	mockConfig.SetWithoutSource("dogstatsd_stats_enable", true)
+	mockConfig.SetWithoutSource("dogstatsd_stats_buffer", 100)
 	s := serializer.NewSerializer(f, nil)
 	aggr := aggregator.NewBufferedAggregator(s, nil, "localhost", aggregator.DefaultFlushInterval)
 	statsd, err := dogstatsd.NewServer(aggr.GetBufferedChannels(), false)
