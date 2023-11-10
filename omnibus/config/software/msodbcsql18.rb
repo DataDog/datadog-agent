@@ -6,26 +6,28 @@ dependency "unixodbc"
 # Dynamically build source url and sha256 based on the linux platform and architecture
 # The source url and sha256 are taken from the official Microsoft ODBC Driver for SQL Server page:
 
-arch = if arm_target?
-  "arm64"
-else
-  "amd64"
-end
-
-if arm_target? 
-  source sha256: "d9bb2d2e165e9d86f6b5de75b2baa24c9f0f25107471bcf82254d27f5dafff30"
-else
+if debian_target?
+  source url: "https://packages.microsoft.com/debian/12/prod/pool/main/m/msodbcsql18/#{name}_#{version}_amd64.deb"
   source sha256: "ae8eea58236e46c3f4eae05823cf7f0531ac58f12d90bc24245830b847c052ee"
+elsif redhat_target?
+  source url: "https://packages.microsoft.com/rhel/8/prod/Packages/m/#{name}_#{version}.x86_64.rpm"
+  source sha256: "ecd8e148138ee72a452a5357e380580e2c19219c5424f4ac9350cbdf3217fad1"
+else
+  "https://packages.microsoft.com/sles/15/prod/Packages/m/#{name}_#{version}.x86_64.rpm"
+  source url: "https://packages.microsoft.com/debian/12/prod/pool/main/m/msodbcsql18/#{name}_#{version}_amd64.deb"
+  source sha256: "e8b753f8730681d9308f5e3e9e2bde4e169d5e598e322a7d6e31860b73af55e6"
 end
-
-source url: "https://packages.microsoft.com/debian/12/prod/pool/main/m/msodbcsql18/#{name}_#{version}_#{arch}.deb"
 
 relative_path "msodbcsql18-#{version}"
 
 build do
-  if debian_target?
+  if !arm_target?
     command "mkdir -p #{install_dir}/embedded/msodbcsql/lib"
-    command "dpkg-deb -R #{project_dir}/#{name}-#{name}_#{version}_#{arch}.deb #{project_dir}/#{relative_path}"
+    if debian_target?
+      command "dpkg-deb -R #{project_dir}/#{name}-#{name}_#{version}_amd64.deb #{project_dir}/#{relative_path}"
+    else
+      command "rpm2cpio #{project_dir}/#{name}-#{version}.x86_64.rpm | (cd #{project_dir}/#{relative_path} && cpio -idmv)"
+    end
     # Fix rpath first
     command "patchelf --force-rpath --set-rpath '#{install_dir}/embedded/lib' '#{project_dir}/#{relative_path}/opt/microsoft/msodbcsql18/lib64/libmsodbcsql-18.3.so.2.1'"
     # Manually move the files we need and ensure the symlink aren't broken
