@@ -39,6 +39,7 @@ import (
 )
 
 type service struct {
+	servicemain.DefaultSettings
 }
 
 var (
