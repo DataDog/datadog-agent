@@ -9,6 +9,8 @@ package kubelet
 
 import (
 	"time"
+
+	"k8s.io/apimachinery/pkg/api/resource"
 )
 
 // Pod contains fields for unmarshalling a Pod
@@ -71,10 +73,24 @@ type ContainerSpec struct {
 	Resources       *ContainerResourcesSpec       `json:"resources,omitempty"`
 }
 
+// ResourceName is the key to fields in in Pod.Spec.Containers.Resources
+type ResourceName string
+
+// Resources name
+const (
+	ResourceCPU              ResourceName = "cpu"
+	ResourceMemory           ResourceName = "memory"
+	ResourceStorage          ResourceName = "storage"
+	ResourceEphemeralStorage ResourceName = "ephemeral-storage"
+)
+
+// ResourceList is the type of fields in Pod.Spec.Containers.Resources
+type ResourceList map[ResourceName]resource.Quantity
+
 // ContainerResourcesSpec contains fields for unmarshalling a Pod.Spec.Containers.Resources
 type ContainerResourcesSpec struct {
-	Requests map[string]string `json:"requests,omitempty"`
-	Limits   map[string]string `json:"limits,omitempty"`
+	Requests ResourceList `json:"requests,omitempty"`
+	Limits   ResourceList `json:"limits,omitempty"`
 }
 
 // ContainerPortSpec contains fields for unmarshalling a Pod.Spec.Containers.Ports

@@ -97,9 +97,6 @@ func (c *Collector) run(ctx context.Context, store workloadmeta.Store, container
 	}
 }
 
-// Pull is unused at the moment used due to the short frequency in which it is called.
-// In the future, we should use it to poll for processes that have been collected and store them in workload-meta.
-
 func (c *Collector) handleContainerEvent(evt workloadmeta.EventBundle) {
 	defer close(evt.Ch)
 

@@ -1349,3 +1349,24 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     )
 
     tag_version(ctx, devel_tag, tag_modules=False, push=True, force=redo)
+
+
+@task
+def update_last_stable(_, major_versions="6,7"):
+    """
+    Updates the last_release field(s) of release.json
+    """
+    gh = GithubAPI('datadog/datadog-agent')
+    latest_release = gh.latest_release()
+    match = VERSION_RE.search(latest_release)
+    if not match:
+        raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
+    version = _create_version_from_match(match)
+
+    release_json = _load_release_json()
+    list_major_versions = parse_major_versions(major_versions)
+    # If the release isn't a RC, update the last stable release field
+    for major in list_major_versions:
+        version.major = major
+        release_json['last_stable'][str(major)] = str(version)
+    _save_release_json(release_json)

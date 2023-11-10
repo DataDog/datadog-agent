@@ -727,9 +727,9 @@ func TestEnrichInferredSpanWithSQSEvent(t *testing.T) {
 	inferredSpan := mockInferredSpan()
 	inferredSpan.EnrichInferredSpanWithSQSEvent(sqsRequest)
 	span := inferredSpan.Span
-	assert.Equal(t, uint64(2684756524522091840), span.TraceID)
+	assert.Equal(t, uint64(7353030974370088224), span.TraceID)
 	assert.Equal(t, uint64(8048964810003407541), span.SpanID)
-	assert.Equal(t, uint64(7431398482019833808), span.ParentID)
+	assert.Equal(t, uint64(0), span.ParentID)
 	assert.Equal(t, int64(1634662094538000000), span.Start)
 	assert.Equal(t, "sqs", span.Service)
 	assert.Equal(t, "aws.sqs", span.Name)

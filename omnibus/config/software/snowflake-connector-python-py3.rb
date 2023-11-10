@@ -6,12 +6,16 @@
 # modify the wheel build.
 
 name "snowflake-connector-python-py3"
-default_version "3.1.0"
+default_version "3.4.0"
 
 dependency "pip3"
 
 source :url => "https://github.com/snowflakedb/snowflake-connector-python/archive/refs/tags/v#{version}.tar.gz",
-       :sha256 => "fb2477b653bd58edd0366b4d6395d109fd4e238b85ce5685d7944455e0d48dab",
+       # We have to provide a checksum because Github doesn't provide those.
+       # PyPI does provide checksums, but
+       # 1. we can't find permalinks to source distributions
+       # 2. we'll likely need to change our patch to work with a source distribution, we don't have time for that yet.
+       :sha256 => "0af8e463d2e558eadb0d75d683e2154acf3e10a74510cc06f93c7596ec82323b",
        :extract => :seven_zip
 
 relative_path "snowflake-connector-python-#{version}"
@@ -35,13 +39,7 @@ build do
     }
   end
 
-  # We need a newer version of oscrypto than the one released to get a fix for a bug
-  # that gets triggered when having double digits on the OpenSSL version
-  # (https://github.com/wbond/oscrypto/issues/75).
-  # We can remove the oscrypto pinning once the fix becomes part of a new release
-  oscrypto_commit = "d5f3437ed24257895ae1edd9e503cfb352e635a8"
-
   # Adding pyopenssl==23.3.0 here is a temporary workaround so that we don't get
   # conflict because of the `cryptography` version we ship with the agent.
-  command "#{pip} install pyopenssl==23.3.0 . \"oscrypto @ git+https://github.com/wbond/oscrypto.git@#{oscrypto_commit}\"", :env => build_env
+  command "#{pip} install pyopenssl==23.3.0 .", :env => build_env
 end

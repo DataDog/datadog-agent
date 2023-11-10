@@ -35,6 +35,10 @@ namespace Datadog.CustomActions.Native
                 _ => null
             };
 
+            if (key == null)
+            {
+                return null;
+            }
             key = key.OpenSubKey(path, writable);
             if (key == null)
             {

@@ -263,7 +263,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chmod.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "chmod.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -492,7 +492,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Chown.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "chown.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -972,7 +972,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "exec.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -1264,7 +1264,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exec.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "exec.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -1516,6 +1516,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "exec.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exec.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.user_session.k8s_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exec.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exec.user_session.k8s_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exec.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "exit.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -1754,7 +1781,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "exit.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2046,7 +2073,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Exit.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "exit.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2298,6 +2325,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "exit.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exit.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.user_session.k8s_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exit.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "exit.user_session.k8s_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "link.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -2350,7 +2404,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Target)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "link.file.destination.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2525,7 +2579,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Link.Source)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "link.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2745,7 +2799,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.LoadModule.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "load_module.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -2974,7 +3028,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Mkdir.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "mkdir.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -3167,7 +3221,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.MMap.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "mmap.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -3402,7 +3456,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.NetworkContext.Destination.IPNet
+				return ev.NetworkContext.Destination.IPNet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3411,7 +3465,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Destination.Port)
+				return int(ev.NetworkContext.Destination.Port)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3420,7 +3474,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Device.IfIndex)
+				return int(ev.NetworkContext.Device.IfIndex)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3429,7 +3483,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.BaseEvent.NetworkContext.Device)
+				return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device)
 			},
 			Field:  field,
 			Weight: eval.HandlerWeight,
@@ -3438,7 +3492,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.L3Protocol)
+				return int(ev.NetworkContext.L3Protocol)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3447,7 +3501,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.L4Protocol)
+				return int(ev.NetworkContext.L4Protocol)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3456,7 +3510,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Size)
+				return int(ev.NetworkContext.Size)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3465,7 +3519,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.CIDREvaluator{
 			EvalFnc: func(ctx *eval.Context) net.IPNet {
 				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.NetworkContext.Source.IPNet
+				return ev.NetworkContext.Source.IPNet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3474,7 +3528,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
-				return int(ev.BaseEvent.NetworkContext.Source.Port)
+				return int(ev.NetworkContext.Source.Port)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -3531,7 +3585,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Open.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "open.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -4186,7 +4240,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -4813,7 +4867,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -5354,6 +5408,69 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "process.ancestors.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+					results = append(results, result...)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.user_session.k8s_uid":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.user_session.k8s_username":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "process.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -5574,7 +5691,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "process.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -5866,7 +5983,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "process.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -6353,7 +6470,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -6717,7 +6834,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.BaseEvent.ProcessContext.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -7032,6 +7149,42 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "process.parent.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.parent.user_session.k8s_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.parent.user_session.k8s_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "process.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -7085,6 +7238,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "process.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.user_session.k8s_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "process.user_session.k8s_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "ptrace.request":
 		return &eval.IntEvaluator{
@@ -7600,7 +7780,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -8227,7 +8407,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -8768,6 +8948,69 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "ptrace.tracee.ancestors.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+					results = append(results, result...)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.k8s_uid":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "ptrace.tracee.ancestors.user_session.k8s_username":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "ptrace.tracee.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -8988,7 +9231,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -9280,7 +9523,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -9767,7 +10010,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -10131,7 +10374,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.PTrace.Tracee.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -10446,6 +10689,42 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "ptrace.tracee.parent.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.parent.user_session.k8s_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.parent.user_session.k8s_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "ptrace.tracee.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -10499,6 +10778,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
+		}, nil
+	case "ptrace.tracee.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.user_session.k8s_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "ptrace.tracee.user_session.k8s_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "removexattr.file.change_time":
 		return &eval.IntEvaluator{
@@ -10561,7 +10867,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.RemoveXAttr.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "removexattr.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -10763,7 +11069,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.New)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "rename.file.destination.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -10938,7 +11244,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rename.Old)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "rename.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -11131,7 +11437,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Rmdir.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "rmdir.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -11486,7 +11792,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.SetXAttr.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "setxattr.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -12150,7 +12456,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -12777,7 +13083,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: eval.IteratorWeight,
+			Weight: 999 * eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.interpreter.file.in_upper_layer":
 		return &eval.BoolArrayEvaluator{
@@ -13318,6 +13624,69 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			}, Field: field,
 			Weight: eval.IteratorWeight,
 		}, nil
+	case "signal.target.ancestors.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+					results = append(results, result...)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.user_session.k8s_uid":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
+	case "signal.target.ancestors.user_session.k8s_username":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: eval.IteratorWeight,
+		}, nil
 	case "signal.target.args":
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
@@ -13538,7 +13907,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -13830,7 +14199,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Process.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -14317,7 +14686,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -14681,7 +15050,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Signal.Target.Parent.LinuxBinprm.FileEvent)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.interpreter.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -14996,6 +15365,42 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "signal.target.parent.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return []string{}
+				}
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.parent.user_session.k8s_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.parent.user_session.k8s_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Parent.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "signal.target.pid":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -15050,6 +15455,33 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			Field:  field,
 			Weight: eval.FunctionWeight,
 		}, nil
+	case "signal.target.user_session.k8s_groups":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.user_session.k8s_uid":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
+	case "signal.target.user_session.k8s_username":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Process.UserSession)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
+		}, nil
 	case "signal.type":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -15102,7 +15534,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Splice.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "splice.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -15313,7 +15745,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Unlink.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "unlink.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -15533,7 +15965,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveHashesFromEvent(ev, &ev.Utimes.File)
 			},
 			Field:  field,
-			Weight: eval.HandlerWeight,
+			Weight: 999 * eval.HandlerWeight,
 		}, nil
 	case "utimes.file.in_upper_layer":
 		return &eval.BoolEvaluator{
@@ -15835,6 +16267,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.tty_name",
 		"exec.uid",
 		"exec.user",
+		"exec.user_session.k8s_groups",
+		"exec.user_session.k8s_uid",
+		"exec.user_session.k8s_username",
 		"exit.args",
 		"exit.args_flags",
 		"exit.args_options",
@@ -15909,6 +16344,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.tty_name",
 		"exit.uid",
 		"exit.user",
+		"exit.user_session.k8s_groups",
+		"exit.user_session.k8s_uid",
+		"exit.user_session.k8s_username",
 		"link.file.change_time",
 		"link.file.destination.change_time",
 		"link.file.destination.filesystem",
@@ -16133,6 +16571,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.tty_name",
 		"process.ancestors.uid",
 		"process.ancestors.user",
+		"process.ancestors.user_session.k8s_groups",
+		"process.ancestors.user_session.k8s_uid",
+		"process.ancestors.user_session.k8s_username",
 		"process.args",
 		"process.args_flags",
 		"process.args_options",
@@ -16271,12 +16712,18 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.tty_name",
 		"process.parent.uid",
 		"process.parent.user",
+		"process.parent.user_session.k8s_groups",
+		"process.parent.user_session.k8s_uid",
+		"process.parent.user_session.k8s_username",
 		"process.pid",
 		"process.ppid",
 		"process.tid",
 		"process.tty_name",
 		"process.uid",
 		"process.user",
+		"process.user_session.k8s_groups",
+		"process.user_session.k8s_uid",
+		"process.user_session.k8s_username",
 		"ptrace.request",
 		"ptrace.retval",
 		"ptrace.tracee.ancestors.args",
@@ -16351,6 +16798,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.tty_name",
 		"ptrace.tracee.ancestors.uid",
 		"ptrace.tracee.ancestors.user",
+		"ptrace.tracee.ancestors.user_session.k8s_groups",
+		"ptrace.tracee.ancestors.user_session.k8s_uid",
+		"ptrace.tracee.ancestors.user_session.k8s_username",
 		"ptrace.tracee.args",
 		"ptrace.tracee.args_flags",
 		"ptrace.tracee.args_options",
@@ -16489,12 +16939,18 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.tty_name",
 		"ptrace.tracee.parent.uid",
 		"ptrace.tracee.parent.user",
+		"ptrace.tracee.parent.user_session.k8s_groups",
+		"ptrace.tracee.parent.user_session.k8s_uid",
+		"ptrace.tracee.parent.user_session.k8s_username",
 		"ptrace.tracee.pid",
 		"ptrace.tracee.ppid",
 		"ptrace.tracee.tid",
 		"ptrace.tracee.tty_name",
 		"ptrace.tracee.uid",
 		"ptrace.tracee.user",
+		"ptrace.tracee.user_session.k8s_groups",
+		"ptrace.tracee.user_session.k8s_uid",
+		"ptrace.tracee.user_session.k8s_username",
 		"removexattr.file.change_time",
 		"removexattr.file.destination.name",
 		"removexattr.file.destination.namespace",
@@ -16693,6 +17149,9 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.tty_name",
 		"signal.target.ancestors.uid",
 		"signal.target.ancestors.user",
+		"signal.target.ancestors.user_session.k8s_groups",
+		"signal.target.ancestors.user_session.k8s_uid",
+		"signal.target.ancestors.user_session.k8s_username",
 		"signal.target.args",
 		"signal.target.args_flags",
 		"signal.target.args_options",
@@ -16831,12 +17290,18 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.tty_name",
 		"signal.target.parent.uid",
 		"signal.target.parent.user",
+		"signal.target.parent.user_session.k8s_groups",
+		"signal.target.parent.user_session.k8s_uid",
+		"signal.target.parent.user_session.k8s_username",
 		"signal.target.pid",
 		"signal.target.ppid",
 		"signal.target.tid",
 		"signal.target.tty_name",
 		"signal.target.uid",
 		"signal.target.user",
+		"signal.target.user_session.k8s_groups",
+		"signal.target.user_session.k8s_uid",
+		"signal.target.user_session.k8s_username",
 		"signal.type",
 		"splice.file.change_time",
 		"splice.file.filesystem",
@@ -17316,6 +17781,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exec.Process.Credentials.UID), nil
 	case "exec.user":
 		return ev.Exec.Process.Credentials.User, nil
+	case "exec.user_session.k8s_groups":
+		return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exec.Process.UserSession), nil
+	case "exec.user_session.k8s_uid":
+		return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exec.Process.UserSession), nil
+	case "exec.user_session.k8s_username":
+		return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exec.Process.UserSession), nil
 	case "exit.args":
 		return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exit.Process), nil
 	case "exit.args_flags":
@@ -17572,6 +18043,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Exit.Process.Credentials.UID), nil
 	case "exit.user":
 		return ev.Exit.Process.Credentials.User, nil
+	case "exit.user_session.k8s_groups":
+		return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exit.Process.UserSession), nil
+	case "exit.user_session.k8s_uid":
+		return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exit.Process.UserSession), nil
+	case "exit.user_session.k8s_username":
+		return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession), nil
 	case "link.file.change_time":
 		return int(ev.Link.Source.FileFields.CTime), nil
 	case "link.file.destination.change_time":
@@ -17813,23 +18290,23 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "mprotect.vm_protection":
 		return ev.MProtect.VMProtection, nil
 	case "network.destination.ip":
-		return ev.BaseEvent.NetworkContext.Destination.IPNet, nil
+		return ev.NetworkContext.Destination.IPNet, nil
 	case "network.destination.port":
-		return int(ev.BaseEvent.NetworkContext.Destination.Port), nil
+		return int(ev.NetworkContext.Destination.Port), nil
 	case "network.device.ifindex":
-		return int(ev.BaseEvent.NetworkContext.Device.IfIndex), nil
+		return int(ev.NetworkContext.Device.IfIndex), nil
 	case "network.device.ifname":
-		return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.BaseEvent.NetworkContext.Device), nil
+		return ev.FieldHandlers.ResolveNetworkDeviceIfName(ev, &ev.NetworkContext.Device), nil
 	case "network.l3_protocol":
-		return int(ev.BaseEvent.NetworkContext.L3Protocol), nil
+		return int(ev.NetworkContext.L3Protocol), nil
 	case "network.l4_protocol":
-		return int(ev.BaseEvent.NetworkContext.L4Protocol), nil
+		return int(ev.NetworkContext.L4Protocol), nil
 	case "network.size":
-		return int(ev.BaseEvent.NetworkContext.Size), nil
+		return int(ev.NetworkContext.Size), nil
 	case "network.source.ip":
-		return ev.BaseEvent.NetworkContext.Source.IPNet, nil
+		return ev.NetworkContext.Source.IPNet, nil
 	case "network.source.port":
-		return int(ev.BaseEvent.NetworkContext.Source.Port), nil
+		return int(ev.NetworkContext.Source.Port), nil
 	case "open.file.change_time":
 		return int(ev.Open.File.FileFields.CTime), nil
 	case "open.file.destination.mode":
@@ -18740,6 +19217,42 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "process.ancestors.user_session.k8s_groups":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+			values = append(values, result...)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.user_session.k8s_uid":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.user_session.k8s_username":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "process.args":
 		return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.args_flags":
@@ -19436,6 +19949,21 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.BaseEvent.ProcessContext.Parent.Credentials.User, nil
+	case "process.parent.user_session.k8s_groups":
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return []string{}, &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession), nil
+	case "process.parent.user_session.k8s_uid":
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return "", &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession), nil
+	case "process.parent.user_session.k8s_username":
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return "", &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession), nil
 	case "process.pid":
 		return int(ev.BaseEvent.ProcessContext.Process.PIDContext.Pid), nil
 	case "process.ppid":
@@ -19448,6 +19976,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.BaseEvent.ProcessContext.Process.Credentials.UID), nil
 	case "process.user":
 		return ev.BaseEvent.ProcessContext.Process.Credentials.User, nil
+	case "process.user_session.k8s_groups":
+		return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Process.UserSession), nil
+	case "process.user_session.k8s_uid":
+		return ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Process.UserSession), nil
+	case "process.user_session.k8s_username":
+		return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession), nil
 	case "ptrace.request":
 		return int(ev.PTrace.Request), nil
 	case "ptrace.retval":
@@ -20316,6 +20850,42 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "ptrace.tracee.ancestors.user_session.k8s_groups":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+			values = append(values, result...)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.user_session.k8s_uid":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "ptrace.tracee.ancestors.user_session.k8s_username":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "ptrace.tracee.args":
 		return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.PTrace.Tracee.Process), nil
 	case "ptrace.tracee.args_flags":
@@ -21012,6 +21582,21 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.PTrace.Tracee.Parent.Credentials.User, nil
+	case "ptrace.tracee.parent.user_session.k8s_groups":
+		if !ev.PTrace.Tracee.HasParent() {
+			return []string{}, &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Parent.UserSession), nil
+	case "ptrace.tracee.parent.user_session.k8s_uid":
+		if !ev.PTrace.Tracee.HasParent() {
+			return "", &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Parent.UserSession), nil
+	case "ptrace.tracee.parent.user_session.k8s_username":
+		if !ev.PTrace.Tracee.HasParent() {
+			return "", &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Parent.UserSession), nil
 	case "ptrace.tracee.pid":
 		return int(ev.PTrace.Tracee.Process.PIDContext.Pid), nil
 	case "ptrace.tracee.ppid":
@@ -21024,6 +21609,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.PTrace.Tracee.Process.Credentials.UID), nil
 	case "ptrace.tracee.user":
 		return ev.PTrace.Tracee.Process.Credentials.User, nil
+	case "ptrace.tracee.user_session.k8s_groups":
+		return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Process.UserSession), nil
+	case "ptrace.tracee.user_session.k8s_uid":
+		return ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Process.UserSession), nil
+	case "ptrace.tracee.user_session.k8s_username":
+		return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Process.UserSession), nil
 	case "removexattr.file.change_time":
 		return int(ev.RemoveXAttr.File.FileFields.CTime), nil
 	case "removexattr.file.destination.name":
@@ -22140,6 +22731,42 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			ptr = iterator.Next()
 		}
 		return values, nil
+	case "signal.target.ancestors.user_session.k8s_groups":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+			values = append(values, result...)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.user_session.k8s_uid":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "signal.target.ancestors.user_session.k8s_username":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
 	case "signal.target.args":
 		return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.Signal.Target.Process), nil
 	case "signal.target.args_flags":
@@ -22836,6 +23463,21 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
 		return ev.Signal.Target.Parent.Credentials.User, nil
+	case "signal.target.parent.user_session.k8s_groups":
+		if !ev.Signal.Target.HasParent() {
+			return []string{}, &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Parent.UserSession), nil
+	case "signal.target.parent.user_session.k8s_uid":
+		if !ev.Signal.Target.HasParent() {
+			return "", &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Parent.UserSession), nil
+	case "signal.target.parent.user_session.k8s_username":
+		if !ev.Signal.Target.HasParent() {
+			return "", &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Parent.UserSession), nil
 	case "signal.target.pid":
 		return int(ev.Signal.Target.Process.PIDContext.Pid), nil
 	case "signal.target.ppid":
@@ -22848,6 +23490,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Signal.Target.Process.Credentials.UID), nil
 	case "signal.target.user":
 		return ev.Signal.Target.Process.Credentials.User, nil
+	case "signal.target.user_session.k8s_groups":
+		return ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Process.UserSession), nil
+	case "signal.target.user_session.k8s_uid":
+		return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Process.UserSession), nil
+	case "signal.target.user_session.k8s_username":
+		return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Process.UserSession), nil
 	case "signal.type":
 		return int(ev.Signal.Type), nil
 	case "splice.file.change_time":
@@ -23285,6 +23933,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "exec", nil
 	case "exec.user":
 		return "exec", nil
+	case "exec.user_session.k8s_groups":
+		return "exec", nil
+	case "exec.user_session.k8s_uid":
+		return "exec", nil
+	case "exec.user_session.k8s_username":
+		return "exec", nil
 	case "exit.args":
 		return "exit", nil
 	case "exit.args_flags":
@@ -23432,6 +24086,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exit.uid":
 		return "exit", nil
 	case "exit.user":
+		return "exit", nil
+	case "exit.user_session.k8s_groups":
+		return "exit", nil
+	case "exit.user_session.k8s_uid":
+		return "exit", nil
+	case "exit.user_session.k8s_username":
 		return "exit", nil
 	case "link.file.change_time":
 		return "link", nil
@@ -23881,6 +24541,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.ancestors.user":
 		return "*", nil
+	case "process.ancestors.user_session.k8s_groups":
+		return "*", nil
+	case "process.ancestors.user_session.k8s_uid":
+		return "*", nil
+	case "process.ancestors.user_session.k8s_username":
+		return "*", nil
 	case "process.args":
 		return "*", nil
 	case "process.args_flags":
@@ -24157,6 +24823,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.parent.user":
 		return "*", nil
+	case "process.parent.user_session.k8s_groups":
+		return "*", nil
+	case "process.parent.user_session.k8s_uid":
+		return "*", nil
+	case "process.parent.user_session.k8s_username":
+		return "*", nil
 	case "process.pid":
 		return "*", nil
 	case "process.ppid":
@@ -24168,6 +24840,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.uid":
 		return "*", nil
 	case "process.user":
+		return "*", nil
+	case "process.user_session.k8s_groups":
+		return "*", nil
+	case "process.user_session.k8s_uid":
+		return "*", nil
+	case "process.user_session.k8s_username":
 		return "*", nil
 	case "ptrace.request":
 		return "ptrace", nil
@@ -24316,6 +24994,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.ancestors.uid":
 		return "ptrace", nil
 	case "ptrace.tracee.ancestors.user":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.user_session.k8s_groups":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.user_session.k8s_uid":
+		return "ptrace", nil
+	case "ptrace.tracee.ancestors.user_session.k8s_username":
 		return "ptrace", nil
 	case "ptrace.tracee.args":
 		return "ptrace", nil
@@ -24593,6 +25277,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "ptrace", nil
 	case "ptrace.tracee.parent.user":
 		return "ptrace", nil
+	case "ptrace.tracee.parent.user_session.k8s_groups":
+		return "ptrace", nil
+	case "ptrace.tracee.parent.user_session.k8s_uid":
+		return "ptrace", nil
+	case "ptrace.tracee.parent.user_session.k8s_username":
+		return "ptrace", nil
 	case "ptrace.tracee.pid":
 		return "ptrace", nil
 	case "ptrace.tracee.ppid":
@@ -24604,6 +25294,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "ptrace.tracee.uid":
 		return "ptrace", nil
 	case "ptrace.tracee.user":
+		return "ptrace", nil
+	case "ptrace.tracee.user_session.k8s_groups":
+		return "ptrace", nil
+	case "ptrace.tracee.user_session.k8s_uid":
+		return "ptrace", nil
+	case "ptrace.tracee.user_session.k8s_username":
 		return "ptrace", nil
 	case "removexattr.file.change_time":
 		return "removexattr", nil
@@ -25001,6 +25697,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.ancestors.user":
 		return "signal", nil
+	case "signal.target.ancestors.user_session.k8s_groups":
+		return "signal", nil
+	case "signal.target.ancestors.user_session.k8s_uid":
+		return "signal", nil
+	case "signal.target.ancestors.user_session.k8s_username":
+		return "signal", nil
 	case "signal.target.args":
 		return "signal", nil
 	case "signal.target.args_flags":
@@ -25277,6 +25979,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "signal", nil
 	case "signal.target.parent.user":
 		return "signal", nil
+	case "signal.target.parent.user_session.k8s_groups":
+		return "signal", nil
+	case "signal.target.parent.user_session.k8s_uid":
+		return "signal", nil
+	case "signal.target.parent.user_session.k8s_username":
+		return "signal", nil
 	case "signal.target.pid":
 		return "signal", nil
 	case "signal.target.ppid":
@@ -25288,6 +25996,12 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "signal.target.uid":
 		return "signal", nil
 	case "signal.target.user":
+		return "signal", nil
+	case "signal.target.user_session.k8s_groups":
+		return "signal", nil
+	case "signal.target.user_session.k8s_uid":
+		return "signal", nil
+	case "signal.target.user_session.k8s_username":
 		return "signal", nil
 	case "signal.type":
 		return "signal", nil
@@ -25726,6 +26440,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.user":
 		return reflect.String, nil
+	case "exec.user_session.k8s_groups":
+		return reflect.String, nil
+	case "exec.user_session.k8s_uid":
+		return reflect.String, nil
+	case "exec.user_session.k8s_username":
+		return reflect.String, nil
 	case "exit.args":
 		return reflect.String, nil
 	case "exit.args_flags":
@@ -25873,6 +26593,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exit.uid":
 		return reflect.Int, nil
 	case "exit.user":
+		return reflect.String, nil
+	case "exit.user_session.k8s_groups":
+		return reflect.String, nil
+	case "exit.user_session.k8s_uid":
+		return reflect.String, nil
+	case "exit.user_session.k8s_username":
 		return reflect.String, nil
 	case "link.file.change_time":
 		return reflect.Int, nil
@@ -26322,6 +27048,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.user":
 		return reflect.String, nil
+	case "process.ancestors.user_session.k8s_groups":
+		return reflect.String, nil
+	case "process.ancestors.user_session.k8s_uid":
+		return reflect.String, nil
+	case "process.ancestors.user_session.k8s_username":
+		return reflect.String, nil
 	case "process.args":
 		return reflect.String, nil
 	case "process.args_flags":
@@ -26598,6 +27330,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.parent.user":
 		return reflect.String, nil
+	case "process.parent.user_session.k8s_groups":
+		return reflect.String, nil
+	case "process.parent.user_session.k8s_uid":
+		return reflect.String, nil
+	case "process.parent.user_session.k8s_username":
+		return reflect.String, nil
 	case "process.pid":
 		return reflect.Int, nil
 	case "process.ppid":
@@ -26609,6 +27347,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.uid":
 		return reflect.Int, nil
 	case "process.user":
+		return reflect.String, nil
+	case "process.user_session.k8s_groups":
+		return reflect.String, nil
+	case "process.user_session.k8s_uid":
+		return reflect.String, nil
+	case "process.user_session.k8s_username":
 		return reflect.String, nil
 	case "ptrace.request":
 		return reflect.Int, nil
@@ -26757,6 +27501,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "ptrace.tracee.ancestors.uid":
 		return reflect.Int, nil
 	case "ptrace.tracee.ancestors.user":
+		return reflect.String, nil
+	case "ptrace.tracee.ancestors.user_session.k8s_groups":
+		return reflect.String, nil
+	case "ptrace.tracee.ancestors.user_session.k8s_uid":
+		return reflect.String, nil
+	case "ptrace.tracee.ancestors.user_session.k8s_username":
 		return reflect.String, nil
 	case "ptrace.tracee.args":
 		return reflect.String, nil
@@ -27034,6 +27784,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "ptrace.tracee.parent.user":
 		return reflect.String, nil
+	case "ptrace.tracee.parent.user_session.k8s_groups":
+		return reflect.String, nil
+	case "ptrace.tracee.parent.user_session.k8s_uid":
+		return reflect.String, nil
+	case "ptrace.tracee.parent.user_session.k8s_username":
+		return reflect.String, nil
 	case "ptrace.tracee.pid":
 		return reflect.Int, nil
 	case "ptrace.tracee.ppid":
@@ -27045,6 +27801,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "ptrace.tracee.uid":
 		return reflect.Int, nil
 	case "ptrace.tracee.user":
+		return reflect.String, nil
+	case "ptrace.tracee.user_session.k8s_groups":
+		return reflect.String, nil
+	case "ptrace.tracee.user_session.k8s_uid":
+		return reflect.String, nil
+	case "ptrace.tracee.user_session.k8s_username":
 		return reflect.String, nil
 	case "removexattr.file.change_time":
 		return reflect.Int, nil
@@ -27442,6 +28204,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.ancestors.user":
 		return reflect.String, nil
+	case "signal.target.ancestors.user_session.k8s_groups":
+		return reflect.String, nil
+	case "signal.target.ancestors.user_session.k8s_uid":
+		return reflect.String, nil
+	case "signal.target.ancestors.user_session.k8s_username":
+		return reflect.String, nil
 	case "signal.target.args":
 		return reflect.String, nil
 	case "signal.target.args_flags":
@@ -27718,6 +28486,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "signal.target.parent.user":
 		return reflect.String, nil
+	case "signal.target.parent.user_session.k8s_groups":
+		return reflect.String, nil
+	case "signal.target.parent.user_session.k8s_uid":
+		return reflect.String, nil
+	case "signal.target.parent.user_session.k8s_username":
+		return reflect.String, nil
 	case "signal.target.pid":
 		return reflect.Int, nil
 	case "signal.target.ppid":
@@ -27729,6 +28503,12 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "signal.target.uid":
 		return reflect.Int, nil
 	case "signal.target.user":
+		return reflect.String, nil
+	case "signal.target.user_session.k8s_groups":
+		return reflect.String, nil
+	case "signal.target.user_session.k8s_uid":
+		return reflect.String, nil
+	case "signal.target.user_session.k8s_username":
 		return reflect.String, nil
 	case "signal.type":
 		return reflect.Int, nil
@@ -29117,6 +29897,39 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Exec.Process.Credentials.User = rv
 		return nil
+	case "exec.user_session.k8s_groups":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Exec.Process.UserSession.K8SGroups = append(ev.Exec.Process.UserSession.K8SGroups, rv)
+		case []string:
+			ev.Exec.Process.UserSession.K8SGroups = append(ev.Exec.Process.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.UserSession.K8SGroups"}
+		}
+		return nil
+	case "exec.user_session.k8s_uid":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.UserSession.K8SUID"}
+		}
+		ev.Exec.Process.UserSession.K8SUID = rv
+		return nil
+	case "exec.user_session.k8s_username":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.UserSession.K8SUsername"}
+		}
+		ev.Exec.Process.UserSession.K8SUsername = rv
+		return nil
 	case "exit.args":
 		if ev.Exit.Process == nil {
 			ev.Exit.Process = &Process{}
@@ -29851,6 +30664,39 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.Credentials.User"}
 		}
 		ev.Exit.Process.Credentials.User = rv
+		return nil
+	case "exit.user_session.k8s_groups":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Exit.Process.UserSession.K8SGroups = append(ev.Exit.Process.UserSession.K8SGroups, rv)
+		case []string:
+			ev.Exit.Process.UserSession.K8SGroups = append(ev.Exit.Process.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.UserSession.K8SGroups"}
+		}
+		return nil
+	case "exit.user_session.k8s_uid":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.UserSession.K8SUID"}
+		}
+		ev.Exit.Process.UserSession.K8SUID = rv
+		return nil
+	case "exit.user_session.k8s_username":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.UserSession.K8SUsername"}
+		}
+		ev.Exit.Process.UserSession.K8SUsername = rv
 		return nil
 	case "link.file.change_time":
 		rv, ok := value.(int)
@@ -30663,65 +31509,65 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 	case "network.destination.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Destination.IPNet"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.IPNet"}
 		}
-		ev.BaseEvent.NetworkContext.Destination.IPNet = rv
+		ev.NetworkContext.Destination.IPNet = rv
 		return nil
 	case "network.destination.port":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Destination.Port"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Destination.Port"}
 		}
-		ev.BaseEvent.NetworkContext.Destination.Port = uint16(rv)
+		ev.NetworkContext.Destination.Port = uint16(rv)
 		return nil
 	case "network.device.ifindex":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Device.IfIndex"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfIndex"}
 		}
-		ev.BaseEvent.NetworkContext.Device.IfIndex = uint32(rv)
+		ev.NetworkContext.Device.IfIndex = uint32(rv)
 		return nil
 	case "network.device.ifname":
 		rv, ok := value.(string)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Device.IfName"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Device.IfName"}
 		}
-		ev.BaseEvent.NetworkContext.Device.IfName = rv
+		ev.NetworkContext.Device.IfName = rv
 		return nil
 	case "network.l3_protocol":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.L3Protocol"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L3Protocol"}
 		}
-		ev.BaseEvent.NetworkContext.L3Protocol = uint16(rv)
+		ev.NetworkContext.L3Protocol = uint16(rv)
 		return nil
 	case "network.l4_protocol":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.L4Protocol"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.L4Protocol"}
 		}
-		ev.BaseEvent.NetworkContext.L4Protocol = uint16(rv)
+		ev.NetworkContext.L4Protocol = uint16(rv)
 		return nil
 	case "network.size":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Size"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Size"}
 		}
-		ev.BaseEvent.NetworkContext.Size = uint32(rv)
+		ev.NetworkContext.Size = uint32(rv)
 		return nil
 	case "network.source.ip":
 		rv, ok := value.(net.IPNet)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Source.IPNet"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.IPNet"}
 		}
-		ev.BaseEvent.NetworkContext.Source.IPNet = rv
+		ev.NetworkContext.Source.IPNet = rv
 		return nil
 	case "network.source.port":
 		rv, ok := value.(int)
 		if !ok {
-			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.NetworkContext.Source.Port"}
+			return &eval.ErrValueTypeMismatch{Field: "NetworkContext.Source.Port"}
 		}
-		ev.BaseEvent.NetworkContext.Source.Port = uint16(rv)
+		ev.NetworkContext.Source.Port = uint16(rv)
 		return nil
 	case "open.file.change_time":
 		rv, ok := value.(int)
@@ -31813,6 +32659,48 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User"}
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.User = rv
+		return nil
+	case "process.ancestors.user_session.k8s_groups":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SGroups = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SGroups, rv)
+		case []string:
+			ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SGroups = append(ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SGroups"}
+		}
+		return nil
+	case "process.ancestors.user_session.k8s_uid":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUID"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUID = rv
+		return nil
+	case "process.ancestors.user_session.k8s_username":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUsername"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.UserSession.K8SUsername = rv
 		return nil
 	case "process.args":
 		if ev.BaseEvent.ProcessContext == nil {
@@ -33412,6 +34300,48 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Parent.Credentials.User = rv
 		return nil
+	case "process.parent.user_session.k8s_groups":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.ProcessContext.Parent.UserSession.K8SGroups = append(ev.BaseEvent.ProcessContext.Parent.UserSession.K8SGroups, rv)
+		case []string:
+			ev.BaseEvent.ProcessContext.Parent.UserSession.K8SGroups = append(ev.BaseEvent.ProcessContext.Parent.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.UserSession.K8SGroups"}
+		}
+		return nil
+	case "process.parent.user_session.k8s_uid":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.UserSession.K8SUID"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.UserSession.K8SUID = rv
+		return nil
+	case "process.parent.user_session.k8s_username":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.UserSession.K8SUsername"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.UserSession.K8SUsername = rv
+		return nil
 	case "process.pid":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -33471,6 +34401,39 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.Credentials.User"}
 		}
 		ev.BaseEvent.ProcessContext.Process.Credentials.User = rv
+		return nil
+	case "process.user_session.k8s_groups":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.BaseEvent.ProcessContext.Process.UserSession.K8SGroups = append(ev.BaseEvent.ProcessContext.Process.UserSession.K8SGroups, rv)
+		case []string:
+			ev.BaseEvent.ProcessContext.Process.UserSession.K8SGroups = append(ev.BaseEvent.ProcessContext.Process.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.UserSession.K8SGroups"}
+		}
+		return nil
+	case "process.user_session.k8s_uid":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.UserSession.K8SUID"}
+		}
+		ev.BaseEvent.ProcessContext.Process.UserSession.K8SUID = rv
+		return nil
+	case "process.user_session.k8s_username":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.UserSession.K8SUsername"}
+		}
+		ev.BaseEvent.ProcessContext.Process.UserSession.K8SUsername = rv
 		return nil
 	case "ptrace.request":
 		rv, ok := value.(int)
@@ -34422,6 +35385,48 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User"}
 		}
 		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.User = rv
+		return nil
+	case "ptrace.tracee.ancestors.user_session.k8s_groups":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SGroups = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SGroups, rv)
+		case []string:
+			ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SGroups = append(ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SGroups"}
+		}
+		return nil
+	case "ptrace.tracee.ancestors.user_session.k8s_uid":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUID"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUID = rv
+		return nil
+	case "ptrace.tracee.ancestors.user_session.k8s_username":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Ancestor == nil {
+			ev.PTrace.Tracee.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUsername"}
+		}
+		ev.PTrace.Tracee.Ancestor.ProcessContext.Process.UserSession.K8SUsername = rv
 		return nil
 	case "ptrace.tracee.args":
 		if ev.PTrace.Tracee == nil {
@@ -36021,6 +37026,48 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.PTrace.Tracee.Parent.Credentials.User = rv
 		return nil
+	case "ptrace.tracee.parent.user_session.k8s_groups":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Parent.UserSession.K8SGroups = append(ev.PTrace.Tracee.Parent.UserSession.K8SGroups, rv)
+		case []string:
+			ev.PTrace.Tracee.Parent.UserSession.K8SGroups = append(ev.PTrace.Tracee.Parent.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.UserSession.K8SGroups"}
+		}
+		return nil
+	case "ptrace.tracee.parent.user_session.k8s_uid":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.UserSession.K8SUID"}
+		}
+		ev.PTrace.Tracee.Parent.UserSession.K8SUID = rv
+		return nil
+	case "ptrace.tracee.parent.user_session.k8s_username":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		if ev.PTrace.Tracee.Parent == nil {
+			ev.PTrace.Tracee.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Parent.UserSession.K8SUsername"}
+		}
+		ev.PTrace.Tracee.Parent.UserSession.K8SUsername = rv
+		return nil
 	case "ptrace.tracee.pid":
 		if ev.PTrace.Tracee == nil {
 			ev.PTrace.Tracee = &ProcessContext{}
@@ -36080,6 +37127,39 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.Credentials.User"}
 		}
 		ev.PTrace.Tracee.Process.Credentials.User = rv
+		return nil
+	case "ptrace.tracee.user_session.k8s_groups":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.PTrace.Tracee.Process.UserSession.K8SGroups = append(ev.PTrace.Tracee.Process.UserSession.K8SGroups, rv)
+		case []string:
+			ev.PTrace.Tracee.Process.UserSession.K8SGroups = append(ev.PTrace.Tracee.Process.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.UserSession.K8SGroups"}
+		}
+		return nil
+	case "ptrace.tracee.user_session.k8s_uid":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.UserSession.K8SUID"}
+		}
+		ev.PTrace.Tracee.Process.UserSession.K8SUID = rv
+		return nil
+	case "ptrace.tracee.user_session.k8s_username":
+		if ev.PTrace.Tracee == nil {
+			ev.PTrace.Tracee = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "PTrace.Tracee.Process.UserSession.K8SUsername"}
+		}
+		ev.PTrace.Tracee.Process.UserSession.K8SUsername = rv
 		return nil
 	case "removexattr.file.change_time":
 		rv, ok := value.(int)
@@ -37865,6 +38945,48 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.User = rv
 		return nil
+	case "signal.target.ancestors.user_session.k8s_groups":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SGroups = append(ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SGroups, rv)
+		case []string:
+			ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SGroups = append(ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SGroups"}
+		}
+		return nil
+	case "signal.target.ancestors.user_session.k8s_uid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUID"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUID = rv
+		return nil
+	case "signal.target.ancestors.user_session.k8s_username":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUsername"}
+		}
+		ev.Signal.Target.Ancestor.ProcessContext.Process.UserSession.K8SUsername = rv
+		return nil
 	case "signal.target.args":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -39463,6 +40585,48 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Signal.Target.Parent.Credentials.User = rv
 		return nil
+	case "signal.target.parent.user_session.k8s_groups":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Parent.UserSession.K8SGroups = append(ev.Signal.Target.Parent.UserSession.K8SGroups, rv)
+		case []string:
+			ev.Signal.Target.Parent.UserSession.K8SGroups = append(ev.Signal.Target.Parent.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.UserSession.K8SGroups"}
+		}
+		return nil
+	case "signal.target.parent.user_session.k8s_uid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.UserSession.K8SUID"}
+		}
+		ev.Signal.Target.Parent.UserSession.K8SUID = rv
+		return nil
+	case "signal.target.parent.user_session.k8s_username":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Parent.UserSession.K8SUsername"}
+		}
+		ev.Signal.Target.Parent.UserSession.K8SUsername = rv
+		return nil
 	case "signal.target.pid":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -39522,6 +40686,39 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.Credentials.User"}
 		}
 		ev.Signal.Target.Process.Credentials.User = rv
+		return nil
+	case "signal.target.user_session.k8s_groups":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		switch rv := value.(type) {
+		case string:
+			ev.Signal.Target.Process.UserSession.K8SGroups = append(ev.Signal.Target.Process.UserSession.K8SGroups, rv)
+		case []string:
+			ev.Signal.Target.Process.UserSession.K8SGroups = append(ev.Signal.Target.Process.UserSession.K8SGroups, rv...)
+		default:
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.UserSession.K8SGroups"}
+		}
+		return nil
+	case "signal.target.user_session.k8s_uid":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.UserSession.K8SUID"}
+		}
+		ev.Signal.Target.Process.UserSession.K8SUID = rv
+		return nil
+	case "signal.target.user_session.k8s_username":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Signal.Target.Process.UserSession.K8SUsername"}
+		}
+		ev.Signal.Target.Process.UserSession.K8SUsername = rv
 		return nil
 	case "signal.type":
 		rv, ok := value.(int)
