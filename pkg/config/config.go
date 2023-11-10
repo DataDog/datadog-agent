@@ -1214,6 +1214,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("runtime_security_config.use_secruntime_track", false)
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.endpoints.")
 	bindEnvAndSetLogsConfigKeys(config, "runtime_security_config.activity_dump.remote_storage.endpoints.")
+	config.BindEnvAndSetDefault("runtime_security_config.remote_workloadmeta", false)
 
 	// Serverless Agent
 	config.SetDefault("serverless.enabled", false)

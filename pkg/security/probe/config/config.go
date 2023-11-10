@@ -81,6 +81,9 @@ type Config struct {
 	// RemoteTaggerEnabled defines whether the remote tagger is enabled
 	RemoteTaggerEnabled bool
 
+	// RemoteWorkloadmetaStoreEnabled defines whether the remote workloadmeta store is enabled
+	RemoteWorkloadmetaStoreEnabled bool
+
 	// NOTE(safchain) need to revisit this one as it can impact multiple event consumers
 	// EnvsWithValue lists environnement variables that will be fully exported
 	EnvsWithValue []string
@@ -140,29 +143,30 @@ func NewConfig() (*Config, error) {
 	setEnv()
 
 	c := &Config{
-		Config:                       *ebpf.NewConfig(),
-		EnableKernelFilters:          getBool("enable_kernel_filters"),
-		EnableApprovers:              getBool("enable_approvers"),
-		EnableDiscarders:             getBool("enable_discarders"),
-		FlushDiscarderWindow:         getInt("flush_discarder_window"),
-		PIDCacheSize:                 getInt("pid_cache_size"),
-		StatsTagsCardinality:         getString("events_stats.tags_cardinality"),
-		CustomSensitiveWords:         getStringSlice("custom_sensitive_words"),
-		ERPCDentryResolutionEnabled:  getBool("erpc_dentry_resolution_enabled"),
-		MapDentryResolutionEnabled:   getBool("map_dentry_resolution_enabled"),
-		DentryCacheSize:              getInt("dentry_cache_size"),
-		RemoteTaggerEnabled:          getBool("remote_tagger"),
-		RuntimeMonitor:               getBool("runtime_monitor.enabled"),
-		NetworkLazyInterfacePrefixes: getStringSlice("network.lazy_interface_prefixes"),
-		NetworkClassifierPriority:    uint16(getInt("network.classifier_priority")),
-		NetworkClassifierHandle:      uint16(getInt("network.classifier_handle")),
-		EventStreamUseRingBuffer:     getBool("event_stream.use_ring_buffer"),
-		EventStreamBufferSize:        getInt("event_stream.buffer_size"),
-		EventStreamUseFentry:         getEventStreamFentryValue(),
-		EnvsWithValue:                getStringSlice("envs_with_value"),
-		NetworkEnabled:               getBool("network.enabled"),
-		StatsPollingInterval:         time.Duration(getInt("events_stats.polling_interval")) * time.Second,
-		SyscallsMonitorEnabled:       getBool("syscalls_monitor.enabled"),
+		Config:                         *ebpf.NewConfig(),
+		EnableKernelFilters:            getBool("enable_kernel_filters"),
+		EnableApprovers:                getBool("enable_approvers"),
+		EnableDiscarders:               getBool("enable_discarders"),
+		FlushDiscarderWindow:           getInt("flush_discarder_window"),
+		PIDCacheSize:                   getInt("pid_cache_size"),
+		StatsTagsCardinality:           getString("events_stats.tags_cardinality"),
+		CustomSensitiveWords:           getStringSlice("custom_sensitive_words"),
+		ERPCDentryResolutionEnabled:    getBool("erpc_dentry_resolution_enabled"),
+		MapDentryResolutionEnabled:     getBool("map_dentry_resolution_enabled"),
+		DentryCacheSize:                getInt("dentry_cache_size"),
+		RemoteTaggerEnabled:            getBool("remote_tagger"),
+		RemoteWorkloadmetaStoreEnabled: getBool("remote_workloadmeta"),
+		RuntimeMonitor:                 getBool("runtime_monitor.enabled"),
+		NetworkLazyInterfacePrefixes:   getStringSlice("network.lazy_interface_prefixes"),
+		NetworkClassifierPriority:      uint16(getInt("network.classifier_priority")),
+		NetworkClassifierHandle:        uint16(getInt("network.classifier_handle")),
+		EventStreamUseRingBuffer:       getBool("event_stream.use_ring_buffer"),
+		EventStreamBufferSize:          getInt("event_stream.buffer_size"),
+		EventStreamUseFentry:           getEventStreamFentryValue(),
+		EnvsWithValue:                  getStringSlice("envs_with_value"),
+		NetworkEnabled:                 getBool("network.enabled"),
+		StatsPollingInterval:           time.Duration(getInt("events_stats.polling_interval")) * time.Second,
+		SyscallsMonitorEnabled:         getBool("syscalls_monitor.enabled"),
 
 		// event server
 		SocketPath:       coreconfig.SystemProbe.GetString(join(evNS, "socket")),

@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/workloadmetastore"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -50,20 +51,21 @@ type Opts struct {
 
 // Resolvers holds the list of the event attribute resolvers
 type Resolvers struct {
-	manager           *manager.Manager
-	MountResolver     *mount.Resolver
-	ContainerResolver *container.Resolver
-	TimeResolver      *time.Resolver
-	UserGroupResolver *usergroup.Resolver
-	TagsResolver      tags.Resolver
-	DentryResolver    *dentry.Resolver
-	ProcessResolver   *process.Resolver
-	NamespaceResolver *netns.Resolver
-	CGroupResolver    *cgroup.Resolver
-	TCResolver        *tc.Resolver
-	PathResolver      path.ResolverInterface
-	SBOMResolver      *sbom.Resolver
-	HashResolver      *hash.Resolver
+	manager                   *manager.Manager
+	MountResolver             *mount.Resolver
+	ContainerResolver         *container.Resolver
+	TimeResolver              *time.Resolver
+	UserGroupResolver         *usergroup.Resolver
+	TagsResolver              tags.Resolver
+	DentryResolver            *dentry.Resolver
+	ProcessResolver           *process.Resolver
+	NamespaceResolver         *netns.Resolver
+	CGroupResolver            *cgroup.Resolver
+	TCResolver                *tc.Resolver
+	PathResolver              path.ResolverInterface
+	SBOMResolver              *sbom.Resolver
+	HashResolver              *hash.Resolver
+	WorkloadmetaStoreResolver workloadmetastore.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -94,12 +96,17 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		}
 	}
 
+	// TODO: Investigate removing in favor of workloadmeta store resolver
 	var tagsResolver tags.Resolver
 	if opts.TagsResolver != nil {
 		tagsResolver = opts.TagsResolver
 	} else {
 		tagsResolver = tags.NewResolver(config.Probe)
 	}
+
+	var workloadmetaStoreResolver workloadmetastore.Resolver
+	workloadmetastore.NewResolver(config.Probe)
+
 	cgroupsResolver, err := cgroup.NewResolver(tagsResolver)
 	if err != nil {
 		return nil, err
@@ -155,20 +162,21 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 	}
 
 	resolvers := &Resolvers{
-		manager:           manager,
-		MountResolver:     mountResolver,
-		ContainerResolver: containerResolver,
-		TimeResolver:      timeResolver,
-		UserGroupResolver: userGroupResolver,
-		TagsResolver:      tagsResolver,
-		DentryResolver:    dentryResolver,
-		NamespaceResolver: namespaceResolver,
-		CGroupResolver:    cgroupsResolver,
-		TCResolver:        tcResolver,
-		ProcessResolver:   processResolver,
-		PathResolver:      pathResolver,
-		SBOMResolver:      sbomResolver,
-		HashResolver:      hashResolver,
+		manager:                   manager,
+		MountResolver:             mountResolver,
+		ContainerResolver:         containerResolver,
+		TimeResolver:              timeResolver,
+		UserGroupResolver:         userGroupResolver,
+		TagsResolver:              tagsResolver,
+		DentryResolver:            dentryResolver,
+		NamespaceResolver:         namespaceResolver,
+		CGroupResolver:            cgroupsResolver,
+		TCResolver:                tcResolver,
+		ProcessResolver:           processResolver,
+		PathResolver:              pathResolver,
+		SBOMResolver:              sbomResolver,
+		HashResolver:              hashResolver,
+		WorkloadmetaStoreResolver: workloadmetaStoreResolver,
 	}
 
 	return resolvers, nil
