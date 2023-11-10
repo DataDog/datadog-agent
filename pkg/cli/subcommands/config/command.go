@@ -198,14 +198,18 @@ func getConfigValue(log log.Component, config config.Component, cliParams *cliPa
 	fmt.Printf("%s is set to: %v\n", cliParams.args[0], resp["value"])
 
 	if cliParams.source {
-		sourcesVal, ok := resp["sources_value"].(map[string]interface{})
+		sourcesVal, ok := resp["sources_value"].([]interface{})
 		if !ok {
-			return fmt.Errorf("failed to cast sources_value to map[string]interface{}")
+			return fmt.Errorf("failed to cast sources_value to []map[interface{}]interface{}")
 		}
 
 		fmt.Printf("sources and their value:\n")
-		for _, source := range resp["sources_hierarchy"].([]interface{}) {
-			fmt.Printf("  %s: %v\n", source, sourcesVal[source.(string)])
+		for _, sourceVal := range sourcesVal {
+			sourceVal, ok := sourceVal.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("failed to cast sourceVal to map[string]interface{}")
+			}
+			fmt.Printf("  %s: %v\n", sourceVal["Source"], sourceVal["Value"])
 		}
 	}
 

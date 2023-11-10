@@ -93,7 +93,7 @@ func (rc *runtimeSettingsHTTPClient) GetWithSources(key string) (map[string]inte
 		_ = json.Unmarshal(r, &errMap)
 		// If the error has been marshalled into a json object, check it and return it properly
 		if e, found := errMap["error"]; found {
-			return nil, fmt.Errorf(e)
+			return nil, fmt.Errorf("%s", e)
 		}
 		return nil, err
 	}
@@ -110,10 +110,6 @@ func (rc *runtimeSettingsHTTPClient) GetWithSources(key string) (map[string]inte
 
 	if _, found := setting["sources_value"]; !found {
 		return nil, fmt.Errorf("unable to get sources value for this setting: %v", key)
-	}
-
-	if _, found := setting["sources_hierarchy"]; !found {
-		return nil, fmt.Errorf("unable to get sources hierarchy for this setting: %v", key)
 	}
 
 	return setting, nil

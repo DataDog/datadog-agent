@@ -37,6 +37,11 @@ const (
 // sources list the known sources, following the order of hierarchy between them
 var sources = []Source{SourceDefault, SourceUnknown, SourceFile, SourceEnvVar, SourceAgentRuntime, SourceRC, SourceCLI}
 
+type valueWithSource struct {
+	Source Source
+	Value  interface{}
+}
+
 // String casts Source into a string
 func (s Source) String() string {
 	// Safeguard: if we don't know the Source, we assume SourceDefault
@@ -212,12 +217,15 @@ func (c *safeConfig) Get(key string) interface{} {
 }
 
 // GetAllSources returns the value of a key for each source
-func (c *safeConfig) GetAllSources(key string) ([]Source, map[Source]interface{}) {
-	values := make(map[Source]interface{})
-	for _, source := range sources {
-		values[source] = c.configSources[source].Get(key)
+func (c *safeConfig) GetAllSources(key string) []valueWithSource {
+	vals := make([]valueWithSource, len(sources))
+	for i, source := range sources {
+		vals[i] = valueWithSource{
+			Source: source,
+			Value:  c.configSources[source].Get(key),
+		}
 	}
-	return sources, values
+	return vals
 }
 
 // GetString wraps Viper for concurrent access

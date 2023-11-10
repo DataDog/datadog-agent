@@ -42,7 +42,7 @@ type Reader interface {
 	GetProxies() *Proxy
 
 	GetSource(key string) Source
-	GetAllSources(key string) ([]Source, map[Source]interface{})
+	GetAllSources(key string) []valueWithSource
 
 	ConfigFileUsed() string
 

@@ -134,9 +134,7 @@ func getConfigValue(w http.ResponseWriter, r *http.Request) {
 
 	resp := map[string]interface{}{"value": val}
 	if r.URL.Query().Get("sources") == "true" {
-		sourcesHierarchy, sourcesVal := config.Datadog.GetAllSources(setting)
-		resp["sources_value"] = sourcesVal
-		resp["sources_hierarchy"] = sourcesHierarchy
+		resp["sources_value"] = config.Datadog.GetAllSources(setting)
 	}
 
 	body, err := json.Marshal(resp)
@@ -148,22 +146,6 @@ func getConfigValue(w http.ResponseWriter, r *http.Request) {
 	}
 	_, _ = w.Write(body)
 }
-
-// func getConfigValueWithSources(w http.ResponseWriter, r *http.Request) {
-// 	vars := mux.Vars(r)
-// 	setting := vars["setting"]
-// 	log.Infof("Got a request to read a setting value with sources: %s", setting)
-
-// 	sourcesVal := config.Datadog.GetWithSources(setting)
-// 	body, err := json.Marshal(map[string]map[model.Source]interface{}{"sources_value": sourcesVal})
-// 	if err != nil {
-// 		log.Errorf("Unable to marshal runtime setting value response: %s", err)
-// 		body, _ := json.Marshal(map[string]string{"error": err.Error()})
-// 		http.Error(w, string(body), http.StatusInternalServerError)
-// 		return
-// 	}
-// 	_, _ = w.Write(body)
-// }
 
 func setConfigValue(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
