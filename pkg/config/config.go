@@ -1682,39 +1682,42 @@ func setupFipsEndpoints(config Config) error {
 	// The following overwrites should be sync with the documentation for the fips.enabled config setting in the
 	// config_template.yaml
 
+	fipsConfig := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
 	// Metrics
 	config.Set("dd_url", protocol+urlFor(metrics), model.SourceAgentRuntime)
 
 	// Logs
-	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
+	setupFipsLogsConfig(fipsConfig, "logs_config.", urlFor(logs))
 
 	// APM
-	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), model.SourceAgentRuntime)
+	fipsConfig.Set("apm_config.apm_dd_url", protocol+urlFor(traces), model.SourceAgentRuntime)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", model.SourceAgentRuntime)
-	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), model.SourceAgentRuntime)
+	fipsConfig.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", model.SourceAgentRuntime)
+	fipsConfig.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), model.SourceAgentRuntime)
 
 	// Processes
-	config.Set("process_config.process_dd_url", protocol+urlFor(processes), model.SourceAgentRuntime)
+	fipsConfig.Set("process_config.process_dd_url", protocol+urlFor(processes), model.SourceAgentRuntime)
 
 	// Database monitoring
 	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
 	// (even though the underlying IPs were the same as the ones for DBM metrics intake hostname). We're keeping 2 ports for backward compatibility reason.
-	setupFipsLogsConfig(config, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
-	setupFipsLogsConfig(config, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
-	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
+	setupFipsLogsConfig(fipsConfig, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(fipsConfig, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(fipsConfig, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
 	// Network devices
-	setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
-	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
-	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
+	//setupFipsLogsConfig(fipsConfig, "network_devices.metadata.", urlFor(networkDevicesMetadata))
+	setupFipsLogsConfig(fipsConfig, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
+	setupFipsLogsConfig(fipsConfig, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
 	// Orchestrator Explorer
-	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), model.SourceAgentRuntime)
+	fipsConfig.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), model.SourceAgentRuntime)
 
 	// CWS
-	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
+	setupFipsLogsConfig(fipsConfig, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
 
+	// Merge the configurations
+	config.MergeConfigMap(fipsConfig.AllSettings())
 	return nil
 }
 
