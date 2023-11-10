@@ -19,8 +19,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -49,7 +49,7 @@ type dependencies struct {
 
 	// Logs Agent component, used to send integration logs
 	// It is optional because the Logs Agent can be disabled
-	LogsComponent util.Optional[agent.Component]
+	LogsComponent optional.Option[agent.Component]
 
 	// Datadog Agent logs component, used to log to the Agent logs
 	Log       log.Component
@@ -57,9 +57,9 @@ type dependencies struct {
 }
 
 type registryValueCfg struct {
-	Name         string                 `yaml:"name"` // The metric name of the registry value
-	DefaultValue util.Optional[float64] `yaml:"default_value"`
-	Mappings     []map[string]float64   `yaml:"mapping"`
+	Name         string                   `yaml:"name"` // The metric name of the registry value
+	DefaultValue optional.Option[float64] `yaml:"default_value"`
+	Mappings     []map[string]float64     `yaml:"mapping"`
 }
 
 type registryKeyCfg struct {
@@ -70,12 +70,12 @@ type registryKeyCfg struct {
 // checkCfg is the config that is specific to each check instance
 type checkCfg struct {
 	RegistryKeys map[string]registryKeyCfg `yaml:"registry_keys"`
-	SendOnStart  util.Optional[bool]       `yaml:"send_on_start"`
+	SendOnStart  optional.Option[bool]     `yaml:"send_on_start"`
 }
 
 // checkInitCfg is the config that is common to all check instances
 type checkInitCfg struct {
-	SendOnStart util.Optional[bool] `yaml:"send_on_start"`
+	SendOnStart optional.Option[bool] `yaml:"send_on_start"`
 }
 
 // registryKey is the in-memory representation of the key to monitor
