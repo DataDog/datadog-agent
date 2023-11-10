@@ -25,7 +25,7 @@ func HostNodeName(ctx context.Context) (string, error) {
 	}
 	podName, err := common.GetSelfPodName()
 	if err != nil {
-		return "", fmt.Errorf("could not fetch our hostname: %s", err)
+		return "", fmt.Errorf("could not fetch our self pod name: %w", err)
 	}
 
 	nodeName, err := c.GetNodeForPod(ctx, common.GetMyNamespace(), podName)
