@@ -128,15 +128,15 @@ func (ci *CWSInstrumentation) InjectCWSCommandInstrumentation(rawPodExecOptions 
 func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodExecOptions, name string, ns string, userInfo *authenticationv1.UserInfo, _ dynamic.Interface, apiClient kubernetes.Interface) error {
 	var injected bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.CWSExecInstrumentation, strconv.FormatBool(injected), "")
+		metrics.MutationAttempts.Inc(metrics.CWSExecInstrumentation, strconv.FormatBool(injected), "", "")
 	}()
 
 	if exec == nil || userInfo == nil {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "nil exec or user info", "")
+		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "nil exec or user info", "", "")
 		return fmt.Errorf("cannot inject CWS instrumentation into nil exec options or nil userInfo")
 	}
 	if len(exec.Command) == 0 {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "empty command", "")
+		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "empty command", "", "")
 		return nil
 	}
 
@@ -148,7 +148,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	// check if the pod has been instrumented
 	pod, err := apiClient.CoreV1().Pods(ns).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil || pod == nil {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot get pod", "")
+		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot get pod", "", "")
 		return fmt.Errorf("couldn't describe pod %s in namespace %s from the API server: %w", name, ns, err)
 	}
 
@@ -167,7 +167,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	// prepare the user session context
 	userSessionCtx, err := usersessions.PrepareK8SUserSessionContext(userInfo, cwsUserSessionDataMaxSize)
 	if err != nil {
-		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot serialize user info", "")
+		metrics.MutationErrors.Inc(metrics.CWSExecInstrumentation, "cannot serialize user info", "", "")
 		log.Debugf("ignoring instrumentation of %s: %v", podString(pod), err)
 		return err
 	}
@@ -214,11 +214,11 @@ func (ci *CWSInstrumentation) InjectCWSPodInstrumentation(rawPod []byte, _ strin
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) error {
 	var injected bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.CWSPodInstrumentation, strconv.FormatBool(injected), "")
+		metrics.MutationAttempts.Inc(metrics.CWSPodInstrumentation, strconv.FormatBool(injected), "", "")
 	}()
 
 	if pod == nil {
-		metrics.MutationErrors.Inc(metrics.CWSPodInstrumentation, "nil pod", "")
+		metrics.MutationErrors.Inc(metrics.CWSPodInstrumentation, "nil pod", "", "")
 		return fmt.Errorf("cannot inject CWS instrumentation into nil pod")
 	}
 
