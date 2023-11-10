@@ -1177,28 +1177,15 @@ def send_unit_tests_stats(_, job_name):
     fast_success = True
     classic_success = True
 
-    n_test_classic = 0
-    n_test_fast = 0
     series = []
 
-    with open("test_output.json", "r") as f:
-        for line in f:
-            json_line = json.loads(line)
-            if json_line["Action"] == "fail":
-                classic_success = False
-                n_test_classic += 1
-            if json_line["Action"] == "pass":
-                n_test_classic += 1
+    failed_tests_classic, n_test_classic = parse_test_log("test_output.json")
+    classic_success = len(failed_tests_classic) == 0
+
     # If the fast tests are not run, we don't have the output file and we consider the job successful since it did not run any test
     if os.path.isfile("test_output_fast.json"):
-        with open("test_output_fast.json", "r") as f:
-            for line in f:
-                json_line = json.loads(line)
-                if json_line["Action"] == "fail":
-                    fast_success = False
-                    n_test_fast += 1
-                if json_line["Action"] == "pass":
-                    n_test_fast += 1
+        failed_tests_fast, n_test_fast = parse_test_log("test_output_fast.json")
+        fast_success = len(failed_tests_fast) == 0
     else:
         print("test_output_fast.json not found, assuming no tests were run")
 
@@ -1278,3 +1265,20 @@ def send_unit_tests_stats(_, job_name):
     )
 
     send_metrics(series)
+
+
+def parse_test_log(log_file):
+    failed_tests = []
+    n_test_executed = 0
+    with open(log_file, "r") as f:
+        for line in f:
+            json_line = json.loads(line)
+            if json_line["Action"] == "fail" and "Test" in json_line:
+                n_test_executed += 1
+                failed_tests.append(json_line["Package"] + "/" + json_line["Test"])
+            if json_line["Action"] == "pass" and "Test" in json_line:
+                n_test_executed += 1
+                if json_line["Package"] + "/" + json_line["Test"] in failed_tests:
+                    failed_tests.remove(json_line["Package"] + "/" + json_line["Test"])
+
+    return failed_tests, n_test_executed
