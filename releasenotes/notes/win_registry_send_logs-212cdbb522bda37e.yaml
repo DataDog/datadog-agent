@@ -1,4 +1,0 @@
----
-features:
-  - |
-    The Windows Registry integration can now send the registry values as logs.
