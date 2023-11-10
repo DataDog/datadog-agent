@@ -9,6 +9,7 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
+	flowmessage "github.com/netsampler/goflow2/pb"
 	"hash/fnv"
 )
 
@@ -66,7 +67,65 @@ type Flow struct {
 	Tos uint32 // FLOW KEY
 
 	NextHop []byte // FLOW KEY
+
+	// Configured fields
+	AdditionalFields AdditionalFields
 }
+
+// AdditionalFields holds additional fields collected
+type AdditionalFields = map[string]any
+
+// FlowMessageWithAdditionalFields contains a goflow flowmessage and additional fields
+type FlowMessageWithAdditionalFields struct {
+	*flowmessage.FlowMessage
+	AdditionalFields AdditionalFields
+}
+
+// EndianType is used to configure additional fields endianness
+type EndianType string
+
+var (
+	// BigEndian is used to configure a big endian additional field
+	BigEndian EndianType = "big"
+	// LittleEndian is used to configure a little endian additional field
+	LittleEndian EndianType = "little"
+)
+
+// FieldType is used to configure additional fields data type
+type FieldType string
+
+var (
+	// String type is used to configure a textual additional field
+	String FieldType = "string"
+	// Varint type is used to configure an integer additional field
+	Varint FieldType = "varint"
+	// Bytes type is used to configure a hex additional field
+	Bytes FieldType = "bytes"
+	// DefaultFieldTypes contains types for default payload fields
+	DefaultFieldTypes = map[string]FieldType{
+		"direction":         Varint,
+		"start":             Varint,
+		"end":               Varint,
+		"bytes":             Varint,
+		"packets":           Varint,
+		"ether_type":        Varint,
+		"ip_protocol":       Varint,
+		"exporter.ip":       Bytes,
+		"source.ip":         Bytes,
+		"source.port":       Varint,
+		"source.mac":        Varint,
+		"source.mask":       Varint,
+		"destination.ip":    Bytes,
+		"destination.port":  Varint,
+		"destination.mac":   Varint,
+		"destination.mask":  Varint,
+		"ingress.interface": Varint,
+		"egress.interface":  Varint,
+		"tcp_flags":         Varint,
+		"next_hop.ip":       Bytes,
+		"tos":               Varint,
+	}
+)
 
 // AggregationHash return a hash used as aggregation key
 func (f *Flow) AggregationHash() uint64 {
