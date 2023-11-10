@@ -17,16 +17,6 @@ import (
 
 const invalidLagValue = 10000000
 
-func fixTags(c *Check) {
-	c.tags = make([]string, len(c.tagsWithoutDbRole))
-	copy(c.tags, c.tagsWithoutDbRole)
-	if c.databaseRole != "" {
-		roleTag := strings.ToLower(strings.ReplaceAll(string(c.databaseRole), " ", "_"))
-		c.tags = append(c.tags, "database_role:"+roleTag)
-	}
-	c.tagsString = strings.Join(c.tags, ",")
-}
-
 type dataguardStats struct {
 	Name  string          `db:"NAME"`
 	Value sql.NullFloat64 `db:"VALUE"`
@@ -39,7 +29,7 @@ func (c *Check) dataGuard() error {
 	var n uint16
 	err := getWrapper(c, &n, "SELECT 1 n FROM v$dataguard_config WHERE ROWNUM = 1")
 	if err != nil {
-		return fmt.Errorf("failed to query v$dataguard_config %w", err)
+		return fmt.Errorf("%s failed to query v$dataguard_config %w", c.logPrompt, err)
 	}
 	if n != 1 {
 		return nil
@@ -47,11 +37,10 @@ func (c *Check) dataGuard() error {
 	var d vDatabase
 	err = getWrapper(c, &d, "SELECT database_role, open_mode FROM v$database")
 	if err != nil {
-		return fmt.Errorf("failed to query database role")
+		return fmt.Errorf("%s failed to query database role %w", c.logPrompt)
 	}
 	c.databaseRole = d.DatabaseRole
 	c.openMode = d.OpenMode
-	fixTags(c)
 
 	sender, err := c.GetSender()
 	if err != nil {

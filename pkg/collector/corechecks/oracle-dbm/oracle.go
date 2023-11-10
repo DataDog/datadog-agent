@@ -171,12 +171,14 @@ func (c *Check) Run() error {
 	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
 
 	if metricIntervalExpired {
+		log.Tracef("%s fixtags here2", c.logPrompt)
 		if c.dbmEnabled {
 			err := c.dataGuard()
 			if err != nil {
 				return err
 			}
 		}
+		fixTags(c)
 
 		err := c.OS_Stats()
 		if err != nil {
@@ -395,4 +397,14 @@ func isDbVersionLessThan(c *Check, v string) bool {
 
 func isDbVersionGreaterOrEqualThan(c *Check, v string) bool {
 	return !isDbVersionLessThan(c, v)
+}
+
+func fixTags(c *Check) {
+	c.tags = make([]string, len(c.tagsWithoutDbRole))
+	copy(c.tags, c.tagsWithoutDbRole)
+	if c.databaseRole != "" {
+		roleTag := strings.ToLower(strings.ReplaceAll(string(c.databaseRole), " ", "_"))
+		c.tags = append(c.tags, "database_role:"+roleTag)
+	}
+	c.tagsString = strings.Join(c.tags, ",")
 }

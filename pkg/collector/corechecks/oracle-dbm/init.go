@@ -134,6 +134,7 @@ func (c *Check) init() error {
 	c.hostingType = ht
 	c.tagsWithoutDbRole = make([]string, len(tags))
 	copy(c.tagsWithoutDbRole, tags)
+	copy(c.tags, tags)
 
 	c.fqtEmitted = getFqtEmittedCache()
 	c.planEmitted = getPlanEmittedCache(c)
