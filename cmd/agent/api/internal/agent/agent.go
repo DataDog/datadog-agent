@@ -556,6 +556,7 @@ func dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request, demux demulti
 	resp, err := json.Marshal(path)
 	if err != nil {
 		setJSONError(w, log.Errorf("Failed to serialize response: %v", err), 500)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -579,22 +580,10 @@ func dumpDogstatsdContextsImpl(demux demultiplexer.Component) (string, error) {
 		return "", err
 	}
 
-	err = w.Flush()
-	if err != nil {
-		c.Close()
-		f.Close()
-		return "", err
-	}
-
-	err = c.Close()
-	if err != nil {
-		f.Close()
-		return "", err
-	}
-
-	err = f.Close()
-	if err != nil {
-		return "", err
+	for _, err := range []error{ w.Flush(), c.Close(), f.Close() } {
+		if err != nil {
+			return "", err
+		}
 	}
 
 	return path, nil
