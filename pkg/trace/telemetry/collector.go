@@ -65,7 +65,7 @@ type OnboardingEventTags struct {
 	Env           string `json:"env,omitempty"`
 }
 
-var receivedErrStatusCode = fmt.Errorf("received a 4XX or 5xx error code while submitting telemetry data")
+var errReceivedUnsuccessfulStatusCode = fmt.Errorf("received a 4XX or 5xx error code while submitting telemetry data")
 
 // OnboardingEventError ...
 type OnboardingEventError struct {
@@ -155,7 +155,7 @@ func (f *telemetryCollector) sendEvent(event *OnboardingEvent) (err error) {
 		resp.Body.Close()
 
 		if resp.StatusCode >= 400 {
-			err = receivedErrStatusCode
+			err = errReceivedUnsuccessfulStatusCode
 		}
 	}
 	return err
