@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package orchestrator provides functions and stats for container orchestrators
 package orchestrator
 
 import (
