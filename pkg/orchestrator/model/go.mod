@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/orchestrator/model
 go 1.20
 
 replace github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log/
+github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber/
 
 require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.1
