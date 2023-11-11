@@ -891,7 +891,7 @@ def update_circleci_config(file_path, image_tag, test_version):
     """
     Override variables in .gitlab-ci.yml file
     """
-    image_name = "datadog/agent-buildimages-circleci-runner"
+    image_name = "gcr.io/datadoghq/agent-circleci-runner"
     with open(file_path, "r") as circle:
         circle_ci = circle.read()
     match = re.search(rf"({image_name}(_test_only)?):([a-zA-Z0-9_-]+)\n", circle_ci)
