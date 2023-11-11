@@ -8,19 +8,22 @@
 package serverimpl
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/config/configimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/formatter/formatterimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/listener/listenerimpl"
+	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver/oidresolverimpl"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/senderhelper"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/server"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/status/statusimpl"
@@ -28,24 +31,56 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-func TestStartStop(t *testing.T) {
+func TestServer(t *testing.T) {
+	confdPath, err := os.MkdirTemp("", "trapsdb")
+	require.NoError(t, err)
+	defer os.RemoveAll(confdPath)
+	snmpD := filepath.Join(confdPath, "snmp.d")
+	tdb := filepath.Join(snmpD, "traps_db")
+	require.NoError(t, os.Mkdir(snmpD, 0777))
+	require.NoError(t, os.Mkdir(tdb, 0777))
+	require.NoError(t, os.WriteFile(filepath.Join(tdb, "foo.json"), []byte{}, 0666))
 	freePort, err := ndmtestutils.GetFreePort()
 	require.NoError(t, err)
 	server := fxutil.Test[server.Component](t,
 		log.MockModule,
-		configimpl.MockModule,
-		formatterimpl.MockModule,
 		senderhelper.Opts,
-		hostnameimpl.MockModule,
+		hostnameimpl.Module,
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{
+				"confd_path":                                   confdPath,
+				"network_devices.snmp_traps.enabled":           true,
+				"network_devices.snmp_traps.port":              freePort,
+				"network_devices.snmp_traps.community_strings": []string{"public"},
+			},
+		}),
+		configimpl.Module,
+		formatterimpl.Module,
+		oidresolverimpl.Module,
 		forwarderimpl.Module,
-		statusimpl.MockModule,
+		statusimpl.Module,
 		listenerimpl.Module,
 		Module,
-		fx.Replace(&config.TrapsConfig{
-			Enabled:          true,
-			Port:             freePort,
-			CommunityStrings: []string{"public"},
-		}),
 	)
 	assert.NotEmpty(t, server)
+}
+func TestDisabled(t *testing.T) {
+	server := fxutil.Test[server.Component](t,
+		log.MockModule,
+		senderhelper.Opts,
+		fx.Replace(config.MockParams{
+			Overrides: map[string]interface{}{
+				"network_devices.snmp_traps.enabled": false,
+			},
+		}),
+		hostnameimpl.MockModule,
+		configimpl.Module,
+		formatterimpl.Module,
+		oidresolverimpl.Module,
+		forwarderimpl.Module,
+		statusimpl.Module,
+		listenerimpl.Module,
+		Module,
+	)
+	assert.NotNil(t, server)
 }

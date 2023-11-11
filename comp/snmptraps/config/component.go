@@ -11,5 +11,8 @@ package config
 
 // Component is the component type.
 type Component interface {
+	// Enabled returns true if and only if the traps server is enabled.
+	Enabled() bool
+	// Get returns the traps config, or nil if the traps server is disabled.
 	Get() *TrapsConfig
 }

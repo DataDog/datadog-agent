@@ -33,7 +33,7 @@ func newMockConfig(dep dependencies) (trapsconf.Component, error) {
 	if err := tc.SetDefaults(host, "default"); err != nil {
 		return nil, err
 	}
-	return &configService{conf: tc}, nil
+	return &configService{conf: tc, enabled: tc.Enabled}, nil
 }
 
 // MockModule provides the default config, and allows tests to override it by

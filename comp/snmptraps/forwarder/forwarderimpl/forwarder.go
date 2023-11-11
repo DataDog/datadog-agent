@@ -51,6 +51,9 @@ type dependencies struct {
 
 // newTrapForwarder creates a simple TrapForwarder instance
 func newTrapForwarder(lc fx.Lifecycle, dep dependencies) (forwarder.Component, error) {
+	if !dep.Config.Enabled() {
+		return nil, nil
+	}
 	sender, err := dep.Demux.GetDefaultSender()
 	if err != nil {
 		return nil, err
@@ -62,8 +65,7 @@ func newTrapForwarder(lc fx.Lifecycle, dep dependencies) (forwarder.Component, e
 		stopChan:  make(chan struct{}, 1),
 		logger:    dep.Logger,
 	}
-	conf := dep.Config.Get()
-	if conf.Enabled {
+	if dep.Config.Enabled() {
 		lc.Append(fx.Hook{
 			OnStart: func(ctx context.Context) error {
 				tf.Start()

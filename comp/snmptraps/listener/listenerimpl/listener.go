@@ -52,6 +52,9 @@ type dependencies struct {
 
 // newTrapListener creates a TrapListener and registers it with the lifecycle.
 func newTrapListener(lc fx.Lifecycle, dep dependencies) (listener.Component, error) {
+	if !dep.Config.Enabled() {
+		return nil, nil
+	}
 	sender, err := dep.Demux.GetDefaultSender()
 	if err != nil {
 		return nil, err

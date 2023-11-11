@@ -17,7 +17,8 @@ import (
 )
 
 type configService struct {
-	conf *trapsconf.TrapsConfig
+	enabled bool
+	conf    *trapsconf.TrapsConfig
 }
 
 // Get returns the configuration.
@@ -25,7 +26,15 @@ func (cs *configService) Get() *trapsconf.TrapsConfig {
 	return cs.conf
 }
 
+// Enabled returns whether or not the traps component is enabled.
+func (cs *configService) Enabled() bool {
+	return cs.enabled
+}
+
 func newService(conf config.Component, hnService hostname.Component) (trapsconf.Component, error) {
+	if !trapsconf.IsEnabled(conf) {
+		return &configService{false, nil}, nil
+	}
 	name, err := hnService.Get(context.Background())
 	if err != nil {
 		return nil, err
@@ -34,7 +43,7 @@ func newService(conf config.Component, hnService hostname.Component) (trapsconf.
 	if err != nil {
 		return nil, err
 	}
-	return &configService{c}, nil
+	return &configService{true, c}, nil
 }
 
 // Module defines the fx options for this component.

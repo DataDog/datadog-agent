@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	trapsconfig "github.com/DataDog/datadog-agent/comp/snmptraps/config"
 	"github.com/DataDog/datadog-agent/comp/snmptraps/oidresolver"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -55,8 +56,17 @@ type multiFilesOIDResolver struct {
 	logger log.Component
 }
 
-func newResolver(conf config.Component, logger log.Component) (oidresolver.Component, error) {
-	return newMultiFilesOIDResolver(conf.GetString("confd_path"), logger)
+type dependencies struct {
+	fx.In
+	Conf   config.Component
+	Logger log.Component
+}
+
+func newResolver(lc fx.Lifecycle, dep dependencies) (oidresolver.Component, error) {
+	if !trapsconfig.IsEnabled(dep.Conf) {
+		return nil, nil
+	}
+	return newMultiFilesOIDResolver(dep.Conf.GetString("confd_path"), dep.Logger)
 }
 
 // newMultiFilesOIDResolver creates a new MultiFilesOIDResolver instance by loading json or yaml files
