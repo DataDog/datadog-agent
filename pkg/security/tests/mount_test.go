@@ -170,6 +170,7 @@ func TestMountPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(dir1Path)
 
 	testDrivePath := path.Join(dir1Path, "test-drive")
 	if err := os.MkdirAll(testDrivePath, 0755); err != nil {
@@ -177,11 +178,10 @@ func TestMountPropagated(t *testing.T) {
 	}
 	defer os.RemoveAll(testDrivePath)
 
-	testDrive, err := newTestDrive(t, "xfs", []string{}, testDrivePath)
-	if err != nil {
+	if _, err := newTestDrive(t, "xfs", []string{}, testDrivePath); err != nil {
 		t.Fatal(err)
 	}
-	defer testDrive.Close()
+	// we do not defer close the test drive, this is done manually later
 
 	dir1BindMntPath, _, err := test.Path("dir1-bind-mounted")
 	if err != nil {
