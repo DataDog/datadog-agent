@@ -13,8 +13,6 @@
 // check when we exceed this
 #define HTTP2_MAX_FRAMES_TO_FILTER  100
 
-#define HTTP2_MAX_FRAMES_TO_FILTER_DELTA  10
-
 // A limit of max headers which we process in the request/response.
 // check when we exceed this
 #define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 25

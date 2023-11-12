@@ -533,7 +533,7 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
         interesting_frame_index = 1;
     }
 
-#pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER + HTTP2_MAX_FRAMES_TO_FILTER_DELTA)
+#pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
     for (__u32 iteration = 0; iteration < HTTP2_MAX_FRAMES_TO_FILTER; ++iteration) {
         // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
         if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
@@ -564,34 +564,8 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
         skb_info->data_off += current_frame.length;
     }
 
-    for (__u32 iteration = 0; iteration < HTTP2_MAX_FRAMES_TO_FILTER_DELTA; ++iteration) {
-        // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb.
-        if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE > skb_info->data_end) {
-            break;
-        }
-
-        bpf_skb_load_bytes(skb, skb_info->data_off, (char *)&current_frame, HTTP2_FRAME_HEADER_SIZE);
-        skb_info->data_off += HTTP2_FRAME_HEADER_SIZE;
-        if (!format_http2_frame_header(&current_frame)) {
-            break;
-        }
-
-        // END_STREAM can appear only in Headers and Data frames.
-        // Check out https://datatracker.ietf.org/doc/html/rfc7540#section-6.1 for data frame, and
-        // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
-        is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
-        is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-
-        if (is_headers_or_rst_frame || is_data_end_of_stream) {
-            if (interesting_frame_index < HTTP2_MAX_FRAMES_ITERATIONS) {
-                frames_array[interesting_frame_index].frame = current_frame;
-                frames_array[interesting_frame_index].offset = skb_info->data_off;
-                interesting_frame_index++;
-            } else {
-                __sync_fetch_and_add(&http2_tel->max_frames_iteration, 1);
-            }
-        }
-        skb_info->data_off += current_frame.length;
+    // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb - if we can, update telemetry to indicate we have
+    if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE <= skb_info->data_end) {
         __sync_fetch_and_add(&http2_tel->max_frames_to_filter, 1);
     }
 
