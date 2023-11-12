@@ -44,21 +44,21 @@ type EbpfTx struct {
 	Request_path          [120]uint8
 }
 type HTTP2Telemetry struct {
-	End_of_stream_eos     uint64
-	End_of_stream_rst     uint64
-	Str_len_exceeds_frame uint64
-	Path_size_bucket0     uint64
-	Path_size_bucket1     uint64
-	Path_size_bucket2     uint64
-	Path_size_bucket3     uint64
-	Path_size_bucket4     uint64
-	Path_size_bucket5     uint64
-	Path_size_bucket6     uint64
-	Request_seen          uint64
-	Response_seen         uint64
-	Frame_remainder       uint64
-	Max_frames_iteration  uint64
-	Max_frames_to_filter  uint64
+	End_of_stream_eos      uint64
+	End_of_stream_rst      uint64
+	Str_len_exceeds_frame  uint64
+	Path_size_bucket0      uint64
+	Path_size_bucket1      uint64
+	Path_size_bucket2      uint64
+	Path_size_bucket3      uint64
+	Path_size_bucket4      uint64
+	Path_size_bucket5      uint64
+	Path_size_bucket6      uint64
+	Request_seen           uint64
+	Response_seen          uint64
+	Frame_remainder        uint64
+	Max_interesting_frames uint64
+	Max_frames_to_filter   uint64
 }
 
 type StaticTableEnumValue = uint8

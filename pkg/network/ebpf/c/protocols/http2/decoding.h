@@ -292,6 +292,7 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (current_header->index >= k200 && current_header->index <= k500) {
                 current_stream->response_status_code = *static_value;
+                __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
                 current_stream->path_size = HTTP_ROOT_PATH_LEN;
                 bpf_memcpy(current_stream->request_path, HTTP_ROOT_PATH, HTTP_ROOT_PATH_LEN);
@@ -331,7 +332,6 @@ static __always_inline void handle_end_of_stream(http2_stream_t *current_stream,
     // response end of stream;
     current_stream->response_last_seen = bpf_ktime_get_ns();
     current_stream->tup = http2_stream_key_template->tup;
-    __sync_fetch_and_add(&http2_tel->response_seen, 1);
 
     // enqueue
     http2_batch_enqueue(current_stream);
@@ -375,8 +375,7 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     if (current_frame->type == kRSTStreamFrame) {
         __sync_fetch_and_add(&http2_tel->end_of_stream_rst, 1);
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
-    }
-    if ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
+    } else if ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
         __sync_fetch_and_add(&http2_tel->end_of_stream_eos, 1);
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
     }
@@ -506,7 +505,6 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 
     // We failed to read a frame, if we have a remainder trying to consume it and read the following frame.
     if (frame_state->remainder > 0) {
-        __sync_fetch_and_add(&http2_tel->frame_remainder, 1);
         skb_info->data_off += frame_state->remainder;
         // The remainders "ends" the current packet. No interesting frames were found.
         if (skb_info->data_off == skb_info->data_end) {
@@ -557,7 +555,7 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
                 frames_array[interesting_frame_index].offset = skb_info->data_off;
                 interesting_frame_index++;
             } else {
-                __sync_fetch_and_add(&http2_tel->max_frames_iteration, 1);
+                __sync_fetch_and_add(&http2_tel->max_interesting_frames, 1);
             }
         }
         skb_info->data_off += current_frame.length;
@@ -683,6 +681,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
     if (local_skb_info.data_off > local_skb_info.data_end) {
         // We have a remainder
         new_frame_state.remainder = local_skb_info.data_off - local_skb_info.data_end;
+        __sync_fetch_and_add(&http2_tel->frame_remainder, 1);
         bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
     }
 
@@ -695,6 +694,7 @@ int socket__http2_filter(struct __sk_buff *skb) {
             bpf_skb_load_bytes(skb, local_skb_info.data_off + iteration, new_frame_state.buf + iteration, 1);
         }
         new_frame_state.header_length = HTTP2_FRAME_HEADER_SIZE - new_frame_state.remainder;
+        __sync_fetch_and_add(&http2_tel->frame_remainder, 1);
         bpf_map_update_elem(&http2_remainder, &dispatcher_args_copy.tup, &new_frame_state, BPF_ANY);
     }
 
