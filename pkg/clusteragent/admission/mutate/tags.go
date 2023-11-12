@@ -64,15 +64,19 @@ func (o *ownerInfo) buildID(ns string) string {
 // InjectTags adds the DD_ENV, DD_VERSION, DD_SERVICE env vars to
 // the pod template from pod and higher-level resource labels
 func InjectTags(rawPod []byte, _ string, ns string, _ *authenticationv1.UserInfo, dc dynamic.Interface, _ k8s.Interface) ([]byte, error) {
-	return mutate(rawPod, ns, injectTags, dc)
+	return mutate(rawPod, ns, injectStandardTags, dc)
 }
 
-// injectTags injects DD_ENV, DD_VERSION, DD_SERVICE
+// injectStandardTags injects DD_ENV, DD_VERSION, DD_SERVICE
 // env vars into a pod template if needed
-func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
+func injectStandardTags(pod *corev1.Pod, ns string, dc dynamic.Interface) error {
+	return injectTags(pod, ns, dc, standardLabelsToEnv, metrics.TagsMutationType)
+}
+
+func injectTags(pod *corev1.Pod, ns string, dc dynamic.Interface, labelsToEnv []labelToEnv, metricsTagType string) error {
 	var injected bool
 	defer func() {
-		metrics.MutationAttempts.Inc(metrics.TagsMutationType, strconv.FormatBool(injected), "", "")
+		metrics.MutationAttempts.Inc(metricsTagType, strconv.FormatBool(injected), "", "")
 	}()
 
 	if pod == nil {

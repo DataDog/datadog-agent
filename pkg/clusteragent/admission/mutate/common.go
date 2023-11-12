@@ -226,7 +226,7 @@ func shouldInject(pod *corev1.Pod) bool {
 		}
 	}
 
-	return isApmInstrumentationEnabled(pod.GetNamespace()) || config.Datadog.GetBool("admission_controller.mutate_unlabelled")
+	return config.Datadog.GetBool("admission_controller.mutate_unlabelled") || isApmInstrumentationEnabled(pod.GetNamespace())
 }
 
 // isApmInstrumentationEnabled indicates if Single Step Instrumentation is enabled for the namespace in the cluster

@@ -158,10 +158,10 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 	// Inject env variables used for Onboarding KPIs propagation
 	if isApmInstrumentationEnabled(pod.Namespace) {
 		// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
-		_ = injectEnv(pod, singleStepInstrumentationInstallTypeEnvVar)
+		_ = injectEnvIntoPod(pod, singleStepInstrumentationInstallTypeEnvVar)
 	} else {
 		// if local library injection is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_lib_injection
-		_ = injectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
+		_ = injectEnvIntoPod(pod, localLibraryInstrumentationInstallTypeEnvVar)
 	}
 
 	return injectAutoInstruConfig(pod, libsToInject, autoDetected)
@@ -177,14 +177,14 @@ func injectApmTelemetryConfig(pod *corev1.Pod) {
 		Name:  instrumentationInstallTimeEnvVarName,
 		Value: instrumentationInstallTime,
 	}
-	_ = injectEnv(pod, instrumentationInstallTimeEnvVar)
+	_ = injectEnvIntoPod(pod, instrumentationInstallTimeEnvVar)
 
 	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
 	instrumentationInstallIDEnvVar := corev1.EnvVar{
 		Name:  instrumentationInstallIDEnvVarName,
 		Value: os.Getenv(instrumentationInstallIDEnvVarName),
 	}
-	_ = injectEnv(pod, instrumentationInstallIDEnvVar)
+	_ = injectEnvIntoPod(pod, instrumentationInstallIDEnvVar)
 }
 
 func isNsTargeted(ns string) bool {
@@ -387,7 +387,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetecte
 			metrics.MutationAttempts.Inc(metrics.LibInjectionMutationType, strconv.FormatBool(injected), langStr, strconv.FormatBool(autoDetected))
 		}()
 
-		_ = injectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
+		_ = injectEnvIntoPod(pod, localLibraryInstrumentationInstallTypeEnvVar)
 		var err error
 		switch lib.lang {
 		case java:
@@ -495,7 +495,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetecte
 			libConfig.ServiceName = pointer.Ptr(name)
 		}
 		for _, env := range libConfig.ToEnvs() {
-			_ = injectEnv(pod, env)
+			_ = injectEnvIntoPod(pod, env)
 		}
 	}
 

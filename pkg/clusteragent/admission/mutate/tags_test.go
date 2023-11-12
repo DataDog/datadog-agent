@@ -85,7 +85,7 @@ func Test_injectTagsFromLabels(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			found, injected := injectTagsFromLabels(tt.labels, tt.pod)
+			found, injected := injectTagsFromLabels(tt.labels, tt.pod, standardLabelsToEnv)
 			assert.Equal(t, tt.found, found)
 			assert.Equal(t, tt.injected, injected)
 			assert.Len(t, tt.pod.Spec.Containers, 1)
@@ -166,7 +166,7 @@ func Test_injectTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := injectTags(tt.pod, "ns", nil)
+			err := injectStandardTags(tt.pod, "ns", nil)
 			assert.NoError(t, err)
 			assert.Len(t, tt.pod.Spec.Containers, 1)
 			assert.Len(t, tt.wantPodFunc().Spec.Containers, 1)
