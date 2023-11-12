@@ -140,14 +140,14 @@ func (td *testDrive) unmount() error {
 
 func (td *testDrive) Close() {
 	if err := td.unmount(); err != nil {
-		fmt.Printf("failed to unmount test drive: %s (lsof: %s)", err, td.lsof())
+		fmt.Printf("failed to unmount test drive: %s (lsof: %s)\n", err, td.lsof())
 	}
 	if td.dev != nil {
 		if err := td.dev.Detach(); err != nil {
-			fmt.Printf("failed to detach test drive: %s (lsof: %s)", err, td.lsof())
+			fmt.Printf("failed to detach test drive: %s (lsof: %s)\n", err, td.lsof())
 		}
 		if err := retry.Do(td.dev.Remove); err != nil {
-			fmt.Printf("failed to remove test drive: %s (lsof: %s)", err, td.lsof())
+			fmt.Printf("failed to remove test drive: %s (lsof: %s)\n", err, td.lsof())
 		}
 	}
 	os.Remove(td.file.Name())
