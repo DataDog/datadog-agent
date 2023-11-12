@@ -225,7 +225,6 @@ func TestMountPropagated(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return os.Chmod(file, 0700)
 		}, func(event *model.Event, rule *rules.Rule) {
-			t.Log(event.Open.File.PathnameStr)
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
 		})
