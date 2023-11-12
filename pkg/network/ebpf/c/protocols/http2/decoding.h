@@ -551,7 +551,6 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
         // https://datatracker.ietf.org/doc/html/rfc7540#section-6.2 for headers frame.
         is_headers_or_rst_frame = current_frame.type == kHeadersFrame || current_frame.type == kRSTStreamFrame;
         is_data_end_of_stream = ((current_frame.flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) && (current_frame.type == kDataFrame);
-
         if (is_headers_or_rst_frame || is_data_end_of_stream) {
             if (interesting_frame_index < HTTP2_MAX_FRAMES_ITERATIONS) {
                 frames_array[interesting_frame_index].frame = current_frame;
