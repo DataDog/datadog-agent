@@ -93,6 +93,7 @@ stages:
   - e2e_test_junit_upload
   - kitchen_cleanup
   - functional_test
+  - functional_test_sysprobe
   - functional_test_cleanup
   - functional_test_junit_upload
   - internal_kubernetes_deploy
