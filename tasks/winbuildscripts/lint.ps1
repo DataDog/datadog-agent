@@ -35,5 +35,7 @@ $err = $LASTEXITCODE
 Write-Host Lint result is $err
 if($err -ne 0){
     Write-Host -ForegroundColor Red "lint failed $err"
+    Write-Host -ForegroundColor Red "=== SLEEPING FOR 4 HOURS FOR DEBUGGING PURPOSES ==="
+    Start-Sleep -Seconds 14400
     [Environment]::Exit($err)
 }
