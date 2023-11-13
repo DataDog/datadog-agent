@@ -72,7 +72,7 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 		stats["endpointsInfos"] = nil
 	}
 
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
 

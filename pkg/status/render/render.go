@@ -38,7 +38,6 @@ func FormatStatus(data []byte) (string, error) {
 	} else {
 		aggregatorStats = s
 	}
-	dcaStats := stats["clusterAgentStatus"]
 
 	endpointsInfos := stats["endpointsInfos"]
 	systemProbeStats := stats["systemProbeStats"]
@@ -69,7 +68,7 @@ func FormatStatus(data []byte) (string, error) {
 	dogstatsdFunc := func() error { return renderStatusTemplate(b, "/dogstatsd.tmpl", stats) }
 	clusterAgentFunc := func() error {
 		if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
-			return renderStatusTemplate(b, "/clusteragent.tmpl", dcaStats)
+			return renderStatusTemplate(b, "/clusteragent.tmpl", stats)
 		}
 		return nil
 	}
