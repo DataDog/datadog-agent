@@ -1,8 +1,8 @@
 
+{{- with .clusterAgentStatus -}}
 =====================
 Datadog Cluster Agent
 =====================
-{{- with .clusterAgentStatus -}}
   {{ if .DetectionError }}
     - Could not detect the Datadog Cluster Agent's endpoint: {{ .DetectionError }}
   {{ else }}

@@ -43,12 +43,7 @@ func FormatStatus(data []byte) (string, error) {
 	traceAgentFunc := func() error { return renderStatusTemplate(b, "/trace-agent.tmpl", stats) }
 	aggregatorFunc := func() error { return renderStatusTemplate(b, "/aggregator.tmpl", stats) }
 	dogstatsdFunc := func() error { return renderStatusTemplate(b, "/dogstatsd.tmpl", stats) }
-	clusterAgentFunc := func() error {
-		if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
-			return renderStatusTemplate(b, "/clusteragent.tmpl", stats)
-		}
-		return nil
-	}
+	clusterAgentFunc := func() error { return renderStatusTemplate(b, "/clusteragent.tmpl", stats) }
 	snmpTrapFunc := func() error { return renderStatusTemplate(b, "/snmp-traps.tmpl", stats) }
 	netflowFunc := func() error { return renderStatusTemplate(b, "/netflow.tmpl", stats) }
 	autodiscoveryFunc := func() error { return renderStatusTemplate(b, "/autodiscovery.tmpl", stats) }
