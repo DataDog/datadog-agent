@@ -29,6 +29,8 @@ if ($Env:TARGET_ARCH -eq "x86") {
 $err = $LASTEXITCODE
 if ($err -ne 0) {
     Write-Host -ForegroundColor Red "lint-go failed $err"
+    Write-Host -ForegroundColor Red "=== SLEEPING FOR 4 HOURS FOR DEBUGGING PURPOSES ==="
+    Start-Sleep -Seconds 14400
     [Environment]::Exit($err)
 }
 
