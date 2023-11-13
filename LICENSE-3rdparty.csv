@@ -2955,3 +2955,4 @@ core,sigs.k8s.io/structured-merge-diff/v4/schema,Apache-2.0,Copyright 2017 The K
 core,sigs.k8s.io/structured-merge-diff/v4/typed,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/structured-merge-diff/v4/value,Apache-2.0,Copyright 2017 The Kubernetes Authors.
 core,sigs.k8s.io/yaml,MIT,Copyright 2017 The Kubernetes Authors.
+core,sigs.k8s.io/yaml/goyaml.v2,Apache-2.0,Copyright 2017 The Kubernetes Authors.
