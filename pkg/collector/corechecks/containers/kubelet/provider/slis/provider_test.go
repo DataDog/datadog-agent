@@ -201,11 +201,15 @@ func TestProvider_Provide(t *testing.T) {
 				t.Errorf("Collect() error = %v, wantErr %v", err, tt.want.err)
 				return
 			}
+
+			type_tag := []string{"type:healthz"}
 			for _, metric := range tt.want.metrics {
 				if metric.name == common.KubeletMetricsPrefix+"slis.kubernetes_healthcheck" {
 					mockSender.AssertMetric(t, "Gauge", metric.name, metric.value, "", metric.tags)
+					mockSender.AssertMetricNotTaggedWith(t, "Gauge", metric.name, type_tag)
 				} else {
 					mockSender.AssertMetric(t, "Count", metric.name, metric.value, "", metric.tags)
+					mockSender.AssertMetricNotTaggedWith(t, "Count", metric.name, type_tag)
 				}
 			}
 		})
