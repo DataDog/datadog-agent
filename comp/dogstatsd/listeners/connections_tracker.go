@@ -117,7 +117,8 @@ func (t *ConnectionTracker) HandleConnections() {
 				}
 				log.Debugf("dogstatsd-%s: failed to shutdown connection: %v", t.name, err)
 			}
-
+		case <-time.After(1 * time.Second):
+			// We don't want to block forever on the select, so we add a timeout.
 		}
 
 		// Stop if we are requested to stop and all connections are closed. We might drop
