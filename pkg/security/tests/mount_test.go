@@ -178,10 +178,15 @@ func TestMountPropagated(t *testing.T) {
 	}
 	defer os.RemoveAll(testDrivePath)
 
-	if _, err := newTestDrive(t, "xfs", []string{}, testDrivePath); err != nil {
+	testDrive, err := newTestDrive(t, "xfs", []string{}, testDrivePath)
+	if err != nil {
 		t.Fatal(err)
 	}
-	// we do not defer close the test drive, this is done manually later
+	defer func() {
+		if err := testDrive.DetachDevice(); err != nil {
+			fmt.Printf("failed to detach device: %v", err)
+		}
+	}()
 
 	dir1BindMntPath, _, err := test.Path("dir1-bind-mounted")
 	if err != nil {
