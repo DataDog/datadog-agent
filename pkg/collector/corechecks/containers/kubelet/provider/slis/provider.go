@@ -63,7 +63,7 @@ func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Se
 		}
 
 		tags = lo.Filter(tags, func(x string, index int) bool {
-			return strings.HasPrefix(x, "type") != true
+			return !strings.HasPrefix(x, "type")
 		})
 
 		switch metricSuffix {
