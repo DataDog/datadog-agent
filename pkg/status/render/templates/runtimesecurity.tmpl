@@ -2,10 +2,10 @@
 Runtime Security
 ================
 
-{{- if not .RuntimeSecurityStatus}}
+{{- if not .runtimeSecurityStatus}}
   Not enabled
 {{- else}}
-  {{- with .RuntimeSecurityStatus}}
+  {{- with .runtimeSecurityStatus}}
   {{ if .endpoints }}
   {{- range $endpoint := .endpoints }}
   {{ $endpoint }}

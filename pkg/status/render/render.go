@@ -141,9 +141,7 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	if renderError != "" || err != nil {
 		return renderError, err
 	}
-	runnerStats := stats["runnerStats"]
-	complianceChecks := stats["complianceChecks"]
-	complianceStatus := stats["complianceStatus"]
+
 	title := fmt.Sprintf("Datadog Security Agent (v%s)", stats["version"])
 	stats["title"] = title
 
@@ -152,10 +150,10 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	if err := renderStatusTemplate(b, "/header.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := renderRuntimeSecurityStats(b, stats["runtimeSecurityStatus"]); err != nil {
+	if err := renderStatusTemplate(b, "/runtimesecurity.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := renderComplianceChecksStats(b, runnerStats, complianceChecks, complianceStatus); err != nil {
+	if err := renderStatusTemplate(b, "/compliance.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
@@ -217,20 +215,6 @@ func FormatCheckStats(data []byte) (string, error) {
 	}
 
 	return b.String(), nil
-}
-
-func renderComplianceChecksStats(w io.Writer, runnerStats interface{}, complianceChecks, complianceStatus interface{}) error {
-	checkStats := make(map[string]interface{})
-	checkStats["RunnerStats"] = runnerStats
-	checkStats["ComplianceStatus"] = complianceStatus
-	checkStats["ComplianceChecks"] = complianceChecks
-	return renderStatusTemplate(w, "/compliance.tmpl", checkStats)
-}
-
-func renderRuntimeSecurityStats(w io.Writer, runtimeSecurityStatus interface{}) error {
-	status := make(map[string]interface{})
-	status["RuntimeSecurityStatus"] = runtimeSecurityStatus
-	return renderStatusTemplate(w, "/runtimesecurity.tmpl", status)
 }
 
 //go:embed templates
