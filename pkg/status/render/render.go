@@ -50,7 +50,7 @@ func FormatStatus(data []byte) (string, error) {
 	logsAgentFunc := func() error { return renderStatusTemplate(b, "/logsagent.tmpl", stats) }
 	systemProbeFunc := func() error { return renderStatusTemplate(b, "/systemprobe.tmpl", stats) }
 	processAgentFunc := func() error { return renderStatusTemplate(b, "/process-agent.tmpl", stats) }
-	traceAgentFunc := func() error { return renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"]) }
+	traceAgentFunc := func() error { return renderStatusTemplate(b, "/trace-agent.tmpl", stats) }
 	aggregatorFunc := func() error { return renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats) }
 	dogstatsdFunc := func() error { return renderStatusTemplate(b, "/dogstatsd.tmpl", stats) }
 	clusterAgentFunc := func() error {
