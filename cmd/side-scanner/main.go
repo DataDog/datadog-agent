@@ -35,6 +35,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/feature/ec2/imds"
@@ -282,40 +283,44 @@ func unmarshalScanTasks(b []byte) ([]scanTask, error) {
 }
 
 type ebsScan struct {
-	Region       string  `json:"region"`
-	AssumedRole  *string `json:"assumedRole,omitempty"`
-	SnapshotID   string  `json:"snapshotId,omitempty"`
-	VolumeID     string  `json:"volumeId,omitempty"`
+	ARN          string  `json:"arn"`
 	Hostname     string  `json:"hostname"`
-	AttachVolume bool    `json:"attachVolume"`
+	AttachVolume bool    `json:"attachVolume,omitempty"`
+	AssumedRole  *string `json:"assumedRole,omitempty"`
+}
+
+func (s ebsScan) Region() string {
+	arn, _ := arn.Parse(s.ARN)
+	return arn.Region
+}
+
+func (s ebsScan) Resource() (resourceType string, resourceID string) {
+	arn, _ := arn.Parse(s.ARN)
+	switch {
+	case strings.HasPrefix(arn.Resource, "volume/"):
+		return "volume", strings.TrimPrefix(arn.Resource, "volume/")
+	case strings.HasPrefix(arn.Resource, "snapshot/"):
+		return "snapshot", strings.TrimPrefix(arn.Resource, "snapshot/")
+	}
+	return "", ""
 }
 
 func (s ebsScan) String() string {
-	return fmt.Sprintf("region=%q snapshot_id=%q volume_id=%q hostname=%q",
-		s.Region,
-		s.SnapshotID,
-		s.VolumeID,
-		s.Hostname)
+	return fmt.Sprintf("ebs_scan=%s hostname=%q", s.ARN, s.Hostname)
 }
 
 type lambdaScan struct {
-	Region        string  `json:"region"`
-	AssumedRole   *string `json:"assumedRole,omitempty"`
-	FunctionName1 string  `json:"function_name"`
-	FunctionName2 string  `json:"functionName"`
+	ARN         string  `json:"arn"`
+	AssumedRole *string `json:"assumedRole,omitempty"`
 }
 
-func (s lambdaScan) FunctionName() string {
-	if f := s.FunctionName1; f != "" {
-		return f
-	}
-	return s.FunctionName2
+func (s lambdaScan) Region() string {
+	arn, _ := arn.Parse(s.ARN)
+	return arn.Region
 }
 
 func (s lambdaScan) String() string {
-	return fmt.Sprintf("region=%q function_name=%q",
-		s.Region,
-		s.FunctionName())
+	return fmt.Sprintf("lambda_scan=%s", s.ARN)
 }
 
 type sideScanner struct {
@@ -465,7 +470,7 @@ func launchScan(ctx context.Context, scan scanTask) (*sbommodel.SBOMEntity, erro
 	}
 }
 
-func createEBSSnapshot(ctx context.Context, ec2client *ec2.Client, scan ebsScan) (string, error) {
+func createEBSSnapshot(ctx context.Context, ec2client *ec2.Client, volumeID string) (string, error) {
 	tagList := ec2types.TagSpecification{
 		ResourceType: ec2types.ResourceTypeSnapshot,
 		Tags: []ec2types.Tag{
@@ -475,7 +480,7 @@ func createEBSSnapshot(ctx context.Context, ec2client *ec2.Client, scan ebsScan)
 	retries := 0
 retry:
 	result, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
-		VolumeId:          aws.String(scan.VolumeID),
+		VolumeId:          aws.String(volumeID),
 		TagSpecifications: []ec2types.TagSpecification{tagList},
 	})
 	if err != nil {
@@ -490,13 +495,13 @@ retry:
 				// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
 				// Wait at least 15 seconds between concurrent volume snapshots.
 				d := 15 * time.Second
-				log.Debugf("snapshot creation rate exceeded for volume %s; retrying after %v (%d/%d)", scan.VolumeID, d, retries, maxSnapshotRetries)
+				log.Debugf("snapshot creation rate exceeded for volume %s; retrying after %v (%d/%d)", volumeID, d, retries, maxSnapshotRetries)
 				time.Sleep(d)
 				goto retry
 			}
 		}
 		if isRateExceededError {
-			log.Debugf("snapshot creation rate exceeded for volume %s; skipping)", scan.VolumeID)
+			log.Debugf("snapshot creation rate exceeded for volume %s; skipping)", volumeID)
 		}
 		return "", err
 	}
@@ -646,8 +651,8 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	if scan.AssumedRole == nil && globalParams.assumedRole != "" {
 		scan.AssumedRole = &globalParams.assumedRole // TODO(pierre): remove this HACK
 	}
-	if scan.Region == "" {
-		return nil, fmt.Errorf("ebs-scan: missing region")
+	if _, err := arn.Parse(scan.ARN); err != nil {
+		return nil, fmt.Errorf("ebs-scan: bad or missing ARN: %w", err)
 	}
 	if scan.Hostname == "" {
 		return nil, fmt.Errorf("ebs-scan: missing hostname")
@@ -665,7 +670,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		return nil, err
 	}
 
-	cfg, awsstats, err := newAWSConfig(ctx, scan.Region, scan.AssumedRole)
+	cfg, awsstats, err := newAWSConfig(ctx, scan.Region(), scan.AssumedRole)
 	if err != nil {
 		return nil, err
 	}
@@ -676,15 +681,19 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		return nil, err
 	}
 
-	snapshotID := scan.SnapshotID
-	if snapshotID == "" {
-		if scan.VolumeID == "" {
+	resourceType, resourceID := scan.Resource()
+
+	var snapshotID string
+	switch resourceType {
+	case "volume":
+		volumeID := resourceID
+		if volumeID == "" {
 			return nil, fmt.Errorf("ebs-scan: missing volume ID")
 		}
 		snapshotStartedAt := time.Now()
 		statsd.Count("datadog.sidescanner.snapshots.started", 1.0, tags, 1.0)
-		log.Debugf("starting volume snapshotting %q", scan.VolumeID)
-		snapshotID, err = createEBSSnapshot(ctx, ec2client, scan)
+		log.Debugf("starting volume snapshotting %q", volumeID)
+		snapshotID, err = createEBSSnapshot(ctx, ec2client, volumeID)
 		if err != nil {
 			var isVolumeNotFoundError bool
 			var aerr smithy.APIError
@@ -717,6 +726,12 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		log.Debugf("volume snapshotting finished sucessfully %q (took %s)", snapshotID, snapshotDuration)
 		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(tags), 1.0)
 		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tags, 1.0)
+	case "snapshot":
+		snapshotID = resourceID
+	}
+
+	if snapshotID == "" {
+		return nil, fmt.Errorf("ebs-scan: missing snapshot ID")
 	}
 
 	log.Infof("start EBS scanning %s", scan)
@@ -890,7 +905,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 				filepath.Join(mountTarget, "var/lib/rpm"),
 				filepath.Join(mountTarget, "lib/apk"),
 			},
-			AWSRegion: scan.Region,
+			AWSRegion: scan.Region(),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
@@ -905,7 +920,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 			SBOMSources:       []string{},
 			DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
 			OnlyDirs:          []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"},
-			AWSRegion:         scan.Region,
+			AWSRegion:         scan.Region(),
 		})
 		ebsclient := ebs.NewFromConfig(cfg)
 		if err != nil {
@@ -995,11 +1010,8 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 	if scan.AssumedRole == nil && globalParams.assumedRole != "" {
 		scan.AssumedRole = &globalParams.assumedRole // TODO(pierre): remove this HACK
 	}
-	if scan.Region == "" {
-		return nil, fmt.Errorf("lambda-scan: missing region")
-	}
-	if scan.FunctionName() == "" {
-		return nil, fmt.Errorf("lambda-scan: missing function name")
+	if _, err := arn.Parse(scan.ARN); err != nil {
+		return nil, fmt.Errorf("lambda-scan: bad or missing ARN: %w", err)
 	}
 
 	defer statsd.Flush()
@@ -1037,7 +1049,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 		DisabledAnalyzers: []analyzer.Type{},
 		Slow:              true,
 		SBOMSources:       []string{},
-		AWSRegion:         scan.Region,
+		AWSRegion:         scan.Region(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs: %w", err)
@@ -1073,7 +1085,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 		Id:     "",
 		InUse:  true,
 		DdTags: []string{
-			"function:" + scan.FunctionName(),
+			"function:" + scan.ARN,
 		},
 		GeneratedAt:        timestamppb.New(createdAt),
 		GenerationDuration: convertDuration(duration),
@@ -1105,7 +1117,7 @@ func downloadLambda(ctx context.Context, scan lambdaScan, tempDir string, tags [
 
 	functionStartedAt := time.Now()
 
-	cfg, awsstats, err := newAWSConfig(ctx, scan.Region, scan.AssumedRole)
+	cfg, awsstats, err := newAWSConfig(ctx, scan.Region(), scan.AssumedRole)
 	if err != nil {
 		return "", err
 	}
@@ -1117,7 +1129,7 @@ func downloadLambda(ctx context.Context, scan lambdaScan, tempDir string, tags [
 	}
 
 	lambdaFunc, err := lambdaclient.GetFunction(ctx, &lambda.GetFunctionInput{
-		FunctionName: aws.String(scan.FunctionName()),
+		FunctionName: aws.String(scan.ARN),
 	})
 	if err != nil {
 		return "", err
@@ -1166,7 +1178,7 @@ func downloadLambda(ctx context.Context, scan lambdaScan, tempDir string, tags [
 	}
 
 	functionDuration := time.Since(functionStartedAt)
-	log.Debugf("function retrieved sucessfully %q (took %s)", scan.FunctionName(), functionDuration)
+	log.Debugf("function retrieved sucessfully %q (took %s)", scan.ARN, functionDuration)
 	statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagSuccess(tags), 1.0)
 	statsd.Histogram("datadog.sidescanner.functions.duration", float64(functionDuration.Milliseconds()), tags, 1.0)
 	return codePath, nil
