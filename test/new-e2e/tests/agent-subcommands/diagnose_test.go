@@ -180,7 +180,7 @@ func getDiagnoseSummary(diagnoseOutput string) summary {
 func getRegexGroupValue(re *regexp.Regexp, matches []string, groupName string) int {
 	index := re.SubexpIndex(groupName)
 	if index < 0 || index >= len(matches) {
-		panic(fmt.Sprintf("An error occured while looking for group '%v' in diagnose output", groupName))
+		panic(fmt.Sprintf("An error occurred while looking for group '%v' in diagnose output", groupName))
 	}
 
 	val, err := strconv.Atoi(matches[index])
