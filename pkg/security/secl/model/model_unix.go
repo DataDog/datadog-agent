@@ -203,6 +203,11 @@ func (ev *Event) SetPathResolutionError(fileFields *FileEvent, err error) {
 	ev.Error = err
 }
 
+// GetWorkloadID returns an ID that represents the workload
+func (ev *Event) GetWorkloadID() string {
+	return ev.SecurityProfileContext.Name
+}
+
 // SetuidEvent represents a setuid event
 type SetuidEvent struct {
 	UID    uint32 `field:"uid"`                                // SECLDoc[uid] Definition:`New UID of the process`
@@ -881,18 +886,13 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 }
 
 // ResolveHashes resolves the hash of the provided file
-func (dfh *DefaultFieldHandlers) ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string {
+func (dfh *DefaultFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileEvent) []string {
 	return nil
 }
 
 // ResolveK8SExtra resolves the K8S user session extra field
 func (dfh *DefaultFieldHandlers) ResolveK8SExtra(_ *Event, _ *UserSessionContext) map[string][]string {
 	return nil
-}
-
-// GetWorkloadID returns an ID that represents the workload
-func (e *Event) GetWorkloadID() string {
-	return e.SecurityProfileContext.Name
 }
 
 // ExtraFieldHandlers handlers not hold by any field
