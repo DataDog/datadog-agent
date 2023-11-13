@@ -83,9 +83,8 @@ var InvalidDiscarders = map[eval.Field][]string{
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
-	var req erpc.Request
-	req.OP = erpc.BumpDiscardersRevision
-	return e.Request(&req)
+	req := erpc.NewERPCRequest(erpc.BumpDiscardersRevision)
+	return e.Request(req)
 }
 
 func marshalDiscardHeader(req *erpc.Request, eventType model.EventType, timeout uint64) int {

@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
@@ -45,10 +45,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -58,8 +58,8 @@ func SetupHandlers(
 	r *mux.Router,
 	flareComp flare.Component,
 	server dogstatsdServer.Component,
-	serverDebug dogstatsdDebug.Component,
-	logsAgent util.Optional[logsAgent.Component],
+	serverDebug dogstatsddebug.Component,
+	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
@@ -288,7 +288,7 @@ func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceive
 	}
 }
 
-func getDogstatsdStats(w http.ResponseWriter, r *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsdDebug.Component) {
+func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer dogstatsdServer.Component, serverDebug dogstatsddebug.Component) {
 	log.Info("Got a request for the Dogstatsd stats.")
 
 	if !config.Datadog.GetBool("use_dogstatsd") {

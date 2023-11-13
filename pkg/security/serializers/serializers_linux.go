@@ -17,6 +17,7 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -166,6 +167,23 @@ type ProcessCredentialsSerializer struct {
 	Destination interface{} `json:"destination,omitempty"`
 }
 
+// UserSessionContextSerializer serializes the user session context to JSON
+// easyjson:json
+type UserSessionContextSerializer struct {
+	// Unique identifier of the user session on the host
+	ID string `json:"id,omitempty"`
+	// Type of the user session
+	SessionType string `json:"session_type,omitempty"`
+	// Username of the Kubernetes "kubectl exec" session
+	K8SUsername string `json:"k8s_username,omitempty"`
+	// UID of the Kubernetes "kubectl exec" session
+	K8SUID string `json:"k8s_uid,omitempty"`
+	// Groups of the Kubernetes "kubectl exec" session
+	K8SGroups []string `json:"k8s_groups,omitempty"`
+	// Extra of the Kubernetes "kubectl exec" session
+	K8SExtra map[string][]string `json:"k8s_extra,omitempty"`
+}
+
 // ProcessSerializer serializes a process to JSON
 // easyjson:json
 type ProcessSerializer struct {
@@ -197,6 +215,8 @@ type ProcessSerializer struct {
 	ExitTime *utils.EasyjsonTime `json:"exit_time,omitempty"`
 	// Credentials associated with the process
 	Credentials *ProcessCredentialsSerializer `json:"credentials,omitempty"`
+	// Context of the user session for this event
+	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
 	// File information of the executable
 	Executable *FileSerializer `json:"executable,omitempty"`
 	// File information of the interpreter
@@ -424,6 +444,18 @@ type MountEventSerializer struct {
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
 }
 
+// SecurityProfileContextSerializer serializes the security profile context in an event
+type SecurityProfileContextSerializer struct {
+	// Name of the security profile
+	Name string `json:"name"`
+	// Status defines in which state the security profile was when the event was triggered
+	Status string `json:"status"`
+	// Version of the profile in use
+	Version string `json:"version"`
+	// List of tags associated to this profile
+	Tags []string `json:"tags"`
+}
+
 // AnomalyDetectionSyscallEventSerializer serializes an anomaly detection for a syscall event
 type AnomalyDetectionSyscallEventSerializer struct {
 	// Name of the syscall that triggered the anomaly detection event
@@ -434,6 +466,10 @@ type AnomalyDetectionSyscallEventSerializer struct {
 // easyjson:json
 type EventSerializer struct {
 	*BaseEventSerializer
+
+	*NetworkContextSerializer         `json:"network,omitempty"`
+	*DDContextSerializer              `json:"dd,omitempty"`
+	*SecurityProfileContextSerializer `json:"security_profile,omitempty"`
 
 	*SELinuxEventSerializer                 `json:"selinux,omitempty"`
 	*BPFEventSerializer                     `json:"bpf,omitempty"`
@@ -493,8 +529,11 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 	}
 
 	// lazy hash serialization: we don't want to hash files for every event
-	if fe.HashState == model.Done || e.IsAnomalyDetectionEvent() {
+	if fe.HashState == model.Done {
+		fs.Hashes = fe.Hashes
+	} else if e.IsAnomalyDetectionEvent() {
 		fs.Hashes = e.FieldHandlers.ResolveHashesFromEvent(e, fe)
+		fs.HashState = fe.HashState.String()
 	}
 	return fs
 }
@@ -560,6 +599,10 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 			CredentialsSerializer: credsSerializer,
 		}
 
+		if ps.UserSession.ID != 0 {
+			psSerializer.UserSession = newUserSessionContextSerializer(&ps.UserSession, e, resolvers)
+		}
+
 		if len(ps.ContainerID) != 0 {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID: ps.ContainerID,
@@ -579,6 +622,17 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 		Credentials: &ProcessCredentialsSerializer{
 			CredentialsSerializer: &CredentialsSerializer{},
 		},
+	}
+}
+
+func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Event, _ *resolvers.Resolvers) *UserSessionContextSerializer {
+	return &UserSessionContextSerializer{
+		ID:          fmt.Sprintf("%x", ctx.ID),
+		SessionType: ctx.SessionType.String(),
+		K8SUsername: e.FieldHandlers.ResolveK8SUsername(e, ctx),
+		K8SUID:      e.FieldHandlers.ResolveK8SUID(e, ctx),
+		K8SGroups:   e.FieldHandlers.ResolveK8SGroups(e, ctx),
+		K8SExtra:    e.FieldHandlers.ResolveK8SExtra(e, ctx),
 	}
 }
 
@@ -825,13 +879,94 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	return &ps
 }
 
+func newDDContextSerializer(e *model.Event) *DDContextSerializer {
+	s := &DDContextSerializer{
+		SpanID:  e.SpanContext.SpanID,
+		TraceID: e.SpanContext.TraceID,
+	}
+	if s.SpanID != 0 || s.TraceID != 0 {
+		return s
+	}
+
+	ctx := eval.NewContext(e)
+	it := &model.ProcessAncestorsIterator{}
+	ptr := it.Front(ctx)
+
+	for ptr != nil {
+		pce := (*model.ProcessCacheEntry)(ptr)
+
+		if pce.SpanID != 0 || pce.TraceID != 0 {
+			s.SpanID = pce.SpanID
+			s.TraceID = pce.TraceID
+			break
+		}
+
+		ptr = it.Next()
+	}
+
+	return s
+}
+
+// nolint: deadcode, unused
+func newNetworkContextSerializer(e *model.Event) *NetworkContextSerializer {
+	return &NetworkContextSerializer{
+		Device:      newNetworkDeviceSerializer(e),
+		L3Protocol:  model.L3Protocol(e.NetworkContext.L3Protocol).String(),
+		L4Protocol:  model.L4Protocol(e.NetworkContext.L4Protocol).String(),
+		Source:      newIPPortSerializer(&e.NetworkContext.Source),
+		Destination: newIPPortSerializer(&e.NetworkContext.Destination),
+		Size:        e.NetworkContext.Size,
+	}
+}
+
+func newSecurityProfileContextSerializer(e *model.SecurityProfileContext) *SecurityProfileContextSerializer {
+	tags := make([]string, len(e.Tags))
+	copy(tags, e.Tags)
+	return &SecurityProfileContextSerializer{
+		Name:    e.Name,
+		Version: e.Version,
+		Status:  e.Status.String(),
+		Tags:    tags,
+	}
+}
+
+// ToJSON returns json
+func (e *EventSerializer) ToJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
+// MarshalJSON returns json
+func (e *EventSerializer) MarshalJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
+// MarshalEvent marshal the event
+func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error) {
+	s := NewEventSerializer(event, probe)
+	return utils.MarshalEasyJSON(s)
+}
+
+// MarshalCustomEvent marshal the custom event
+func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
+	return event.MarshalJSON()
+}
+
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *EventSerializer {
 	s := &EventSerializer{
 		BaseEventSerializer:   NewBaseEventSerializer(event, resolvers),
 		UserContextSerializer: newUserContextSerializer(event),
+		DDContextSerializer:   newDDContextSerializer(event),
 	}
 	s.Async = event.FieldHandlers.ResolveAsync(event)
+
+	if s.Category == model.NetworkCategory {
+		s.NetworkContextSerializer = newNetworkContextSerializer(event)
+	}
+
+	if event.SecurityProfileContext.Name != "" {
+		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(&event.SecurityProfileContext)
+	}
 
 	if id := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); id != "" {
 		var creationTime time.Time

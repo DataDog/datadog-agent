@@ -9,16 +9,16 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle, core.MockBundle,
-		fx.Supply(util.NewNoneOptional[runner.MetadataProvider]()),
+		fx.Supply(optional.NewNoneOption[runnerimpl.MetadataProvider]()),
 		fx.Provide(func() serializer.MetricSerializer { return nil }),
 	)
 }

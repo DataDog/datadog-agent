@@ -23,7 +23,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.event_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.event_collection.enabled", true)
 
 		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 		assertContainsCheck(t, enabledChecks, ProcessEventsCheckName)
@@ -31,7 +31,7 @@ func TestProcessEventsCheckEnabled(t *testing.T) {
 
 	t.Run("disabled", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.event_collection.enabled", false)
+		cfg.SetWithoutSource("process_config.event_collection.enabled", false)
 
 		enabledChecks := getEnabledChecks(t, cfg, config.MockSystemProbe(t))
 		assertNotContainsCheck(t, enabledChecks, ProcessEventsCheckName)

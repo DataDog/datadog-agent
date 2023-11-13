@@ -153,3 +153,19 @@ func TestMeasuredListener(t *testing.T) {
 	assert.EqualValues(call.Calls[0].Tags, []string{"status:timedout"})
 	assert.EqualValues(call.Calls[0].Value, 1)
 }
+
+func TestOnCloseConn(t *testing.T) {
+
+	var closed int
+	p, _ := net.Pipe()
+	c := OnCloseConn(p, func() {
+		closed++
+	})
+
+	c.Close()
+	assert.Equal(t, 1, closed)
+	// Make sure multiple close calls don't execute the
+	// callback multiple times.
+	c.Close()
+	assert.Equal(t, 1, closed)
+}

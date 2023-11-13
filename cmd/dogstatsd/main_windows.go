@@ -61,7 +61,9 @@ func main() {
 	}
 }
 
-type service struct{}
+type service struct {
+	servicemain.DefaultSettings
+}
 
 func (s *service) Name() string {
 	return ServiceName

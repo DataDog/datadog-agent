@@ -37,8 +37,14 @@ const (
 	metricTypeGauge     = "GAUGE"
 )
 
+var (
+	// ParseMetricsWithFilterFunc allows us to override the function used for parsing the prometheus metrics. It should
+	// only be overridden for testing purposes.
+	ParseMetricsWithFilterFunc = prometheus.ParseMetricsWithFilter
+)
+
 // TransformerFunc outlines the function signature for any transformers which will be used with the prometheus Provider
-type TransformerFunc func(*model.Sample, sender.Sender)
+type TransformerFunc func(*prometheus.MetricFamily, sender.Sender)
 
 // Transformers is a mapping of metric names to their desired TransformerFunc
 type Transformers map[string]TransformerFunc
@@ -62,7 +68,8 @@ type Provider struct {
 type ScraperConfig struct {
 	Path string
 	// AllowNotFound determines whether the check should error out or just return nothing when a 404 status code is encountered
-	AllowNotFound bool
+	AllowNotFound       bool
+	TextFilterBlacklist []string
 }
 
 // NewProvider returns a new Provider.
@@ -158,33 +165,21 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		return nil
 	}
 
-	metrics, err := prometheus.ParseMetrics(data)
+	metrics, err := ParseMetricsWithFilterFunc(data, p.ScraperConfig.TextFilterBlacklist)
 	if err != nil {
 		return err
 	}
 
 	// Report metrics
-	for _, metric := range metrics {
+	for _, metricFam := range metrics {
 		// Handle a Prometheus metric according to the following flow:
 		// - search `p.Config.metricMapping` for a prometheus.metric to datadog.metric mapping
 		// - call check method with the same name as the metric
 		// - log info if none of the above worked
-		if metric == nil {
+		if metricFam == nil || len(metricFam.Samples) == 0 {
 			continue
 		}
-		metricName := string(metric.Metric[NameLabel])
-
-		// The parsing library we are using appends some suffixes to the metric name for samples in a histogram or summary,
-		// To ensure backwards compatibility, we will remove these
-		if metric.Metric[prometheus.TypeLabel] == metricTypeSummary || metric.Metric[prometheus.TypeLabel] == metricTypeHistogram {
-			if strings.HasSuffix(metricName, "_bucket") {
-				metricName = strings.TrimSuffix(metricName, "_bucket")
-			} else if strings.HasSuffix(metricName, "_count") {
-				metricName = strings.TrimSuffix(metricName, "_count")
-			} else {
-				metricName = strings.TrimSuffix(metricName, "_sum")
-			}
-		}
+		metricName := metricFam.Name
 
 		// check metric name in ignore_metrics (or if it matches an ignored regex)
 		if _, ok := p.ignoredMetrics[metricName]; ok {
@@ -196,17 +191,17 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 		}
 		// finally, flow listed above
 		if mName, ok := p.metricMapping[metricName]; ok {
-			p.SubmitMetric(metric, mName, sender)
+			p.SubmitMetric(metricFam, mName, sender)
 			continue
 		}
 
 		if transformer, ok := p.transformers[metricName]; ok {
-			transformer(metric, sender)
+			transformer(metricFam, sender)
 			continue
 		}
 
 		if p.wildcardRegex != nil && p.wildcardRegex.MatchString(metricName) {
-			p.SubmitMetric(metric, metricName, sender)
+			p.SubmitMetric(metricFam, metricName, sender)
 		}
 
 		log.Debugf("Skipping metric `%s` as it is not defined in the metrics mapper, has no transformer function, nor does it match any wildcards.", metricName)
@@ -215,40 +210,42 @@ func (p *Provider) Provide(kc kubelet.KubeUtilInterface, sender sender.Sender) e
 }
 
 // SubmitMetric forwards a given metric to the sender.Sender, using the passed in metricName as the name of the submitted metric.
-func (p *Provider) SubmitMetric(metric *model.Sample, metricName string, sender sender.Sender) {
-	metricType := metric.Metric[prometheus.TypeLabel]
+func (p *Provider) SubmitMetric(metricFam *prometheus.MetricFamily, metricName string, sender sender.Sender) {
+	metricType := metricFam.Type
 
-	if p.ignoreMetricByLabel(metric, metricName) {
-		return
-	}
-
-	if math.IsNaN(float64(metric.Value)) || math.IsInf(float64(metric.Value), 0) {
-		log.Debugf("Metric value is not supported for metric %s", metricName)
-		return
-	}
-
-	switch metricType {
-	case metricTypeHistogram:
-		p.submitHistogram(metric, metricName, sender)
-	case metricTypeSummary:
-		p.submitSummary(metric, metricName, sender)
-	case metricTypeCounter, metricTypeGauge:
-		nameWithNamespace := p.metricNameWithNamespace(metricName)
-
-		tags := p.MetricTags(metric)
-		if metricType == metricTypeCounter && p.Config.MonotonicCounter != nil && *p.Config.MonotonicCounter {
-			sender.MonotonicCount(nameWithNamespace, float64(metric.Value), "", tags)
-		} else {
-			sender.Gauge(nameWithNamespace, float64(metric.Value), "", tags)
-
-			// Metric is a "counter" but legacy behavior has "send_as_monotonic" defaulted to False
-			// Submit metric as monotonic_count with appended name
-			if metricName == metricTypeCounter && p.Config.MonotonicWithGauge {
-				sender.MonotonicCount(nameWithNamespace+".total", float64(metric.Value), "", tags)
-			}
+	for _, metric := range metricFam.Samples {
+		if p.ignoreMetricByLabel(metric, metricName) {
+			continue
 		}
-	default:
-		log.Errorf("Metric type %s unsupported for metric %s.", metricType, metricName)
+
+		if math.IsNaN(float64(metric.Value)) || math.IsInf(float64(metric.Value), 0) {
+			log.Debugf("Metric value is not supported for metric %s", metricName)
+			continue
+		}
+
+		switch metricType {
+		case metricTypeHistogram:
+			p.submitHistogram(metric, metricName, sender)
+		case metricTypeSummary:
+			p.submitSummary(metric, metricName, sender)
+		case metricTypeCounter, metricTypeGauge:
+			nameWithNamespace := p.metricNameWithNamespace(metricName)
+
+			tags := p.MetricTags(metric)
+			if metricType == metricTypeCounter && p.Config.MonotonicCounter != nil && *p.Config.MonotonicCounter {
+				sender.MonotonicCount(nameWithNamespace, float64(metric.Value), "", tags)
+			} else {
+				sender.Gauge(nameWithNamespace, float64(metric.Value), "", tags)
+
+				// Metric is a "counter" but legacy behavior has "send_as_monotonic" defaulted to False
+				// Submit metric as monotonic_count with appended name
+				if metricName == metricTypeCounter && p.Config.MonotonicWithGauge {
+					sender.MonotonicCount(nameWithNamespace+".total", float64(metric.Value), "", tags)
+				}
+			}
+		default:
+			log.Errorf("Metric type %s unsupported for metric %s.", metricType, metricName)
+		}
 	}
 }
 
@@ -301,7 +298,7 @@ func (p *Provider) sendDistributionCount(metric string, value float64, hostname 
 func (p *Provider) MetricTags(metric *model.Sample) []string {
 	tags := p.Config.Tags
 	for lName, lVal := range metric.Metric {
-		shouldExclude := lName == NameLabel || lName == prometheus.TypeLabel
+		shouldExclude := lName == NameLabel
 		if shouldExclude {
 			continue
 		}
@@ -326,21 +323,23 @@ func (p *Provider) MetricTags(metric *model.Sample) []string {
 }
 
 func (p *Provider) histogramConvertValues(metricName string, converter func(model.SampleValue) model.SampleValue) TransformerFunc {
-	return func(sample *model.Sample, s sender.Sender) {
-		sampleName := string(sample.Metric[NameLabel])
-		if strings.HasSuffix(sampleName, "_sum") {
-			sample.Value = converter(sample.Value)
-		} else if strings.HasSuffix(sampleName, "_bucket") && !strings.Contains(string(sample.Metric["le"]), "Inf") {
-			var le float64
-			var err error
-			if le, err = strconv.ParseFloat(string(sample.Metric["le"]), 64); err != nil {
-				log.Errorf("Unable to convert histogram bucket limit %v to a float for metric %s", sample.Metric["le"], sampleName)
-				return
+	return func(mf *prometheus.MetricFamily, s sender.Sender) {
+		for _, sample := range mf.Samples {
+			sampleName := string(sample.Metric[NameLabel])
+			if strings.HasSuffix(sampleName, "_sum") {
+				sample.Value = converter(sample.Value)
+			} else if strings.HasSuffix(sampleName, "_bucket") && !strings.Contains(string(sample.Metric["le"]), "Inf") {
+				var le float64
+				var err error
+				if le, err = strconv.ParseFloat(string(sample.Metric["le"]), 64); err != nil {
+					log.Errorf("Unable to convert histogram bucket limit %v to a float for metric %s", sample.Metric["le"], sampleName)
+					continue
+				}
+				le = float64(converter(model.SampleValue(le)))
+				sample.Metric["le"] = model.LabelValue(fmt.Sprintf("%f", le))
 			}
-			le = float64(converter(model.SampleValue(le)))
-			sample.Metric["le"] = model.LabelValue(fmt.Sprintf("%f", le))
 		}
-		p.SubmitMetric(sample, metricName, s)
+		p.SubmitMetric(mf, metricName, s)
 	}
 }
 

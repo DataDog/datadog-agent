@@ -10,7 +10,9 @@ package run
 
 import (
 	"context"
-	_ "expvar"         // Blank import used because this isn't directly used in this file
+	_ "expvar" // Blank import used because this isn't directly used in this file
+	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
+	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"go.uber.org/fx"
@@ -22,6 +24,7 @@ import (
 	// checks implemented as components
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect"
+	"github.com/DataDog/datadog-agent/comp/checks/agentcrashdetect/agentcrashdetectimpl"
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
@@ -30,10 +33,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
+	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
@@ -43,8 +47,8 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	// runtime init routines
 )
 
@@ -68,11 +72,11 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			telemetry telemetry.Component,
 			sysprobeconfig sysprobeconfig.Component,
 			server dogstatsdServer.Component,
-			serverDebug dogstatsdDebug.Component,
+			serverDebug dogstatsddebug.Component,
 			capture replay.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
-			logsAgent util.Optional[logsAgent.Component],
+			logsAgent optional.Option[logsAgent.Component],
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
@@ -125,7 +129,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			// no config file path specification in this situation
 			fx.Supply(core.BundleParams{
 				ConfigParams:         config.NewAgentParamsWithSecrets(""),
-				SysprobeConfigParams: sysprobeconfig.NewParams(),
+				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
 			getSharedFxOption(),
@@ -148,11 +152,14 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		agentcrashdetect.Module,
+		agentcrashdetectimpl.Module,
+		winregistryimpl.Module,
 		comptraceconfig.Module,
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),
-		fx.Invoke(func(_ agentcrashdetect.Component) {}), // Force the instanciation of the component
+		// Force the instantiation of the components
+		fx.Invoke(func(_ agentcrashdetect.Component) {}),
+		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }

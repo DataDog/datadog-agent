@@ -20,9 +20,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/decoder"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/framer"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/parsers/noop"
+	"github.com/DataDog/datadog-agent/pkg/logs/internal/processor"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/status"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
+	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/strings"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
@@ -120,11 +122,11 @@ func NewTailer(evtapi evtapi.API, source *sources.LogSource, config *Config, out
 		evtapi = winevtapi.New()
 	}
 
-	if len(source.Config.ProcessingRules) > 0 {
-		log.Warn("Log processing rules with the Windows Events collection will change in a future version of the Agent:")
-		log.Warn("The processing will soon apply on the message content instead of the structured log (e.g. XML or JSON).")
-		log.Warn("A flag will make possible to use the original behavior but will have to set through configuration.")
-		log.Warn("Please reach Datadog support if you have more questions.")
+	if len(source.Config.ProcessingRules) > 0 && config.ProcessRawMessage {
+		log.Warn("The logs processing rules currently apply to the raw internal windowsevent log structure. These rules can now be applied to the message content only, and we plan to make this the default behavior in the future.")
+		log.Warn("In order to immediately switch to this new behavior, set 'process_raw_message' to 'false' in your logs integration config and adapt your processing rules accordingly.")
+		log.Warn("Please contact Datadog support for more information.")
+		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, 1, []string{"tailer:windowsevent"})
 	}
 
 	return &Tailer{

@@ -91,12 +91,14 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("log_to_syslog", false)
 	cfg.BindEnvAndSetDefault("log_to_console", true)
 	cfg.BindEnvAndSetDefault("log_format_json", false)
+	cfg.BindEnvAndSetDefault("log_file_max_size", "10Mb")
+	cfg.BindEnvAndSetDefault("log_file_max_rolls", 1)
 
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
 	cfg.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSize)
-	cfg.BindEnvAndSetDefault("secret_backend_timeout", 30)
+	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSizeDefault)
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", secrets.SecretBackendTimeoutDefault)
 	cfg.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	cfg.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 
@@ -248,7 +250,7 @@ func InitSystemProbeConfig(cfg Config) {
 	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "http_notification_threshold"))
 	cfg.BindEnv(join(smNS, "http_notification_threshold"))
-	// Default value (160) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
+	// Default value (512) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(netNS, "http_max_request_fragment"))
 	cfg.BindEnv(join(smNS, "http_max_request_fragment"))
 
@@ -309,7 +311,7 @@ func InitSystemProbeConfig(cfg Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry_amd64"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry_arm64"), false)
 	eventMonitorBindEnv(cfg, join(evNS, "event_stream.buffer_size"))
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
 	eventMonitorBindEnv(cfg, join(evNS, "runtime_compilation.compiled_constants_enabled"))
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)

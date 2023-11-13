@@ -345,6 +345,7 @@ namespace Datadog.CustomActions
             var datadogYaml = Path.Combine(configFolder, "datadog.yaml");
             var systemProbeYaml = Path.Combine(configFolder, "system-probe.yaml");
             var securityAgentYaml = Path.Combine(configFolder, "security-agent.yaml");
+            var securityAgentProfile = Path.Combine(configFolder, "runtime-security.d", "default.policy");
             var injectionControllerYaml = Path.Combine(configFolder, "apm-inject.yaml");
             try
             {
@@ -371,6 +372,15 @@ namespace Datadog.CustomActions
                     output.Write(yaml);
                 }
 
+                // Conditionally include the security agent YAML while it is in active development to make it easier
+                // to build/ship without it.
+                if (File.Exists(securityAgentProfile + ".example"))
+                {
+                    if (!File.Exists(securityAgentProfile))
+                    {
+                        File.Copy(securityAgentProfile + ".example", securityAgentProfile);
+                    }
+                }
                 // Conditionally include the security agent YAML while it is in active development to make it easier
                 // to build/ship without it.
                 if (File.Exists(securityAgentYaml + ".example"))

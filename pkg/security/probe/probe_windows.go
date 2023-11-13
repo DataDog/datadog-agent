@@ -232,7 +232,6 @@ func (p *Probe) FlushDiscarders() error {
 	return nil
 }
 
-// RefreshUserCache refreshes the user cache
-func (p *Probe) RefreshUserCache(containerID string) error { //nolint:revive // TODO fix revive unused-parameter
-	return nil
+// HandleActions executes the actions of a triggered rule
+func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {
 }
