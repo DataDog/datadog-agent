@@ -100,8 +100,8 @@ func (v *agentDiagnoseSuite) TestDiagnoseInclude() {
 		resultInclude := getDiagnoseSummary(diagnoseInclude)
 
 		assert.Less(v.T(), resultInclude.total, diagnoseSummary.total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.total, resultInclude.total)
-		assert.Equal(v.T(), resultInclude.fail, 0)
-		assert.Equal(v.T(), resultInclude.errors, 0)
+		assert.Zero(v.T(), resultInclude.fail)
+		assert.Zero(v.T(), resultInclude.errors)
 	}
 
 	// Create an args array to include all suites
