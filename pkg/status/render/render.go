@@ -3,12 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-<<<<<<< HEAD
 // Package render has all the formating options for status output
-=======
-// package render has all the formating options for status output
-
->>>>>>> 3cd3dfcc0d (move format functions and templates to status render subpackage)
 package render
 
 import (
