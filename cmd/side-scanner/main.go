@@ -32,7 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
