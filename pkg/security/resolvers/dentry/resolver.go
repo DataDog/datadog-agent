@@ -532,17 +532,30 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 
 	var keys []model.PathKey
 	var entries []PathEntry
+	var nextInode uint64
+	var nextMountID uint32
+	i := 0
 
 	filenameParts := make([]string, 0, 128)
 
-	i := 0
+	nextInode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
+	if nextInode != pathKey.Inode {
+		dr.missCounters[entry].Inc()
+		return "", fmt.Errorf("unable to resolve the path of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
+	}
+	nextMountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
+	if nextMountID != pathKey.MountID {
+		dr.missCounters[entry].Inc()
+		return "", fmt.Errorf("unable to resolve the path of mountID `%d` and inode `%d` with eRPC: %w", pathKey.MountID, pathKey.Inode, err)
+	}
+
 	// make sure that we keep room for at least one pathID + character + \0 => (sizeof(pathID) + 1 = 17)
-	for i < dr.erpcSegmentSize-17 {
+	for i < dr.erpcSegmentSize-17 && nextInode != 0 {
 		depth++
 
 		// parse the path_key_t structure
-		pathKey.Inode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
-		pathKey.MountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
+		pathKey.Inode = nextInode
+		pathKey.MountID = nextMountID
 
 		// check challenge
 		if challenge != model.ByteOrder.Uint32(dr.erpcSegment[i+12:i+16]) {
@@ -580,6 +593,9 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 			entry := newPathEntry(model.PathKey{}, segment)
 			entries = append(entries, entry)
 		}
+
+		nextInode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
+		nextMountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
 	}
 
 	if resolutionErr == nil && len(keys) > 0 {
