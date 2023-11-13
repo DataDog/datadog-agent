@@ -157,6 +157,10 @@ class GithubAPI:
 
         return sorted(recent_runs, key=lambda run: run.created_at, reverse=True)
 
+    def latest_release(self) -> str:
+        release = self._repository.get_latest_release()
+        return release.title
+
     def _chose_auth(self):
         """
         Attempt to find a working authentication, in order:

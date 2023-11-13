@@ -61,7 +61,7 @@ func TestGetLogsMeta(t *testing.T) {
 	meta = getLogsMeta(conf)
 	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: false}, meta)
 
-	conf.Set("logs_config.auto_multi_line_detection", true)
+	conf.SetWithoutSource("logs_config.auto_multi_line_detection", true)
 	meta = getLogsMeta(conf)
 	assert.Equal(t, &LogsMeta{Transport: "TCP", AutoMultilineEnabled: true}, meta)
 }
@@ -97,13 +97,13 @@ func TestGetProxyMeta(t *testing.T) {
 	conf := config.Mock(t)
 	httputils.MockWarnings(t, nil, nil, nil)
 
-	conf.Set("no_proxy_nonexact_match", false)
+	conf.SetWithoutSource("no_proxy_nonexact_match", false)
 	meta := getProxyMeta(conf)
 	assert.Equal(t, meta.NoProxyNonexactMatch, false)
 	assert.Equal(t, meta.ProxyBehaviorChanged, false)
 	assert.Equal(t, meta.NoProxyNonexactMatchExplicitlySet, true)
 
-	conf.Set("no_proxy_nonexact_match", true)
+	conf.SetWithoutSource("no_proxy_nonexact_match", true)
 	meta = getProxyMeta(conf)
 	assert.Equal(t, meta.NoProxyNonexactMatch, true)
 	assert.Equal(t, meta.ProxyBehaviorChanged, false)

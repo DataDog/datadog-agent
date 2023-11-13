@@ -2,18 +2,20 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-
-package cloudfoundry_vm
+package vm
 
 import (
 	"context"
 	"fmt"
 	"time"
 
+	"encoding/json"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/cloudfoundry"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	ddjson "github.com/DataDog/datadog-agent/pkg/util/json"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
@@ -127,6 +129,22 @@ func (c *collector) Pull(ctx context.Context) error {
 		if tags, found := allContainersTags[id]; found {
 			containerEntity.CollectorTags = tags
 		} else {
+			// Parse tags from garden.Container.Properties["logs_config"]["tags"]["app_name"]
+			if logConfigJSON, found := containerInfo.Info.Properties["log_config"]; found {
+				var config map[string]interface{}
+				if err := json.Unmarshal([]byte(logConfigJSON), &config); err == nil {
+					if appName := ddjson.GetNestedValue(config, "tags", "app_name"); appName != nil {
+						containerEntity.CollectorTags = []string{
+							fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, appName.(string)),
+							fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, id),
+						}
+					}
+				}
+			}
+		}
+
+		// Default tags if none were found
+		if len(containerEntity.CollectorTags) == 0 {
 			containerEntity.CollectorTags = []string{
 				fmt.Sprintf("%s:%s", cloudfoundry.ContainerNameTagKey, id),
 				fmt.Sprintf("%s:%s", cloudfoundry.AppInstanceGUIDTagKey, id),

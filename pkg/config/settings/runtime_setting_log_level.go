@@ -8,6 +8,7 @@ package settings
 import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -16,12 +17,11 @@ import (
 type LogLevelRuntimeSetting struct {
 	Config    config.ReaderWriter
 	ConfigKey string
-	source    Source
 }
 
 // NewLogLevelRuntimeSetting returns a new LogLevelRuntimeSetting
 func NewLogLevelRuntimeSetting() *LogLevelRuntimeSetting {
-	return &LogLevelRuntimeSetting{source: SourceDefault}
+	return &LogLevelRuntimeSetting{ConfigKey: "log_level"}
 }
 
 // Description returns the runtime setting's description
@@ -36,7 +36,7 @@ func (l *LogLevelRuntimeSetting) Hidden() bool {
 
 // Name returns the name of the runtime setting
 func (l *LogLevelRuntimeSetting) Name() string {
-	return "log_level"
+	return l.ConfigKey
 }
 
 // Get returns the current value of the runtime setting
@@ -48,21 +48,14 @@ func (l *LogLevelRuntimeSetting) Get() (interface{}, error) {
 	return level.String(), nil
 }
 
-// GetSource returns the source of the LogLevelRuntimeSetting
-func (l *LogLevelRuntimeSetting) GetSource() Source {
-	return l.source
-}
-
 // Set changes the value of the runtime setting
-func (l *LogLevelRuntimeSetting) Set(v interface{}, source Source) error {
+func (l *LogLevelRuntimeSetting) Set(v interface{}, source model.Source) error {
 	level := v.(string)
 
 	err := pkgconfiglogs.ChangeLogLevel(level)
 	if err != nil {
 		return err
 	}
-
-	l.source = source
 
 	key := "log_level"
 	if l.ConfigKey != "" {
@@ -72,7 +65,7 @@ func (l *LogLevelRuntimeSetting) Set(v interface{}, source Source) error {
 	if l.Config != nil {
 		cfg = l.Config
 	}
-	cfg.Set(key, level)
+	cfg.Set(key, level, source)
 	// we trigger a new inventory metadata payload since the configuration was updated by the user.
 	inventories.Refresh()
 	return nil

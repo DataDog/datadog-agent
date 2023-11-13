@@ -17,6 +17,7 @@ import (
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/samber/lo"
 )
 
 // metricTransformerFunc is used to tweak or generate new metrics from a given KSM metric
@@ -113,6 +114,7 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_limitrange":                               limitrangeTransformer,
 		"kube_persistentvolume_status_phase":            pvPhaseTransformer,
 		"kube_service_spec_type":                        serviceTypeTransformer,
+		"kube_ingress_tls":                              removeSecretTransformer,
 	}
 }
 
@@ -533,4 +535,12 @@ func pvPhaseTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, 
 // serviceTypeTransformer generates metrics per service, namespace, and type from the kube_service_spec_type metric
 func serviceTypeTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitActiveMetric(s, ksmMetricPrefix+"service.type", metric, hostname, tags)
+}
+
+// removeSecretTransformer removes the secret tag from the kube_ingress_tls metric
+func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	if len(tags) > 0 {
+		tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "secret:") })
+	}
+	s.Gauge(ksmMetricPrefix+"ingress.tls", metric.Val, hostname, tags)
 }
