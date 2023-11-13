@@ -80,14 +80,11 @@ type PIDContext struct {
 // NetworkDeviceContext defines a network device context
 type NetworkDeviceContext struct{}
 
-<<<<<<< HEAD
 // GetWorkloadID returns an ID that represents the workload
 func (e *Event) GetWorkloadID() string {
 	return strconv.Itoa(int(e.PIDContext.Pid))
 }
 
-=======
->>>>>>> 5bbe921505... one more step
 // ExtraFieldHandlers handlers not hold by any field
 type ExtraFieldHandlers interface {
 	BaseExtraFieldHandlers

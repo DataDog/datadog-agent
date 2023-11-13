@@ -31,6 +31,11 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 	return nil
 }
 
+// GetWorkloadID returns an ID that represents the workload
+func (ev *Event) GetWorkloadID() string {
+	return ev.SecurityProfileContext.Name
+}
+
 // Event represents an event sent from the kernel
 // genaccessors
 type Event struct {

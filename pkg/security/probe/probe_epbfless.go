@@ -134,12 +134,12 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 func (p *Probe) Start() error {
 	family, address := config.GetFamilyAddress(p.Config.RuntimeSecurity.EBPFLessSocket)
 
-	lis, err := net.Listen(family, address)
+	conn, err := net.Listen(family, address)
 	if err != nil {
 		return err
 	}
 
-	go p.server.Serve(lis)
+	go p.server.Serve(conn)
 
 	seclog.Infof("starting listening for ebpf less events on : %s", p.Config.RuntimeSecurity.EBPFLessSocket)
 
