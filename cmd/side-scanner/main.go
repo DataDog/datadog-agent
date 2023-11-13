@@ -2,17 +2,20 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -29,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -516,40 +520,99 @@ func tagSuccess(s []string) []string {
 	return append(s, fmt.Sprint("status:success"))
 }
 
-type instrumentedRoundTripper struct {
-	t *http.Transport
+type awsClientStats struct {
+	transport *http.Transport
+	statsMu   sync.Mutex
+	ec2stats  map[string]float64
+	ebsstats  map[string]float64
 }
 
-func (rt instrumentedRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	// TODO(jinroh): add some instrumentation here
-	// if req.Body != nil {
-	// 	body, err := io.ReadAll(req.Body)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	form, err := url.ParseQuery(string(body))
-	// 	req.Body = io.NopCloser(bytes.NewReader(body))
-	// }
-	resp, err := rt.t.RoundTrip(req)
+func (rt *awsClientStats) SendStats() {
+	rt.statsMu.Lock()
+	defer rt.statsMu.Unlock()
+
+	for action, value := range rt.ec2stats {
+		statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ec2", action), 1.0)
+	}
+	for action, value := range rt.ebsstats {
+		statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ebs", action), 1.0)
+	}
+	statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(len(rt.ec2stats)), rt.tags("ec2"), 1.0)
+	statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(len(rt.ebsstats)), rt.tags("ebs"), 1.0)
+}
+
+func (ty *awsClientStats) tags(serviceName string, actions ...string) []string {
+	tags := []string{
+		fmt.Sprintf("aws_service:", serviceName),
+	}
+	for _, action := range actions {
+		tags = append(tags, fmt.Sprintf("aws_action:%s_%s", serviceName, action))
+	}
+	return tags
+}
+
+var (
+	ebsGetBlockReg = regexp.MustCompile("/snapshots/(snap-[a-z0-9]+)/blocks/([0-9]+)")
+)
+
+func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
+	rt.statsMu.Lock()
+	defer rt.statsMu.Unlock()
+
+	switch {
+	// EBS
+	case strings.HasPrefix(req.URL.Host, "ebs."):
+		if ebsGetBlockReg.MatchString(req.URL.Path) {
+			// https://ebs.us-east-1.amazonaws.com/snapshots/snap-0d136ea9e1e8767ea/blocks/X/
+			rt.ebsstats["getblock"] = rt.ebsstats["getblock"] + 1
+		}
+
+	// EC2
+	case req.URL.Host == "ec2.amazonaws.com":
+		if req.Method == http.MethodPost && req.Body != nil {
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				return nil, err
+			}
+			form, err := url.ParseQuery(string(body))
+			if err == nil {
+				if action := form.Get("Action"); action != "" {
+					rt.ec2stats[action] += rt.ec2stats[action]
+				}
+			}
+			req.Body = io.NopCloser(bytes.NewReader(body))
+		} else if req.Method == http.MethodGet {
+			form := req.URL.Query()
+			if action := form.Get("Action"); action != "" {
+				rt.ec2stats[action] += rt.ec2stats[action]
+			}
+		}
+	}
+
+	resp, err := rt.transport.RoundTrip(req)
 	if err != nil {
 		return nil, err
 	}
 	return resp, nil
 }
 
-func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (aws.Config, error) {
-	intrumentedHTTPClient := *defaultHTTPClient
-	intrumentedHTTPClient.Transport = instrumentedRoundTripper{&http.Transport{
-		IdleConnTimeout: 10 * time.Second,
-		MaxIdleConns:    10,
-	}}
+func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (aws.Config, *awsClientStats, error) {
+	awsstats := &awsClientStats{
+		transport: &http.Transport{
+			IdleConnTimeout: 10 * time.Second,
+			MaxIdleConns:    10,
+		},
+	}
+
+	httpClient := *defaultHTTPClient
+	httpClient.Transport = awsstats
 
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion(region),
-		config.WithHTTPClient(&intrumentedHTTPClient),
+		config.WithHTTPClient(&httpClient),
 	)
 	if err != nil {
-		return aws.Config{}, err
+		return aws.Config{}, nil, err
 	}
 	if assumedRoleARN != nil {
 		stsclient := sts.NewFromConfig(cfg)
@@ -561,35 +624,12 @@ func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (a
 		stsclient = sts.NewFromConfig(cfg)
 		result, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 		if err != nil {
-			return aws.Config{}, fmt.Errorf("awsconfig: could not assumerole %q: %w", *assumedRoleARN, err)
+			return aws.Config{}, nil, fmt.Errorf("awsconfig: could not assumerole %q: %w", *assumedRoleARN, err)
 		}
 		log.Debugf("aws config: assuming role with arn=%q", *result.Arn)
 	}
-	return cfg, nil
-}
 
-func newEC2Client(ctx context.Context, region string, assumedRoleARN *string) (*ec2.Client, error) {
-	cfg, err := newAWSConfig(ctx, region, assumedRoleARN)
-	if err != nil {
-		return nil, err
-	}
-	return ec2.NewFromConfig(cfg), nil
-}
-
-func newEBSClient(ctx context.Context, region string, assumedRoleARN *string) (*ebs.Client, error) {
-	cfg, err := newAWSConfig(ctx, region, assumedRoleARN)
-	if err != nil {
-		return nil, err
-	}
-	return ebs.NewFromConfig(cfg), nil
-}
-
-func newLambdaClient(ctx context.Context, region string, assumedRoleARN *string) (*lambda.Client, error) {
-	cfg, err := newAWSConfig(ctx, region, assumedRoleARN)
-	if err != nil {
-		return nil, err
-	}
-	return lambda.NewFromConfig(cfg), nil
+	return cfg, awsstats, nil
 }
 
 func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentityDocumentOutput, error) {
@@ -624,7 +664,13 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		return nil, err
 	}
 
-	ec2client, err := newEC2Client(ctx, scan.Region, scan.AssumedRole)
+	cfg, awsstats, err := newAWSConfig(ctx, scan.Region, scan.AssumedRole)
+	if err != nil {
+		return nil, err
+	}
+	defer awsstats.SendStats()
+
+	ec2client := ec2.NewFromConfig(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -860,7 +906,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 			OnlyDirs:          []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"},
 			AWSRegion:         scan.Region,
 		})
-		ebsclient, err := newEBSClient(ctx, scan.Region, scan.AssumedRole)
+		ebsclient := ebs.NewFromConfig(cfg)
 		if err != nil {
 			return nil, fmt.Errorf("could not create EBS client: %w", err)
 		}
@@ -1057,7 +1103,14 @@ func downloadLambda(ctx context.Context, scan lambdaScan, tempDir string, tags [
 	}()
 
 	functionStartedAt := time.Now()
-	lambdaclient, err := newLambdaClient(ctx, scan.Region, scan.AssumedRole)
+
+	cfg, awsstats, err := newAWSConfig(ctx, scan.Region, scan.AssumedRole)
+	if err != nil {
+		return "", err
+	}
+	defer awsstats.SendStats()
+
+	lambdaclient := lambda.NewFromConfig(cfg)
 	if err != nil {
 		return "", err
 	}
