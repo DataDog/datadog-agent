@@ -107,6 +107,8 @@ var (
 		common.KubeletMetricsPrefix + "rest.client.latency.sum",
 		common.KubeletMetricsPrefix + "rest.client.requests",
 		common.KubeletMetricsPrefix + "kubelet.evictions",
+		common.KubeletMetricsPrefix + "kubelet.cpu_manager.pinning_errors_total",
+		common.KubeletMetricsPrefix + "kubelet.cpu_manager.pinning_requests_total",
 	}
 )
 

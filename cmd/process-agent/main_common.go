@@ -75,7 +75,7 @@ func runAgent(ctx context.Context, globalParams *command.GlobalParams) error {
 	if globalParams.PidFilePath != "" {
 		err := pidfile.WritePID(globalParams.PidFilePath)
 		if err != nil {
-			_ = log.Errorf("Error while writing PID file, exiting: %v", err)
+			log.Errorf("Error while writing PID file, exiting: %v", err)
 			return err
 		}
 
@@ -121,10 +121,13 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 				LogParams:    command.DaemonLogParams,
 			},
 		),
-		// Populate dependencies required for initialization in this function.
+		// Populate dependencies required for initialization in this function
 		fx.Populate(&appInitDeps),
 
-		// Provide process agent bundle so fx knows where to find components.
+		// Provide core components
+		core.Bundle,
+
+		// Provide process agent bundle so fx knows where to find components
 		process.Bundle,
 
 		// Provide remote config client module
@@ -164,7 +167,7 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 		if appInitDeps.Logger == nil {
 			fmt.Println("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
 		} else {
-			_ = appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
+			appInitDeps.Logger.Critical("Failed to initialize the process agent: ", fxutil.UnwrapIfErrArgumentsFailed(err))
 		}
 		return err
 	}
@@ -226,12 +229,12 @@ type miscDeps struct {
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
 	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), false); err != nil {
-		_ = log.Criticalf("Error configuring statsd: %s", err)
+		log.Criticalf("Error configuring statsd: %s", err)
 		return err
 	}
 
 	if err := ddutil.SetupCoreDump(deps.Config); err != nil {
-		_ = log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
+		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
 	// Setup workloadmeta
@@ -248,7 +251,7 @@ func initMisc(deps miscDeps) error {
 	if deps.Config.GetBool("process_config.remote_tagger") {
 		options, err := remote.NodeAgentOptions()
 		if err != nil {
-			_ = log.Errorf("unable to deps.Configure the remote tagger: %s", err)
+			log.Errorf("unable to deps.Configure the remote tagger: %s", err)
 		} else {
 			t = remote.NewTagger(options)
 		}
@@ -267,12 +270,12 @@ func initMisc(deps miscDeps) error {
 
 			err := tagger.Init(startCtx)
 			if err != nil {
-				_ = log.Errorf("failed to start the tagger: %s", err)
+				log.Errorf("failed to start the tagger: %s", err)
 			}
 
 			err = manager.ConfigureAutoExit(startCtx, deps.Config)
 			if err != nil {
-				_ = log.Criticalf("Unable to configure auto-exit, err: %w", err)
+				log.Criticalf("Unable to configure auto-exit, err: %w", err)
 				return err
 			}
 

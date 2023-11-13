@@ -34,7 +34,7 @@ func TestRingStoreWithoutLoop(t *testing.T) {
 	timeout := time.Second
 
 	cfg := config.Mock(t)
-	cfg.Set("process_config.event_collection.store.max_items", 4)
+	cfg.SetWithoutSource("process_config.event_collection.store.max_items", 4)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 
@@ -86,7 +86,7 @@ func TestRingStoreWithLoop(t *testing.T) {
 	timeout := time.Second
 
 	cfg := config.Mock(t)
-	cfg.Set("process_config.event_collection.store.max_items", 3)
+	cfg.SetWithoutSource("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 
@@ -139,7 +139,7 @@ func TestRingStoreWithDroppedData(t *testing.T) {
 	droppedEvents := make([]*model.ProcessEvent, 0)
 
 	cfg := config.Mock(t)
-	cfg.Set("process_config.event_collection.store.max_items", 3)
+	cfg.SetWithoutSource("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 
@@ -198,7 +198,7 @@ func TestRingStoreAsynchronousPush(t *testing.T) {
 	timeout := time.Second
 
 	cfg := config.Mock(t)
-	cfg.Set("process_config.event_collection.store.max_items", 3)
+	cfg.SetWithoutSource("process_config.event_collection.store.max_items", 3)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 
@@ -238,7 +238,7 @@ func TestRingStorePullErrors(t *testing.T) {
 
 	cfg := config.Mock(t)
 	maxPulls := 2
-	cfg.Set("process_config.event_collection.store.max_pending_pulls", maxPulls)
+	cfg.SetWithoutSource("process_config.event_collection.store.max_pending_pulls", maxPulls)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 
@@ -266,7 +266,7 @@ func TestRingStorePullErrors(t *testing.T) {
 func TestRingStorePushErrors(t *testing.T) {
 	cfg := config.Mock(t)
 	maxPushes := 2
-	cfg.Set("process_config.event_collection.store.max_pending_pushes", 2)
+	cfg.SetWithoutSource("process_config.event_collection.store.max_pending_pushes", 2)
 	store, err := NewRingStore(cfg, &statsd.NoOpClient{})
 	require.NoError(t, err)
 

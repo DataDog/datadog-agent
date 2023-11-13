@@ -65,7 +65,7 @@ func TestGetContainersLanguagesFromPodDetail(t *testing.T) {
 		ContainerDetails: containerDetails,
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Id:   "dummyId",
-			Kind: "replicaset",
+			Kind: "ReplicaSet",
 			Name: "dummyrs-2342347",
 		},
 	}
@@ -125,7 +125,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 		},
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Id:   "dummyId-1",
-			Kind: "replicaset",
+			Kind: "ReplicaSet",
 			Name: "dummyrs-1-2342347",
 		},
 	}
@@ -168,7 +168,7 @@ func TestGetOwnersLanguages(t *testing.T) {
 		},
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Id:   "dummyId-2",
-			Kind: "replicaset",
+			Kind: "ReplicaSet",
 			Name: "dummyrs-2-2342347",
 		},
 	}
@@ -195,8 +195,8 @@ func TestGetOwnersLanguages(t *testing.T) {
 	expectedContainersLanguagesB.GetOrInitializeLanguageset("init.container-8").Parse("java,python")
 
 	expectedOwnersLanguages := &OwnersLanguages{
-		NewNamespacedOwnerReference("apps/v1", "deployment", "dummyrs-1", "dummyId-1", "default"): expectedContainersLanguagesA,
-		NewNamespacedOwnerReference("apps/v1", "deployment", "dummyrs-2", "dummyId-2", "custom"):  expectedContainersLanguagesB,
+		NewNamespacedOwnerReference("apps/v1", "Deployment", "dummyrs-1", "dummyId-1", "default"): expectedContainersLanguagesA,
+		NewNamespacedOwnerReference("apps/v1", "Deployment", "dummyrs-2", "dummyId-2", "custom"):  expectedContainersLanguagesB,
 	}
 
 	actualOwnersLanguages := lp.getOwnersLanguages(mockRequestData)
@@ -248,56 +248,6 @@ func TestDetectedNewLanguages(t *testing.T) {
 	assert.True(t, lp.detectedNewLanguages(&namespacedOwnerReference, detectedContainersLanguages))
 }
 
-func TestGetUpdatedOwnerAnnotations(t *testing.T) {
-	lp := newMockLanguagePatcher(nil, nil)
-
-	mockContainersLanguages := langUtil.NewContainersLanguages()
-	mockContainersLanguages.GetOrInitializeLanguageset("container-1").Parse("cpp,java,python")
-	mockContainersLanguages.GetOrInitializeLanguageset("container-2").Parse("python,ruby")
-	mockContainersLanguages.GetOrInitializeLanguageset("container-3").Parse("cpp")
-	mockContainersLanguages.GetOrInitializeLanguageset("container-4").Parse("")
-
-	// Case of existing annotations
-	mockCurrentAnnotations := map[string]string{
-		"annotationkey1": "annotationvalue1",
-		"annotationkey2": "annotationvalue2",
-		"apm.datadoghq.com/container-1.languages": "java,python",
-		"apm.datadoghq.com/container-2.languages": "cpp",
-	}
-
-	expectedUpdatedAnnotations := map[string]string{
-		"annotationkey1": "annotationvalue1",
-		"annotationkey2": "annotationvalue2",
-		"apm.datadoghq.com/container-1.languages": "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages": "cpp,python,ruby",
-		"apm.datadoghq.com/container-3.languages": "cpp",
-	}
-
-	expectedAddedLanguages := 4
-
-	actualUpdatedAnnotations, actualAddedLanguages := lp.getUpdatedOwnerAnnotations(mockCurrentAnnotations, mockContainersLanguages)
-
-	assert.Equal(t, expectedAddedLanguages, actualAddedLanguages)
-	assert.Equal(t, expectedUpdatedAnnotations, actualUpdatedAnnotations)
-
-	// Case of non-existing annotations
-	mockCurrentAnnotations = nil
-
-	expectedUpdatedAnnotations = map[string]string{
-		"apm.datadoghq.com/container-1.languages": "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages": "python,ruby",
-		"apm.datadoghq.com/container-3.languages": "cpp",
-	}
-
-	expectedAddedLanguages = 6
-
-	actualUpdatedAnnotations, actualAddedLanguages = lp.getUpdatedOwnerAnnotations(mockCurrentAnnotations, mockContainersLanguages)
-
-	assert.Equal(t, expectedAddedLanguages, actualAddedLanguages)
-	assert.Equal(t, expectedUpdatedAnnotations, actualUpdatedAnnotations)
-
-}
-
 func TestPatchOwner(t *testing.T) {
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	lp := newMockLanguagePatcher(mockK8sClient, workloadmeta.NewMockStore())
@@ -306,7 +256,7 @@ func TestPatchOwner(t *testing.T) {
 	ns := "test-namespace"
 	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 
-	namespacedOwnerReference := NewNamespacedOwnerReference("apps/v1", "deployment", deploymentName, "uid-dummy", ns)
+	namespacedOwnerReference := NewNamespacedOwnerReference("apps/v1", "Deployment", deploymentName, "uid-dummy", ns)
 
 	mockContainersLanguages := langUtil.NewContainersLanguages()
 	mockContainersLanguages.GetOrInitializeLanguageset("container-1").Parse("cpp,java,python")
@@ -348,7 +298,7 @@ func TestPatchOwner(t *testing.T) {
 
 	expectedAnnotations := map[string]string{
 		"apm.datadoghq.com/container-1.languages": "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages": "cpp,python,ruby",
+		"apm.datadoghq.com/container-2.languages": "python,ruby",
 		"apm.datadoghq.com/container-3.languages": "cpp",
 		"annotationkey1": "annotationvalue1",
 		"annotationkey2": "annotationvalue2",
@@ -401,7 +351,7 @@ func TestPatchAllOwners(t *testing.T) {
 		},
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Id:   "dummyId-1",
-			Kind: "replicaset",
+			Kind: "ReplicaSet",
 			Name: "test-deployment-A-2342347",
 		},
 	}
@@ -442,7 +392,7 @@ func TestPatchAllOwners(t *testing.T) {
 		},
 		Ownerref: &pbgo.KubeOwnerInfo{
 			Id:   "dummyId-2",
-			Kind: "replicaset",
+			Kind: "ReplicaSet",
 			Name: "test-deployment-B-2342347",
 		},
 	}
@@ -459,7 +409,7 @@ func TestPatchAllOwners(t *testing.T) {
 					"annotationkey1": "annotationvalue1",
 					"annotationkey2": "annotationvalue2",
 					"apm.datadoghq.com/container-1.languages": "java,python",
-					"apm.datadoghq.com/container-2.languages": "cpp",
+					"apm.datadoghq.com/container-2.languages": "python",
 				},
 			},
 			"spec": map[string]interface{}{},
@@ -503,7 +453,7 @@ func TestPatchAllOwners(t *testing.T) {
 
 	expectedAnnotationsA := map[string]string{
 		"apm.datadoghq.com/container-1.languages":      "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages":      "cpp,python,ruby",
+		"apm.datadoghq.com/container-2.languages":      "python,ruby",
 		"apm.datadoghq.com/init.container-3.languages": "cpp",
 		"annotationkey1": "annotationvalue1",
 		"annotationkey2": "annotationvalue2",

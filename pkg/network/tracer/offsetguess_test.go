@@ -20,8 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	manager "github.com/DataDog/ebpf-manager"
-
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -29,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	manager "github.com/DataDog/ebpf-manager"
 )
 
 //go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/runtime/offsetguess-test.c pkg/ebpf/bytecode/build/runtime/offsetguess-test.c pkg/ebpf/c pkg/ebpf/c/protocols pkg/network/ebpf/c/runtime pkg/network/ebpf/c
@@ -153,8 +152,8 @@ func testOffsetGuess(t *testing.T) {
 	cts, err := offsetguess.RunOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
 		return offsetguess.NewConntrackOffsetGuesser(cfg)
 	})
-	require.NoError(t, err)
 	_consts = append(_consts, cts...)
+	require.NoError(t, err, "guessed offsets: %+v", _consts)
 
 	consts := map[offsetT]uint64{}
 	for _, c := range _consts {
@@ -315,10 +314,13 @@ func TestOffsetGuessPortIPv6Overlap(t *testing.T) {
 
 		// add IPv6 link-local addresses with 0x35 (53) bytes to each interface
 		for i, addr := range addrs {
-			_, err := nettestutil.RunCommand(fmt.Sprintf("ip -6 addr add %s%d/64 dev %s scope link", portMatchingPrefix, i+1, addr.Zone))
+			// so we capture i and addr.Zone correctly in the closure below
+			z := addr.Zone
+			ii := i + 1
+			_, err := nettestutil.RunCommand(fmt.Sprintf("ip -6 addr add %s%d/64 dev %s scope link", portMatchingPrefix, ii, addr.Zone))
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, _ = nettestutil.RunCommand(fmt.Sprintf("ip -6 addr del %s%d/64 dev %s scope link", portMatchingPrefix, i+1, addr.Zone))
+				_, _ = nettestutil.RunCommand(fmt.Sprintf("ip -6 addr del %s%d/64 dev %s scope link", portMatchingPrefix, ii, z))
 			})
 		}
 

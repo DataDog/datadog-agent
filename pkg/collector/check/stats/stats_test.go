@@ -64,8 +64,8 @@ func TestNewStats(t *testing.T) {
 
 func TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled(t *testing.T) {
 	mockConfig := agentConfig.Mock(t)
-	mockConfig.Set("telemetry.enabled", false)
-	mockConfig.Set("telemetry.checks", "*")
+	mockConfig.SetWithoutSource("telemetry.enabled", false)
+	mockConfig.SetWithoutSource("telemetry.checks", "*")
 
 	NewStats(newMockCheck())
 
@@ -82,8 +82,8 @@ func TestNewStatsStateTelemetryIgnoredWhenGloballyDisabled(t *testing.T) {
 
 func TestNewStatsStateTelemetryInitializedWhenGloballyEnabled(t *testing.T) {
 	mockConfig := agentConfig.Mock(t)
-	mockConfig.Set("telemetry.enabled", true)
-	mockConfig.Set("telemetry.checks", "*")
+	mockConfig.SetWithoutSource("telemetry.enabled", true)
+	mockConfig.SetWithoutSource("telemetry.checks", "*")
 
 	NewStats(newMockCheck())
 
