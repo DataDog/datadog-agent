@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -39,7 +38,6 @@ func FormatStatus(data []byte) (string, error) {
 		aggregatorStats = s
 	}
 
-	snmpTrapsStats := stats["snmpTrapsStats"]
 	netflowStats := stats["netflowStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
@@ -64,12 +62,7 @@ func FormatStatus(data []byte) (string, error) {
 		}
 		return nil
 	}
-	snmpTrapFunc := func() error {
-		if traps.IsEnabled(config.Datadog) {
-			return renderStatusTemplate(b, "/snmp-traps.tmpl", snmpTrapsStats)
-		}
-		return nil
-	}
+	snmpTrapFunc := func() error { return renderStatusTemplate(b, "/snmp-traps.tmpl", stats) }
 
 	netflowFunc := func() error {
 		if server.IsEnabled() {

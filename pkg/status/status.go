@@ -376,7 +376,9 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 		stats["agent_metadata"] = map[string]string{}
 	}
 
-	stats["snmpTrapsStats"] = traps.GetStatus()
+	if traps.IsEnabled(config.Datadog) {
+		stats["snmpTrapsStats"] = traps.GetStatus()
+	}
 
 	stats["netflowStats"] = netflowServer.GetStatus()
 
