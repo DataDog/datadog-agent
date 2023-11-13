@@ -718,7 +718,7 @@ func getClientsIndex(index, totalCount int) int {
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
 	requestsExist := make([]bool, len(requests))
 
-	require.Eventually(t, func() bool {
+	assert.Eventually(t, func() bool {
 		stats := getHttpStats(t, monitor)
 
 		if len(stats) == 0 {
@@ -735,16 +735,30 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 
 		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
 		// otherwise, if all present, abort.
-		for reqIndex, exists := range requestsExist {
+		for _, exists := range requestsExist {
 			if !exists {
-				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
-				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
 				return false
 			}
 		}
 
 		return true
 	}, 3*time.Second, time.Millisecond*100, "connection not found")
+
+	if t.Failed() {
+		o, err := monitor.DumpMaps("http_in_flight")
+		if err != nil {
+			t.Logf("failed dumping http_in_flight: %s", err)
+		} else {
+			t.Log(o)
+		}
+
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+			}
+		}
+	}
 }
 
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {
