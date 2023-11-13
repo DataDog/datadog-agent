@@ -14,7 +14,7 @@ import (
 )
 
 func TestFormatStatus(t *testing.T) {
-	agentJSON, err := os.ReadFile("fixtures/agent_status.json")
+	agentJSON, err := os.ReadFile("../fixtures/agent_status.json")
 	require.NoError(t, err)
 	const statusRenderErrors = "Status render errors"
 
