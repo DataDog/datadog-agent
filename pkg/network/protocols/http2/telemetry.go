@@ -34,7 +34,6 @@ type kernelTelemetry struct {
 	// strLenGreaterThanFrameLoc Count of times we couldn't retrieve the path due to reaching the end of the frame.
 	// frameRemainder            Count of frames sent over more than one frame.
 	// maxInterestingFrames		 Count of times we reached the max number of frames per iteration.
-	// iterationLimit		     Count of times we reached the max number of frames per iteration.
 	// maxFramesToFilter		 Count of times we have left with more frames to filter than the max number of frames to filter.
 
 	http2requests        *libtelemetry.Gauge
