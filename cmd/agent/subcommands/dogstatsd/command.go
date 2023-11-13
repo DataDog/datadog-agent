@@ -88,7 +88,7 @@ func triggerDump(config cconfig.Component) (string, error) {
 	}
 
 	port := config.GetInt("cmd_port")
-	url := fmt.Sprintf("https://%v:%v/agent/dump-dogstatsd-contexts", addr, port)
+	url := fmt.Sprintf("https://%v:%v/agent/dogstatsd-contexts-dump", addr, port)
 
 	err = util.SetAuthToken()
 	if err != nil {
