@@ -6,6 +6,7 @@
 package providers
 
 import (
+	"encoding/json"
 	"regexp"
 	"testing"
 
@@ -196,7 +197,8 @@ func TestGetPrometheusConfigs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog.SetWithoutSource("prometheus_scrape.checks", tt.config)
+			confBytes, _ := json.Marshal(tt.config)
+			config.Datadog.SetWithoutSource("prometheus_scrape.checks", string(confBytes))
 			checks, err := getPrometheusConfigs()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("getPrometheusConfigs() error = %v, wantErr %v", err, tt.wantErr)
