@@ -61,17 +61,10 @@ func FormatStatus(data []byte) (string, error) {
 	}
 	snmpTrapFunc := func() error { return renderStatusTemplate(b, "/snmp-traps.tmpl", stats) }
 	netflowFunc := func() error { return renderStatusTemplate(b, "/netflow.tmpl", stats) }
-	autodiscoveryFunc := func() error {
-		if config.IsContainerized() {
-			return renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"],
-				stats["filterErrors"])
-		}
-		return nil
-	}
-	remoteConfigFunc := func() error {
-		return renderStatusTemplate(b, "/remoteconfig.tmpl", stats)
-	}
+	autodiscoveryFunc := func() error { return renderStatusTemplate(b, "/autodiscovery.tmpl", stats) }
+	remoteConfigFunc := func() error { return renderStatusTemplate(b, "/remoteconfig.tmpl", stats) }
 	otlpFunc := func() error { return renderStatusTemplate(b, "/otlp.tmpl", stats) }
+
 	var renderFuncs []func() error
 	if config.IsCLCRunner() {
 		renderFuncs = []func() error{headerFunc, checkStatsFunc, aggregatorFunc, endpointsFunc, clusterAgentFunc,
@@ -259,14 +252,6 @@ func renderRuntimeSecurityStats(w io.Writer, runtimeSecurityStatus interface{}) 
 	status := make(map[string]interface{})
 	status["RuntimeSecurityStatus"] = runtimeSecurityStatus
 	return renderStatusTemplate(w, "/runtimesecurity.tmpl", status)
-}
-
-func renderAutodiscoveryStats(w io.Writer, adEnabledFeatures interface{}, adConfigErrors interface{}, filterErrors interface{}) error {
-	autodiscoveryStats := make(map[string]interface{})
-	autodiscoveryStats["adEnabledFeatures"] = adEnabledFeatures
-	autodiscoveryStats["adConfigErrors"] = adConfigErrors
-	autodiscoveryStats["filterErrors"] = filterErrors
-	return renderStatusTemplate(w, "/autodiscovery.tmpl", autodiscoveryStats)
 }
 
 //go:embed templates
