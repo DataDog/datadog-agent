@@ -19,6 +19,7 @@ import (
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -63,7 +64,9 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 
 	stats["logsStats"] = logsStatus.Get(verbose)
 
-	stats["otlp"] = GetOTLPStatus()
+	if otlp.IsDisplayed() {
+		stats["otlp"] = GetOTLPStatus()
+	}
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
@@ -380,7 +383,9 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 		stats["snmpTrapsStats"] = traps.GetStatus()
 	}
 
-	stats["netflowStats"] = netflowServer.GetStatus()
+	if netflowServer.IsEnabled() {
+		stats["netflowStats"] = netflowServer.GetStatus()
+	}
 
 	complianceVar := expvar.Get("compliance")
 	if complianceVar != nil {

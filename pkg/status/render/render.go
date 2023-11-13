@@ -15,8 +15,6 @@ import (
 	"path"
 	"text/template"
 
-	"github.com/DataDog/datadog-agent/comp/netflow/server"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,7 +36,6 @@ func FormatStatus(data []byte) (string, error) {
 		aggregatorStats = s
 	}
 
-	netflowStats := stats["netflowStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 
@@ -63,14 +60,7 @@ func FormatStatus(data []byte) (string, error) {
 		return nil
 	}
 	snmpTrapFunc := func() error { return renderStatusTemplate(b, "/snmp-traps.tmpl", stats) }
-
-	netflowFunc := func() error {
-		if server.IsEnabled() {
-			return renderStatusTemplate(b, "/netflow.tmpl", netflowStats)
-		}
-		return nil
-	}
-
+	netflowFunc := func() error { return renderStatusTemplate(b, "/netflow.tmpl", stats) }
 	autodiscoveryFunc := func() error {
 		if config.IsContainerized() {
 			return renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"],
@@ -81,13 +71,7 @@ func FormatStatus(data []byte) (string, error) {
 	remoteConfigFunc := func() error {
 		return renderStatusTemplate(b, "/remoteconfig.tmpl", stats)
 	}
-	otlpFunc := func() error {
-		if otlp.IsDisplayed() {
-			return renderStatusTemplate(b, "/otlp.tmpl", stats)
-		}
-		return nil
-	}
-
+	otlpFunc := func() error { return renderStatusTemplate(b, "/otlp.tmpl", stats) }
 	var renderFuncs []func() error
 	if config.IsCLCRunner() {
 		renderFuncs = []func() error{headerFunc, checkStatsFunc, aggregatorFunc, endpointsFunc, clusterAgentFunc,
