@@ -6,7 +6,6 @@
 package agentsubcommands
 
 import (
-	_ "embed"
 	"regexp"
 	"strconv"
 	"strings"
