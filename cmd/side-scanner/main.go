@@ -317,7 +317,6 @@ func (s lambdaScan) String() string {
 
 type sideScanner struct {
 	hostname         string
-	log              complog.Component
 	rcClient         *remote.Client
 	poolSize         int
 	eventForwarder   epforwarder.EventPlatformForwarder
