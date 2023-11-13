@@ -39,7 +39,7 @@ func TestIntegrationClient(t *testing.T) {
 		isReady := <-ready
 		require.True(t, isReady)
 
-		client := NewClient(fi.URL())
+		client := NewClient(t, fi.URL())
 		// max wait for 500 ms
 		err := backoff.Retry(client.GetServerHealth, backoff.WithMaxRetries(backoff.NewConstantBackOff(100*time.Millisecond), 5))
 		require.NoError(t, err, "Failed waiting for fakeintake")
@@ -64,7 +64,7 @@ func TestIntegrationClient(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		client := NewClient(fi.URL())
+		client := NewClient(t, fi.URL())
 		// max wait for 250 ms
 		err = backoff.Retry(client.GetServerHealth, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 25))
 		require.NoError(t, err, "Failed waiting for fakeintake")
@@ -92,7 +92,7 @@ func TestIntegrationClient(t *testing.T) {
 		defer resp.Body.Close()
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-		client := NewClient(fi.URL())
+		client := NewClient(t, fi.URL())
 		// max wait for 250 ms
 		err = backoff.Retry(client.GetServerHealth, backoff.WithMaxRetries(backoff.NewConstantBackOff(10*time.Millisecond), 25))
 		require.NoError(t, err, "Failed waiting for fakeintake")

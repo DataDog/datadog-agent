@@ -61,7 +61,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		payloads, err := client.getFakePayloads("/foo/bar")
 		assert.NoError(t, err, "Error getting payloads")
 		assert.Equal(t, 3, len(payloads))
@@ -76,7 +76,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		payloads, err := client.getFakePayloads("/foo/bar")
 		assert.Error(t, err, "Expecting error")
 		assert.Nil(t, payloads)
@@ -88,7 +88,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		err := client.getMetrics()
 		assert.NoError(t, err)
 		assert.True(t, client.metricAggregator.ContainsPayloadName("system.load.1"))
@@ -103,7 +103,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		metrics, err := client.getMetric("snmp.ifAdminStatus")
 		assert.NoError(t, err)
 		assert.NotEmpty(t, aggregator.FilterByTags(metrics, []string{"interface:lo", "snmp_profile:generic-router"}))
@@ -116,7 +116,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		metrics, err := client.FilterMetrics("snmp.sysUpTimeInstance",
 			WithTags[*aggregator.MetricSeries]([]string{"snmp_device:172.25.0.3", "snmp_profile:generic-router"}),
 			WithMetricValueHigherThan(4226040),
@@ -132,7 +132,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		err := client.getCheckRuns()
 		assert.NoError(t, err)
 		assert.True(t, client.checkRunAggregator.ContainsPayloadName("snmp.can_check"))
@@ -147,7 +147,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		checks, err := client.GetCheckRun("datadog.agent.check_status")
 		assert.NoError(t, err)
 		assert.NotEmpty(t, aggregator.FilterByTags(checks, []string{"check:snmp"}))
@@ -160,7 +160,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		err := client.getLogs()
 		assert.NoError(t, err)
 		assert.True(t, client.logAggregator.ContainsPayloadName("testapp"))
@@ -173,7 +173,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		logs, err := client.getLog("testapp")
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(logs))
@@ -188,7 +188,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		logs, err := client.FilterLogs("testapp", WithMessageMatching(`^hello.*`), WithMessageContaining("hello there, can you hear"))
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(logs))
@@ -204,7 +204,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		err := client.GetServerHealth()
 		assert.NoError(t, err)
 	})
@@ -219,7 +219,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		err := client.FlushServerAndResetAggregators()
 		assert.NoError(t, err)
 	})
@@ -230,7 +230,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		flare, err := client.GetLatestFlare()
 		assert.NoError(t, err)
 		assert.Equal(t, flare.GetEmail(), "test")
@@ -256,7 +256,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		err := client.getProcesses()
 		require.NoError(t, err)
 		assert.True(t, client.processAggregator.ContainsPayloadName("i-078e212"))
@@ -281,7 +281,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		err := client.getContainers()
 		require.NoError(t, err)
 		assert.True(t, client.containerAggregator.ContainsPayloadName("i-078e212"))
@@ -306,7 +306,7 @@ func TestClient(t *testing.T) {
 		}))
 		defer ts.Close()
 
-		client := NewClient(ts.URL)
+		client := NewClient(t, ts.URL)
 		err := client.getProcessDiscoveries()
 		require.NoError(t, err)
 		assert.True(t, client.processDiscoveryAggregator.ContainsPayloadName("i-078e212"))

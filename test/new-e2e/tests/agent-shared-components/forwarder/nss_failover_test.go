@@ -112,20 +112,6 @@ func TestMultiFakeintakeSuite(t *testing.T) {
 	e2e.Run(t, &multiFakeIntakeSuite{}, multiFakeintakeStackDef())
 }
 
-// SetupSuite waits for both fakeintakes to be ready before running tests.
-func (v *multiFakeIntakeSuite) SetupSuite() {
-	v.Suite.SetupSuite() // need to call the original definition of SetupSuite
-
-	fakeintake1 := v.Env().Fakeintake1
-	fakeintake2 := v.Env().Fakeintake2
-
-	// Wait for the fakeintakes to be ready to avoid 503
-	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		assert.NoError(c, fakeintake1.GetServerHealth())
-		assert.NoError(c, fakeintake2.GetServerHealth())
-	}, intakeMaxWaitTime, intakeTick)
-}
-
 // TestNSSFailover tests that the agent correctly picks-up an NSS change of the intake.
 //
 // The test uses two fakeintakes to represent two backends, and the /etc/hosts file for the NSS source,

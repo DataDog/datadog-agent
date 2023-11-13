@@ -13,10 +13,11 @@ import (
 	"path"
 	"testing"
 
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
+
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/eks"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
 	"github.com/stretchr/testify/suite"
@@ -54,7 +55,7 @@ func (suite *eksSuite) SetupSuite() {
 	}
 
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
-	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
+	suite.Fakeintake = fakeintake.NewClient(suite.T(), fmt.Sprintf("http://%s", fakeintakeHost))
 	suite.KubeClusterName = stackOutput.Outputs["kube-cluster-name"].Value.(string)
 	suite.AgentLinuxHelmInstallName = stackOutput.Outputs["agent-linux-helm-install-name"].Value.(string)
 	suite.AgentWindowsHelmInstallName = stackOutput.Outputs["agent-windows-helm-install-name"].Value.(string)

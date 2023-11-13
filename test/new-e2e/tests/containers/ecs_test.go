@@ -12,11 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
+
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/ecs"
 
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	awsecs "github.com/aws/aws-sdk-go-v2/service/ecs"
@@ -54,7 +55,7 @@ func (suite *ecsSuite) SetupSuite() {
 	suite.Require().NoError(err)
 
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
-	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))
+	suite.Fakeintake = fakeintake.NewClient(suite.T(), fmt.Sprintf("http://%s", fakeintakeHost))
 	suite.ecsClusterName = stackOutput.Outputs["ecs-cluster-name"].Value.(string)
 	suite.clusterName = suite.ecsClusterName
 

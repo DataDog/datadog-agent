@@ -11,7 +11,7 @@
 // In this example we assert that a fakeintake running at localhost on port 8080 received
 // "system.uptime" metrics with tags "app:system" and values in range 4226000 < value < 4226050.
 //
-//	client := NewClient("http://localhost:8080")
+//	client := NewClient(t, "http://localhost:8080")
 //	metrics, err := client.FilterMetrics("system.uptime",
 //			WithTags[*aggregator.MetricSeries]([]string{"app:system"}),
 //			WithMetricValueInRange(4226000, 4226050))
@@ -21,7 +21,7 @@
 // In this example we assert that a fakeintake running at localhost on port 8080 received
 // logs by service "system" with tags "app:system" and content containing "totoro"
 //
-//	client := NewClient("http://localhost:8080")
+//	client := NewClient(t, "http://localhost:8080")
 //	logs, err := client.FilterLogs("system",
 //			WithTags[*aggregator.Log]([]string{"totoro"}),
 //	assert.NoError(t, err)
@@ -46,9 +46,12 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
@@ -83,8 +86,8 @@ type Client struct {
 
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
-func NewClient(fakeIntakeURL string) *Client {
-	return &Client{
+func NewClient(t *testing.T, fakeIntakeURL string) *Client {
+	client := &Client{
 		fakeIntakeURL:              strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:           aggregator.NewMetricAggregator(),
 		checkRunAggregator:         aggregator.NewCheckRunAggregator(),
@@ -94,6 +97,12 @@ func NewClient(fakeIntakeURL string) *Client {
 		containerAggregator:        aggregator.NewContainerAggregator(),
 		processDiscoveryAggregator: aggregator.NewProcessDiscoveryAggregator(),
 	}
+
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		assert.NoError(ct, client.GetServerHealth())
+	}, 5*time.Minute, 20*time.Second)
+
+	return client
 }
 
 func (c *Client) getMetrics() error {

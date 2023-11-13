@@ -8,10 +8,11 @@ package client
 import (
 	"testing"
 
-	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/test-infra-definitions/common/utils"
 	infraFakeintake "github.com/DataDog/test-infra-definitions/components/datadog/fakeintake"
 	"github.com/pulumi/pulumi/sdk/v3/go/auto"
+
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 )
 
 var _ pulumiStackInitializer = (*Fakeintake)(nil)
@@ -22,7 +23,9 @@ type Fakeintake struct {
 	*fakeintake.Client
 }
 
-// NewFakeintake creates a new instance of
+// NewFakeintake creates a new instance of a fakeintake connected to a [infraFakeintake.ConnectionExporter].
+//
+// [infraFakeintake.ConnectionExporter]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/fakeintake#ConnectionExporter
 func NewFakeintake(exporter *infraFakeintake.ConnectionExporter) *Fakeintake {
 	return &Fakeintake{deserializer: exporter}
 }
@@ -31,11 +34,11 @@ func NewFakeintake(exporter *infraFakeintake.ConnectionExporter) *Fakeintake {
 // This method is called by [CallStackInitializers] using reflection.
 //
 //lint:ignore U1000 Ignore unused function as this function is called using reflection
-func (fi *Fakeintake) initFromPulumiStack(_ *testing.T, stackResult auto.UpResult) error {
+func (fi *Fakeintake) initFromPulumiStack(t *testing.T, stackResult auto.UpResult) error {
 	clientData, err := fi.deserializer.Deserialize(stackResult)
 	if err != nil {
 		return err
 	}
-	fi.Client = fakeintake.NewClient("http://" + clientData.Host)
+	fi.Client = fakeintake.NewClient(t, "http://"+clientData.Host)
 	return nil
 }
