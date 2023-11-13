@@ -27,6 +27,7 @@ func newMock() status.Component {
 type mockManager struct {
 	trapsPackets, trapsPacketsAuthErrors int64
 	lock                                 sync.Mutex
+	err                                  error
 }
 
 func (s *mockManager) AddTrapsPackets(i int64) {
@@ -51,4 +52,14 @@ func (s *mockManager) GetTrapsPacketsAuthErrors() int64 {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.trapsPacketsAuthErrors
+}
+
+func (s *mockManager) SetStartError(err error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	s.err = err
+}
+
+func (s *mockManager) GetStartError() error {
+	return s.err
 }

@@ -18,13 +18,15 @@ import (
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(newManager),
+	fx.Provide(New),
 )
 
 var (
 	trapsExpvars           = expvar.NewMap("snmp_traps")
 	trapsPackets           = expvar.Int{}
 	trapsPacketsAuthErrors = expvar.Int{}
+	// startError stores the error we report to GetStatus()
+	startError error
 )
 
 func init() {
@@ -32,12 +34,13 @@ func init() {
 	trapsExpvars.Set("PacketsAuthErrors", &trapsPacketsAuthErrors)
 }
 
-// newManager creates a new component
-func newManager() status.Component {
+// New creates a new status manager component
+func New() status.Component {
 	return &manager{}
 }
 
-type manager struct{}
+type manager struct {
+}
 
 func (s *manager) AddTrapsPackets(i int64) {
 	trapsPackets.Add(i)
@@ -53,6 +56,14 @@ func (s *manager) GetTrapsPackets() int64 {
 
 func (s *manager) GetTrapsPacketsAuthErrors() int64 {
 	return trapsPacketsAuthErrors.Value()
+}
+
+func (s *manager) GetStartError() error {
+	return startError
+}
+
+func (s *manager) SetStartError(err error) {
+	startError = err
 }
 
 func getDroppedPackets() int64 {
@@ -85,6 +96,8 @@ func GetStatus() map[string]interface{} {
 		metrics["PacketsDropped"] = dropped
 	}
 	status["metrics"] = metrics
-
+	if startError != nil {
+		status["error"] = startError.Error()
+	}
 	return status
 }
