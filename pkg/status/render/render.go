@@ -38,7 +38,6 @@ func FormatStatus(data []byte) (string, error) {
 	} else {
 		aggregatorStats = s
 	}
-	logsStats := stats["logsStats"]
 	dcaStats := stats["clusterAgentStatus"]
 
 	endpointsInfos := stats["endpointsInfos"]
@@ -57,7 +56,7 @@ func FormatStatus(data []byte) (string, error) {
 	jmxFetchFunc := func() error { return renderStatusTemplate(b, "/jmxfetch.tmpl", stats) }
 	forwarderFunc := func() error { return renderStatusTemplate(b, "/forwarder.tmpl", stats) }
 	endpointsFunc := func() error { return renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos) }
-	logsAgentFunc := func() error { return renderStatusTemplate(b, "/logsagent.tmpl", logsStats) }
+	logsAgentFunc := func() error { return renderStatusTemplate(b, "/logsagent.tmpl", stats) }
 	systemProbeFunc := func() error {
 		if systemProbeStats != nil {
 			return renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
