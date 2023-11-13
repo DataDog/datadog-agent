@@ -15,9 +15,7 @@ import (
 	"path"
 	"text/template"
 
-	checkstats "github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var fmap = Textfmap()
@@ -28,14 +26,6 @@ func FormatStatus(data []byte) (string, error) {
 	if renderError != "" || err != nil {
 		return renderError, err
 	}
-	aggregatorStats := stats["aggregatorStats"]
-	s, err := checkstats.TranslateEventPlatformEventTypes(aggregatorStats)
-	if err != nil {
-		log.Debugf("failed to translate event platform event types in aggregatorStats: %s", err.Error())
-	} else {
-		aggregatorStats = s
-	}
-
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
 	stats["title"] = title
 
@@ -51,7 +41,7 @@ func FormatStatus(data []byte) (string, error) {
 	systemProbeFunc := func() error { return renderStatusTemplate(b, "/systemprobe.tmpl", stats) }
 	processAgentFunc := func() error { return renderStatusTemplate(b, "/process-agent.tmpl", stats) }
 	traceAgentFunc := func() error { return renderStatusTemplate(b, "/trace-agent.tmpl", stats) }
-	aggregatorFunc := func() error { return renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats) }
+	aggregatorFunc := func() error { return renderStatusTemplate(b, "/aggregator.tmpl", stats) }
 	dogstatsdFunc := func() error { return renderStatusTemplate(b, "/dogstatsd.tmpl", stats) }
 	clusterAgentFunc := func() error {
 		if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
