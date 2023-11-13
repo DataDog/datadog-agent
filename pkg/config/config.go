@@ -1074,10 +1074,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.include", []string{})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.exclude", []string{})
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", false)
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.container_registry", "")
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "datadog/cws-instrumentation")
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "master")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", true)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.container_registry", "gcr.io/datadoghq")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "cws-instrumentation")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "latest")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.memory")
 
@@ -1204,6 +1204,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
 	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
@@ -1684,6 +1685,19 @@ func setupFipsEndpoints(config Config) error {
 	os.Unsetenv("HTTP_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 
+	// We're creating a temporary configuration which will be merged to the main config later.
+	// Internally, Viper uses multiple storages for the configuration values and values from datadog.yaml are stored
+	// in a different place from where overrides (created with config.Set(...)) are stored.
+	// Some products are using UnmarshalKey() which either uses overridden data or either configuration file data but not
+	// both at the same time (see https://github.com/spf13/viper/issues/1106)
+	//
+	// Because of that we cannot rely on Set() because it creates overridden data and then UnmarshalKey() will only use the
+	// option created with Set() instead of using option from Set() + option from configuration file.
+	// Instead we merge all the options we need into the main configuration (basically we dynamically add data to the place
+	// where configuration file data are stored)
+	fipsConfig := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	fipsConfig.Set("fips.https", config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
+
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"
 	if config.GetBool("fips.https") {
@@ -1695,39 +1709,40 @@ func setupFipsEndpoints(config Config) error {
 	// config_template.yaml
 
 	// Metrics
-	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
+	fipsConfig.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
 
 	// Logs
-	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
+	setupFipsLogsConfig(fipsConfig, "logs_config.", urlFor(logs))
 
 	// APM
-	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
+	fipsConfig.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
-	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", pkgconfigmodel.SourceAgentRuntime)
-	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), pkgconfigmodel.SourceAgentRuntime)
+	fipsConfig.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", pkgconfigmodel.SourceAgentRuntime)
+	fipsConfig.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), pkgconfigmodel.SourceAgentRuntime)
 
 	// Processes
-	config.Set("process_config.process_dd_url", protocol+urlFor(processes), pkgconfigmodel.SourceAgentRuntime)
+	fipsConfig.Set("process_config.process_dd_url", protocol+urlFor(processes), pkgconfigmodel.SourceAgentRuntime)
 
 	// Database monitoring
 	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
 	// (even though the underlying IPs were the same as the ones for DBM metrics intake hostname). We're keeping 2 ports for backward compatibility reason.
-	setupFipsLogsConfig(config, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
-	setupFipsLogsConfig(config, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
-	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
+	setupFipsLogsConfig(fipsConfig, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(fipsConfig, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(fipsConfig, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
 	// Network devices
-	setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
-	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
-	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
+	setupFipsLogsConfig(fipsConfig, "network_devices.metadata.", urlFor(networkDevicesMetadata))
+	setupFipsLogsConfig(fipsConfig, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
+	setupFipsLogsConfig(fipsConfig, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
 	// Orchestrator Explorer
-	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), pkgconfigmodel.SourceAgentRuntime)
+	fipsConfig.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), pkgconfigmodel.SourceAgentRuntime)
 
 	// CWS
-	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
+	setupFipsLogsConfig(fipsConfig, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
 
-	return nil
+	// Merge the configurations
+	return config.MergeConfigMap(fipsConfig.AllSettings())
 }
 
 func setupFipsLogsConfig(config Config, configPrefix string, url string) {
