@@ -42,6 +42,7 @@ type dependencies struct {
 	Logger    log.Component
 }
 
+// injections bundles the injectables passed from the main app to the subapp.
 type injections struct {
 	fx.Out
 	Conf      config.Component
@@ -102,6 +103,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) server.Component {
 		OnStart: func(ctx context.Context) error {
 			err := app.Start(ctx)
 			if err != nil {
+				deps.Logger.Errorf("Failed to start snmp-traps server: %s", err)
 				server.stat.SetStartError(err)
 			} else {
 				server.running = true
