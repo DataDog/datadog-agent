@@ -364,7 +364,7 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
 	stats["forwarderStats"] = forwarderStats
 
-	collector.UpdateStatus(stats)
+	collector.PopulateStatus(stats)
 
 	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
 	aggregatorStats := make(map[string]interface{})

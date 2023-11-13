@@ -11,8 +11,8 @@ import (
 	"expvar"
 )
 
-// UpdateStatus populates stats with collector information
-func UpdateStatus(stats map[string]interface{}) {
+// PopulateStatus populates stats with collector information
+func PopulateStatus(stats map[string]interface{}) {
 	status := GetStatus()
 	for key, value := range status {
 		stats[key] = value

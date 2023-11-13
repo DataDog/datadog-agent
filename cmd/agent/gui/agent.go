@@ -54,11 +54,12 @@ func ping(w http.ResponseWriter, r *http.Request) {
 func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.Component) {
 	statusType := mux.Vars(r)["type"]
 
-	var stats map[string]interface{}
-	var err error
+	var (
+		stats map[string]interface{}
+		err   error
+	)
 	if statusType == "collector" {
 		stats = collector.GetStatus()
-		err = nil
 	} else {
 		verbose := r.URL.Query().Get("verbose") == "true"
 		stats, err = status.GetStatus(verbose, invAgent)
