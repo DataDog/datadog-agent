@@ -543,6 +543,9 @@ func (rt *awsClientStats) SendStats() {
 	}
 	statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(len(rt.ec2stats)), rt.tags("ec2"), 1.0)
 	statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(len(rt.ebsstats)), rt.tags("ebs"), 1.0)
+
+	rt.ec2stats = nil
+	rt.ebsstats = nil
 }
 
 func (ty *awsClientStats) tags(serviceName string, actions ...string) []string {
@@ -559,9 +562,16 @@ var (
 	ebsGetBlockReg = regexp.MustCompile("/snapshots/(snap-[a-z0-9]+)/blocks/([0-9]+)")
 )
 
-func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
+func (rt *awsClientStats) recordStats(req *http.Request) error {
 	rt.statsMu.Lock()
 	defer rt.statsMu.Unlock()
+
+	if rt.ec2stats == nil {
+		rt.ec2stats = make(map[string]float64, 0)
+	}
+	if rt.ebsstats == nil {
+		rt.ebsstats = make(map[string]float64, 0)
+	}
 
 	switch {
 	// EBS
@@ -576,7 +586,7 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 		if req.Method == http.MethodPost && req.Body != nil {
 			body, err := io.ReadAll(req.Body)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			form, err := url.ParseQuery(string(body))
 			if err == nil {
@@ -593,6 +603,13 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 		}
 	}
 
+	return nil
+}
+
+func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := rt.recordStats(req); err != nil {
+		return nil, err
+	}
 	resp, err := rt.transport.RoundTrip(req)
 	if err != nil {
 		return nil, err
@@ -606,8 +623,6 @@ func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (a
 			IdleConnTimeout: 10 * time.Second,
 			MaxIdleConns:    10,
 		},
-		ec2stats: make(map[string]float64, 0),
-		ebsstats: make(map[string]float64, 0),
 	}
 
 	httpClient := *defaultHTTPClient
