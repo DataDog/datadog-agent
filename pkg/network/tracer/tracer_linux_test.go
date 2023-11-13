@@ -1201,6 +1201,8 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 			conns[string(c.ByteKey(buf))] = c
 		}
 
+		t.Log(conns)
+
 		return len(conns) == 4
 	}, 3*time.Second, 100*time.Millisecond, "could not find expected number of udp connections, expected: 4")
 
