@@ -72,7 +72,7 @@ func Textfmap() ttemplate.FuncMap {
 	}
 }
 
-var timeFormat = "2006-01-02 15:04:05.999 MST"
+const timeFormat = "2006-01-02 15:04:05.999 MST"
 
 func doNotEscape(value string) htemplate.HTML {
 	return htemplate.HTML(value)
