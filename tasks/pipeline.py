@@ -211,6 +211,7 @@ def run(
     deploy=False,
     all_builds=True,
     kitchen_tests=True,
+    rc_staging_deployments=False,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -311,6 +312,7 @@ def run(
             deploy=deploy,
             all_builds=all_builds,
             kitchen_tests=kitchen_tests,
+            rc_staging_deployments=rc_staging_deployments,
         )
     except FilteredOutException:
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
