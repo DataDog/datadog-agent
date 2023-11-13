@@ -15,4 +15,6 @@ type Component interface {
 	GetTrapsPackets() int64
 	AddTrapsPacketsAuthErrors(int64)
 	GetTrapsPacketsAuthErrors() int64
+	SetStartError(error)
+	GetStartError() error
 }
