@@ -495,7 +495,13 @@ func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, pid in
 		return err
 	}
 	if resource != nil {
-		a.reportResourceLog(defaultCheckIntervalLowPriority, NewResourceLog(a.opts.Hostname, resource.Type, resource.Config))
+		dbResourceLog := NewResourceLog(a.opts.Hostname, resource.Type, resource.Config)
+		if cID := resource.ContainerID; cID != "" {
+			dbResourceLog.Container = &CheckContainerMeta{
+				ContainerID: cID,
+			}
+		}
+		a.reportResourceLog(defaultCheckIntervalLowPriority, dbResourceLog)
 	}
 	return nil
 }
