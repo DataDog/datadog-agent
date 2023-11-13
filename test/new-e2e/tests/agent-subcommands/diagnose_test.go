@@ -6,6 +6,7 @@
 package agentsubcommands
 
 import (
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -43,6 +44,18 @@ type summary struct {
 	warnings int
 	fail     int
 	errors   int
+}
+
+var summaryRE = createSummaryRegex()
+
+func createSummaryRegex() *regexp.Regexp {
+	successRegex := `(?:, Success:(?P<success>\d+))?`
+	failRegex := `(?:, Fail:(?P<fail>\d+))?`
+	warningRegex := `(?:, Warning:(?P<warning>\d+))?`
+	errorRegex := `(?:, Error:(?P<error>\d+))?`
+	regexTemplate := `Total:(?P<total>\d+)` + successRegex + failRegex + warningRegex + errorRegex
+
+	return regexp.MustCompile(regexTemplate)
 }
 
 func getDiagnoseOutput(v *agentDiagnoseSuite, commandArgs ...client.AgentArgsOption) string {
@@ -145,21 +158,21 @@ func (v *agentDiagnoseSuite) TestDiagnoseVerbose() {
 // getDiagnoseSummary parses the diagnose output and returns a struct containing number of success, fail, error and warning
 func getDiagnoseSummary(diagnoseOutput string) summary {
 	// success, fail, warning and error are optional in the diagnose output (they're printed when their value != 0)
-	successRegex := `(?:, Success:(?P<success>\d+))?`
+	/*successRegex := `(?:, Success:(?P<success>\d+))?`
 	failRegex := `(?:, Fail:(?P<fail>\d+))?`
 	warningRegex := `(?:, Warning:(?P<warning>\d+))?`
 	errorRegex := `(?:, Error:(?P<error>\d+))?`
 	regexTemplate := `Total:(?P<total>\d+)` + successRegex + failRegex + warningRegex + errorRegex
 
-	re := regexp.MustCompile(regexTemplate)
-	matches := re.FindStringSubmatch(diagnoseOutput)
+	re := regexp.MustCompile(regexTemplate)*/
+	matches := summaryRE.FindStringSubmatch(diagnoseOutput)
 
 	return summary{
-		total:    getRegexGroupValue(re, matches, "total"),
-		success:  getRegexGroupValue(re, matches, "success"),
-		warnings: getRegexGroupValue(re, matches, "warning"),
-		fail:     getRegexGroupValue(re, matches, "fail"),
-		errors:   getRegexGroupValue(re, matches, "error"),
+		total:    getRegexGroupValue(summaryRE, matches, "total"),
+		success:  getRegexGroupValue(summaryRE, matches, "success"),
+		warnings: getRegexGroupValue(summaryRE, matches, "warning"),
+		fail:     getRegexGroupValue(summaryRE, matches, "fail"),
+		errors:   getRegexGroupValue(summaryRE, matches, "error"),
 	}
 }
 
@@ -167,7 +180,7 @@ func getDiagnoseSummary(diagnoseOutput string) summary {
 func getRegexGroupValue(re *regexp.Regexp, matches []string, groupName string) int {
 	index := re.SubexpIndex(groupName)
 	if index < 0 || index >= len(matches) {
-		return 0
+		panic(fmt.Sprintf("An error occured while looking for group '%v' in diagnose output", groupName))
 	}
 
 	val, err := strconv.Atoi(matches[index])
