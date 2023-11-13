@@ -700,6 +700,11 @@ def generate_cws_proto(ctx):
                 f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
             )
 
+            # EBPFLESS
+            ctx.run(
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/ebpfless/service.proto"
+            )
+
     for path in glob.glob("pkg/security/**/*.pb.go", recursive=True):
         print(f"replacing protoc version in {path}")
         with open(path) as f:

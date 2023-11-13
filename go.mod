@@ -659,7 +659,6 @@ require (
 	github.com/moby/sys/sequential v0.5.0 // indirect
 	github.com/rogpeppe/go-internal v1.11.0 // indirect
 	github.com/rs/zerolog v1.29.1 // indirect
-	github.com/safchain/rstrace v0.0.0
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
 	github.com/sigstore/rekor v1.2.2 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
@@ -696,8 +695,6 @@ require (
 	inet.af/netaddr v0.0.0-20230525184311-b8eac61e914a // indirect
 	k8s.io/kms v0.27.6 // indirect
 )
-
-replace github.com/safchain/rstrace => ../../safchain/rstrace
 
 replace github.com/pahanini/go-grpc-bidirectional-streaming-example v0.0.0-20211027164128-cc6111af44be => github.com/DataDog/go-grpc-bidirectional-streaming-example v0.0.0-20221024060302-b9cf785c02fe
 
