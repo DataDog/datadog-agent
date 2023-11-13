@@ -246,10 +246,6 @@ func getPartialConfig() map[string]string {
 	conf["fips_local_address"] = config.Datadog.GetString("fips.local_address")
 	conf["fips_port_range_start"] = config.Datadog.GetString("fips.port_range_start")
 
-	forwarderStorageMaxSizeInBytes := config.Datadog.GetInt("forwarder_storage_max_size_in_bytes")
-	if forwarderStorageMaxSizeInBytes > 0 {
-		conf["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)
-	}
 	return conf
 }
 
@@ -322,6 +318,10 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
+	forwarderStorageMaxSizeInBytes := config.Datadog.GetInt("forwarder_storage_max_size_in_bytes")
+	if forwarderStorageMaxSizeInBytes > 0 {
+		forwarderStats["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)
+	}
 	stats["forwarderStats"] = forwarderStats
 
 	collector.PopulateStatus(stats)

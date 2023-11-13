@@ -31,13 +31,6 @@ func FormatStatus(data []byte) (string, error) {
 	if renderError != "" || err != nil {
 		return renderError, err
 	}
-	forwarderStats := stats["forwarderStats"]
-	if forwarderStatsMap, ok := forwarderStats.(map[string]interface{}); ok {
-		forwarderStatsMap["config"] = stats["config"]
-	} else {
-		log.Warn("The Forwarder status format is invalid. Some parts of the `Forwarder` section may be missing.")
-	}
-
 	aggregatorStats := stats["aggregatorStats"]
 	s, err := checkstats.TranslateEventPlatformEventTypes(aggregatorStats)
 	if err != nil {
@@ -62,7 +55,7 @@ func FormatStatus(data []byte) (string, error) {
 		return renderStatusTemplate(b, "/collector.tmpl", stats)
 	}
 	jmxFetchFunc := func() error { return renderStatusTemplate(b, "/jmxfetch.tmpl", stats) }
-	forwarderFunc := func() error { return renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats) }
+	forwarderFunc := func() error { return renderStatusTemplate(b, "/forwarder.tmpl", stats) }
 	endpointsFunc := func() error { return renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos) }
 	logsAgentFunc := func() error { return renderStatusTemplate(b, "/logsagent.tmpl", logsStats) }
 	systemProbeFunc := func() error {
