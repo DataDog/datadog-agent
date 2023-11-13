@@ -135,7 +135,9 @@ func GetDCAStatus(verbose bool) (map[string]interface{}, error) {
 	stats["config"] = getDCAPartialConfig()
 	stats["leaderelection"] = getLeaderElectionDetails()
 
-	stats["logsStats"] = logsStatus.Get(verbose)
+	if config.Datadog.GetBool("compliance_config.enabled") {
+		stats["logsStats"] = logsStatus.Get(verbose)
+	}
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {

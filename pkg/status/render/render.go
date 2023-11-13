@@ -79,14 +79,11 @@ func FormatDCAStatus(data []byte) (string, error) {
 		return renderError, err
 	}
 
-	forwarderStats := stats["forwarderStats"]
 	// We nil these keys because we do not want to display that information in the collector template
 	stats["pyLoaderStats"] = nil
 	stats["pythonInit"] = nil
 	stats["inventories"] = nil
-	endpointsInfos := stats["endpointsInfos"]
-	logsStats := stats["logsStats"]
-	orchestratorStats := stats["orchestrator"]
+
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 
@@ -98,24 +95,21 @@ func FormatDCAStatus(data []byte) (string, error) {
 	if err := renderStatusTemplate(b, "/collector.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := renderStatusTemplate(b, "/forwarder.tmpl", forwarderStats); err != nil {
+	if err := renderStatusTemplate(b, "/forwarder.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := renderStatusTemplate(b, "/endpoints.tmpl", endpointsInfos); err != nil {
+	if err := renderStatusTemplate(b, "/endpoints.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if config.Datadog.GetBool("compliance_config.enabled") {
-		if err := renderStatusTemplate(b, "/logsagent.tmpl", logsStats); err != nil {
-			errs = append(errs, err)
-		}
-	}
-	if err := renderAutodiscoveryStats(b, stats["adEnabledFeatures"], stats["adConfigErrors"], stats["filterErrors"]); err != nil {
+	if err := renderStatusTemplate(b, "/logsagent.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
-		if err := renderStatusTemplate(b, "/orchestrator.tmpl", orchestratorStats); err != nil {
-			errs = append(errs, err)
-		}
+	if err := renderStatusTemplate(b, "/autodiscovery.tmpl", stats); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := renderStatusTemplate(b, "/orchestrator.tmpl", stats); err != nil {
+		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {
 		fmt.Println(err)
