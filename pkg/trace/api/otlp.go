@@ -214,7 +214,6 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	}
 	tracesByID := make(map[uint64]pb.Trace)
 	priorityByID := make(map[uint64]sampler.SamplingPriority)
-	ctags := make(map[string]string)
 	var spancount int64
 	for i := 0; i < rspans.ScopeSpans().Len(); i++ {
 		libspans := rspans.ScopeSpans().At(i)
@@ -226,7 +225,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			if tracesByID[traceID] == nil {
 				tracesByID[traceID] = pb.Trace{}
 			}
-			ddspan := o.convertSpan(rattr, lib, span, ctags)
+			ddspan := o.convertSpan(rattr, lib, span)
 			if !srcok {
 				// if we didn't find a hostname at the resource level
 				// try and see if the span has a hostname set
@@ -284,6 +283,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		LanguageVersion: tagstats.LangVersion,
 		TracerVersion:   tagstats.TracerVersion,
 	}
+	ctags := attributes.ContainerTagsFromResourceAttributes(attr)
 	payloadTags := flatten(ctags)
 	if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
 		appendTags(payloadTags, tags)
@@ -497,30 +497,9 @@ func setMetricOTLP(s *pb.Span, k string, v float64) {
 	}
 }
 
-// peerServiceDefaults specifies default keys used to find a value for peer.service, applied in the order defined below.
-var peerServiceDefaults = []string{
-	// Always use peer.service when it's present
-	semconv.AttributePeerService,
-	// Service-to-service gRPC scenario
-	semconv.AttributeRPCService,
-	// Database
-	semconv.AttributeDBSystem,
-	"db.instance",
-	// Service-to-service HTTP scenario & server-based data streams
-	// Also fallback in case the above attributes are not present
-	semconv.AttributeNetPeerName,
-	// Serverless Database
-	semconv.AttributeAWSDynamoDBTableNames,
-	// Blob storage
-	"bucket.name",
-	semconv.AttributeFaaSDocumentCollection,
-}
-
 // convertSpan converts the span in to a Datadog span, and uses the rattr resource tags and the lib instrumentation
 // library attributes to further augment it.
-//
-// ctags will be used to write container tags to. Existing ones are not overridden.
-func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span, ctags map[string]string) *pb.Span {
+func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.InstrumentationScope, in ptrace.Span) *pb.Span {
 	traceID := [16]byte(in.TraceID())
 	span := &pb.Span{
 		TraceID:  traceIDToUint64(traceID),
@@ -558,21 +537,6 @@ func (o *OTLPReceiver) convertSpan(rattr map[string]string, lib pcommon.Instrume
 		}
 		return true
 	})
-	if key, svc := getFirstFromMap(span.Meta, peerServiceDefaults...); svc != "" {
-		if key != semconv.AttributePeerService {
-			setMetaOTLP(span, semconv.AttributePeerService, svc)
-		}
-		setMetaOTLP(span, "_dd.peer.service.source", key)
-	}
-	for k, v := range attributes.ContainerTagFromAttributes(span.Meta) {
-		if _, ok := span.Meta[k]; !ok {
-			// overwrite only if it does not exist
-			setMetaOTLP(span, k, v)
-		}
-		if _, ok := ctags[k]; !ok {
-			ctags[k] = v
-		}
-	}
 	if _, ok := span.Meta["env"]; !ok {
 		if env := span.Meta[string(semconv.AttributeDeploymentEnvironment)]; env != "" {
 			setMetaOTLP(span, "env", traceutil.NormalizeTag(env))

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Added support for collecting Cloud Foundry container names without the Cluster Agent.

@@ -8,7 +8,6 @@ default_version "1.14.10"
 
 dependency "expat"
 dependency "libtool"
-dependency "pkg-config"
 
 license "AFL-2.1"
 license_file "LICENSES/AFL-2.1.txt"

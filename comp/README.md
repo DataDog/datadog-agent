@@ -30,6 +30,12 @@ Package checks implements the "checks" bundle, for all of the component based ag
 
 Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 
+### [comp/checks/winregistry](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks/winregistry)
+
+*Datadog Team*: windows-agent
+
+Package winregistry implements the Windows Registry check
+
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core) (Component Bundle)
 
 *Datadog Team*: agent-shared-components

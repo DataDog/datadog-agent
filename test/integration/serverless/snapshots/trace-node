@@ -1,26 +1,17 @@
 [
   {
-    "container_id": "",
-    "language_name": "nodejs",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-service",
-            "name": "aws.lambda",
-            "resource": "integration-tests-extension-XXXXXX-trace-node",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.base_service": "integration-tests-service",
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-0",
@@ -31,6 +22,7 @@
               "dd_extension_version": "123",
               "env": "integration-tests-env",
               "function.response.body": "ok",
+              "function.response.statusCode": "200",
               "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-node",
               "function_version": "$LATEST",
               "functionname": "integration-tests-extension-XXXXXX-trace-node",
@@ -56,19 +48,18 @@
               "_sampling_priority_v1": 1,
               "_top_level": 1,
               "cold_start": null,
-              "function.response.statusCode": 200,
               "process_id": null
             },
+            "name": "aws.lambda",
+            "parent_id": null,
+            "resource": "integration-tests-extension-XXXXXX-trace-node",
+            "service": "integration-tests-service",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "serverless"
           },
           {
-            "service": "integration-tests-service",
-            "name": "integration_test",
-            "resource": "integration-test",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -99,40 +90,41 @@
               "_sampling_priority_v1": 1,
               "process_id": null
             },
+            "name": "integration_test",
+            "parent_id": null,
+            "resource": "integration-test",
+            "service": "integration-tests-service",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": ""
           }
         ],
-        "tags": null,
-        "dropped_trace": false
+        "tags": null
       }
     ],
-    "tags": null,
+    "container_id": "",
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": "integration-tests-version"
-  },
-  {
-    "container_id": "",
     "language_name": "nodejs",
     "language_version": null,
-    "tracer_version": null,
     "runtime_id": "",
+    "tags": null,
+    "tracer_version": null
+  },
+  {
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-service",
-            "name": "aws.lambda",
-            "resource": "integration-tests-extension-XXXXXX-trace-node",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
+              "_dd.base_service": "integration-tests-service",
               "_dd.compute_stats": "1",
               "_dd.origin": "lambda",
               "_dd.p.dm": "-0",
@@ -144,6 +136,7 @@
               "env": "integration-tests-env",
               "function.request.body": "testing request payload",
               "function.response.body": "ok",
+              "function.response.statusCode": "200",
               "function_arn": "arn:aws:lambda:eu-west-1:425362996713:function:integration-tests-extension-XXXXXX-trace-node",
               "function_version": "$LATEST",
               "functionname": "integration-tests-extension-XXXXXX-trace-node",
@@ -169,19 +162,18 @@
               "_sampling_priority_v1": 1,
               "_top_level": 1,
               "cold_start": null,
-              "function.response.statusCode": 200,
               "process_id": null
             },
+            "name": "aws.lambda",
+            "parent_id": null,
+            "resource": "integration-tests-extension-XXXXXX-trace-node",
+            "service": "integration-tests-service",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "serverless"
           },
           {
-            "service": "integration-tests-service",
-            "name": "integration_test",
-            "resource": "integration-test",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -212,37 +204,37 @@
               "_sampling_priority_v1": 1,
               "process_id": null
             },
+            "name": "integration_test",
+            "parent_id": null,
+            "resource": "integration-test",
+            "service": "integration-tests-service",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": ""
           }
         ],
-        "tags": null,
-        "dropped_trace": false
+        "tags": null
       }
     ],
-    "tags": null,
+    "container_id": "",
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": "integration-tests-version"
+    "language_name": "nodejs",
+    "language_version": null,
+    "runtime_id": "",
+    "tags": null,
+    "tracer_version": null
   },
   {
-    "container_id": "",
-    "language_name": "",
-    "language_version": null,
-    "tracer_version": null,
-    "runtime_id": "",
+    "app_version": "integration-tests-version",
     "chunks": [
       {
-        "priority": 1,
+        "dropped_trace": false,
         "origin": "lambda",
+        "priority": 1,
         "spans": [
           {
-            "service": "integration-tests-service",
-            "name": "aws.lambda.cold_start",
-            "resource": "integration-tests-extension-XXXXXX-trace-node",
-            "trace_id": null,
-            "span_id": null,
-            "parent_id": null,
-            "start": null,
             "duration": null,
             "error": 0,
             "meta": {
@@ -269,16 +261,26 @@
               "_sampling_priority_rate_v1": 1,
               "_top_level": 1
             },
+            "name": "aws.lambda.cold_start",
+            "parent_id": null,
+            "resource": "integration-tests-extension-XXXXXX-trace-node",
+            "service": "integration-tests-service",
+            "span_id": null,
+            "start": null,
+            "trace_id": null,
             "type": "serverless"
           }
         ],
-        "tags": null,
-        "dropped_trace": false
+        "tags": null
       }
     ],
-    "tags": null,
+    "container_id": "",
     "env": "integration-tests-env",
     "hostname": "",
-    "app_version": "integration-tests-version"
+    "language_name": "",
+    "language_version": null,
+    "runtime_id": "",
+    "tags": null,
+    "tracer_version": null
   }
 ]

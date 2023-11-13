@@ -418,6 +418,24 @@ func (c ContainerPort) String(verbose bool) string {
 	return sb.String()
 }
 
+// ContainerResources is resources requests or limitations for a container
+type ContainerResources struct {
+	CPURequest    *float64 // Percentage 0-100*numCPU (aligned with CPU Limit from metrics provider)
+	MemoryRequest *uint64  // Bytes
+}
+
+// String returns a string representation of ContainerPort.
+func (cr ContainerResources) String(bool) string {
+	var sb strings.Builder
+	if cr.CPURequest != nil {
+		_, _ = fmt.Fprintln(&sb, "TargetCPUUsage:", *cr.CPURequest)
+	}
+	if cr.MemoryRequest != nil {
+		_, _ = fmt.Fprintln(&sb, "TargetMemoryUsage:", *cr.MemoryRequest)
+	}
+	return sb.String()
+}
+
 // OrchestratorContainer is a reference to a Container with
 // orchestrator-specific data attached to it.
 type OrchestratorContainer struct {
@@ -449,6 +467,7 @@ type Container struct {
 	CollectorTags   []string
 	Owner           *EntityID
 	SecurityContext *ContainerSecurityContext
+	Resources       ContainerResources
 }
 
 // GetID implements Entity#GetID.
@@ -488,6 +507,9 @@ func (c Container) String(verbose bool) string {
 	_, _ = fmt.Fprintln(&sb, "----------- Container Info -----------")
 	_, _ = fmt.Fprintln(&sb, "Runtime:", c.Runtime)
 	_, _ = fmt.Fprint(&sb, c.State.String(verbose))
+
+	_, _ = fmt.Fprintln(&sb, "----------- Resources -----------")
+	_, _ = fmt.Fprint(&sb, c.Resources.String(verbose))
 
 	if verbose {
 		_, _ = fmt.Fprintln(&sb, "Allowed env variables:", filterAndFormatEnvVars(c.EnvVars))
@@ -907,6 +929,15 @@ func (i *ContainerImageMetadata) Merge(e Entity) error {
 	if !ok {
 		return fmt.Errorf("cannot merge ContainerImageMetadata with different kind %T", e)
 	}
+
+	// SBOMs are generated only once. However, when they are generated it is possible that
+	// not every RepoDigest and RepoTags are attached to the image. In that case, the SBOM
+	// will also miss metadata and will not be re-generated when new metadata is detected.
+	// Because this metadata is essential for processing, it is important to inject new metadata
+	// to the existing SBOM. Generating a new SBOM can be a more robust solution but can also be
+	// costly.
+	// Moreover we can't update the SBOM in the collector because it's not thread safe.
+	i.SBOM = updateSBOMRepoMetadata(otherImage.SBOM, otherImage.RepoTags, otherImage.RepoDigests)
 
 	return merge(i, otherImage)
 }

@@ -28,6 +28,11 @@ import (
 	"k8s.io/client-go/tools/remotecommand"
 )
 
+const (
+	kubeNamespaceDogstatsWorkload           = "workload-dogstatsd"
+	kubeNamespaceDogstatsStandaloneWorkload = "workload-dogstatsd-standalone"
+)
+
 var GitCommit string
 
 type k8sSuite struct {
@@ -79,78 +84,75 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 	ctx := context.Background()
 
 	suite.Run("agent pods are ready and not restarting", func() {
-		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
 
 			linuxNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "linux").String(),
 			})
-			if err != nil {
-				collect.Errorf("Failed to list Linux nodes: %w", err)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to list Linux nodes") {
 				return
 			}
 
 			windowsNodes, err := suite.K8sClient.CoreV1().Nodes().List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("kubernetes.io/os", "windows").String(),
 			})
-			if err != nil {
-				collect.Errorf("Failed to list Windows nodes: %w", err)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to list Windows nodes") {
 				return
 			}
 
 			linuxPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog").String(),
 			})
-			if err != nil {
-				collect.Errorf("Failed to list Linux datadog agent pods: %w", err)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to list Linux datadog agent pods") {
 				return
 			}
 
 			windowsPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentWindowsHelmInstallName+"-datadog").String(),
 			})
-			if err != nil {
-				collect.Errorf("Failed to list Windows datadog agent pods: %w", err)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to list Windows datadog agent pods") {
 				return
 			}
 
 			clusterAgentPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-cluster-agent").String(),
 			})
-			if err != nil {
-				collect.Errorf("Failed to list datadog cluster agent pods: %w", err)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to list datadog cluster agent pods") {
 				return
 			}
 
 			clusterChecksPods, err := suite.K8sClient.CoreV1().Pods("datadog").List(ctx, metav1.ListOptions{
 				LabelSelector: fields.OneTermEqualSelector("app", suite.AgentLinuxHelmInstallName+"-datadog-clusterchecks").String(),
 			})
-			if err != nil {
-				collect.Errorf("Failed to list datadog cluster checks runner pods: %w", err)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to list datadog cluster checks runner pods") {
 				return
 			}
 
-			if len(linuxPods.Items) != len(linuxNodes.Items) {
-				collect.Errorf("There is only %d Linux datadog agent pods for %d Linux nodes.", len(linuxPods.Items), len(linuxNodes.Items))
-			}
-			if len(windowsPods.Items) != len(windowsNodes.Items) {
-				collect.Errorf("There is only %d Windows datadog agent pods for %d Windows nodes.", len(windowsPods.Items), len(windowsNodes.Items))
-			}
-			if len(clusterAgentPods.Items) == 0 {
-				collect.Errorf("There isn’t any cluster agent pod.")
-			}
-			if len(clusterChecksPods.Items) == 0 {
-				collect.Errorf("There isn’t any cluster checks worker pod.")
+			dogstatsdPods, err := suite.K8sClient.CoreV1().Pods("dogstatsd-standalone").List(ctx, metav1.ListOptions{
+				LabelSelector: fields.OneTermEqualSelector("app", "dogstatsd-standalone").String(),
+			})
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to list dogstatsd standalone pods") {
+				return
 			}
 
-			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods} {
+			assert.Len(c, linuxPods.Items, len(linuxNodes.Items))
+			assert.Len(c, windowsPods.Items, len(windowsNodes.Items))
+			assert.NotEmpty(c, clusterAgentPods.Items)
+			assert.NotEmpty(c, clusterChecksPods.Items)
+			assert.Len(c, dogstatsdPods.Items, len(linuxNodes.Items))
+
+			for _, podList := range []*corev1.PodList{linuxPods, windowsPods, clusterAgentPods, clusterChecksPods, dogstatsdPods} {
 				for _, pod := range podList.Items {
 					for _, containerStatus := range append(pod.Status.InitContainerStatuses, pod.Status.ContainerStatuses...) {
-						if !containerStatus.Ready {
-							collect.Errorf("Container %s of pod %s isn’t ready.", containerStatus.Name, pod.Name)
-						}
-						if containerStatus.RestartCount > 0 {
-							collect.Errorf("Container %s of pod %s has restarted %d times.", containerStatus.Name, pod.Name, containerStatus.RestartCount)
-						}
+						assert.Truef(c, containerStatus.Ready, "Container %s of pod %s isn’t ready", containerStatus.Name, pod.Name)
+						assert.Zerof(c, containerStatus.RestartCount, "Container %s of pod %s has restarted", containerStatus.Name, pod.Name)
 					}
 				}
 			}
@@ -193,7 +195,7 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 			if suite.NoError(err) && len(linuxPods.Items) >= 1 {
 				stdout, stderr, err := suite.podExec("datadog", linuxPods.Items[0].Name, tt.container, []string{"agent", "version"})
 				if suite.NoError(err) {
-					suite.Equalf(stderr, "", "Standard error of `agent version` should be empty,")
+					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)
 					if suite.Equalf(2, len(match), "'Commit' not found in the output of `agent version`.") {
 						if len(GitCommit) == 10 && len(match[1]) == 7 {
@@ -273,6 +275,10 @@ func (suite *k8sSuite) TestNginx() {
 				`^kube_deployment:nginx$`,
 				`^kube_namespace:workload-nginx$`,
 			},
+			Value: &testMetricExpectValueArgs{
+				Max: 5,
+				Min: 1,
+			},
 		},
 	})
 
@@ -329,6 +335,10 @@ func (suite *k8sSuite) TestRedis() {
 				`^kube_deployment:redis$`,
 				`^kube_namespace:workload-redis$`,
 			},
+			Value: &testMetricExpectValueArgs{
+				Max: 5,
+				Min: 1,
+			},
 		},
 	})
 
@@ -337,14 +347,171 @@ func (suite *k8sSuite) TestRedis() {
 	suite.testHPA("workload-redis", "redis")
 }
 
-func (suite *k8sSuite) TestDogstatsd() {
+func (suite *k8sSuite) TestCPU() {
+	// Test CPU metrics
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: []string{
+				"kube_deployment:stress-ng",
+				"kube_namespace:workload-cpustress",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:stress-ng$`,
+				`^display_container_name:stress-ng`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
+				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:stress-ng$`,
+				`^kube_deployment:stress-ng$`,
+				`^kube_namespace:workload-cpustress$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+				`^kube_qos:Guaranteed$`,
+				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^runtime:containerd$`,
+				`^short_image:stress-ng$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 155000000,
+				Min: 145000000,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.limit",
+			Tags: []string{
+				"kube_deployment:stress-ng",
+				"kube_namespace:workload-cpustress",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:stress-ng$`,
+				`^display_container_name:stress-ng`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
+				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:stress-ng$`,
+				`^kube_deployment:stress-ng$`,
+				`^kube_namespace:workload-cpustress$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+				`^kube_qos:Guaranteed$`,
+				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^runtime:containerd$`,
+				`^short_image:stress-ng$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 200000000,
+				Min: 200000000,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes.cpu.usage.total",
+			Tags: []string{
+				"kube_deployment:stress-ng",
+				"kube_namespace:workload-cpustress",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:stress-ng$`,
+				`^display_container_name:stress-ng`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
+				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:stress-ng$`,
+				`^kube_deployment:stress-ng$`,
+				`^kube_namespace:workload-cpustress$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+				`^kube_qos:Guaranteed$`,
+				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:stress-ng$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 200000000,
+				Min: 100000000,
+			},
+		},
+	})
+
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "kubernetes.cpu.limits",
+			Tags: []string{
+				"kube_deployment:stress-ng",
+				"kube_namespace:workload-cpustress",
+			},
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:stress-ng$`,
+				`^display_container_name:stress-ng`,
+				`^git.commit.sha:`, // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/ColinIanKing/stress-ng$`, // org.opencontainers.image.source   docker image label
+				`^image_id:ghcr.io/colinianking/stress-ng@sha256:`,
+				`^image_name:ghcr.io/colinianking/stress-ng$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:stress-ng$`,
+				`^kube_deployment:stress-ng$`,
+				`^kube_namespace:workload-cpustress$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+				`^kube_qos:Guaranteed$`,
+				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+				`^pod_name:stress-ng-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:stress-ng$`,
+			},
+			Value: &testMetricExpectValueArgs{
+				Max: 0.2,
+				Min: 0.2,
+			},
+		},
+	})
+}
+
+func (suite *k8sSuite) TestDogstatsdInAgent() {
+	suite.testDogstatsd(kubeNamespaceDogstatsWorkload)
+}
+
+func (suite *k8sSuite) TestDogstatsdStandalone() {
+	suite.testDogstatsd(kubeNamespaceDogstatsStandaloneWorkload)
+}
+
+func (suite *k8sSuite) testDogstatsd(kubeNamespace string) {
 	// Test dogstatsd origin detection with UDS
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "custom.metric",
 			Tags: []string{
 				"kube_deployment:dogstatsd-uds",
-				"kube_namespace:workload-dogstatsd",
+				"kube_namespace:" + kubeNamespace,
 			},
 		},
 		Expect: testMetricExpectArgs{
@@ -359,7 +526,7 @@ func (suite *k8sSuite) TestDogstatsd() {
 				`^image_tag:main$`,
 				`^kube_container_name:dogstatsd$`,
 				`^kube_deployment:dogstatsd-uds$`,
-				`^kube_namespace:workload-dogstatsd$`,
+				"^kube_namespace:" + kubeNamespace + "$",
 				`^kube_ownerref_kind:replicaset$`,
 				`^kube_ownerref_name:dogstatsd-uds-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
@@ -378,13 +545,13 @@ func (suite *k8sSuite) TestDogstatsd() {
 			Name: "custom.metric",
 			Tags: []string{
 				"kube_deployment:dogstatsd-udp",
-				"kube_namespace:workload-dogstatsd",
+				"kube_namespace:" + kubeNamespace,
 			},
 		},
 		Expect: testMetricExpectArgs{
 			Tags: &[]string{
 				`^kube_deployment:dogstatsd-udp$`,
-				`^kube_namespace:workload-dogstatsd$`,
+				"^kube_namespace:" + kubeNamespace + "$",
 				`^kube_ownerref_kind:replicaset$`,
 				`^kube_ownerref_name:dogstatsd-udp-[[:alnum:]]+$`,
 				`^kube_qos:Burstable$`,
@@ -465,7 +632,7 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 			}
 		}()
 
-		suite.EventuallyWithTf(func(collect *assert.CollectT) {
+		suite.EventuallyWithTf(func(c *assert.CollectT) {
 			metrics, err := suite.Fakeintake.FilterMetrics(
 				"kubernetes_state.deployment.replicas_available",
 				fakeintake.WithTags[*aggregator.MetricSeries]([]string{
@@ -473,13 +640,12 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 					"kube_deployment:" + deployment,
 				}),
 			)
-			if err != nil {
-				collect.Errorf("%w", err)
+			// Can be replaced by require.NoErrorf(…) once https://github.com/stretchr/testify/pull/1481 is merged
+			if !assert.NoErrorf(c, err, "Failed to query fake intake") {
 				return
 			}
-			if len(metrics) == 0 {
-				collect.Errorf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment)
-				sendEvent("error", fmt.Sprintf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment), nil)
+			if !assert.NotEmptyf(c, metrics, "No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment) {
+				sendEvent("warning", fmt.Sprintf("No `kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}` metrics yet", namespace, deployment), nil)
 				return
 			}
 
@@ -496,13 +662,13 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 						continue
 					}
 
-					if point.Value > prevValue+0.5 {
+					if !scaleUp && point.Value > prevValue+0.5 {
 						scaleUp = true
 						sendEvent("success", "Scale up detected.", pointer.Ptr(int(point.Timestamp)))
 						if scaleDown {
 							break out
 						}
-					} else if point.Value < prevValue-0.5 {
+					} else if !scaleDown && point.Value < prevValue-0.5 {
 						scaleDown = true
 						sendEvent("success", "Scale down detected.", pointer.Ptr(int(point.Timestamp)))
 						if scaleUp {
@@ -512,12 +678,8 @@ func (suite *k8sSuite) testHPA(namespace, deployment string) {
 					prevValue = point.Value
 				}
 			}
-			if !scaleUp {
-				collect.Errorf("No scale up detected")
-			}
-			if !scaleDown {
-				collect.Errorf("No scale down detected")
-			}
+			assert.Truef(c, scaleUp, "No scale up detected")
+			assert.Truef(c, scaleDown, "No scale down detected")
 		}, 20*time.Minute, 10*time.Second, "Failed to witness scale up and scale down of %s.%s", namespace, deployment)
 	})
 }

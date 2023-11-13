@@ -32,7 +32,7 @@ func TestGetPublicIPv4(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := GetPublicIPv4(ctx)
@@ -58,7 +58,7 @@ func TestGetNetworkID(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	val, err := GetNetworkID(ctx)
@@ -74,7 +74,7 @@ func TestGetInstanceIDNoMac(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	_, err := GetNetworkID(ctx)
@@ -105,7 +105,7 @@ func TestGetInstanceIDMultipleVPC(t *testing.T) {
 
 	defer ts.Close()
 	metadataURL = ts.URL
-	config.Datadog.Set("ec2_metadata_timeout", 1000)
+	config.Datadog.SetWithoutSource("ec2_metadata_timeout", 1000)
 	defer resetPackageVars()
 
 	_, err := GetNetworkID(ctx)

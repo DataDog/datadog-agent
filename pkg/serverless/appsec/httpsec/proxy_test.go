@@ -86,6 +86,26 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 		require.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
 		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
 	})
+
+	t.Run("api-gateway-kong", func(t *testing.T) {
+		// First invocation without any attack
+		chunk := runAppSec("request 1", invocationlifecycle.InvocationStartDetails{
+			InvokeEventRawPayload: getEventFromFile("api-gateway-kong.json"),
+			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		})
+		span := chunk.Spans[0]
+		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
+
+		// Second invocation containing attacks
+		chunk = runAppSec("request", invocationlifecycle.InvocationStartDetails{
+			InvokeEventRawPayload: getEventFromFile("api-gateway-kong-appsec.json"),
+			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		})
+		span = chunk.Spans[0]
+		require.Contains(t, span.Meta, "_dd.appsec.json")
+		require.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
+		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
+	})
 }
 
 // Helper function for reading test file

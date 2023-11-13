@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -72,8 +73,10 @@ var (
 	}
 
 	counterMetrics = map[string]string{
-		"kubelet_evictions":           "kubelet.evictions",
-		"kubelet_pleg_discard_events": "kubelet.pleg.discard_events",
+		"kubelet_evictions":                          "kubelet.evictions",
+		"kubelet_pleg_discard_events":                "kubelet.pleg.discard_events",
+		"kubelet_cpu_manager_pinning_errors_total":   "kubelet.cpu_manager.pinning_errors_total",
+		"kubelet_cpu_manager_pinning_requests_total": "kubelet.cpu_manager.pinning_requests_total",
 	}
 
 	volumeMetrics = map[string]string{
@@ -141,55 +144,63 @@ func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store 
 	return provider, nil
 }
 
-func (p *Provider) sendAlwaysCounter(metric *model.Sample, sender sender.Sender) {
-	metricName := string(metric.Metric[prometheus.NameLabel])
+func (p *Provider) sendAlwaysCounter(metricFam *prom.MetricFamily, sender sender.Sender) {
+	metricName := metricFam.Name
 	nameWithNamespace := common.KubeletMetricsPrefix + counterMetrics[metricName]
 
-	tags := p.MetricTags(metric)
-	sender.MonotonicCount(nameWithNamespace, float64(metric.Value), "", tags)
+	for _, metric := range metricFam.Samples {
+		tags := p.MetricTags(metric)
+		sender.MonotonicCount(nameWithNamespace, float64(metric.Value), "", tags)
+	}
 }
 
-func (p *Provider) appendPodTagsToVolumeMetrics(metric *model.Sample, sender sender.Sender) {
+func (p *Provider) appendPodTagsToVolumeMetrics(metricFam *prom.MetricFamily, sender sender.Sender) {
 	// Store PV -> pod UID in cache for some amount of time in /pods provider
 	// Get pod UID from cache based on PV
 	// Compute tags based on pod UID (maybe these should be cached? they are cached in the python version)
 
-	metricName := string(metric.Metric[prometheus.NameLabel])
+	metricName := metricFam.Name
 	metricNameWithNamespace := common.KubeletMetricsPrefix + volumeMetrics[metricName]
-	pvcName := metric.Metric["persistentvolumeclaim"]
-	namespace := metric.Metric["namespace"]
-	if pvcName == "" || namespace == "" || p.filter.IsExcluded(nil, "", "", string(namespace)) {
-		return
+	for _, metric := range metricFam.Samples {
+		pvcName := metric.Metric["persistentvolumeclaim"]
+		namespace := metric.Metric["namespace"]
+		if pvcName == "" || namespace == "" || p.filter.IsExcluded(nil, "", "", string(namespace)) {
+			return
+		}
+		tags := p.MetricTags(metric)
+		if podTags := p.podUtils.GetPodTagsByPVC(string(namespace), string(pvcName)); len(podTags) > 0 {
+			tags = utils.ConcatenateTags(tags, podTags)
+		}
+		sender.Gauge(metricNameWithNamespace, float64(metric.Value), "", tags)
 	}
-	tags := p.MetricTags(metric)
-	if podTags := p.podUtils.GetPodTagsByPVC(string(namespace), string(pvcName)); len(podTags) > 0 {
-		tags = utils.ConcatenateTags(tags, podTags)
-	}
-	sender.Gauge(metricNameWithNamespace, float64(metric.Value), "", tags)
 }
 
-func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metric *model.Sample, sender sender.Sender) {
+func (p *Provider) kubeletContainerLogFilesystemUsedBytes(metricFam *prom.MetricFamily, sender sender.Sender) {
 	metricName := common.KubeletMetricsPrefix + "kubelet.container.log_filesystem.used_bytes"
-	cID := common.GetContainerID(p.store, metric.Metric, p.filter)
+	for _, metric := range metricFam.Samples {
+		cID := common.GetContainerID(p.store, metric.Metric, p.filter)
 
-	tags, _ := tagger.Tag(cID, collectors.HighCardinality)
-	if len(tags) == 0 {
-		log.Debugf("Tags not found for container: %s/%s/%s:%s", metric.Metric["namespace"], metric.Metric["pod"], metric.Metric["container"], cID)
+		tags, _ := tagger.Tag(cID, collectors.HighCardinality)
+		if len(tags) == 0 {
+			log.Debugf("Tags not found for container: %s/%s/%s:%s", metric.Metric["namespace"], metric.Metric["pod"], metric.Metric["container"], cID)
+		}
+		tags = utils.ConcatenateTags(tags, p.Config.Tags)
+
+		sender.Gauge(metricName, float64(metric.Value), "", tags)
 	}
-	tags = utils.ConcatenateTags(tags, p.Config.Tags)
-
-	sender.Gauge(metricName, float64(metric.Value), "", tags)
 }
 
-func (p *Provider) restClientLatency(metric *model.Sample, sender sender.Sender) {
-	metricName := string(metric.Metric[prometheus.NameLabel])
-	if u, ok := metric.Metric["url"]; ok {
-		parsed, err := url.Parse(string(u))
-		if err != nil {
-			log.Errorf("Unable to parse URL %s for given metric %s: %s", u, metricName, err)
-		} else if parsed != nil {
-			metric.Metric["url"] = model.LabelValue(parsed.Path)
+func (p *Provider) restClientLatency(metricFam *prom.MetricFamily, sender sender.Sender) {
+	metricName := metricFam.Name
+	for _, metric := range metricFam.Samples {
+		if u, ok := metric.Metric["url"]; ok {
+			parsed, err := url.Parse(string(u))
+			if err != nil {
+				log.Errorf("Unable to parse URL %s for given metric %s: %s", u, metricName, err)
+			} else if parsed != nil {
+				metric.Metric["url"] = model.LabelValue(parsed.Path)
+			}
 		}
 	}
-	p.SubmitMetric(metric, "rest.client.latency", sender)
+	p.SubmitMetric(metricFam, "rest.client.latency", sender)
 }

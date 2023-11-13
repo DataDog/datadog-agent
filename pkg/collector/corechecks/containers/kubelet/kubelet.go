@@ -14,11 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/cadvisor"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/health"
 	kube "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/node"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/pod"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/probe"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/slis"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/summary"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -58,20 +60,37 @@ func initProviders(filter *containers.Filter, config *common.KubeletConfig, podU
 	// It is here for backwards compatibility.
 	nodeProvider := node.NewProvider(config)
 	healthProvider := health.NewProvider(config)
-	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
-	kubeletProvider, err := kube.NewProvider(filter, config, workloadmeta.GetGlobalStore(), podUtils)
 	summaryProvider := summary.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+
+	sliProvider, err := slis.NewProvider(filter, config, workloadmeta.GetGlobalStore())
+	if err != nil {
+		log.Warnf("Can't get sli provider: %v", err)
+	}
+
+	probeProvider, err := probe.NewProvider(filter, config, workloadmeta.GetGlobalStore())
 	if err != nil {
 		log.Warnf("Can't get probe provider: %v", err)
 	}
 
+	kubeletProvider, err := kube.NewProvider(filter, config, workloadmeta.GetGlobalStore(), podUtils)
+	if err != nil {
+		log.Warnf("Can't get kubelet provider: %v", err)
+	}
+
+	cadvisorProvider, err := cadvisor.NewProvider(filter, config, workloadmeta.GetGlobalStore(), podUtils)
+	if err != nil {
+		log.Warnf("Can't get cadvisor provider: %v", err)
+	}
+
 	return []Provider{
+		healthProvider,
 		podProvider,
 		nodeProvider,
-		probeProvider,
-		healthProvider,
-		kubeletProvider,
 		summaryProvider,
+		cadvisorProvider,
+		kubeletProvider,
+		probeProvider,
+		sliProvider,
 	}
 }
 
@@ -127,9 +146,11 @@ func (k *KubeletCheck) Run() error {
 	}
 
 	for _, provider := range k.providers {
-		err = provider.Provide(kc, sender)
-		if err != nil {
-			_ = k.Warnf("Error reporting metrics: %s", err)
+		if provider != nil {
+			err = provider.Provide(kc, sender)
+			if err != nil {
+				_ = k.Warnf("Error reporting metrics: %s", err)
+			}
 		}
 	}
 

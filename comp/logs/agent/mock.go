@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/pipeline"
 	"github.com/DataDog/datadog-agent/pkg/logs/schedulers"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
@@ -23,7 +23,7 @@ type mockLogsAgent struct {
 	flushDelay      time.Duration
 }
 
-func newMock(deps dependencies) util.Optional[Mock] {
+func newMock(deps dependencies) optional.Option[Mock] {
 	logsAgent := &mockLogsAgent{
 		hasFlushed:      false,
 		addedSchedulers: make([]schedulers.Scheduler, 0),
@@ -34,7 +34,7 @@ func newMock(deps dependencies) util.Optional[Mock] {
 		OnStart: logsAgent.start,
 		OnStop:  logsAgent.stop,
 	})
-	return util.NewOptional[Mock](logsAgent)
+	return optional.NewOption[Mock](logsAgent)
 }
 
 func (a *mockLogsAgent) start(context.Context) error {

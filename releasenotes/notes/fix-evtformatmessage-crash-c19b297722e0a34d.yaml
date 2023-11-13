@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Add a workaround for a bug in a Windows API that can cause the Agent to
+    crash when collecting forwarded events from the Windows Event Log.

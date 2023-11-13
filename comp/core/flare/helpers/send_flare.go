@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	hostnameUtil "github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -230,7 +231,7 @@ func SendTo(archivePath, caseID, email, apiKey, url string, source FlareSource) 
 	apiKey = configUtils.SanitizeAPIKey(apiKey)
 	baseURL, _ := configUtils.AddAgentVersionToDomain(url, "flare")
 
-	transport := httputils.CreateHTTPTransport()
+	transport := httputils.CreateHTTPTransport(pkgconfig.Datadog)
 	client := &http.Client{
 		Transport: transport,
 		Timeout:   httpTimeout,

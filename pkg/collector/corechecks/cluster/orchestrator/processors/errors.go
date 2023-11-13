@@ -9,6 +9,7 @@ package processors
 
 import (
 	"fmt"
+	"runtime/debug"
 
 	"github.com/pkg/errors"
 
@@ -25,6 +26,7 @@ func newMarshallingError(cause error) error {
 // RecoverOnPanic is used to recover panics triggered by processors.
 func RecoverOnPanic() {
 	if r := recover(); r != nil {
-		log.Errorc(fmt.Sprintf("unable to process resources (panic!): %s", r), orchestrator.ExtraLogContext)
+		stack := debug.Stack()
+		log.Errorc(fmt.Sprintf("unable to process resources (panic!): %s", stack), orchestrator.ExtraLogContext)
 	}
 }
