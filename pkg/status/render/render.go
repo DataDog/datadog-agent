@@ -39,8 +39,6 @@ func FormatStatus(data []byte) (string, error) {
 		aggregatorStats = s
 	}
 
-	systemProbeStats := stats["systemProbeStats"]
-	processAgentStatus := stats["processAgentStatus"]
 	snmpTrapsStats := stats["snmpTrapsStats"]
 	netflowStats := stats["netflowStats"]
 	title := fmt.Sprintf("Agent (v%s)", stats["version"])
@@ -55,13 +53,8 @@ func FormatStatus(data []byte) (string, error) {
 	forwarderFunc := func() error { return renderStatusTemplate(b, "/forwarder.tmpl", stats) }
 	endpointsFunc := func() error { return renderStatusTemplate(b, "/endpoints.tmpl", stats) }
 	logsAgentFunc := func() error { return renderStatusTemplate(b, "/logsagent.tmpl", stats) }
-	systemProbeFunc := func() error {
-		if systemProbeStats != nil {
-			return renderStatusTemplate(b, "/systemprobe.tmpl", systemProbeStats)
-		}
-		return nil
-	}
-	processAgentFunc := func() error { return renderStatusTemplate(b, "/process-agent.tmpl", processAgentStatus) }
+	systemProbeFunc := func() error { return renderStatusTemplate(b, "/systemprobe.tmpl", stats) }
+	processAgentFunc := func() error { return renderStatusTemplate(b, "/process-agent.tmpl", stats) }
 	traceAgentFunc := func() error { return renderStatusTemplate(b, "/trace-agent.tmpl", stats["apmStats"]) }
 	aggregatorFunc := func() error { return renderStatusTemplate(b, "/aggregator.tmpl", aggregatorStats) }
 	dogstatsdFunc := func() error { return renderStatusTemplate(b, "/dogstatsd.tmpl", stats) }
