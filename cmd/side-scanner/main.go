@@ -601,6 +601,8 @@ func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (a
 			IdleConnTimeout: 10 * time.Second,
 			MaxIdleConns:    10,
 		},
+		ec2stats: make(map[string]float64, 0),
+		ebsstats: make(map[string]float64, 0),
 	}
 
 	httpClient := *defaultHTTPClient
