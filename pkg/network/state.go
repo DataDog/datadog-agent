@@ -145,6 +145,61 @@ type closedConnections struct {
 	emptyStart int
 }
 
+func (cc *closedConnections) insert(c ConnectionStats) {
+	if isEmpty(c) {
+		cc.conns = append(cc.conns, c)
+		cc.byCookie[c.Cookie] = len(cc.conns) - 1
+		return
+	}
+	if cc.emptyStart < len(cc.conns) {
+		emptyConn := cc.conns[cc.emptyStart]
+		cc.conns[cc.emptyStart] = c
+		cc.conns = append(cc.conns, emptyConn)
+		cc.byCookie[c.Cookie] = cc.emptyStart
+		cc.byCookie[emptyConn.Cookie] = len(cc.conns) - 1
+		cc.emptyStart++
+		return
+	}
+	cc.conns = append(cc.conns, c)
+	cc.byCookie[c.Cookie] = len(cc.conns) - 1
+	cc.emptyStart = len(cc.conns)
+}
+
+func (cc *closedConnections) dropEmpty(c ConnectionStats) {
+	if isEmpty(c) || cc.emptyStart == len(cc.conns) {
+		return
+	}
+	delete(cc.byCookie, cc.conns[cc.emptyStart].Cookie)
+	cc.conns[cc.emptyStart] = c
+	cc.byCookie[c.Cookie] = cc.emptyStart
+	cc.emptyStart++
+}
+
+func (cc *closedConnections) replaceAt(i int, c ConnectionStats) {
+	// pick the latest one
+	if c.LastUpdateEpoch <= cc.conns[i].LastUpdateEpoch {
+		return
+	}
+	if isEmpty(c) && i < cc.emptyStart {
+		return
+	}
+	if !isEmpty(c) && i >= cc.emptyStart {
+		if i == cc.emptyStart {
+			cc.conns[i] = c
+			cc.emptyStart++
+			return
+		}
+		emptyConn := cc.conns[cc.emptyStart]
+		cc.conns[cc.emptyStart] = c
+		cc.conns[i] = emptyConn
+		cc.byCookie[c.Cookie] = cc.emptyStart
+		cc.byCookie[emptyConn.Cookie] = i
+		cc.emptyStart++
+		return
+	}
+	cc.conns[i] = c
+}
+
 type client struct {
 	lastFetch time.Time
 	closed    *closedConnections
@@ -478,61 +533,17 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 			if i, ok := client.closed.byCookie[c.Cookie]; ok {
 				if ns.mergeConnectionStats(&client.closed.conns[i], &c) {
 					stateTelemetry.statsCookieCollisions.Inc()
-					// pick the latest one
-					if c.LastUpdateEpoch > client.closed.conns[i].LastUpdateEpoch {
-						if !isEmpty(c) && i >= client.closed.emptyStart {
-							if i == client.closed.emptyStart {
-								client.closed.conns[i] = c
-								client.closed.emptyStart++
-								continue
-							}
-							emptyConn := client.closed.conns[client.closed.emptyStart]
-							client.closed.conns[client.closed.emptyStart] = c
-							client.closed.conns[i] = emptyConn
-							client.closed.byCookie[c.Cookie] = client.closed.emptyStart
-							client.closed.byCookie[emptyConn.Cookie] = i
-							client.closed.emptyStart++
-							continue
-						}
-						client.closed.conns[i] = c
-					}
+					client.closed.replaceAt(i, c)
 				}
 				continue
 			}
 
 			if uint32(len(client.closed.conns)) >= ns.maxClosedConns {
 				stateTelemetry.closedConnDropped.Inc(c.Type.String())
-				// Drop if c is empty or closedConnections does not have empty connections
-				if isEmpty(c) || client.closed.emptyStart == len(client.closed.conns) {
-					continue
-				}
-				delete(client.closed.byCookie, client.closed.conns[client.closed.emptyStart].Cookie)
-				client.closed.conns[client.closed.emptyStart] = c
-				client.closed.byCookie[c.Cookie] = client.closed.emptyStart
-				client.closed.emptyStart++
+				client.closed.dropEmpty(c)
 				continue
 			}
-
-			if isEmpty(c) {
-				client.closed.conns = append(client.closed.conns, c)
-				client.closed.byCookie[c.Cookie] = len(client.closed.conns) - 1
-				continue
-			}
-
-			if client.closed.emptyStart < len(client.closed.conns) {
-				emptyConn := client.closed.conns[client.closed.emptyStart]
-				client.closed.conns[client.closed.emptyStart] = c
-				client.closed.conns = append(client.closed.conns, emptyConn)
-				client.closed.byCookie[c.Cookie] = client.closed.emptyStart
-				client.closed.byCookie[emptyConn.Cookie] = len(client.closed.conns) - 1
-				client.closed.emptyStart++
-				continue
-			}
-
-			client.closed.conns = append(client.closed.conns, c)
-			client.closed.byCookie[c.Cookie] = len(client.closed.conns) - 1
-			client.closed.emptyStart = len(client.closed.conns)
-
+			client.closed.insert(c)
 		}
 	}
 }
