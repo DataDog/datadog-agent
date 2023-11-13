@@ -144,7 +144,7 @@ func TestExecCommandError(t *testing.T) {
 		t.Cleanup(resetPackageVars)
 		secretBackendCommand = "./test/response_too_long/response_too_long" + binExtension
 		setCorrectRight(secretBackendCommand)
-		SecretBackendOutputMaxSize = 20
+		secretBackendOutputMaxSize = 20
 		_, err := execCommand(inputPayload)
 		require.NotNil(t, err)
 		assert.Equal(t, "error while running './test/response_too_long/response_too_long"+binExtension+"': command output was too long: exceeded 20 bytes", err.Error())

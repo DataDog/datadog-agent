@@ -58,7 +58,7 @@ func TestGetContainers(t *testing.T) {
 	cID1Metrics := mock.GetFullSampleContainerEntry()
 	cID1Metrics.ContainerStats.Timestamp = testTime
 	cID1Metrics.NetworkStats.Timestamp = testTime
-	cID1Metrics.ContainerStats.PID.PIDs = []int{1, 2, 3}
+	cID1Metrics.PIDs = []int{1, 2, 3}
 	metricsCollector.SetContainerEntry("cID1", cID1Metrics)
 	metadataProvider.SetEntity(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -90,6 +90,10 @@ func TestGetContainers(t *testing.T) {
 			Health:    workloadmeta.ContainerHealthHealthy,
 			CreatedAt: testTime.Add(-10 * time.Minute),
 			StartedAt: testTime,
+		},
+		Resources: workloadmeta.ContainerResources{
+			CPURequest:    pointer.Ptr(500.0),
+			MemoryRequest: pointer.Ptr[uint64](300),
 		},
 	})
 	fakeTagger.SetTags(containers.BuildTaggerEntityName("cID1"), "fake", []string{"low:common"}, []string{"orch:orch1"}, []string{"id:container1"}, nil)
@@ -137,7 +141,7 @@ func TestGetContainers(t *testing.T) {
 	cID4Metrics := mock.GetFullSampleContainerEntry()
 	cID4Metrics.ContainerStats.Timestamp = testTime
 	cID4Metrics.NetworkStats.Timestamp = testTime
-	cID4Metrics.ContainerStats.PID.PIDs = []int{4, 5}
+	cID4Metrics.PIDs = []int{4, 5}
 	metricsCollector.SetContainerEntry("cID4", cID4Metrics)
 	metadataProvider.SetEntity(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -173,7 +177,7 @@ func TestGetContainers(t *testing.T) {
 	cID5Metrics.ContainerStats.CPU.DefaultedLimit = true
 	cID5Metrics.ContainerStats.Timestamp = testTime
 	cID5Metrics.NetworkStats.Timestamp = testTime
-	cID5Metrics.ContainerStats.PID.PIDs = []int{6, 7}
+	cID5Metrics.PIDs = []int{6, 7}
 	cID5Metrics.ContainerStats.Memory.WorkingSet = nil
 	cID5Metrics.ContainerStats.Memory.CommitBytes = pointer.Ptr(355.0)
 	metricsCollector.SetContainerEntry("cID5", cID5Metrics)
@@ -236,7 +240,7 @@ func TestGetContainers(t *testing.T) {
 	cID7Metrics := mock.GetFullSampleContainerEntry()
 	cID7Metrics.ContainerStats.Timestamp = testTime
 	cID7Metrics.NetworkStats.Timestamp = testTime
-	cID7Metrics.ContainerStats.PID.PIDs = []int{1, 2, 3}
+	cID7Metrics.PIDs = []int{1, 2, 3}
 	metricsCollector.SetContainerEntry("cID7", cID7Metrics)
 	metadataProvider.SetEntity(&workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
@@ -303,22 +307,24 @@ func TestGetContainers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, compareResults(processContainers, []*process.Container{
 		{
-			Type:         "containerd",
-			Id:           "cID1",
-			CpuLimit:     50,
-			MemoryLimit:  42000,
-			State:        process.ContainerState_running,
-			Health:       process.ContainerHealth_healthy,
-			Created:      testTime.Add(-10 * time.Minute).Unix(),
-			UserPct:      -1,
-			SystemPct:    -1,
-			TotalPct:     -1,
-			CpuUsageNs:   -1,
-			MemUsage:     42000,
-			MemRss:       300,
-			MemAccounted: 350,
-			MemCache:     200,
-			Started:      testTime.Unix(),
+			Type:          "containerd",
+			Id:            "cID1",
+			CpuLimit:      50,
+			CpuRequest:    500,
+			MemoryLimit:   42000,
+			MemoryRequest: 300,
+			State:         process.ContainerState_running,
+			Health:        process.ContainerHealth_healthy,
+			Created:       testTime.Add(-10 * time.Minute).Unix(),
+			UserPct:       -1,
+			SystemPct:     -1,
+			TotalPct:      -1,
+			CpuUsageNs:    -1,
+			MemUsage:      42000,
+			MemRss:        300,
+			MemAccounted:  350,
+			MemCache:      200,
+			Started:       testTime.Unix(),
 			Tags: []string{
 				"low:common",
 				"orch:orch1",
@@ -500,28 +506,30 @@ func TestGetContainers(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, compareResults(processContainers, []*process.Container{
 		{
-			Type:         "containerd",
-			Id:           "cID1",
-			CpuLimit:     50,
-			MemoryLimit:  42000,
-			State:        process.ContainerState_running,
-			Health:       process.ContainerHealth_healthy,
-			Created:      testTime.Add(-10 * time.Minute).Unix(),
-			UserPct:      60,
-			SystemPct:    40,
-			TotalPct:     20,
-			CpuUsageNs:   199999984,
-			MemUsage:     43000,
-			MemRss:       300,
-			MemCache:     200,
-			MemAccounted: 350,
-			Rbps:         20,
-			Wbps:         40,
-			NetRcvdPs:    40,
-			NetSentPs:    40,
-			NetRcvdBps:   4,
-			NetSentBps:   4,
-			Started:      testTime.Unix(),
+			Type:          "containerd",
+			Id:            "cID1",
+			CpuLimit:      50,
+			CpuRequest:    500,
+			MemoryLimit:   42000,
+			MemoryRequest: 300,
+			State:         process.ContainerState_running,
+			Health:        process.ContainerHealth_healthy,
+			Created:       testTime.Add(-10 * time.Minute).Unix(),
+			UserPct:       60,
+			SystemPct:     40,
+			TotalPct:      20,
+			CpuUsageNs:    199999984,
+			MemUsage:      43000,
+			MemRss:        300,
+			MemCache:      200,
+			MemAccounted:  350,
+			Rbps:          20,
+			Wbps:          40,
+			NetRcvdPs:     40,
+			NetSentPs:     40,
+			NetRcvdBps:    4,
+			NetSentBps:    4,
+			Started:       testTime.Unix(),
 			Tags: []string{
 				"low:common",
 				"orch:orch1",

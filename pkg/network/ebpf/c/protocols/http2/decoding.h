@@ -80,13 +80,8 @@ static __always_inline bool read_var_int(struct __sk_buff *skb, skb_info_t *skb_
 
 //get_dynamic_counter returns the current dynamic counter by the conn tup.
 static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
-    // global counter is the counter which help us with the calc of the index in our internal hpack dynamic table
-    __u64 *counter_ptr = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
-    if (counter_ptr != NULL) {
-        return counter_ptr;
-    }
     __u64 counter = 0;
-    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_ANY);
+    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_NOEXIST);
     return bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
 }
 
@@ -254,7 +249,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
             parse_field_indexed(dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers);
         } else {
-            (*global_dynamic_counter)++;
+            __sync_fetch_and_add(global_dynamic_counter, 1);
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1

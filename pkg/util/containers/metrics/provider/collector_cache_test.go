@@ -41,34 +41,47 @@ func TestCollectorCache(t *testing.T) {
 			1: "cID1",
 			2: "cID2",
 		},
+		cPIDs: map[string][]int{
+			"cID1": {1, 2, 3, 0},
+			"cID2": {},
+		},
 	}
+	actualCollectors := actualCollector.getCollectors(0)
 
-	collectorCache := NewCollectorCache(actualCollector)
-	assert.Equal(t, collectorCache.ID(), actualCollector.ID())
+	cache := NewCache(cacheGCInterval)
+	cachedCollectors := MakeCached("dummy", cache, actualCollectors)
 
-	cStats, err := collectorCache.GetContainerStats("", "cID1", time.Minute)
+	cStats, err := cachedCollectors.Stats.Collector.GetContainerStats("", "cID1", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 100.0, *cStats.CPU.Total)
 
-	ncStats, err := collectorCache.GetContainerNetworkStats("", "cID1", time.Minute)
+	ncStats, err := cachedCollectors.Network.Collector.GetContainerNetworkStats("", "cID1", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 110.0, *ncStats.BytesSent)
 
-	cStats2, err := collectorCache.GetContainerStats("", "cID2", time.Minute)
+	cStats2, err := cachedCollectors.Stats.Collector.GetContainerStats("", "cID2", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 200.0, *cStats2.CPU.Total)
 
-	ncStats2, err := collectorCache.GetContainerNetworkStats("", "cID2", time.Minute)
+	ncStats2, err := cachedCollectors.Network.Collector.GetContainerNetworkStats("", "cID2", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 210.0, *ncStats2.BytesSent)
 
-	cID1, err := collectorCache.GetContainerIDForPID(1, time.Minute)
+	cPIDs1, err := cachedCollectors.PIDs.Collector.GetPIDs("", "cID1", time.Minute)
 	assert.NoError(t, err)
-	assert.Equal(t, "cID1", cID1)
+	assert.Equal(t, []int{1, 2, 3, 0}, cPIDs1)
 
-	cID2, err := collectorCache.GetContainerIDForPID(2, time.Minute)
+	cPIDs2, err := cachedCollectors.PIDs.Collector.GetPIDs("", "cID2", time.Minute)
+	assert.NoError(t, err)
+	assert.Equal(t, []int{}, cPIDs2)
+
+	cID2, err := cachedCollectors.ContainerIDForPID.Collector.GetContainerIDForPID(2, time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, "cID2", cID2)
+
+	cID1, err := cachedCollectors.ContainerIDForPID.Collector.GetContainerIDForPID(1, time.Minute)
+	assert.NoError(t, err)
+	assert.Equal(t, "cID1", cID1)
 
 	// Changing underlying source
 	actualCollector.cStats["cID1"] = &ContainerStats{
@@ -86,29 +99,29 @@ func TestCollectorCache(t *testing.T) {
 	}
 	actualCollector.cIDForPID[2] = "cID22"
 
-	cStats, err = collectorCache.GetContainerStats("", "cID1", time.Minute)
+	cStats, err = cachedCollectors.Stats.Collector.GetContainerStats("", "cID1", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 100.0, *cStats.CPU.Total)
 
-	ncStats, err = collectorCache.GetContainerNetworkStats("", "cID1", time.Minute)
+	ncStats, err = cachedCollectors.Network.Collector.GetContainerNetworkStats("", "cID1", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 110.0, *ncStats.BytesSent)
 
 	// Force refresh
-	cStats2, err = collectorCache.GetContainerStats("", "cID2", 0)
+	cStats2, err = cachedCollectors.Stats.Collector.GetContainerStats("", "cID2", 0)
 	assert.NoError(t, err)
 	assert.Equal(t, 250.0, *cStats2.CPU.Total)
 
-	cID2, err = collectorCache.GetContainerIDForPID(2, 0)
+	cID2, err = cachedCollectors.ContainerIDForPID.Collector.GetContainerIDForPID(2, 0)
 	assert.NoError(t, err)
 	assert.Equal(t, "cID22", cID2)
 
 	// Verify networkStats was not refreshed
-	ncStats2, err = collectorCache.GetContainerNetworkStats("", "cID2", time.Minute)
+	ncStats2, err = cachedCollectors.Network.Collector.GetContainerNetworkStats("", "cID2", time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, 210.0, *ncStats2.BytesSent)
 
-	cID1, err = collectorCache.GetContainerIDForPID(1, time.Minute)
+	cID1, err = cachedCollectors.ContainerIDForPID.Collector.GetContainerIDForPID(1, time.Minute)
 	assert.NoError(t, err)
 	assert.Equal(t, "cID1", cID1)
 }
