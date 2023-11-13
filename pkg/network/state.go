@@ -139,14 +139,16 @@ type lastStateTelemetry struct {
 
 const minClosedCapacity = 1024
 
+type closedConnections struct {
+	conns      []ConnectionStats
+	byCookie   map[StatCookie]int
+	emptyStart int
+}
+
 type client struct {
 	lastFetch time.Time
-
-	closedConnectionsKeys map[StatCookie]int
-
-	closedConnections []ConnectionStats
-	emptyConnsIndex   int
-	stats             map[StatCookie]StatCounters
+	closed    *closedConnections
+	stats     map[StatCookie]StatCounters
 	// maps by dns key the domain (string) to stats structure
 	dnsStats        dns.StatsByKeyByNameByType
 	httpStatsDelta  map[http.Key]*http.RequestStats
@@ -156,13 +158,13 @@ type client struct {
 }
 
 func (c *client) Reset() {
-	half := cap(c.closedConnections) / 2
-	if closedLen := len(c.closedConnections); closedLen > minClosedCapacity && closedLen < half {
-		c.closedConnections = make([]ConnectionStats, half)
+	half := cap(c.closed.conns) / 2
+	if closedLen := len(c.closed.conns); closedLen > minClosedCapacity && closedLen < half {
+		c.closed.conns = make([]ConnectionStats, half)
 	}
 
-	c.closedConnections = c.closedConnections[:0]
-	c.closedConnectionsKeys = make(map[StatCookie]int)
+	c.closed.conns = c.closed.conns[:0]
+	c.closed.byCookie = make(map[StatCookie]int)
 	c.dnsStats = make(dns.StatsByKeyByNameByType)
 	c.httpStatsDelta = make(map[http.Key]*http.RequestStats)
 	c.http2StatsDelta = make(map[http.Key]*http.RequestStats)
@@ -473,63 +475,64 @@ func (ns *networkState) StoreClosedConnections(closed []ConnectionStats) {
 func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 	for _, client := range ns.clients {
 		for _, c := range conns {
-			if i, ok := client.closedConnectionsKeys[c.Cookie]; ok {
-				if ns.mergeConnectionStats(&client.closedConnections[i], &c) {
+			if i, ok := client.closed.byCookie[c.Cookie]; ok {
+				if ns.mergeConnectionStats(&client.closed.conns[i], &c) {
 					stateTelemetry.statsCookieCollisions.Inc()
 					// pick the latest one
-					if c.LastUpdateEpoch > client.closedConnections[i].LastUpdateEpoch {
-						if !isEmpty(c) && i >= client.emptyConnsIndex {
-							if i == client.emptyConnsIndex {
-								client.closedConnections[i] = c
-								client.emptyConnsIndex++
+					if c.LastUpdateEpoch > client.closed.conns[i].LastUpdateEpoch {
+						if !isEmpty(c) && i >= client.closed.emptyStart {
+							if i == client.closed.emptyStart {
+								client.closed.conns[i] = c
+								client.closed.emptyStart++
 								continue
 							}
-							emptyConn := client.closedConnections[client.emptyConnsIndex]
-							client.closedConnections[client.emptyConnsIndex] = c
-							client.closedConnections[i] = emptyConn
-							client.closedConnectionsKeys[c.Cookie] = client.emptyConnsIndex
-							client.closedConnectionsKeys[emptyConn.Cookie] = i
-							client.emptyConnsIndex++
+							emptyConn := client.closed.conns[client.closed.emptyStart]
+							client.closed.conns[client.closed.emptyStart] = c
+							client.closed.conns[i] = emptyConn
+							client.closed.byCookie[c.Cookie] = client.closed.emptyStart
+							client.closed.byCookie[emptyConn.Cookie] = i
+							client.closed.emptyStart++
 							continue
 						}
-						client.closedConnections[i] = c
+						client.closed.conns[i] = c
 					}
 				}
 				continue
 			}
 
-			if uint32(len(client.closedConnections)) >= ns.maxClosedConns {
+			if uint32(len(client.closed.conns)) >= ns.maxClosedConns {
 				stateTelemetry.closedConnDropped.Inc(c.Type.String())
 				// Drop if c is empty or closedConnections does not have empty connections
-				if isEmpty(c) || client.emptyConnsIndex == len(client.closedConnections) {
+				if isEmpty(c) || client.closed.emptyStart == len(client.closed.conns) {
 					continue
 				}
-				delete(client.closedConnectionsKeys, client.closedConnections[client.emptyConnsIndex].Cookie)
-				client.closedConnections[client.emptyConnsIndex] = c
-				client.closedConnectionsKeys[c.Cookie] = client.emptyConnsIndex
-				client.emptyConnsIndex++
+				delete(client.closed.byCookie, client.closed.conns[client.closed.emptyStart].Cookie)
+				client.closed.conns[client.closed.emptyStart] = c
+				client.closed.byCookie[c.Cookie] = client.closed.emptyStart
+				client.closed.emptyStart++
 				continue
 			}
 
 			if isEmpty(c) {
-				client.closedConnections = append(client.closedConnections, c)
-				client.closedConnectionsKeys[c.Cookie] = len(client.closedConnections) - 1
+				client.closed.conns = append(client.closed.conns, c)
+				client.closed.byCookie[c.Cookie] = len(client.closed.conns) - 1
 				continue
 			}
 
-			if client.emptyConnsIndex >= len(client.closedConnections) {
-				client.closedConnections = append(client.closedConnections, c)
-				client.closedConnectionsKeys[c.Cookie] = len(client.closedConnections) - 1
-				client.emptyConnsIndex = len(client.closedConnections)
+			if client.closed.emptyStart < len(client.closed.conns) {
+				emptyConn := client.closed.conns[client.closed.emptyStart]
+				client.closed.conns[client.closed.emptyStart] = c
+				client.closed.conns = append(client.closed.conns, emptyConn)
+				client.closed.byCookie[c.Cookie] = client.closed.emptyStart
+				client.closed.byCookie[emptyConn.Cookie] = len(client.closed.conns) - 1
+				client.closed.emptyStart++
 				continue
 			}
 
-			emptyConn := client.closedConnections[client.emptyConnsIndex]
-			client.closedConnections[client.emptyConnsIndex] = c
-			client.closedConnections = append(client.closedConnections, emptyConn)
-			client.closedConnectionsKeys[c.Cookie] = client.emptyConnsIndex
-			client.closedConnectionsKeys[emptyConn.Cookie] = len(client.closedConnections) - 1
-			client.emptyConnsIndex++
+			client.closed.conns = append(client.closed.conns, c)
+			client.closed.byCookie[c.Cookie] = len(client.closed.conns) - 1
+			client.closed.emptyStart = len(client.closed.conns)
+
 		}
 	}
 }
@@ -700,17 +703,16 @@ func (ns *networkState) getClient(clientID string) *client {
 	if c, ok := ns.clients[clientID]; ok {
 		return c
 	}
-
+	closedConnections := &closedConnections{conns: make([]ConnectionStats, 0, minClosedCapacity), byCookie: make(map[StatCookie]int)}
 	c := &client{
-		lastFetch:             time.Now(),
-		stats:                 make(map[StatCookie]StatCounters),
-		closedConnections:     make([]ConnectionStats, 0, minClosedCapacity),
-		closedConnectionsKeys: make(map[StatCookie]int),
-		dnsStats:              dns.StatsByKeyByNameByType{},
-		httpStatsDelta:        map[http.Key]*http.RequestStats{},
-		http2StatsDelta:       map[http.Key]*http.RequestStats{},
-		kafkaStatsDelta:       map[kafka.Key]*kafka.RequestStat{},
-		lastTelemetries:       make(map[ConnTelemetryType]int64),
+		lastFetch:       time.Now(),
+		stats:           make(map[StatCookie]StatCounters),
+		closed:          closedConnections,
+		dnsStats:        dns.StatsByKeyByNameByType{},
+		httpStatsDelta:  map[http.Key]*http.RequestStats{},
+		http2StatsDelta: map[http.Key]*http.RequestStats{},
+		kafkaStatsDelta: map[kafka.Key]*kafka.RequestStat{},
+		lastTelemetries: make(map[ConnTelemetryType]int64),
 	}
 	ns.clients[clientID] = c
 	return c
@@ -729,7 +731,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 	// filter closed connections, keeping those that have changed or have not
 	// been aggregated into another connection
-	closed = filterConnections(client.closedConnections, func(closedConn *ConnectionStats) bool {
+	closed = filterConnections(client.closed.conns, func(closedConn *ConnectionStats) bool {
 		cookie := closedConn.Cookie
 		if activeConn := activeByCookie[cookie]; activeConn != nil {
 			if ns.mergeConnectionStats(closedConn, activeConn) {
@@ -831,7 +833,7 @@ func (ns *networkState) RemoveExpiredClients(now time.Time) {
 
 	for id, c := range ns.clients {
 		if c.lastFetch.Add(ns.clientExpiry).Before(now) {
-			log.Debugf("expiring client: %s, had %d stats and %d closed connections", id, len(c.stats), len(c.closedConnections))
+			log.Debugf("expiring client: %s, had %d stats and %d closed connections", id, len(c.stats), len(c.closed.conns))
 			delete(ns.clients, id)
 			ClientPool.RemoveExpiredClient(id)
 		}
@@ -858,7 +860,7 @@ func (ns *networkState) GetStats() map[string]interface{} {
 	for id, c := range ns.clients {
 		clientInfo[id] = map[string]int{
 			"stats":              len(c.stats),
-			"closed_connections": len(c.closedConnections),
+			"closed_connections": len(c.closed.conns),
 			"last_fetch":         int(c.lastFetch.Unix()),
 		}
 	}
@@ -1182,7 +1184,8 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 
 func isEmpty(conn ConnectionStats) bool {
 	if conn.Monotonic.RecvBytes == 0 && conn.Monotonic.RecvPackets == 0 &&
-		conn.Monotonic.SentBytes == 0 && conn.Monotonic.SentPackets == 0 {
+		conn.Monotonic.SentBytes == 0 && conn.Monotonic.SentPackets == 0 &&
+		conn.Monotonic.Retransmits == 0 {
 		return true
 	}
 	return false

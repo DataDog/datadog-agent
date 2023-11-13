@@ -232,8 +232,8 @@ func TestDropEmptyConnections(t *testing.T) {
 
 		state.storeClosedConnections([]ConnectionStats{conn})
 
-		conns := state.clients[clientID].closedConnections
-		_, ok := state.clients[clientID].closedConnectionsKeys[0]
+		conns := state.clients[clientID].closed.conns
+		_, ok := state.clients[clientID].closed.byCookie[0]
 
 		assert.Equal(t, 1, len(conns))
 		assert.Equal(t, []ConnectionStats{conn}, conns)
@@ -257,8 +257,8 @@ func TestDropEmptyConnections(t *testing.T) {
 		conn2.LastUpdateEpoch = 100
 		state.storeClosedConnections([]ConnectionStats{conn2})
 
-		conns := state.clients[clientID].closedConnections
-		i := state.clients[clientID].closedConnectionsKeys[0]
+		conns := state.clients[clientID].closed.conns
+		i := state.clients[clientID].closed.byCookie[0]
 		assert.Equal(t, 3, len(conns))
 		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
 		assert.Equal(t, 2, i)
