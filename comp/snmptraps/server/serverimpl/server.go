@@ -49,6 +49,7 @@ type injections struct {
 	HNService hostname.Component
 	Demux     demultiplexer.Component
 	Logger    log.Component
+	Status    status.Component
 }
 
 // TrapsServer implements the SNMP traps service.
@@ -84,13 +85,13 @@ func newServer(lc fx.Lifecycle, deps dependencies) server.Component {
 			HNService: deps.HNService,
 			Demux:     deps.Demux,
 			Logger:    deps.Logger,
+			Status:    stat,
 		}),
 		configimpl.Module,
 		formatterimpl.Module,
 		forwarderimpl.Module,
 		listenerimpl.Module,
 		oidresolverimpl.Module,
-		fx.Provide(stat),
 		fx.Invoke(func(_ forwarder.Component, _ listener.Component) {}),
 	)
 	server := &TrapsServer{app: app, stat: stat}
