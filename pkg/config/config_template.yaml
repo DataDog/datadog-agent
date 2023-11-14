@@ -2028,7 +2028,7 @@ api_key:
   ## @env DD_RUNTIME_SECURITY_CONFIG_ENVS_WITH_VALUE - space separated list of strings - optional
   ## Define your own list of non-sensitive environment variable names whose value will not be
   ## concealed by the runtime security module.
-  ## Default: LD_PRELOAD, LD_LIBRARY_PATH, PATH, HISTSIZE, HISTFILESIZE
+  ## Default: LD_PRELOAD, LD_LIBRARY_PATH, PATH, HISTSIZE, HISTFILESIZE, GLIBC_TUNABLES
   #
   # envs_with_value:
   #   - LD_PRELOAD

@@ -21,5 +21,5 @@ func RunServer(t testing.TB, serverAddr, serverPort string) error {
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "redis", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*Ready to accept connections"), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "redis", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile(".*Ready to accept connections"), protocolsUtils.DefaultTimeout, 3)
 }
