@@ -21,7 +21,12 @@ const (
 // updateSBOMRepoMetadata updates entered SBOM with new metadata properties if the initial SBOM status was successful
 // and there are new repoTags and repoDigests missing in the SBOM. It returns the updated SBOM.
 func updateSBOMRepoMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []string) *workloadmeta.SBOM {
-	if sbom.Status != workloadmeta.Success || sbom.CycloneDXBOM.Metadata.Component.Properties == nil {
+	if sbom == nil ||
+		sbom.Status != workloadmeta.Success ||
+		sbom.CycloneDXBOM == nil ||
+		sbom.CycloneDXBOM.Metadata == nil ||
+		sbom.CycloneDXBOM.Metadata.Component ||
+		sbom.CycloneDXBOM.Metadata.Component.Properties == nil {
 		return sbom
 	}
 
