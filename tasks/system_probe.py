@@ -1691,7 +1691,7 @@ def start_microvms(
         f"--vmconfig {vmconfig}" if vmconfig else "",
         "--run-provision" if provision else "",
         "--local" if local else "",
-        f"--run-agent {run_agent}" if run_agent else "",
+        f"--run-agent" if run_agent else "",
         f"--api-key {api_key}" if api_key else "",
         f"--agent-version {agent_version}" if agent_version else "",
     ]
