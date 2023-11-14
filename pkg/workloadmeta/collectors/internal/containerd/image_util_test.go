@@ -5,45 +5,46 @@
 
 //go:build trivy && test
 
-package workloadmeta
+package containerd
 
 import (
 	"reflect"
 	"testing"
 
 	"github.com/CycloneDX/cyclonedx-go"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 )
 
 func Test_updateSBOMRepoMetadata(t *testing.T) {
 	type args struct {
-		sbom        *SBOM
+		sbom        *workloadmeta.SBOM
 		repoTags    []string
 		repoDigests []string
 	}
 	tests := []struct {
 		name string
 		args args
-		want *SBOM
+		want *workloadmeta.SBOM
 	}{
 		{
 			name: "status not success",
 			args: args{
-				sbom: &SBOM{
-					Status: Failed,
+				sbom: &workloadmeta.SBOM{
+					Status: workloadmeta.Failed,
 				},
 				repoTags:    []string{"tag1"},
 				repoDigests: []string{"digest1"},
 			},
-			want: &SBOM{
-				Status: Failed,
+			want: &workloadmeta.SBOM{
+				Status: workloadmeta.Failed,
 			},
 		},
 		{
 			name: "properties is nil",
 			args: args{
-				sbom: &SBOM{
-					Status: Success,
+				sbom: &workloadmeta.SBOM{
+					Status: workloadmeta.Success,
 					CycloneDXBOM: &cyclonedx.BOM{
 						Metadata: &cyclonedx.Metadata{
 							Component: &cyclonedx.Component{Properties: nil},
@@ -53,8 +54,8 @@ func Test_updateSBOMRepoMetadata(t *testing.T) {
 				repoTags:    []string{"tag1"},
 				repoDigests: []string{"digest1"},
 			},
-			want: &SBOM{
-				Status: Success,
+			want: &workloadmeta.SBOM{
+				Status: workloadmeta.Success,
 				CycloneDXBOM: &cyclonedx.BOM{
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{Properties: nil},
@@ -65,8 +66,8 @@ func Test_updateSBOMRepoMetadata(t *testing.T) {
 		{
 			name: "missing repoTags and repoDigests",
 			args: args{
-				sbom: &SBOM{
-					Status: Success,
+				sbom: &workloadmeta.SBOM{
+					Status: workloadmeta.Success,
 					CycloneDXBOM: &cyclonedx.BOM{
 						Metadata: &cyclonedx.Metadata{
 							Component: &cyclonedx.Component{
@@ -81,8 +82,8 @@ func Test_updateSBOMRepoMetadata(t *testing.T) {
 				repoTags:    []string{"tag1", "tag2"},
 				repoDigests: []string{"digest1", "digest2"},
 			},
-			want: &SBOM{
-				Status: Success,
+			want: &workloadmeta.SBOM{
+				Status: workloadmeta.Success,
 				CycloneDXBOM: &cyclonedx.BOM{
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{
@@ -100,8 +101,8 @@ func Test_updateSBOMRepoMetadata(t *testing.T) {
 		{
 			name: "nothing is missing",
 			args: args{
-				sbom: &SBOM{
-					Status: Success,
+				sbom: &workloadmeta.SBOM{
+					Status: workloadmeta.Success,
 					CycloneDXBOM: &cyclonedx.BOM{
 						Metadata: &cyclonedx.Metadata{
 							Component: &cyclonedx.Component{
@@ -116,8 +117,8 @@ func Test_updateSBOMRepoMetadata(t *testing.T) {
 				repoTags:    []string{"tag1"},
 				repoDigests: []string{"digest1"},
 			},
-			want: &SBOM{
-				Status: Success,
+			want: &workloadmeta.SBOM{
+				Status: workloadmeta.Success,
 				CycloneDXBOM: &cyclonedx.BOM{
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{
@@ -133,8 +134,8 @@ func Test_updateSBOMRepoMetadata(t *testing.T) {
 		{
 			name: "a tag is removed",
 			args: args{
-				sbom: &SBOM{
-					Status: Success,
+				sbom: &workloadmeta.SBOM{
+					Status: workloadmeta.Success,
 					CycloneDXBOM: &cyclonedx.BOM{
 						Metadata: &cyclonedx.Metadata{
 							Component: &cyclonedx.Component{
@@ -148,8 +149,8 @@ func Test_updateSBOMRepoMetadata(t *testing.T) {
 				},
 				repoDigests: []string{"digest1"},
 			},
-			want: &SBOM{
-				Status: Success,
+			want: &workloadmeta.SBOM{
+				Status: workloadmeta.Success,
 				CycloneDXBOM: &cyclonedx.BOM{
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{
@@ -164,8 +165,8 @@ func Test_updateSBOMRepoMetadata(t *testing.T) {
 		{
 			name: "other properties are not touched",
 			args: args{
-				sbom: &SBOM{
-					Status: Success,
+				sbom: &workloadmeta.SBOM{
+					Status: workloadmeta.Success,
 					CycloneDXBOM: &cyclonedx.BOM{
 						Metadata: &cyclonedx.Metadata{
 							Component: &cyclonedx.Component{
@@ -180,8 +181,8 @@ func Test_updateSBOMRepoMetadata(t *testing.T) {
 				},
 				repoDigests: []string{"digest1"},
 			},
-			want: &SBOM{
-				Status: Success,
+			want: &workloadmeta.SBOM{
+				Status: workloadmeta.Success,
 				CycloneDXBOM: &cyclonedx.BOM{
 					Metadata: &cyclonedx.Metadata{
 						Component: &cyclonedx.Component{

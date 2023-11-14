@@ -278,6 +278,9 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 
 	c.knownImages.addReference(imageName, imageID)
 
+	repoTags := c.knownImages.getRepoTags(imageID)
+	repoDigests := c.knownImages.getRepoDigests(imageID)
+
 	sbom := newSBOM
 
 	// We can get "create" events for images that already exist. That happens
@@ -323,6 +326,15 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		variant = platforms[0].Variant
 	}
 
+	// SBOMs are generated only once. However, when they are generated it is possible that
+	// not every RepoDigest and RepoTags are attached to the image. In that case, the SBOM
+	// will also miss metadata and will not be re-generated when new metadata is detected.
+	// Because this metadata is essential for processing, it is important to inject new metadata
+	// to the existing SBOM. Generating a new SBOM can be a more robust solution but can also be
+	// costly.
+	// Moreover we can't update the SBOM in the collector because it's not thread safe.
+	sbom = updateSBOMRepoMetadata(sbom, repoTags, repoDigests)
+
 	workloadmetaImg := workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainerImageMetadata,
@@ -333,8 +345,8 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 			Namespace: namespace,
 			Labels:    labels,
 		},
-		RepoTags:     c.knownImages.getRepoTags(imageID),
-		RepoDigests:  c.knownImages.getRepoDigests(imageID),
+		RepoTags:     repoTags,
+		RepoDigests:  repoDigests,
 		MediaType:    manifest.MediaType,
 		SizeBytes:    totalSizeBytes,
 		OS:           os,

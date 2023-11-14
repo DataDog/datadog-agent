@@ -5,10 +5,11 @@
 
 //go:build trivy
 
-package workloadmeta
+package containerd
 
 import (
 	"github.com/CycloneDX/cyclonedx-go"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 )
 
@@ -19,8 +20,8 @@ const (
 
 // updateSBOMRepoMetadata updates entered SBOM with new metadata properties if the initial SBOM status was successful
 // and there are new repoTags and repoDigests missing in the SBOM. It returns the updated SBOM.
-func updateSBOMRepoMetadata(sbom *SBOM, repoTags, repoDigests []string) *SBOM {
-	if sbom.Status != Success || sbom.CycloneDXBOM.Metadata.Component.Properties == nil {
+func updateSBOMRepoMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []string) *workloadmeta.SBOM {
+	if sbom.Status != workloadmeta.Success || sbom.CycloneDXBOM.Metadata.Component.Properties == nil {
 		return sbom
 	}
 
