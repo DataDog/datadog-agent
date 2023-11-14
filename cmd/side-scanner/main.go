@@ -197,7 +197,7 @@ func offlineCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return offlineCmd(cliArgs.poolSize, cliArgs.region)
+					return offlineCmd(cliArgs.poolSize)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -208,7 +208,6 @@ func offlineCommand() *cobra.Command {
 	}
 
 	cmd.Flags().IntVarP(&cliArgs.poolSize, "workers", "", 40, "number of scans running in parallel")
-	cmd.Flags().StringVarP(&cliArgs.region, "region", "", "us-east-1", "scan data in JSON")
 
 	return cmd
 }
@@ -269,7 +268,7 @@ func scanCmd(rawScan []byte) error {
 	return nil
 }
 
-func offlineCmd(poolSize int, region string) error {
+func offlineCmd(poolSize int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -277,7 +276,7 @@ func offlineCmd(poolSize int, region string) error {
 
 	scans := make([]scanTask, 0)
 
-	cfg, awsstats, err := newAWSConfig(ctx, region, nil)
+	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", nil)
 	if err != nil {
 		return err
 	}
@@ -288,45 +287,69 @@ func offlineCmd(poolSize int, region string) error {
 		return err
 	}
 
-	input := &ec2.DescribeInstancesInput{}
+	describeRegionsInput := &ec2.DescribeRegionsInput{}
 
-	for {
-		result, err := ec2client.DescribeInstances(ctx, input)
+	describeRegionsOutput, err := ec2client.DescribeRegions(ctx, describeRegionsInput)
+	if err != nil {
+		return err
+	}
+
+	for _, region := range describeRegionsOutput.Regions {
+		if region.RegionName == nil {
+			continue
+		}
+
+		cfg, awsstats, err := newAWSConfig(ctx, *region.RegionName, nil)
+		if err != nil {
+			return err
+		}
+		defer awsstats.SendStats()
+
+		ec2client := ec2.NewFromConfig(cfg)
 		if err != nil {
 			return err
 		}
 
-		for _, reservation := range result.Reservations {
-			for _, instance := range reservation.Instances {
-				if instance.InstanceId == nil {
-					continue
-				}
-				for _, blockDeviceMapping := range instance.BlockDeviceMappings {
-					if blockDeviceMapping.DeviceName == nil {
-						continue
-					}
-					if blockDeviceMapping.Ebs == nil {
-						continue
-					}
-					fmt.Println(*instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId)
-					scan := ebsScan{
-						ARN:      fmt.Sprintf("arn:aws:ec2:%s::volume/%s", region, *blockDeviceMapping.Ebs.VolumeId),
-						Hostname: *instance.InstanceId,
-					}
-					scans = append(scans, scanTask{
-						Type: "ebs-scan",
-						Scan: scan,
-					})
+		describeInstancesInput := &ec2.DescribeInstancesInput{}
 
+		for {
+			describeInstancesOutput, err := ec2client.DescribeInstances(ctx, describeInstancesInput)
+			if err != nil {
+				return err
+			}
+
+			for _, reservation := range describeInstancesOutput.Reservations {
+				for _, instance := range reservation.Instances {
+					if instance.InstanceId == nil {
+						continue
+					}
+					for _, blockDeviceMapping := range instance.BlockDeviceMappings {
+						if blockDeviceMapping.DeviceName == nil {
+							continue
+						}
+						if blockDeviceMapping.Ebs == nil {
+							continue
+						}
+						fmt.Println(*region.RegionName, *instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId)
+						scan := ebsScan{
+							ARN:      fmt.Sprintf("arn:aws:ec2:%s::volume/%s", *region.RegionName, *blockDeviceMapping.Ebs.VolumeId),
+							Hostname: *instance.InstanceId,
+						}
+						scans = append(scans, scanTask{
+							Type: "ebs-scan",
+							Scan: scan,
+						})
+
+					}
 				}
 			}
-		}
 
-		if result.NextToken == nil {
-			break
-		}
+			if describeInstancesOutput.NextToken == nil {
+				break
+			}
 
-		input.NextToken = result.NextToken
+			describeInstancesInput.NextToken = describeInstancesOutput.NextToken
+		}
 	}
 
 	scansCh := make(chan scanTask)
