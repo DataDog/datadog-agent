@@ -31,7 +31,6 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
 #pragma unroll
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
     {
-        int depth = ((input->iteration - 1) * DR_MAX_ITERATION_DEPTH) + i;
         bpf_probe_read(&d_parent, sizeof(d_parent), &dentry->d_parent);
 
         key = next_key;
@@ -42,10 +41,10 @@ int __attribute__((always_inline)) resolve_dentry_tail_call(void *ctx, struct de
             next_key.mount_id = 0;
         }
 
-        if (input->discarder_type && depth <= 3) {
+        if (input->discarder_type && input->iteration == 1 && i <= 3) {
             params->discarder.path_key.ino = key.ino;
             params->discarder.path_key.mount_id = key.mount_id;
-            params->discarder.is_leaf = depth == 0;
+            params->discarder.is_leaf = i == 0;
 
             if (is_discarded_by_inode(params)) {
                 if (input->flags & ACTIVITY_DUMP_RUNNING) {
