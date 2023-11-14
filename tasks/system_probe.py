@@ -1673,7 +1673,6 @@ def start_microvms(
     local=False,
     provision=False,
     run_agent=False,
-    api_key=None,
     agent_version=None,
 ):
     args = [
@@ -1692,7 +1691,6 @@ def start_microvms(
         "--run-provision" if provision else "",
         "--local" if local else "",
         f"--run-agent" if run_agent else "",
-        f"--api-key {api_key}" if api_key else "",
         f"--agent-version {agent_version}" if agent_version else "",
     ]
 
