@@ -133,6 +133,7 @@ func rootCommand() *cobra.Command {
 	sideScannerCmd.PersistentFlags().StringVarP(&globalParams.assumedRole, "assumed-role", "", "", "force an AWS role to perform the scan")
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
+	sideScannerCmd.AddCommand(offlineCommand())
 
 	return sideScannerCmd
 }
@@ -182,6 +183,33 @@ func scanCommand() *cobra.Command {
 
 	cmd.MarkFlagRequired("scan-type")
 	cmd.MarkFlagRequired("raw-scan-data")
+	return cmd
+}
+
+func offlineCommand() *cobra.Command {
+	var cliArgs struct {
+		poolSize int
+		region string
+	}
+	cmd := &cobra.Command{
+		Use:   "offline",
+		Short: "Runs the side-scanner in offline mode (server-less mode)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(
+				func(_ complog.Component, _ compconfig.Component) error {
+					return offlineCmd(cliArgs.poolSize, cliArgs.region)
+				},
+				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
+				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				complog.Module,
+				compconfig.Module,
+			)
+		},
+	}
+
+	cmd.Flags().IntVarP(&cliArgs.poolSize, "workers", "", 40, "number of scans running in parallel")
+	cmd.Flags().StringVarP(&cliArgs.region, "region", "", "us-east-1", "scan data in JSON")
+
 	return cmd
 }
 
@@ -238,6 +266,102 @@ func scanCmd(rawScan []byte) error {
 			fmt.Printf("scanning result %s: %s\n", scan, prototext.Format(entity))
 		}
 	}
+	return nil
+}
+
+func offlineCmd(poolSize int, region string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	common.SetupInternalProfiling(pkgconfig.Datadog, "")
+
+	scans := make([]scanTask, 0)
+
+	cfg, awsstats, err := newAWSConfig(ctx, region, nil)
+	if err != nil {
+		return err
+	}
+	defer awsstats.SendStats()
+
+	ec2client := ec2.NewFromConfig(cfg)
+	if err != nil {
+		return err
+	}
+
+	input := &ec2.DescribeInstancesInput{}
+
+	for {
+		result, err := ec2client.DescribeInstances(ctx, input)
+		if err != nil {
+			return err
+		}
+
+		for _, reservation := range result.Reservations {
+			for _, instance := range reservation.Instances {
+				if instance.InstanceId == nil {
+					continue
+				}
+				for _, blockDeviceMapping := range instance.BlockDeviceMappings {
+					if blockDeviceMapping.DeviceName == nil {
+						continue
+					}
+					if blockDeviceMapping.Ebs == nil {
+						continue
+					}
+					fmt.Println(*instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId)
+					scan := ebsScan{
+						Region:   region,
+						VolumeID: *blockDeviceMapping.Ebs.VolumeId,
+						Hostname: *instance.InstanceId,
+					}
+					scans = append(scans, scanTask{
+						Type: "ebs-scan",
+						Scan: scan,
+					})
+
+				}
+			}
+		}
+
+		if result.NextToken == nil {
+			break
+		}
+
+		input.NextToken = result.NextToken
+	}
+
+	scansCh := make(chan scanTask)
+
+	go func() {
+		for _, scan := range scans {
+			scansCh <- scan
+		}
+	}()
+
+	done := make(chan struct{})
+	for i := 0; i < poolSize; i++ {
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					done <- struct{}{}
+					return
+				case scan := <-scansCh:
+					entity, err := launchScan(ctx, scan)
+					if err != nil {
+						log.Errorf("error scanning task %s: %s", scan, err)
+					} else {
+						fmt.Printf("scanning result %s: %s\n", scan, prototext.Format(entity))
+					}
+				}
+			}
+		}()
+	}
+	for i := 0; i < poolSize; i++ {
+		<-done
+	}
+	<-ctx.Done()
+
 	return nil
 }
 
