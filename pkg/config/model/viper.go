@@ -37,7 +37,7 @@ const (
 // sources list the known sources, following the order of hierarchy between them
 var sources = []Source{SourceDefault, SourceUnknown, SourceFile, SourceEnvVar, SourceAgentRuntime, SourceRC, SourceCLI}
 
-type valueWithSource struct {
+type ValueWithSource struct {
 	Source Source
 	Value  interface{}
 }
@@ -217,10 +217,10 @@ func (c *safeConfig) Get(key string) interface{} {
 }
 
 // GetAllSources returns the value of a key for each source
-func (c *safeConfig) GetAllSources(key string) []valueWithSource {
-	vals := make([]valueWithSource, len(sources))
+func (c *safeConfig) GetAllSources(key string) []ValueWithSource {
+	vals := make([]ValueWithSource, len(sources))
 	for i, source := range sources {
-		vals[i] = valueWithSource{
+		vals[i] = ValueWithSource{
 			Source: source,
 			Value:  c.configSources[source].Get(key),
 		}
