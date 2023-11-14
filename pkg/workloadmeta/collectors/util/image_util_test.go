@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build contanerd && trivy && test
+//go:build trivy && test
 
-package containerd
+package util
 
 import (
 	"reflect"
@@ -16,7 +16,7 @@ import (
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 )
 
-func Test_updateSBOMRepoMetadata(t *testing.T) {
+func Test_UpdateSBOMRepoMetadata(t *testing.T) {
 	type args struct {
 		sbom        *workloadmeta.SBOM
 		repoTags    []string
@@ -198,8 +198,8 @@ func Test_updateSBOMRepoMetadata(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := updateSBOMRepoMetadata(tt.args.sbom, tt.args.repoTags, tt.args.repoDigests); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("updateSBOMRepoMetadata) = %v, want %v", got, tt.want)
+			if got := UpdateSBOMRepoMetadata(tt.args.sbom, tt.args.repoTags, tt.args.repoDigests); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("UpdateSBOMRepoMetadata) = %v, want %v", got, tt.want)
 			}
 		})
 	}

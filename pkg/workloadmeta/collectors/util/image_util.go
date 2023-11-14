@@ -3,9 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build containerd && trivy
+//go:build trivy
 
-package containerd
+// Package util contains utility functions for image metadata collection
+package util
 
 import (
 	"github.com/CycloneDX/cyclonedx-go"
@@ -18,9 +19,9 @@ const (
 	repoDigestPropertyKey = trivydx.Namespace + trivydx.PropertyRepoDigest
 )
 
-// updateSBOMRepoMetadata updates entered SBOM with new metadata properties if the initial SBOM status was successful
+// UpdateSBOMRepoMetadata updates entered SBOM with new metadata properties if the initial SBOM status was successful
 // and there are new repoTags and repoDigests missing in the SBOM. It returns the updated SBOM.
-func updateSBOMRepoMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []string) *workloadmeta.SBOM {
+func UpdateSBOMRepoMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []string) *workloadmeta.SBOM {
 	if sbom == nil ||
 		sbom.Status != workloadmeta.Success ||
 		sbom.CycloneDXBOM == nil ||

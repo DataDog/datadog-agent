@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors/util"
 	"github.com/mohae/deepcopy"
 
 	"github.com/containerd/containerd"
@@ -339,7 +340,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	// so we create a copy of it. It is costly but shouldn't be called so often.
 	if usingExistingSBOM {
 		sbom = deepcopy.Copy(sbom).(*workloadmeta.SBOM)
-		sbom = updateSBOMRepoMetadata(sbom, repoTags, repoDigests)
+		sbom = util.UpdateSBOMRepoMetadata(sbom, repoTags, repoDigests)
 	}
 
 	workloadmetaImg := workloadmeta.ContainerImageMetadata{

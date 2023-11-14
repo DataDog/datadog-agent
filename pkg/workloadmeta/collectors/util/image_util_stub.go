@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build containerd && !trivy
+//go:build !trivy
 
-package containerd
+package util
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
-// updateSBOMRepoMetadata does nothing
-func updateSBOMRepoMetadata(sbom *workloadmeta.SBOM, _, _ []string) *workloadmeta.SBOM {
+// UpdateSBOMRepoMetadata does nothing
+func UpdateSBOMRepoMetadata(sbom *workloadmeta.SBOM, _, _ []string) *workloadmeta.SBOM {
 	return sbom
 }
