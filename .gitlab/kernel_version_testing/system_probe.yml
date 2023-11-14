@@ -324,14 +324,6 @@ kernel_matrix_testing_setup_env_arm64:
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     VMCONFIG_PATH: $CI_PROJECT_DIR/test/new-e2e/system-probe/config/vmconfig-arm64.json
-  artifacts:
-    when: always
-    paths:
-      - $LibvirtSSHKey
-      - $LibvirtSSHKey.pub
-      - $STACK_DIR
-      - $CI_PROJECT_DIR/stack.outputs
-      - $CI_PROJECT_DIR/libvirt
 
 kernel_matrix_testing_setup_env_x64:
   extends:
@@ -344,14 +336,6 @@ kernel_matrix_testing_setup_env_x64:
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
     VMCONFIG_PATH: $CI_PROJECT_DIR/test/new-e2e/system-probe/config/vmconfig-x64.json
-  artifacts:
-    when: always
-    paths:
-      - $LibvirtSSHKey
-      - $LibvirtSSHKey.pub
-      - $STACK_DIR
-      - $CI_PROJECT_DIR/stack.outputs
-      - $CI_PROJECT_DIR/libvirt
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing
