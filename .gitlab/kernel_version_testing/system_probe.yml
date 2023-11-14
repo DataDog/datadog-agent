@@ -289,14 +289,16 @@ upload_minimized_btfs_arm64:
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
     RESOURCE_TAGS: "instance-type:${INSTANCE_TYPE},arch:${ARCH}"
+    AGENT_VERSION: "7.49"
   before_script:
+    - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_PATH $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$ARCH-$CI_PIPELINE_ID
+    - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_PATH $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$ARCH-$CI_PIPELINE_ID --api-key $DD_API_KEY --run-agent --agent-version $AGENT_VERSION
     - cat $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:

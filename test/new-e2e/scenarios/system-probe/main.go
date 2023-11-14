@@ -52,6 +52,9 @@ func main() {
 	dependenciesDirectoryPtr := flag.String("dependencies-dir", DD_AGENT_TESTING_DIR, "directory where dependencies package is present")
 	vmconfigPathPtr := flag.String("vmconfig", defaultVMConfigPath, "vmconfig path")
 	local := flag.Bool("local", false, "is scenario running locally")
+	apiKeyPtr := flag.String("api-key", "", "API key for the datadog agent")
+	runAgentPtr := flag.Bool("run-agent", false, "Run datadog agent on the metal instance")
+	agentVersionPtr := flag.String("agent-version", "7.49", "Version of datadog-agent")
 
 	flag.Parse()
 
@@ -72,9 +75,10 @@ func main() {
 		DependenciesDirectory: *dependenciesDirectoryPtr,
 		VMConfigPath:          *vmconfigPathPtr,
 		Local:                 *local,
+		RunAgent:              *runAgentPtr,
+		APIKey:                *apiKeyPtr,
+		AgentVersion:          *agentVersionPtr,
 	}
-
-	fmt.Printf("shutdown period: %d\n", opts.ShutdownPeriod)
 
 	err := run(*envNamePtr, *x86InstanceTypePtr, *armInstanceTypePtr, *destroyPtr, &opts)
 	if err != nil {
