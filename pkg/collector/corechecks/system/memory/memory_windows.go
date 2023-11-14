@@ -12,7 +12,7 @@ import (
 
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
+	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
 // For testing purpose

@@ -17,7 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
+	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 
 	"golang.org/x/sys/windows"
 )

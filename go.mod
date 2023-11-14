@@ -39,6 +39,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/process/util/api => ./pkg/process/util/api
 	github.com/DataDog/datadog-agent/pkg/proto => ./pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ./pkg/remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/secrets => ./pkg/secrets
 	github.com/DataDog/datadog-agent/pkg/security/secl => ./pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/status/health => ./pkg/status/health
 	github.com/DataDog/datadog-agent/pkg/tagset => ./pkg/tagset/
@@ -63,6 +64,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ./pkg/util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ./pkg/util/system/socket/
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
 )
 
@@ -595,6 +597,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/orchestrator/model v0.50.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/process/util/api v0.50.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/proto v0.50.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/secrets v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/status/health v0.50.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/tagset v0.50.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.50.0-rc.1
@@ -611,6 +614,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.50.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.50.0-rc.1
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.1
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
