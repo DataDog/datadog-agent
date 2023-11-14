@@ -134,6 +134,7 @@ func rootCommand() *cobra.Command {
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 	sideScannerCmd.AddCommand(offlineCommand())
+	sideScannerCmd.AddCommand(cleanupCommand())
 
 	return sideScannerCmd
 }
@@ -212,6 +213,31 @@ func offlineCommand() *cobra.Command {
 	return cmd
 }
 
+func cleanupCommand() *cobra.Command {
+	var cliArgs struct {
+		region string
+		dryRun bool
+	}
+	cmd := &cobra.Command{
+		Use:   "cleanup",
+		Short: "Cleanup resources created by the side-scanner",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(
+				func(_ complog.Component, _ compconfig.Component) error {
+					return cleanupCmd(cliArgs.region, globalParams.assumedRole, cliArgs.dryRun)
+				},
+				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
+				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				complog.Module,
+				compconfig.Module,
+			)
+		},
+	}
+	cmd.Flags().StringVarP(&cliArgs.region, "region", "", "us-east-1", "AWS region")
+	cmd.Flags().BoolVarP(&cliArgs.dryRun, "dry-run", "", false, "dry run")
+	return cmd
+}
+
 func initStatsdClient() {
 	statsdHost := pkgconfig.GetBindHost()
 	statsdPort := pkgconfig.Datadog.GetInt("dogstatsd_port")
@@ -276,7 +302,7 @@ func offlineCmd(poolSize int) error {
 
 	scans := make([]scanTask, 0)
 
-	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", nil)
+	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", globalParams.assumedRole)
 	if err != nil {
 		return err
 	}
@@ -299,7 +325,7 @@ func offlineCmd(poolSize int) error {
 			continue
 		}
 
-		cfg, awsstats, err := newAWSConfig(ctx, *region.RegionName, nil)
+		cfg, awsstats, err := newAWSConfig(ctx, *region.RegionName, globalParams.assumedRole)
 		if err != nil {
 			return err
 		}
@@ -388,6 +414,36 @@ func offlineCmd(poolSize int) error {
 	return nil
 }
 
+func cleanupCmd(region string, assumedRole string, dryRun bool) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	cfg, _, err := newAWSConfig(ctx, region, assumedRole)
+	if err != nil {
+		return err
+	}
+	ec2client := ec2.NewFromConfig(cfg)
+	toBeDeleted, err := listResourcesForCleanup(ctx, ec2client)
+	if err != nil {
+		return err
+	}
+	if len(toBeDeleted) == 0 {
+		fmt.Printf("no resources found to cleanup\n")
+		return nil
+	}
+	fmt.Printf("cleaning up these resources:\n")
+	for resourceType, resources := range toBeDeleted {
+		fmt.Printf("  - %s:\n", resourceType)
+		for _, resourceID := range resources {
+			fmt.Printf("    - %s:\n", resourceID)
+		}
+	}
+	if !dryRun {
+		cloudResourcesCleanup(ctx, ec2client, toBeDeleted)
+	}
+	return nil
+}
+
 type scansTask struct {
 	Type     scanType          `json:"type"`
 	RawScans []json.RawMessage `json:"scans"`
@@ -430,10 +486,10 @@ func unmarshalScanTasks(b []byte) ([]scanTask, error) {
 }
 
 type ebsScan struct {
-	ARN          string  `json:"arn"`
-	Hostname     string  `json:"hostname"`
-	AttachVolume bool    `json:"attachVolume,omitempty"`
-	AssumedRole  *string `json:"assumedRole,omitempty"`
+	ARN          string `json:"arn"`
+	Hostname     string `json:"hostname"`
+	AttachVolume bool   `json:"attachVolume,omitempty"`
+	AssumedRole  string `json:"assumedRole,omitempty"`
 }
 
 func (s ebsScan) Region() string {
@@ -458,8 +514,8 @@ func (s ebsScan) String() string {
 }
 
 type lambdaScan struct {
-	ARN         string  `json:"arn"`
-	AssumedRole *string `json:"assumedRole,omitempty"`
+	ARN         string `json:"arn"`
+	AssumedRole string `json:"assumedRole,omitempty"`
 }
 
 func (s lambdaScan) Region() string {
@@ -640,8 +696,8 @@ func cloudResourceTagFilters() []ec2types.Filter {
 	}
 }
 
-func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client) {
-	var toBeDeleted []string
+func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client) (map[ec2types.ResourceType][]string, error) {
+	toBeDeleted := make(map[ec2types.ResourceType][]string)
 	var nextToken *string
 	for {
 		volumes, err := ec2client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
@@ -649,12 +705,12 @@ func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client) {
 			Filters:   cloudResourceTagFilters(),
 		})
 		if err != nil {
-			log.Errorf("could not list volumes created by side-scanner: %w", err)
+			return nil, fmt.Errorf("could not list volumes created by side-scanner: %w", err)
 		}
 		for i := range volumes.Volumes {
 			if volumes.Volumes[i].State == ec2types.VolumeStateAvailable {
 				volumeID := *volumes.Volumes[i].VolumeId
-				toBeDeleted = append(toBeDeleted, volumeID)
+				toBeDeleted[ec2types.ResourceTypeVolume] = append(toBeDeleted[ec2types.ResourceTypeVolume], volumeID)
 			}
 		}
 		nextToken = volumes.NextToken
@@ -662,31 +718,18 @@ func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client) {
 			break
 		}
 	}
-	if len(toBeDeleted) > 0 {
-		for _, volumeId := range toBeDeleted {
-			log.Debugf("cleaning up volume %q", volumeId)
-			_, err := ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
-				VolumeId: aws.String(volumeId),
-			})
-			if err != nil {
-				log.Errorf("could not delete volume %q: %s", volumeId, err)
-			}
-		}
-	}
-
-	toBeDeleted = toBeDeleted[:0]
 	for {
 		snapshots, err := ec2client.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{
 			NextToken: nextToken,
 			Filters:   cloudResourceTagFilters(),
 		})
 		if err != nil {
-			log.Errorf("could not list snapshots created by side-scanner: %w", err)
+			return nil, fmt.Errorf("could not list snapshots created by side-scanner: %w", err)
 		}
 		for i := range snapshots.Snapshots {
 			if snapshots.Snapshots[i].State == ec2types.SnapshotStateCompleted {
 				snapshotID := *snapshots.Snapshots[i].SnapshotId
-				toBeDeleted = append(toBeDeleted, snapshotID)
+				toBeDeleted[ec2types.ResourceTypeSnapshot] = append(toBeDeleted[ec2types.ResourceTypeSnapshot], snapshotID)
 			}
 		}
 		nextToken = snapshots.NextToken
@@ -694,14 +737,26 @@ func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client) {
 			break
 		}
 	}
-	if len(toBeDeleted) > 0 {
-		for _, snapshotID := range toBeDeleted {
-			log.Debugf("cleaning up snapshot %q", snapshotID)
-			_, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-				SnapshotId: aws.String(snapshotID),
-			})
+	return toBeDeleted, nil
+}
+
+func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDeleted map[ec2types.ResourceType][]string) {
+	for resourceType, resources := range toBeDeleted {
+		for _, resourceID := range resources {
+			log.Infof("cleaning up resource %s/%s", resourceType, resourceID)
+			var err error
+			switch resourceType {
+			case ec2types.ResourceTypeSnapshot:
+				_, err = ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+					SnapshotId: aws.String(resourceID),
+				})
+			case ec2types.ResourceTypeVolume:
+				_, err = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
+					VolumeId: aws.String(resourceID),
+				})
+			}
 			if err != nil {
-				log.Errorf("could not delete snapshot %q: %s", snapshotID, err)
+				log.Errorf("could not delete resource %s/%s: %s", resourceType, resourceID, err)
 			}
 		}
 	}
@@ -848,7 +903,7 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (aws.Config, *awsClientStats, error) {
+func newAWSConfig(ctx context.Context, region string, assumedRoleARN string) (aws.Config, *awsClientStats, error) {
 	awsstats := &awsClientStats{
 		transport: &http.Transport{
 			IdleConnTimeout: 10 * time.Second,
@@ -866,9 +921,9 @@ func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (a
 	if err != nil {
 		return aws.Config{}, nil, err
 	}
-	if assumedRoleARN != nil {
+	if assumedRoleARN != "" {
 		stsclient := sts.NewFromConfig(cfg)
-		stsassume := stscreds.NewAssumeRoleProvider(stsclient, *assumedRoleARN)
+		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRoleARN)
 		cfg.Credentials = aws.NewCredentialsCache(stsassume)
 
 		// TODO(jinroh): we may want to omit this check. This is mostly to
@@ -876,7 +931,7 @@ func newAWSConfig(ctx context.Context, region string, assumedRoleARN *string) (a
 		stsclient = sts.NewFromConfig(cfg)
 		result, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 		if err != nil {
-			return aws.Config{}, nil, fmt.Errorf("awsconfig: could not assumerole %q: %w", *assumedRoleARN, err)
+			return aws.Config{}, nil, fmt.Errorf("awsconfig: could not assumerole %q: %w", assumedRoleARN, err)
 		}
 		log.Debugf("aws config: assuming role with arn=%q", *result.Arn)
 	}
@@ -894,8 +949,8 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 }
 
 func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, err error) {
-	if scan.AssumedRole == nil && globalParams.assumedRole != "" {
-		scan.AssumedRole = &globalParams.assumedRole // TODO(pierre): remove this HACK
+	if scan.AssumedRole == "" {
+		scan.AssumedRole = globalParams.assumedRole // TODO(pierre): remove this HACK
 	}
 	resourceType, resourceID, ok := scan.Resource()
 	if !ok {
@@ -1253,8 +1308,8 @@ func nextDeviceName() string {
 }
 
 func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEntity, err error) {
-	if scan.AssumedRole == nil && globalParams.assumedRole != "" {
-		scan.AssumedRole = &globalParams.assumedRole // TODO(pierre): remove this HACK
+	if scan.AssumedRole == "" {
+		scan.AssumedRole = globalParams.assumedRole // TODO(pierre): remove this HACK
 	}
 	if _, err := arn.Parse(scan.ARN); err != nil {
 		return nil, fmt.Errorf("lambda-scan: bad or missing ARN: %w", err)
