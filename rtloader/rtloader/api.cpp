@@ -12,11 +12,6 @@
 #ifndef _WIN32
 // clang-format off
 // handler stuff
-#if defined(__GLIBC__)
-#define HAS_BACKTRACE_LIB (1)
-#endif
-#include <ucontext.h>
-
 #ifdef HAS_BACKTRACE_LIB
 #include <execinfo.h>
 #endif
@@ -380,46 +375,16 @@ static inline void core(int sig)
   all its C-context, before it unwinds as would be the case if we allowed the go runtime
   to handle it.
 */
-struct sigaction _prior_sa;
 #    define STACKTRACE_SIZE 500
-void signalHandler(int sig, siginfo_t *siginfo, void *uctx)
+void signalHandler(int sig, siginfo_t *, void *)
 {
-    /*
-     *
-       /* Context to describe whole processor state.
-       typedef struct
-         {
-           gregset_t gregs;
-           /* Note that fpregs is a pointer.
-           fpregset_t fpregs;
-           unsigned long __reserved1 [8];
-       } mcontext_t;
-
-       /* Userlevel context.
-       typedef struct ucontext
-         {
-           unsigned long int uc_flags;
-           struct ucontext *uc_link;
-           stack_t uc_stack;
-           mcontext_t uc_mcontext;
-           __sigset_t uc_sigmask;
-           struct _libc_fpstate __fpregs_mem;
-         } ucontext_t;
-
-     */
 #    ifdef HAS_BACKTRACE_LIB
     void *buffer[STACKTRACE_SIZE];
     char **symbols;
-    ucontext_t *ucontext = (ucontext_t*) uctx;
+
     size_t nptrs = backtrace(buffer, STACKTRACE_SIZE);
 #    endif
-    #ifdef __aarch64__
-    std::cerr << "HANDLER CAUGHT signal Error: signal " << sig << " from instruction at address "
-              << (void*) ucontext->uc_mcontext.pc << ", Signal Address: " << siginfo->si_addr  << std::endl;
-    #else
-    std::cerr << "HANDLER CAUGHT signal Error: signal " << sig << " from instruction at address "
-              << (void*) ucontext->uc_mcontext.gregs[REG_RIP] << ", Signal Address: " << siginfo->si_addr  << std::endl;
-    #endif
+    std::cerr << "HANDLER CAUGHT signal Error: signal " << sig << std::endl;
 #    ifdef HAS_BACKTRACE_LIB
     symbols = backtrace_symbols(buffer, nptrs);
     if (symbols == NULL) {
@@ -432,33 +397,15 @@ void signalHandler(int sig, siginfo_t *siginfo, void *uctx)
 
         _free(symbols);
     }
-#    else
-    std::cerr << "HAS_BACKTRACE_LIB is false, no backtrace support enabled." << std::endl;
 #    endif
-    if (_prior_sa.sa_sigaction != NULL) {
-        _prior_sa.sa_sigaction(sig, siginfo, uctx);
-    } else if (_prior_sa.sa_handler != NULL) {
-        _prior_sa.sa_handler(sig);
-    }
+
     // dump core if so configured
     __sync_synchronize();
     if (core_dump) {
         core_dump(sig);
     } else {
-        // kill(getpid(), SIGABRT);
+        kill(getpid(), SIGABRT);
     }
-
-    struct sigaction sa;
-    sa.sa_flags = 0;
-    sa.sa_handler = SIG_DFL;
-    int err = sigaction(SIGSEGV, &sa, &_prior_sa);
-    if (err) {
-        std::cerr << "unable to reset crash handler: " << strerror(errno) << std::endl;
-    }
-    kill(getpid(), SIGSEGV);
-
-    // on segfault - what else?
-
 }
 
 /*
@@ -472,7 +419,7 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable, char **error)
     sa.sa_sigaction = signalHandler;
 
     // on segfault - what else?
-    int err = 0; /*sigaction(SIGSEGV, &sa, &_prior_sa);
+    int err = sigaction(SIGSEGV, &sa, NULL);
 
     if (enable && err == 0) {
         __sync_synchronize();
@@ -483,7 +430,7 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable, char **error)
         err_msg << "unable to set crash handler: " << strerror(errno);
         *error = strdupe(err_msg.str().c_str());
     }
-*/
+
     return err == 0 ? 1 : 0;
 }
 #endif
