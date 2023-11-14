@@ -27,6 +27,10 @@ const (
 // Before fx the Agent did not have any start/stop timeouts, it would hang indefinitely. As we have
 // have been adding more fx.Hooks we began hitting flaky tests with expired fx timeouts.
 // We use a large timeout value by default to minimize the chance that customers will be impacted by the timeout.
+// However, note that most platforms service managers send SIGKILL after a timeout
+//   - upstart default is 5 seconds
+//   - see pkg/util/winutil/servicemain/servicemain.go:Service.HardStopTimeout
+//
 // We can revisit this once we can better characterize the agent start/stop behavior and be intentional
 // about timeout values
 func TemporaryAppTimeouts() fx.Option {

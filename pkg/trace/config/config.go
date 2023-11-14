@@ -231,6 +231,15 @@ type EVPProxy struct {
 	MaxPayloadSize int64
 }
 
+// InstallSignatureConfig contains the information on how the agent was installed
+// and a unique identifier that distinguishes this agent from others.
+type InstallSignatureConfig struct {
+	Found       bool   `json:"-"`
+	InstallID   string `json:"install_id"`
+	InstallType string `json:"install_type"`
+	InstallTime int64  `json:"install_time"`
+}
+
 // DebuggerProxyConfig ...
 type DebuggerProxyConfig struct {
 	// DDURL ...
@@ -427,6 +436,9 @@ type AgentConfig struct {
 
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
+
+	// Install Signature
+	InstallSignature InstallSignatureConfig
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.

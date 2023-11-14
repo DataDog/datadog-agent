@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -84,11 +85,30 @@ const (
 	customLibAnnotationKeyFormat     = "admission.datadoghq.com/%s-lib.custom-image"
 	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
+
+	// Env vars
+	instrumentationInstallTypeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TYPE"
+	instrumentationInstallTimeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TIME"
+	instrumentationInstallIDEnvVarName   = "DD_INSTRUMENTATION_INSTALL_ID"
+
+	// Values for Env variable DD_INSTRUMENTATION_INSTALL_TYPE
+	singleStepInstrumentationInstallType   = "k8s_single_step"
+	localLibraryInstrumentationInstallType = "k8s_lib_injection"
 )
 
 var (
 	supportedLanguages = []language{java, js, python, dotnet, ruby}
 	targetNamespaces   = config.Datadog.GetStringSlice("admission_controller.auto_instrumentation.inject_all.namespaces")
+
+	singleStepInstrumentationInstallTypeEnvVar = corev1.EnvVar{
+		Name:  instrumentationInstallTypeEnvVarName,
+		Value: singleStepInstrumentationInstallType,
+	}
+
+	localLibraryInstrumentationInstallTypeEnvVar = corev1.EnvVar{
+		Name:  instrumentationInstallTypeEnvVarName,
+		Value: localLibraryInstrumentationInstallType,
+	}
 )
 
 // InjectAutoInstrumentation injects APM libraries into pods
@@ -109,6 +129,7 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 	if pod == nil {
 		return errors.New("cannot inject lib into nil pod")
 	}
+	injectApmTelemetryConfig(pod)
 
 	if isApmInstrumentationEnabled(pod.Namespace) {
 		// if Single Step Instrumentation is enabled, pods can still opt out using the label
@@ -134,8 +155,36 @@ func injectAutoInstrumentation(pod *corev1.Pod, _ string, _ dynamic.Interface) e
 	if len(libsToInject) == 0 {
 		return nil
 	}
+	// Inject env variables used for Onboarding KPIs propagation
+	if isApmInstrumentationEnabled(pod.Namespace) {
+		// if Single Step Instrumentation is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_single_step
+		_ = injectEnv(pod, singleStepInstrumentationInstallTypeEnvVar)
+	} else {
+		// if local library injection is enabled, inject DD_INSTRUMENTATION_INSTALL_TYPE:k8s_lib_injection
+		_ = injectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
+	}
 
 	return injectAutoInstruConfig(pod, libsToInject, autoDetected)
+}
+
+func injectApmTelemetryConfig(pod *corev1.Pod) {
+	// inject DD_INSTRUMENTATION_INSTALL_TIME with current Unix time
+	instrumentationInstallTime := os.Getenv(instrumentationInstallTimeEnvVarName)
+	if instrumentationInstallTime == "" {
+		instrumentationInstallTime = common.ClusterAgentStartTime
+	}
+	instrumentationInstallTimeEnvVar := corev1.EnvVar{
+		Name:  instrumentationInstallTimeEnvVarName,
+		Value: instrumentationInstallTime,
+	}
+	_ = injectEnv(pod, instrumentationInstallTimeEnvVar)
+
+	// inject DD_INSTRUMENTATION_INSTALL_ID with UUID created during the Agent install time
+	instrumentationInstallIDEnvVar := corev1.EnvVar{
+		Name:  instrumentationInstallIDEnvVarName,
+		Value: os.Getenv(instrumentationInstallIDEnvVarName),
+	}
+	_ = injectEnv(pod, instrumentationInstallIDEnvVar)
 }
 
 func isNsTargeted(ns string) bool {
@@ -338,6 +387,7 @@ func injectAutoInstruConfig(pod *corev1.Pod, libsToInject []libInfo, autoDetecte
 			metrics.MutationAttempts.Inc(metrics.LibInjectionMutationType, strconv.FormatBool(injected), langStr, strconv.FormatBool(autoDetected))
 		}()
 
+		_ = injectEnv(pod, localLibraryInstrumentationInstallTypeEnvVar)
 		var err error
 		switch lib.lang {
 		case java:

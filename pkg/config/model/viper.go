@@ -511,6 +511,14 @@ func (c *safeConfig) MergeConfigOverride(in io.Reader) error {
 	return c.Viper.MergeConfigOverride(in)
 }
 
+// MergeConfigMap merges the configuration from the map given with an existing config.
+// Note that the map given may be modified.
+func (c *safeConfig) MergeConfigMap(cfg map[string]any) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.MergeConfigMap(cfg)
+}
+
 // AllSettings wraps Viper for concurrent access
 func (c *safeConfig) AllSettings() map[string]interface{} {
 	c.Lock()

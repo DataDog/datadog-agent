@@ -117,6 +117,7 @@ type Loader interface {
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
 	MergeConfigOverride(in io.Reader) error
+	MergeConfigMap(cfg map[string]any) error
 
 	AddConfigPath(in string)
 	SetConfigName(in string)
