@@ -243,10 +243,6 @@ func (mr *Resolver) DelPid(pid uint32) {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	_, exists := mr.pidToMounts[pid]
-	if !exists {
-		return
-	}
 	delete(mr.pidToMounts, pid)
 }
 
