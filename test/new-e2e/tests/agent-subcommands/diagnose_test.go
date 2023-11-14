@@ -46,18 +46,6 @@ type summary struct {
 	errors   int
 }
 
-var summaryRE = createSummaryRegex()
-
-func createSummaryRegex() *regexp.Regexp {
-	successRegex := `(?:, Success:(?P<success>\d+))?`
-	failRegex := `(?:, Fail:(?P<fail>\d+))?`
-	warningRegex := `(?:, Warning:(?P<warning>\d+))?`
-	errorRegex := `(?:, Error:(?P<error>\d+))?`
-	regexTemplate := `Total:(?P<total>\d+)` + successRegex + failRegex + warningRegex + errorRegex
-
-	return regexp.MustCompile(regexTemplate)
-}
-
 func getDiagnoseOutput(v *agentDiagnoseSuite, commandArgs ...client.AgentArgsOption) string {
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		assert.NoError(c, v.Env().Fakeintake.Client.GetServerHealth())
@@ -155,16 +143,21 @@ func (v *agentDiagnoseSuite) TestDiagnoseVerbose() {
 	assert.Contains(v.T(), diagnose, "connectivity-datadog-core-endpoints")
 }
 
-// getDiagnoseSummary parses the diagnose output and returns a struct containing number of success, fail, error and warning
-func getDiagnoseSummary(diagnoseOutput string) summary {
+var summaryRE = createSummaryRegex()
+
+func createSummaryRegex() *regexp.Regexp {
 	// success, fail, warning and error are optional in the diagnose output (they're printed when their value != 0)
-	/*successRegex := `(?:, Success:(?P<success>\d+))?`
+	successRegex := `(?:, Success:(?P<success>\d+))?`
 	failRegex := `(?:, Fail:(?P<fail>\d+))?`
 	warningRegex := `(?:, Warning:(?P<warning>\d+))?`
 	errorRegex := `(?:, Error:(?P<error>\d+))?`
 	regexTemplate := `Total:(?P<total>\d+)` + successRegex + failRegex + warningRegex + errorRegex
 
-	re := regexp.MustCompile(regexTemplate)*/
+	return regexp.MustCompile(regexTemplate)
+}
+
+// getDiagnoseSummary parses the diagnose output and returns a struct containing number of success, fail, error and warning
+func getDiagnoseSummary(diagnoseOutput string) summary {
 	matches := summaryRE.FindStringSubmatch(diagnoseOutput)
 
 	return summary{
