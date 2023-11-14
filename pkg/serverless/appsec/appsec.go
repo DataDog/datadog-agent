@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
-	waf "github.com/DataDog/go-libddwaf"
+	waf "github.com/DataDog/go-libddwaf/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
