@@ -17,7 +17,7 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/sys/windows"
 
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -57,7 +57,7 @@ var lockLastPdhRefreshTime sync.Mutex
 // the PDH object cache is implicitly created/refreshed.
 var lastPdhRefreshTime = atomic.NewTime(time.Now())
 
-func refreshPdhObjectCache(forceRefresh bool, config pkgconfigmodel.Reader) (didrefresh bool, err error) {
+func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	// Refresh the Windows internal PDH Object cache
 	//
 	// When forceRefresh=false, the cache is refreshed no more frequently
@@ -89,7 +89,7 @@ func refreshPdhObjectCache(forceRefresh bool, config pkgconfigmodel.Reader) (did
 
 	var len uint32
 
-	refreshInterval := config.GetInt("windows_counter_refresh_interval")
+	refreshInterval := config.Datadog.GetInt("windows_counter_refresh_interval")
 	if refreshInterval == 0 {
 		// refresh disabled
 		return false, nil
@@ -140,11 +140,11 @@ func refreshPdhObjectCache(forceRefresh bool, config pkgconfigmodel.Reader) (did
 	lastPdhRefreshTime.Store(time.Now())
 	return true, nil
 }
-func tryRefreshPdhObjectCache(config pkgconfigmodel.Reader) (didrefresh bool, err error) {
+func tryRefreshPdhObjectCache() (didrefresh bool, err error) {
 	// Attempt to refresh the Windows internal PDH Object cache
 	// may be skipped if cache was refreshed recently.
 	// see refreshPdhObjectCache() for details
-	return refreshPdhObjectCache(false, config)
+	return refreshPdhObjectCache(false)
 }
 
 // PDH_COUNTER_PATH_ELEMENTS struct

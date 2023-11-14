@@ -9,10 +9,10 @@ package pdhutil
 import (
 	"fmt"
 
-	"golang.org/x/sys/windows"
-
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+
+	"golang.org/x/sys/windows"
 )
 
 // NOTE TO DEVELOPER
@@ -50,7 +50,7 @@ type PdhQuery struct {
 type PdhCounter interface {
 	// Return true if a query should attempt to initialize this counter.
 	// Return false if a query must not attempt to initialize this counter.
-	ShouldInit(config pkgconfigmodel.Reader) bool
+	ShouldInit() bool
 
 	// Called during (*PdhQuery).CollectQueryData via AddToQuery() for counters that return true from ShouldInit()
 	// Must call the appropriate PdhAddCounter/PdhAddEnglishCounter function to add the
@@ -58,7 +58,7 @@ type PdhCounter interface {
 	AddToQuery(*PdhQuery) error
 
 	// Given the result of PdhCounter.AddToQuery, should update initError and initFailCount
-	SetInitError(error, config pkgconfigmodel.Reader) error
+	SetInitError(error) error
 
 	// Calls PdhRemoveCounter and updates internal state (handle field)
 	Remove() error
@@ -113,12 +113,12 @@ type PdhEnglishMultiInstanceCounter struct {
 	verifyfn CounterInstanceVerify
 }
 
-func (counter *pdhCounter) ShouldInit(config pkgconfigmodel.Reader) bool {
+func (counter *pdhCounter) ShouldInit() bool {
 	if counter.handle != PDH_HCOUNTER(0) {
 		// already initialized
 		return false
 	}
-	var initFailLimit = config.GetInt("windows_counter_init_failure_limit")
+	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
 	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
 		counter.initError = fmt.Errorf("counter exceeded the maximum number of failed initialization attempts. This error indicates that the Windows performance counter database may need to be rebuilt")
 		// attempts exceeded
@@ -127,14 +127,14 @@ func (counter *pdhCounter) ShouldInit(config pkgconfigmodel.Reader) bool {
 	return true
 }
 
-func (counter *pdhCounter) SetInitError(err error, config pkgconfigmodel.Reader) error {
+func (counter *pdhCounter) SetInitError(err error) error {
 	if err == nil {
 		counter.initError = nil
 		return nil
 	}
 
 	counter.initFailCount++
-	var initFailLimit = config.GetInt("windows_counter_init_failure_limit")
+	var initFailLimit = config.Datadog.GetInt("windows_counter_init_failure_limit")
 	if initFailLimit > 0 && counter.initFailCount >= initFailLimit {
 		err = fmt.Errorf("%v. Counter exceeded the maximum number of failed initialization attempts", err)
 	} else if initFailLimit > 0 {
@@ -239,17 +239,16 @@ func (query *PdhQuery) AddEnglishMultiInstanceCounter(objectName string, counter
 //
 // Must be called before GetValue/GetAllValues to make new counter values available.
 // https://learn.microsoft.com/en-us/windows/win32/api/pdh/nf-pdh-pdhcollectquerydata
-func (query *PdhQuery) CollectQueryData(config pkgconfigmodel.Reader) error {
+func (query *PdhQuery) CollectQueryData() error {
 	// iterate each of the counters and try to add them to the query
 	var addedNewCounter = false
 	for _, counter := range query.counters {
-		if counter.ShouldInit(config) {
-
+		if counter.ShouldInit() {
 			// refresh PDH object cache (refresh will only occur periodically)
 			// This will update Windows PDH internals and make any newly
 			// initialized (during host boot) or newly enabled counters available to us.
 			// https://learn.microsoft.com/en-us/previous-versions/windows/it-pro/windows-server-2003/cc784382(v=ws.10)
-			_, _ = tryRefreshPdhObjectCache(config)
+			_, _ = tryRefreshPdhObjectCache()
 
 			err := AddToQuery(query, counter)
 			if err == nil {
