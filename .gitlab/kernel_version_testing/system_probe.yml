@@ -307,9 +307,6 @@ upload_minimized_btfs_arm64:
   artifacts:
     when: always
     paths:
-      - $LibvirtSSHKey
-      - $LibvirtSSHKey.pub
-      - $STACK_DIR
       - $CI_PROJECT_DIR/stack.outputs
       - $CI_PROJECT_DIR/libvirt
 
