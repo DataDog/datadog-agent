@@ -310,8 +310,7 @@ func offlineCmd(poolSize int, region string) error {
 					}
 					fmt.Println(*instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId)
 					scan := ebsScan{
-						Region:   region,
-						VolumeID: *blockDeviceMapping.Ebs.VolumeId,
+						ARN:      fmt.Sprintf("arn:aws:ec2:%s::volume/%s", region, *blockDeviceMapping.Ebs.VolumeId),
 						Hostname: *instance.InstanceId,
 					}
 					scans = append(scans, scanTask{
