@@ -105,7 +105,7 @@ func (a *AppSec) Close() error {
 
 // Monitor runs the security event rules and return the events as a slice
 // The monitored addresses are all persistent addresses
-func (a *AppSec) Monitor(addresses map[string]any) []any {
+func (a *AppSec) Monitor(addresses waf.RunAddressData) []any {
 	log.Debugf("appsec: monitoring the request context %v", addresses)
 	ctx := waf.NewContext(a.handle)
 	if ctx == nil {
@@ -113,7 +113,7 @@ func (a *AppSec) Monitor(addresses map[string]any) []any {
 	}
 	defer ctx.Close()
 	timeout := a.cfg.WafTimeout
-	res, err := ctx.Run(waf.RunAddressData{Persistent: addresses}, timeout)
+	res, err := ctx.Run(addresses, timeout)
 	if err != nil {
 		if err == waf.ErrTimeout {
 			log.Debugf("appsec: waf timeout value of %s reached", timeout)

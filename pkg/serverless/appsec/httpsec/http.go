@@ -24,13 +24,14 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	waf "github.com/DataDog/go-libddwaf/v2"
 )
 
 // Monitorer is the interface type expected by the httpsec invocation
 // subprocessor monitoring the given security rules addresses and returning
 // the security events that matched.
 type Monitorer interface {
-	Monitor(addresses map[string]any) (events []any)
+	Monitor(addresses waf.RunAddressData) (events []any)
 }
 
 // AppSec monitoring context including the full list of monitored HTTP values
@@ -186,7 +187,7 @@ func tryParseBody(headers textproto.MIMEHeader, raw string) (body any, err error
 	}
 }
 
-func (c *context) toAddresses() map[string]interface{} {
+func (c *context) toAddresses() waf.RunAddressData {
 	addr := make(map[string]interface{})
 	if c.requestClientIP != nil {
 		addr["http.client_ip"] = *c.requestClientIP
@@ -212,7 +213,7 @@ func (c *context) toAddresses() map[string]interface{} {
 	if c.responseStatus != nil {
 		addr["server.response.status"] = c.responseStatus
 	}
-	return addr
+	return waf.RunAddressData{Persistent: addr}
 }
 
 // FilterHeaders copies the given map and filters out the cookie entry. The
