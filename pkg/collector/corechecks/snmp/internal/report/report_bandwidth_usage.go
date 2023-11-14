@@ -133,6 +133,11 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 		interfaceRate.previousSample = usageValue
 		interfaceRate.previousTs = currentTimestamp
 		ms.interfaceRateMap.rates[interfaceID] = interfaceRate
+
+		if delta < 0 {
+			return fmt.Errorf("Rate value for device/interface %s is negative, discarding it", interfaceID)
+		}
+
 		// create the gauge metric sample
 		sample := MetricSample{
 			value:      valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeGauge, Value: delta},

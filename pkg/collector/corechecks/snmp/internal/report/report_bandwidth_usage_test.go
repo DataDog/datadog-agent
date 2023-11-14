@@ -176,10 +176,12 @@ func Test_metricSender_calculateRate_logs(t *testing.T) {
 		tags               []string
 		interfaceConfigs   []snmpintegration.InterfaceConfig
 		expectedLogMessage string
+		expectedError      error
 		usageValue         float64
+		newIfSpeed         uint64
 	}{
 		{
-			name:      "snmp.ifBandwidthOutUsage.Rate ifHCInOctets erred",
+			name:      "snmp.ifBandwidthInUsage.Rate ifHCInOctets erred",
 			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
 			fullIndex: "9",
 			tags:      []string{"abc"},
@@ -208,6 +210,7 @@ func Test_metricSender_calculateRate_logs(t *testing.T) {
 			expectedLogMessage: fmt.Sprintf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "namespace:deviceIP:9.ifBandwidthInUsage"),
 			// ((5000000 * 8) / (100 * 1000000)) * 100 = 40.0
 			usageValue: 40,
+			newIfSpeed: uint64(100) * (1e6),
 		},
 		{
 			name:      "snmp.ifBandwidthOutUsage.Rate ifHCOutOctets erred",
@@ -238,6 +241,40 @@ func Test_metricSender_calculateRate_logs(t *testing.T) {
 			expectedLogMessage: fmt.Sprintf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "namespace:deviceIP:9.ifBandwidthOutUsage"),
 			// ((1000000 * 8) / (100 * 1000000)) * 100 = 8.0
 			usageValue: 8,
+			newIfSpeed: uint64(100) * (1e6),
+		},
+		{
+			name:      "snmp.ifBandwidthInUsage.Rate ifHCInOctets error on negative rate",
+			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			fullIndex: "9",
+			tags:      []string{"abc"},
+			values: &valuestore.ResultValueStore{
+				ColumnValues: valuestore.ColumnResultValuesType{
+					// ifHCInOctets
+					"1.3.6.1.2.1.31.1.1.1.6": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 500000.0,
+						},
+					},
+					// ifHCOutOctets
+					"1.3.6.1.2.1.31.1.1.1.10": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 1000000.0,
+						},
+					},
+					// ifHighSpeed
+					"1.3.6.1.2.1.31.1.1.1.15": map[string]valuestore.ResultValue{
+						"9": {
+							Value: 100.0,
+						},
+					},
+				},
+			},
+			expectedError: fmt.Errorf("Rate value for device/interface %s is negative, discarding it", "namespace:deviceIP:9.ifBandwidthInUsage"),
+			// ((500000 * 8) / (100 * 1000000)) * 100 = 4.0
+			usageValue: 4,
+			// keep it the same interface speed, testing if the rate is negative only
+			newIfSpeed: uint64(80) * (1e6),
 		},
 	}
 	for _, tt := range tests {
@@ -262,13 +299,17 @@ func Test_metricSender_calculateRate_logs(t *testing.T) {
 				interfaceRateMap: interfaceRateMapWithPrevious(),
 			}
 			// conflicting ifSpeed from mocked saved state (80) in interfaceRateMap
-			newIfSpeed := uint64(100) * (1e6)
+			//newIfSpeed := uint64(100) * (1e6)
 
 			for _, symbol := range tt.symbols {
 				usageName := bandwidthMetricNameToUsage[symbol.Name]
 				interfaceID := mockDeviceID + ":" + fullIndex + "." + usageName
-				err := ms.calculateRate(interfaceID, newIfSpeed, tt.usageValue, usageName, tt.tags)
-				assert.Nil(t, err)
+				err := ms.calculateRate(interfaceID, tt.newIfSpeed, tt.usageValue, usageName, tt.tags)
+				if tt.expectedError == nil {
+					assert.Nil(t, err)
+				} else {
+					assert.Equal(t, tt.expectedError, err)
+				}
 
 				w.Flush()
 				logs := b.String()
@@ -276,7 +317,7 @@ func Test_metricSender_calculateRate_logs(t *testing.T) {
 				assert.Contains(t, logs, tt.expectedLogMessage)
 
 				// Check that the map was updated with current values for next check run
-				assert.Equal(t, newIfSpeed, ms.interfaceRateMap.rates[interfaceID].ifSpeed)
+				assert.Equal(t, tt.newIfSpeed, ms.interfaceRateMap.rates[interfaceID].ifSpeed)
 				assert.Equal(t, tt.usageValue, ms.interfaceRateMap.rates[interfaceID].previousSample)
 				assert.Equal(t, 30.0, ms.interfaceRateMap.rates[interfaceID].previousTs)
 			}
