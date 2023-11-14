@@ -102,14 +102,18 @@ type InventoryPayload struct {
 
 // CreateInventoryPayload returns an initialized InventoryPayload. 'getPayload' will be called each time a new payload
 // needs to be generated.
-func CreateInventoryPayload(conf config.Component, l log.Component, s serializer.MetricSerializer, getPayload PayloadGetter, flareFileName string) InventoryPayload {
+func CreateInventoryPayload(conf config.Component, l log.Component, s serializer.MetricSerializer, getPayload PayloadGetter, flareFileName string, customInterval time.Duration) InventoryPayload {
 	minInterval := time.Duration(conf.GetInt("inventories_min_interval")) * time.Second
-	if minInterval <= 0 {
+	if customInterval > 0 {
+		minInterval = customInterval
+	} else if minInterval <= 0 {
 		minInterval = defaultMinInterval
 	}
 
 	maxInterval := time.Duration(conf.GetInt("inventories_max_interval")) * time.Second
-	if maxInterval <= 0 {
+	if customInterval > 0 {
+		maxInterval = customInterval
+	} else if maxInterval <= 0 {
 		maxInterval = defaultMaxInterval
 	}
 
