@@ -578,7 +578,7 @@ func (rt *awsClientStats) recordStats(req *http.Request) error {
 	case strings.HasPrefix(req.URL.Host, "ebs."):
 		if ebsGetBlockReg.MatchString(req.URL.Path) {
 			// https://ebs.us-east-1.amazonaws.com/snapshots/snap-0d136ea9e1e8767ea/blocks/X/
-			rt.ebsstats["getblock"] = rt.ebsstats["getblock"] + 1
+			rt.ebsstats["getblock"] += 1
 		}
 
 	// EC2
@@ -591,14 +591,14 @@ func (rt *awsClientStats) recordStats(req *http.Request) error {
 			form, err := url.ParseQuery(string(body))
 			if err == nil {
 				if action := form.Get("Action"); action != "" {
-					rt.ec2stats[action] += rt.ec2stats[action]
+					rt.ec2stats[action] += 1.0
 				}
 			}
 			req.Body = io.NopCloser(bytes.NewReader(body))
 		} else if req.Method == http.MethodGet {
 			form := req.URL.Query()
 			if action := form.Get("Action"); action != "" {
-				rt.ec2stats[action] += rt.ec2stats[action]
+				rt.ec2stats[action] += 1.0
 			}
 		}
 	}
