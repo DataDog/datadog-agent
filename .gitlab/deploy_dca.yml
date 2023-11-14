@@ -9,7 +9,11 @@ include:
 .deploy_containers-dca-base:
   extends: .docker_publish_job_definition
   stage: deploy_dca
-  dependencies: []
+  needs:
+    - job: "docker_build_cluster_agent_amd64"
+      artifacts: false
+    - job: "docker_build_cluster_agent_arm64"
+      artifacts: false
   before_script:
     - source /root/.bashrc
     - if [[ "$VERSION" == "" ]]; then export VERSION="$(inv agent.version --major-version 7 --url-safe)"; fi
@@ -18,46 +22,34 @@ include:
     - export IMG_SOURCES="${IMG_BASE_SRC}-amd64,${IMG_BASE_SRC}-arm64"
     - export IMG_DESTINATIONS="${CLUSTER_AGENT_REPOSITORY}:${VERSION}"
 
-
 deploy_containers-dca:
   extends: .deploy_containers-dca-base
-  rules:
-    !reference [.on_deploy_a7_manual_auto_on_rc]
-
+  rules: !reference [.on_deploy_a7_manual_auto_on_rc]
 
 deploy_containers-dca-rc:
   extends: .deploy_containers-dca-base
-  rules:
-    !reference [.on_deploy_a7_rc]
+  rules: !reference [.on_deploy_a7_rc]
   variables:
     VERSION: rc
-
 
 deploy_containers-dca-latest:
   extends: .deploy_containers-dca-base
-  rules:
-    !reference [.on_deploy_a7_manual_final]
+  rules: !reference [.on_deploy_a7_manual_final]
   variables:
     VERSION: latest
 
-
 deploy_containers-dca_internal:
   extends: .deploy_containers-dca-base
-  rules:
-    !reference [.on_deploy_a7_internal_manual_final]
-
+  rules: !reference [.on_deploy_a7_internal_manual_final]
 
 deploy_containers-dca_internal-rc:
   extends: .deploy_containers-dca-base
-  rules:
-    !reference [.on_deploy_a7_internal_rc]
+  rules: !reference [.on_deploy_a7_internal_rc]
   variables:
     VERSION: rc
 
-
 deploy_containers-dca_internal-latest:
   extends: .deploy_containers-dca-base
-  rules:
-    !reference [.on_deploy_a7_internal_manual_final]
+  rules: !reference [.on_deploy_a7_internal_manual_final]
   variables:
     VERSION: latest
