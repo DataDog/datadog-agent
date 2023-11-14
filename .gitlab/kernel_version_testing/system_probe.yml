@@ -293,7 +293,7 @@ upload_minimized_btfs_arm64:
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_PATH --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$CI_PIPELINE_ID
+    - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_PATH --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$ARCH-$CI_PIPELINE_ID
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
   after_script:
@@ -329,6 +329,7 @@ kernel_matrix_testing_setup_env_arm64:
     - .kernel_matrix_testing_setup_env
   variables:
     EC2_ARM_INSTANCE_TYPE: "m6gd.metal"
+    ARCH: arm64
     ARM_AMI_ID: $KERNEL_MATRIX_TESTING_ARM_AMI_ID
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
     VMCONFIG_PATH: $CI_PROJECT_DIR/test/new-e2e/system-probe/config/vmconfig-arm64.json
@@ -346,6 +347,7 @@ kernel_matrix_testing_setup_env_x64:
     - .kernel_matrix_testing_setup_env
   variables:
     EC2_X86_INSTANCE_TYPE: "m5d.metal"
+    ARCH: x86_64
     X86_AMI_ID: $KERNEL_MATRIX_TESTING_X86_AMI_ID
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
     VMCONFIG_PATH: $CI_PROJECT_DIR/test/new-e2e/system-probe/config/vmconfig-x64.json
