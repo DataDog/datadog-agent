@@ -40,6 +40,72 @@ func Test_updateSBOMRepoMetadata(t *testing.T) {
 			},
 		},
 		{
+			name: "sbom is nil",
+			args: args{
+				sbom:        nil,
+				repoTags:    []string{"tag1"},
+				repoDigests: []string{"digest1"},
+			},
+			want: nil,
+		},
+		{
+			name: "CycloneDXBOM is nil",
+			args: args{
+				sbom: &SBOM{
+					Status:       Success,
+					CycloneDXBOM: nil,
+				},
+				repoTags:    []string{"tag1"},
+				repoDigests: []string{"digest1"},
+			},
+			want: &SBOM{
+				Status:       Success,
+				CycloneDXBOM: nil,
+			},
+		},
+		{
+			name: "metadata is nil",
+			args: args{
+				sbom: &SBOM{
+					Status: Success,
+					CycloneDXBOM: &cyclonedx.BOM{
+						Metadata: nil,
+					},
+				},
+				repoTags:    []string{"tag1"},
+				repoDigests: []string{"digest1"},
+			},
+			want: &SBOM{
+				Status: Success,
+				CycloneDXBOM: &cyclonedx.BOM{
+					Metadata: nil,
+				},
+			},
+		},
+		{
+			name: "component is nil",
+			args: args{
+				sbom: &SBOM{
+					Status: Success,
+					CycloneDXBOM: &cyclonedx.BOM{
+						Metadata: &cyclonedx.Metadata{
+							Component: nil,
+						},
+					},
+				},
+				repoTags:    []string{"tag1"},
+				repoDigests: []string{"digest1"},
+			},
+			want: &SBOM{
+				Status: Success,
+				CycloneDXBOM: &cyclonedx.BOM{
+					Metadata: &cyclonedx.Metadata{
+						Component: nil,
+					},
+				},
+			},
+		},
+		{
 			name: "properties is nil",
 			args: args{
 				sbom: &SBOM{
