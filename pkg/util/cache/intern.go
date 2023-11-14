@@ -179,6 +179,7 @@ type KeyedInterner struct {
 	tmpPath        string
 	lastReport     time.Time
 	minFileSize    int64
+	maxPerInterner int
 	lock           sync.Mutex
 }
 
@@ -191,13 +192,14 @@ func NewKeyedStringInterner(cfg cconfig.Component) *KeyedInterner {
 		closeOnRelease := !cfg.GetBool("dogstatsd_string_interner_mmap_preserve")
 		tempPath := cfg.GetString("dogstatsd_string_interner_tmpdir")
 		minSizeKb := cfg.GetInt("dogstatsd_string_interner_mmap_minsizekb")
-		return NewKeyedStringInternerVals(stringInternerCacheSize, closeOnRelease, tempPath, minSizeKb)
+		maxStringsPerInterner := cfg.GetInt("dogstatsd_string_interner_origin_max_strings")
+		return NewKeyedStringInternerVals(stringInternerCacheSize, closeOnRelease, tempPath, minSizeKb, maxStringsPerInterner)
 	}
 	return NewKeyedStringInternerMemOnly(stringInternerCacheSize)
 }
 
 // NewKeyedStringInternerVals takes args explicitly for initialization
-func NewKeyedStringInternerVals(stringInternerCacheSize int, closeOnRelease bool, tempPath string, minFileKb int) *KeyedInterner {
+func NewKeyedStringInternerVals(stringInternerCacheSize int, closeOnRelease bool, tempPath string, minFileKb, maxStringsPerInterner int) *KeyedInterner {
 	cache, err := lru.NewWithEvict(stringInternerCacheSize, func(_, internerUntyped interface{}) {
 		interner := internerUntyped.(*stringInterner)
 		interner.Release(1)
@@ -211,6 +213,7 @@ func NewKeyedStringInternerVals(stringInternerCacheSize int, closeOnRelease bool
 		lastReport:     time.Now(),
 		tmpPath:        tempPath,
 		minFileSize:    int64(minFileKb * 1024),
+		maxPerInterner: maxStringsPerInterner,
 		closeOnRelease: closeOnRelease,
 	}
 }
@@ -229,6 +232,7 @@ func NewKeyedStringInternerMemOnly(stringInternerCacheSize int) *KeyedInterner {
 		maxQuota:       -1,
 		lastReport:     time.Now(),
 		tmpPath:        "",
+		maxPerInterner: initialInternerSize,
 		closeOnRelease: false,
 	}
 }
@@ -291,7 +295,7 @@ func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRe
 			return ""
 		}
 	} else {
-		interner = i.makeInterner(origin, initialInternerSize)
+		interner = i.makeInterner(origin, i.maxPerInterner)
 		log.Debugf("Creating string interner at %p for origin %v", interner, origin)
 		i.interners.Add(origin, interner)
 	}

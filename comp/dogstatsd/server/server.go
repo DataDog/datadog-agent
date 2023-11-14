@@ -19,7 +19,6 @@ import (
 	"runtime/pprof"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -38,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"go.uber.org/atomic"
 	"go.uber.org/fx"
 )
 
@@ -148,7 +148,7 @@ type server struct {
 
 	enrichConfig enrichConfig
 
-	nrEvents, nrServiceChecks, nrMetricSamples uint64
+	nrEvents, nrServiceChecks, nrMetricSamples *atomic.Int64
 
 	interner *cache.KeyedInterner
 }
@@ -157,40 +157,42 @@ type profileMetadata struct {
 	Name          string `json:"name"`
 	Timestamp     string `json:"timestamp"`
 	Interval      string `json:"interval"`
-	Events        uint64 `json:"eventCount"`
-	ServiceChecks uint64 `json:"serviceCheckCount"`
-	MetricSamples uint64 `json:"metricSampleCount"`
+	Events        int64  `json:"eventCount"`
+	ServiceChecks int64  `json:"serviceCheckCount"`
+	MetricSamples int64  `json:"metricSampleCount"`
 }
 
 func (s *server) dumpProfiles() {
 	var interval time.Duration
 	var prefix string
 	var dest string
-	if configs := strings.Split(os.Getenv("DD_SELF_PROFILE_MEM"), ","); len(configs) != 3 {
+	configs := strings.Split(os.Getenv("DD_SELF_PROFILE_MEM"), ",")
+	if len(configs) != 3 {
 		return
-	} else {
-		prefix = configs[0]
-		var err error
-		interval, err = time.ParseDuration(configs[1])
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to parse duration %s: %s\n", configs[1], err)
-			return
-		}
-		if interval < 1*time.Minute {
-			_, _ = fmt.Fprintf(os.Stderr, "Parsed duration (%s) was too small, making it 1 minute\n", interval)
-			interval = time.Minute
-		}
-		dest = configs[2]
 	}
-	var priorEvents, priorServiceChecks, priorMetricSamples uint64 = 0, 0, 0
+
+	prefix = configs[0]
+	var err error
+	interval, err = time.ParseDuration(configs[1])
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to parse duration %s: %s\n", configs[1], err)
+		return
+	}
+	if interval < 1*time.Minute {
+		_, _ = fmt.Fprintf(os.Stderr, "Parsed duration (%s) was too small, making it 1 minute\n", interval)
+		interval = time.Minute
+	}
+	dest = configs[2]
+
+	var priorEvents, priorServiceChecks, priorMetricSamples int64 = 0, 0, 0
 	for {
 		time.Sleep(interval)
 		timestamp := time.Now().String()
 		metadataFname := path.Join(dest, fmt.Sprintf("%s-%s.json", prefix, timestamp))
 		profileFname := path.Join(dest, fmt.Sprintf("%s-%s.pprof", prefix, timestamp))
-		nrEvents := atomic.LoadUint64(&s.nrEvents)
-		nrServiceChecks := atomic.LoadUint64(&s.nrServiceChecks)
-		nrMetricSamples := atomic.LoadUint64(&s.nrMetricSamples)
+		nrEvents := s.nrEvents.Load()
+		nrServiceChecks := s.nrServiceChecks.Load()
+		nrMetricSamples := s.nrMetricSamples.Load()
 		metadata := profileMetadata{
 			Name:          prefix,
 			Timestamp:     timestamp,
@@ -381,7 +383,10 @@ func newServerCompat(cfg config.ConfigReader, log logComponent.Component, captur
 			serverlessMode:            serverless,
 			originOptOutEnabled:       cfg.GetBool("dogstatsd_origin_optout_enabled"),
 		},
-		interner: interner,
+		nrEvents:        atomic.NewInt64(0),
+		nrServiceChecks: atomic.NewInt64(0),
+		nrMetricSamples: atomic.NewInt64(0),
+		interner:        interner,
 	}
 	return s
 }
@@ -683,7 +688,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					s.errLog("Dogstatsd: error parsing service check '%q': %s", message, err)
 					continue
 				}
-				atomic.AddUint64(&s.nrServiceChecks, 1)
+				s.nrServiceChecks.Add(1)
 				batcher.appendServiceCheck(serviceCheck)
 			case eventType:
 				event, err := s.parseEventMessage(parser, message, packet.Origin, batcher.Retainer())
@@ -691,7 +696,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 					s.errLog("Dogstatsd: error parsing event '%q': %s", message, err)
 					continue
 				}
-				atomic.AddUint64(&s.nrEvents, 1)
+				s.nrEvents.Add(1)
 				batcher.appendEvent(event)
 			case metricSampleType:
 				var err error
@@ -719,7 +724,7 @@ func (s *server) parsePackets(batcher *batcher, parser *parser, packets []*packe
 						batcher.appendSample(*distSample)
 					}
 				}
-				atomic.AddUint64(&s.nrMetricSamples, uint64(len(samples)))
+				s.nrMetricSamples.Add(int64(len(samples)))
 
 			}
 		}

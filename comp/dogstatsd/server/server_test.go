@@ -36,9 +36,10 @@ import (
 type serverDeps struct {
 	fx.In
 
-	Server Component
-	Config configComponent.Component
-	Log    log.Component
+	Server   Component
+	Config   configComponent.Component
+	Log      log.Component
+	Interner *cache.KeyedInterner
 }
 
 func fulfillDeps(t testing.TB) serverDeps {

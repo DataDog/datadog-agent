@@ -542,6 +542,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_tmpdir", os.TempDir())
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_mmap_enable", false)
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_mmap_minsizekb", 65536)
+	config.BindEnvAndSetDefault("dogstatsd_string_interner_origin_max_strings", 64)
 
 	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
 	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)

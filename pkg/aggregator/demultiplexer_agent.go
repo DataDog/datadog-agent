@@ -141,7 +141,6 @@ type AggregatorTestDeps struct {
 	fx.In
 	Log             log.Component
 	SharedForwarder defaultforwarder.Component
-	Interner        *cache.KeyedInterner
 }
 
 func InitAndStartAgentDemultiplexerForTest(deps AggregatorTestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {

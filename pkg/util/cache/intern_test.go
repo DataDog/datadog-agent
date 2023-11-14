@@ -108,7 +108,7 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 
 func TestInternLoadOrStoreReset(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := NewKeyedStringInternerMemOnly(4)
+	sInterner := NewKeyedStringInternerVals(1, true, "/", 512, 4)
 	retainer := newRetainer()
 	cacheLen := func() int {
 		internerUntyped, ok := sInterner.interners.Get("")
@@ -125,6 +125,15 @@ func TestInternLoadOrStoreReset(t *testing.T) {
 		}
 		interner := internerUntyped.(*stringInterner)
 		assert.Contains(interner.cache.strings, s, comment)
+	}
+
+	assertCacheNotContains := func(s, comment string) {
+		internerUntyped, ok := sInterner.interners.Get("")
+		if !ok {
+			assert.Fail("No interner to hold key: " + comment)
+		}
+		interner := internerUntyped.(*stringInterner)
+		assert.NotContainsf(interner.cache.strings, s, comment)
 	}
 
 	sInterner.loadOrStore([]byte("foo"), "", retainer)
@@ -144,7 +153,7 @@ func TestInternLoadOrStoreReset(t *testing.T) {
 	// Something got bumped
 	assert.Equal(4, cacheLen())
 	// Foo was it.
-	assertCacheContains("foo", "oldest element evicted")
+	assertCacheNotContains("foo", "oldest element evicted")
 	sInterner.loadOrStore([]byte("val"), "", retainer)
 	assert.Equal(4, cacheLen())
 }
