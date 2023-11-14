@@ -1196,7 +1196,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 	out, err := testutil.RunCommandWithContext(ctx, "testdata/reuseport.py")
-	require.NoError(t, err)
+	require.NoError(t, err, "error running reuseport.py, output: %s", out)
 
 	port, err := strconv.ParseUint(strings.TrimSpace(strings.Split(out, "\n")[0]), 10, 16)
 	require.NoError(t, err, "could not convert %s to integer port", out)
@@ -1216,6 +1216,8 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 		for _, c := range _conns {
 			conns[string(c.ByteKey(buf))] = c
 		}
+
+		t.Log(conns)
 
 		return len(conns) == 4
 	}, 3*time.Second, 100*time.Millisecond, "could not find expected number of udp connections, expected: 4")
