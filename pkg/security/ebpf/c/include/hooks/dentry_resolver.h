@@ -137,7 +137,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, in
     u32 key = 0;
     u32 resolution_err = 0;
     struct path_leaf_t *map_value = 0;
-    struct path_key_t iteration_key = {0}, empty_key = {0};
+    struct path_key_t iteration_key = {}, empty_key = {0};
 
     struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
     if (state == NULL) {
@@ -150,17 +150,18 @@ int __attribute__((always_inline)) dentry_resolver_erpc_write_user(void *ctx, in
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
     {
         iteration_key = state->key;
+        map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
+        if (map_value == NULL) {
+            if (state->cursor + sizeof(state->key) < state->buffer_size) {
+                bpf_probe_write_user((void *) state->userspace_buffer + state->cursor, &empty_key, sizeof(empty_key));
+            }
+            resolution_err = DR_ERPC_CACHE_MISS;
+            goto exit;
+        }
 
         // make sure we do not write outside of the provided buffer
         if (state->cursor + sizeof(state->key) >= state->buffer_size) {
             resolution_err = DR_ERPC_BUFFER_SIZE;
-            goto exit;
-        }
-
-        map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
-        if (map_value == NULL) {
-            bpf_probe_write_user((void *) state->userspace_buffer + state->cursor, &empty_key, sizeof(empty_key));
-            resolution_err = DR_ERPC_CACHE_MISS;
             goto exit;
         }
 
@@ -217,7 +218,7 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, int dr_t
     u32 key = 0;
     u32 resolution_err = 0;
     struct path_leaf_t *map_value = 0;
-    struct path_key_t iteration_key = {0}, empty_key = {0};
+    struct path_key_t iteration_key = {}, empty_key = {0};
     char *mmapped_userspace_buffer = NULL;
 
     struct dr_erpc_state_t *state = bpf_map_lookup_elem(&dr_erpc_state, &key);
@@ -236,17 +237,18 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, int dr_t
     for (int i = 0; i < DR_MAX_ITERATION_DEPTH; i++)
     {
         iteration_key = state->key;
+        map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
+        if (map_value == NULL) {
+            if (state->cursor + sizeof(state->key) < state->buffer_size) {
+                bpf_probe_read((void *) mmapped_userspace_buffer + (state->cursor & 0x7FFF), sizeof(empty_key), &empty_key);
+            }
+            resolution_err = DR_ERPC_CACHE_MISS;
+            goto exit;
+        }
 
         // make sure we do not write outside of the provided buffer
         if (state->cursor + sizeof(state->key) >= state->buffer_size) {
             resolution_err = DR_ERPC_BUFFER_SIZE;
-            goto exit;
-        }
-
-        map_value = bpf_map_lookup_elem(&pathnames, &iteration_key);
-        if (map_value == NULL) {
-            bpf_probe_read((void *) mmapped_userspace_buffer + (state->cursor & 0x7FFF), sizeof(empty_key), &empty_key);
-            resolution_err = DR_ERPC_CACHE_MISS;
             goto exit;
         }
 
