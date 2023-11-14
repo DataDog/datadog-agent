@@ -47,6 +47,7 @@ include:
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
+  - ./gitlab/rc_kubernetes_deploy.yaml
 
 default:
   retry:
@@ -60,6 +61,7 @@ default:
 stages:
   - .pre
   - setup
+  - rc_kubernetes_deploy
   - maintenance_jobs
   - deps_build
   - deps_fetch
