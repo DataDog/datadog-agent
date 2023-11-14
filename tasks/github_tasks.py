@@ -29,7 +29,8 @@ def _trigger_macos_workflow(release, destination, retry_download, retry_interval
 
     print_workflow_conclusion(workflow_conclusion, workflow_url)
 
-    download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
+    if destination:
+        download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
 
     if workflow_conclusion != "success":
         raise Exit(code=1)
