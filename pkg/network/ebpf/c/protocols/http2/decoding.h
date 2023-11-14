@@ -562,7 +562,7 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
         __sync_fetch_and_add(&http2_tel->max_frames_to_filter, 1);
     }
 
-    if (passed_max_frames_iterations) {
+    if (passed_max_interesting_frames) {
         __sync_fetch_and_add(&http2_tel->max_interesting_frames, 1);
     }
 
