@@ -27,6 +27,7 @@ import (
 	"time"
 
 	krpretty "github.com/kr/pretty"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/exp/slices"
@@ -148,6 +149,18 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 		}
 	}
 
+	// Sharing the tracer in all tests, to reduce time takes for the test.
+	cfg := testConfig()
+	cfg.EnableHTTPMonitoring = true
+	cfg.EnableNativeTLSMonitoring = true
+	/* enable protocol classification : TLS */
+	cfg.ProtocolClassificationEnabled = true
+	cfg.CollectTCPv4Conns = true
+	cfg.CollectTCPv6Conns = true
+	tr := setupTracer(t, cfg)
+	tr.removeClient(clientID)
+	initTracerState(t, tr)
+
 	for _, keepAlive := range []struct {
 		name  string
 		value bool
@@ -163,9 +176,11 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 	} {
 		t.Run(keepAlive.name, func(t *testing.T) {
 			// Spin-up HTTPS server
-			serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:443", testutil.Options{
+			serverDoneFn := testutil.HTTPServer(t, "127.0.0.1:8443", testutil.Options{
 				EnableTLS:       true,
 				EnableKeepAlive: keepAlive.value,
+				// Having some sleep in the response, to allow us to ensure we hooked the process.
+				SlowResponse: time.Millisecond * 200,
 			})
 			t.Cleanup(serverDoneFn)
 
@@ -182,7 +197,9 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 					if len(test.prefetchLibs) == 0 {
 						t.Fatalf("%s not linked with any of these libs %v", test.name, tlsLibs)
 					}
-					testHTTPSLibrary(t, test.fetchCmd, test.prefetchLibs)
+					require.NoError(t, tr.ebpfTracer.Resume(), "enable probes - before post tracer")
+					testHTTPSLibrary(t, tr, test.fetchCmd, test.prefetchLibs)
+					require.NoError(t, tr.ebpfTracer.Pause(), "disable probes - after post tracer")
 				})
 			}
 		})
@@ -226,17 +243,7 @@ func prefetchLib(t *testing.T, filenames ...string) *exec.Cmd {
 	return cmd
 }
 
-func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
-	// Start tracer with HTTPS support
-	cfg := testConfig()
-	cfg.EnableHTTPMonitoring = true
-	cfg.EnableNativeTLSMonitoring = true
-	/* enable protocol classification : TLS */
-	cfg.ProtocolClassificationEnabled = true
-	cfg.CollectTCPv4Conns = true
-	cfg.CollectTCPv6Conns = true
-	tr := setupTracer(t, cfg)
-
+func testHTTPSLibrary(t *testing.T, tr *Tracer, fetchCmd, prefetchLibs []string) {
 	// not ideal but, short process are hard to catch
 	prefetchPid := uint32(prefetchLib(t, prefetchLibs...).Process.Pid)
 	require.Eventuallyf(t, func() bool {
@@ -253,26 +260,41 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	// Issue request using fetchCmd (wget, curl, ...)
 	// This is necessary (as opposed to using net/http) because we want to
 	// test a HTTP client linked to OpenSSL or GnuTLS
-	const targetURL = "https://127.0.0.1:443/200/foobar"
+	const targetURL = "https://127.0.0.1:8443/200/foobar"
 	cmd := append(fetchCmd, targetURL)
 
-	t.Log("run 3 clients request as we can have a race between the closing tcp socket and the http response")
-	fetchPids := make(map[uint32]struct{})
-	for i := 0; i < 3; i++ {
-		requestCmd := exec.Command(cmd[0], cmd[1:]...)
-		out, err := requestCmd.CombinedOutput()
-		require.NoErrorf(t, err, "failed to issue request via %s: %s\n%s", fetchCmd, err, string(out))
-		fetchPid := uint32(requestCmd.Process.Pid)
-		fetchPids[fetchPid] = struct{}{}
-		t.Logf("%s pid %d", cmd[0], fetchPid)
+	requestCmd := exec.Command(cmd[0], cmd[1:]...)
+	stdout, err := requestCmd.StdoutPipe()
+	require.NoError(t, err)
+	requestCmd.Stderr = requestCmd.Stdout
+	require.NoError(t, requestCmd.Start())
+
+	require.Eventuallyf(t, func() bool {
+		traced := utils.GetTracedPrograms("shared_libraries")
+		for _, prog := range traced {
+			if slices.Contains[[]uint32](prog.PIDs, uint32(requestCmd.Process.Pid)) {
+				return true
+			}
+		}
+
+		return false
+	}, time.Second*5, time.Millisecond*100, "process %v is not traced by shared-libraries", requestCmd.Process.Pid)
+
+	if err := requestCmd.Wait(); err != nil {
+		output, err := io.ReadAll(stdout)
+		if err == nil {
+			t.Logf("output: %s", string(output))
+		}
+		t.FailNow()
 	}
 
+	fetchPid := uint32(requestCmd.Process.Pid)
+	t.Logf("%s pid %d", cmd[0], fetchPid)
 	var allConnections []network.ConnectionStats
-	httpKeys := make(map[uint16]http.Key)
-	require.Eventually(t, func() bool {
+	var httpKey http.Key
+	assert.Eventuallyf(t, func() bool {
 		payload := getConnections(t, tr)
 		allConnections = append(allConnections, payload.Conns...)
-		found := false
 		for key, stats := range payload.HTTP {
 			if key.Path.Content.Get() != "/200/foobar" {
 				continue
@@ -288,35 +310,24 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 			// this make harder to map lib and tags, one set of tag should match but not both
 			if statsTags == network.ConnTagGnuTLS || statsTags == network.ConnTagOpenSSL {
 				t.Logf("found tag 0x%x %s", statsTags, network.GetStaticTags(statsTags))
-				httpKeys[key.SrcPort] = key
-				found = true
-				continue
-			} else {
-				s, _ := tr.getStats(allStats...)
-				t.Logf("==== %# v\n%# v", krpretty.Formatter(req), krpretty.Formatter(s))
-			}
-			if len(httpKeys) == 3 {
+				httpKey = key
 				return true
 			}
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 		}
-
-		if !found {
-			s, _ := tr.getStats(allStats...)
-			t.Logf("=====loop= %# v", krpretty.Formatter(s))
-		}
-		return found
+		return false
 	}, 15*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
+
+	if t.Failed() {
+		o, _ := tr.usmMonitor.DumpMaps("http_in_flight")
+		t.Logf("http_in_flight: %s", o)
+		t.FailNow()
+	}
 
 	// check NPM static TLS tag
 	found := false
 	for _, c := range allConnections {
-		httpKey, foundKey := httpKeys[c.SPort]
-		if !foundKey {
-			continue
-		}
-		_, foundPid := fetchPids[c.Pid]
-		if foundPid && c.DPort == httpKey.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
+		if c.Pid == fetchPid && c.SPort == httpKey.SrcPort && c.DPort == httpKey.DstPort && c.ProtocolStack.Contains(protocols.TLS) {
 			found = true
 			break
 		}
@@ -324,13 +335,8 @@ func testHTTPSLibrary(t *testing.T, fetchCmd []string, prefetchLibs []string) {
 	if !found {
 		t.Errorf("NPM TLS tag not found")
 		for _, c := range allConnections {
-			httpKey, foundKey := httpKeys[c.SPort]
-			if !foundKey {
-				continue
-			}
-			_, foundPid := fetchPids[c.Pid]
-			if foundPid {
-				t.Logf("pid %d connection %# v \nhttp %# v\n", c.Pid, krpretty.Formatter(c), krpretty.Formatter(httpKey))
+			if c.Pid == fetchPid {
+				t.Logf("pid %d connection %# v \nhttp %# v\n", fetchPid, krpretty.Formatter(c), krpretty.Formatter(httpKey))
 			}
 		}
 	}
