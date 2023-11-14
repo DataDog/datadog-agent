@@ -17,8 +17,6 @@ import (
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-
-	"github.com/DataDog/datadog-agent/pkg/network/driver"
 )
 
 /*
@@ -303,27 +301,4 @@ func ip4format(ip [16]uint8) string {
 func ip6format(ip [16]uint8) string {
 	ipObj := netip.AddrFrom16(ip)
 	return ipObj.String()
-}
-
-func ipAndPortFromTup(tup driver.ConnTupleType, local bool) ([16]uint8, uint16) {
-	if local {
-		return tup.LocalAddr, tup.LocalPort
-	}
-	return tup.RemoteAddr, tup.RemotePort
-}
-
-// IPFormat takes a binary ip representation and returns a string type
-func IPFormat(tup driver.ConnTupleType, local bool) string {
-	ip, port := ipAndPortFromTup(tup, local)
-
-	if tup.Family == 2 {
-		// IPv4
-		return fmt.Sprintf("%v:%v", ip4format(ip), port)
-	} else if tup.Family == 23 {
-		// IPv6
-		return fmt.Sprintf("[%v]:%v", ip6format(ip), port)
-	} else {
-		// everything else
-		return "<UNKNOWN>"
-	}
 }

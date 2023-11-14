@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"go.uber.org/fx"
+		"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 
@@ -28,9 +28,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/internaltelemetry"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/util/crashreport"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/winutil/crashreport"
+"github.com/DataDog/datadog-agent/pkg/util/winutil/crashreport"
 	"golang.org/x/sys/windows/registry"
 	yaml "gopkg.in/yaml.v2"
 )
