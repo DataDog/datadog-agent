@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -46,6 +47,12 @@ type processAgent struct {
 }
 
 func newProcessAgent(p processAgentParams) optional.Option[Component] {
+	runInCoreAgent := p.Config.GetBool("process_config.run_in_core_agent.enabled")
+
+	if !runInCoreAgent && flavor.GetFlavor() == flavor.DefaultAgent {
+		return optional.NewNoneOption[Component]()
+	}
+
 	// Look to see if any checks are enabled, if not, return since the agent doesn't need to be enabled.
 	if !checksEnabled(p.Checks) {
 		p.Log.Info(agent6DisabledMessage)

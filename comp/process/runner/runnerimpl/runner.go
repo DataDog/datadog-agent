@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	processRunner "github.com/DataDog/datadog-agent/pkg/process/runner"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -58,10 +59,12 @@ func newRunner(deps dependencies) (runner.Component, error) {
 		providedChecks: deps.Checks,
 	}
 
-	deps.Lc.Append(fx.Hook{
-		OnStart: runner.Run,
-		OnStop:  runner.Stop,
-	})
+	if flavor.GetFlavor() == flavor.ProcessAgent {
+		deps.Lc.Append(fx.Hook{
+			OnStart: runner.Run,
+			OnStop:  runner.Stop,
+		})
+	}
 
 	return runner, nil
 }
