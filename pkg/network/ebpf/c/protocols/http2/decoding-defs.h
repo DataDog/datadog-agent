@@ -124,6 +124,7 @@ typedef struct {
 typedef struct {
     __u64 request_seen;
     __u64 response_seen;
+    __u64 end_of_stream_eos;
 } http2_telemetry_t;
 
 #endif

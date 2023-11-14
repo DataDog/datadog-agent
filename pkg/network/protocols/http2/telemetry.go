@@ -23,6 +23,7 @@ type kernelTelemetry struct {
 
 	http2requests  *libtelemetry.Gauge
 	http2responses *libtelemetry.Gauge
+	endOfStreamEOS *libtelemetry.Gauge
 }
 
 // newHTTP2KernelTelemetry hold HTTP/2 kernel metrics.
@@ -33,6 +34,7 @@ func newHTTP2KernelTelemetry(protocol string) *kernelTelemetry {
 
 		// todo: changed it from OptStatsd to OptPrometheus
 		http2requests:  metricGroup.NewGauge("http2requests", libtelemetry.OptStatsd),
+		endOfStreamEOS: metricGroup.NewGauge("endOfStreamEOS", libtelemetry.OptStatsd),
 		http2responses: metricGroup.NewGauge("http2responses", libtelemetry.OptStatsd)}
 }
 

@@ -32,8 +32,9 @@ type EbpfTx struct {
 
 type StaticTableEnumValue = uint8
 type HTTP2Telemetry struct {
-	Request_seen  uint64
-	Response_seen uint64
+	Request_seen      uint64
+	Response_seen     uint64
+	End_of_stream_eos uint64
 }
 
 const (

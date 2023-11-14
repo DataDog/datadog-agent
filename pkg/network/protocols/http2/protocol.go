@@ -204,6 +204,7 @@ func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) {
 
 		p.http2Telemetry.http2requests.Set(int64(http2Telemetry.Request_seen))
 		p.http2Telemetry.http2responses.Set(int64(http2Telemetry.Response_seen))
+		p.http2Telemetry.endOfStreamEOS.Set(int64(http2Telemetry.End_of_stream_eos))
 
 		time.Sleep(10 * time.Second)
 		p.http2Telemetry.Log()

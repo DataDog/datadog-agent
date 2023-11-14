@@ -329,6 +329,7 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     }
 
     if ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
+        __sync_fetch_and_add(&http2_tel->end_of_stream_eos, 1);
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
     }
 
