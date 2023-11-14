@@ -12,7 +12,7 @@
 // This implementation is based on
 // https://github.com/vitessio/vitess/blob/main/go/vt/servenv/grpc_codec.go
 
-// Package api holds api related files
+// Package ebpfless holds api related files
 package ebpfless
 
 import (

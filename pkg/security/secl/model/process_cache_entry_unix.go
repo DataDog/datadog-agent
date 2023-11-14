@@ -159,7 +159,7 @@ func NewPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *Pr
 var processContextZero = ProcessCacheEntry{}
 
 // GetPlaceholderProcessCacheEntry returns an empty process cache entry for failed process resolutions
-func GetPlaceholderProcessCacheEntry(pid uint32, tid uint32, isKworker bool) *ProcessCacheEntry {
+func GetPlaceholderProcessCacheEntry(pid uint32, _ uint32, _ bool) *ProcessCacheEntry {
 	processContextZero.Pid = pid
 	processContextZero.markFileEventAsResolved()
 	return &processContextZero

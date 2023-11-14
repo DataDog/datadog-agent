@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
+// Monitors regroups all the work we want to do to monitor the probes we pushed in the kernel
 type Monitors struct {
 	probe *Probe
 
