@@ -301,8 +301,6 @@ func offlineCmd(poolSize int) error {
 
 	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
-	scans := make([]scanTask, 0)
-
 	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", globalParams.assumedRole)
 	if err != nil {
 		return err
@@ -321,91 +319,47 @@ func offlineCmd(poolSize int) error {
 		return err
 	}
 
+	var allRegions []string
 	for _, region := range describeRegionsOutput.Regions {
 		if region.RegionName == nil {
 			continue
 		}
-
-		cfg, awsstats, err := newAWSConfig(ctx, *region.RegionName, globalParams.assumedRole)
-		if err != nil {
-			return err
-		}
-		defer awsstats.SendStats()
-
-		ec2client := ec2.NewFromConfig(cfg)
-		if err != nil {
-			return err
-		}
-
-		describeInstancesInput := &ec2.DescribeInstancesInput{}
-
-		for {
-			describeInstancesOutput, err := ec2client.DescribeInstances(ctx, describeInstancesInput)
-			if err != nil {
-				return err
-			}
-
-			for _, reservation := range describeInstancesOutput.Reservations {
-				for _, instance := range reservation.Instances {
-					if instance.InstanceId == nil {
-						continue
-					}
-					for _, blockDeviceMapping := range instance.BlockDeviceMappings {
-						if blockDeviceMapping.DeviceName == nil {
-							continue
-						}
-						if blockDeviceMapping.Ebs == nil {
-							continue
-						}
-						if *blockDeviceMapping.DeviceName != *instance.RootDeviceName {
-							continue
-						}
-						fmt.Println(*region.RegionName, *instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId)
-						arn := arn.ARN{
-							Partition: "aws",
-							Service:   "ec2",
-							Region:    *region.RegionName,
-							AccountID: "", // TODO
-							Resource:  fmt.Sprintf("%s/%s", ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId),
-						}
-						scan := ebsScan{
-							ARN:      arn.String(),
-							Hostname: *instance.InstanceId,
-						}
-						scans = append(scans, scanTask{
-							Type: ebsScanType,
-							Scan: scan,
-						})
-
-					}
-				}
-			}
-
-			if describeInstancesOutput.NextToken == nil {
-				break
-			}
-
-			describeInstancesInput.NextToken = describeInstancesOutput.NextToken
-		}
+		allRegions = append(allRegions, *region.RegionName)
 	}
 
 	scansCh := make(chan scanTask)
 
 	go func() {
-		for _, scan := range scans {
-			scansCh <- scan
+		defer close(scansCh)
+		for _, regionName := range allRegions {
+			if ctx.Err() != nil {
+				return
+			}
+			scans, err := listEBSScansForRegion(ctx, regionName)
+			if err != nil {
+				log.Errorf("could not scan region %q: %v", regionName, err)
+			} else {
+				for _, scan := range scans {
+					scansCh <- scan
+				}
+			}
 		}
 	}()
 
 	done := make(chan struct{})
 	for i := 0; i < poolSize; i++ {
 		go func() {
+			defer func() {
+				done <- struct{}{}
+			}()
 			for {
 				select {
 				case <-ctx.Done():
-					done <- struct{}{}
 					return
-				case scan := <-scansCh:
+				case scan, ok := <-scansCh:
+					if !ok {
+						return
+					}
 					_, err := launchScan(ctx, scan)
 					if err != nil {
 						log.Errorf("error scanning task %s: %s", scan, err)
@@ -417,9 +371,73 @@ func offlineCmd(poolSize int) error {
 	for i := 0; i < poolSize; i++ {
 		<-done
 	}
-	<-ctx.Done()
-
 	return nil
+}
+
+func listEBSScansForRegion(ctx context.Context, regionName string) (scans []scanTask, err error) {
+	cfg, awsstats, err := newAWSConfig(ctx, regionName, globalParams.assumedRole)
+	if err != nil {
+		return nil, err
+	}
+	defer awsstats.SendStats()
+
+	ec2client := ec2.NewFromConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	describeInstancesInput := &ec2.DescribeInstancesInput{}
+
+	for {
+		describeInstancesOutput, err := ec2client.DescribeInstances(ctx, describeInstancesInput)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, reservation := range describeInstancesOutput.Reservations {
+			for _, instance := range reservation.Instances {
+				if instance.InstanceId == nil {
+					continue
+				}
+				for _, blockDeviceMapping := range instance.BlockDeviceMappings {
+					if blockDeviceMapping.DeviceName == nil {
+						continue
+					}
+					if blockDeviceMapping.Ebs == nil {
+						continue
+					}
+					if *blockDeviceMapping.DeviceName != *instance.RootDeviceName {
+						continue
+					}
+					fmt.Println(regionName, *instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId)
+					arn := arn.ARN{
+						Partition: "aws",
+						Service:   "ec2",
+						Region:    regionName,
+						AccountID: "", // TODO
+						Resource:  fmt.Sprintf("%s/%s", ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId),
+					}
+					scan := ebsScan{
+						ARN:      arn.String(),
+						Hostname: *instance.InstanceId,
+					}
+					scans = append(scans, scanTask{
+						Type: ebsScanType,
+						Scan: scan,
+					})
+
+				}
+			}
+		}
+
+		if describeInstancesOutput.NextToken == nil {
+			break
+		}
+
+		describeInstancesInput.NextToken = describeInstancesOutput.NextToken
+	}
+
+	return
 }
 
 func cleanupCmd(region string, assumedRole string, dryRun bool) error {
