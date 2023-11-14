@@ -598,6 +598,10 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		nextMountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
 	}
 
+	if depth >= model.MaxPathDepth {
+		resolutionErr = errTruncatedParentsERPC
+	}
+
 	if resolutionErr == nil && len(keys) > 0 {
 		resolutionErr = dr.cacheEntries(keys, entries)
 
