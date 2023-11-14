@@ -83,8 +83,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
@@ -614,7 +614,7 @@ func startAgent(
 		return err
 	}
 	// TODO: (components) remove this once migrating the status package to components
-	status.SetOtelCollector(otelcollector)
+	otlpStatus.SetOtelCollector(otelcollector)
 
 	return nil
 }
