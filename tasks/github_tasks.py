@@ -13,33 +13,13 @@ from .libs.github_actions_tools import (
 from .utils import DEFAULT_BRANCH, load_release_versions
 
 
-@task
-def trigger_macos_build(
-    ctx,
-    datadog_agent_ref=DEFAULT_BRANCH,
-    release_version="nightly-a7",
-    major_version="7",
-    python_runtimes="3",
-    destination=".",
-    version_cache=None,
-    retry_download=3,
-    retry_interval=10,
-):
-    env = load_release_versions(ctx, release_version)
+def _trigger_macos_workflow(ctx, release, destination, retry_download, retry_interval, **kwargs):
+    env = load_release_versions(ctx, release)
     github_action_ref = env["MACOS_BUILD_VERSION"]
 
     run = trigger_macos_workflow(
-        workflow_name="macos.yaml",
         github_action_ref=github_action_ref,
-        datadog_agent_ref=datadog_agent_ref,
-        release_version=release_version,
-        major_version=major_version,
-        python_runtimes=python_runtimes,
-        # Send pipeline id and bucket branch so that the package version
-        # can be constructed properly for nightlies.
-        gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
-        bucket_branch=os.environ.get("BUCKET_BRANCH", None),
-        version_cache_file_content=version_cache,
+        **kwargs,
     )
 
     workflow_conclusion, workflow_url = follow_workflow_run(run)
@@ -53,6 +33,40 @@ def trigger_macos_build(
 
     if workflow_conclusion != "success":
         raise Exit(code=1)
+
+
+@task
+def trigger_macos_build(
+    ctx,
+    datadog_agent_ref=DEFAULT_BRANCH,
+    release_version="nightly-a7",
+    major_version="7",
+    python_runtimes="3",
+    destination=".",
+    version_cache=None,
+    retry_download=3,
+    retry_interval=10,
+):
+    _trigger_macos_workflow(
+        ctx,
+        # Provide the release version to be able to fetch the associated
+        # macos-build branch from release.json for all workflows...
+        release_version,
+        destination,
+        retry_download,
+        retry_interval,
+        workflow_name="macos.yaml",
+        datadog_agent_ref=datadog_agent_ref,
+        # ... And provide the release version as a workflow input when needed
+        release_version=release_version,
+        major_version=major_version,
+        python_runtimes=python_runtimes,
+        # Send pipeline id and bucket branch so that the package version
+        # can be constructed properly for nightlies.
+        gitlab_pipeline_id=os.environ.get("CI_PIPELINE_ID", None),
+        bucket_branch=os.environ.get("BUCKET_BRANCH", None),
+        version_cache_file_content=version_cache,
+    )
 
 
 @task
@@ -66,28 +80,17 @@ def trigger_macos_test(
     retry_download=3,
     retry_interval=10,
 ):
-    env = load_release_versions(ctx, release_version)
-    github_action_ref = env["MACOS_BUILD_VERSION"]
-
-    run = trigger_macos_workflow(
+    _trigger_macos_workflow(
+        ctx,
+        release_version,
+        destination,
+        retry_download,
+        retry_interval,
         workflow_name="test.yaml",
-        github_action_ref=github_action_ref,
         datadog_agent_ref=datadog_agent_ref,
         python_runtimes=python_runtimes,
         version_cache_file_content=version_cache,
     )
-
-    workflow_conclusion, workflow_url = follow_workflow_run(run)
-
-    if workflow_conclusion == "failure":
-        print_failed_jobs_logs(run)
-
-    print_workflow_conclusion(workflow_conclusion, workflow_url)
-
-    download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
-
-    if workflow_conclusion != "success":
-        raise Exit(code=1)
 
 
 @task
