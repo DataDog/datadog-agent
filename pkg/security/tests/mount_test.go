@@ -183,6 +183,11 @@ func TestMountPropagated(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
+		if testEnvironment == DockerEnvironment {
+			testDrive.Close()
+			return
+		}
+
 		if err := testDrive.DetachDevice(); err != nil {
 			fmt.Printf("failed to detach device: %v", err)
 		}
