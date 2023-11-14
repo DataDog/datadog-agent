@@ -34,4 +34,3 @@ module.exports.enhancedMetricTest = datadog(myHandler);
 module.exports.noEnhancedMetricTest = datadog(myHandler);
 module.exports.timeoutMetricTest = datadog(myTimeoutHandler);
 module.exports.errorTest = datadog(myErrorHandler);
-module.exports.appSecHandler = datadog(appSecHandler);
