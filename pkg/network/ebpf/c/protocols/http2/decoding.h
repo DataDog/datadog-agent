@@ -520,6 +520,7 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 
 static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
+    bool passed_max_interesting_frames = false;
     __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
     if (original_index == 1) {
@@ -550,7 +551,7 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
                 frames_array[interesting_frame_index].offset = skb_info->data_off;
                 interesting_frame_index++;
             } else {
-                __sync_fetch_and_add(&http2_tel->max_interesting_frames, 1);
+                passed_max_interesting_frames = true;
             }
         }
         skb_info->data_off += current_frame.length;
@@ -559,6 +560,10 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb - if we can, update telemetry to indicate we have
     if (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE <= skb_info->data_end) {
         __sync_fetch_and_add(&http2_tel->max_frames_to_filter, 1);
+    }
+
+    if (passed_max_frames_iterations) {
+        __sync_fetch_and_add(&http2_tel->max_interesting_frames, 1);
     }
 
     return interesting_frame_index;
