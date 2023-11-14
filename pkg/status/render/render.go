@@ -83,6 +83,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 	stats["pyLoaderStats"] = nil
 	stats["pythonInit"] = nil
 	stats["inventories"] = nil
+
 	title := fmt.Sprintf("Datadog Cluster Agent (v%s)", stats["version"])
 	stats["title"] = title
 
@@ -140,6 +141,7 @@ func FormatSecurityAgentStatus(data []byte) (string, error) {
 	if renderError != "" || err != nil {
 		return renderError, err
 	}
+
 	title := fmt.Sprintf("Datadog Security Agent (v%s)", stats["version"])
 	stats["title"] = title
 

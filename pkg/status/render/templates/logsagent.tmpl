@@ -15,33 +15,27 @@ Logs Agent
   {{- range $endpoint := .endpoints }}
     {{ $endpoint }}
   {{- end }}
+{{- end }}
 
-  {{- if .endpoints }}
+{{- if and (eq .use_http false) (eq .is_running true) }}
 
-    {{- range $endpoint := .endpoints }}
-      {{ $endpoint }}
-    {{- end }}
+    You are currently sending Logs to Datadog through TCP (either because logs_config.force_use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.
+{{ end }}
+
+{{- if .metrics }}
+
+  {{- range $metric_name, $metric_value := .metrics }}
+    {{$metric_name}}: {{$metric_value}}
   {{- end }}
+{{- end }}
 
-  {{- if and (eq .use_http false) (eq .is_running true) }}
-
-      You are currently sending Logs to Datadog through TCP (either because logs_config.force_use_tcp or logs_config.socks5_proxy_address is set or the HTTP connectivity test has failed). To benefit from increased reliability and better network performances, we strongly encourage switching over to compressed HTTPS which is now the default protocol.
-  {{ end }}
-
-  {{- if .metrics }}
-
-    {{- range $metric_name, $metric_value := .metrics }}
-      {{$metric_name}}: {{$metric_value}}
-    {{- end }}
-  {{- end }}
-
-  {{- if .process_file_stats }}
-    {{- range $metric_name, $metric_value := .process_file_stats }}
-      {{$metric_name}}: {{printf "%.0f" $metric_value}}
-    {{- end}}
+{{- if .process_file_stats }}
+  {{- range $metric_name, $metric_value := .process_file_stats }}
+    {{$metric_name}}: {{printf "%.0f" $metric_value}}
   {{- end}}
+{{- end}}
 
-  {{- if .errors }}
+{{- if .errors }}
 
   Errors
   {{ printDashes "Errors" "=" }}

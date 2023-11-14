@@ -31,6 +31,7 @@ import (
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status/collector"
+	"github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/status/otlp"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -59,8 +60,7 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
 	stats["hostinfo"] = hostMetadataUtils.GetInformation()
 
-	stats["JMXStatus"] = GetJMXStatus()
-	stats["JMXStartupError"] = GetJMXStartupError()
+	jmx.PopulateStatus(stats)
 
 	stats["logsStats"] = logsStatus.Get(verbose)
 
