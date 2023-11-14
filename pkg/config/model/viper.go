@@ -37,6 +37,7 @@ const (
 // sources list the known sources, following the order of hierarchy between them
 var sources = []Source{SourceDefault, SourceUnknown, SourceFile, SourceEnvVar, SourceAgentRuntime, SourceRC, SourceCLI}
 
+// ValueWithSource is a tuple for a source and a value, not necessarly the applied value in the main config
 type ValueWithSource struct {
 	Source Source
 	Value  interface{}
