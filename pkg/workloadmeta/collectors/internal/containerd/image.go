@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/mohae/deepcopy"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
@@ -282,6 +283,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	repoDigests := c.knownImages.getRepoDigests(imageID)
 
 	sbom := newSBOM
+	var usingExistingSBOM bool
 
 	// We can get "create" events for images that already exist. That happens
 	// when the same image is referenced with different names. For example,
@@ -302,6 +304,7 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 		}
 
 		if sbom == nil && existingImg.SBOM.Status != workloadmeta.Pending {
+			usingExistingSBOM = true
 			sbom = existingImg.SBOM
 		}
 	}
@@ -332,8 +335,12 @@ func (c *collector) notifyEventForImage(ctx context.Context, namespace string, i
 	// Because this metadata is essential for processing, it is important to inject new metadata
 	// to the existing SBOM. Generating a new SBOM can be a more robust solution but can also be
 	// costly.
-	// Moreover we can't update the SBOM in the collector because it's not thread safe.
-	sbom = updateSBOMRepoMetadata(sbom, repoTags, repoDigests)
+	// Moreover, it is not safe to modify the original SBOM if it is already stored in workloadmeta,
+	// so we create a copy of it. It is costly but shouldn't be called so often.
+	if usingExistingSBOM {
+		sbom = deepcopy.Copy(sbom).(*workloadmeta.SBOM)
+		sbom = updateSBOMRepoMetadata(sbom, repoTags, repoDigests)
+	}
 
 	workloadmetaImg := workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{

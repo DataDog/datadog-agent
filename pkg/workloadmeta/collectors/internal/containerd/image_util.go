@@ -25,7 +25,7 @@ func updateSBOMRepoMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []str
 		sbom.Status != workloadmeta.Success ||
 		sbom.CycloneDXBOM == nil ||
 		sbom.CycloneDXBOM.Metadata == nil ||
-		sbom.CycloneDXBOM.Metadata.Component ||
+		sbom.CycloneDXBOM.Metadata.Component == nil ||
 		sbom.CycloneDXBOM.Metadata.Component.Properties == nil {
 		return sbom
 	}
