@@ -8,7 +8,6 @@ package httpsec
 import (
 	"bytes"
 	"encoding/json"
-
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
@@ -240,6 +239,13 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	if events := lp.appsec.Monitor(ctx.toAddresses()); len(events) > 0 {
 		setSecurityEventsTags(span, events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
+	}
+
+	if config.IsStandalone() {
+		// _dd.measured indicates that trace metrics should not be computed for this span
+		span.SetMetricsTag("_dd.measured", 0)
+		// Make sure stats aren't computed backend side
+		span.SetMetaTag("_dd.compute_stats", "0")
 	}
 }
 
