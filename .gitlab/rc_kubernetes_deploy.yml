@@ -4,12 +4,12 @@
 
 rc_kubernetes_deploy_experimental:
   stage: rc_kubernetes_deploy
-  rules:
-  - if: $RC_STAGING_DEPLOYMENTS == "true"
-    when: always
+  # rules:
+  # - if: $RC_STAGING_DEPLOYMENTS == "true"
+  #   when: always
  # - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /7\.\d{2}\.x/' TODO - uncomment when done with testing
-    when: always
-  - !reference [.on_deploy_a7]
+  #   when: always
+  # - !reference [.on_deploy_a7]
   # needs:
   # - job: docker_trigger_internal
   #   artifacts: false
