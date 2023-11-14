@@ -14,7 +14,7 @@ replace (
 require (
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.1
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/sys v0.14.0
@@ -22,8 +22,8 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.1 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.1 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
