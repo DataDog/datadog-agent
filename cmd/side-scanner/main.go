@@ -372,11 +372,9 @@ func offlineCmd(poolSize int) error {
 					done <- struct{}{}
 					return
 				case scan := <-scansCh:
-					entity, err := launchScan(ctx, scan)
+					_, err := launchScan(ctx, scan)
 					if err != nil {
 						log.Errorf("error scanning task %s: %s", scan, err)
-					} else {
-						fmt.Printf("scanning result %s: %s\n", scan, prototext.Format(entity))
 					}
 				}
 			}
