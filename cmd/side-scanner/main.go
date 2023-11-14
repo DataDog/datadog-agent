@@ -297,6 +297,7 @@ func scanCmd(rawScan []byte) error {
 func offlineCmd(poolSize int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+	defer statsd.Flush()
 
 	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
@@ -360,12 +361,19 @@ func offlineCmd(poolSize int) error {
 							continue
 						}
 						fmt.Println(*region.RegionName, *instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId)
+						arn := arn.ARN{
+							Partition: "aws",
+							Service:   "ec2",
+							Region:    *region.RegionName,
+							AccountID: "", // TODO
+							Resource:  fmt.Sprintf("%s/%s", ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId),
+						}
 						scan := ebsScan{
-							ARN:      fmt.Sprintf("arn:aws:ec2:%s::volume/%s", *region.RegionName, *blockDeviceMapping.Ebs.VolumeId),
+							ARN:      arn.String(),
 							Hostname: *instance.InstanceId,
 						}
 						scans = append(scans, scanTask{
-							Type: "ebs-scan",
+							Type: ebsScanType,
 							Scan: scan,
 						})
 
@@ -964,7 +972,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 
 	tags := []string{
 		fmt.Sprintf("region:%s", scan.Region),
-		fmt.Sprintf("type:%s", "ebs-scan"),
+		fmt.Sprintf("type:%s", ebsScanType),
 		fmt.Sprintf("scan_host:%s", scan.Hostname),
 	}
 
