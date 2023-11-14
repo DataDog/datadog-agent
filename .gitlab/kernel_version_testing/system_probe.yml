@@ -266,7 +266,7 @@ upload_minimized_btfs_arm64:
   - set -x
   - export AWS_PROFILE=agent-qa-ci
 
-kernel_matrix_testing_setup_env:
+.kernel_matrix_testing_setup_env:
   extends:
     - .kitchen_ec2_location_us_east_1
   stage: kernel_matrix_testing
@@ -276,13 +276,7 @@ kernel_matrix_testing_setup_env:
   needs: ["go_deps", "go_tools_deps"]
   tags: ["arch:amd64"]
   variables:
-    EC2_X86_INSTANCE_TYPE: "m5d.metal"
-    EC2_ARM_INSTANCE_TYPE: "m6gd.metal"
-    X86_AMI_ID: $KERNEL_MATRIX_TESTING_X86_AMI_ID
-    ARM_AMI_ID: $KERNEL_MATRIX_TESTING_ARM_AMI_ID
     AWS_REGION: us-east-1
-    LibvirtSSHKeyX86: $CI_PROJECT_DIR/libvirt_rsa-x86
-    LibvirtSSHKeyARM: $CI_PROJECT_DIR/libvirt_rsa-arm
     STACK_DIR: $CI_PROJECT_DIR/stack.dir
     # The ssh key is created by the pulumi scenario, to be used for creating
     # instances in the build-stable account. We reuse this file to ssh into
@@ -299,7 +293,7 @@ kernel_matrix_testing_setup_env:
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.start-microvms --provision --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$CI_PIPELINE_ID
+    - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_PATH --instance-type-x86=$EC2_X86_INSTANCE_TYPE --instance-type-arm=$EC2_ARM_INSTANCE_TYPE --x86-ami-id=$X86_AMI_ID --arm-ami-id=$ARM_AMI_ID --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$CI_PIPELINE_ID
     - cat $CI_PROJECT_DIR/stack.outputs
     - pulumi logout
   after_script:
@@ -326,6 +320,40 @@ kernel_matrix_testing_setup_env:
       - $LibvirtSSHKeyX86.pub
       - $LibvirtSSHKeyARM
       - $LibvirtSSHKeyARM.pub
+      - $STACK_DIR
+      - $CI_PROJECT_DIR/stack.outputs
+      - $CI_PROJECT_DIR/libvirt
+
+kernel_matrix_testing_setup_env_arm64:
+  extends:
+    - .kernel_matrix_testing_setup_env
+  variables:
+    EC2_ARM_INSTANCE_TYPE: "m6gd.metal"
+    ARM_AMI_ID: $KERNEL_MATRIX_TESTING_ARM_AMI_ID
+    LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
+    VMCONFIG_PATH: $CI_PROJECT_DIR/test/new-e2e/system-probe/config/vmconfig-arm64.json
+  artifacts:
+    when: always
+    paths:
+      - $LibvirtSSHKey
+      - $LibvirtSSHKey.pub
+      - $STACK_DIR
+      - $CI_PROJECT_DIR/stack.outputs
+      - $CI_PROJECT_DIR/libvirt
+
+kernel_matrix_testing_setup_env_x64:
+  extends:
+    - .kernel_matrix_testing_setup_env
+  variables:
+    EC2_X86_INSTANCE_TYPE: "m5d.metal"
+    X86_AMI_ID: $KERNEL_MATRIX_TESTING_X86_AMI_ID
+    LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
+    VMCONFIG_PATH: $CI_PROJECT_DIR/test/new-e2e/system-probe/config/vmconfig-x64.json
+  artifacts:
+    when: always
+    paths:
+      - $LibvirtSSHKey
+      - $LibvirtSSHKey.pub
       - $STACK_DIR
       - $CI_PROJECT_DIR/stack.outputs
       - $CI_PROJECT_DIR/libvirt
@@ -370,7 +398,7 @@ kernel_matrix_testing_run_tests_x64:
     - .kernel_matrix_testing_run_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:amd64"]
-  needs: ["kernel_matrix_testing_setup_env", "upload_dependencies_x64", "upload_system_probe_tests_x64", "upload_minimized_btfs_x64"]
+  needs: ["kernel_matrix_testing_setup_env_x64", "upload_dependencies_x64", "upload_system_probe_tests_x64", "upload_minimized_btfs_x64"]
   timeout: 3h
   variables:
     ARCH: "x86_64"
@@ -383,7 +411,7 @@ kernel_matrix_testing_run_tests_arm64:
     - .kernel_matrix_testing_run_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
   tags: ["arch:arm64"]
-  needs: ["kernel_matrix_testing_setup_env", "upload_dependencies_arm64", "upload_system_probe_tests_arm64", "upload_minimized_btfs_arm64"]
+  needs: ["kernel_matrix_testing_setup_env_arm64", "upload_dependencies_arm64", "upload_system_probe_tests_arm64", "upload_minimized_btfs_arm64"]
   timeout: 3h
   variables:
     ARCH: "arm64"
@@ -391,10 +419,9 @@ kernel_matrix_testing_run_tests_arm64:
     matrix:
       - TAG: ["ubuntu_20.04", "ubuntu_22.04", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38", "debian_12"]
 
-kernel_matrix_testing_cleanup:
+.kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/test-infra-definitions/runner$TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX:$TEST_INFRA_DEFINITIONS_BUILDIMAGES
-  needs: ["kernel_matrix_testing_setup_env", "kernel_matrix_testing_run_tests_x64", "kernel_matrix_testing_run_tests_arm64"]
   when: always
   tags: ["arch:amd64"]
   rules:
@@ -404,16 +431,30 @@ kernel_matrix_testing_cleanup:
   script:
     - |
       if [ -f $CI_PROJECT_DIR/stack.outputs ]; then
-        INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -e '-instance-ip' | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
+        INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -e "$ARCH-instance-ip" | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
         IP_FILTER="Name=private-ip-address,Values=$INSTANCE_IPS"
       else
         echo "No ${CI_PROJECT_DIR}/stack.outputs file found"
         IP_FILTER=""
       fi
     - !reference [.shared_filters_and_queries]
-    - INSTANCE_IDS=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE  $IP_FILTER --output text --query $QUERY_INSTANCE_IDS | tr '\n' ' ')
+    - INSTANCE_IDS=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $IP_FILTER --output text --query $QUERY_INSTANCE_IDS | tr '\n' ' ')
     - echo $INSTANCE_IDS
     - |
       if [ $(echo $INSTANCE_IDS | wc -w) != "0" ]; then
         aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
       fi
+
+kernel_matrix_testing_cleanup_arm64:
+  extends:
+    - .kernel_matrix_testing_cleanup
+  needs: ["kernel_matrix_testing_setup_env_arm64", "kernel_matrix_testing_run_tests_arm64"]
+  variables:
+    ARCH: arm64
+
+kernel_matrix_testing_cleanup_x64:
+  extends:
+    - .kernel_matrix_testing_cleanup
+  needs: ["kernel_matrix_testing_setup_env_x64", "kernel_matrix_testing_run_tests_x64"]
+  variables:
+    ARCH: x86_64

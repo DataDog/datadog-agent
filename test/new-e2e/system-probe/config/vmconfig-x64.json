@@ -76,6 +76,7 @@
                     "type": "default"
                 }
             ]
+<<<<<<< HEAD:test/new-e2e/system-probe/config/vmconfig.json
         },
         {
             "name": "distro_arm64",
@@ -139,6 +140,8 @@
                     "type": "default"
                 }
             ]
+=======
+>>>>>>> a394888993 (seperate out kmt setup and cleanup jobs):test/new-e2e/system-probe/config/vmconfig-x64.json
         }
     ]
 }
