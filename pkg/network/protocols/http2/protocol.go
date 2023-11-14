@@ -10,7 +10,10 @@ package http2
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -34,6 +37,8 @@ type protocol struct {
 	// TODO: Do we need to duplicate?
 	statkeeper     *http.StatKeeper
 	eventsConsumer *events.Consumer
+
+	http2Telemetry *kernelTelemetry
 }
 
 const (
@@ -103,10 +108,12 @@ func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	telemetry := http.NewTelemetry("http2")
+	http2KernelTelemetry := newHTTP2KernelTelemetry("http2")
 
 	return &protocol{
-		cfg:       cfg,
-		telemetry: telemetry,
+		cfg:            cfg,
+		telemetry:      telemetry,
+		http2Telemetry: http2KernelTelemetry,
 	}, nil
 }
 
@@ -167,8 +174,40 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 	return
 }
 
-func (p *protocol) PostStart(_ *manager.Manager) error {
+func (p *protocol) PostStart(mgr *manager.Manager) error {
+	go func() {
+		p.UpdateKernelTelemetry(mgr)
+	}()
 	return nil
+}
+
+// UpdateKernelTelemetry should be moved to the HTTP/2 part as well
+func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) {
+	var zero uint64
+
+	for {
+		mp, _, err := mgr.GetMap(probes.HTTP2TelemetryMap)
+		if err != nil {
+			log.Warnf("error retrieving http2 telemetry map: %s", err)
+			return
+		}
+
+		http2Telemetry := &HTTP2Telemetry{}
+		if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+			// This can happen if we haven't initialized the telemetry object yet
+			// so let's just use a trace log
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("error retrieving the http2 telemetry struct: %s", err)
+			}
+			return
+		}
+
+		p.http2Telemetry.http2requests.Set(int64(http2Telemetry.Request_seen))
+		p.http2Telemetry.http2responses.Set(int64(http2Telemetry.Response_seen))
+
+		time.Sleep(10 * time.Second)
+		p.http2Telemetry.Log()
+	}
 }
 
 func (p *protocol) Stop(_ *manager.Manager) {

@@ -211,4 +211,5 @@ const (
 	ClassificationProgsMap            BPFMapName = "classification_progs"
 	TCPCloseProgsMap                  BPFMapName = "tcp_close_progs"
 	StaticTableMap                    BPFMapName = "http2_static_table"
+	HTTP2TelemetryMap                 BPFMapName = "http2_telemetry"
 )

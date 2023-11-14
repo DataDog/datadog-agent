@@ -21,6 +21,7 @@ type connTuple = C.conn_tuple_t
 type EbpfTx C.http2_stream_t
 
 type StaticTableEnumValue = C.static_table_value_t
+type HTTP2Telemetry C.http2_telemetry_t
 
 const (
 	GetValue       StaticTableEnumValue = C.kGET

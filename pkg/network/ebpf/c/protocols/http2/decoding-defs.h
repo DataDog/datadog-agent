@@ -121,4 +121,9 @@ typedef struct {
     http2_frame_with_offset frames_array[HTTP2_MAX_FRAMES_ITERATIONS] __attribute__((aligned(8)));
 } http2_tail_call_state_t;
 
+typedef struct {
+    __u64 request_seen;
+    __u64 response_seen;
+} http2_telemetry_t;
+
 #endif

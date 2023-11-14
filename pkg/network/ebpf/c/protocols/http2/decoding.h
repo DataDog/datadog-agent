@@ -227,7 +227,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     return interesting_headers;
 }
 
-static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers) {
+static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers, http2_telemetry_t *http2_tel) {
     http2_header_t *current_header;
     dynamic_table_entry_t dynamic_value = {};
 
@@ -249,8 +249,10 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
                 // TODO: mark request
                 current_stream->request_started = bpf_ktime_get_ns();
                 current_stream->request_method = *static_value;
+                __sync_fetch_and_add(&http2_tel->request_seen, 1);
             } else if (current_header->index >= k200 && current_header->index <= k500) {
                 current_stream->response_status_code = *static_value;
+                __sync_fetch_and_add(&http2_tel->response_seen, 1);
             } else if (current_header->index == kEmptyPath) {
                 current_stream->path_size = HTTP_ROOT_PATH_LEN;
                 bpf_memcpy(current_stream->request_path, HTTP_ROOT_PATH, HTTP_ROOT_PATH_LEN);
@@ -296,7 +298,7 @@ static __always_inline void handle_end_of_stream(http2_stream_t *current_stream,
     bpf_map_delete_elem(&http2_in_flight, http2_stream_key_template);
 }
 
-static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, struct http2_frame *current_frame_header) {
+static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, struct http2_frame *current_frame_header, http2_telemetry_t *http2_tel) {
     const __u32 zero = 0;
 
     // Allocating an array of headers, to hold all interesting headers from the frame.
@@ -308,11 +310,11 @@ static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_s
 
     __u8 interesting_headers = filter_relevant_headers(skb, skb_info, tup, dynamic_index, headers_to_process, current_frame_header->length);
     if (interesting_headers > 0) {
-        process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers);
+        process_headers(skb, dynamic_index, current_stream, headers_to_process, interesting_headers, http2_tel);
     }
 }
 
-static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_ctx_t *http2_ctx, struct http2_frame *current_frame) {
+static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, http2_ctx_t *http2_ctx, struct http2_frame *current_frame, http2_telemetry_t *http2_tel) {
     http2_ctx->http2_stream_key.stream_id = current_frame->stream_id;
     http2_stream_t *current_stream = http2_fetch_stream(&http2_ctx->http2_stream_key);
     if (current_stream == NULL) {
@@ -321,7 +323,7 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     }
 
     if (current_frame->type == kHeadersFrame) {
-        process_headers_frame(skb, current_stream, skb_info, tup, &http2_ctx->dynamic_index, current_frame);
+        process_headers_frame(skb, current_stream, skb_info, tup, &http2_ctx->dynamic_index, current_frame, http2_tel);
     } else {
         skb_info->data_off += current_frame->length;
     }
@@ -487,7 +489,12 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
     http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
     local_skb_info.data_off = current_frame.offset;
 
-    parse_frame(skb, &local_skb_info, &dispatcher_args_copy.tup, http2_ctx, &current_frame.frame);
+    http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
+       if (http2_tel == NULL) {
+           return 0;
+    }
+
+    parse_frame(skb, &local_skb_info, &dispatcher_args_copy.tup, http2_ctx, &current_frame.frame, http2_tel);
     if (local_skb_info.data_off >= skb->len) {
         goto delete_iteration;
     }
