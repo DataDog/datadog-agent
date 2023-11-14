@@ -10,12 +10,12 @@ from .libs.github_actions_tools import (
     print_workflow_conclusion,
     trigger_macos_workflow,
 )
-from .utils import DEFAULT_BRANCH, load_release_versions
+from .release import _get_release_json_value
+from .utils import DEFAULT_BRANCH
 
 
-def _trigger_macos_workflow(ctx, release, destination, retry_download, retry_interval, **kwargs):
-    env = load_release_versions(ctx, release)
-    github_action_ref = env["MACOS_BUILD_VERSION"]
+def _trigger_macos_workflow(release, destination, retry_download, retry_interval, **kwargs):
+    github_action_ref = _get_release_json_value(f'{release}::MACOS_BUILD_VERSION')
 
     run = trigger_macos_workflow(
         github_action_ref=github_action_ref,
@@ -37,7 +37,7 @@ def _trigger_macos_workflow(ctx, release, destination, retry_download, retry_int
 
 @task
 def trigger_macos_build(
-    ctx,
+    _,
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     major_version="7",
@@ -48,7 +48,6 @@ def trigger_macos_build(
     retry_interval=10,
 ):
     _trigger_macos_workflow(
-        ctx,
         # Provide the release version to be able to fetch the associated
         # macos-build branch from release.json for all workflows...
         release_version,
@@ -71,7 +70,7 @@ def trigger_macos_build(
 
 @task
 def trigger_macos_test(
-    ctx,
+    _,
     datadog_agent_ref=DEFAULT_BRANCH,
     release_version="nightly-a7",
     python_runtimes="3",
@@ -81,7 +80,6 @@ def trigger_macos_test(
     retry_interval=10,
 ):
     _trigger_macos_workflow(
-        ctx,
         release_version,
         destination,
         retry_download,
