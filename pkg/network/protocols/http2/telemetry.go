@@ -60,21 +60,21 @@ func newHTTP2KernelTelemetry(protocol string) *kernelTelemetry {
 		metricGroup: metricGroup,
 
 		// todo: changed it from OptStatsd to OptPrometheus
-		http2requests:        metricGroup.NewGauge("http2requests", libtelemetry.OptStatsd),
-		http2responses:       metricGroup.NewGauge("http2responses", libtelemetry.OptStatsd),
-		endOfStreamEOS:       metricGroup.NewGauge("endOfStreamEOS", libtelemetry.OptStatsd),
-		endOfStreamRST:       metricGroup.NewGauge("endOfStreamRST", libtelemetry.OptStatsd),
-		strLenExceedsFrame:   metricGroup.NewGauge("strLenExceedsFrame", libtelemetry.OptStatsd),
-		pathSizeBucket0:      metricGroup.NewGauge("pathSizeBucket0", libtelemetry.OptStatsd),
-		pathSizeBucket1:      metricGroup.NewGauge("pathSizeBucket1", libtelemetry.OptStatsd),
-		pathSizeBucket2:      metricGroup.NewGauge("pathSizeBucket2", libtelemetry.OptStatsd),
-		pathSizeBucket3:      metricGroup.NewGauge("pathSizeBucket3", libtelemetry.OptStatsd),
-		pathSizeBucket4:      metricGroup.NewGauge("pathSizeBucket4", libtelemetry.OptStatsd),
-		pathSizeBucket5:      metricGroup.NewGauge("pathSizeBucket5", libtelemetry.OptStatsd),
-		pathSizeBucket6:      metricGroup.NewGauge("pathSizeBucket6", libtelemetry.OptStatsd),
-		frameRemainder:       metricGroup.NewGauge("frameRemainder", libtelemetry.OptStatsd),
-		maxInterestingFrames: metricGroup.NewGauge("maxInterestingFrames", libtelemetry.OptStatsd),
-		maxFramesToFilter:    metricGroup.NewGauge("maxFramesToFilter", libtelemetry.OptStatsd)}
+		http2requests:        metricGroup.NewGauge("requests", libtelemetry.OptStatsd),
+		http2responses:       metricGroup.NewGauge("responses", libtelemetry.OptStatsd),
+		endOfStreamEOS:       metricGroup.NewGauge("eos", libtelemetry.OptStatsd),
+		endOfStreamRST:       metricGroup.NewGauge("rst", libtelemetry.OptStatsd),
+		strLenExceedsFrame:   metricGroup.NewGauge("str_len_exceeds_frame", libtelemetry.OptStatsd),
+		pathSizeBucket0:      metricGroup.NewGauge("path_size_bucket_0", libtelemetry.OptStatsd),
+		pathSizeBucket1:      metricGroup.NewGauge("path_size_bucket_1", libtelemetry.OptStatsd),
+		pathSizeBucket2:      metricGroup.NewGauge("path_size_bucket_2", libtelemetry.OptStatsd),
+		pathSizeBucket3:      metricGroup.NewGauge("path_size_bucket_3", libtelemetry.OptStatsd),
+		pathSizeBucket4:      metricGroup.NewGauge("path_size_bucket_4", libtelemetry.OptStatsd),
+		pathSizeBucket5:      metricGroup.NewGauge("path_size_bucket_5", libtelemetry.OptStatsd),
+		pathSizeBucket6:      metricGroup.NewGauge("path_size_bucket_6", libtelemetry.OptStatsd),
+		frameRemainder:       metricGroup.NewGauge("frame_remainder", libtelemetry.OptStatsd),
+		maxInterestingFrames: metricGroup.NewGauge("max_interesting_frames", libtelemetry.OptStatsd),
+		maxFramesToFilter:    metricGroup.NewGauge("max_frames_to_filter", libtelemetry.OptStatsd)}
 }
 
 func (t *kernelTelemetry) Log() {
