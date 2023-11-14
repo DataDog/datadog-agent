@@ -168,7 +168,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		sudoPassword = ""
 	}
 
-	if opts.RunAgent && opts.APIKey == "" {
+	apiKey := GetEnv("DD_API_KEY", "")
+	if opts.RunAgent && apiKey == "" {
 		return nil, fmt.Errorf("No API Key for datadog-agent provided")
 	}
 
@@ -192,7 +193,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
 		"ddagent:deploy":                         auto.ConfigValue{Value: trueStr(opts.RunAgent)},
 		"ddagent:version":                        auto.ConfigValue{Value: opts.AgentVersion},
-		"ddagent:apiKey":                         auto.ConfigValue{Value: opts.APIKey},
+		"ddagent:apiKey":                         auto.ConfigValue{Value: apiKey, Secret: true},
 	}
 	// We cannot add defaultPrivateKeyPath if the key is in ssh-agent, otherwise passphrase is needed
 	if opts.SSHKeyPath != "" {
