@@ -417,15 +417,16 @@ func (s ebsScan) Region() string {
 	return arn.Region
 }
 
-func (s ebsScan) Resource() (resourceType string, resourceID string) {
+func (s ebsScan) Resource() (resourceType ec2types.ResourceType, resourceID string, ok bool) {
 	arn, _ := arn.Parse(s.ARN)
 	switch {
 	case strings.HasPrefix(arn.Resource, "volume/"):
-		return "volume", strings.TrimPrefix(arn.Resource, "volume/")
+		resourceType, resourceID = ec2types.ResourceTypeVolume, strings.TrimPrefix(arn.Resource, "volume/")
 	case strings.HasPrefix(arn.Resource, "snapshot/"):
-		return "snapshot", strings.TrimPrefix(arn.Resource, "snapshot/")
+		resourceType, resourceID = ec2types.ResourceTypeSnapshot, strings.TrimPrefix(arn.Resource, "snapshot/")
 	}
-	return "", ""
+	ok = resourceType != "" && resourceID != ""
+	return
 }
 
 func (s ebsScan) String() string {
@@ -593,18 +594,101 @@ func launchScan(ctx context.Context, scan scanTask) (*sbommodel.SBOMEntity, erro
 	}
 }
 
-func createEBSSnapshot(ctx context.Context, ec2client *ec2.Client, volumeID string) (string, error) {
-	tagList := ec2types.TagSpecification{
-		ResourceType: ec2types.ResourceTypeSnapshot,
-		Tags: []ec2types.Tag{
-			{Key: aws.String("source"), Value: aws.String("datadog-side-scanner")},
+func cloudResourceTagSpec(resourceType ec2types.ResourceType) []ec2types.TagSpecification {
+	return []ec2types.TagSpecification{
+		ec2types.TagSpecification{
+			ResourceType: resourceType,
+			Tags: []ec2types.Tag{
+				{Key: aws.String("ddsource"), Value: aws.String("datadog-side-scanner")},
+			},
 		},
 	}
+}
+
+func cloudResourceTagFilters() []ec2types.Filter {
+	return []ec2types.Filter{
+		{
+			Name: aws.String("tag:ddsource"),
+			Values: []string{
+				"datadog-side-scanner",
+			},
+		},
+	}
+}
+
+func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client) {
+	var toBeDeleted []string
+	var nextToken *string
+	for {
+		volumes, err := ec2client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
+			NextToken: nextToken,
+			Filters:   cloudResourceTagFilters(),
+		})
+		if err != nil {
+			log.Errorf("could not list volumes created by side-scanner: %w", err)
+		}
+		for i := range volumes.Volumes {
+			if volumes.Volumes[i].State == ec2types.VolumeStateAvailable {
+				volumeID := *volumes.Volumes[i].VolumeId
+				toBeDeleted = append(toBeDeleted, volumeID)
+			}
+		}
+		nextToken = volumes.NextToken
+		if nextToken == nil {
+			break
+		}
+	}
+	if len(toBeDeleted) > 0 {
+		for _, volumeId := range toBeDeleted {
+			log.Debugf("cleaning up volume %q", volumeId)
+			_, err := ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
+				VolumeId: aws.String(volumeId),
+			})
+			if err != nil {
+				log.Errorf("could not delete volume %q: %s", volumeId, err)
+			}
+		}
+	}
+
+	toBeDeleted = toBeDeleted[:0]
+	for {
+		snapshots, err := ec2client.DescribeSnapshots(ctx, &ec2.DescribeSnapshotsInput{
+			NextToken: nextToken,
+			Filters:   cloudResourceTagFilters(),
+		})
+		if err != nil {
+			log.Errorf("could not list snapshots created by side-scanner: %w", err)
+		}
+		for i := range snapshots.Snapshots {
+			if snapshots.Snapshots[i].State == ec2types.SnapshotStateCompleted {
+				snapshotID := *snapshots.Snapshots[i].SnapshotId
+				toBeDeleted = append(toBeDeleted, snapshotID)
+			}
+		}
+		nextToken = snapshots.NextToken
+		if nextToken == nil {
+			break
+		}
+	}
+	if len(toBeDeleted) > 0 {
+		for _, snapshotID := range toBeDeleted {
+			log.Debugf("cleaning up snapshot %q", snapshotID)
+			_, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+				SnapshotId: aws.String(snapshotID),
+			})
+			if err != nil {
+				log.Errorf("could not delete snapshot %q: %s", snapshotID, err)
+			}
+		}
+	}
+}
+
+func createEBSSnapshot(ctx context.Context, ec2client *ec2.Client, volumeID string) (string, error) {
 	retries := 0
 retry:
 	result, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
 		VolumeId:          aws.String(volumeID),
-		TagSpecifications: []ec2types.TagSpecification{tagList},
+		TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeSnapshot),
 	})
 	if err != nil {
 		var aerr smithy.APIError
@@ -789,7 +873,8 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	if scan.AssumedRole == nil && globalParams.assumedRole != "" {
 		scan.AssumedRole = &globalParams.assumedRole // TODO(pierre): remove this HACK
 	}
-	if _, err := arn.Parse(scan.ARN); err != nil {
+	resourceType, resourceID, ok := scan.Resource()
+	if !ok {
 		return nil, fmt.Errorf("ebs-scan: bad or missing ARN: %w", err)
 	}
 	if scan.Hostname == "" {
@@ -819,11 +904,9 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		return nil, err
 	}
 
-	resourceType, resourceID := scan.Resource()
-
 	var snapshotID string
 	switch resourceType {
-	case "volume":
+	case ec2types.ResourceTypeVolume:
 		volumeID := resourceID
 		if volumeID == "" {
 			return nil, fmt.Errorf("ebs-scan: missing volume ID")
@@ -864,7 +947,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		log.Debugf("volume snapshotting finished sucessfully %q (took %s)", snapshotID, snapshotDuration)
 		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(tags), 1.0)
 		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tags, 1.0)
-	case "snapshot":
+	case ec2types.ResourceTypeSnapshot:
 		snapshotID = resourceID
 	}
 
@@ -900,9 +983,10 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 
 		log.Debugf("creating new volume for snapshot %q in az %q", snapshotID, self.AvailabilityZone)
 		volume, err := ec2client.CreateVolume(ctx, &ec2.CreateVolumeInput{
-			VolumeType:       ec2types.VolumeTypeGp2,
-			AvailabilityZone: aws.String(self.AvailabilityZone),
-			SnapshotId:       aws.String(snapshotID),
+			VolumeType:        ec2types.VolumeTypeGp2,
+			AvailabilityZone:  aws.String(self.AvailabilityZone),
+			SnapshotId:        aws.String(snapshotID),
+			TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeVolume),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("could not create volume from snapshot: %s", err)
