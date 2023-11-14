@@ -290,6 +290,8 @@ upload_minimized_btfs_arm64:
     TEAM: "ebpf-platform"
     RESOURCE_TAGS: "instance-type:${INSTANCE_TYPE},arch:${ARCH}"
     AGENT_VERSION: "7.49"
+    KUBERNETES_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_MEMORY_LIMIT: "16Gi"
   before_script:
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
     - !reference [.retrieve_linux_go_deps]
