@@ -189,7 +189,7 @@ func scanCommand() *cobra.Command {
 func offlineCommand() *cobra.Command {
 	var cliArgs struct {
 		poolSize int
-		region string
+		region   string
 	}
 	cmd := &cobra.Command{
 		Use:   "offline",
