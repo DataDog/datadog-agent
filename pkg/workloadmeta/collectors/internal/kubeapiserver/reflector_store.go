@@ -141,17 +141,14 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	var kind workloadmeta.Kind
 	var uid types.UID
+	var entity workloadmeta.Entity
 	switch v := obj.(type) {
 	case *corev1.Pod:
-		kind = workloadmeta.KindKubernetesPod
 		uid = v.UID
 	case *corev1.Node:
-		kind = workloadmeta.KindKubernetesNode
 		uid = v.UID
 	case *appsv1.Deployment:
-		kind = workloadmeta.KindKubernetesDeployment
 		uid = v.UID
 	default:
 		return fmt.Errorf("failed to identify Kind of object: %#v", obj)
@@ -160,7 +157,9 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 	r.hasSynced = true
 	delete(r.seen, string(uid))
 
-	if r.filter != nil && r.filter.filteredOut(obj.(workloadmeta.Entity)) {
+	entity = r.parser.Parse(obj)
+
+	if r.filter != nil && r.filter.filteredOut(entity) {
 		return nil
 	}
 
@@ -168,12 +167,7 @@ func (r *reflectorStore) Delete(obj interface{}) error {
 		{
 			Type:   workloadmeta.EventTypeUnset,
 			Source: collectorID,
-			Entity: &workloadmeta.KubernetesPod{
-				EntityID: workloadmeta.EntityID{
-					Kind: kind,
-					ID:   string(uid),
-				},
-			},
+			Entity: entity,
 		},
 	})
 

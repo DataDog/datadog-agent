@@ -32,11 +32,12 @@ type deploymentFilter struct{}
 
 func (f *deploymentFilter) filteredOut(entity workloadmeta.Entity) bool {
 	deployment := entity.(*workloadmeta.KubernetesDeployment)
-	return deployment.Env == "" &&
-		deployment.Version == "" &&
-		deployment.Service == "" &&
-		len(deployment.InitContainerLanguages) == 0 &&
-		len(deployment.ContainerLanguages) == 0
+	return deployment == nil ||
+		(deployment.Env == "" &&
+			deployment.Version == "" &&
+			deployment.Service == "" &&
+			len(deployment.InitContainerLanguages) == 0 &&
+			len(deployment.ContainerLanguages) == 0)
 }
 
 func newDeploymentStore(ctx context.Context, wlm workloadmeta.Store, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
