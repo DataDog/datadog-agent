@@ -8,7 +8,10 @@ package tmplvar
 
 import (
 	"bytes"
+	"fmt"
+	"os"
 	"regexp"
+	"strings"
 	"unicode"
 )
 
@@ -52,4 +55,62 @@ func parseTemplateVar(v []byte) (name, key []byte) {
 		key = []byte("")
 	}
 	return name, key
+}
+
+var tmplVarEnvRegex = regexp.MustCompile(`%%env_.+?%%`)
+
+// ParseTemplateEnvString replaces all %%env_VARIABLE%% from environment
+// variables. When there is an error, use the original string
+func ParseTemplateEnvString(input string) string {
+	input = strings.TrimSpace(input)
+	matches := tmplVarEnvRegex.FindAllStringSubmatchIndex(input, -1)
+	if len(matches) < 1 {
+		return input
+	}
+	toBeMerged := []string{}
+	startIndex := 0
+	for _, match := range matches {
+		// string before current match
+		if startIndex < len(input) {
+			toBeMerged = append(toBeMerged, input[startIndex:match[0]])
+		}
+		//remove placeholder
+		stripped := bytes.Map(func(r rune) rune {
+			if unicode.IsSpace(r) || r == '%' {
+				return -1
+			}
+			return r
+		}, []byte(input[match[0]:match[1]]))
+		// get env var
+		split := bytes.SplitN(stripped, []byte("_"), 2)
+		if len(split) == 2 {
+			value, err := getEnvvar(string(split[1]))
+			if err == nil {
+				toBeMerged = append(toBeMerged, value)
+			} else {
+				toBeMerged = append(toBeMerged, input[match[0]:match[1]])
+			}
+		}
+		startIndex = match[1]
+	}
+	//if last part is not template var
+	if startIndex < len(input) {
+		toBeMerged = append(toBeMerged, input[startIndex:])
+	}
+	if len(toBeMerged) > 0 {
+		return strings.Join(toBeMerged, "")
+	}
+	return input
+}
+
+// getEnvvar returns a system environment variable if found
+func getEnvvar(envVar string) (string, error) {
+	if len(envVar) == 0 {
+		return "", fmt.Errorf("envvar name is missing")
+	}
+	value, found := os.LookupEnv(envVar)
+	if !found {
+		return "", fmt.Errorf("failed to retrieve envvar %s", envVar)
+	}
+	return value, nil
 }

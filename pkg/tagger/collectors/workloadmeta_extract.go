@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
@@ -732,10 +733,10 @@ func parseJSONValue(value string, tags *utils.TagList) error {
 	for key, value := range result {
 		switch v := value.(type) {
 		case string:
-			tags.AddAuto(key, v)
+			tags.AddAuto(key, tmplvar.ParseTemplateEnvString(v))
 		case []interface{}:
 			for _, tag := range v {
-				tags.AddAuto(key, fmt.Sprint(tag))
+				tags.AddAuto(key, tmplvar.ParseTemplateEnvString(fmt.Sprint(tag)))
 			}
 		default:
 			log.Debugf("Tag value %s is not valid, must be a string or an array, skipping", v)
@@ -758,7 +759,7 @@ func parseContainerADTagsLabels(tags *utils.TagList, labelValue string) {
 			log.Debugf("Tag '%s' is not in k:v format", tag)
 			continue
 		}
-		tags.AddHigh(tagParts[0], tagParts[1])
+		tags.AddHigh(tagParts[0], tmplvar.ParseTemplateEnvString(tagParts[1]))
 	}
 }
 

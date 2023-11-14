@@ -7,6 +7,7 @@ package collectors
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"testing"
 
@@ -1316,16 +1317,28 @@ func TestParseJSONValue(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:  "strings only",
-			value: `{"key1": "val1", "key2": "val2"}`,
+			name:  "strings with template var",
+			value: `{"key1": "val1", "key2": "val2", "key3": "%%env_TEAM_NAME%%_app"}`,
 			want: []string{
 				"key1:val1",
 				"key2:val2",
+				"key3:containers_app",
+			},
+			wantErr: false,
+		},
+		{
+			name:  "arrays with template var",
+			value: `{"key1": ["val1", "val11"], "key2": ["val2", "%%env_TEAM_NAME%%_app"]}`,
+			want: []string{
+				"key1:val1",
+				"key1:val11",
+				"key2:val2",
+				"key2:containers_app",
 			},
 			wantErr: false,
 		},
 	}
-
+	os.Setenv("TEAM_NAME", "containers")
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tags := utils.NewTagList()
