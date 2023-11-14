@@ -21,10 +21,12 @@ import (
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// Commands returns the runtime security commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return nil
 }
 
+// StartRuntimeSecurity starts runtime security
 func StartRuntimeSecurity(log log.Component, config config.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, senderManager sender.SenderManager) (*secagent.RuntimeSecurityAgent, error) {
 	enabled := config.GetBool("runtime_security_config.enabled")
 	if !enabled {
