@@ -70,19 +70,20 @@ func convertFlowType(flowType flowpb.FlowMessage_FlowType) common.FlowType {
 }
 
 func applyAdditionalFields(flow *common.Flow, additionalFields common.AdditionalFields) {
+	processedFields := make(common.AdditionalFields)
 	for destination, fieldValue := range additionalFields {
 		applied := applyAdditionalField(flow, destination, fieldValue)
-		if applied {
-			// We replaced a field of common.Flow with an additional field, no need to keep it in the map
-			delete(additionalFields, destination)
-		} else {
+		if !applied {
+			// Additional fields need to be stored in the map
 			if field, ok := fieldValue.([]byte); ok {
 				// Write []byte as hex string for readability
-				additionalFields[destination] = bytesToHexString(field)
+				processedFields[destination] = bytesToHexString(field)
+			} else {
+				processedFields[destination] = fieldValue
 			}
 		}
 	}
-	flow.AdditionalFields = additionalFields
+	flow.AdditionalFields = processedFields
 }
 
 func applyAdditionalField(flow *common.Flow, destination string, fieldValue any) bool {
