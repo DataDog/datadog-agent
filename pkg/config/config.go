@@ -1387,12 +1387,12 @@ func LoadProxyFromEnv(config Config) {
 
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret() (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", nil, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
 }
 
 // LoadWithSecret reads config files and initializes config with decrypted secrets
 func LoadWithSecret(secretResolver secrets.Component) (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", secretResolver, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewOption[secrets.Component](secretResolver), SystemProbe.GetEnvVars())
 }
 
 // Merge will merge additional configuration into an existing configuration

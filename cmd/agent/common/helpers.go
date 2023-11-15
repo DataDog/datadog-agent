@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/viper"
 )
@@ -44,7 +45,7 @@ func setupConfig(cfg config.Config, origin, confFilePath, configName string, sec
 	}
 	cfg.AddConfigPath(path.DefaultConfPath)
 	// load the configuration
-	warnings, err := config.LoadDatadogCustom(cfg, origin, secretResolver, nil)
+	warnings, err := config.LoadDatadogCustom(cfg, origin, optional.NewOption[secrets.Component](secretResolver), nil)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {
