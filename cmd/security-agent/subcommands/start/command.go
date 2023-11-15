@@ -213,7 +213,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		}
 	}()
 
-	hostnameDetected, err := utils.GetHostname()
+	hostnameDetected, err := utils.GetHostnameWithContext(ctx)
 	if err != nil {
 		log.Warnf("Could not resolve hostname from core-agent: %v", err)
 		hostnameDetected, err = hostname.Get(ctx)

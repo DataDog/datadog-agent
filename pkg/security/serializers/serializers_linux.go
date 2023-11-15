@@ -831,6 +831,11 @@ func (e *EventSerializer) ToJSON() ([]byte, error) {
 	return utils.MarshalEasyJSON(e)
 }
 
+// MarshalJSON returns json
+func (e *EventSerializer) MarshalJSON() ([]byte, error) {
+	return utils.MarshalEasyJSON(e)
+}
+
 // MarshalEvent marshal the event
 func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error) {
 	s := NewEventSerializer(event, probe)

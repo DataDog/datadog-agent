@@ -3120,6 +3120,14 @@ BPF program types are the supported eBPF program types.
 | `BPF_PROG_TYPE_LSM` | all |
 | `BPF_PROG_TYPE_SK_LOOKUP` | all |
 
+### `Boolean constants` {#boolean-constants}
+Boolean constants are the supported boolean constants.
+
+| Name | Architectures |
+| ---- |---------------|
+| `true` | all |
+| `false` | all |
+
 ### `DNS qclasses` {#dns-qclasses}
 DNS qclasses are the supported DNS query classes.
 
@@ -3790,14 +3798,6 @@ Ptrace constants are the supported ptrace commands for the ptrace syscall.
 | `PTRACE_SET_SYSCALL` | arm |
 | `PTRACE_PEEKMTETAGS` | arm64 |
 | `PTRACE_POKEMTETAGS` | arm64 |
-
-### `SecL constants` {#secl-constants}
-SecL constants are the supported generic SecL constants.
-
-| Name | Architectures |
-| ---- |---------------|
-| `true` | all |
-| `false` | all |
 
 ### `Signal constants` {#signal-constants}
 Signal constants are the supported signals for the kill syscall.
