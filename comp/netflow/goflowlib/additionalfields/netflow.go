@@ -25,7 +25,7 @@ func decodeUNumberWithEndianness(b []byte, out *uint64, endianness common.Endian
 
 func mapAdditionalField(additionalFields common.AdditionalFields, v []byte, cfg config.Mapping) {
 	// TODO : Add more types (IP address, timestamp, ...)
-	if cfg.Type == common.Varint {
+	if cfg.Type == common.Integer {
 		var dstVar uint64
 		err := decodeUNumberWithEndianness(v, &dstVar, cfg.Endian)
 		if err != nil {
