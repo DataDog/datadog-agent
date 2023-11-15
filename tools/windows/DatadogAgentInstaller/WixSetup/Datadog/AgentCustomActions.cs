@@ -1,6 +1,7 @@
 using System.Diagnostics.CodeAnalysis;
 using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
+using Datadog.CustomActions.Rollback;
 using Microsoft.Deployment.WindowsInstaller;
 using WixSharp;
 
@@ -65,6 +66,8 @@ namespace WixSetup.Datadog
         public ManagedAction StartDDServices { get; }
 
         public ManagedAction StartDDServicesRollback { get; }
+
+        public ManagedAction RestoreDaclRollback { get; }
 
         /// <summary>
         /// Registers and sequences our custom actions
@@ -495,6 +498,26 @@ namespace WixSetup.Datadog
                 Execute = Execute.deferred,
                 Impersonate = false
             };
+
+            // This custom action resets the SE_DACL_AUTOINHERITED flag on %PROJECTLOCATION% on uninstall
+            // to make sure the uninstall doesn't fail due to the non-canonical permission issue.
+            RestoreDaclRollback = new CustomAction<RestoreDaclRollbackCustomAction>(
+                    new Id(nameof(RestoreDaclRollback)),
+                    RestoreDaclRollbackCustomAction.DoRollback,
+                    Return.ignore,
+                    When.After,
+                    // This is the earliest we can schedule this action
+                    // during an uninstall
+                    Step.InstallInitialize,
+                    // Run when REMOVE="ALL" which runs also on upgrade
+                    // This ensures this product can be removed before
+                    // the new one is installed.
+                    Condition.BeingUninstalled)
+            {
+                Execute = Execute.deferred,
+                Impersonate = false
+            }.SetProperties("PROJECTLOCATION=[PROJECTLOCATION]");
+
         }
     }
 }

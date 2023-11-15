@@ -59,15 +59,15 @@ HOOK_SYSCALL_EXIT(execveat) {
 
 int __attribute__((always_inline)) handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
     struct inode *interpreter_inode;
-    bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), &file->f_inode);
+    bpf_probe_read(&interpreter_inode, sizeof(interpreter_inode), get_file_f_inode_addr(file));
 
-    syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, &file->f_path);
+    syscall->exec.linux_binprm.interpreter = get_inode_key_path(interpreter_inode, get_file_f_path_addr(file));
     syscall->exec.linux_binprm.interpreter.path_id = get_path_id(syscall->exec.linux_binprm.interpreter.mount_id, 0);
 
 #ifdef DEBUG
     bpf_printk("interpreter file: %llx", file);
     bpf_printk("interpreter inode: %u", syscall->exec.linux_binprm.interpreter.ino);
-    bpf_printk("interpreter mount id: %u %u %u", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(&file->f_path));
+    bpf_printk("interpreter mount id: %u %u %u", syscall->exec.linux_binprm.interpreter.mount_id, get_file_mount_id(file), get_path_mount_id(get_file_f_path_addr(file)));
     bpf_printk("interpreter path id: %u", syscall->exec.linux_binprm.interpreter.path_id);
 #endif
 
@@ -162,13 +162,12 @@ int hook__do_fork(ctx_t *ctx) {
 
 SEC("tracepoint/sched/sched_process_fork")
 int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
-    // inherit netns
-    u32 pid = 0;
+    u32 pid = 0, parent_pid = 0;
     bpf_probe_read(&pid, sizeof(pid), &args->child_pid);
-
+    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->parent_pid);
     // ignore the rest if kworker
     struct syscall_cache_t *syscall = peek_syscall(EVENT_FORK);
-    if (!syscall || syscall->fork.is_kthread) {
+    if (!syscall || syscall->fork.is_kthread || parent_pid == 2) {
         u32 value = 1;
         // mark as ignored fork not from syscall, ex: kworkers
         bpf_map_update_elem(&pid_ignored, &pid, &value, BPF_ANY);
@@ -178,8 +177,7 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
         return 0;
     }
 
-    u32 parent_pid = 0;
-    bpf_probe_read(&parent_pid, sizeof(parent_pid), &args->parent_pid);
+    // inherit netns
     u32 *netns = bpf_map_lookup_elem(&netns_cache, &parent_pid);
     if (netns != NULL) {
         u32 child_netns_entry = *netns;
@@ -223,6 +221,9 @@ int sched_process_fork(struct _tracepoint_sched_process_fork *args) {
     if (parent_pid_entry) {
         // ensure pid and ppid point to the same cookie
         event->pid_entry.cookie = parent_pid_entry->cookie;
+
+        // ensure pid and ppid point to the same user session
+        event->pid_entry.user_session_id = parent_pid_entry->user_session_id;
 
         // ensure pid and ppid have the same credentials
         event->pid_entry.credentials = parent_pid_entry->credentials;
@@ -286,6 +287,9 @@ int hook_do_exit(ctx_t *ctx) {
         struct pid_cache_t *pid_entry = (struct pid_cache_t *) bpf_map_lookup_elem(&pid_cache, &tgid);
         if (pid_entry) {
             pid_entry->exit_timestamp = bpf_ktime_get_ns();
+        } else if (is_current_kworker_dying()) {
+            pop_syscall(EVENT_ANY);
+            return 0;
         }
 
         // send the entry to maintain userspace cache
@@ -318,8 +322,12 @@ int hook_do_exit(ctx_t *ctx) {
 
 HOOK_ENTRY("exit_itimers")
 int hook_exit_itimers(ctx_t *ctx) {
-    void *signal = (void *)CTX_PARM1(ctx);
+    struct syscall_cache_t *syscall = peek_current_or_impersonated_exec_syscall();
+    if (!syscall) {
+        return 0;
+    }
 
+    void *signal = (void *)CTX_PARM1(ctx);
     u64 pid_tgid = bpf_get_current_pid_tgid();
     u32 tgid = pid_tgid >> 32;
 

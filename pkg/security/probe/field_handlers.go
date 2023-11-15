@@ -106,42 +106,54 @@ func (fh *FieldHandlers) ResolveContainerCreatedAt(ev *model.Event, e *model.Con
 }
 
 // ResolveContainerTags resolves the container tags of the event
-func (fh *FieldHandlers) ResolveContainerTags(ev *model.Event, e *model.ContainerContext) []string {
+func (fh *FieldHandlers) ResolveContainerTags(_ *model.Event, e *model.ContainerContext) []string {
 	if len(e.Tags) == 0 && e.ID != "" {
 		e.Tags = fh.resolvers.TagsResolver.Resolve(e.ID)
 	}
 	return e.Tags
 }
 
-// ResolveProcessCacheEntry queries the ProcessResolver to retrieve the ProcessContext of the event
-func (fh *FieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
-	if ev.PIDContext.IsKworker {
-		return model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, true), false
-	}
-
-	if ev.ProcessCacheEntry == nil && ev.PIDContext.Pid != 0 {
-		ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid, ev.PIDContext.Tid, ev.PIDContext.ExecInode, true)
-	}
-
-	if ev.ProcessCacheEntry == nil {
-		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Tid, false)
-		return ev.ProcessCacheEntry, false
-	}
-
-	return ev.ProcessCacheEntry, true
-}
-
 // ResolveProcessCreatedAt resolves process creation time
-func (fh *FieldHandlers) ResolveProcessCreatedAt(ev *model.Event, e *model.Process) int {
+func (fh *FieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Process) int {
 	return int(e.ExecTime.UnixNano())
 }
 
-// ResolveHashesFromEvent resolves the hashes of the requested event
-func (fh *FieldHandlers) ResolveHashesFromEvent(ev *model.Event, f *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashesFromEvent(ev, f)
+// ResolveK8SUsername resolves the k8s username of the event
+func (fh *FieldHandlers) ResolveK8SUsername(_ *model.Event, evtCtx *model.UserSessionContext) string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SUsername
 }
 
-// ResolveHashes resolves the hashes of the requested file event
-func (fh *FieldHandlers) ResolveHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
-	return fh.resolvers.HashResolver.ComputeHashes(eventType, process, file)
+// ResolveK8SUID resolves the k8s UID of the event
+func (fh *FieldHandlers) ResolveK8SUID(_ *model.Event, evtCtx *model.UserSessionContext) string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SUID
+}
+
+// ResolveK8SGroups resolves the k8s groups of the event
+func (fh *FieldHandlers) ResolveK8SGroups(_ *model.Event, evtCtx *model.UserSessionContext) []string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SGroups
+}
+
+// ResolveK8SExtra resolves the k8s extra of the event
+func (fh *FieldHandlers) ResolveK8SExtra(_ *model.Event, evtCtx *model.UserSessionContext) map[string][]string {
+	if !evtCtx.Resolved {
+		if ctx := fh.resolvers.UserSessions.ResolveUserSession(evtCtx.ID); ctx != nil {
+			*evtCtx = *ctx
+		}
+	}
+	return evtCtx.K8SExtra
 }

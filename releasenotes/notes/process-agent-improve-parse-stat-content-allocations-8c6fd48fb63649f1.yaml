@@ -1,0 +1,3 @@
+---
+enhancements:
+  - Process-Agent: Improved parsing performance of the '/proc/pid/stat' file (Linux only)

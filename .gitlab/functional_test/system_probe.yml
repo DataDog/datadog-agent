@@ -191,7 +191,7 @@ kitchen_test_system_probe_windows_x64:
   needs: [ "tests_windows_sysprobe_x64" ]
   variables:
     KITCHEN_ARCH: x86_64
-    KITCHEN_OSVERS: "win2012r2"
+    KITCHEN_OSVERS: "win2016"
     CHEF_VERSION: 14.12.9 # newer versions error out during kitchen setup of azure VM
   before_script:
     - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_DRIVER")

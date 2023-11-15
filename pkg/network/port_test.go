@@ -8,11 +8,13 @@
 package network
 
 import (
+	"fmt"
 	"net"
 	"net/url"
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -150,32 +152,19 @@ func TestReadInitialUDPState(t *testing.T) {
 	nsIno, err := kernel.GetInoForNs(ns)
 	require.NoError(t, err)
 
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		initialPorts, err := ReadInitialState("/proc", UDP, true)
-		require.NoError(t, err)
+		require.NoError(c, err)
 		for _, p := range ports[:2] {
-			if _, ok := initialPorts[PortMapping{testRootNs, p}]; !ok {
-				t.Errorf("PortMapping(testRootNs, p) returned false for port %d", p)
-				return false
-			}
+			assert.Contains(c, initialPorts, PortMapping{testRootNs, p}, fmt.Sprintf("PortMapping (testRootNs, p) returned false for port %d", p))
 		}
 		for _, p := range ports[2:] {
-			if _, ok := initialPorts[PortMapping{nsIno, p}]; !ok {
-				t.Errorf("PortMapping(nsIno, p) returned false for port %d", p)
-				return false
-			}
+			assert.Contains(c, initialPorts, PortMapping{nsIno, p}, fmt.Sprintf("PortMapping(nsIno, p) returned false for port %d", p))
 		}
-
-		if _, ok := initialPorts[PortMapping{testRootNs, 999}]; ok {
-			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
-			return false
+		if isUnusedUDPPort(t, 999) {
+			assert.NotContains(c, initialPorts, PortMapping{testRootNs, 999}, "expected IsListening(testRootNs, 999) to return false, but returned true")
+			assert.NotContains(c, initialPorts, PortMapping{nsIno, 999}, "expected IsListening(nsIno, 999) to return false, but returned true")
 		}
-		if _, ok := initialPorts[PortMapping{nsIno, 999}]; ok {
-			t.Errorf("expected IsListening(testRootNs, 999) to return false, but returned true")
-			return false
-		}
-
-		return true
 	}, 3*time.Second, time.Second, "udp/udp6 ports are listening")
 }
 
@@ -189,4 +178,15 @@ func getPort(t *testing.T, listener net.Listener) uint16 {
 
 func getPortUDP(_ *testing.T, udpConn *net.UDPConn) uint16 {
 	return uint16(udpConn.LocalAddr().(*net.UDPAddr).Port)
+}
+
+func isUnusedUDPPort(t *testing.T, port int) bool {
+	l, err := net.ListenUDP("udp", &net.UDPAddr{Port: port})
+	if err != nil && strings.Contains(err.Error(), "address already in use") {
+		return false
+	}
+	t.Cleanup(func() {
+		l.Close()
+	})
+	return true
 }

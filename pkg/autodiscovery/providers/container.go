@@ -56,11 +56,13 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 	// need to be generated before any associated services.
 	outCh := make(chan integration.ConfigChanges)
 
-	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, workloadmeta.NewFilter(
-		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod, workloadmeta.KindContainer},
-		workloadmeta.SourceAll,
-		workloadmeta.EventTypeAll,
-	))
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod, workloadmeta.KindContainer},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeAll,
+	}
+
+	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, workloadmeta.NewFilter(&filterParams))
 
 	go func() {
 		for {
