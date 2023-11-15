@@ -147,7 +147,10 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
 
     # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
     if os.path.isdir(junit_tgz):
-        junit_tgz = os.path.join(junit_tgz, os.path.basename(junit_tgz))
+        tmp_tgz = os.path.join(junit_tgz, os.path.basename(junit_tgz))
+        if not os.path.isfile(tmp_tgz):
+            tmp_tgz = os.path.join(junit_tgz, "junit.tar.gz")
+        junit_tgz = tmp_tgz
 
     xmlcounts = {}
     with tempfile.TemporaryDirectory() as unpack_dir:
