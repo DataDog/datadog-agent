@@ -24,11 +24,6 @@ type VM interface {
 	// CopyFolder copy a folder to the remote host
 	CopyFolder(srcFolder string, dstFolder string)
 
-	// GetOSType get the OS type of the VM
+	// GetOSType returns the OS type of the VM.
 	GetOSType() componentos.Type
-}
-
-// GetOSType returns the operating system type of the VMClient instance.
-func (vmClient *VMClient) GetOSType() componentos.Type {
-	return vmClient.osType
 }

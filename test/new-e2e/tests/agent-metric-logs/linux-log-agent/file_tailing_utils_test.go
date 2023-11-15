@@ -102,6 +102,11 @@ func (s *LinuxVMFakeintakeSuite) cleanUp() {
 	}
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
+		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
+		if err != nil {
+			assert.NoErrorf(c, err, "Having issue flushing server and resetting aggregators, retrying...")
+		}
+
 		output, err := s.Env().VM.ExecuteWithError(checkCmd)
 		if err != nil {
 			assert.NoErrorf(c, err, "Having issue cleaning log %s files, retrying... %s", os, output)

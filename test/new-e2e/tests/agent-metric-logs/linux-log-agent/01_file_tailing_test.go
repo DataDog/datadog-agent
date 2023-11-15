@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -45,23 +44,17 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 		s.DevMode = true
 	}
 
-	e2e.Run(t, &LinuxVMFakeintakeSuite{}, logsExampleStackDef())
+	e2e.Run(t, s, logsExampleStackDef())
 }
 
 func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
 	// Flush server and reset aggregators before the test is ran
-	if s.DevMode {
-		s.cleanUp()
-	}
-	s.Env().Fakeintake.FlushServerAndResetAggregators()
+	s.cleanUp()
 }
 
 func (s *LinuxVMFakeintakeSuite) TearDownSuite() {
 	// Flush server and reset aggregators after the test is ran
-	if s.DevMode {
-		s.cleanUp()
-	}
-	s.Env().Fakeintake.FlushServerAndResetAggregators()
+	s.cleanUp()
 }
 
 func (s *LinuxVMFakeintakeSuite) TestLinuxLogTailing() {
@@ -98,13 +91,13 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 		if len(logs) != 0 {
 			cat, _ := s.Env().VM.ExecuteWithError("cat /var/log/hello-world.log")
 			t.Logf("Logs detected when none were expected: %v", cat)
-			require.Empty(c, logs, "Logs were found when none were expected.")
+			assert.Empty(c, logs, "Logs were found when none were expected.")
 		}
 	}, 5*time.Minute, 10*time.Second)
 
 	// Part 2: Adjust permissions of new log file
 	_, err := s.Env().VM.ExecuteWithError("sudo chmod 777 /var/log/hello-world.log")
-	require.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
 
 	// Generate log
 	generateLog(s, "hello-world")
@@ -129,7 +122,7 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 			return
 		}
 
-		require.Contains(c, statusOutput, "denied", "Log file is correctly inaccessible")
+		assert.Contains(c, statusOutput, "denied", "Log file is correctly inaccessible")
 	}, 3*time.Minute, 10*time.Second)
 
 	// Part 5: Restore permissions
@@ -138,13 +131,16 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 	// Part 6: Restart the agent, generate new logs
 	s.Env().VM.Execute("sudo service datadog-agent restart")
 
-	generateLog(s, "hello-world")
+	// Wait for agent to be ready
+	if s.Env().Agent.IsReady() {
+		generateLog(s, "hello-world")
+	}
 
 	// Check the Agent status
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		statusOutput, err := s.Env().VM.ExecuteWithError("sudo datadog-agent status | grep -A 10 'custom_logs'")
-		require.NoError(c, err, "Issue running agent status: %s", err)
-		require.Contains(c, statusOutput, "Status: OK", "Expecting log file to be accessible but it is inaccessible instead")
+		assert.NoError(c, err, "Issue running agent status: %s", err)
+		assert.Contains(c, statusOutput, "Status: OK", "Expecting log file to be accessible but it is inaccessible instead")
 	}, 5*time.Minute, 2*time.Second)
 }
 
@@ -157,7 +153,7 @@ func (s *LinuxVMFakeintakeSuite) LogRotation() {
 
 	// Verify the old log file's existence after rotation
 	_, err := s.Env().VM.ExecuteWithError("ls /var/log/hello-world.log.old")
-	require.NoError(t, err, "Failed to find the old log file after rotation")
+	assert.NoError(t, err, "Failed to find the old log file after rotation")
 
 	// Grant new log file permission
 	s.Env().VM.Execute("sudo chmod 777 /var/log/hello-world.log")
@@ -165,7 +161,7 @@ func (s *LinuxVMFakeintakeSuite) LogRotation() {
 	// Check if agent is tailing new log file via agent status
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		newStatusOutput, err := s.Env().VM.ExecuteWithError("sudo datadog-agent status | grep -A 10 'custom_logs'")
-		require.NoErrorf(t, err, "Issue running agent status. Is the agent running?\n %s", newStatusOutput)
+		assert.NoErrorf(t, err, "Issue running agent status. Is the agent running?\n %s", newStatusOutput)
 		assert.Containsf(t, newStatusOutput, "Path: /var/log/hello-world.log", "The agent is not tailing the expected log file,instead: \n %s", newStatusOutput)
 	}, 5*time.Minute, 10*time.Second)
 
