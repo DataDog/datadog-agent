@@ -349,6 +349,10 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 			scans = append(scans, scansForRegion...)
 		}
 
+		if maxScans > 0 && len(scans) > maxScans {
+			scans = scans[:maxScans]
+		}
+
 		for _, scan := range scans {
 			scansCh <- scan
 		}
