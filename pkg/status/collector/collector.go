@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package collector fetch information from different agent chekcs from expvar
+// Package collector fetch information needed to render the 'collector' section of the status page.
+// This will, in time, be migrated to the collector package/comp.
 package collector
 
 import (
@@ -11,18 +12,17 @@ import (
 	"expvar"
 )
 
-// PopulateStatus populates stats with collector information
-func PopulateStatus(stats map[string]interface{}) {
-	status := GetStatus()
-	for key, value := range status {
-		stats[key] = value
-	}
-}
-
-// GetStatus retrives collector information
-func GetStatus() map[string]interface{} {
+// GetStatusInfo retrives collector information
+func GetStatusInfo() map[string]interface{} {
 	stats := make(map[string]interface{})
 
+	PopulateStatus(stats)
+
+	return stats
+}
+
+// PopulateStatus populates stats with collector information
+func PopulateStatus(stats map[string]interface{}) {
 	runnerStatsJSON := []byte(expvar.Get("runner").String())
 	runnerStats := make(map[string]interface{})
 	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
@@ -92,6 +92,4 @@ func GetStatus() map[string]interface{} {
 	} else {
 		stats["agent_metadata"] = map[string]string{}
 	}
-
-	return stats
 }

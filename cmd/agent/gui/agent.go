@@ -59,7 +59,7 @@ func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.C
 		err   error
 	)
 	if statusType == "collector" {
-		stats = collector.GetStatus()
+		stats = collector.GetStatusInfo()
 	} else {
 		verbose := r.URL.Query().Get("verbose") == "true"
 		stats, err = status.GetStatus(verbose, invAgent)

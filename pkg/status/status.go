@@ -126,19 +126,14 @@ func GetAndFormatStatus(invAgent inventoryagent.Component) ([]byte, error) {
 
 // GetCheckStatusJSON gets the status of a single check as JSON
 func GetCheckStatusJSON(c check.Check, cs *checkstats.Stats) ([]byte, error) {
-<<<<<<< HEAD
-	stats := make(map[string]interface{})
-	stats = getRunnerStats(stats)
-	checks := stats["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
-=======
-	s := collector.GetStatus()
+	s := collector.GetStatusInfo()
 
 	checks := s["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
->>>>>>> ff866964ad (use collector package to just collect check information)
+
 	checks[c.String()] = make(map[checkid.ID]interface{})
 	checks[c.String()].(map[checkid.ID]interface{})[c.ID()] = cs
 
-	statusJSON, err := json.Marshal(stats)
+	statusJSON, err := json.Marshal(s)
 	if err != nil {
 		return nil, err
 	}
