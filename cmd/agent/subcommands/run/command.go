@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -197,6 +198,7 @@ func run(log log.Component,
 	otelcollector otelcollector.Component,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	secretsResolver secrets.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
 ) error {
@@ -240,7 +242,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata, invAgent); err != nil {
+	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata, invAgent, secretsResolver); err != nil {
 		return err
 	}
 
@@ -281,8 +283,10 @@ func getSharedFxOption() fx.Option {
 					// Main context passed to components
 					common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
+					// TODO: temporary hack to get secrets component
+					secretsResolver := secrets.GetInstance()
 					// create and setup the Autoconfig instance
-					common.LoadComponents(common.MainCtx, demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
+					common.LoadComponents(common.MainCtx, demultiplexer, secretsResolver, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -328,6 +332,7 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	secretsResolver secrets.Component,
 ) error {
 
 	var err error
@@ -476,6 +481,7 @@ func startAgent(
 		demultiplexer,
 		hostMetadata,
 		invAgent,
+		secretsResolver,
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}

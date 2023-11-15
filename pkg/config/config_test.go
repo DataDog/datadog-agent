@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
@@ -428,11 +429,12 @@ func TestProxy(t *testing.T) {
 			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
+			resolver := secrets.NewMockSecretResolver()
 			if c.setup != nil {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", true, nil)
+			_, err := LoadCustom(config, "unit_test", resolver, nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)

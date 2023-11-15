@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build secrets
-
 package secrets
 
 import (
@@ -41,18 +39,18 @@ func (b *limitBuffer) Write(p []byte) (n int, err error) {
 	return b.buf.Write(p)
 }
 
-func execCommand(inputPayload string) ([]byte, error) {
+func execCommand(resolver *secretResolver, inputPayload string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(),
-		time.Duration(secretBackendTimeout)*time.Second)
+		time.Duration(resolver.backendTimeout)*time.Second)
 	defer cancel()
 
-	cmd, done, err := commandContext(ctx, secretBackendCommand, secretBackendArguments...)
+	cmd, done, err := commandContext(ctx, resolver.backendCommand, resolver.backendArguments...)
 	if err != nil {
 		return nil, err
 	}
 	defer done()
 
-	if err := checkRights(cmd.Path, secretBackendCommandAllowGroupExec); err != nil {
+	if err := checkRights(cmd.Path, resolver.commandAllowGroupExec); err != nil {
 		return nil, err
 	}
 
@@ -60,11 +58,11 @@ func execCommand(inputPayload string) ([]byte, error) {
 
 	stdout := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: secretBackendOutputMaxSize,
+		max: resolver.responseMaxSize,
 	}
 	stderr := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: secretBackendOutputMaxSize,
+		max: resolver.responseMaxSize,
 	}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -78,7 +76,7 @@ func execCommand(inputPayload string) ([]byte, error) {
 	start := time.Now()
 	err = cmd.Run()
 	elapsed := time.Since(start)
-	log.Debugf("%s | secret_backend_command '%s' completed in %s", time.Now().String(), secretBackendCommand, elapsed)
+	log.Debugf("%s | secret_backend_command '%s' completed in %s", time.Now().String(), resolver.backendCommand, elapsed)
 
 	// We always log stderr to allow a secret_backend_command to logs info in the agent log file. This is useful to
 	// troubleshoot secret_backend_command in a containerized environment.
@@ -92,17 +90,17 @@ func execCommand(inputPayload string) ([]byte, error) {
 		} else if ctx.Err() == context.DeadlineExceeded {
 			exitCode = "timeout"
 		}
-		tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), secretBackendCommand, exitCode)
+		tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), resolver.backendCommand, exitCode)
 
 		if ctx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("error while running '%s': command timeout", secretBackendCommand)
+			return nil, fmt.Errorf("error while running '%s': command timeout", resolver.backendCommand)
 		}
-		return nil, fmt.Errorf("error while running '%s': %s", secretBackendCommand, err)
+		return nil, fmt.Errorf("error while running '%s': %s", resolver.backendCommand, err)
 	}
 
 	log.Debugf("secret_backend_command stderr: %s", stderr.buf.String())
 
-	tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), secretBackendCommand, "0")
+	tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), resolver.backendCommand, "0")
 	return stdout.buf.Bytes(), nil
 }
 
@@ -117,7 +115,7 @@ var runCommand = execCommand
 
 // fetchSecret receives a list of secrets name to fetch, exec a custom
 // executable to fetch the actual secrets and returns them.
-func fetchSecret(secretsHandle []string) (map[string]string, error) {
+func fetchSecret(resolver *secretResolver, secretsHandle []string) (map[string]string, error) {
 	payload := map[string]interface{}{
 		"version": PayloadVersion,
 		"secrets": secretsHandle,
@@ -126,7 +124,7 @@ func fetchSecret(secretsHandle []string) (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)
 	}
-	output, err := runCommand(string(jsonPayload))
+	output, err := runCommand(resolver, string(jsonPayload))
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +146,7 @@ func fetchSecret(secretsHandle []string) (map[string]string, error) {
 			return nil, fmt.Errorf("an error occurred while decrypting '%s': %s", sec, v.ErrorMsg)
 		}
 
-		if removeTrailingLinebreak {
+		if resolver.removeTrailingLinebreak {
 			v.Value = strings.TrimRight(v.Value, "\r\n")
 		}
 
@@ -157,7 +155,7 @@ func fetchSecret(secretsHandle []string) (map[string]string, error) {
 		}
 
 		// add it to the cache
-		secretCache[sec] = v.Value
+		resolver.cache[sec] = v.Value
 		res[sec] = v.Value
 	}
 	return res, nil

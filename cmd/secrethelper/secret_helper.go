@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build secrets
-
 // Package secrethelper implements the secrethelper subcommand.
 //
 // This subcommand is shared between multiple agent binaries.
@@ -41,7 +39,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/cmd/secrethelper/providers"
-	s "github.com/DataDog/datadog-agent/pkg/secrets"
+	s "github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )

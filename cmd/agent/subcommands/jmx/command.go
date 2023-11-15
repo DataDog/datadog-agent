@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -242,7 +243,9 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, diagnos
 	if err != nil {
 		return err
 	}
-	common.LoadComponents(context.Background(), senderManager, config.GetString("confd_path"))
+	// TODO: temporary hack to get secrets component
+	secretResolver := secrets.GetInstance()
+	common.LoadComponents(context.Background(), senderManager, secretResolver, config.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build secrets
-
 // Package providers defines default secrets providers
 package providers
 
@@ -15,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	s "github.com/DataDog/datadog-agent/pkg/secrets"
+	s "github.com/DataDog/datadog-agent/comp/core/secrets"
 )
 
 const (

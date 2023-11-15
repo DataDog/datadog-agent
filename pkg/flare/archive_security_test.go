@@ -20,7 +20,7 @@ import (
 )
 
 func TestCreateSecurityAgentArchive(t *testing.T) {
-	common.SetupConfigWithWarnings("./test", "")
+	common.SetupConfigWithWarnings("./test", "", nil)
 	mockConfig := config.Mock(t)
 	mockConfig.SetWithoutSource("compliance_config.dir", "./test/compliance.d")
 	logFilePath := "./test/logs/agent.log"

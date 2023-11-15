@@ -138,7 +138,7 @@ func (suite *ConfigManagerSuite) TestNewNonTemplateScheduled() {
 // A new, non-template config with secrets is scheduled immediately and unscheduled when
 // deleted
 func (suite *ConfigManagerSuite) TestNewNonTemplateWithSecretsScheduled() {
-	mockDecrypt := MockSecretDecrypt{suite.T(), []mockSecretScenario{
+	mockResolver := MockSecretResolver{suite.T(), []mockSecretScenario{
 		{
 			expectedData:   []byte("foo: ENC[bar]"),
 			expectedOrigin: nonTemplateConfigWithSecrets.Name,
@@ -152,7 +152,9 @@ func (suite *ConfigManagerSuite) TestNewNonTemplateWithSecretsScheduled() {
 			returnedError:  nil,
 		},
 	}}
-	defer mockDecrypt.install()()
+	// assign mock secretResolver to the configManager
+	cm := suite.cm.(*reconcilingConfigManager)
+	cm.secretResolver = &mockResolver
 
 	inputNewConfig := deepcopy.Copy(nonTemplateConfigWithSecrets).(integration.Config)
 	changes, changedIDs := suite.cm.processNewConfig(inputNewConfig)
@@ -162,6 +164,7 @@ func (suite *ConfigManagerSuite) TestNewNonTemplateWithSecretsScheduled() {
 	assertConfigsMatch(suite.T(), changes.Schedule, matchName(nonTemplateConfigWithSecrets.Name))
 	assertConfigsMatch(suite.T(), changes.Unschedule)
 	// Verify content is actually decoded
+
 	require.True(suite.T(), strings.Contains(string(changes.Schedule[0].Instances[0]), "barDecoded"))
 	newConfigDigest := changes.Schedule[0].Digest()
 
@@ -174,7 +177,7 @@ func (suite *ConfigManagerSuite) TestNewNonTemplateWithSecretsScheduled() {
 }
 
 func (suite *ConfigManagerSuite) TestNewClusterCheckWithSecretsScheduled() {
-	mockDecrypt := MockSecretDecrypt{suite.T(), []mockSecretScenario{
+	mockResolver := MockSecretResolver{suite.T(), []mockSecretScenario{
 		{
 			expectedData:   []byte("foo: ENC[bar]"),
 			expectedOrigin: clusterCheckConfigWithSecrets.Name,
@@ -188,7 +191,9 @@ func (suite *ConfigManagerSuite) TestNewClusterCheckWithSecretsScheduled() {
 			returnedError:  nil,
 		},
 	}}
-	defer mockDecrypt.install()()
+	// assign mock secretResolver to the configManager
+	cm := suite.cm.(*reconcilingConfigManager)
+	cm.secretResolver = &mockResolver
 
 	inputNewConfig := deepcopy.Copy(clusterCheckConfigWithSecrets).(integration.Config)
 	changes, changedIDs := suite.cm.processNewConfig(inputNewConfig)
@@ -535,7 +540,10 @@ func (suite *ReconcilingConfigManagerSuite) TestServiceTemplateFiltering() {
 }
 
 func TestReconcilingConfigManagement(t *testing.T) {
+	mockResolver := MockSecretResolver{}
 	suite.Run(t, &ReconcilingConfigManagerSuite{
-		ConfigManagerSuite{factory: newReconcilingConfigManager},
+		ConfigManagerSuite{factory: func() configManager {
+			return newReconcilingConfigManager(&mockResolver)
+		}},
 	})
 }

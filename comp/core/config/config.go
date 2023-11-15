@@ -11,6 +11,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -29,16 +30,22 @@ type cfg struct {
 
 type configDependencies interface {
 	getParams() *Params
+	getSecretResolver() secrets.Component
 }
 
 type dependencies struct {
 	fx.In
 
 	Params Params
+	Secret secrets.Component
 }
 
 func (d dependencies) getParams() *Params {
 	return &d.Params
+}
+
+func (d dependencies) getSecretResolver() secrets.Component {
+	return d.Secret
 }
 
 // NewServerlessConfig initializes a config component from the given config file

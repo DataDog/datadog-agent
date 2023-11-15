@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
 	"github.com/DataDog/datadog-agent/pkg/collector"
@@ -29,7 +30,7 @@ import (
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(ctx context.Context, senderManager sender.SenderManager, confdPath string) {
+func LoadComponents(ctx context.Context, senderManager sender.SenderManager, secretResolver secrets.Component, confdPath string) {
 	sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
 	if err != nil {
 		log.Errorf("failed to create SBOM scanner: %s", err)
@@ -82,5 +83,5 @@ func LoadComponents(ctx context.Context, senderManager sender.SenderManager, con
 
 	// setup autodiscovery. must be done after the tagger is initialized
 	// because of subscription to metadata store.
-	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler())
+	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver)
 }
