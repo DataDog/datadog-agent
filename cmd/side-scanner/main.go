@@ -422,7 +422,8 @@ func listEBSScansForRegion(ctx context.Context, regionName string) (scans []scan
 						// Exclude macOS.
 						continue
 					}
-					if instance.Platform == ec2types.PlatformValuesWindows {
+					if instance.Platform == "windows" {
+						// ec2types.PlatformValuesWindows incorrectly spells "Windows".
 						// Exclude Windows.
 						continue
 					}
