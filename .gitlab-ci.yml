@@ -82,9 +82,9 @@ stages:
   - dev_container_deploy
   - deploy_containers
   - deploy_packages
-  - trigger_release
   - deploy_cws_instrumentation
   - deploy_dca
+  - trigger_release
   - choco_build
   - choco_deploy
   - internal_image_deploy
