@@ -39,6 +39,7 @@ type Monitorer interface {
 // required context to report appsec-related span tags.
 type context struct {
 	requestSourceIP   string
+	requestRoute      *string             // http.route
 	requestClientIP   *string             // http.client_ip
 	requestRawURI     *string             // server.request.uri.raw
 	requestHeaders    map[string][]string // server.request.headers.no_cookies
@@ -50,11 +51,12 @@ type context struct {
 }
 
 // makeContext creates a http monitoring context out of the provided arguments.
-func makeContext(ctx *context, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string, isBodyBase64 bool) {
+func makeContext(ctx *context, route, path *string, headers, queryParams map[string][]string, pathParams map[string]string, sourceIP string, rawBody *string, isBodyBase64 bool) {
 	headers, rawCookies := filterHeaders(headers)
 	cookies := parseCookies(rawCookies)
 	body := parseBody(headers, rawBody, isBodyBase64)
 	*ctx = context{
+		requestRoute:      route,
 		requestSourceIP:   sourceIP,
 		requestRawURI:     path,
 		requestHeaders:    headers,

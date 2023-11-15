@@ -138,6 +138,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	case *events.APIGatewayProxyRequest:
 		makeContext(
 			&ctx,
+			&event.Resource,
 			&event.Path,
 			event.MultiValueHeaders,
 			event.MultiValueQueryStringParameters,
@@ -150,6 +151,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	case *events.APIGatewayV2HTTPRequest:
 		makeContext(
 			&ctx,
+			&event.RouteKey,
 			&event.RawPath,
 			toMultiValueMap(event.Headers),
 			toMultiValueMap(event.QueryStringParameters),
@@ -162,6 +164,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	case *events.APIGatewayWebsocketProxyRequest:
 		makeContext(
 			&ctx,
+			&event.Resource,
 			&event.Path,
 			event.MultiValueHeaders,
 			event.MultiValueQueryStringParameters,
@@ -175,6 +178,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		makeContext(
 			&ctx,
 			nil,
+			nil,
 			// NOTE: The header name could have been different (depends on API GW configuration)
 			map[string][]string{"Authorization": {event.AuthorizationToken}},
 			nil,
@@ -187,6 +191,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	case *events.APIGatewayCustomAuthorizerRequestTypeRequest:
 		makeContext(
 			&ctx,
+			&event.Resource,
 			&event.Path,
 			event.MultiValueHeaders,
 			event.MultiValueQueryStringParameters,
@@ -200,6 +205,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		makeContext(
 			&ctx,
 			&event.Path,
+			&event.Path,
 			event.MultiValueHeaders,
 			event.MultiValueQueryStringParameters,
 			nil,
@@ -211,6 +217,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	case *events.LambdaFunctionURLRequest:
 		makeContext(
 			&ctx,
+			&event.RawPath,
 			&event.RawPath,
 			toMultiValueMap(event.Headers),
 			toMultiValueMap(event.QueryStringParameters),
@@ -237,10 +244,12 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 		log.Debug("appsec: missing span tag http.status_code")
 	}
 
-	if res := lp.appsec.Monitor(ctx.toAddresses()); len(res.Events) > 0 {
+	if res := lp.appsec.Monitor(ctx.toAddresses()); res.HasEvents() {
 		setSecurityEventsTags(span, res.Events, reqHeaders, nil)
 		chunk.Priority = int32(sampler.PriorityUserKeep)
-
+		if ctx.requestRoute != nil {
+			span.SetMetaTag("http.route", *ctx.requestRoute)
+		}
 		setAPISecurityTags(span, res.Derivatives)
 	}
 }
