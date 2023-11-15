@@ -632,8 +632,6 @@ require (
 	gotest.tools v2.2.0+incompatible
 )
 
-require github.com/elastic/go-seccomp-bpf v1.3.0 // indirect
-
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
