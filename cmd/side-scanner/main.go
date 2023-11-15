@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -24,7 +25,6 @@ import (
 	// DataDog agent: config stuffs
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
-	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -109,7 +109,14 @@ const (
 
 func main() {
 	flavor.SetFlavor(flavor.SideScannerAgent)
-	os.Exit(runcmd.Run(rootCommand()))
+	cmd := rootCommand()
+	cmd.SilenceErrors = true
+	err := cmd.Execute()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
+		os.Exit(-1)
+	}
+	os.Exit(1)
 }
 
 func rootCommand() *cobra.Command {
@@ -129,6 +136,7 @@ func rootCommand() *cobra.Command {
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 	sideScannerCmd.AddCommand(offlineCommand())
+	sideScannerCmd.AddCommand(mountCommand())
 	sideScannerCmd.AddCommand(cleanupCommand())
 
 	return sideScannerCmd
@@ -212,6 +220,26 @@ func offlineCommand() *cobra.Command {
 	cmd.Flags().IntVarP(&cliArgs.poolSize, "workers", "", 40, "number of scans running in parallel")
 	cmd.Flags().StringSliceVarP(&cliArgs.regions, "regions", "", nil, "list of regions to scan (default to all regions)")
 	cmd.Flags().IntVarP(&cliArgs.maxScans, "max-scans", "", 0, "maximum number of scans to perform")
+
+	return cmd
+}
+
+func mountCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "mount",
+		Short: "Runs the side-scanner in offline mode (server-less mode)",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(
+				func(_ complog.Component, _ compconfig.Component) error {
+					return mountCmd(globalParams.assumedRole)
+				},
+				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
+				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				complog.Module,
+				compconfig.Module,
+			)
+		},
+	}
 
 	return cmd
 }
@@ -495,6 +523,81 @@ func cleanupCmd(region string, assumedRole string, dryRun bool) error {
 	return nil
 }
 
+func mountCmd(assumedRole string) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	stdin := os.Stdin
+
+	var arns []arn.ARN
+	lineNumber := 0
+	scanner := bufio.NewScanner(stdin)
+	for scanner.Scan() {
+		if err := scanner.Err(); err != nil {
+			return err
+		}
+		lineNumber++
+		line := scanner.Text()
+		fmt.Println(lineNumber, line)
+		arn, err := arn.Parse(line)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "bad arn resource %q on line %d", line, lineNumber)
+		} else {
+			arns = append(arns, arn)
+		}
+	}
+	if len(arns) == 0 {
+		return fmt.Errorf("provided an empty list of ARNs in stdin to be mounted")
+	}
+
+	var cleanups []func(context.Context)
+	for _, arn := range arns {
+		cfg, awsstats, err := newAWSConfig(ctx, arn.Region, assumedRole)
+		if err != nil {
+			return err
+		}
+		defer awsstats.SendStats()
+
+		ec2client := ec2.NewFromConfig(cfg)
+
+		resourceType, resourceID, ok := getARNResource(arn)
+		if !ok {
+			return fmt.Errorf("bad arn resource %q", arn.String())
+		}
+		var snapshotID string
+		switch resourceType {
+		case ec2types.ResourceTypeVolume:
+			sID, cleanupSnapshot, err := createSnapshot(ctx, ec2client, nil, resourceID)
+			cleanups = append(cleanups, cleanupSnapshot)
+			if err != nil {
+				return err
+			}
+			snapshotID = sID
+		case ec2types.ResourceTypeSnapshot:
+			snapshotID = resourceID
+		default:
+			return fmt.Errorf("unsupport resource type %q", resourceType)
+		}
+
+		mountTarget, cleanupVolume, err := attachAndMountVolume(ctx, ec2client, nil, snapshotID)
+		cleanups = append(cleanups, cleanupVolume)
+		if err != nil {
+			return err
+		}
+		fmt.Printf("%q: %s\n", resourceID, mountTarget)
+	}
+
+	<-ctx.Done()
+
+	cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for _, cleanup := range cleanups {
+		cleanup(cleanupctx)
+	}
+
+	return nil
+}
+
 type scansTask struct {
 	Type     scanType          `json:"type"`
 	RawScans []json.RawMessage `json:"scans"`
@@ -548,8 +651,11 @@ func (s ebsScan) Region() string {
 	return arn.Region
 }
 
-func (s ebsScan) Resource() (resourceType ec2types.ResourceType, resourceID string, ok bool) {
-	arn, _ := arn.Parse(s.ARN)
+func (s ebsScan) String() string {
+	return fmt.Sprintf("ebs_scan=%s hostname=%q", s.ARN, s.Hostname)
+}
+
+func getARNResource(arn arn.ARN) (resourceType ec2types.ResourceType, resourceID string, ok bool) {
 	switch {
 	case strings.HasPrefix(arn.Resource, "volume/"):
 		resourceType, resourceID = ec2types.ResourceTypeVolume, strings.TrimPrefix(arn.Resource, "volume/")
@@ -558,10 +664,6 @@ func (s ebsScan) Resource() (resourceType ec2types.ResourceType, resourceID stri
 	}
 	ok = resourceType != "" && resourceID != ""
 	return
-}
-
-func (s ebsScan) String() string {
-	return fmt.Sprintf("ebs_scan=%s hostname=%q", s.ARN, s.Hostname)
 }
 
 type lambdaScan struct {
@@ -813,7 +915,21 @@ func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDelet
 	}
 }
 
-func createEBSSnapshot(ctx context.Context, ec2client *ec2.Client, volumeID string) (string, error) {
+func createSnapshot(ctx context.Context, ec2client *ec2.Client, metrictags []string, volumeID string) (snapshotID string, cleanupSnapshot func(context.Context), err error) {
+	cleanupSnapshot = func(ctx context.Context) {
+		if snapshotID != "" {
+			log.Debugf("deleting snapshot %q", snapshotID)
+			// do not use context here: we want to force snapshot deletion
+			ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+				SnapshotId: &snapshotID,
+			})
+		}
+	}
+
+	snapshotStartedAt := time.Now()
+	statsd.Count("datadog.sidescanner.snapshots.started", 1.0, metrictags, 1.0)
+	log.Debugf("starting volume snapshotting %q", volumeID)
+
 	retries := 0
 retry:
 	result, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
@@ -840,9 +956,37 @@ retry:
 		if isRateExceededError {
 			log.Debugf("snapshot creation rate exceeded for volume %s; skipping)", volumeID)
 		}
-		return "", err
 	}
-	return *result.SnapshotId, nil
+	if err != nil {
+		var isVolumeNotFoundError bool
+		var aerr smithy.APIError
+		if errors.As(err, &aerr) && aerr.ErrorCode() == "InvalidVolume.NotFound" {
+			isVolumeNotFoundError = true
+		}
+		if isVolumeNotFoundError {
+			metrictags = tagNotFound(metrictags)
+		} else {
+			metrictags = tagFailure(metrictags)
+		}
+		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, metrictags, 1.0)
+		return
+	}
+
+	snapshotID = *result.SnapshotId
+	snapshotDuration := time.Since(snapshotStartedAt)
+
+	waiter := ec2.NewSnapshotCompletedWaiter(ec2client)
+	err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{
+		SnapshotIds: []string{snapshotID},
+	}, 15*time.Minute)
+
+	if err == nil {
+		log.Debugf("volume snapshotting finished sucessfully %q (took %s)", snapshotID, snapshotDuration)
+		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), metrictags, 1.0)
+	} else {
+		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(metrictags), 1.0)
+	}
+	return
 }
 
 func tagNoResult(s []string) []string {
@@ -1003,7 +1147,11 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	if scan.AssumedRole == "" {
 		scan.AssumedRole = globalParams.assumedRole // TODO(pierre): remove this HACK
 	}
-	resourceType, resourceID, ok := scan.Resource()
+	arn, err := arn.Parse(scan.ARN)
+	if err != nil {
+		return
+	}
+	resourceType, resourceID, ok := getARNResource(arn)
 	if !ok {
 		return nil, fmt.Errorf("ebs-scan: bad or missing ARN: %w", err)
 	}
@@ -1037,46 +1185,16 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	var snapshotID string
 	switch resourceType {
 	case ec2types.ResourceTypeVolume:
-		volumeID := resourceID
-		if volumeID == "" {
-			return nil, fmt.Errorf("ebs-scan: missing volume ID")
-		}
-		snapshotStartedAt := time.Now()
-		statsd.Count("datadog.sidescanner.snapshots.started", 1.0, tags, 1.0)
-		log.Debugf("starting volume snapshotting %q", volumeID)
-		snapshotID, err = createEBSSnapshot(ctx, ec2client, volumeID)
-		if err != nil {
-			var isVolumeNotFoundError bool
-			var aerr smithy.APIError
-			if errors.As(err, &aerr) && aerr.ErrorCode() == "InvalidVolume.NotFound" {
-				isVolumeNotFoundError = true
-			}
-			if isVolumeNotFoundError {
-				tags = tagNotFound(tags)
-			} else {
-				tags = tagFailure(tags)
-			}
-			statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tags, 1.0)
-			return nil, err
-		}
+		sID, cleanupSnapshot, err := createSnapshot(ctx, ec2client, tags, resourceID)
 		defer func() {
-			log.Debugf("deleting snapshot %q", snapshotID)
-			// do not use context here: we want to force snapshot deletion
-			ec2client.DeleteSnapshot(context.Background(), &ec2.DeleteSnapshotInput{
-				SnapshotId: &snapshotID,
-			})
+			cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			cleanupSnapshot(cleanupctx)
 		}()
-		waiter := ec2.NewSnapshotCompletedWaiter(ec2client)
-		err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{
-			SnapshotIds: []string{snapshotID},
-		}, 15*time.Minute)
 		if err != nil {
 			return nil, err
 		}
-		snapshotDuration := time.Since(snapshotStartedAt)
-		log.Debugf("volume snapshotting finished sucessfully %q (took %s)", snapshotID, snapshotDuration)
-		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(tags), 1.0)
-		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tags, 1.0)
+		snapshotID = sID
 	case ec2types.ResourceTypeSnapshot:
 		snapshotID = resourceID
 	}
@@ -1106,144 +1224,15 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	var trivyArtifact artifact.Artifact
 
 	if scan.AttachVolume || globalParams.attachVolumes {
-		self, err := getSelfEC2InstanceIndentity(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
-		}
-
-		log.Debugf("creating new volume for snapshot %q in az %q", snapshotID, self.AvailabilityZone)
-		volume, err := ec2client.CreateVolume(ctx, &ec2.CreateVolumeInput{
-			VolumeType:        ec2types.VolumeTypeGp2,
-			AvailabilityZone:  aws.String(self.AvailabilityZone),
-			SnapshotId:        aws.String(snapshotID),
-			TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeVolume),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("could not create volume from snapshot: %s", err)
-		}
+		mountTarget, cleanupVolume, err := attachAndMountVolume(ctx, ec2client, tags, snapshotID)
 		defer func() {
-			deferctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-
-			// do not use context here: we want to force deletion
-			log.Debugf("detaching volume %q", *volume.VolumeId)
-			ec2client.DetachVolume(deferctx, &ec2.DetachVolumeInput{
-				Force:    aws.Bool(true),
-				VolumeId: volume.VolumeId,
-			})
-			var errd error
-			for i := 0; i < 10; i++ {
-				_, errd = ec2client.DeleteVolume(deferctx, &ec2.DeleteVolumeInput{
-					VolumeId: volume.VolumeId,
-				})
-				if errd == nil {
-					log.Debugf("volume deleted %q", *volume.VolumeId)
-					break
-				}
-				time.Sleep(1 * time.Second)
-			}
-			if errd != nil {
-				log.Warnf("could not delete volume %q: %v", *volume.VolumeId, errd)
-			}
+			cleanupVolume(cleanupctx)
 		}()
-
-		device := nextDeviceName()
-		log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
-		for i := 0; i < 10; i++ {
-			_, err = ec2client.AttachVolume(ctx, &ec2.AttachVolumeInput{
-				InstanceId: aws.String(self.InstanceID),
-				VolumeId:   volume.VolumeId,
-				Device:     aws.String(device),
-			})
-			if err == nil {
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
 		if err != nil {
-			return nil, fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, err)
+			return nil, err
 		}
-
-		mountTarget := fmt.Sprintf("/data/%s", snapshotID)
-		err = os.MkdirAll(mountTarget, 0700)
-		if err != nil {
-			return nil, fmt.Errorf("could not create mountTarget directory %q: %w", mountTarget, err)
-		}
-		defer func() {
-			log.Debugf("unlink directory %q", mountTarget)
-			os.Remove(mountTarget)
-		}()
-
-		var partitionDevice, partitionFSType string
-		for i := 0; i < 10; i++ {
-			if i > 0 {
-				time.Sleep(1 * time.Second)
-			}
-			lsblkJSON, err := exec.CommandContext(ctx, "lsblk", device, "--paths", "--json", "--bytes", "--fs", "--output", "NAME,PATH,TYPE,FSTYPE").Output()
-			if err != nil {
-				log.Warnf("lsblk error: %v", err)
-				continue
-			}
-			log.Debugf("lsblk %q: %s", device, string(lsblkJSON))
-			var blockDevices struct {
-				BlockDevices []struct {
-					Name     string `json:"name"`
-					Path     string `json:"path"`
-					Type     string `json:"type"`
-					FsType   string `json:"fstype"`
-					Children []struct {
-						Name   string `json:"name"`
-						Path   string `json:"path"`
-						Type   string `json:"type"`
-						FsType string `json:"fstype"`
-					} `json:"children"`
-				} `json:"blockdevices"`
-			}
-			if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
-				log.Warnf("lsblk parsing error: %v", err)
-				continue
-			}
-			if len(blockDevices.BlockDevices) == 0 {
-				continue
-			}
-			blockDevice := blockDevices.BlockDevices[0]
-			// TODO(jinroh): support scanning multiple partitions
-			for _, child := range blockDevice.Children {
-				if child.Type == "part" && (child.FsType == "ext4" || child.FsType == "xfs") {
-					partitionDevice = child.Path
-					partitionFSType = child.FsType
-					break
-				}
-			}
-			if partitionFSType != "" {
-				break
-			}
-		}
-
-		if partitionFSType == "" {
-			return nil, fmt.Errorf("could not successfully find the attached device filesystem")
-		}
-
-		var mountOutput []byte
-		for i := 0; i < 10; i++ {
-			log.Debugf("execing mount %q %q", partitionDevice, mountTarget)
-			mountOutput, err = exec.CommandContext(ctx, "mount", "-t", partitionFSType, "--source", partitionDevice, "--target", mountTarget).CombinedOutput()
-			if err == nil {
-				break
-			}
-			time.Sleep(1 * time.Second)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountTarget, partitionDevice, string(mountOutput), err)
-		}
-		defer func() {
-			log.Debugf("un-mounting %s", mountTarget)
-			umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountTarget).CombinedOutput()
-			if err != nil {
-				log.Warnf("could not umount %s: %s:\n%s", mountTarget, err, string(umountOuput))
-			}
-		}()
-
 		trivyArtifact, err = trivyartifactlocal.NewArtifact(mountTarget, trivyCache, artifact.Option{
 			Offline:           true,
 			NoProgress:        true,
@@ -1574,4 +1563,159 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 		}
 	}
 	return nil
+}
+
+func attachAndMountVolume(ctx context.Context, ec2client *ec2.Client, metrictags []string, snapshotID string) (mountTarget string, cleanupVolume func(context.Context), err error) {
+	var cleanups []func(context.Context)
+	pushCleanup := func(cleanup func(context.Context)) {
+		cleanups = append(cleanups, cleanup)
+	}
+	cleanupVolume = func(ctx context.Context) {
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			cleanups[i](ctx)
+		}
+	}
+
+	self, err := getSelfEC2InstanceIndentity(ctx)
+	if err != nil {
+		err = fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
+		return
+	}
+
+	log.Debugf("creating new volume for snapshot %q in az %q", snapshotID, self.AvailabilityZone)
+	volume, err := ec2client.CreateVolume(ctx, &ec2.CreateVolumeInput{
+		VolumeType:        ec2types.VolumeTypeGp2,
+		AvailabilityZone:  aws.String(self.AvailabilityZone),
+		SnapshotId:        aws.String(snapshotID),
+		TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeVolume),
+	})
+	if err != nil {
+		err = fmt.Errorf("could not create volume from snapshot: %s", err)
+		return
+	}
+	pushCleanup(func(ctx context.Context) {
+		// do not use context here: we want to force deletion
+		log.Debugf("detaching volume %q", *volume.VolumeId)
+		ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
+			Force:    aws.Bool(true),
+			VolumeId: volume.VolumeId,
+		})
+		var errd error
+		for i := 0; i < 10; i++ {
+			_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
+				VolumeId: volume.VolumeId,
+			})
+			if errd == nil {
+				log.Debugf("volume deleted %q", *volume.VolumeId)
+				break
+			}
+			time.Sleep(1 * time.Second)
+		}
+		if errd != nil {
+			log.Warnf("could not delete volume %q: %v", *volume.VolumeId, errd)
+		}
+	})
+
+	device := nextDeviceName()
+	log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
+	for i := 0; i < 10; i++ {
+		_, err = ec2client.AttachVolume(ctx, &ec2.AttachVolumeInput{
+			InstanceId: aws.String(self.InstanceID),
+			VolumeId:   volume.VolumeId,
+			Device:     aws.String(device),
+		})
+		if err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	if err != nil {
+		err = fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, err)
+		return
+	}
+
+	mountTarget = fmt.Sprintf("/data/%s", snapshotID)
+	err = os.MkdirAll(mountTarget, 0700)
+	if err != nil {
+		err = fmt.Errorf("could not create mountTarget directory %q: %w", mountTarget, err)
+		return
+	}
+	pushCleanup(func(_ context.Context) {
+		log.Debugf("unlink directory %q", mountTarget)
+		os.Remove(mountTarget)
+	})
+
+	var partitionDevice, partitionFSType string
+	for i := 0; i < 10; i++ {
+		if i > 0 {
+			time.Sleep(1 * time.Second)
+		}
+		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", device, "--paths", "--json", "--bytes", "--fs", "--output", "NAME,PATH,TYPE,FSTYPE").Output()
+		if err != nil {
+			log.Warnf("lsblk error: %v", err)
+			continue
+		}
+		log.Debugf("lsblk %q: %s", device, string(lsblkJSON))
+		var blockDevices struct {
+			BlockDevices []struct {
+				Name     string `json:"name"`
+				Path     string `json:"path"`
+				Type     string `json:"type"`
+				FsType   string `json:"fstype"`
+				Children []struct {
+					Name   string `json:"name"`
+					Path   string `json:"path"`
+					Type   string `json:"type"`
+					FsType string `json:"fstype"`
+				} `json:"children"`
+			} `json:"blockdevices"`
+		}
+		if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
+			log.Warnf("lsblk parsing error: %v", err)
+			continue
+		}
+		if len(blockDevices.BlockDevices) == 0 {
+			continue
+		}
+		blockDevice := blockDevices.BlockDevices[0]
+		// TODO(jinroh): support scanning multiple partitions
+		for _, child := range blockDevice.Children {
+			if child.Type == "part" && (child.FsType == "ext4" || child.FsType == "xfs") {
+				partitionDevice = child.Path
+				partitionFSType = child.FsType
+				break
+			}
+		}
+		if partitionFSType != "" {
+			break
+		}
+	}
+
+	if partitionFSType == "" {
+		err = fmt.Errorf("could not successfully find the attached device filesystem")
+		return
+	}
+
+	var mountOutput []byte
+	for i := 0; i < 10; i++ {
+		log.Debugf("execing mount %q %q", partitionDevice, mountTarget)
+		mountOutput, err = exec.CommandContext(ctx, "mount", "-t", partitionFSType, "--source", partitionDevice, "--target", mountTarget).CombinedOutput()
+		if err == nil {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
+	if err != nil {
+		err = fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountTarget, partitionDevice, string(mountOutput), err)
+		return
+	}
+	pushCleanup(func(ctx context.Context) {
+		log.Debugf("un-mounting %s", mountTarget)
+		umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountTarget).CombinedOutput()
+		if err != nil {
+			log.Warnf("could not umount %s: %s:\n%s", mountTarget, err, string(umountOuput))
+		}
+	})
+
+	return
 }
