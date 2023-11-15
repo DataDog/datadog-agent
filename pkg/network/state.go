@@ -145,7 +145,12 @@ type closedConnections struct {
 	emptyStart int
 }
 
-func (cc *closedConnections) insert(c ConnectionStats) {
+func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
+	if uint32(len(cc.conns)) >= maxClosedConns {
+		stateTelemetry.closedConnDropped.Inc(c.Type.String())
+		cc.dropEmpty(c)
+		return
+	}
 	if isEmpty(c) {
 		cc.conns = append(cc.conns, c)
 		cc.byCookie[c.Cookie] = len(cc.conns) - 1
@@ -184,16 +189,10 @@ func (cc *closedConnections) replaceAt(i int, c ConnectionStats) {
 		return
 	}
 	if !isEmpty(c) && i >= cc.emptyStart {
-		if i == cc.emptyStart {
-			cc.conns[i] = c
-			cc.emptyStart++
-			return
-		}
-		emptyConn := cc.conns[cc.emptyStart]
+		cc.conns[cc.emptyStart], cc.conns[i] = cc.conns[i], cc.conns[cc.emptyStart]
+		cc.byCookie[cc.conns[i].Cookie] = i
 		cc.conns[cc.emptyStart] = c
-		cc.conns[i] = emptyConn
 		cc.byCookie[c.Cookie] = cc.emptyStart
-		cc.byCookie[emptyConn.Cookie] = i
 		cc.emptyStart++
 		return
 	}
@@ -537,13 +536,7 @@ func (ns *networkState) storeClosedConnections(conns []ConnectionStats) {
 				}
 				continue
 			}
-
-			if uint32(len(client.closed.conns)) >= ns.maxClosedConns {
-				stateTelemetry.closedConnDropped.Inc(c.Type.String())
-				client.closed.dropEmpty(c)
-				continue
-			}
-			client.closed.insert(c)
+			client.closed.insert(c, ns.maxClosedConns)
 		}
 	}
 }
@@ -1194,10 +1187,7 @@ func (ns *networkState) mergeConnectionStats(a, b *ConnectionStats) (collision b
 }
 
 func isEmpty(conn ConnectionStats) bool {
-	if conn.Monotonic.RecvBytes == 0 && conn.Monotonic.RecvPackets == 0 &&
+	return conn.Monotonic.RecvBytes == 0 && conn.Monotonic.RecvPackets == 0 &&
 		conn.Monotonic.SentBytes == 0 && conn.Monotonic.SentPackets == 0 &&
-		conn.Monotonic.Retransmits == 0 {
-		return true
-	}
-	return false
+		conn.Monotonic.Retransmits == 0
 }
