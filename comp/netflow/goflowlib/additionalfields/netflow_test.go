@@ -92,7 +92,7 @@ func Test_ProcessMessageNetFlowAdditionalFields(t *testing.T) {
 				},
 			},
 			expectedCollectedFields: []common.AdditionalFields{{
-				"test_field": "2d0c",
+				"test_field": []byte{45, 12},
 			}},
 		},
 		{

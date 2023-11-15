@@ -9,7 +9,6 @@ package additionalfields
 
 import (
 	"bytes"
-	"encoding/hex"
 	"errors"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
@@ -36,7 +35,7 @@ func mapAdditionalField(additionalFields common.AdditionalFields, v []byte, cfg 
 	} else if cfg.Type == common.String {
 		additionalFields[cfg.Destination] = string(bytes.Trim(v, "\x00")) // Removing trailing null chars
 	} else {
-		additionalFields[cfg.Destination] = hex.EncodeToString(v)
+		additionalFields[cfg.Destination] = v
 	}
 }
 
