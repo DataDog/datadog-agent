@@ -144,10 +144,6 @@ func getAvailabilityZone(env string, azIndx int) string {
 	return ""
 }
 
-func trueStr(t bool) string {
-	return fmt.Sprintf("%v", t)
-}
-
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	var err error
 	var sudoPassword string
@@ -187,11 +183,11 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:microVMConfigFile":              auto.ConfigValue{Value: opts.VMConfigPath},
 		"microvm:libvirtSSHKeyFileX86":           auto.ConfigValue{Value: sshKeyX86},
 		"microvm:libvirtSSHKeyFileArm":           auto.ConfigValue{Value: sshKeyArm},
-		"microvm:provision":                      auto.ConfigValue{Value: trueStr(opts.Provision)},
+		"microvm:provision":                      auto.ConfigValue{Value: strconv.FormatBool(opts.Provision)},
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
-		"ddagent:deploy":                         auto.ConfigValue{Value: trueStr(opts.RunAgent)},
+		"ddagent:deploy":                         auto.ConfigValue{Value: strconv.FormatBool(opts.RunAgent)},
 		"ddagent:version":                        auto.ConfigValue{Value: opts.AgentVersion},
 		"ddagent:apiKey":                         auto.ConfigValue{Value: apiKey, Secret: true},
 	}
