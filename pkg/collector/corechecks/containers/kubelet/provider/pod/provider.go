@@ -36,6 +36,7 @@ var includeContainerStateReason = map[string][]string{
 		"containercreating",
 		"createcontainererror",
 		"invalidimagename",
+		"createcontainerconfigerror",
 	},
 	"terminated": {"oomkilled", "containercannotrun", "error"},
 }
