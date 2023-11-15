@@ -551,6 +551,14 @@ func mountCmd(assumedRole string) error {
 	}
 
 	var cleanups []func(context.Context)
+	defer func() {
+		cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		for _, cleanup := range cleanups {
+			cleanup(cleanupctx)
+		}
+	}()
+
 	for _, arn := range arns {
 		cfg, awsstats, err := newAWSConfig(ctx, arn.Region, assumedRole)
 		if err != nil {
@@ -579,21 +587,18 @@ func mountCmd(assumedRole string) error {
 			return fmt.Errorf("unsupport resource type %q", resourceType)
 		}
 
-		mountTarget, cleanupVolume, err := attachAndMountVolume(ctx, ec2client, nil, snapshotID)
+		mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, ec2client, nil, snapshotID)
 		cleanups = append(cleanups, cleanupVolume)
 		if err != nil {
 			return err
 		}
-		fmt.Printf("%q: %s\n", resourceID, mountTarget)
+		fmt.Printf("%s mount directories:\n", resourceID)
+		for _, mountTarget := range mountTargets {
+			fmt.Printf("  - %s\n", mountTarget)
+		}
 	}
 
 	<-ctx.Done()
-
-	cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	for _, cleanup := range cleanups {
-		cleanup(cleanupctx)
-	}
 
 	return nil
 }
@@ -949,7 +954,7 @@ retry:
 				// Wait at least 15 seconds between concurrent volume snapshots.
 				d := 15 * time.Second
 				log.Debugf("snapshot creation rate exceeded for volume %s; retrying after %v (%d/%d)", volumeID, d, retries, maxSnapshotRetries)
-				time.Sleep(d)
+				sleepCtx(ctx, d)
 				goto retry
 			}
 		}
@@ -1224,33 +1229,34 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	var trivyArtifact artifact.Artifact
 
 	if scan.AttachVolume || globalParams.attachVolumes {
-		mountTarget, cleanupVolume, err := attachAndMountVolume(ctx, ec2client, tags, snapshotID)
-		defer func() {
-			cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			cleanupVolume(cleanupctx)
-		}()
-		if err != nil {
-			return nil, err
-		}
-		trivyArtifact, err = trivyartifactlocal.NewArtifact(mountTarget, trivyCache, artifact.Option{
-			Offline:           true,
-			NoProgress:        true,
-			DisabledAnalyzers: trivyDisabledAnalyzers,
-			Slow:              false,
-			SBOMSources:       []string{},
-			DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
-			OnlyDirs: []string{
-				filepath.Join(mountTarget, "etc"),
-				filepath.Join(mountTarget, "var/lib/dpkg"),
-				filepath.Join(mountTarget, "var/lib/rpm"),
-				filepath.Join(mountTarget, "lib/apk"),
-			},
-			AWSRegion: scan.Region(),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
-		}
+		panic("unimplemented")
+		// mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, ec2client, tags, snapshotID)
+		// defer func() {
+		// 	cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		// 	defer cancel()
+		// 	cleanupVolume(cleanupctx)
+		// }()
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// trivyArtifact, err = trivyartifactlocal.NewArtifact(mountTarget, trivyCache, artifact.Option{
+		// 	Offline:           true,
+		// 	NoProgress:        true,
+		// 	DisabledAnalyzers: trivyDisabledAnalyzers,
+		// 	Slow:              false,
+		// 	SBOMSources:       []string{},
+		// 	DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
+		// 	OnlyDirs: []string{
+		// 		filepath.Join(mountTarget, "etc"),
+		// 		filepath.Join(mountTarget, "var/lib/dpkg"),
+		// 		filepath.Join(mountTarget, "var/lib/rpm"),
+		// 		filepath.Join(mountTarget, "lib/apk"),
+		// 	},
+		// 	AWSRegion: scan.Region(),
+		// })
+		// if err != nil {
+		// 	return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
+		// }
 	} else {
 		target := "ebs:" + snapshotID
 		trivyArtifact, err = vm.NewArtifact(target, trivyCache, artifact.Option{
@@ -1565,7 +1571,7 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 	return nil
 }
 
-func attachAndMountVolume(ctx context.Context, ec2client *ec2.Client, metrictags []string, snapshotID string) (mountTarget string, cleanupVolume func(context.Context), err error) {
+func attachAndMountVolume(ctx context.Context, ec2client *ec2.Client, metrictags []string, snapshotID string) (mountTargets []string, cleanupVolume func(context.Context), err error) {
 	var cleanups []func(context.Context)
 	pushCleanup := func(cleanup func(context.Context)) {
 		cleanups = append(cleanups, cleanup)
@@ -1609,7 +1615,9 @@ func attachAndMountVolume(ctx context.Context, ec2client *ec2.Client, metrictags
 				log.Debugf("volume deleted %q", *volume.VolumeId)
 				break
 			}
-			time.Sleep(1 * time.Second)
+			if !sleepCtx(ctx, 1*time.Second) {
+				break
+			}
 		}
 		if errd != nil {
 			log.Warnf("could not delete volume %q: %v", *volume.VolumeId, errd)
@@ -1627,28 +1635,26 @@ func attachAndMountVolume(ctx context.Context, ec2client *ec2.Client, metrictags
 		if err == nil {
 			break
 		}
-		time.Sleep(1 * time.Second)
+		if !sleepCtx(ctx, 1*time.Second) {
+			break
+		}
 	}
 	if err != nil {
 		err = fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, err)
 		return
 	}
 
-	mountTarget = fmt.Sprintf("/data/%s", snapshotID)
-	err = os.MkdirAll(mountTarget, 0700)
-	if err != nil {
-		err = fmt.Errorf("could not create mountTarget directory %q: %w", mountTarget, err)
-		return
+	type mountPoint struct {
+		partDevice string
+		partFsType string
 	}
-	pushCleanup(func(_ context.Context) {
-		log.Debugf("unlink directory %q", mountTarget)
-		os.Remove(mountTarget)
-	})
 
-	var partitionDevice, partitionFSType string
+	var mountPoints []mountPoint
 	for i := 0; i < 10; i++ {
 		if i > 0 {
-			time.Sleep(1 * time.Second)
+			if !sleepCtx(ctx, 1*time.Second) {
+				break
+			}
 		}
 		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", device, "--paths", "--json", "--bytes", "--fs", "--output", "NAME,PATH,TYPE,FSTYPE").Output()
 		if err != nil {
@@ -1678,44 +1684,75 @@ func attachAndMountVolume(ctx context.Context, ec2client *ec2.Client, metrictags
 			continue
 		}
 		blockDevice := blockDevices.BlockDevices[0]
-		// TODO(jinroh): support scanning multiple partitions
 		for _, child := range blockDevice.Children {
 			if child.Type == "part" && (child.FsType == "ext4" || child.FsType == "xfs") {
-				partitionDevice = child.Path
-				partitionFSType = child.FsType
+				mountPoints = append(mountPoints, mountPoint{
+					partDevice: child.Path,
+					partFsType: child.FsType,
+				})
+			}
+		}
+		if len(mountPoints) > 0 {
+			break
+		}
+	}
+
+	if len(mountPoints) == 0 {
+		err = fmt.Errorf("could not find any mountpoint in the snapshot %q", snapshotID)
+		return
+	}
+
+	pushCleanup(func(_ context.Context) {
+		baseMountTarget := fmt.Sprintf("/data/%s", snapshotID)
+		log.Debugf("unlink directory %q", baseMountTarget)
+		os.Remove(baseMountTarget)
+	})
+
+	for _, mp := range mountPoints {
+		mountTarget := fmt.Sprintf("/data/%s/%s", snapshotID, path.Base(mp.partDevice))
+		err = os.MkdirAll(mountTarget, 0700)
+		if err != nil {
+			err = fmt.Errorf("could not create mountTarget directory %q: %w", mountTarget, err)
+			return
+		}
+		pushCleanup(func(_ context.Context) {
+			log.Debugf("unlink directory %q", mountTarget)
+			os.Remove(mountTarget)
+		})
+
+		var mountOutput []byte
+		for i := 0; i < 10; i++ {
+			log.Debugf("execing mount %q %q", mp.partDevice, mountTarget)
+			mountOutput, err = exec.CommandContext(ctx, "mount", "-t", mp.partFsType, "--source", mp.partDevice, "--target", mountTarget).CombinedOutput()
+			if err == nil {
+				break
+			}
+			if !sleepCtx(ctx, 1*time.Second) {
 				break
 			}
 		}
-		if partitionFSType != "" {
-			break
-		}
-	}
-
-	if partitionFSType == "" {
-		err = fmt.Errorf("could not successfully find the attached device filesystem")
-		return
-	}
-
-	var mountOutput []byte
-	for i := 0; i < 10; i++ {
-		log.Debugf("execing mount %q %q", partitionDevice, mountTarget)
-		mountOutput, err = exec.CommandContext(ctx, "mount", "-t", partitionFSType, "--source", partitionDevice, "--target", mountTarget).CombinedOutput()
-		if err == nil {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-	if err != nil {
-		err = fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountTarget, partitionDevice, string(mountOutput), err)
-		return
-	}
-	pushCleanup(func(ctx context.Context) {
-		log.Debugf("un-mounting %s", mountTarget)
-		umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountTarget).CombinedOutput()
 		if err != nil {
-			log.Warnf("could not umount %s: %s:\n%s", mountTarget, err, string(umountOuput))
+			err = fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountTarget, mp.partDevice, string(mountOutput), err)
+			return
 		}
-	})
+		pushCleanup(func(ctx context.Context) {
+			log.Debugf("un-mounting %s", mountTarget)
+			umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountTarget).CombinedOutput()
+			if err != nil {
+				log.Warnf("could not umount %s: %s:\n%s", mountTarget, err, string(umountOuput))
+			}
+		})
+		mountTargets = append(mountTargets, mountTarget)
+	}
 
 	return
+}
+
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-time.After(d):
+		return true
+	case <-ctx.Done():
+		return false
+	}
 }
