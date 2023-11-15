@@ -541,7 +541,7 @@ func mountCmd(assumedRole string) error {
 		fmt.Println(lineNumber, line)
 		arn, err := arn.Parse(line)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "bad arn resource %q on line %d", line, lineNumber)
+			fmt.Fprintf(os.Stderr, "bad arn resource %q on line %d\n", line, lineNumber)
 		} else {
 			arns = append(arns, arn)
 		}
