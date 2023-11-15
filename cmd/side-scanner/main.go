@@ -95,11 +95,6 @@ var (
 		attachVolumes  bool
 	}
 
-	runParams struct {
-		poolSize         int
-		allowedScanTypes []string
-	}
-
 	defaultHTTPClient = &http.Client{
 		Timeout: 10 * time.Second,
 	}
@@ -140,13 +135,18 @@ func rootCommand() *cobra.Command {
 }
 
 func runCommand() *cobra.Command {
+	var runParams struct {
+		poolSize         int
+		allowedScanTypes []string
+	}
+
 	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Runs the side-scanner",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return runCmd()
+					return runCmd(runParams.poolSize, runParams.allowedScanTypes)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -190,7 +190,8 @@ func scanCommand() *cobra.Command {
 func offlineCommand() *cobra.Command {
 	var cliArgs struct {
 		poolSize int
-		region   string
+		regions  []string
+		maxScans int
 	}
 	cmd := &cobra.Command{
 		Use:   "offline",
@@ -198,7 +199,7 @@ func offlineCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return offlineCmd(cliArgs.poolSize)
+					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -209,6 +210,8 @@ func offlineCommand() *cobra.Command {
 	}
 
 	cmd.Flags().IntVarP(&cliArgs.poolSize, "workers", "", 40, "number of scans running in parallel")
+	cmd.Flags().StringSliceVarP(&cliArgs.regions, "regions", "", nil, "list of regions to scan (default to all regions)")
+	cmd.Flags().IntVarP(&cliArgs.maxScans, "max-scans", "", 0, "maximum number of scans to perform")
 
 	return cmd
 }
@@ -249,7 +252,7 @@ func initStatsdClient() {
 	}
 }
 
-func runCmd() error {
+func runCmd(poolSize int, allowedScanTypes []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -267,7 +270,7 @@ func runCmd() error {
 
 	eventForwarder := epforwarder.NewEventPlatformForwarder()
 
-	scanner := newSideScanner(hostname, rcClient, eventForwarder, runParams.poolSize, runParams.allowedScanTypes)
+	scanner := newSideScanner(hostname, rcClient, eventForwarder, poolSize, allowedScanTypes)
 	scanner.start(ctx)
 	return nil
 }
@@ -294,7 +297,7 @@ func scanCmd(rawScan []byte) error {
 	return nil
 }
 
-func offlineCmd(poolSize int) error {
+func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	defer statsd.Flush()
@@ -312,19 +315,21 @@ func offlineCmd(poolSize int) error {
 		return err
 	}
 
-	describeRegionsInput := &ec2.DescribeRegionsInput{}
-
-	describeRegionsOutput, err := ec2client.DescribeRegions(ctx, describeRegionsInput)
-	if err != nil {
-		return err
-	}
-
 	var allRegions []string
-	for _, region := range describeRegionsOutput.Regions {
-		if region.RegionName == nil {
-			continue
+	if len(regions) > 0 {
+		allRegions = regions
+	} else {
+		describeRegionsInput := &ec2.DescribeRegionsInput{}
+		describeRegionsOutput, err := ec2client.DescribeRegions(ctx, describeRegionsInput)
+		if err != nil {
+			return err
 		}
-		allRegions = append(allRegions, *region.RegionName)
+		for _, region := range describeRegionsOutput.Regions {
+			if region.RegionName == nil {
+				continue
+			}
+			allRegions = append(allRegions, *region.RegionName)
+		}
 	}
 
 	scansCh := make(chan scanTask)
