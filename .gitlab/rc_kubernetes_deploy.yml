@@ -10,7 +10,7 @@ rc_kubernetes_deploy_experimental:
   # - if: '$CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH =~ /7\.\d{2}\.x/' TODO - uncomment when done with testing
   #   when: always
   # - !reference [.on_deploy_a7]
-  
+
   # needs:
   # - job: docker_trigger_internal
   #   artifacts: false
@@ -23,7 +23,7 @@ rc_kubernetes_deploy_experimental:
   tags: ["arch:amd64"]
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"
-    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh env=all-staging 7.50.0-rc.2-jmx-d99ab6ec 7.50.0-rc.2-d99ab6ec"
+    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh env=all-staging 7.50.0-rc.2-jmx 7.50.0-rc.2"
     SKIP_PLAN_CHECK: "true"
     EXPLICIT_WORKFLOWS: "//workflows:deploy_rc.agents_rc"
   script:
