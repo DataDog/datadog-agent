@@ -97,7 +97,7 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
 	cfg.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
-	cfg.BindEnvAndSetDefault("secret_backend_timeout", 30)
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", 0)
 	cfg.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	cfg.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 

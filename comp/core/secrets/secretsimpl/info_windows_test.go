@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package secrets
+package secretsimpl
 
 import (
 	"fmt"

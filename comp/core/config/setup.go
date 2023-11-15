@@ -52,7 +52,7 @@ func setupConfig(deps configDependencies) (*config.Warnings, error) {
 	if withoutSecrets {
 		warnings, err = config.LoadWithoutSecret()
 	} else {
-		warnings, err = config.LoadResolveSecret(deps.getSecretResolver())
+		warnings, err = config.LoadWithSecret(deps.getSecretResolver())
 	}
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError

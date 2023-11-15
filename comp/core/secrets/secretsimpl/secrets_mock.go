@@ -5,7 +5,7 @@
 
 //go:build test
 
-package secrets
+package secretsimpl
 
 import (
 	"io"
@@ -16,13 +16,9 @@ type MockSecretResolver struct {
 	resolve map[string]string
 }
 
-func (m *MockSecretResolver) Assign(command string, arguments []string, timeout, maxSize int, groupExecPerm, removeLinebreak bool) {
-	// pass
-}
+func (m *MockSecretResolver) Configure(_ string, _ []string, _, _ int, _, _ bool) {}
 
-func (m *MockSecretResolver) GetDebugInfo(w io.Writer) {
-	// pass
-}
+func (m *MockSecretResolver) GetDebugInfo(_ io.Writer) {}
 
 func (m *MockSecretResolver) Inject(key, value string) {
 	m.resolve[key] = value

@@ -198,7 +198,7 @@ func run(log log.Component,
 	otelcollector otelcollector.Component,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
-	secretsResolver secrets.Component,
+	secretResolver secrets.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
 ) error {
@@ -242,7 +242,7 @@ func run(log log.Component,
 		}
 	}()
 
-	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata, invAgent, secretsResolver); err != nil {
+	if err := startAgent(cliParams, log, flare, telemetry, sysprobeconfig, server, capture, serverDebug, rcclient, logsAgent, forwarder, sharedSerializer, otelcollector, demultiplexer, hostMetadata, invAgent, secretResolver); err != nil {
 		return err
 	}
 
@@ -277,16 +277,14 @@ func getSharedFxOption() fx.Option {
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
 		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
-		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
 					// Main context passed to components
 					common.MainCtx, common.MainCtxCancel = context.WithCancel(context.Background())
 
-					// TODO: temporary hack to get secrets component
-					secretsResolver := secrets.GetInstance()
 					// create and setup the Autoconfig instance
-					common.LoadComponents(common.MainCtx, demultiplexer, secretsResolver, pkgconfig.Datadog.GetString("confd_path"))
+					common.LoadComponents(common.MainCtx, demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -332,7 +330,7 @@ func startAgent(
 	demultiplexer demultiplexer.Component,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
-	secretsResolver secrets.Component,
+	secretResolver secrets.Component,
 ) error {
 
 	var err error
@@ -481,7 +479,7 @@ func startAgent(
 		demultiplexer,
 		hostMetadata,
 		invAgent,
-		secretsResolver,
+		secretResolver,
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}

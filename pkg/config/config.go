@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -370,7 +371,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
 	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
-	config.BindEnvAndSetDefault("secret_backend_timeout", 30)
+	config.BindEnvAndSetDefault("secret_backend_timeout", 0)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
@@ -1389,7 +1390,8 @@ func LoadWithoutSecret() (*Warnings, error) {
 	return LoadDatadogCustom(Datadog, "datadog.yaml", nil, SystemProbe.GetEnvVars())
 }
 
-func LoadResolveSecret(secretResolver secrets.Component) (*Warnings, error) {
+// LoadWithSecret reads config files and initializes config with decrypted secrets
+func LoadWithSecret(secretResolver secrets.Component) (*Warnings, error) {
 	return LoadDatadogCustom(Datadog, "datadog.yaml", secretResolver, SystemProbe.GetEnvVars())
 }
 
@@ -1540,7 +1542,7 @@ func checkConflictingOptions(config Config) error {
 }
 
 // LoadDatadogCustom loads the datadog config in the given config
-func LoadDatadogCustom(config Config, origin string, secretResolver secrets.Component, additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadDatadogCustom(config Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -1585,7 +1587,7 @@ func LoadDatadogCustom(config Config, origin string, secretResolver secrets.Comp
 }
 
 // LoadCustom reads config into the provided config object
-func LoadCustom(config Config, origin string, secretResolver secrets.Component, additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadCustom(config Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*Warnings, error) {
 	warnings := Warnings{}
 
 	if err := config.ReadInConfig(); err != nil {
@@ -1611,8 +1613,9 @@ func LoadCustom(config Config, origin string, secretResolver secrets.Component, 
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
-	if secretResolver != nil {
-		if err := ResolveSecrets(config, secretResolver, origin); err != nil {
+	if secretResolver.IsSet() {
+		resolver, _ := secretResolver.Get()
+		if err := ResolveSecrets(config, resolver, origin); err != nil {
 			return &warnings, err
 		}
 	}
@@ -1754,10 +1757,10 @@ func setupFipsLogsConfig(config Config, configPrefix string, url string) {
 // ResolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
-func ResolveSecrets(config Config, secretsResolver secrets.Component, origin string) error {
+func ResolveSecrets(config Config, secretResolver secrets.Component, origin string) error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
-	secretsResolver.Assign(
+	secretResolver.Configure(
 		config.GetString("secret_backend_command"),
 		config.GetStringSlice("secret_backend_arguments"),
 		config.GetInt("secret_backend_timeout"),
@@ -1776,7 +1779,7 @@ func ResolveSecrets(config Config, secretsResolver secrets.Component, origin str
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		finalYamlConf, err := secretsResolver.Decrypt(yamlConf, origin)
+		finalYamlConf, err := secretResolver.Decrypt(yamlConf, origin)
 		if err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}

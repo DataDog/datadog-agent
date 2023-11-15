@@ -63,7 +63,7 @@ func SetupHandlers(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
-	secretsResolver secrets.Component,
+	secretResolver secrets.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -85,7 +85,7 @@ func SetupHandlers(
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
 	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
-	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretsResolver) }).Methods("GET")
+	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
 	r.HandleFunc("/metadata/{payload}", func(w http.ResponseWriter, r *http.Request) { metadataPayload(w, r, hostMetadata, invAgent) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager) }).Methods("POST")
 
@@ -423,8 +423,8 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonDump)
 }
 
-func secretInfo(w http.ResponseWriter, r *http.Request, secretsResolver secrets.Component) {
-	secretsResolver.GetDebugInfo(w)
+func secretInfo(w http.ResponseWriter, r *http.Request, secretResolver secrets.Component) {
+	secretResolver.GetDebugInfo(w)
 }
 
 func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp host.Component, invAgent inventoryagent.Component) {

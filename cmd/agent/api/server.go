@@ -62,7 +62,7 @@ func StartServer(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
-	secretsResolver secrets.Component,
+	secretResolver secrets.Component,
 ) error {
 	initializeTLS()
 
@@ -140,7 +140,7 @@ func StartServer(
 				senderManager,
 				hostMetadata,
 				invAgent,
-				secretsResolver,
+				secretResolver,
 			)))
 	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	mux.Handle("/", gwmux)

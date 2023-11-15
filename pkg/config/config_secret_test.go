@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,14 +18,14 @@ import (
 func TestProxyWithSecret(t *testing.T) {
 	type testCase struct {
 		name  string
-		setup func(t *testing.T, config Config, resolver *secrets.MockSecretResolver)
+		setup func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver)
 		tests func(t *testing.T, config Config)
 	}
 
 	cases := []testCase{
 		{
 			name: "secrets from configuration for proxy",
-			setup: func(t *testing.T, config Config, resolver *secrets.MockSecretResolver) {
+			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
 				resolver.Inject("http_handle", "http_url")
 				resolver.Inject("https_handle", "https_url")
 				resolver.Inject("no_proxy_1_handle", "no_proxy_1")
@@ -48,7 +48,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron DD env vars for proxy",
-			setup: func(t *testing.T, config Config, resolver *secrets.MockSecretResolver) {
+			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
 				resolver.Inject("http_handle", "http_url")
 				resolver.Inject("https_handle", "https_url")
 				resolver.Inject("no_proxy_1_handle", "no_proxy_1")
@@ -71,7 +71,7 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron UNIX env vars for proxy",
-			setup: func(t *testing.T, config Config, resolver *secrets.MockSecretResolver) {
+			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
 				resolver.Inject("http_handle", "http_url")
 				resolver.Inject("https_handle", "https_url")
 				resolver.Inject("no_proxy_1_handle", "no_proxy_1")
@@ -110,7 +110,7 @@ func TestProxyWithSecret(t *testing.T) {
 			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
-			resolver := secrets.NewMockSecretResolver()
+			resolver := secretsimpl.NewMockSecretResolver()
 			if c.setup != nil {
 				c.setup(t, config, resolver)
 			}

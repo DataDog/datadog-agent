@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package secrets
+package secretsimpl
 
 import (
 	"bufio"
@@ -13,13 +13,29 @@ import (
 	"io"
 	"sort"
 	"strings"
+	"sync"
 	"text/template"
 
+	"go.uber.org/fx"
 	yaml "gopkg.in/yaml.v2"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+)
+
+type provides struct {
+	fx.Out
+
+	Comp          secrets.Component
+	FlareProvider flaretypes.Provider
+}
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newSecretResolverProvider),
 )
 
 type handleToContext map[string][]secretContext
@@ -36,6 +52,11 @@ type secretResolver struct {
 	removeTrailingLinebreak bool
 	// responseMaxSize defines max size of the JSON output from a secrets reader backend
 	responseMaxSize int
+
+	// can be overridden for testing purposes
+	commandHookFunc func(string) ([]byte, error)
+	fetchHookFunc   func([]string) (map[string]string, error)
+	scrubHookFunc   func([]string)
 }
 
 //go:embed info.tmpl
@@ -49,38 +70,44 @@ type secretContext struct {
 	yamlPath string
 }
 
-func newSecretResolverProvider(deps dependencies) provides {
-	resolver := &secretResolver{
-		cache:           make(map[string]string),
-		origin:          make(handleToContext),
-		responseMaxSize: 1024 * 1024,
-	}
+// TODO: Hack to maintain a singleton reference to the secrets Component
+//
+//	Only needed temporarily, since the secrets Component is needed for
+var mu sync.Mutex
+var instance *secretResolver
 
-	// TODO: hack to save a reference to the singleton instance
-	if instance == nil {
-		instance = resolver
+func newSecretResolver() *secretResolver {
+	return &secretResolver{
+		cache:  make(map[string]string),
+		origin: make(handleToContext),
+	}
+}
+
+func newSecretResolverProvider() provides {
+	resolver := newSecretResolver()
+
+	{
+		mu.Lock()
+		defer mu.Unlock()
+		if instance == nil {
+			instance = resolver
+		}
 	}
 
 	return provides{
 		Comp:          resolver,
-		FlareProvider: resolver.FlareProvider(),
+		FlareProvider: flaretypes.NewProvider(resolver.fillFlare),
 	}
 }
 
-var instance *secretResolver
-
-func GetInstance() Component {
-	// TODO: temporary hack to allow non-componentized code to use the secrets resolver
+func GetInstance() *secretResolver {
+	mu.Lock()
+	defer mu.Unlock()
 	if instance == nil {
-		p := newSecretResolverProvider(dependencies{})
+		p := newSecretResolverProvider()
 		instance = p.Comp.(*secretResolver)
 	}
 	return instance
-}
-
-// FlareProvider returns a flare providers to add the current inventory payload to each flares.
-func (r *secretResolver) FlareProvider() flaretypes.Provider {
-	return flaretypes.NewProvider(r.fillFlare)
 }
 
 // fillFlare add the inventory payload to flares.
@@ -104,7 +131,11 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, yaml
 
 	if len(yamlPath) != 0 {
 		lastElem := yamlPath[len(yamlPath)-1:]
-		scrubber.AddStrippedKeys(lastElem)
+		if r.scrubHookFunc != nil {
+			r.scrubHookFunc(lastElem)
+		} else {
+			scrubber.AddStrippedKeys(lastElem)
+		}
 	}
 
 	r.origin[handle] = append(
@@ -115,10 +146,8 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, yaml
 		})
 }
 
-// Assign initializes the command and other options of the secrets package. Since
-// this package is used by the 'config' package to decrypt itself we can't
-// directly use it.
-func (r *secretResolver) Assign(command string, arguments []string, timeout, maxSize int, groupExecPerm, removeLinebreak bool) {
+// Configure initializes the executable command and other options of the secrets component
+func (r *secretResolver) Configure(command string, arguments []string, timeout, maxSize int, groupExecPerm, removeLinebreak bool) {
 	r.backendCommand = command
 	r.backendArguments = arguments
 	r.backendTimeout = timeout
@@ -254,7 +283,13 @@ func (resolver *secretResolver) Decrypt(data []byte, origin string) ([]byte, err
 
 	// check if any new secrets need to be fetch
 	if len(newHandles) != 0 {
-		secrets, err := fetchSecret(resolver, newHandles)
+		var secrets map[string]string
+		var err error
+		if resolver.fetchHookFunc != nil {
+			secrets, err = resolver.fetchHookFunc(newHandles)
+		} else {
+			secrets, err = resolver.fetchSecret(newHandles)
+		}
 		if err != nil {
 			return nil, err
 		}
