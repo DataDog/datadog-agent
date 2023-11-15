@@ -427,8 +427,8 @@ func listEBSScansForRegion(ctx context.Context, regionName string) (scans []scan
 						// Exclude Windows.
 						continue
 					}
-					if instance.PlatformDetails != nil && *instance.PlatformDetails != "Linux/UNIX" {
-						log.Debugf("excluding unknown platform %s", *instance.PlatformDetails)
+					if instance.PlatformDetails != nil && strings.HasPrefix(*instance.PlatformDetails, "Windows") {
+						// Exclude Windows.
 						continue
 					}
 					arn := arn.ARN{
