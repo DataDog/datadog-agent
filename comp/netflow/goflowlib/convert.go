@@ -74,7 +74,7 @@ func applyAdditionalFields(flow *common.Flow, additionalFields common.Additional
 	for destination, fieldValue := range additionalFields {
 		applied := applyAdditionalField(flow, destination, fieldValue)
 		if !applied {
-			// Additional fields need to be stored in the map
+			// Additional field need to be stored in the new map
 			if field, ok := fieldValue.([]byte); ok {
 				// Write []byte as hex string for readability
 				processedFields[destination] = bytesToHexString(field)
