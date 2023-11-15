@@ -386,9 +386,9 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 			checkRuns[c.String()].(map[checkid.ID]interface{})[c.ID()] = s
 
 			// There is only one checkID per run so we'll just access that
-			var runnerData map[string]interface{}
+			var runnerData map[checkid.ID]interface{}
 			for _, checkIDData := range checkRuns {
-				runnerData = checkIDData.(map[string]interface{})
+				runnerData = checkIDData.(map[checkid.ID]interface{})
 				break
 			}
 
