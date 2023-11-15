@@ -26,7 +26,7 @@ Bug Fixes
 
 - APM: Fix a deadlock issue which can prevent the trace-agent from shutting down.
 
-- Fix the broken lineage check for process activity in CWS.
+- CWS: Fix the broken lineage check for process activity in CWS.
 
 - APM: fix a regression in the Trace Agent that caused container tagging
   with UDS and cgroup v2 to fail.
