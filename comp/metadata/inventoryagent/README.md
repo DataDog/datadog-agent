@@ -6,7 +6,7 @@ This package populates some of the agent-related fields in the `inventories` pro
 This is enabled by default but can be turned off using `inventories_enabled` config.
 
 The payload is sent every 10min (see `inventories_max_interval` in the config) or whenever it's updated with at most 1
-update every 5 minutes (see `inventories_min_interval`).
+update every minute (see `inventories_min_interval`).
 
 # Content
 
@@ -139,7 +139,11 @@ Here an example of an inventory payload:
         "install_method_tool_version": "",
         "logs_transport": "HTTP",
         "full_configuration": "<entire yaml configuration for the agent>",
-        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false"
+        "provided_configuration": "api_key: \"***************************aaaaa\"\ncheck_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false\nlog_level: \"warn\""
+        "file_configuration": "check_runners: 4\ncmd.check.fullsketches: false\ncontainerd_namespace: []\ncontainerd_namespaces: []\npython_version: \"3\"\ntracemalloc_debug: false"
+        "environment_variable_configuration": "api_key: \"***************************aaaaa\""
+        "remote_configuration": "log_level: \"debug\""
+        "cli_configuration": "log_level: \"warn\""
     }
     "hostname": "my-host",
     "timestamp": 1631281754507358895
