@@ -336,18 +336,21 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 
 	go func() {
 		defer close(scansCh)
+		scans := make([]scanTask, 0)
+
 		for _, regionName := range allRegions {
 			if ctx.Err() != nil {
 				return
 			}
-			scans, err := listEBSScansForRegion(ctx, regionName)
+			scansForRegion, err := listEBSScansForRegion(ctx, regionName)
 			if err != nil {
 				log.Errorf("could not scan region %q: %v", regionName, err)
-			} else {
-				for _, scan := range scans {
-					scansCh <- scan
-				}
 			}
+			scans = append(scans, scansForRegion...)
+		}
+
+		for _, scan := range scans {
+			scansCh <- scan
 		}
 	}()
 
