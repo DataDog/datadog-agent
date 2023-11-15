@@ -11,8 +11,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 )
