@@ -9,6 +9,7 @@ package selftests
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
@@ -38,6 +39,11 @@ func (t *SelfTester) Start() {}
 // Close removes temp directories and files used by the self tester
 func (t *SelfTester) Close() error {
 	return nil
+}
+
+// GetStatus returns the result of the last performed self tests
+func (t *SelfTester) GetStatus() *api.SelfTestsStatus {
+	return &api.SelfTestsStatus{}
 }
 
 // LoadPolicies implements the PolicyProvider interface

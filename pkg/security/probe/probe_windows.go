@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/windowsdriver/procmon"
 )
@@ -129,6 +130,10 @@ func (p *Probe) Start() error {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
+	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
+		eventJSON, err := serializers.MarshalEvent(event, p.resolvers)
+		return eventJSON, event.GetEventType(), err
+	})
 
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.sendEventToWildcardHandlers(event)
