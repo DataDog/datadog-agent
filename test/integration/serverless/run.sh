@@ -98,7 +98,9 @@ echo "Using dd-trace-dotnet layer version: $DOTNET_TRACE_LAYER_VERSION"
 
 # random 8-character ID to avoid collisions with other runs
 stage=$(xxd -l 4 -c 4 -p </dev/random)
-aws_account=$(aws sts get-caller-identity --query 'Account' --output text)
+
+# Default to AWS Account 425362996713 because the workflow runs w/o sts:GetCallerIdentity permissions
+aws_account=$(aws sts get-caller-identity --query 'Account' --output text 2>/dev/null || echo '425362996713')
 
 function remove_stack() {
     echo "Removing stack"
