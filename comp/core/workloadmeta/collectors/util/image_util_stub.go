@@ -9,7 +9,7 @@
 package util
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 )
 
 // UpdateSBOMRepoMetadata does nothing

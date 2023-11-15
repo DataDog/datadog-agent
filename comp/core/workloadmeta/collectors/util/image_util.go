@@ -10,7 +10,7 @@ package util
 
 import (
 	"github.com/CycloneDX/cyclonedx-go"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 )
 
