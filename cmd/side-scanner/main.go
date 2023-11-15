@@ -1229,34 +1229,35 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	var trivyArtifact artifact.Artifact
 
 	if scan.AttachVolume || globalParams.attachVolumes {
-		panic("unimplemented")
-		// mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, ec2client, tags, snapshotID)
-		// defer func() {
-		// 	cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		// 	defer cancel()
-		// 	cleanupVolume(cleanupctx)
-		// }()
-		// if err != nil {
-		// 	return nil, err
-		// }
-		// trivyArtifact, err = trivyartifactlocal.NewArtifact(mountTarget, trivyCache, artifact.Option{
-		// 	Offline:           true,
-		// 	NoProgress:        true,
-		// 	DisabledAnalyzers: trivyDisabledAnalyzers,
-		// 	Slow:              false,
-		// 	SBOMSources:       []string{},
-		// 	DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
-		// 	OnlyDirs: []string{
-		// 		filepath.Join(mountTarget, "etc"),
-		// 		filepath.Join(mountTarget, "var/lib/dpkg"),
-		// 		filepath.Join(mountTarget, "var/lib/rpm"),
-		// 		filepath.Join(mountTarget, "lib/apk"),
-		// 	},
-		// 	AWSRegion: scan.Region(),
-		// })
-		// if err != nil {
-		// 	return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
-		// }
+		mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, ec2client, tags, snapshotID)
+		defer func() {
+			cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			cleanupVolume(cleanupctx)
+		}()
+		if err != nil {
+			return nil, err
+		}
+		// TODO(jinroh): support multiple partition scanning
+		mountTarget := mountTargets[0]
+		trivyArtifact, err = trivyartifactlocal.NewArtifact(mountTarget, trivyCache, artifact.Option{
+			Offline:           true,
+			NoProgress:        true,
+			DisabledAnalyzers: trivyDisabledAnalyzers,
+			Slow:              false,
+			SBOMSources:       []string{},
+			DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
+			OnlyDirs: []string{
+				filepath.Join(mountTarget, "etc"),
+				filepath.Join(mountTarget, "var/lib/dpkg"),
+				filepath.Join(mountTarget, "var/lib/rpm"),
+				filepath.Join(mountTarget, "lib/apk"),
+			},
+			AWSRegion: scan.Region(),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
+		}
 	} else {
 		target := "ebs:" + snapshotID
 		trivyArtifact, err = vm.NewArtifact(target, trivyCache, artifact.Option{
