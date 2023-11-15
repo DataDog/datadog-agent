@@ -14,7 +14,7 @@ from .release import _get_release_json_value
 from .utils import DEFAULT_BRANCH
 
 
-def _trigger_macos_workflow(release, destination, retry_download, retry_interval, **kwargs):
+def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
     github_action_ref = _get_release_json_value(f'{release}::MACOS_BUILD_VERSION')
 
     run = trigger_macos_workflow(
@@ -102,9 +102,6 @@ def trigger_macos_lint(
 ):
     _trigger_macos_workflow(
         release_version,
-        None,
-        0,
-        0,
         workflow_name="lint.yaml",
         datadog_agent_ref=datadog_agent_ref,
         python_runtimes=python_runtimes,
