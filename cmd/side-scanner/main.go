@@ -415,6 +415,18 @@ func listEBSScansForRegion(ctx context.Context, regionName string) (scans []scan
 						continue
 					}
 					fmt.Println(regionName, *instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId)
+					if instance.Architecture == ec2types.ArchitectureValuesX8664Mac || instance.Architecture == ec2types.ArchitectureValuesArm64Mac {
+						// Exclude macOS.
+						continue
+					}
+					if instance.Platform == ec2types.PlatformValuesWindows {
+						// Exclude Windows.
+						continue
+					}
+					if instance.PlatformDetails != nil && *instance.PlatformDetails != "Linux/UNIX" {
+						log.Debugf("excluding unknown platform %s", *instance.PlatformDetails)
+						continue
+					}
 					arn := arn.ARN{
 						Partition: "aws",
 						Service:   "ec2",
