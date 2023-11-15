@@ -70,6 +70,10 @@ func convertFlowType(flowType flowpb.FlowMessage_FlowType) common.FlowType {
 }
 
 func applyAdditionalFields(flow *common.Flow, additionalFields common.AdditionalFields) {
+	if additionalFields == nil {
+		return
+	}
+
 	processedFields := make(common.AdditionalFields)
 	for destination, fieldValue := range additionalFields {
 		applied := applyAdditionalField(flow, destination, fieldValue)
