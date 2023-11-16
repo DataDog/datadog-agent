@@ -35,8 +35,7 @@ func TestRealConfig(t *testing.T) {
 			WithConfigMissingOK(true),
 			WithConfFilePath(dir),
 		)),
-		secretsimpl.MockModule,
-		fx.Provide(secrets.NewDisabledParams),
+		fx.Provide(func() secrets.Component { return secretsimpl.NewMockSecretResolver() }),
 		Module,
 	))
 	require.Equal(t, "https://example.com", config.GetString("dd_url"))
