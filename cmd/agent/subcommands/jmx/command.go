@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager/diagnosesendermanagerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	internalAPI "github.com/DataDog/datadog-agent/comp/core/api"
+	"github.com/DataDog/datadog-agent/comp/core/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -100,6 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(params),
 			core.Bundle,
 			diagnosesendermanagerimpl.Module,
+			apiimpl.Module,
 		)
 	}
 

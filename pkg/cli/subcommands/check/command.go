@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core"
 	internalAPI "github.com/DataDog/datadog-agent/comp/core/api"
+	"github.com/DataDog/datadog-agent/comp/core/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -126,6 +127,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				forwarder.Bundle,
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				demultiplexer.Module,
+				apiimpl.Module,
 				fx.Provide(func() demultiplexer.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 					opts := aggregator.DefaultAgentDemultiplexerOptions()
