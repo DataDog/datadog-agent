@@ -1585,7 +1585,7 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole string, metricta
 		}
 	}
 
-	resourceType, snapshotID, ok := getARNResource(snapshotARN)
+	resourceType, _, ok := getARNResource(snapshotARN)
 	if !ok || resourceType != ec2types.ResourceTypeSnapshot {
 		err = fmt.Errorf("expected ARN for a snapshot: %s", snapshotARN.String())
 		return
@@ -1605,7 +1605,8 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole string, metricta
 	ec2client := ec2.NewFromConfig(localAWSCfg)
 
 	if snapshotARN.Region != self.Region {
-		log.Debugf("copying snapshot %q from region %q into %q", snapshotID, snapshotARN.Region, self.Region)
+		log.Debugf("copying snapshot %q into %q", snapshotARN, self.Region)
+		_, snapshotID, _ := getARNResource(snapshotARN)
 		var copySnapshot *ec2.CopySnapshotOutput
 		copySnapshot, err = ec2client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
 			SourceRegion:      aws.String(snapshotARN.Region),
@@ -1613,7 +1614,7 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole string, metricta
 			TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeSnapshot),
 		})
 		if err != nil {
-			err = fmt.Errorf("could not copy snapshot %q from regions %q to %q: %w", snapshotID, snapshotARN.Region, self.Region, err)
+			err = fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotARN, self.Region, err)
 			return
 		}
 		pushCleanup(func(ctx context.Context) {
@@ -1623,24 +1624,25 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole string, metricta
 				SnapshotId: copySnapshot.SnapshotId,
 			})
 		})
-		log.Debugf("waiting for copy of snapshot %q from region %q into %q as %q", snapshotID, snapshotARN.Region, self.Region, *copySnapshot.SnapshotId)
+		log.Debugf("waiting for copy of snapshot %q into %q as %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
 		waiter := ec2.NewSnapshotCompletedWaiter(ec2client)
 		err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{
 			SnapshotIds: []string{*copySnapshot.SnapshotId},
 		}, 15*time.Minute)
 		if err != nil {
-			err = fmt.Errorf("could not finish copying %q from regions %q to %q as %q: %w", snapshotID, snapshotARN.Region, self.Region, *copySnapshot.SnapshotId, err)
+			err = fmt.Errorf("could not finish copying %q to %q as %q: %w", snapshotARN, self.Region, *copySnapshot.SnapshotId, err)
 			return
 		}
-		log.Debugf("successfully copied snapshot %q from region %q into %q: %q", snapshotID, snapshotARN.Region, self.Region, *copySnapshot.SnapshotId)
-		snapshotID = *copySnapshot.SnapshotId
+		log.Debugf("successfully copied snapshot %q into %q: %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
+		snapshotARN = ec2ARN(self.Region, self.AccountID, ec2types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
 	}
 
-	log.Debugf("creating new volume for snapshot %q in az %q", snapshotID, self.AvailabilityZone)
+	log.Debugf("creating new volume for snapshot %q in az %q", snapshotARN, self.AvailabilityZone)
+	_, localSnapshotID, _ := getARNResource(snapshotARN)
 	volume, err := ec2client.CreateVolume(ctx, &ec2.CreateVolumeInput{
 		VolumeType:        ec2types.VolumeTypeGp2,
 		AvailabilityZone:  aws.String(self.AvailabilityZone),
-		SnapshotId:        aws.String(snapshotID),
+		SnapshotId:        aws.String(localSnapshotID),
 		TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeVolume),
 	})
 	if err != nil {
@@ -1746,18 +1748,18 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole string, metricta
 	}
 
 	if len(mountPoints) == 0 {
-		err = fmt.Errorf("could not find any mountpoint in the snapshot %q", snapshotID)
+		err = fmt.Errorf("could not find any mountpoint in the snapshot %q", snapshotARN)
 		return
 	}
 
 	pushCleanup(func(_ context.Context) {
-		baseMountTarget := fmt.Sprintf("/data/%s", snapshotID)
+		baseMountTarget := fmt.Sprintf("/data/%s", localSnapshotID)
 		log.Debugf("unlink directory %q", baseMountTarget)
 		os.Remove(baseMountTarget)
 	})
 
 	for _, mp := range mountPoints {
-		mountTarget := fmt.Sprintf("/data/%s/%s", snapshotID, path.Base(mp.partDevice))
+		mountTarget := fmt.Sprintf("/data/%s/%s", localSnapshotID, path.Base(mp.partDevice))
 		err = os.MkdirAll(mountTarget, 0700)
 		if err != nil {
 			err = fmt.Errorf("could not create mountTarget directory %q: %w", mountTarget, err)
