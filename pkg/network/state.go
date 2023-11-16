@@ -145,17 +145,22 @@ type closedConnections struct {
 	emptyStart int
 }
 
+// Insert a connection into conns and byCookie
 func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
+	// If we have reached the limit, drop an empty connection
 	if uint32(len(cc.conns)) >= maxClosedConns {
 		stateTelemetry.closedConnDropped.Inc(c.Type.String())
 		cc.dropEmpty(c)
 		return
 	}
+	// If the connection is empty append at the end
 	if isEmpty(c) {
 		cc.conns = append(cc.conns, c)
 		cc.byCookie[c.Cookie] = len(cc.conns) - 1
 		return
 	}
+
+	// Insert the connection before empty connections
 	if cc.emptyStart < len(cc.conns) {
 		emptyConn := cc.conns[cc.emptyStart]
 		cc.conns[cc.emptyStart] = c
@@ -165,11 +170,13 @@ func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
 		cc.emptyStart++
 		return
 	}
+	// If there are no empty connections, append at the end
 	cc.conns = append(cc.conns, c)
 	cc.byCookie[c.Cookie] = len(cc.conns) - 1
 	cc.emptyStart = len(cc.conns)
 }
 
+// Drops the first empty connection
 func (cc *closedConnections) dropEmpty(c ConnectionStats) {
 	if isEmpty(c) || cc.emptyStart == len(cc.conns) {
 		return
@@ -180,14 +187,17 @@ func (cc *closedConnections) dropEmpty(c ConnectionStats) {
 	cc.emptyStart++
 }
 
+// Replaces connection c with the connection at index i
 func (cc *closedConnections) replaceAt(i int, c ConnectionStats) {
 	// pick the latest one
 	if c.LastUpdateEpoch <= cc.conns[i].LastUpdateEpoch {
 		return
 	}
+	// If c is empty and connn[i] is not, do not replace
 	if isEmpty(c) && i < cc.emptyStart {
 		return
 	}
+	// If conn[i] is empty and c is not, replace with the first empty connection
 	if !isEmpty(c) && i >= cc.emptyStart {
 		cc.conns[cc.emptyStart], cc.conns[i] = cc.conns[i], cc.conns[cc.emptyStart]
 		cc.byCookie[cc.conns[i].Cookie] = i
