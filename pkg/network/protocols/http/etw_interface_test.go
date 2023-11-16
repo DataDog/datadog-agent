@@ -86,7 +86,7 @@ type testDef struct {
 func setupTests() []testDef {
 
 	td := []testDef{
-		testDef{
+		{
 			name: "Test default site ipv4",
 			site: "Default Web Site",
 			addr: "127.0.0.1",
@@ -94,7 +94,7 @@ func setupTests() []testDef {
 			path: "/",
 			code: 200,
 		},
-		testDef{
+		{
 			name: "Test default site ipv4 bad path",
 			site: "Default Web Site",
 			addr: "127.0.0.1",
@@ -102,7 +102,7 @@ func setupTests() []testDef {
 			path: "/foo",
 			code: 404,
 		},
-		testDef{
+		{
 			name: "Test site1 ipv4",
 			site: "TestSite1",
 			addr: "127.0.0.1",
@@ -110,7 +110,7 @@ func setupTests() []testDef {
 			path: "/",
 			code: 200,
 		},
-		testDef{
+		{
 			name: "Test site2 ipv4",
 			site: "TestSite2",
 			addr: "127.0.0.1",
@@ -118,7 +118,7 @@ func setupTests() []testDef {
 			path: "/",
 			code: 200,
 		},
-		testDef{
+		{
 			name: "Test default site ipv6",
 			site: "Default Web Site",
 			addr: "::1",
@@ -126,7 +126,7 @@ func setupTests() []testDef {
 			path: "/",
 			code: 200,
 		},
-		testDef{
+		{
 			name: "Test default site ipv6 bad path",
 			site: "Default Web Site",
 			addr: "::1",
@@ -134,7 +134,7 @@ func setupTests() []testDef {
 			path: "/foo",
 			code: 404,
 		},
-		testDef{
+		{
 			name: "Test site1 ipv6",
 			site: "TestSite1",
 			addr: "::1",
@@ -142,7 +142,7 @@ func setupTests() []testDef {
 			path: "/",
 			code: 200,
 		},
-		testDef{
+		{
 			name: "Test site2 ipv6",
 			site: "TestSite2",
 			addr: "::1",
@@ -150,7 +150,7 @@ func setupTests() []testDef {
 			path: "/",
 			code: 200,
 		},
-		testDef{
+		{
 			name:    "Test path limit one short",
 			site:    "Default Web Site",
 			addr:    "127.0.0.1",
@@ -159,7 +159,7 @@ func setupTests() []testDef {
 			maxpath: 10,
 			code:    404,
 		},
-		testDef{
+		{
 			name:         "Test path limit at boundary",
 			site:         "Default Web Site",
 			addr:         "127.0.0.1",
@@ -169,7 +169,7 @@ func setupTests() []testDef {
 			maxpath:      10,
 			code:         404,
 		},
-		testDef{
+		{
 			name:         "Test path limit one over",
 			site:         "Default Web Site",
 			addr:         "127.0.0.1",
