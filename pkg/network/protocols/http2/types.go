@@ -15,6 +15,8 @@ import "C"
 
 const (
 	maxHTTP2Path = C.HTTP2_MAX_PATH_LEN
+	// The kernel limit per page in the per-cpu array of the http2 terminated connections map.
+	HTTP2TerminatedBatchSize = C.HTTP2_TERMINATED_BATCH_SIZE
 )
 
 type connTuple = C.conn_tuple_t

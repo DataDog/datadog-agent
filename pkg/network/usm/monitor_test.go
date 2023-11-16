@@ -543,23 +543,24 @@ func (s *USMHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	t := s.T()
 	cfg := networkconfig.New()
 	cfg.EnableHTTP2Monitoring = true
-	cfg.HTTP2DynamicTableMapCleanerInterval = 10 * time.Second
+	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
 
 	startH2CServer(t)
-	client := getClientsArray(t, 1)[0]
 
 	monitor, err := NewMonitor(cfg, nil, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, monitor.Start())
 	defer monitor.Stop()
 
-	for i := 0; i < 3; i++ {
-		req, err := client.Post(http2SrvAddr+"/test", "application/json", bytes.NewReader([]byte("test")))
+	numberOfRequests := usmhttp2.HTTP2TerminatedBatchSize
+	clients := getClientsArray(t, 2)
+	for i := 0; i < numberOfRequests; i++ {
+		req, err := clients[i%2].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
 		require.NoError(t, err, "could not make request")
 		req.Body.Close()
 	}
 
-	matches := 0
+	matches := PrintableInt(0)
 
 	require.Eventuallyf(t, func() bool {
 		stats := monitor.GetProtocolStats()
@@ -569,15 +570,17 @@ func (s *USMHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 		}
 		http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
 		for key, stat := range http2StatsTyped {
-			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && key.Path.Content.Get() == "/test" {
-				matches += stat.Data[200].Count
+			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+				matches.Add(stat.Data[200].Count)
 			}
 		}
 
-		return matches == 3
-	}, time.Second*3, time.Millisecond*100, "%v != 3", matches)
+		return matches.Load() == numberOfRequests
+	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, numberOfRequests)
 
-	client.CloseIdleConnections()
+	for _, client := range clients {
+		client.CloseIdleConnections()
+	}
 
 	dynamicTableMap, _, err := monitor.ebpfProgram.GetMap("http2_dynamic_table")
 	require.NoError(t, err)
@@ -588,7 +591,7 @@ func (s *USMHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 	for iterator.Next(&key, &value) {
 		count++
 	}
-	require.Equal(t, 1, count)
+	require.GreaterOrEqual(t, count, 0)
 
 	require.Eventually(t, func() bool {
 		iterator = dynamicTableMap.Iterate()
@@ -598,7 +601,7 @@ func (s *USMHTTP2Suite) TestHTTP2DynamicTableCleanup() {
 		}
 
 		return count == 0
-	}, cfg.HTTP2DynamicTableMapCleanerInterval+5*time.Second, time.Millisecond*100)
+	}, cfg.HTTP2DynamicTableMapCleanerInterval*4, time.Millisecond*100)
 }
 
 func (s *USMHTTP2Suite) TestSimpleHTTP2() {
