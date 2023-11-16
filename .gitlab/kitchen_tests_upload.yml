@@ -7,6 +7,7 @@ kitchen_tests_upload_common:
   dependencies:
     - kitchen_amazonlinux_install_script_agent-a6_arm64
     - kitchen_amazonlinux_install_script_agent-a6_x64
+    - kitchen_amazonlinux_install_script_agent-a7_arm64
     - kitchen_amazonlinux_install_script_agent-a7_x64
     - kitchen_centos_fips_install_script_agent-a6
     - kitchen_centos_fips_install_script_agent-a7
@@ -29,7 +30,6 @@ kitchen_tests_upload_common:
     - kitchen_centos_upgrade7_iot_agent-a7
     - kitchen_debian_install_script_agent-a6_arm64
     - kitchen_debian_install_script_agent-a6_x64
-    - kitchen_debian_install_script_agent-a7_arm64
     - kitchen_debian_install_script_agent-a7_x64
     - kitchen_debian_install_script_dogstatsd-a7
     - kitchen_debian_install_script_heroku_agent-a6
