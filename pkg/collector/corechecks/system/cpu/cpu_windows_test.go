@@ -16,7 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	gohaicpu "github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	gohaiutils "github.com/DataDog/datadog-agent/pkg/gohai/utils"
-	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
+	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
 func CPUInfo() *gohaicpu.Info {

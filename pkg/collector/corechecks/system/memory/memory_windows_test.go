@@ -14,8 +14,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
+	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
-	pdhtest "github.com/DataDog/datadog-agent/pkg/util/winutil/pdhutil"
 )
 
 func VirtualMemory() (*winutil.VirtualMemoryStat, error) {
