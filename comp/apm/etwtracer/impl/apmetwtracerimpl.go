@@ -262,6 +262,9 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 	}()
 
 	go func() {
+		var b bytes.Buffer
+		b.Grow(64 * 1024)
+
 		// StartTracing blocks the caller
 		_ = a.session.StartTracing(func(e *etw.DDEventRecord) {
 			a.pidMutex.Lock()
@@ -286,8 +289,8 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 				UserDataLength: e.UserDataLength,
 			}
 			ev.header.Size = uint16(unsafe.Sizeof(ev)) + e.UserDataLength
-
-			var b bytes.Buffer
+			
+			b.Reset()
 			binWriter := bufio.NewWriter(&b)
 			binary.Write(binWriter, binary.LittleEndian, ev.header)
 			binary.Write(binWriter, binary.LittleEndian, ev.EventHeader)
