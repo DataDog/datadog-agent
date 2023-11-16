@@ -51,7 +51,14 @@ func testSitePort(t *testing.T, etw *EtwInterface, addr, path string, port uint1
 
 	}()
 
-	resp, err := nethttp.Get(fmt.Sprintf("http://%s:%d%s", addr, port, path))
+	remoteAddr := netip.MustParseAddr(addr)
+	var urlstr string
+	if remoteAddr.Is4() {
+		urlstr = fmt.Sprintf("http://%s:%d%s", addr, port, path)
+	} else {
+		urlstr = fmt.Sprintf("http://[%s]:%d%s", addr, port, path)
+	}
+	resp, err := nethttp.Get(urlstr)
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 
@@ -66,12 +73,14 @@ func testSitePort(t *testing.T, etw *EtwInterface, addr, path string, port uint1
 }
 
 type testDef struct {
-	name string
-	site string
-	addr string
-	port uint16
-	path string
-	code uint16
+	name         string
+	site         string
+	addr         string
+	port         uint16
+	path         string
+	code         uint16
+	maxpath      int64
+	pathTrucated bool
 }
 
 func setupTests() []testDef {
@@ -109,6 +118,67 @@ func setupTests() []testDef {
 			path: "/",
 			code: 200,
 		},
+		testDef{
+			name: "Test default site ipv6",
+			site: "Default Web Site",
+			addr: "::1",
+			port: 80,
+			path: "/",
+			code: 200,
+		},
+		testDef{
+			name: "Test default site ipv6 bad path",
+			site: "Default Web Site",
+			addr: "::1",
+			port: 80,
+			path: "/foo",
+			code: 404,
+		},
+		testDef{
+			name: "Test site1 ipv6",
+			site: "TestSite1",
+			addr: "::1",
+			port: 8081,
+			path: "/",
+			code: 200,
+		},
+		testDef{
+			name: "Test site2 ipv6",
+			site: "TestSite2",
+			addr: "::1",
+			port: 8082,
+			path: "/",
+			code: 200,
+		},
+		testDef{
+			name:    "Test path limit one short",
+			site:    "Default Web Site",
+			addr:    "127.0.0.1",
+			port:    80,
+			path:    "/eightch",
+			maxpath: 10,
+			code:    404,
+		},
+		testDef{
+			name:         "Test path limit at boundary",
+			site:         "Default Web Site",
+			addr:         "127.0.0.1",
+			port:         80,
+			path:         "/ninechar",
+			pathTrucated: true,
+			maxpath:      10,
+			code:         404,
+		},
+		testDef{
+			name:         "Test path limit one over",
+			site:         "Default Web Site",
+			addr:         "127.0.0.1",
+			port:         80,
+			path:         "/tencharac",
+			pathTrucated: true,
+			maxpath:      10,
+			code:         404,
+		},
 	}
 	return td
 }
@@ -119,96 +189,58 @@ func TestEtwTransactions(t *testing.T) {
 
 	etw := NewEtwInterface(cfg)
 	etw.SetCapturedProtocols(true, true)
+
 	etw.StartReadingHttpFlows()
 
 	time.Sleep(time.Second)
 	for _, test := range setupTests() {
+
 		t.Run(test.name, func(t *testing.T) {
+
+			var expectedMax uint16
+
+			if test.maxpath == 0 {
+				expectedMax = uint16(cfg.HTTPMaxRequestFragment)
+				etw.SetMaxRequestBytes(uint64(cfg.HTTPMaxRequestFragment))
+			} else {
+				expectedMax = uint16(test.maxpath)
+				etw.SetMaxRequestBytes(uint64(test.maxpath))
+			}
 			tx, err := testSitePort(t, etw, test.addr, test.path, test.port)
 			require.NoError(t, err)
 
-			tgtbuf := make([]byte, 25)
-			outbuf, _ := computePath(tgtbuf, tx.RequestFragment)
-			//outbuf, fullpath := computePath(tgtbuf, tx.RequestFragment)
-			//assert.True(t, fullpath)
+			assert.Equal(t, uint16(expectedMax), tx.Txn.MaxRequestFragment)
+			tgtbuf := make([]byte, cfg.HTTPMaxRequestFragment)
+			outbuf, fullpath := computePath(tgtbuf, tx.RequestFragment)
 			as := string(outbuf)
+
+			if test.pathTrucated {
+				assert.Equal(t, int(test.maxpath-1), len(as))
+				assert.Equal(t, test.path[:test.maxpath-1], as)
+				assert.False(t, fullpath, "expecting fullpath to not be set")
+			} else {
+				assert.Equal(t, test.path, as, "unexpected path")
+				assert.True(t, fullpath, "expecting fullpath to be set")
+			}
 
 			expectedAddr := netip.MustParseAddr(test.addr)
 			var hostaddr netip.Addr
 
 			if expectedAddr.Is4() {
-				assert.Equal(t, windows.AF_INET, int(tx.Txn.Tup.Family))
+				assert.Equal(t, windows.AF_INET, int(tx.Txn.Tup.Family), "unexpected address family")
 				hostaddr = netip.AddrFrom4([4]byte(tx.Txn.Tup.LocalAddr[:4]))
 			} else if expectedAddr.Is6() {
-				assert.Equal(t, windows.AF_INET6, int(tx.Txn.Tup.Family))
+				assert.Equal(t, windows.AF_INET6, int(tx.Txn.Tup.Family), "unexpected address family")
 				hostaddr = netip.AddrFrom16(tx.Txn.Tup.LocalAddr)
 			} else {
 				assert.FailNow(t, "Unexpected address family")
 			}
 			assert.Equal(t, expectedAddr, hostaddr)
-			assert.Equal(t, test.path, as, "unexpected path")
-			assert.Equal(t, test.code, tx.Txn.ResponseStatusCode, "unexpected status code")
+			assert.Equal(t, int(test.code), int(tx.Txn.ResponseStatusCode), "unexpected status code")
 			assert.Equal(t, test.port, tx.Txn.Tup.LocalPort, "unexpected port")
 			assert.Equal(t, test.site, tx.SiteName, "unexpected site")
 		})
 
 	}
-	/*
-		t.Run("Test default site ipv4", func(t *testing.T) {
-			tx, err := testSitePort(t, etw, "127.0.0.1", "/", 80)
-			require.NoError(t, err)
-
-			assert.Equal(t, uint16(200), tx.Txn.ResponseStatusCode)
-			tgtbuf := make([]byte, 25)
-			outbuf, _ := computePath(tgtbuf, tx.RequestFragment)
-			//outbuf, fullpath := computePath(tgtbuf, tx.RequestFragment)
-			//assert.True(t, fullpath)
-
-			as := string(outbuf)
-			assert.Equal(t, "/", as)
-			assert.Equal(t, uint16(80), tx.Txn.Tup.LocalPort)
-			assert.Equal(t, "Default Web Site", tx.SiteName)
-		})
-
-		t.Run("Test default site ipv4 PathNotFound", func(t *testing.T) {
-			tx, err := testSitePort(t, etw, "127.0.0.1", "/SomePath", 80)
-			require.NoError(t, err)
-
-			assert.Equal(t, uint16(404), tx.Txn.ResponseStatusCode, "Status code mismatch")
-			tgtbuf := make([]byte, 25)
-			outbuf, _ := computePath(tgtbuf, tx.RequestFragment)
-			//outbuf, fullpath := computePath(tgtbuf, tx.RequestFragment)
-			//assert.True(t, fullpath)
-
-			as := string(outbuf)
-			assert.Equal(t, "/SomePath", as)
-			assert.Equal(t, uint16(80), tx.Txn.Tup.LocalPort)
-			assert.Equal(t, "Default Web Site", tx.SiteName)
-		})
-		/*
-			t.Run("Test default site ipv6", func(t *testing.T) {
-				tx, err := testSitePort(t, etw, "::1", "/", 80)
-				require.NoError(t, err)
-
-				assert.Equal(t, uint16(200), tx.Txn.ResponseStatusCode)
-				tgtbuf := make([]byte, 25)
-				outbuf, _ := computePath(tgtbuf, tx.RequestFragment)
-				//outbuf, fullpath := computePath(tgtbuf, tx.RequestFragment)
-				//assert.True(t, fullpath)
-
-				as := string(outbuf)
-				assert.Equal(t, "/", as)
-				assert.Equal(t, uint16(80), tx.Txn.Tup.LocalPort)
-			})
-	*/
-	/*
-		t.Run("Test site1", func(t *testing.T) {
-			testSitePort(t, etw, 8081, "TestSite1")
-		})
-		t.Run("Test site2", func(t *testing.T) {
-			testSitePort(t, etw, 8082, "TestSite2")
-		})
-	*/
 	etw.Close()
-
 }
