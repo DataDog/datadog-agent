@@ -117,7 +117,8 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(
 					sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
 				),
-				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    command.DaemonLogParams,
 			},
 		),

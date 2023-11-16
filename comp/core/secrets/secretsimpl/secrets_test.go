@@ -216,7 +216,7 @@ func TestWalkerComplex(t *testing.T) {
 }
 
 func TestDecryptNoCommand(t *testing.T) {
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
 		return nil, fmt.Errorf("some error")
 	}
@@ -228,7 +228,7 @@ func TestDecryptNoCommand(t *testing.T) {
 }
 
 func TestDecryptSecretError(t *testing.T) {
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	resolver.backendCommand = "some_command"
 
 	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
@@ -359,7 +359,7 @@ func TestDecrypt(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			currentTest = t
 
-			resolver := newSecretResolver()
+			resolver := newEnabledSecretResolver()
 			resolver.backendCommand = "some_command"
 			if tc.secretCache != nil {
 				resolver.cache = tc.secretCache

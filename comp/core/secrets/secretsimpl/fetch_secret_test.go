@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,16 +81,16 @@ func TestLimitBuffer(t *testing.T) {
 }
 
 func TestExecCommandError(t *testing.T) {
-	inputPayload := "{\"version\": \"" + PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
+	inputPayload := "{\"version\": \"" + secrets.PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 
 	t.Run("Empty secretBackendCommand", func(t *testing.T) {
-		resolver := newSecretResolver()
+		resolver := newEnabledSecretResolver()
 		_, err := resolver.execCommand(inputPayload)
 		require.NotNil(t, err)
 	})
 
 	t.Run("timeout", func(t *testing.T) {
-		resolver := newSecretResolver()
+		resolver := newEnabledSecretResolver()
 		resolver.backendCommand = "./test/timeout/timeout" + binExtension
 		setCorrectRight(resolver.backendCommand)
 		resolver.backendTimeout = 1
@@ -99,7 +100,7 @@ func TestExecCommandError(t *testing.T) {
 	})
 
 	t.Run("No Error", func(t *testing.T) {
-		resolver := newSecretResolver()
+		resolver := newEnabledSecretResolver()
 		resolver.backendCommand = "./test/simple/simple" + binExtension
 		setCorrectRight(resolver.backendCommand)
 		resp, err := resolver.execCommand(inputPayload)
@@ -108,7 +109,7 @@ func TestExecCommandError(t *testing.T) {
 	})
 
 	t.Run("Error returned", func(t *testing.T) {
-		resolver := newSecretResolver()
+		resolver := newEnabledSecretResolver()
 		resolver.backendCommand = "./test/error/error" + binExtension
 		setCorrectRight(resolver.backendCommand)
 		_, err := resolver.execCommand(inputPayload)
@@ -116,7 +117,7 @@ func TestExecCommandError(t *testing.T) {
 	})
 
 	t.Run("argument", func(t *testing.T) {
-		resolver := newSecretResolver()
+		resolver := newEnabledSecretResolver()
 		resolver.backendCommand = "./test/argument/argument" + binExtension
 		setCorrectRight(resolver.backendCommand)
 		resolver.backendArguments = []string{"arg1"}
@@ -129,7 +130,7 @@ func TestExecCommandError(t *testing.T) {
 	})
 
 	t.Run("input", func(t *testing.T) {
-		resolver := newSecretResolver()
+		resolver := newEnabledSecretResolver()
 		resolver.backendCommand = "./test/input/input" + binExtension
 		setCorrectRight(resolver.backendCommand)
 		resp, err := resolver.execCommand(inputPayload)
@@ -138,7 +139,7 @@ func TestExecCommandError(t *testing.T) {
 	})
 
 	t.Run("buffer limit", func(t *testing.T) {
-		resolver := newSecretResolver()
+		resolver := newEnabledSecretResolver()
 		resolver.backendCommand = "./test/response_too_long/response_too_long" + binExtension
 		setCorrectRight(resolver.backendCommand)
 		resolver.responseMaxSize = 20
@@ -149,14 +150,14 @@ func TestExecCommandError(t *testing.T) {
 }
 
 func TestFetchSecretExeceError(t *testing.T) {
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	resolver.commandHookFunc = func(string) ([]byte, error) { return nil, fmt.Errorf("some error") }
 	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
 	assert.NotNil(t, err)
 }
 
 func TestFetchSecretUnmarshalError(t *testing.T) {
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{"), nil }
 	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
 	assert.NotNil(t, err)
@@ -164,7 +165,7 @@ func TestFetchSecretUnmarshalError(t *testing.T) {
 
 func TestFetchSecretMissingSecret(t *testing.T) {
 	secrets := []string{"handle1", "handle2"}
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{}"), nil }
 	_, err := resolver.fetchSecret(secrets)
 	assert.NotNil(t, err)
@@ -172,7 +173,7 @@ func TestFetchSecretMissingSecret(t *testing.T) {
 }
 
 func TestFetchSecretErrorForHandle(t *testing.T) {
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null, \"error\": \"some error\"}}"), nil
 	}
@@ -182,7 +183,7 @@ func TestFetchSecretErrorForHandle(t *testing.T) {
 }
 
 func TestFetchSecretEmptyValue(t *testing.T) {
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null}}"), nil
 	}
@@ -200,7 +201,7 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 
 func TestFetchSecret(t *testing.T) {
 	secrets := []string{"handle1", "handle2"}
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	// some dummy value to check the cache is not purge
 	resolver.cache["test"] = "yes"
 	resolver.commandHookFunc = func(string) ([]byte, error) {
@@ -223,7 +224,7 @@ func TestFetchSecret(t *testing.T) {
 }
 
 func TestFetchSecretRemoveTrailingLineBreak(t *testing.T) {
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\":\"some data\\r\\n\"}}"), nil
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -31,9 +32,15 @@ type MockSecretResolver struct {
 	scenarios []mockSecretScenario
 }
 
+var _ secrets.Component = (*MockSecretResolver)(nil)
+
 func (m *MockSecretResolver) Configure(_ string, _ []string, _, _ int, _, _ bool) {}
 
 func (m *MockSecretResolver) GetDebugInfo(_ io.Writer) {}
+
+func (m *MockSecretResolver) IsEnabled() bool {
+	return true
+}
 
 func (m *MockSecretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
 	if m.scenarios == nil {

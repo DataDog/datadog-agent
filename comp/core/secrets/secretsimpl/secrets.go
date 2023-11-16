@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package secretsimpl is the implementation for the secrets component
 package secretsimpl
 
 import (
@@ -33,6 +34,12 @@ type provides struct {
 	FlareProvider flaretypes.Provider
 }
 
+type dependencies struct {
+	fx.In
+
+	Params secrets.Params
+}
+
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
 	fx.Provide(newSecretResolverProvider),
@@ -41,7 +48,8 @@ var Module = fxutil.Component(
 type handleToContext map[string][]secretContext
 
 type secretResolver struct {
-	cache map[string]string
+	enabled bool
+	cache   map[string]string
 	// list of handles and where they were found
 	origin handleToContext
 
@@ -59,6 +67,8 @@ type secretResolver struct {
 	scrubHookFunc   func([]string)
 }
 
+var _ secrets.Component = (*secretResolver)(nil)
+
 //go:embed info.tmpl
 var secretInfoTmpl string
 
@@ -72,19 +82,26 @@ type secretContext struct {
 
 // TODO: Hack to maintain a singleton reference to the secrets Component
 //
-//	Only needed temporarily, since the secrets Component is needed for
+// Only needed temporarily, since the secrets.Component is needed for the diagnose functionality.
+// It is very difficult right now to modify diagnose because it would require modifying many
+// function signatures, which would only increase future maintenance. Once diagnose is better
+// integrated with Components, we should be able to remove this hack.
+//
+// Other components should not copy this pattern, it is only meant to be used temporarily.
 var mu sync.Mutex
 var instance *secretResolver
 
-func newSecretResolver() *secretResolver {
+func newEnabledSecretResolver() *secretResolver {
 	return &secretResolver{
-		cache:  make(map[string]string),
-		origin: make(handleToContext),
+		cache:   make(map[string]string),
+		origin:  make(handleToContext),
+		enabled: true,
 	}
 }
 
-func newSecretResolverProvider() provides {
-	resolver := newSecretResolver()
+func newSecretResolverProvider(deps dependencies) provides {
+	resolver := newEnabledSecretResolver()
+	resolver.enabled = deps.Params.Enabled
 
 	{
 		mu.Lock()
@@ -100,11 +117,17 @@ func newSecretResolverProvider() provides {
 	}
 }
 
-func GetInstance() *secretResolver {
+func (r *secretResolver) IsEnabled() bool {
+	return r.enabled
+}
+
+// GetInstance returns the singleton instance of the secret.Component
+func GetInstance() secrets.Component {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance == nil {
-		p := newSecretResolverProvider()
+		deps := dependencies{Params: secrets.Params{Enabled: true}}
+		p := newSecretResolverProvider(deps)
 		instance = p.Comp.(*secretResolver)
 	}
 	return instance
@@ -148,6 +171,10 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, yaml
 
 // Configure initializes the executable command and other options of the secrets component
 func (r *secretResolver) Configure(command string, arguments []string, timeout, maxSize int, groupExecPerm, removeLinebreak bool) {
+	if !r.enabled {
+		log.Errorf("Agent secrets is disabled by caller")
+		return
+	}
 	r.backendCommand = command
 	r.backendArguments = arguments
 	r.backendTimeout = timeout
@@ -241,8 +268,13 @@ func isEnc(str string) (bool, string) {
 
 // Decrypt replaces all encrypted secrets in data by executing
 // "secret_backend_command" once if all secrets aren't present in the cache.
-func (resolver *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
-	if data == nil || resolver.backendCommand == "" {
+func (r *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
+	if !r.enabled {
+		e := fmt.Errorf("Agent secrets is disabled by caller")
+		log.Error(e)
+		return nil, e
+	}
+	if data == nil || r.backendCommand == "" {
 		return data, nil
 	}
 
@@ -262,10 +294,10 @@ func (resolver *secretResolver) Decrypt(data []byte, origin string) ([]byte, err
 			if ok, handle := isEnc(str); ok {
 				haveSecret = true
 				// Check if we already know this secret
-				if secret, ok := resolver.cache[handle]; ok {
+				if secret, ok := r.cache[handle]; ok {
 					log.Debugf("Secret '%s' was retrieved from cache", handle)
 					// keep track of place where a handle was found
-					resolver.registerSecretOrigin(handle, origin, yamlPath)
+					r.registerSecretOrigin(handle, origin, yamlPath)
 					return secret, nil
 				}
 				newHandles = append(newHandles, handle)
@@ -285,10 +317,10 @@ func (resolver *secretResolver) Decrypt(data []byte, origin string) ([]byte, err
 	if len(newHandles) != 0 {
 		var secrets map[string]string
 		var err error
-		if resolver.fetchHookFunc != nil {
-			secrets, err = resolver.fetchHookFunc(newHandles)
+		if r.fetchHookFunc != nil {
+			secrets, err = r.fetchHookFunc(newHandles)
 		} else {
-			secrets, err = resolver.fetchSecret(newHandles)
+			secrets, err = r.fetchSecret(newHandles)
 		}
 		if err != nil {
 			return nil, err
@@ -303,7 +335,7 @@ func (resolver *secretResolver) Decrypt(data []byte, origin string) ([]byte, err
 					if secret, ok := secrets[handle]; ok {
 						log.Debugf("Secret '%s' was retrieved from executable", handle)
 						// keep track of place where a handle was found
-						resolver.registerSecretOrigin(handle, origin, yamlPath)
+						r.registerSecretOrigin(handle, origin, yamlPath)
 						return secret, nil
 					}
 					// This should never happen since fetchSecret will return an error
@@ -334,6 +366,10 @@ type secretInfo struct {
 
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
 func (r *secretResolver) GetDebugInfo(w io.Writer) {
+	if !r.enabled {
+		log.Errorf("Agent secrets is disabled by caller")
+		return
+	}
 	if r.backendCommand == "" {
 		fmt.Fprintf(w, "No secret_backend_command set: secrets feature is not enabled")
 		return

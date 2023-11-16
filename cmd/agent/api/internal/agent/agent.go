@@ -423,7 +423,7 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonDump)
 }
 
-func secretInfo(w http.ResponseWriter, r *http.Request, secretResolver secrets.Component) {
+func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
 	secretResolver.GetDebugInfo(w)
 }
 

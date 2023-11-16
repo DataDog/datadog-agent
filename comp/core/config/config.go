@@ -28,6 +28,8 @@ type cfg struct {
 	warnings *config.Warnings
 }
 
+// configDependencies is an interface that mimics the fx-oriented dependencies struct
+// TODO: investigate whether this interrface is worth keeping, otherwise delete it and just use dependencies
 type configDependencies interface {
 	getParams() *Params
 	getSecretResolver() secrets.Component
@@ -51,7 +53,7 @@ func (d dependencies) getSecretResolver() secrets.Component {
 // NewServerlessConfig initializes a config component from the given config file
 // TODO: serverless must be eventually migrated to fx, this workaround will then become obsolete - ts should not be created directly in this fashion.
 func NewServerlessConfig(path string) (Component, error) {
-	options := []func(*Params){WithConfigName("serverless"), WithConfigLoadSecrets(true)}
+	options := []func(*Params){WithConfigName("serverless")}
 
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) &&

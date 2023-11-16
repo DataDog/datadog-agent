@@ -27,7 +27,7 @@ instances:
 )
 
 func TestGetExecutablePermissionsError(t *testing.T) {
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	resolver.backendCommand = "some_command"
 
 	_, err := getExecutablePermissions(resolver)
@@ -54,7 +54,7 @@ func setupSecretCommand(t *testing.T, resolver *secretResolver) (string, string)
 }
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
 	res, err := getExecutablePermissions(resolver)
@@ -67,7 +67,7 @@ func TestGetExecutablePermissionsSuccess(t *testing.T) {
 }
 
 func TestDebugInfo(t *testing.T) {
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {
@@ -111,7 +111,7 @@ Secrets handle decrypted:
 }
 
 func TestDebugInfoError(t *testing.T) {
-	resolver := newSecretResolver()
+	resolver := newEnabledSecretResolver()
 	resolver.backendCommand = "some_command"
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {

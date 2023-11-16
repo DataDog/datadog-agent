@@ -62,7 +62,7 @@ Package log implements a component to handle logging internal to the agent.
 
 ### [comp/core/secrets](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/secrets)
 
-Package secrets
+Package secrets decodes secret values by invoking the configured executable command
 
 ### [comp/core/sysprobeconfig](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/sysprobeconfig)
 
