@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -148,7 +147,6 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 			delete(k.configErrors, entityName)
 
 		default:
-			telemetry.Errors.Inc(names.KubeContainer)
 			log.Errorf("cannot handle event of type %d", event.Type)
 		}
 	}
@@ -188,7 +186,6 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 		for _, podContainer := range entity.GetAllContainers() {
 			container, err := k.workloadmetaStore.GetContainer(podContainer.ID)
 			if err != nil {
-				telemetry.Errors.Inc(names.KubeContainer)
 				log.Debugf("Pod %q has reference to non-existing container %q", entity.Name, podContainer.ID)
 				continue
 			}
@@ -248,7 +245,6 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 			containerNames)...)
 
 	default:
-		telemetry.Errors.Inc(names.KubeContainer)
 		log.Errorf("cannot handle entity of kind %s", e.GetID().Kind)
 	}
 
