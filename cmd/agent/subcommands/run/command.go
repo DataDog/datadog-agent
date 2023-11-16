@@ -285,6 +285,16 @@ func getSharedFxOption() fx.Option {
 					common.LoadComponents(common.MainCtx, demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
+				OnStop: func(ctx context.Context) error {
+					if common.AC != nil {
+						common.AC.Stop()
+					}
+
+					// gracefully shut down any component
+					common.MainCtxCancel()
+
+					return nil
+				},
 			})
 		}),
 		logs.Bundle,
@@ -590,9 +600,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 		}
 	}
 	server.Stop()
-	if common.AC != nil {
-		common.AC.Stop()
-	}
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}
@@ -609,9 +616,6 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 	profiler.Stop()
 
 	os.Remove(cliParams.pidfilePath)
-
-	// gracefully shut down any component
-	common.MainCtxCancel()
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()
