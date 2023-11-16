@@ -23,7 +23,7 @@ rc_kubernetes_deploy_experimental:
   tags: ["arch:amd64"]
   variables:
     OPTION_AUTOMATIC_ROLLOUT: "true"
-    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh env=all-staging 7.50.0-rc.2-jmx 7.50.0-rc.2"
+    OPTION_PRE_SCRIPT: "patch-cluster-images-operator.sh env=all-staging 7.50.0-rc.3-jmx 7.50.0-rc.3"
     SKIP_PLAN_CHECK: "true"
     EXPLICIT_WORKFLOWS: "//workflows:deploy_rc.agents_rc"
   script:
