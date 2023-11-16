@@ -195,13 +195,12 @@ func (c *ClusterChecksConfigProvider) heartbeatSender(ctx context.Context) {
 				postCtx, cancel := context.WithTimeout(ctx, postStatusTimeout)
 				defer cancel()
 				if err := c.postHeartbeat(postCtx); err == nil {
-					extraHeartbeatTime = currentTime
 					log.Infof("Sent extra heartbeat at: %v", currentTime)
 				} else {
 					telemetry.Errors.Inc(names.ClusterChecks)
 					log.Warnf("Unable to send extra heartbeat to Cluster Agent, err: %v", err)
-					extraHeartbeatTime = currentTime
 				}
+				extraHeartbeatTime = currentTime
 			}
 
 		case <-ctx.Done():
