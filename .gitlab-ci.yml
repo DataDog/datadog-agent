@@ -846,7 +846,7 @@ workflow:
     when: never
   - <<: *if_kitchen
 
-.on_all_new-e2e_test_a7:
+.on_all_new-e2e_tests_a7:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_run_all_builds
