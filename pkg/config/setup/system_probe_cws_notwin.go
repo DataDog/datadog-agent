@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-package config
+package setup
 
 func platformCWSConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)

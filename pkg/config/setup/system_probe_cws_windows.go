@@ -5,7 +5,7 @@
 
 //go:build windows
 
-package config
+package setup
 
 import (
 	"path/filepath"

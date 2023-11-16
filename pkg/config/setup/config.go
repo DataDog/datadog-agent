@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package config defines the configuration of the agent
-package config
+package setup
 
 import (
 	"bytes"
