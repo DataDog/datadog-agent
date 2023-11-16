@@ -3,5 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2018-present Datadog, Inc.
 
-// Package winutil - Windows utility functions
-package wnutil
+//Package winutil - Windows utility functions
+package winutil

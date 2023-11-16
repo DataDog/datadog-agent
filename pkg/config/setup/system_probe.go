@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -58,7 +59,7 @@ const (
 )
 
 // InitSystemProbeConfig declares all the configuration values normally read from system-probe.yaml.
-func InitSystemProbeConfig(cfg Config) {
+func InitSystemProbeConfig(cfg pkgconfigmodel.Config) {
 
 	cfg.BindEnvAndSetDefault("ignore_host_etc", false)
 	cfg.BindEnvAndSetDefault("go_core_dump", false)
@@ -346,7 +347,7 @@ func suffixHostEtc(suffix string) string {
 // eventMonitorBindEnvAndSetDefault is a helper function that generates both "DD_RUNTIME_SECURITY_CONFIG_" and "DD_EVENT_MONITORING_CONFIG_"
 // prefixes from a key. We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix, but we want to
 // support both for backwards compatibility.
-func eventMonitorBindEnvAndSetDefault(config Config, key string, val interface{}) {
+func eventMonitorBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, val interface{}) {
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.
 	emConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
@@ -357,7 +358,7 @@ func eventMonitorBindEnvAndSetDefault(config Config, key string, val interface{}
 }
 
 // eventMonitorBindEnv is the same as eventMonitorBindEnvAndSetDefault, but without setting a default.
-func eventMonitorBindEnv(config Config, key string) {
+func eventMonitorBindEnv(config pkgconfigmodel.Config, key string) {
 	emConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
 	runtimeSecKey := strings.Replace(emConfigKey, "EVENT_MONITORING_CONFIG", "RUNTIME_SECURITY_CONFIG", 1)
 

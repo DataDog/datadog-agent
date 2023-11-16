@@ -13,13 +13,14 @@ import (
 	"strconv"
 	"strings"
 
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Traces specifies the data type used for Vector override. See https://vector.dev/docs/reference/configuration/sources/datadog_agent/ for additional details.
 const Traces DataType = "traces"
 
-func setupAPM(config Config) {
+func setupAPM(config pkgconfigmodel.Config) {
 	config.BindEnv("apm_config.obfuscation.elasticsearch.enabled", "DD_APM_OBFUSCATION_ELASTICSEARCH_ENABLED")
 	config.BindEnv("apm_config.obfuscation.elasticsearch.keep_values", "DD_APM_OBFUSCATION_ELASTICSEARCH_KEEP_VALUES")
 	config.BindEnv("apm_config.obfuscation.elasticsearch.obfuscate_sql_values", "DD_APM_OBFUSCATION_ELASTICSEARCH_OBFUSCATE_SQL_VALUES")

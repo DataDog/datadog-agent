@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -88,7 +88,7 @@ var processesAddOverrideOnce sync.Once
 
 // procBindEnvAndSetDefault is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key.
 // We need this helper function because the standard BindEnvAndSetDefault can only generate one prefix from a key.
-func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
+func procBindEnvAndSetDefault(config pkgconfigmodel.Config, key string, val interface{}) {
 	// Uppercase, replace "." with "_" and add "DD_" prefix to key so that we follow the same environment
 	// variable convention as the core agent.
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
@@ -100,14 +100,14 @@ func procBindEnvAndSetDefault(config Config, key string, val interface{}) {
 
 // procBindEnv is a helper function that generates both "DD_PROCESS_CONFIG_" and "DD_PROCESS_AGENT_" prefixes from a key, but does not set a default.
 // We need this helper function because the standard BindEnv can only generate one prefix from a key.
-func procBindEnv(config Config, key string) {
+func procBindEnv(config pkgconfigmodel.Config, key string) {
 	processConfigKey := "DD_" + strings.Replace(strings.ToUpper(key), ".", "_", -1)
 	processAgentKey := strings.Replace(processConfigKey, "PROCESS_CONFIG", "PROCESS_AGENT", 1)
 
 	config.BindEnv(key, processConfigKey, processAgentKey)
 }
 
-func setupProcesses(config Config) {
+func setupProcesses(config pkgconfigmodel.Config) {
 	// "process_config.enabled" is deprecated. We must still be able to detect if it is present, to know if we should use it
 	// or container_collection.enabled and process_collection.enabled.
 	procBindEnv(config, "process_config.enabled")
@@ -206,38 +206,38 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.language_detection.grpc_port", DefaultProcessEntityStreamPort)
 
 	processesAddOverrideOnce.Do(func() {
-		AddOverrideFunc(loadProcessTransforms)
+		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
 	})
 }
 
 // loadProcessTransforms loads transforms associated with process config settings.
-func loadProcessTransforms(config Config) {
+func loadProcessTransforms(config pkgconfigmodel.Config) {
 	if config.IsSet("process_config.enabled") {
 		log.Info("process_config.enabled is deprecated, use process_config.container_collection.enabled " +
 			"and process_config.process_collection.enabled instead, " +
 			"see https://docs.datadoghq.com/infrastructure/process#installation for more information")
 		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
 		if procConfigEnabled == "disabled" {
-			config.Set("process_config.process_collection.enabled", false, model.SourceAgentRuntime)
-			config.Set("process_config.container_collection.enabled", false, model.SourceAgentRuntime)
+			config.Set("process_config.process_collection.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			config.Set("process_config.container_collection.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 		} else if enabled, _ := strconv.ParseBool(procConfigEnabled); enabled { // "true"
-			config.Set("process_config.process_collection.enabled", true, model.SourceAgentRuntime)
-			config.Set("process_config.container_collection.enabled", false, model.SourceAgentRuntime)
+			config.Set("process_config.process_collection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
+			config.Set("process_config.container_collection.enabled", false, pkgconfigmodel.SourceAgentRuntime)
 		} else { // "false"
-			config.Set("process_config.process_collection.enabled", false, model.SourceAgentRuntime)
-			config.Set("process_config.container_collection.enabled", true, model.SourceAgentRuntime)
+			config.Set("process_config.process_collection.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			config.Set("process_config.container_collection.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 		}
 	}
 }
 
 // GetProcessAPIAddressPort returns the API endpoint of the process agent
-func GetProcessAPIAddressPort() (string, error) {
-	address, err := GetIPCAddress()
+func GetProcessAPIAddressPort(config pkgconfigmodel.Reader) (string, error) {
+	address, err := GetIPCAddress(config)
 	if err != nil {
 		return "", err
 	}
 
-	port := Datadog.GetInt("process_config.cmd_port")
+	port := config.GetInt("process_config.cmd_port")
 	if port <= 0 {
 		log.Warnf("Invalid process_config.cmd_port -- %d, using default port %d", port, DefaultProcessCmdPort)
 		port = DefaultProcessCmdPort
