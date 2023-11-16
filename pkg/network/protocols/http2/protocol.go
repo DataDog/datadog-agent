@@ -34,9 +34,9 @@ type protocol struct {
 	// TODO: Do we need to duplicate?
 	telemetry *http.Telemetry
 	// TODO: Do we need to duplicate?
-	statkeeper     *http.StatKeeper
-	mapCleaner     *ddebpf.MapCleaner
-	eventsConsumer *events.Consumer
+	statkeeper              *http.StatKeeper
+	http2InFlightMapCleaner *ddebpf.MapCleaner
+	eventsConsumer          *events.Consumer
 
 	terminatedConnectionsEventsConsumer *events.Consumer
 }
@@ -197,14 +197,14 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 
 func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
-	p.setupMapCleaner(mgr)
+	p.setupHTTP2InFlightMapCleaner(mgr)
 
 	return nil
 }
 
 func (p *protocol) Stop(_ *manager.Manager) {
-	// mapCleaner handles nil pointer receivers
-	p.mapCleaner.Stop()
+	// http2InFlightMapCleaner handles nil pointer receivers
+	p.http2InFlightMapCleaner.Stop()
 
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
@@ -249,7 +249,7 @@ func (p *protocol) processTerminatedConnections([]byte) {
 	// Currently empty
 }
 
-func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
+func (p *protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	http2Map, _, err := mgr.GetMap(inFlightMap)
 	if err != nil {
 		log.Errorf("error getting %q map: %s", inFlightMap, err)
@@ -276,7 +276,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 		return started > 0 && (now-started) > ttl
 	})
 
-	p.mapCleaner = mapCleaner
+	p.http2InFlightMapCleaner = mapCleaner
 }
 
 // GetStats returns a map of HTTP2 stats stored in the following format:
