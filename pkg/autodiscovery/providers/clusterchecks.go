@@ -200,6 +200,7 @@ func (c *ClusterChecksConfigProvider) heartbeatSender(ctx context.Context) {
 				} else {
 					telemetry.Errors.Inc(names.ClusterChecks)
 					log.Warnf("Unable to send extra heartbeat to Cluster Agent, err: %v", err)
+					extraHeartbeatTime = currentTime
 				}
 			}
 
@@ -211,7 +212,7 @@ func (c *ClusterChecksConfigProvider) heartbeatSender(ctx context.Context) {
 
 func (c *ClusterChecksConfigProvider) postHeartbeat(ctx context.Context) error {
 	if c.dcaClient == nil {
-		return errors.New("DCA Client not initialized by main provider, cannot post heartbeat")
+		return errors.New("DCA Client not initialized by main provider yet, cannot post heartbeat, wait for init completion")
 	}
 
 	status := types.NodeStatus{
