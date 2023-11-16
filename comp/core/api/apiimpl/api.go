@@ -7,6 +7,8 @@
 package apiimpl
 
 import (
+	"net"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/api"
@@ -18,10 +20,17 @@ var Module = fxutil.Component(
 	fx.Provide(newAPIServer),
 )
 
-type apiServer struct{}
+type apiServer struct {
+	listener net.Listener
+}
 
 var _ api.Component = (*apiServer)(nil)
 
 func newAPIServer() api.Component {
 	return &apiServer{}
+}
+
+// ServerAddress retruns the server address.
+func (server *apiServer) ServerAddress() *net.TCPAddr {
+	return server.listener.Addr().(*net.TCPAddr)
 }

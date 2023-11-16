@@ -171,8 +171,3 @@ func StopServer() {
 		listener.Close()
 	}
 }
-
-// ServerAddress retruns the server address.
-func ServerAddress() *net.TCPAddr {
-	return listener.Addr().(*net.TCPAddr)
-}

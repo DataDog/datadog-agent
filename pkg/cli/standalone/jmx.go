@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api"
+	internalAPI "github.com/DataDog/datadog-agent/comp/core/api"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -25,37 +26,37 @@ import (
 // ExecJMXCommandConsole runs the provided JMX command name on the selected checks, and
 // reports with the ConsoleReporter to the agent's `log.Info`.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, senderManager sender.DiagnoseSenderManager) error {
-	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel, configs, senderManager)
+func ExecJMXCommandConsole(command string, selectedChecks []string, logLevel string, configs []integration.Config, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component) error {
+	return execJmxCommand(command, selectedChecks, jmxfetch.ReporterConsole, log.JMXInfo, logLevel, configs, senderManager, agentAPI)
 }
 
 // ExecJmxListWithMetricsJSON runs the JMX command with "with-metrics", reporting
 // the data as a JSON on the console. It is used by the `check jmx` cli command
 // of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, senderManager sender.DiagnoseSenderManager) error {
+func ExecJmxListWithMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component) error {
 	// don't pollute the JSON with the log pattern.
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
 	}
-	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel, configs, senderManager)
+	return execJmxCommand("list_with_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel, configs, senderManager, agentAPI)
 }
 
 // ExecJmxListWithRateMetricsJSON runs the JMX command with "with-rate-metrics", reporting
 // the data as a JSON on the console. It is used by the `check jmx --rate` cli command
 // of the Agent.
 // The common utils, including AutoConfig, must have already been initialized.
-func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, senderManager sender.DiagnoseSenderManager) error {
+func ExecJmxListWithRateMetricsJSON(selectedChecks []string, logLevel string, configs []integration.Config, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component) error {
 	// don't pollute the JSON with the log pattern.
 	out := func(a ...interface{}) {
 		fmt.Println(a...)
 	}
-	return execJmxCommand("list_with_rate_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel, configs, senderManager)
+	return execJmxCommand("list_with_rate_metrics", selectedChecks, jmxfetch.ReporterJSON, out, logLevel, configs, senderManager, agentAPI)
 }
 
 // execJmxCommand runs the provided JMX command name on the selected checks.
 // The common utils, including AutoConfig, must have already been initialized.
-func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.JMXReporter, output func(...interface{}), logLevel string, configs []integration.Config, senderManager sender.DiagnoseSenderManager) error {
+func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.JMXReporter, output func(...interface{}), logLevel string, configs []integration.Config, senderManager sender.DiagnoseSenderManager, agentAPI internalAPI.Component) error {
 	// start the cmd HTTP server
 	if err := api.StartServer(nil, nil, nil, nil, nil, util.NewNoneOptional[logsAgent.Component](), senderManager, nil, nil); err != nil {
 		return fmt.Errorf("Error while starting api server, exiting: %v", err)
@@ -65,7 +66,7 @@ func execJmxCommand(command string, selectedChecks []string, reporter jmxfetch.J
 
 	runner.Reporter = reporter
 	runner.Command = command
-	runner.IPCPort = api.ServerAddress().Port
+	runner.IPCPort = agentAPI.ServerAddress().Port
 	runner.Output = output
 	runner.LogLevel = logLevel
 

@@ -6,8 +6,11 @@
 // Package api ... /* TODO: detailed doc comment for the component */
 package api
 
+import "net"
+
 // team: agent-shared-components
 
 // Component is the component type.
 type Component interface {
+	ServerAddress() *net.TCPAddr
 }
