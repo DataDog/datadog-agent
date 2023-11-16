@@ -141,7 +141,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, flareComp flare.Component
 	}
 
 	// Reset the `server_timeout` deadline for this connection as creating a flare can take some time
-	conn := GetConnection(r)
+	conn := getConnection(r)
 	_ = conn.SetDeadline(time.Time{})
 
 	var filePath string
@@ -264,7 +264,7 @@ func getStreamFunc(messageReceiverFunc func() *diagnostic.BufferedMessageReceive
 		}
 
 		// Reset the `server_timeout` deadline for this connection as streaming holds the connection open.
-		conn := GetConnection(r)
+		conn := getConnection(r)
 		_ = conn.SetDeadline(time.Time{})
 
 		done := make(chan struct{})
@@ -499,7 +499,7 @@ func getDiagnose(w http.ResponseWriter, r *http.Request, senderManager sender.Di
 	}
 
 	// Reset the `server_timeout` deadline for this connection as running diagnose code in Agent process can take some time
-	conn := GetConnection(r)
+	conn := getConnection(r)
 	_ = conn.SetDeadline(time.Time{})
 
 	// Indicate that we are already running in Agent process (and flip RunLocal)
@@ -529,7 +529,7 @@ func max(a, b int) int {
 	return b
 }
 
-// GetConnection returns the connection for the request
-func GetConnection(r *http.Request) net.Conn {
+// getConnection returns the connection for the request
+func getConnection(r *http.Request) net.Conn {
 	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
 }
