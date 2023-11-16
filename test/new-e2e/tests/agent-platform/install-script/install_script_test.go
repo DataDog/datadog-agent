@@ -31,6 +31,7 @@ import (
 var osVersion = flag.String("osversion", "", "os version to test")
 var platform = flag.String("platform", "", "platform to test")
 var cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
+var architecture = flag.String("arch", "", "architecture to test (x86_64, arm64))")
 
 type installScriptSuite struct {
 	e2e.Suite[e2e.VMEnv]
@@ -48,7 +49,13 @@ func TestInstallScript(t *testing.T) {
 		"fedora":      ec2os.FedoraOS,
 		"suse":        ec2os.SuseOS,
 	}
-	platformJSON := map[string]map[string]string{}
+
+	archMapping := map[string]e2eOs.Architecture{
+		"x86_64": e2eOs.AMD64Arch,
+		"arm64":  e2eOs.ARM64Arch,
+	}
+
+	platformJSON := map[string]map[string]map[string]string{}
 
 	err := json.Unmarshal(platforms.Content, &platformJSON)
 	require.NoErrorf(t, err, "failed to umarshall platform file: %v", err)
@@ -66,10 +73,10 @@ func TestInstallScript(t *testing.T) {
 			}
 		}
 
-		t.Run(fmt.Sprintf("test install script on %s", osVers), func(tt *testing.T) {
+		t.Run(fmt.Sprintf("test install script on %s %s", osVers, *architecture), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
-			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][osVers], e2eOs.AMD64Arch, osMapping[*platform])), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
+			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
 		})
 	}
 }
