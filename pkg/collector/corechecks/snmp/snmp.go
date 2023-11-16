@@ -171,7 +171,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	rcProvider := NewRemoteConfigProvider()
 
 	// Spin up the config provider to schedule integrations through remote-config
-	rcClient.Subscribe(data.ProductAgentIntegrations, rcProvider.IntegrationScheduleCallback)
+	rcClient.Subscribe(string(data.ProductNDMDeviceProfilesCustom), rcProvider.IntegrationScheduleCallback)
 
 	return nil
 }
