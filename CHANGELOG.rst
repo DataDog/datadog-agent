@@ -2,6 +2,36 @@
 Release Notes
 =============
 
+.. _Release Notes_7.49.1:
+
+7.49.1 / 6.49.1
+======
+
+.. _Release Notes_7.49.1_Prelude:
+
+Prelude
+-------
+
+Release on: 2023-11-15
+
+- Please refer to the `7.49.1 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7491>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.49.1_Bug Fixes:
+
+Bug Fixes
+---------
+
+- CWS: add ``arch`` field into agent context included in CWS events.
+
+- APM: Fix a deadlock issue which can prevent the trace-agent from shutting down.
+
+- CWS: Fix the broken lineage check for process activity in CWS.
+
+- APM: fix a regression in the Trace Agent that caused container tagging
+  with UDS and cgroup v2 to fail.
+
+
 .. _Release Notes_7.49.0:
 
 7.49.0 / 6.49.0
