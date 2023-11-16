@@ -510,7 +510,7 @@ func cleanupCmd(region string, assumedRole string, dryRun bool) error {
 	for resourceType, resources := range toBeDeleted {
 		fmt.Printf("  - %s:\n", resourceType)
 		for _, resourceID := range resources {
-			fmt.Printf("    - %s:\n", resourceID)
+			fmt.Printf("    - %s\n", resourceID)
 		}
 	}
 	if !dryRun {
@@ -898,6 +898,9 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client) (map[ec
 func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDeleted map[ec2types.ResourceType][]string) {
 	for resourceType, resources := range toBeDeleted {
 		for _, resourceID := range resources {
+			if err := ctx.Err(); err != nil {
+				return
+			}
 			log.Infof("cleaning up resource %s/%s", resourceType, resourceID)
 			var err error
 			switch resourceType {
@@ -986,6 +989,7 @@ retry:
 	if err == nil {
 		log.Debugf("volume snapshotting finished sucessfully %q (took %s)", snapshotID, snapshotDuration)
 		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), metrictags, 1.0)
+		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(metrictags), 1.0)
 	} else {
 		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(metrictags), 1.0)
 	}
