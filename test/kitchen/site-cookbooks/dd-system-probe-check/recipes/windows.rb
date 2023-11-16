@@ -65,11 +65,11 @@ cookbook_file "c:\\tmp\\inetpub\\testsite2\\iisstart.png" do
   source 'iisstart.png'
 end
 execute "create testsite 1" do
-  command "powershell -C \"New-IISSite -Name 'TestSite1' -BindingInformation '*:8080:' -PhysicalPath c:\\tmp\\inetpub\\testsite1\""
+  command "powershell -C \"New-IISSite -Name 'TestSite1' -BindingInformation '*:8081:' -PhysicalPath c:\\tmp\\inetpub\\testsite1\""
 end
 
 execute "create testsite 2" do
-  command "powershell -C \"New-IISSite -Name 'TestSite2' -BindingInformation '*:8081:' -PhysicalPath c:\\tmp\\inetpub\\testsite2\""
+  command "powershell -C \"New-IISSite -Name 'TestSite2' -BindingInformation '*:8082:' -PhysicalPath c:\\tmp\\inetpub\\testsite2\""
 end
 
 if driver_path == "testsigned"

@@ -74,10 +74,10 @@ func TestEtwTransactions(t *testing.T) {
 		testSitePort(t, etw, 80, "Default Web Site")
 	})
 	t.Run("Test site1", func(t *testing.T) {
-		testSitePort(t, etw, 8080, "TestSite1")
+		testSitePort(t, etw, 8081, "TestSite1")
 	})
 	t.Run("Test site2", func(t *testing.T) {
-		testSitePort(t, etw, 8081, "TestSite2")
+		testSitePort(t, etw, 8082, "TestSite2")
 	})
 	etw.Close()
 
