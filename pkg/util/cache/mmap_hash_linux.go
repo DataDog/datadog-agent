@@ -285,6 +285,7 @@ func (table *mmapHash) stats() (float64, float64) {
 	return table.valueMean, table.valueM2 / float64(table.valueCount)
 }
 
+// Name of the mmapHash, printable and slightly sanitized.
 func (table *mmapHash) Name() string {
 	if len(table.name) == 0 {
 		return "<empty>"
@@ -457,7 +458,7 @@ func Report() {
 	level, err := log.GetLogLevel()
 	if err != nil {
 		// Weird, log the logging level.
-		log.Errorf("Report: GetLogLevel: %v", err)
+		_ = log.Errorf("Report: GetLogLevel: %v", err)
 	} else if level > seelog.DebugLvl {
 		// Nothing here will get printed, so don't bother doing the work.
 		return

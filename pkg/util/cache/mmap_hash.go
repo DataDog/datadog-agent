@@ -4,20 +4,22 @@ package cache
 
 import (
 	"errors"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// MaxValueSize is the largest possible value we can store.
 const MaxValueSize = 4080
 
 // Stub implementation for mmap_hash for non-Linux platforms.
 
+// Report the mmap hashes in use and any failed checks.
 func Report() {
-	log.Debug("Stub MMAP Report")
+	// Nothing to report on.
 }
 
 type mmapHash struct {
 }
 
+// Name of a mmapHash.  Based on origin.
 func (*mmapHash) Name() string {
 	return "unimplemented"
 }
@@ -37,14 +39,13 @@ func newMmapHash(origin string, fileSize int64, prefixPath string, closeOnReleas
 	return nil, errors.New("unsupported platform for mmap hash")
 }
 
-func CheckKnown(tag string) string {
-	return tag
-}
-
+// Check a string to make sure it's still valid.  Save a histogram of failures for tracking
 func Check(tag string) bool {
 	return true
 }
 
+// CheckDefault checks a string and returns it if it's valid, or returns an indicator of where
+// it was called for debugging.
 func CheckDefault(tag string) string {
 	return tag
 }
