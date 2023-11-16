@@ -461,20 +461,29 @@ func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
 		containers: containers,
 	}
 	fakeDCAClient := FakeDCAClient{}
-	workloadmetaStore := fakeWorkloadmetaStore{}
+
+	// We do not inject any collectors here; we instantiate
+	// and initialize it out-of-band below. That's OK.
+	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule,
+	))
 
 	c := collector{
 		gardenUtil: &fakeGardenUtil,
-		store:      &workloadmetaStore,
+		store:      workloadmetaStore,
 		dcaClient:  &fakeDCAClient,
 		dcaEnabled: false, // disabled DCA
 	}
 
 	err := c.Pull(context.TODO())
 	assert.NoError(t, err)
-	assert.NotEmpty(t, workloadmetaStore.notifiedEvents)
 
-	event0 := workloadmetaStore.notifiedEvents[0]
+	evs := workloadmetaStore.GetNotifiedEvents()
+	assert.NotEmpty(t, evs)
+
+	event0 := evs[0]
 	containerEntity, ok := event0.Entity.(*workloadmeta.Container)
 	assert.True(t, ok)
 	assert.Contains(t, containerEntity.CollectorTags, fmt.Sprintf("container_name:%s", "app-name-1"))
