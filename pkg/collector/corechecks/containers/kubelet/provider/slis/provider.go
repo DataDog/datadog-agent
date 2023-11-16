@@ -56,21 +56,15 @@ func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Se
 	for _, metric := range metricFam.Samples {
 		metricSuffix := string(metric.Metric["__name__"])
 		tags := p.MetricTags(metric)
-		typePresent := false
 		for i, tag := range tags {
 			if strings.HasPrefix(tag, "name:") {
 				tags[i] = strings.Replace(tag, "name:", "sli_name:", 1)
 			}
-			if strings.HasPrefix(tag, "type:") {
-				typePresent = true
-			}
 		}
 
-		if typePresent {
-			tags = lo.Filter(tags, func(x string, index int) bool {
-				return x != "type:"
-			})
-		}
+		tags = lo.Filter(tags, func(x string, index int) bool {
+			return !strings.HasPrefix(x, "type")
+		})
 
 		switch metricSuffix {
 		case "kubernetes_healthchecks_total":
