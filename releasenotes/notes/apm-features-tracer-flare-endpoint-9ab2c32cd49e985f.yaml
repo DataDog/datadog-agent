@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    APM: Added a new endpoint tracer_flare/v1/. This endpoint acts as a 
+    proxy to forward HTTP POST request from tracers to the serverless_flare 
+    endpoint, allowing tracer flares to be triggered via remote config, improving
+    the support experience by automating the collection of logs.
+

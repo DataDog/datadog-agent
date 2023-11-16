@@ -149,7 +149,7 @@ int hook_do_dentry_open(ctx_t *ctx) {
     struct file *file = (struct file *)CTX_PARM1(ctx);
     struct inode *inode = (struct inode *)CTX_PARM2(ctx);
 
-    return handle_exec_event(ctx, syscall, file, &file->f_path, inode);
+    return handle_exec_event(ctx, syscall, file, get_file_f_path_addr(file), inode);
 }
 
 int __attribute__((always_inline)) trace_io_openat(ctx_t *ctx) {

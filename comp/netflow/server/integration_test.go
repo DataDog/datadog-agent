@@ -8,6 +8,14 @@
 package server
 
 import (
+	"context"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
+	"github.com/netsampler/goflow2/decoders/netflow/templates"
+	"github.com/netsampler/goflow2/utils"
+	"github.com/sirupsen/logrus"
+	"go.uber.org/atomic"
+	"net"
 	"testing"
 	"time"
 
@@ -132,4 +140,137 @@ func TestNetFlow_IntegrationTest_SFlow5(t *testing.T) {
 	require.NoError(t, err, "error getting sflow data")
 
 	assertFlowEventsCount(t, port, srv, packetData, 7)
+}
+
+func TestNetFlow_IntegrationTest_AdditionalFields(t *testing.T) {
+	port, err := ndmtestutils.GetFreePort()
+	require.NoError(t, err)
+	var epForwarder forwarder.MockComponent
+	srv := fxutil.Test[Component](t, fx.Options(
+		testOptions,
+		fx.Populate(&epForwarder),
+		fx.Replace(
+			&nfconfig.NetflowConfig{
+				Enabled:                 true,
+				AggregatorFlushInterval: 1,
+				Listeners: []nfconfig.ListenerConfig{{
+					FlowType: common.TypeNetFlow9,
+					BindHost: "127.0.0.1",
+					Port:     port,
+					Mapping: []nfconfig.Mapping{
+						{
+							Field:       11,
+							Destination: "source.port", // Inverting source and destination port to test
+							Type:        common.Integer,
+						},
+						{
+							Field:       7,
+							Destination: "destination.port",
+						},
+						{
+							Field:       32,
+							Destination: "icmp_type",
+							Type:        common.Hex,
+						},
+					},
+				}},
+			},
+		),
+		setTimeNow,
+	)).(*Server)
+
+	flowData, err := testutil.GetNetFlow9Packet()
+	require.NoError(t, err, "error getting packet")
+
+	// Set expectations
+	testutil.ExpectPayloadWithAdditionalFields(t, epForwarder)
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), "network-devices-metadata").Return(nil).Times(1)
+
+	assertFlowEventsCount(t, port, srv, flowData, 29)
+}
+
+func BenchmarkNetflowAdditionalFields(b *testing.B) {
+	flowChan := make(chan *common.Flow, 10)
+	listenerFlowCount := atomic.NewInt64(0)
+
+	go func() {
+		for {
+			// Consume chan while benchmarking
+			<-flowChan
+		}
+	}()
+
+	formatDriver := goflowlib.NewAggregatorFormatDriver(flowChan, "bench", listenerFlowCount)
+	logrusLogger := logrus.StandardLogger()
+	ctx := context.Background()
+
+	templateSystem, err := templates.FindTemplateSystem(ctx, "memory")
+	if err != nil {
+		require.NoError(b, err, "error with template")
+	}
+	defer templateSystem.Close(ctx)
+
+	goflowState := utils.NewStateNetFlow()
+	goflowState.Format = formatDriver
+	goflowState.Logger = logrusLogger
+	goflowState.TemplateSystem = templateSystem
+
+	customStateWithoutFields := netflowstate.NewStateNetFlow(nil)
+	customStateWithoutFields.Format = formatDriver
+	customStateWithoutFields.Logger = logrusLogger
+	customStateWithoutFields.TemplateSystem = templateSystem
+
+	customState := netflowstate.NewStateNetFlow([]nfconfig.Mapping{
+		{
+			Field:       11,
+			Destination: "source.port",
+			Type:        common.Integer,
+		},
+		{
+			Field:       7,
+			Destination: "destination.port",
+			Type:        common.Integer,
+		},
+		{
+			Field:       32,
+			Destination: "icmp_type",
+			Type:        common.Hex,
+		},
+	})
+
+	customState.Format = formatDriver
+	customState.Logger = logrusLogger
+	customState.TemplateSystem = templateSystem
+
+	flowData, err := testutil.GetNetFlow9Packet()
+	require.NoError(b, err, "error getting netflow9 packet data")
+
+	flowPacket := utils.BaseMessage{
+		Src:      net.ParseIP("127.0.0.1"),
+		Port:     3000,
+		Payload:  flowData,
+		SetTime:  false,
+		RecvTime: time.Now(),
+	}
+
+	b.Run("goflow2 default", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			err = goflowState.DecodeFlow(flowPacket)
+			require.NoError(b, err, "error processing packet")
+		}
+	})
+
+	b.Run("goflow2 netflow custom state without custom fields", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			err = customStateWithoutFields.DecodeFlow(flowPacket)
+			require.NoError(b, err, "error processing packet")
+		}
+	})
+
+	b.Run("goflow2 netflow custom state with custom fields", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			err = customState.DecodeFlow(flowPacket)
+			require.NoError(b, err, "error processing packet")
+		}
+	})
 }

@@ -7,6 +7,10 @@ services:
       - "2181:2181"
     environment:
       - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+      - kafka
+    tmpfs:
+      - /bitnami/zookeeper/data
   kafka:
     image: bitnami/kafka:3.4
     ports:
@@ -20,5 +24,14 @@ services:
       - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
       - ALLOW_PLAINTEXT_LISTENER=yes
       - KAFKA_CFG_DELETE_TOPIC_ENABLE=true
+      - KAFKA_CFG_ZOOKEEPER_CONNECTION_TIMEOUT_MS=30000
     depends_on:
       - zookeeper
+    networks:
+      - kafka
+    tmpfs:
+      - /bitnami/kafka/data
+
+networks:
+  kafka:
+    driver: bridge

@@ -16,5 +16,6 @@
 #include "selinux.h"
 #include "syscalls.h"
 #include "tracepoints.h"
+#include "user_sessions.h"
 
 #endif

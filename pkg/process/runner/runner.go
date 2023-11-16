@@ -105,7 +105,7 @@ func NewRunner(config ddconfig.Reader, sysCfg *sysconfig.Config, hostInfo *check
 	}
 
 	for _, c := range enabledChecks {
-		if err := c.Init(cfg, hostInfo); err != nil {
+		if err := c.Init(cfg, hostInfo, false); err != nil {
 			return nil, err
 		}
 	}

@@ -667,7 +667,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	deps := fulfillDepsWithConfigYaml(t, datadogYaml)
 	s := deps.Server.(*server)
 	cw := deps.Config.(config.Writer)
-	cw.Set("dogstatsd_port", listeners.RandomPortName)
+	cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
 	samples := []metrics.MetricSample{}
 
@@ -781,7 +781,7 @@ dogstatsd_mapper_profiles:
 			s := deps.Server.(*server)
 			cw := deps.Config.(config.ReaderWriter)
 
-			cw.Set("dogstatsd_port", listeners.RandomPortName)
+			cw.SetWithoutSource("dogstatsd_port", listeners.RandomPortName)
 
 			demux := mockDemultiplexer(deps.Config, deps.Log)
 			defer demux.Stop(false)

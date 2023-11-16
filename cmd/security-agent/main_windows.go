@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
+	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -38,6 +39,7 @@ import (
 )
 
 type service struct {
+	servicemain.DefaultSettings
 }
 
 var (
@@ -92,6 +94,13 @@ func (s *service) Run(svcctx context.Context) error {
 		core.Bundle,
 		forwarder.Bundle,
 		fx.Provide(defaultforwarder.NewParamsWithResolvers),
+		demultiplexer.Module,
+		fx.Provide(func() demultiplexer.Params {
+			opts := aggregator.DefaultAgentDemultiplexerOptions()
+			opts.UseEventPlatformForwarder = false
+			opts.UseOrchestratorForwarder = false
+			return demultiplexer.Params{Options: opts}
+		}),
 	)
 
 	return err
