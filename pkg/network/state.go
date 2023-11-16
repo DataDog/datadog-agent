@@ -140,12 +140,20 @@ type lastStateTelemetry struct {
 const minClosedCapacity = 1024
 
 type closedConnections struct {
-	conns      []ConnectionStats
-	byCookie   map[StatCookie]int
+	// conns are ordered by placing all the empty connections at the end of the slice
+	conns []ConnectionStats
+	// byCookie is used to search for the index of a ConnectionStats in conns
+	byCookie map[StatCookie]int
+	// the index of first empty connection in conns
 	emptyStart int
 }
 
-// Insert a connection into conns and byCookie
+// Inserts a connection into conns and byCookie:
+// This function checks whether conns has reached the maxClosedConns limit. If it has, it drops an empty connection.
+// If the limit has not been reached, it places the connection in conns.
+// All empty connections are placed at the end. If it is not empty, it will be placed
+// at the index of the first empty connection, and the first empty connection will be placed at the end.
+// If there are no empty connections, it will be appended at the end.
 func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
 	// If we have reached the limit, drop an empty connection
 	if uint32(len(cc.conns)) >= maxClosedConns {
@@ -176,7 +184,10 @@ func (cc *closedConnections) insert(c ConnectionStats, maxClosedConns uint32) {
 	cc.emptyStart = len(cc.conns)
 }
 
-// Drops the first empty connection
+// Drops the first empty connection:
+// This method drops the incoming connection if it's empty or there are no empty connections in conns.
+// If neither of these conditions are true, it will drop the first empty connection and replace it with
+// the incoming connection.
 func (cc *closedConnections) dropEmpty(c ConnectionStats) {
 	if isEmpty(c) || cc.emptyStart == len(cc.conns) {
 		return
@@ -187,7 +198,12 @@ func (cc *closedConnections) dropEmpty(c ConnectionStats) {
 	cc.emptyStart++
 }
 
-// Replaces connection c with the connection at index i
+// Replaces connection c with the connection at index i:
+// If the conn at i is the latest, or c is empty and the connection at i is not,
+// it will not complete the replacement.
+// Otherwise it checks if the connection at i is empty and will be replaced with a non-empty conn.
+// If this is true, it will replace the connection and move it to where the first empty conn is.
+// If there isn't a change of state (both are empty or non-empty) it will simply replace the conn.
 func (cc *closedConnections) replaceAt(i int, c ConnectionStats) {
 	// pick the latest one
 	if c.LastUpdateEpoch <= cc.conns[i].LastUpdateEpoch {
