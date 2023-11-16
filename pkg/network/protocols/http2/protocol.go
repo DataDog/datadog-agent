@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -20,6 +21,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
@@ -39,6 +41,8 @@ type protocol struct {
 	eventsConsumer          *events.Consumer
 
 	terminatedConnectionsEventsConsumer *events.Consumer
+	terminatedConnections               []netebpf.ConnTuple
+	terminatedConnectionMux             sync.Mutex
 }
 
 const (
@@ -122,8 +126,10 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 	telemetry := http.NewTelemetry("http2")
 
 	return &protocol{
-		cfg:       cfg,
-		telemetry: telemetry,
+		cfg:                     cfg,
+		telemetry:               telemetry,
+		terminatedConnections:   make([]netebpf.ConnTuple, 0),
+		terminatedConnectionMux: sync.Mutex{},
 	}, nil
 }
 
@@ -245,8 +251,11 @@ func (p *protocol) processHTTP2(data []byte) {
 	p.statkeeper.Process(tx)
 }
 
-func (p *protocol) processTerminatedConnections([]byte) {
-	// Currently empty
+func (p *protocol) processTerminatedConnections(data []byte) {
+	conn := (*netebpf.ConnTuple)(unsafe.Pointer(&data[0]))
+	p.terminatedConnectionMux.Lock()
+	defer p.terminatedConnectionMux.Unlock()
+	p.terminatedConnections = append(p.terminatedConnections, *conn)
 }
 
 func (p *protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
