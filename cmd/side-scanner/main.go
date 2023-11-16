@@ -519,6 +519,51 @@ func cleanupCmd(region string, assumedRole string, dryRun bool) error {
 	return nil
 }
 
+func downloadSnapshot(ctx context.Context, w io.Writer, snapshotID string) error {
+	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", "")
+	if err != nil {
+		return err
+	}
+	defer awsstats.SendStats()
+
+	ebsclient := ebs.NewFromConfig(cfg)
+	listSnapshotsInput := &ebs.ListSnapshotBlocksInput{
+		SnapshotId: &snapshotID,
+		NextToken:  nil,
+	}
+	var n int64
+	for {
+		fmt.Printf("listing blocks for %s\n", snapshotID)
+		blocks, err := ebsclient.ListSnapshotBlocks(ctx, listSnapshotsInput)
+		if err != nil {
+			return err
+		}
+		for _, block := range blocks.Blocks {
+			fmt.Printf("getting block %d\n", *block.BlockIndex)
+			blockOutput, err := ebsclient.GetSnapshotBlock(ctx, &ebs.GetSnapshotBlockInput{
+				BlockIndex: block.BlockIndex,
+				BlockToken: block.BlockToken,
+				SnapshotId: &snapshotID,
+			})
+			if err != nil {
+				return err
+			}
+			copied, err := io.Copy(w, blockOutput.BlockData)
+			if err != nil {
+				blockOutput.BlockData.Close()
+				return err
+			}
+			blockOutput.BlockData.Close()
+			n += copied
+			fmt.Printf("copied %d\n", n)
+		}
+		listSnapshotsInput.NextToken = blocks.NextToken
+		if listSnapshotsInput.NextToken == nil {
+			return nil
+		}
+	}
+}
+
 func mountCmd(assumedRole string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
@@ -980,10 +1025,10 @@ retry:
 
 	snapshotID = *result.SnapshotId
 
-	waiter := ec2.NewSnapshotCompletedWaiter(ec2client)
-	err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{
-		SnapshotIds: []string{snapshotID},
-	}, 15*time.Minute)
+	waiter := ec2.NewSnapshotCompletedWaiter(ec2client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
+		scwo.MinDelay = 1 * time.Second
+	})
+	err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{SnapshotIds: []string{snapshotID}}, 10*time.Minute)
 
 	if err == nil {
 		snapshotDuration := time.Since(snapshotStartedAt)
@@ -1629,10 +1674,10 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole string, metricta
 			})
 		})
 		log.Debugf("waiting for copy of snapshot %q into %q as %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
-		waiter := ec2.NewSnapshotCompletedWaiter(ec2client)
-		err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{
-			SnapshotIds: []string{*copySnapshot.SnapshotId},
-		}, 15*time.Minute)
+		waiter := ec2.NewSnapshotCompletedWaiter(ec2client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
+			scwo.MinDelay = 1 * time.Second
+		})
+		err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{SnapshotIds: []string{*copySnapshot.SnapshotId}}, 15*time.Minute)
 		if err != nil {
 			err = fmt.Errorf("could not finish copying %q to %q as %q: %w", snapshotARN, self.Region, *copySnapshot.SnapshotId, err)
 			return
