@@ -465,15 +465,9 @@ func listEBSScansForRegion(ctx context.Context, regionName string) (scans []scan
 						// Exclude Windows.
 						continue
 					}
-					arn := arn.ARN{
-						Partition: "aws",
-						Service:   "ec2",
-						Region:    regionName,
-						AccountID: "", // TODO
-						Resource:  fmt.Sprintf("%s/%s", ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId),
-					}
+					accountID := "" // TODO
 					scan := ebsScan{
-						ARN:      arn.String(),
+						ARN:      ec2ARN(regionName, accountID, ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId).String(),
 						Hostname: *instance.InstanceId,
 					}
 					scans = append(scans, scanTask{
@@ -561,8 +555,8 @@ func mountCmd(assumedRole string) error {
 		}
 	}()
 
-	for _, arn := range arns {
-		cfg, awsstats, err := newAWSConfig(ctx, arn.Region, assumedRole)
+	for _, resourceARN := range arns {
+		cfg, awsstats, err := newAWSConfig(ctx, resourceARN.Region, assumedRole)
 		if err != nil {
 			return err
 		}
@@ -570,26 +564,27 @@ func mountCmd(assumedRole string) error {
 
 		ec2client := ec2.NewFromConfig(cfg)
 
-		resourceType, resourceID, ok := getARNResource(arn)
+		resourceType, resourceID, ok := getARNResource(resourceARN)
 		if !ok {
-			return fmt.Errorf("bad arn resource %q", arn.String())
+			return fmt.Errorf("bad arn resource %q", resourceARN.String())
 		}
-		var snapshotID string
+		var snapshotARN arn.ARN
 		switch resourceType {
 		case ec2types.ResourceTypeVolume:
-			sID, cleanupSnapshot, err := createSnapshot(ctx, ec2client, nil, resourceID)
+			sID, cleanupSnapshot, err := createSnapshot(ctx, ec2client, nil, resourceARN)
 			cleanups = append(cleanups, cleanupSnapshot)
 			if err != nil {
 				return err
 			}
-			snapshotID = sID
+			snapshotARN = ec2ARN(resourceARN.Region, resourceARN.AccountID, ec2types.ResourceTypeSnapshot, sID)
 		case ec2types.ResourceTypeSnapshot:
-			snapshotID = resourceID
+			snapshotARN = resourceARN
 		default:
 			return fmt.Errorf("unsupport resource type %q", resourceType)
 		}
 
-		mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, ec2client, nil, snapshotID)
+		localAssumedRole := "" // TODO
+		mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, localAssumedRole, nil, snapshotARN)
 		cleanups = append(cleanups, cleanupVolume)
 		if err != nil {
 			return err
@@ -922,7 +917,7 @@ func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDelet
 	}
 }
 
-func createSnapshot(ctx context.Context, ec2client *ec2.Client, metrictags []string, volumeID string) (snapshotID string, cleanupSnapshot func(context.Context), err error) {
+func createSnapshot(ctx context.Context, ec2client *ec2.Client, metrictags []string, volumeARN arn.ARN) (snapshotID string, cleanupSnapshot func(context.Context), err error) {
 	cleanupSnapshot = func(ctx context.Context) {
 		if snapshotID != "" {
 			log.Debugf("deleting snapshot %q", snapshotID)
@@ -935,10 +930,11 @@ func createSnapshot(ctx context.Context, ec2client *ec2.Client, metrictags []str
 
 	snapshotStartedAt := time.Now()
 	statsd.Count("datadog.sidescanner.snapshots.started", 1.0, metrictags, 1.0)
-	log.Debugf("starting volume snapshotting %q", volumeID)
+	log.Debugf("starting volume snapshotting %q", volumeARN)
 
 	retries := 0
 retry:
+	_, volumeID, _ := getARNResource(volumeARN)
 	result, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
 		VolumeId:          aws.String(volumeID),
 		TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeSnapshot),
@@ -955,13 +951,13 @@ retry:
 				// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
 				// Wait at least 15 seconds between concurrent volume snapshots.
 				d := 15 * time.Second
-				log.Debugf("snapshot creation rate exceeded for volume %s; retrying after %v (%d/%d)", volumeID, d, retries, maxSnapshotRetries)
+				log.Debugf("snapshot creation rate exceeded for volume %s; retrying after %v (%d/%d)", volumeARN, d, retries, maxSnapshotRetries)
 				sleepCtx(ctx, d)
 				goto retry
 			}
 		}
 		if isRateExceededError {
-			log.Debugf("snapshot creation rate exceeded for volume %s; skipping)", volumeID)
+			log.Debugf("snapshot creation rate exceeded for volume %s; skipping)", volumeARN)
 		}
 	}
 	if err != nil {
@@ -1154,11 +1150,11 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	if scan.AssumedRole == "" {
 		scan.AssumedRole = globalParams.assumedRole // TODO(pierre): remove this HACK
 	}
-	arn, err := arn.Parse(scan.ARN)
+	resourceARN, err := arn.Parse(scan.ARN)
 	if err != nil {
 		return
 	}
-	resourceType, resourceID, ok := getARNResource(arn)
+	resourceType, _, ok := getARNResource(resourceARN)
 	if !ok {
 		return nil, fmt.Errorf("ebs-scan: bad or missing ARN: %w", err)
 	}
@@ -1189,10 +1185,10 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		return nil, err
 	}
 
-	var snapshotID string
+	var snapshotARN arn.ARN
 	switch resourceType {
 	case ec2types.ResourceTypeVolume:
-		sID, cleanupSnapshot, err := createSnapshot(ctx, ec2client, tags, resourceID)
+		sID, cleanupSnapshot, err := createSnapshot(ctx, ec2client, tags, resourceARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
@@ -1201,12 +1197,14 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		if err != nil {
 			return nil, err
 		}
-		snapshotID = sID
+		snapshotARN = ec2ARN(resourceARN.Region, resourceARN.AccountID, ec2types.ResourceTypeSnapshot, sID)
 	case ec2types.ResourceTypeSnapshot:
-		snapshotID = resourceID
+		snapshotARN = resourceARN
+	default:
+		return nil, fmt.Errorf("ebs-scan: bad arn %q", resourceARN)
 	}
 
-	if snapshotID == "" {
+	if snapshotARN.Resource == "" {
 		return nil, fmt.Errorf("ebs-scan: missing snapshot ID")
 	}
 
@@ -1231,7 +1229,8 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	var trivyArtifact artifact.Artifact
 
 	if scan.AttachVolume || globalParams.attachVolumes {
-		mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, ec2client, tags, snapshotID)
+		localAssumedRole := ""
+		mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, localAssumedRole, tags, snapshotARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
@@ -1261,6 +1260,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 			return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
 		}
 	} else {
+		_, snapshotID, _ := getARNResource(snapshotARN)
 		target := "ebs:" + snapshotID
 		trivyArtifact, err = vm.NewArtifact(target, trivyCache, artifact.Option{
 			Offline:           true,
@@ -1574,7 +1574,7 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 	return nil
 }
 
-func attachAndMountVolume(ctx context.Context, ec2client *ec2.Client, metrictags []string, snapshotID string) (mountTargets []string, cleanupVolume func(context.Context), err error) {
+func attachAndMountVolume(ctx context.Context, localAssumedRole string, metrictags []string, snapshotARN arn.ARN) (mountTargets []string, cleanupVolume func(context.Context), err error) {
 	var cleanups []func(context.Context)
 	pushCleanup := func(cleanup func(context.Context)) {
 		cleanups = append(cleanups, cleanup)
@@ -1585,10 +1585,55 @@ func attachAndMountVolume(ctx context.Context, ec2client *ec2.Client, metrictags
 		}
 	}
 
+	resourceType, snapshotID, ok := getARNResource(snapshotARN)
+	if !ok || resourceType != ec2types.ResourceTypeSnapshot {
+		err = fmt.Errorf("expected ARN for a snapshot: %s", snapshotARN.String())
+		return
+	}
+
 	self, err := getSelfEC2InstanceIndentity(ctx)
 	if err != nil {
 		err = fmt.Errorf("could not get EC2 instance identity: using attach volumes cannot work outside an EC2 instance: %w", err)
 		return
+	}
+
+	localAWSCfg, _, err := newAWSConfig(ctx, self.Region, localAssumedRole)
+	if err != nil {
+		err = fmt.Errorf("could not create local aws config: %w", err)
+		return
+	}
+	ec2client := ec2.NewFromConfig(localAWSCfg)
+
+	if snapshotARN.Region != self.Region {
+		log.Debugf("copying snapshot %q from region %q into %q", snapshotID, snapshotARN.Region, self.Region)
+		var copySnapshot *ec2.CopySnapshotOutput
+		copySnapshot, err = ec2client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
+			SourceRegion:      aws.String(snapshotARN.Region),
+			SourceSnapshotId:  aws.String(snapshotID),
+			TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeSnapshot),
+		})
+		if err != nil {
+			err = fmt.Errorf("could not copy snapshot %q from regions %q to %q: %w", snapshotID, snapshotARN.Region, self.Region, err)
+			return
+		}
+		pushCleanup(func(ctx context.Context) {
+			log.Debugf("deleting snapshot %q", *copySnapshot.SnapshotId)
+			// do not use context here: we want to force snapshot deletion
+			ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+				SnapshotId: copySnapshot.SnapshotId,
+			})
+		})
+		log.Debugf("waiting for copy of snapshot %q from region %q into %q as %q", snapshotID, snapshotARN.Region, self.Region, *copySnapshot.SnapshotId)
+		waiter := ec2.NewSnapshotCompletedWaiter(ec2client)
+		err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{
+			SnapshotIds: []string{*copySnapshot.SnapshotId},
+		}, 15*time.Minute)
+		if err != nil {
+			err = fmt.Errorf("could not finish copying %q from regions %q to %q as %q: %w", snapshotID, snapshotARN.Region, self.Region, *copySnapshot.SnapshotId, err)
+			return
+		}
+		log.Debugf("successfully copied snapshot %q from region %q into %q: %q", snapshotID, snapshotARN.Region, self.Region, *copySnapshot.SnapshotId)
+		snapshotID = *copySnapshot.SnapshotId
 	}
 
 	log.Debugf("creating new volume for snapshot %q in az %q", snapshotID, self.AvailabilityZone)
@@ -1757,5 +1802,15 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 		return true
 	case <-ctx.Done():
 		return false
+	}
+}
+
+func ec2ARN(region, accountID string, resourceType ec2types.ResourceType, resourceID string) arn.ARN {
+	return arn.ARN{
+		Partition: "aws",
+		Service:   "ec2",
+		Region:    region,
+		AccountID: accountID,
+		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceID),
 	}
 }
