@@ -67,7 +67,7 @@ func NewMapCleaner(emap *cebpf.Map, key, val interface{}) (*MapCleaner, error) {
 // `shouldClean` is a predicate method that determines whether or not a certain
 // map entry should be deleted. the callback argument `nowTS` can be directly
 // compared to timestamps generated using the `bpf_ktime_get_ns()` helper;
-func (mc *MapCleaner) Clean(interval time.Duration, shouldClean func(nowTS int64, k, v interface{}) bool) {
+func (mc *MapCleaner) Clean(interval time.Duration, preClean func() bool, postClean func(), shouldClean func(nowTS int64, k, v interface{}) bool) {
 	if mc == nil {
 		return
 	}
@@ -84,12 +84,19 @@ func (mc *MapCleaner) Clean(interval time.Duration, shouldClean func(nowTS int64
 					if err != nil {
 						break
 					}
+					// Allowing to prepare for the cleanup.
+					if preClean != nil && !preClean() {
+						continue
+					}
 					mc.clean(now, shouldClean)
+					// Allowing to post-process the cleanup.
+					if postClean != nil {
+						postClean()
+					}
 				case <-mc.done:
 					return
 				}
 			}
-
 		}()
 	})
 }
