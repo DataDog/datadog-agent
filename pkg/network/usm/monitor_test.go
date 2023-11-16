@@ -539,6 +539,68 @@ func TestHTTP2(t *testing.T) {
 	})
 }
 
+func (s *USMHTTP2Suite) TestHTTP2DynamicTableCleanup() {
+	t := s.T()
+	cfg := networkconfig.New()
+	cfg.EnableHTTP2Monitoring = true
+	cfg.HTTP2DynamicTableMapCleanerInterval = 10 * time.Second
+
+	startH2CServer(t)
+	client := getClientsArray(t, 1)[0]
+
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, monitor.Start())
+	defer monitor.Stop()
+
+	for i := 0; i < 3; i++ {
+		req, err := client.Post(http2SrvAddr+"/test", "application/json", bytes.NewReader([]byte("test")))
+		require.NoError(t, err, "could not make request")
+		req.Body.Close()
+	}
+
+	matches := 0
+
+	require.Eventuallyf(t, func() bool {
+		stats := monitor.GetProtocolStats()
+		http2Stats, ok := stats[protocols.HTTP2]
+		if !ok {
+			return false
+		}
+		http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+		for key, stat := range http2StatsTyped {
+			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && key.Path.Content.Get() == "/test" {
+				matches += stat.Data[200].Count
+			}
+		}
+
+		return matches == 3
+	}, time.Second*3, time.Millisecond*100, "%v != 3", matches)
+
+	client.CloseIdleConnections()
+
+	dynamicTableMap, _, err := monitor.ebpfProgram.GetMap("http2_dynamic_table")
+	require.NoError(t, err)
+	iterator := dynamicTableMap.Iterate()
+	key := make([]byte, dynamicTableMap.KeySize())
+	value := make([]byte, dynamicTableMap.ValueSize())
+	count := 0
+	for iterator.Next(&key, &value) {
+		count++
+	}
+	require.Equal(t, 1, count)
+
+	require.Eventually(t, func() bool {
+		iterator = dynamicTableMap.Iterate()
+		count = 0
+		for iterator.Next(&key, &value) {
+			count++
+		}
+
+		return count == 0
+	}, cfg.HTTP2DynamicTableMapCleanerInterval+5*time.Second, time.Millisecond*100)
+}
+
 func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	t := s.T()
 	cfg := networkconfig.New()
