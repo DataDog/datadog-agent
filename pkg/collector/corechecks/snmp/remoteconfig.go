@@ -11,7 +11,7 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 
-	log.Info("RC Callback, updates: %+v", updates)
+	log.Infof("RC Callback, updates: %+v", updates)
 }
 
 // RemoteConfigProvider receives configuration from remote-config
