@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
+	"github.com/DataDog/datadog-agent/pkg/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -150,6 +151,8 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 			log.Errorf("cannot handle event of type %d", event.Type)
 		}
 	}
+
+	telemetry.Errors.Set(float64(len(k.configErrors)), names.KubeContainer)
 
 	return changes
 }
