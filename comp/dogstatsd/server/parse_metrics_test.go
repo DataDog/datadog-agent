@@ -22,7 +22,7 @@ func parseMetricSample(t *testing.T, overrides map[string]any, rawSample []byte)
 		config.MockModule,
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
-	kint := cache.NewKeyedStringInternerMemOnly(512)
+	kint := cache.NewKeyedStringInternerForTest()
 
 	parser := newParser(cfg, newFloat64ListPool(), kint)
 	return parser.parseMetricSample(rawSample, cache.NewInternerContext(kint, "", &cache.SmallRetainer{}))

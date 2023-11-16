@@ -41,7 +41,7 @@ func TestIdentifyRandomString(t *testing.T) {
 
 func TestParseTags(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	kint := cache.NewKeyedStringInternerMemOnly(512)
+	kint := cache.NewKeyedStringInternerForTest()
 	p := newParser(cfg, newFloat64ListPool(), kint)
 	rawTags := []byte("tag:test,mytag,good:boy")
 	tags := p.parseTags(rawTags, cache.NewInternerContext(kint, "", &cache.SmallRetainer{}))
@@ -51,7 +51,7 @@ func TestParseTags(t *testing.T) {
 
 func TestParseTagsEmpty(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	kint := cache.NewKeyedStringInternerMemOnly(512)
+	kint := cache.NewKeyedStringInternerForTest()
 	p := newParser(cfg, newFloat64ListPool(), kint)
 	rawTags := []byte("")
 	tags := p.parseTags(rawTags, cache.NewInternerContext(kint, "", &cache.SmallRetainer{}))
@@ -71,7 +71,7 @@ func TestUnsafeParseFloat(t *testing.T) {
 
 func TestUnsafeParseFloatList(t *testing.T) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	kint := cache.NewKeyedStringInternerMemOnly(512)
+	kint := cache.NewKeyedStringInternerForTest()
 	p := newParser(cfg, newFloat64ListPool(), kint)
 	unsafeFloats, err := p.parseFloat64List([]byte("1.1234:21.5:13"))
 	assert.NoError(t, err)

@@ -33,7 +33,13 @@ const numEntries = (hashPageSize - 8) / 8
 const callStackDepth = 8
 
 // backBufferSize is padding on each page to handle any memory accesses off
-// the end of the last page.
+// the end of the last page.  From debugging SIGSEGVs: some string functions are
+// implemented with SIMD instructions that read in multiples of 8 bytes.  They
+// read past the end of the string and then (presumably) mask off the bytes they
+// don't care about.  To avoid seg-faults, keep the last 8 bytes of the buffer
+// unused to make sure any reads of short strings don't read off the end of
+// allowable address space.  Use 8 bytes in case some loops read the next whole word
+// instead of stopping appropriately.
 const backBufferSize = 8
 
 // MaxValueSize is the largest possible value we can store.  Start with the page size and take off 16:

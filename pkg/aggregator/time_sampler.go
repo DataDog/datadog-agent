@@ -269,7 +269,9 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 	}
 
 	// Return the prior cycle's retentions.
-	retainer.Import(&s.priorRetentions)
+	if retainer != nil {
+		retainer.Import(&s.priorRetentions)
+	}
 	s.priorRetentions.Import(&s.retentions)
 	s.sendTelemetry(timestamp, series)
 }

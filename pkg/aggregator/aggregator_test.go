@@ -61,6 +61,18 @@ func initF() {
 	tagsetTlm.reset()
 }
 
+func normalize(s *metrics.Serie) *metrics.Serie {
+	s.References.Drop()
+	return s
+}
+
+func normalizeMany(s metrics.Series) metrics.Series {
+	for i := range s {
+		s[i].References.Drop()
+	}
+	return s
+}
+
 func testNewFlushTrigger(start time.Time, waitForSerializer bool) flushTrigger {
 	seriesSink := metrics.NewIterableSeries(func(se *metrics.Serie) {}, 1000, 1000)
 	flushedSketches := make(metrics.SketchSeriesList, 0)
@@ -480,7 +492,7 @@ func TestRecurrentSeries(t *testing.T) {
 
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 	demux.ForceFlushToSerializer(start, true)
-	require.EqualValues(t, expectedSeries, s.series)
+	require.EqualValues(t, expectedSeries, normalizeMany(s.series))
 	s.series = nil
 
 	s.AssertNotCalled(t, "SendEvents")
@@ -490,7 +502,7 @@ func TestRecurrentSeries(t *testing.T) {
 	// same goes for the service check
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
 	demux.ForceFlushToSerializer(start, true)
-	require.EqualValues(t, expectedSeries, s.series)
+	require.EqualValues(t, expectedSeries, normalizeMany(s.series))
 	s.series = nil
 
 	s.AssertNotCalled(t, "SendEvents")
@@ -613,7 +625,8 @@ func TestTimeSamplerFlush(t *testing.T) {
 // MockSerializerIterableSerie overrides `SendIterableSeries` to avoid this issue.
 // It also overrides `SendSeries` for simplificy.
 type MockSerializerIterableSerie struct {
-	series []*metrics.Serie
+	//series []*metrics.Serie
+	series metrics.Series
 	serializer.MockSerializer
 }
 
@@ -688,7 +701,7 @@ func assertSeriesEqual(t *testing.T, series []*metrics.Serie, expectedSeries map
 		sort.Slice(expected.Points, func(i int, j int) bool {
 			return expected.Points[i].Ts < expected.Points[j].Ts
 		})
-		r.EqualValues(expected, serie)
+		r.EqualValues(normalize(expected), normalize(serie))
 	}
 
 	r.Empty(expectedSeries)

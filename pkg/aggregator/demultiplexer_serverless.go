@@ -174,7 +174,4 @@ func (d *ServerlessDemultiplexer) GetMetricSamplePool() *metrics.MetricSamplePoo
 
 // TakeRetentions will Import retentions from its argument and release sometime later.
 func (d *ServerlessDemultiplexer) TakeRetentions(retentions cache.InternRetainer, tag string) {
-	// TODO: Figure out the lifetime of serverless and see if we actually want to do reference
-	// counting at all for it.  Alternatively, never release and let the agent die.
-	panic("not implemented")
 }

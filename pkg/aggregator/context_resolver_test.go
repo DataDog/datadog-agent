@@ -280,6 +280,13 @@ func (s *mockSample) GetTags(tb, mb tagset.TagsAccumulator) {
 	mb.Append(s.metricTags...)
 }
 
+func clearSink(s mockSink) mockSink {
+	for i := range s {
+		s[i].References.Drop()
+	}
+	return s
+}
+
 func TestOriginTelemetry(t *testing.T) {
 	kint := cache.NewKeyedStringInternerMemOnly(512)
 	r := newContextResolver(tags.NewStore(true, "test", kint), nil, nil, kint)
@@ -292,7 +299,7 @@ func TestOriginTelemetry(t *testing.T) {
 	ts := 1672835152.0
 	r.sendOriginTelemetry(ts, &sink, "test", []string{"test"})
 
-	assert.ElementsMatch(t, sink, []*metrics.Serie{{
+	assert.ElementsMatch(t, clearSink(sink), []*metrics.Serie{{
 		Name:   "datadog.agent.aggregator.dogstatsd_contexts_by_origin",
 		Host:   "test",
 		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"foo"}),
@@ -329,7 +336,7 @@ func TestLimiterTelemetry(t *testing.T) {
 	ts := 1672835152.0
 	r.sendLimiterTelemetry(ts, &sink, "test", []string{"test"})
 
-	assert.Subset(t, sink, []*metrics.Serie{{
+	assert.Subset(t, clearSink(sink), []*metrics.Serie{{
 		Name:   "datadog.agent.aggregator.dogstatsd_context_limiter.current",
 		Host:   "test",
 		Tags:   tagset.NewCompositeTags([]string{"test"}, []string{"pod:foo", "srv:foo"}),

@@ -56,6 +56,7 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule,
+		cache.Module,
 		Module,
 	))
 }
@@ -73,6 +74,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule,
+		cache.Module,
 		Module,
 	))
 }
@@ -678,7 +680,7 @@ func TestNoMappingsConfig(t *testing.T) {
 	requireStart(t, s, demux)
 
 	assert.Nil(t, s.mapper)
-	kint := cache.NewKeyedStringInternerMemOnly(512)
+	kint := cache.NewKeyedStringInternerForTest()
 
 	parser := newParser(deps.Config, newFloat64ListPool(), kint)
 	samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "", false)
@@ -792,7 +794,7 @@ dogstatsd_mapper_profiles:
 
 			assert.Equal(t, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize, "Case `%s` failed. cache_size `%s` should be `%s`", scenario.name, deps.Config.Get("dogstatsd_mapper_cache_size"), scenario.expectedCacheSize)
 
-			kint := cache.NewKeyedStringInternerMemOnly(512)
+			kint := cache.NewKeyedStringInternerForTest()
 
 			var actualSamples []MetricSample
 			for _, p := range scenario.packets {
@@ -871,7 +873,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 		assert.Len(s.cachedOriginCounters, 0, "this cache must be empty")
 		assert.Len(s.cachedOrder, 0, "this cache list must be empty")
 
-		kint := cache.NewKeyedStringInternerMemOnly(512)
+		kint := cache.NewKeyedStringInternerForTest()
 		parser := newParser(deps.Config, newFloat64ListPool(), kint)
 		samples := []metrics.MetricSample{}
 		samples, err := s.parseMetricMessage(samples, parser, []byte("test.metric:666|g"), "container_id://test_container", false)
@@ -945,7 +947,7 @@ func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	assert := assert.New(t)
 	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
-	kint := cache.NewKeyedStringInternerMemOnly(512)
+	kint := cache.NewKeyedStringInternerForTest()
 
 	parser := newParser(deps.Config, newFloat64ListPool(), kint)
 	parser.dsdOriginEnabled = true
@@ -988,7 +990,7 @@ func testOriginOptout(t *testing.T, cfg map[string]interface{}, enabled bool) {
 
 	requireStart(t, s, mockDemultiplexer(deps.Config, deps.Log))
 	s.Stop()
-	kint := cache.NewKeyedStringInternerMemOnly(512)
+	kint := cache.NewKeyedStringInternerForTest()
 	parser := newParser(deps.Config, newFloat64ListPool(), kint)
 	parser.dsdOriginEnabled = true
 

@@ -329,7 +329,6 @@ func getSharedFxOption() fx.Option {
 			params.Options.EnabledFeatures = pkgforwarder.SetFeature(params.Options.EnabledFeatures, pkgforwarder.CoreFeatures)
 			return params
 		}),
-		fx.Provide(cache.NewKeyedStringInterner),
 		dogstatsd.Bundle,
 		otelcol.Bundle,
 		rcclient.Module,

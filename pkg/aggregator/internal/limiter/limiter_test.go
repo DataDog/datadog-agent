@@ -41,11 +41,14 @@ func TestLimiter(t *testing.T) {
 	l.Remove([]string{"srv:bar", "pod:foo"})
 	a.True(l.Track([]string{"srv:bar", "pod:foo"}, interner))
 
+	usage := l.usage["pod:foo"]
+	usage.retentions.Drop()
+
 	a.Equal(&entry{
 		current:       1,
 		rejected:      0,
 		telemetryTags: []string{"srv:bar", "pod:foo"},
-	}, l.usage["pod:foo"])
+	}, usage)
 
 	l.Remove([]string{"pod:foo"})
 	a.Nil(l.usage["pod:foo"])

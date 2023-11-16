@@ -17,7 +17,7 @@ import (
 
 func parseEvent(t *testing.T, rawEvent []byte) (dogstatsdEvent, error) {
 	cfg := fxutil.Test[config.Component](t, config.MockModule)
-	kint := cache.NewKeyedStringInternerMemOnly(512)
+	kint := cache.NewKeyedStringInternerForTest()
 
 	parser := newParser(cfg, newFloat64ListPool(), kint)
 	return parser.parseEvent(rawEvent, cache.NewInternerContext(kint, "", &cache.SmallRetainer{}))

@@ -107,6 +107,12 @@ func (s *SmallRetainer) Import(other InternRetainer) {
 	}
 }
 
+// Drop all retentions and effectively leak.  Useful for testing and nothing else.
+func (s *SmallRetainer) Drop() {
+	s.counts = nil
+	s.origins = nil
+}
+
 // RetainerBlock is a synchronized Retainer.
 type RetainerBlock struct {
 	retentions map[Refcounted]int32

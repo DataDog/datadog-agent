@@ -71,7 +71,7 @@ func benchParsePackets(b *testing.B, rawPacket []byte) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		batcher := newBatcher(demux.AgentDemultiplexer)
-		kint := cache.NewKeyedStringInternerMemOnly(512)
+		kint := cache.NewKeyedStringInternerForTest()
 
 		parser := newParser(deps.Config, newFloat64ListPool(), kint)
 		packet := packets.Packet{
@@ -118,7 +118,7 @@ func BenchmarkPbarseMetricMessage(b *testing.B) {
 		}
 	}()
 	defer close(done)
-	kint := cache.NewKeyedStringInternerMemOnly(512)
+	kint := cache.NewKeyedStringInternerForTest()
 	parser := newParser(deps.Config, newFloat64ListPool(), kint)
 	message := []byte("daemon:666|h|@0.5|#sometag1:somevalue1,sometag2:somevalue2")
 
@@ -173,7 +173,7 @@ func benchmarkMapperControl(b *testing.B, yaml string) {
 	defer close(done)
 
 	batcher := newBatcher(demux.AgentDemultiplexer)
-	kint := cache.NewKeyedStringInternerMemOnly(512)
+	kint := cache.NewKeyedStringInternerForTest()
 	parser := newParser(deps.Config, newFloat64ListPool(), kint)
 
 	samples := make([]metrics.MetricSample, 0, 512)

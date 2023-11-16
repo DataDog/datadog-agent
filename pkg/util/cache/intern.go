@@ -237,6 +237,12 @@ func NewKeyedStringInternerMemOnly(stringInternerCacheSize int) *KeyedInterner {
 	}
 }
 
+// NewKeyedStringInternerForTest is a memory-only cache with a small default size.  Useful for
+// most tests.
+func NewKeyedStringInternerForTest() *KeyedInterner {
+	return NewKeyedStringInternerMemOnly(512)
+}
+
 var sGlobalQueryCount = atomic.NewInt64(0)
 var sFailedInternalCount = atomic.NewInt64(0)
 
