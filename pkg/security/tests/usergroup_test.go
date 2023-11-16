@@ -29,9 +29,9 @@ func TestUserGroup(t *testing.T) {
 	}
 
 	type testCommand struct {
-		name string
-		cmd  []string
-		rule string
+		name  string
+		cmd   []string
+		rules []string
 	}
 
 	distroTests := []struct {
@@ -42,24 +42,24 @@ func TestUserGroup(t *testing.T) {
 			name: "ubuntu",
 			testCommands: []testCommand{
 				{
-					name: "addgroup",
-					cmd:  []string{"/usr/sbin/groupadd", "--gid", "1999", "testgroup"},
-					rule: "refresh_user_cache",
+					name:  "addgroup",
+					cmd:   []string{"/usr/sbin/groupadd", "--gid", "1999", "testgroup"},
+					rules: []string{"refresh_user_cache"},
 				},
 				{
-					name: "adduser",
-					cmd:  []string{"/usr/sbin/useradd", "--gid", "1999", "--uid", "1999", "testuser"},
-					rule: "refresh_user_cache",
+					name:  "adduser",
+					cmd:   []string{"/usr/sbin/useradd", "--gid", "1999", "--uid", "1999", "testuser"},
+					rules: []string{"refresh_user_cache"},
 				},
 				{
-					name: "user-resolution",
-					cmd:  []string{"/usr/bin/su", "--command", "/usr/bin/touch /tmp/test", "testuser"},
-					rule: "test_rule_user",
+					name:  "user-resolution",
+					cmd:   []string{"/usr/bin/su", "--command", "/usr/bin/touch /tmp/test", "testuser"},
+					rules: []string{"test_rule_user"},
 				},
 				{
-					name: "group-resolution",
-					cmd:  []string{"/usr/bin/su", "-g", "testgroup", "--command", "/usr/bin/touch /tmp/test2"},
-					rule: "test_rule_group",
+					name:  "group-resolution",
+					cmd:   []string{"/usr/bin/su", "-g", "testgroup", "--command", "/usr/bin/touch /tmp/test2"},
+					rules: []string{"test_rule_group"},
 				},
 			},
 		},
@@ -67,24 +67,24 @@ func TestUserGroup(t *testing.T) {
 			name: "centos",
 			testCommands: []testCommand{
 				{
-					name: "addgroup",
-					cmd:  []string{"/usr/sbin/groupadd", "--gid", "1999", "testgroup"},
-					rule: "refresh_user_cache",
+					name:  "addgroup",
+					cmd:   []string{"/usr/sbin/groupadd", "--gid", "1999", "testgroup"},
+					rules: []string{"refresh_user_cache"},
 				},
 				{
-					name: "adduser",
-					cmd:  []string{"/usr/sbin/useradd", "--gid", "1999", "--uid", "1999", "testuser"},
-					rule: "refresh_user_cache",
+					name:  "adduser",
+					cmd:   []string{"/usr/sbin/useradd", "--gid", "1999", "--uid", "1999", "testuser"},
+					rules: []string{"refresh_user_cache"},
 				},
 				{
-					name: "user-resolution",
-					cmd:  []string{"/usr/bin/su", "--command", "/usr/bin/touch /tmp/test", "testuser"},
-					rule: "test_rule_user",
+					name:  "user-resolution",
+					cmd:   []string{"/usr/bin/su", "--command", "/usr/bin/touch /tmp/test", "testuser"},
+					rules: []string{"test_rule_user"},
 				},
 				{
-					name: "group-resolution",
-					cmd:  []string{"/usr/bin/su", "-g", "testgroup", "--command", "/usr/bin/touch /tmp/test2"},
-					rule: "test_rule_group",
+					name:  "group-resolution",
+					cmd:   []string{"/usr/bin/su", "-g", "testgroup", "--command", "/usr/bin/touch /tmp/test2"},
+					rules: []string{"test_rule_group"},
 				},
 			},
 		},
@@ -92,25 +92,20 @@ func TestUserGroup(t *testing.T) {
 			name: "alpine",
 			testCommands: []testCommand{
 				{
-					name: "addgroup",
-					cmd:  []string{"/usr/sbin/addgroup", "--gid", "1999", "testgroup"},
-					rule: "refresh_user_cache",
+					name:  "addgroup",
+					cmd:   []string{"/usr/sbin/addgroup", "--gid", "1999", "testgroup"},
+					rules: []string{"refresh_user_cache"},
 				},
 				{
 					name: "adduser",
 					cmd:  []string{"/usr/sbin/adduser", "-D", "-G", "testgroup", "-u", "1999", "testuser"},
-					rule: "refresh_user_cache",
-				},
-				{
 					// busybox 'adduser' calls addgroup, that updates /etc/group
-					name: "add-user-to-group",
-					cmd:  []string{"/bin/ls"},
-					rule: "refresh_user_cache",
+					rules: []string{"refresh_user_cache", "refresh_user_cache"},
 				},
 				{
-					name: "user-resolution",
-					cmd:  []string{"/bin/su", "testuser", "-c", "/bin/busybox touch /tmp/test"},
-					rule: "test_rule_user",
+					name:  "user-resolution",
+					cmd:   []string{"/bin/su", "testuser", "-c", "/bin/busybox touch /tmp/test"},
+					rules: []string{"test_rule_user"},
 				},
 			},
 		},
@@ -135,11 +130,17 @@ func TestUserGroup(t *testing.T) {
 		defer dockerWrapper.stop()
 
 		for _, testCommand := range distroTest.testCommands {
+			i := 0
 			dockerWrapper.RunTest(t, distroTest.name+"-"+testCommand.name, func(t *testing.T, kind wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
-				test.WaitSignal(t, func() error {
+				test.WaitSignals(t, func() error {
 					return cmdFunc(testCommand.cmd[0], testCommand.cmd[1:], nil).Run()
-				}, func(event *model.Event, rule *rules.Rule) {
-					assertTriggeredRule(t, rule, testCommand.rule)
+				}, func(event *model.Event, rule *rules.Rule) error {
+					assertTriggeredRule(t, rule, testCommand.rules[i])
+					i++
+					if i < len(testCommand.rules) {
+						return errSkipEvent
+					}
+					return nil
 				})
 			})
 		}

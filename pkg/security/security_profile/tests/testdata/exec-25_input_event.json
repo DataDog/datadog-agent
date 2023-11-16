@@ -1,0 +1,270 @@
+{
+  "usr": {},
+  "evt": {
+    "name": "exec",
+    "category": "Process Activity",
+    "outcome": "Success"
+  },
+  "date": "0001-01-01T00:00:00Z",
+  "file": {
+    "path": "/uwsgi",
+    "name": "uwsgi",
+    "inode": 6,
+    "uid": 0,
+    "gid": 0,
+    "modification_time": "1970-01-01T01:00:00+01:00",
+    "change_time": "1970-01-01T01:00:00+01:00",
+    "hash_state": "NoHash"
+  },
+  "process": {
+    "parent": {
+      "pid": 15,
+      "uid": 0,
+      "gid": 0,
+      "comm": "utils",
+      "credentials": {
+        "uid": 0,
+        "gid": 0,
+        "euid": 0,
+        "egid": 0,
+        "fsuid": 0,
+        "fsgid": 0,
+        "cap_effective": [],
+        "cap_permitted": []
+      },
+      "executable": {
+        "path": "/utils",
+        "name": "utils",
+        "inode": 5,
+        "uid": 0,
+        "gid": 0,
+        "modification_time": "1970-01-01T01:00:00+01:00",
+        "change_time": "1970-01-01T01:00:00+01:00",
+        "hash_state": "NoHash"
+      },
+      "container": {
+        "id": "123"
+      },
+      "argv0": "utils",
+      "is_exec_child": true,
+      "source": "unknown"
+    },
+    "ancestors": [
+      {
+        "pid": 15,
+        "uid": 0,
+        "gid": 0,
+        "comm": "utils",
+        "credentials": {
+          "uid": 0,
+          "gid": 0,
+          "euid": 0,
+          "egid": 0,
+          "fsuid": 0,
+          "fsgid": 0,
+          "cap_effective": [],
+          "cap_permitted": []
+        },
+        "executable": {
+          "path": "/utils",
+          "name": "utils",
+          "inode": 5,
+          "uid": 0,
+          "gid": 0,
+          "modification_time": "1970-01-01T01:00:00+01:00",
+          "change_time": "1970-01-01T01:00:00+01:00",
+          "hash_state": "NoHash"
+        },
+        "container": {
+          "id": "123"
+        },
+        "argv0": "utils",
+        "is_exec_child": true,
+        "source": "unknown"
+      },
+      {
+        "pid": 14,
+        "uid": 0,
+        "gid": 0,
+        "comm": "tools",
+        "credentials": {
+          "uid": 0,
+          "gid": 0,
+          "euid": 0,
+          "egid": 0,
+          "fsuid": 0,
+          "fsgid": 0,
+          "cap_effective": [],
+          "cap_permitted": []
+        },
+        "executable": {
+          "path": "/tools",
+          "name": "tools",
+          "inode": 4,
+          "uid": 0,
+          "gid": 0,
+          "modification_time": "1970-01-01T01:00:00+01:00",
+          "change_time": "1970-01-01T01:00:00+01:00",
+          "hash_state": "NoHash"
+        },
+        "container": {
+          "id": "123"
+        },
+        "argv0": "tools",
+        "is_exec_child": true,
+        "source": "unknown"
+      },
+      {
+        "pid": 13,
+        "uid": 0,
+        "gid": 0,
+        "comm": "ddtrace",
+        "credentials": {
+          "uid": 0,
+          "gid": 0,
+          "euid": 0,
+          "egid": 0,
+          "fsuid": 0,
+          "fsgid": 0,
+          "cap_effective": [],
+          "cap_permitted": []
+        },
+        "executable": {
+          "path": "/ddtrace",
+          "name": "ddtrace",
+          "inode": 3,
+          "uid": 0,
+          "gid": 0,
+          "modification_time": "1970-01-01T01:00:00+01:00",
+          "change_time": "1970-01-01T01:00:00+01:00",
+          "hash_state": "NoHash"
+        },
+        "container": {
+          "id": "123"
+        },
+        "argv0": "ddtrace",
+        "source": "unknown"
+      },
+      {
+        "pid": 12,
+        "uid": 0,
+        "gid": 0,
+        "comm": "bash",
+        "credentials": {
+          "uid": 0,
+          "gid": 0,
+          "euid": 0,
+          "egid": 0,
+          "fsuid": 0,
+          "fsgid": 0,
+          "cap_effective": [],
+          "cap_permitted": []
+        },
+        "executable": {
+          "path": "/bash",
+          "name": "bash",
+          "inode": 2,
+          "uid": 0,
+          "gid": 0,
+          "modification_time": "1970-01-01T01:00:00+01:00",
+          "change_time": "1970-01-01T01:00:00+01:00",
+          "hash_state": "NoHash"
+        },
+        "container": {
+          "id": "123"
+        },
+        "argv0": "bash",
+        "source": "unknown"
+      },
+      {
+        "pid": 11,
+        "uid": 0,
+        "gid": 0,
+        "comm": "dash",
+        "credentials": {
+          "uid": 0,
+          "gid": 0,
+          "euid": 0,
+          "egid": 0,
+          "fsuid": 0,
+          "fsgid": 0,
+          "cap_effective": [],
+          "cap_permitted": []
+        },
+        "executable": {
+          "path": "/dash",
+          "name": "dash",
+          "inode": 1,
+          "uid": 0,
+          "gid": 0,
+          "modification_time": "1970-01-01T01:00:00+01:00",
+          "change_time": "1970-01-01T01:00:00+01:00",
+          "hash_state": "NoHash"
+        },
+        "container": {
+          "id": "123"
+        },
+        "argv0": "dash",
+        "source": "unknown"
+      },
+      {
+        "pid": 1,
+        "uid": 0,
+        "gid": 0,
+        "comm": "systemd",
+        "credentials": {
+          "uid": 0,
+          "gid": 0,
+          "euid": 0,
+          "egid": 0,
+          "fsuid": 0,
+          "fsgid": 0,
+          "cap_effective": [],
+          "cap_permitted": []
+        },
+        "executable": {
+          "path": "/bin/systemd",
+          "name": "systemd",
+          "inode": 42,
+          "uid": 0,
+          "gid": 0,
+          "modification_time": "1970-01-01T01:00:00+01:00",
+          "change_time": "1970-01-01T01:00:00+01:00",
+          "hash_state": "NoHash"
+        },
+        "source": "unknown"
+      }
+    ],
+    "pid": 16,
+    "uid": 0,
+    "gid": 0,
+    "comm": "uwsgi",
+    "credentials": {
+      "uid": 0,
+      "gid": 0,
+      "euid": 0,
+      "egid": 0,
+      "fsuid": 0,
+      "fsgid": 0,
+      "cap_effective": [],
+      "cap_permitted": []
+    },
+    "executable": {
+      "path": "/uwsgi",
+      "name": "uwsgi",
+      "inode": 6,
+      "uid": 0,
+      "gid": 0,
+      "modification_time": "1970-01-01T01:00:00+01:00",
+      "change_time": "1970-01-01T01:00:00+01:00",
+      "hash_state": "NoHash"
+    },
+    "container": {
+      "id": "123"
+    },
+    "argv0": "uwsgi",
+    "is_exec_child": true,
+    "source": "unknown"
+  },
+  "dd": {}
+}

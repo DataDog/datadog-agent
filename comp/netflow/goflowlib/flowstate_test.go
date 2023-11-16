@@ -6,9 +6,11 @@
 package goflowlib
 
 import (
+	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
@@ -17,7 +19,11 @@ import (
 
 func TestStartFlowRoutine_invalidType(t *testing.T) {
 	logger := fxutil.Test[log.Component](t, log.MockModule)
-	state, err := StartFlowRoutine("invalid", "my-hostname", 1234, 1, "my-ns", make(chan *common.Flow), logger)
+	listenerErr := atomic.NewString("")
+	listenerFlowCount := atomic.NewInt64(0)
+
+	state, err := StartFlowRoutine("invalid", "my-hostname", 1234, 1, "my-ns", []config.Mapping{}, make(chan *common.Flow), logger, listenerErr, listenerFlowCount)
+
 	assert.EqualError(t, err, "unknown flow type: invalid")
 	assert.Nil(t, state)
 }

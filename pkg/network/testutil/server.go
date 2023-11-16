@@ -10,13 +10,15 @@ package testutil
 import (
 	"errors"
 	"fmt"
+	"io"
+	"net"
+	"strconv"
+	"testing"
+	"time"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vishvananda/netns"
-	"io"
-	"net"
-	"testing"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
@@ -110,14 +112,26 @@ func StartServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 		Port: port,
 	}
 
-	l, err := net.ListenUDP(network, addr)
-	require.NoError(t, err)
+	udpConn, err := net.ListenUDP(network, addr)
+	assert.Nil(t, err)
+
+	addrStr := udpConn.LocalAddr().String()
+	_, portStr, err := net.SplitHostPort(addrStr)
+	assert.Nil(t, err)
+	port, err = strconv.Atoi(portStr)
+	assert.Nil(t, err)
+
 	go func() {
 		close(ch)
 
 		for {
 			bs := make([]byte, 10)
-			_, err := l.Read(bs)
+			_, addr, err := udpConn.ReadFrom(bs)
+			if err != nil {
+				return
+			}
+
+			_, err = udpConn.WriteTo([]byte("pong"), addr)
 			if err != nil {
 				return
 			}
@@ -132,5 +146,5 @@ func StartServerUDP(t *testing.T, ip net.IP, port int) io.Closer {
 		}
 	}, 3*time.Second, 10*time.Millisecond, "timed out waiting for UDP server to come up")
 
-	return l
+	return udpConn
 }

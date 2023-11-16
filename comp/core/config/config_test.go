@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -52,8 +53,8 @@ func TestMockConfig(t *testing.T) {
 	// but defaults are set
 	require.Equal(t, "localhost", config.GetString("ipc_address"))
 
-	// values can also be set by the mock (ConfigWriter)
-	config.(Mock).Set("app_key", "newvalue")
+	// values can also be set by the mock (config.Writer)
+	config.(Mock).Set("app_key", "newvalue", model.SourceAgentRuntime)
 	require.Equal(t, "newvalue", config.GetString("app_key"))
 }
 

@@ -39,7 +39,7 @@ var (
 )
 
 // NewConnectionsCheck returns an instance of the ConnectionsCheck.
-func NewConnectionsCheck(config, sysprobeYamlConfig config.ConfigReader, syscfg *sysconfig.Config) *ConnectionsCheck {
+func NewConnectionsCheck(config, sysprobeYamlConfig config.Reader, syscfg *sysconfig.Config) *ConnectionsCheck {
 	return &ConnectionsCheck{
 		config:             config,
 		syscfg:             syscfg,
@@ -50,8 +50,8 @@ func NewConnectionsCheck(config, sysprobeYamlConfig config.ConfigReader, syscfg 
 // ConnectionsCheck collects statistics about live TCP and UDP connections.
 type ConnectionsCheck struct {
 	syscfg             *sysconfig.Config
-	sysprobeYamlConfig config.ConfigReader
-	config             config.ConfigReader
+	sysprobeYamlConfig config.Reader
+	config             config.Reader
 
 	hostInfo               *HostInfo
 	maxConnsPerMessage     int
@@ -70,7 +70,7 @@ type ConnectionsCheck struct {
 type ProcessConnRates map[int32]*model.ProcessNetworks
 
 // Init initializes a ConnectionsCheck instance.
-func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) error {
+func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	c.hostInfo = hostInfo
 	c.maxConnsPerMessage = syscfg.MaxConnsPerMessage
 	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)
@@ -176,7 +176,7 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 	return tu.GetConnections(c.tracerClientID)
 }
 
-func (c *ConnectionsCheck) notifyProcessConnRates(config config.ConfigReader, conns *model.Connections) {
+func (c *ConnectionsCheck) notifyProcessConnRates(config config.Reader, conns *model.Connections) {
 	if len(c.processConnRatesTransmitter.Chs) == 0 {
 		return
 	}

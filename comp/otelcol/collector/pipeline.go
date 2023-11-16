@@ -15,11 +15,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	logsagent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+)
+
+const (
+	otlpEnabled = "feature_otlp_enabled"
 )
 
 // dependencies specifies a list of dependencies required for the collector
@@ -42,7 +46,10 @@ type dependencies struct {
 	Serializer serializer.MetricSerializer
 
 	// LogsAgent specifies a logs agent
-	LogsAgent util.Optional[logsagent.Component]
+	LogsAgent optional.Option[logsagent.Component]
+
+	// InventoryAgent require the inventory metadata payload, allowing otelcol to add data to it.
+	InventoryAgent inventoryagent.Component
 }
 
 type collector struct {
@@ -53,7 +60,7 @@ type collector struct {
 func (c *collector) Start() error {
 	deps := c.deps
 	on := otlp.IsEnabled(deps.Config)
-	inventories.SetAgentMetadata(inventories.AgentOTLPEnabled, on)
+	deps.InventoryAgent.Set(otlpEnabled, on)
 	if !on {
 		return nil
 	}

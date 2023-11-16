@@ -51,6 +51,9 @@ func Test_flowAccumulator_add(t *testing.T) {
 		SrcPort:        2000,
 		DstPort:        80,
 		TCPFlags:       synFlag,
+		AdditionalFields: map[string]any{
+			"custom_field": "test",
+		},
 	}
 	flowA2 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
@@ -65,6 +68,10 @@ func Test_flowAccumulator_add(t *testing.T) {
 		SrcPort:        2000,
 		DstPort:        80,
 		TCPFlags:       ackFlag,
+		AdditionalFields: map[string]any{
+			"custom_field":   "another_test",
+			"custom_field_2": "second_flow_field",
+		},
 	}
 	flowB1 := &common.Flow{
 		FlowType:       common.TypeNetFlow9,
@@ -98,6 +105,7 @@ func Test_flowAccumulator_add(t *testing.T) {
 	assert.Equal(t, uint64(1234568), wrappedFlowA.flow.StartTimestamp)
 	assert.Equal(t, uint64(1234579), wrappedFlowA.flow.EndTimestamp)
 	assert.Equal(t, synAckFlag, wrappedFlowA.flow.TCPFlags)
+	assert.Equal(t, map[string]any{"custom_field": "test", "custom_field_2": "second_flow_field"}, wrappedFlowA.flow.AdditionalFields) // Keeping first value seen for key `custom_field`
 
 	wrappedFlowB := acc.flows[flowB1.AggregationHash()]
 	assert.Equal(t, []byte{10, 10, 10, 10}, wrappedFlowB.flow.SrcAddr)

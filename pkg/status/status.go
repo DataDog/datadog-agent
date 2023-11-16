@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -29,11 +30,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
-	"github.com/DataDog/datadog-agent/pkg/metadata/host"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -50,7 +49,7 @@ func GetStatus(verbose bool) (map[string]interface{}, error) {
 	}
 	stats["verbose"] = verbose
 	stats["config"] = getPartialConfig()
-	metadata := stats["metadata"].(*host.Payload)
+	metadata := stats["metadata"].(*hostMetadataUtils.Payload)
 	hostTags := make([]string, 0, len(metadata.HostTags.System)+len(metadata.HostTags.GoogleCloudPlatform))
 	hostTags = append(hostTags, metadata.HostTags.System...)
 	hostTags = append(hostTags, metadata.HostTags.GoogleCloudPlatform...)
@@ -199,6 +198,12 @@ func GetDCAStatus(verbose bool) (map[string]interface{}, error) {
 		}
 	}
 
+	stats["adEnabledFeatures"] = config.GetDetectedFeatures()
+	if common.AC != nil {
+		stats["adConfigErrors"] = common.AC.GetAutodiscoveryErrors()
+	}
+	stats["filterErrors"] = containers.GetFilterErrors()
+
 	if config.Datadog.GetBool("orchestrator_explorer.enabled") {
 		if apiErr != nil {
 			stats["orchestrator"] = map[string]string{"Error": apiErr.Error()}
@@ -332,15 +337,7 @@ func getCommonStatus() (map[string]interface{}, error) {
 
 	stats["version"] = version.AgentVersion
 	stats["flavor"] = flavor.GetFlavor()
-	hostnameData, err := hostname.GetWithProvider(context.TODO())
-
-	if err != nil {
-		log.Errorf("Error grabbing hostname for status: %v", err)
-		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), hostname.Data{Hostname: "unknown", Provider: "unknown"})
-	} else {
-		stats["metadata"] = host.GetPayloadFromCache(context.TODO(), hostnameData)
-	}
-
+	stats["metadata"] = hostMetadataUtils.GetFromCache(context.TODO(), config.Datadog)
 	stats["conf_file"] = config.Datadog.ConfigFileUsed()
 	stats["pid"] = os.Getpid()
 	stats["go_version"] = runtime.Version()
@@ -470,6 +467,8 @@ func expvarStats(stats map[string]interface{}) (map[string]interface{}, error) {
 	}
 
 	stats["snmpTrapsStats"] = traps.GetStatus()
+
+	stats["netflowStats"] = netflowServer.GetStatus()
 
 	complianceVar := expvar.Get("compliance")
 	if complianceVar != nil {

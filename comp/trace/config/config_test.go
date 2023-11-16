@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"html/template"
 	"net/http"
@@ -18,9 +19,8 @@ import (
 	"reflect"
 	"regexp"
 	"strings"
-	"time"
-
 	"testing"
+	"time"
 
 	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
@@ -587,6 +587,7 @@ func TestDefaultConfig(t *testing.T) {
 
 	assert.Equal(t, true, cfg.Enabled)
 
+	assert.False(t, cfg.InstallSignature.Found)
 }
 
 func TestNoAPMConfig(t *testing.T) {
@@ -725,6 +726,13 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, o.CreditCards.Enabled)
 	assert.True(t, o.CreditCards.Luhn)
 
+	assert.True(t, cfg.InstallSignature.Found)
+	assert.Equal(t, traceconfig.InstallSignatureConfig{
+		Found:       true,
+		InstallID:   "00000014-7fcf-21ee-a501-a69841f17276",
+		InstallType: "manual",
+		InstallTime: 1699623821,
+	}, cfg.InstallSignature)
 }
 
 func TestFileLoggingDisabled(t *testing.T) {
@@ -2153,6 +2161,63 @@ func TestLoadEnv(t *testing.T) {
 			assert(in, expected)
 		}
 	})
+
+	env = "DD_INSTRUMENTATION_INSTALL_ID"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `install_id_foo_bar`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "install_id_foo_bar", coreconfig.Datadog.GetString("apm_config.install_id"))
+		assert.Equal(t, "install_id_foo_bar", cfg.InstallSignature.InstallID)
+		assert.True(t, cfg.InstallSignature.Found)
+	})
+
+	env = "DD_INSTRUMENTATION_INSTALL_TYPE"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `host_injection`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "host_injection", coreconfig.Datadog.GetString("apm_config.install_type"))
+		assert.Equal(t, "host_injection", cfg.InstallSignature.InstallType)
+		assert.True(t, cfg.InstallSignature.Found)
+	})
+
+	env = "DD_INSTRUMENTATION_INSTALL_TIME"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `1699621675`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+		assert.NotNil(t, cfg)
+		assert.Equal(t, int64(1699621675), coreconfig.Datadog.GetInt64("apm_config.install_time"))
+		assert.Equal(t, int64(1699621675), cfg.InstallSignature.InstallTime)
+		assert.True(t, cfg.InstallSignature.Found)
+	})
 }
 
 func TestFargateConfig(t *testing.T) {
@@ -2328,6 +2393,48 @@ func TestComputeStatsBySpanKind(t *testing.T) {
 		require.NotNil(t, cfg)
 		assert.True(t, cfg.ComputeStatsBySpanKind)
 	})
+}
+
+func TestGenerateInstallSignature(t *testing.T) {
+	cfgDir := t.TempDir()
+	defer func() {
+		os.RemoveAll(cfgDir)
+	}()
+	cfgContent, err := os.ReadFile("./testdata/full.yaml")
+	assert.NoError(t, err)
+	cfgFile := filepath.Join(cfgDir, "full.yaml")
+	err = os.WriteFile(cfgFile, cfgContent, 0644)
+	assert.NoError(t, err)
+
+	c := fxutil.Test[Component](t, fx.Options(
+		corecomp.MockModule,
+		fx.Replace(corecomp.MockParams{
+			Params:      corecomp.Params{ConfFilePath: cfgFile},
+			SetupConfig: true,
+		}),
+		MockModule,
+	))
+	cfg := c.Object()
+	assert.NotNil(t, cfg)
+
+	assert.False(t, coreconfig.Datadog.IsSet("apm_config.install_id"))
+	assert.False(t, coreconfig.Datadog.IsSet("apm_config.install_type"))
+	assert.False(t, coreconfig.Datadog.IsSet("apm_config.install_time"))
+
+	assert.True(t, cfg.InstallSignature.Found)
+	installFilePath := filepath.Join(cfgDir, "install.json")
+	assert.FileExists(t, installFilePath)
+
+	installFileContent, err := os.ReadFile(installFilePath)
+	assert.NoError(t, err)
+
+	fileSignature := config.InstallSignatureConfig{}
+	err = json.Unmarshal(installFileContent, &fileSignature)
+	assert.NoError(t, err)
+
+	assert.Equal(t, fileSignature.InstallID, cfg.InstallSignature.InstallID)
+	assert.Equal(t, fileSignature.InstallTime, cfg.InstallSignature.InstallTime)
+	assert.Equal(t, fileSignature.InstallType, cfg.InstallSignature.InstallType)
 }
 
 func TestMockConfig(t *testing.T) {

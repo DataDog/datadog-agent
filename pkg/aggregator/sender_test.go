@@ -127,13 +127,13 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	assert.Nil(t, err)
 	assertAggSamplersLen(t, aggregatorInstance, 1)
 
-	assert.Len(t, demux.senderPool.senders, 1)
+	assert.Len(t, demux.senders.senderPool.senders, 1)
 
 	sender2, err := demux.GetSender(checkID1)
 	assert.Nil(t, err)
 	assert.Equal(t, sender1, sender2)
 
-	assert.Len(t, demux.senderPool.senders, 1)
+	assert.Len(t, demux.senders.senderPool.senders, 1)
 }
 
 func TestDestroySender(t *testing.T) {
@@ -319,6 +319,51 @@ func TestGetSenderAddCheckCustomTagsMetrics(t *testing.T) {
 	s.sender.sendMetricSample("metric.test", 42.0, "testhostname", checkTags, metrics.CounterType, false, false)
 	sms = (<-s.itemChan).(*senderMetricSample)
 	assert.Equal(t, append(checkTags, customTags...), sms.metricSample.Tags)
+}
+
+func TestSenderPopulatingMetricSampleSource(t *testing.T) {
+	// this test not using anything global
+	// -
+
+	tests := []struct {
+		name                 string
+		checkID              checkid.ID
+		expectedMetricSource metrics.MetricSource
+	}{
+		{
+			name:                 "unrecognized checkID should have MetricSourceUnknown",
+			checkID:              checkID1,
+			expectedMetricSource: metrics.MetricSourceUnknown,
+		},
+		{
+			name:                 "checkid cpu:1 should have MetricSourceCPU",
+			checkID:              "cpu:1",
+			expectedMetricSource: metrics.MetricSourceCPU,
+		},
+		{
+			name:                 "checkid ntp:1 should have MetricSourceNtp",
+			checkID:              "ntp:1",
+			expectedMetricSource: metrics.MetricSourceNtp,
+		},
+		{
+			name:                 "checkid memory:1 should have MetricSourceMemory",
+			checkID:              "memory:1",
+			expectedMetricSource: metrics.MetricSourceMemory,
+		},
+		{
+			name:                 "checkid uptime:1 should have MetricSourceUptime",
+			checkID:              "uptime:1",
+			expectedMetricSource: metrics.MetricSourceUptime,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := initSender(tt.checkID, "")
+			s.sender.sendMetricSample("metric.test", 42.0, "testhostname", nil, metrics.CounterType, false, false)
+			sms := (<-s.itemChan).(*senderMetricSample)
+			assert.Equal(t, sms.metricSample.Source, tt.expectedMetricSource)
+		})
+	}
 }
 
 func TestGetSenderAddCheckCustomTagsService(t *testing.T) {

@@ -51,7 +51,7 @@ class GithubAPI:
         """
         Creates a PR in the given Github repository.
         """
-        return self._repository.create_pull(title=pr_title, body=pr_body, base=base_branch, target=target_branch)
+        return self._repository.create_pull(title=pr_title, body=pr_body, base=base_branch, head=target_branch)
 
     def update_pr(self, pull_number, milestone_number, labels):
         """
@@ -156,6 +156,10 @@ class GithubAPI:
         recent_runs = [run for run in runs if run.created_at > oldest_date]
 
         return sorted(recent_runs, key=lambda run: run.created_at, reverse=True)
+
+    def latest_release(self) -> str:
+        release = self._repository.get_latest_release()
+        return release.title
 
     def _chose_auth(self):
         """

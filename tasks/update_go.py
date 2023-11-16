@@ -11,12 +11,19 @@ from .pipeline import update_circleci_config, update_gitlab_config
 GO_VERSION_FILE = "./.go-version"
 
 
+@task
+def go_version(_):
+    current_version = _get_repo_go_version()
+    print(current_version)
+
+
 @task(
     help={
         "version": "The version of Go to use",
         "image_tag": "Tag from buildimages with format v<build_id>_<commit_id>",
         "test_version": "Whether the image is a test image or not",
         "warn": "Don't exit in case of matching error, just warn.",
+        "release_note": "Whether to create a release note or not. The default behaviour is to create a release note",
     }
 )
 def update_go(
@@ -25,13 +32,14 @@ def update_go(
     image_tag: str,
     test_version: Optional[bool] = False,
     warn: Optional[bool] = False,
+    release_note: Optional[bool] = True,
 ):
     """
     Updates the version of Go and build images.
     """
     import semver
 
-    if not semver.Version.is_valid(version):
+    if not semver.VersionInfo.isvalid(version):
         raise exceptions.Exit(f"The version {version} isn't valid.")
 
     current_version = _get_repo_go_version()
@@ -78,10 +86,11 @@ def update_go(
             )
         )
 
-    releasenote_path = _create_releasenote(ctx, version)
-    print(
-        f"A default release note was created at {releasenote_path}, edit it if necessary, for example to list CVEs it fixes."
-    )
+    if release_note:
+        releasenote_path = _create_releasenote(ctx, version)
+        print(
+            f"A default release note was created at {releasenote_path}, edit it if necessary, for example to list CVEs it fixes."
+        )
     if major_update:
         # Examples of major updates with long descriptions:
         # releasenotes/notes/go1.16.7-4ec8477608022a26.yaml
@@ -128,7 +137,7 @@ def _get_repo_go_version() -> str:
 def _get_major_version(version: str) -> str:
     import semver
 
-    ver = semver.Version.parse(version)
+    ver = semver.VersionInfo.parse(version)
     return f"{ver.major}.{ver.minor}"
 
 

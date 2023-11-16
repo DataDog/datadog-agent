@@ -12,6 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -38,7 +39,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(showRuntimeConfiguration,
 				fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-
+				core.Bundle,
 				process.Bundle,
 			)
 		},
@@ -52,7 +53,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(listRuntimeConfigurableValue,
 					fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-
+					core.Bundle,
 					process.Bundle,
 				)
 			},
@@ -67,7 +68,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(setConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
-
+					core.Bundle,
 					process.Bundle,
 				)
 			},
@@ -81,7 +82,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(getConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
-
+					core.Bundle,
 					process.Bundle,
 				)
 			},
@@ -172,7 +173,7 @@ func getConfigValue(deps dependencies, args []string) error {
 	return nil
 }
 
-func getClient(cfg ddconfig.ConfigReader) (settings.Client, error) {
+func getClient(cfg ddconfig.Reader) (settings.Client, error) {
 	httpClient := apiutil.GetClient(false)
 	ipcAddress, err := ddconfig.GetIPCAddress()
 

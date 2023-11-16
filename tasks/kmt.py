@@ -28,7 +28,6 @@ except ImportError:
 
 X86_AMI_ID_SANDBOX = "ami-0d1f81cfdbd5b0188"
 ARM_AMI_ID_SANDBOX = "ami-02cb18e91afb3777c"
-GOVERSION = 1.20
 
 
 @task
@@ -360,7 +359,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, pac
 
 
 @task
-def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key="", go_version=GOVERSION):
+def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key=""):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -375,7 +374,7 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
     run_cmd_vms(
         ctx,
         stack,
-        f"bash /micro-vm-init.sh {go_version} {retry} {platform.machine()} {' '.join(args)}",
+        f"bash /micro-vm-init.sh {retry} {platform.machine()} {' '.join(args)}",
         target_vms,
         "",
         allow_fail=True,

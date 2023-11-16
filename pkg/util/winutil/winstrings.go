@@ -81,3 +81,16 @@ func ExpandEnvironmentStrings(input string) (string, error) {
 	}
 	return windows.UTF16ToString(target), nil
 }
+
+// UTF16PtrOrNilFromString converts a go string into a *uint16
+// using windows.Utf16PtrFromString, but will return nil for empty strings.
+//
+// Useful for Windows APIs that take NULL or a non-zero length string.
+// Be careful to check that the Windows API does not have special behavior
+// for a zero-length string.
+func UTF16PtrOrNilFromString(s string) (*uint16, error) {
+	if s == "" {
+		return nil, nil
+	}
+	return windows.UTF16PtrFromString(s)
+}

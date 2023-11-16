@@ -79,14 +79,9 @@ on setting up a windows dev environment, refer to [Windows Dev Env](devenv).
 
 ## Testing
 
-Run all go linters and unit tests using `invoke test`.
+Run unit tests using `invoke test`.
 ```
 invoke test --targets=./pkg/aggregator
-```
-
-You can add the `--skip-linters` option to skip go linters and run just the unit tests.
-```
-invoke test --targets=./pkg/aggregator --skip-linters
 ```
 
 You can also use `invoke lint-go` to run just the go linters.
@@ -97,7 +92,7 @@ invoke lint-go
 When testing code that depends on [rtloader](/rtloader), build and install it first.
 ```
 invoke rtloader.make && invoke rtloader.install
-invoke test --targets=./pkg/collector/python --skip-linters
+invoke test --targets=./pkg/collector/python
 ```
 
 ## Run
@@ -108,6 +103,13 @@ You can run the agent with:
 ```
 
 The file `bin/agent/dist/datadog.yaml` is copied from `dev/dist/datadog.yaml` by `invoke agent.build` and must contain a valid api key.
+
+### Run a JMX check
+In order to run a JMX based check locally, you must have:
+1. A copy of a JMXFetch `jar` copied to `dev/dist/jmx/jmxfetch.jar`
+2. `java` available on your `$PATH`
+
+For detailed instructions, see [JMX checks](./docs/dev/checks/jmxfetch.md)
 
 ## Contributing code
 

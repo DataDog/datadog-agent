@@ -23,7 +23,7 @@ var (
 	binExtension = ""
 )
 
-func build(m *testing.M, outBin, pkg string) {
+func build(m *testing.M, outBin, pkg string) { //nolint:revive // TODO fix revive unused-parameter
 	_, err := exec.Command("go", "build", "-o", outBin+binExtension, pkg).Output()
 	if err != nil {
 		fmt.Printf("Could not compile test secretBackendCommand: %s", err)
@@ -144,7 +144,7 @@ func TestExecCommandError(t *testing.T) {
 		t.Cleanup(resetPackageVars)
 		secretBackendCommand = "./test/response_too_long/response_too_long" + binExtension
 		setCorrectRight(secretBackendCommand)
-		SecretBackendOutputMaxSize = 20
+		secretBackendOutputMaxSize = 20
 		_, err := execCommand(inputPayload)
 		require.NotNil(t, err)
 		assert.Equal(t, "error while running './test/response_too_long/response_too_long"+binExtension+"': command output was too long: exceeded 20 bytes", err.Error())

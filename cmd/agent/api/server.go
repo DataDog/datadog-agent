@@ -34,16 +34,18 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
-	dogstatsdDebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	taggerserver "github.com/DataDog/datadog-agent/pkg/tagger/server"
-	pkgUtil "github.com/DataDog/datadog-agent/pkg/util"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 var listener net.Listener
@@ -54,9 +56,11 @@ func StartServer(
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
-	serverDebug dogstatsdDebug.Component,
-	logsAgent pkgUtil.Optional[logsAgent.Component],
-	senderManager sender.SenderManager,
+	serverDebug dogstatsddebug.Component,
+	logsAgent optional.Option[logsAgent.Component],
+	senderManager sender.DiagnoseSenderManager,
+	hostMetadata host.Component,
+	invAgent inventoryagent.Component,
 ) error {
 	initializeTLS()
 
@@ -122,7 +126,19 @@ func StartServer(
 	checkMux.Use(validateToken)
 
 	mux := http.NewServeMux()
-	mux.Handle("/agent/", http.StripPrefix("/agent", agent.SetupHandlers(agentMux, flare, dogstatsdServer, serverDebug, logsAgent, senderManager)))
+	mux.Handle(
+		"/agent/",
+		http.StripPrefix("/agent",
+			agent.SetupHandlers(
+				agentMux,
+				flare,
+				dogstatsdServer,
+				serverDebug,
+				logsAgent,
+				senderManager,
+				hostMetadata,
+				invAgent,
+			)))
 	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	mux.Handle("/", gwmux)
 

@@ -10,12 +10,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/cihub/seelog"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfiglogs "github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 )
 
 // logger implements the component
@@ -24,7 +24,7 @@ type logger struct {
 	// pkg/util/log, and uses globals in that package.
 }
 
-// NewTemporaryLogger returns a logger component instance. It assumes the logger has already been
+// NewTemporaryLoggerWithoutInit returns a logger component instance. It assumes the logger has already been
 // initialized beforehand.
 //
 // This function should be used when all these conditions are true:
@@ -47,17 +47,18 @@ func newAgentLogger(lc fx.Lifecycle, params Params, config config.Component) (Co
 // NewLogger creates a log.Component using the provided config.LogConfig
 func NewLogger(lc fx.Lifecycle, params Params, config config.LogConfig) (Component, error) {
 	if params.logLevelFn == nil {
-		return nil, errors.New("must call one of core.BundleParams.LogForOneShot or LogForDaemon")
+		return nil, errors.New("must call one of core.BundleParams.ForOneShot or ForDaemon")
 	}
 
-	err := pkgconfig.SetupLogger(
-		pkgconfig.LoggerName(params.loggerName),
+	err := pkgconfiglogs.SetupLogger(
+		pkgconfiglogs.LoggerName(params.loggerName),
 		params.logLevelFn(config),
 		params.logFileFn(config),
 		params.logSyslogURIFn(config),
 		params.logSyslogRFCFn(config),
 		params.logToConsoleFn(config),
-		params.logFormatJSONFn(config))
+		params.logFormatJSONFn(config),
+		config)
 	if err != nil {
 		return nil, err
 	}

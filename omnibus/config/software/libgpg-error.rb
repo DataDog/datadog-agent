@@ -35,8 +35,10 @@ build do
   env["CFLAGS"] << " -fPIC"
 
   configure_options = [
-    "--prefix=#{install_dir}/embedded",
     "--enable-maintainer-mode",
+    "--disable-tests",
+    "--disable-doc",
+    "--disable-languages",
   ]
 
   configure(*configure_options, env: env)

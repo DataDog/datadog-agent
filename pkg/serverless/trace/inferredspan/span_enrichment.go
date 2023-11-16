@@ -127,6 +127,40 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithAPIGatewayHTTPEvent(even
 	inferredSpan.IsAsync = eventPayload.Headers[invocationType] == "Event"
 }
 
+// EnrichInferredSpanWithLambdaFunctionURLEvent uses the parsed event
+// payload to enrich the current inferred span. It applies a
+// specific set of data to the span expected from a Lambda Function URL event.
+func (inferredSpan *InferredSpan) EnrichInferredSpanWithLambdaFunctionURLEvent(eventPayload events.LambdaFunctionURLRequest) {
+	log.Debug("Enriching an inferred span for a Lambda Function URL")
+	requestContext := eventPayload.RequestContext
+	http := requestContext.HTTP
+	path := eventPayload.RequestContext.HTTP.Path
+	resource := fmt.Sprintf("%s %s", http.Method, path)
+	domainName := requestContext.DomainName
+	httpurl := fmt.Sprintf("%s%s", domainName, path)
+	startTime := calculateStartTime(requestContext.TimeEpoch)
+	apiID := requestContext.APIID
+	serviceName := DetermineServiceName(serviceMapping, apiID, "lambda_url", domainName)
+	inferredSpan.Span.Name = "aws.lambda.url"
+	inferredSpan.Span.Service = serviceName
+	inferredSpan.Span.Resource = resource
+	inferredSpan.Span.Type = "http"
+	inferredSpan.Span.Start = startTime
+	inferredSpan.Span.Meta = map[string]string{
+		endpoint:      path,
+		httpURL:       httpurl,
+		httpMethod:    http.Method,
+		httpProtocol:  http.Protocol,
+		httpSourceIP:  http.SourceIP,
+		httpUserAgent: http.UserAgent,
+		operationName: "aws.lambda.url",
+		requestID:     requestContext.RequestID,
+		resourceNames: resource,
+	}
+
+	inferredSpan.IsAsync = eventPayload.Headers[invocationType] == "Event"
+}
+
 // EnrichInferredSpanWithAPIGatewayWebsocketEvent uses the parsed event
 // payload to enrich the current inferred span. It applies a
 // specific set of data to the span expected from a Websocket event.
@@ -240,18 +274,6 @@ func (inferredSpan *InferredSpan) EnrichInferredSpanWithSQSEvent(eventPayload ev
 		eventSourceArn: eventRecord.EventSourceARN,
 		receiptHandle:  eventRecord.ReceiptHandle,
 		senderID:       eventRecord.Attributes["SenderId"],
-	}
-
-	traceContext := extractTraceContext(eventRecord)
-	if traceContext == nil {
-		log.Debug("No trace context found")
-		return
-	}
-	if traceContext.TraceID != nil {
-		inferredSpan.Span.TraceID = *traceContext.TraceID
-	}
-	if traceContext.ParentID != nil {
-		inferredSpan.Span.ParentID = *traceContext.ParentID
 	}
 }
 

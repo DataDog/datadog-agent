@@ -393,6 +393,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "process.ancestors.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "process.ancestors.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "process.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -1083,6 +1098,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "process.parent.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.parent.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "process.parent.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "process.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -1111,6 +1141,21 @@
           "name": "process.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "process.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "process.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "process.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -1929,6 +1974,21 @@
           "name": "exec.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "exec.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "exec.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "exec.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -2308,6 +2368,21 @@
           "name": "exit.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "exit.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "exit.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "exit.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -3467,6 +3542,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "ptrace.tracee.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -4157,6 +4247,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "ptrace.tracee.parent.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "ptrace.tracee.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -4185,6 +4290,21 @@
           "name": "ptrace.tracee.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "ptrace.tracee.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         }
       ]
     },
@@ -5249,6 +5369,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.ancestors.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "signal.target.ancestors.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "signal.target.args",
           "definition": "Arguments of the process (as a string, excluding argv0)",
           "property_doc_link": "common-process-args-doc"
@@ -5939,6 +6074,21 @@
           "property_doc_link": "common-credentials-user-doc"
         },
         {
+          "name": "signal.target.parent.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "signal.target.parent.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
+        },
+        {
           "name": "signal.target.pid",
           "definition": "Process ID of the process (also called thread group ID)",
           "property_doc_link": "common-pidcontext-pid-doc"
@@ -5967,6 +6117,21 @@
           "name": "signal.target.user",
           "definition": "User of the process",
           "property_doc_link": "common-credentials-user-doc"
+        },
+        {
+          "name": "signal.target.user_session.k8s_groups",
+          "definition": "Kubernetes groups of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_groups-doc"
+        },
+        {
+          "name": "signal.target.user_session.k8s_uid",
+          "definition": "Kubernetes UID of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_uid-doc"
+        },
+        {
+          "name": "signal.target.user_session.k8s_username",
+          "definition": "Kubernetes username of the user that executed the process",
+          "property_doc_link": "common-usersessioncontext-k8s_username-doc"
         },
         {
           "name": "signal.type",
@@ -7327,6 +7492,72 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.k8s_groups",
+      "link": "common-usersessioncontext-k8s_groups-doc",
+      "type": "string",
+      "definition": "Kubernetes groups of the user that executed the process",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.k8s_uid",
+      "link": "common-usersessioncontext-k8s_uid-doc",
+      "type": "string",
+      "definition": "Kubernetes UID of the user that executed the process",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.k8s_username",
+      "link": "common-usersessioncontext-k8s_username-doc",
+      "type": "string",
+      "definition": "Kubernetes username of the user that executed the process",
+      "prefixes": [
+        "exec.user_session",
+        "exit.user_session",
+        "process.ancestors.user_session",
+        "process.parent.user_session",
+        "process.user_session",
+        "ptrace.tracee.ancestors.user_session",
+        "ptrace.tracee.parent.user_session",
+        "ptrace.tracee.user_session",
+        "signal.target.ancestors.user_session",
+        "signal.target.parent.user_session",
+        "signal.target.user_session"
       ],
       "constants": "",
       "constants_link": "",
@@ -10294,6 +10525,21 @@
       ]
     },
     {
+      "name": "Boolean constants",
+      "link": "boolean-constants",
+      "description": "Boolean constants are the supported boolean constants.",
+      "all": [
+        {
+          "name": "true",
+          "architecture": "all"
+        },
+        {
+          "name": "false",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "DNS qclasses",
       "link": "dns-qclasses",
       "description": "DNS qclasses are the supported DNS query classes.",
@@ -12736,21 +12982,6 @@
         {
           "name": "PTRACE_POKEMTETAGS",
           "architecture": "arm64"
-        }
-      ]
-    },
-    {
-      "name": "SecL constants",
-      "link": "secl-constants",
-      "description": "SecL constants are the supported generic SecL constants.",
-      "all": [
-        {
-          "name": "true",
-          "architecture": "all"
-        },
-        {
-          "name": "false",
-          "architecture": "all"
         }
       ]
     },

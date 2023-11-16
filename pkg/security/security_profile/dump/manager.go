@@ -517,9 +517,8 @@ workloadLoop:
 			if !errors.Is(err, unix.E2BIG) {
 				seclog.Debugf("%v", err)
 				break
-			} else {
-				seclog.Errorf("%v", err)
 			}
+			seclog.Errorf("%v", err)
 		}
 	}
 }
@@ -665,8 +664,16 @@ func (adm *ActivityDumpManager) SearchTracedProcessCacheEntryCallback(ad *Activi
 		defer ad.Unlock()
 
 		// check process lineage
-		if !ad.MatchesSelector(entry) || !entry.HasCompleteLineage() {
+		if !ad.MatchesSelector(entry) {
 			return
+		}
+
+		if _, err := entry.HasValidLineage(); err != nil {
+			// check if the node belongs to the container
+			var mn *model.ErrProcessMissingParentNode
+			if !errors.As(err, &mn) {
+				return
+			}
 		}
 
 		// compute the list of ancestors, we need to start inserting them from the root

@@ -87,7 +87,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 		return &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(),
+			Transport: httputils.CreateHTTPTransport(config.Datadog),
 		}
 	}
 }
@@ -158,10 +158,10 @@ func (tc *telemetryCollector) sendRemoteConfigEvent(eventName string, event ApmR
 
 type noopTelemetryCollector struct{}
 
-func (*noopTelemetryCollector) SendRemoteConfigPatchEvent(event ApmRemoteConfigEvent) {
+func (*noopTelemetryCollector) SendRemoteConfigPatchEvent(ApmRemoteConfigEvent) {
 }
 
-func (*noopTelemetryCollector) SendRemoteConfigMutateEvent(event ApmRemoteConfigEvent) {
+func (*noopTelemetryCollector) SendRemoteConfigMutateEvent(ApmRemoteConfigEvent) {
 }
 
-func (*noopTelemetryCollector) SetTestHost(testHost string) {}
+func (*noopTelemetryCollector) SetTestHost(testHost string) {} //nolint:revive // TODO fix revive unused-parameter

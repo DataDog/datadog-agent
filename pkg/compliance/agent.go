@@ -11,15 +11,21 @@ package compliance
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"expvar"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"math/rand"
+	"net/http"
+	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
+	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -76,7 +82,32 @@ type AgentOptions struct {
 	// CheckIntervalLowPriority is like CheckInterval but for low-priority
 	// benchmarks.
 	CheckIntervalLowPriority time.Duration
+
+	// EnabledConfigurationExporters lists configuration exporter that shall be
+	// enabled.
+	EnabledConfigurationExporters []ConfigurationExporter
+
+	// SysProbeClient is the HTTP client to allow the execution of benchmarks
+	// from system-probe. see: cmd/system-probe/modules/compliance.go
+	SysProbeClient *http.Client
 }
+
+// ConfigurationExporter is an enum type defining all configuration export
+// configuration processes.
+type ConfigurationExporter int
+
+const (
+	// KubernetesExporter exports Kubernetes components configuration running
+	// on the system.
+	KubernetesExporter ConfigurationExporter = iota
+
+	// AptExporter exports local APT configuration data.
+	AptExporter
+
+	// DBExporter exports local or containerized DB application configuration
+	// data.
+	DBExporter
+)
 
 // Agent is the compliance agent that is responsible for running compliance
 // continuously benchmarks and configuration checking.
@@ -113,7 +144,11 @@ func DefaultRuleFilter(r *Rule) bool {
 		return false
 	}
 	if len(r.Filters) > 0 {
-		ruleFilterModel := rules.NewRuleFilterModel()
+		ruleFilterModel, err := rules.NewRuleFilterModel()
+		if err != nil {
+			log.Errorf("failed to apply rule filters: %v", err)
+			return false
+		}
 		seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
 		accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 			Filters: r.Filters,
@@ -198,17 +233,30 @@ func (a *Agent) Start() error {
 		wg.Done()
 	}()
 
-	wg.Add(1)
-	go func() {
-		a.runKubernetesConfigurationsExport(ctx)
-		wg.Done()
-	}()
+	for _, conf := range a.opts.EnabledConfigurationExporters {
+		switch conf {
+		case AptExporter:
+			wg.Add(1)
+			go func() {
+				a.runAptConfigurationExport(ctx)
+				wg.Done()
+			}()
 
-	wg.Add(1)
-	go func() {
-		a.runAptConfigurationExport(ctx)
-		wg.Done()
-	}()
+		case KubernetesExporter:
+			wg.Add(1)
+			go func() {
+				a.runKubernetesConfigurationsExport(ctx)
+				wg.Done()
+			}()
+
+		case DBExporter:
+			wg.Add(1)
+			go func() {
+				a.runDBConfigurationsExport(ctx)
+				wg.Done()
+			}()
+		}
+	}
 
 	go func() {
 		<-ctx.Done()
@@ -349,7 +397,12 @@ func (a *Agent) runKubernetesConfigurationsExport(ctx context.Context) {
 }
 
 func (a *Agent) runAptConfigurationExport(ctx context.Context) {
-	ruleFilterModel := rules.NewRuleFilterModel()
+	ruleFilterModel, err := rules.NewRuleFilterModel()
+	if err != nil {
+		log.Errorf("failed to run apt configuration export: %v", err)
+		return
+	}
+
 	seclRuleFilter := secl.NewSECLRuleFilter(ruleFilterModel)
 	accepted, err := seclRuleFilter.IsRuleAccepted(&secl.RuleDefinition{
 		Filters: []string{aptconfig.SeclFilter},
@@ -374,9 +427,90 @@ func (a *Agent) runAptConfigurationExport(ctx context.Context) {
 	}
 }
 
+func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
+	checkInterval := a.opts.CheckIntervalLowPriority
+	runTicker := time.NewTicker(checkInterval)
+	defer runTicker.Stop()
+
+	for runCount := uint64(0); ; runCount++ {
+		if sleepRandomJitter(ctx, checkInterval, runCount, a.opts.Hostname, "db-configuration") {
+			return
+		}
+		pids := dbconfig.ListProcesses(ctx)
+		for containerID, pid := range pids {
+			// if the process does not run in any form of container, containerID
+			// is the empty string "" and it can be run locally
+			if containerID == "" {
+				resource, ok := dbconfig.LoadDBResourceFromPID(ctx, pid)
+				if ok {
+					a.reportResourceLog(defaultCheckIntervalLowPriority, NewResourceLog(a.opts.Hostname, resource.Type, resource.Config))
+				}
+			} else {
+				err := a.reportDBConfigurationFromSystemProbe(ctx, pid)
+				if err != nil {
+					log.Errorf("error evaluating cross-container benchmark from system-probe: %v", err)
+				}
+			}
+		}
+		if sleepAborted(ctx, runTicker.C) {
+			return
+		}
+	}
+}
+
+func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, pid int32) error {
+	if a.opts.SysProbeClient == nil {
+		return fmt.Errorf("system-probe socket client was not created")
+	}
+
+	qs := new(url.Values)
+	qs.Add("pid", strconv.FormatInt(int64(pid), 10))
+	sysProbeComplianceModuleURL := &url.URL{
+		Scheme:   "http",
+		Host:     "unix",
+		Path:     "/dbconfig",
+		RawQuery: qs.Encode(),
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, sysProbeComplianceModuleURL.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := a.opts.SysProbeClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error running cross-container benchmark: %s", resp.Status)
+	}
+
+	var resource *dbconfig.DBResource
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(body, &resource); err != nil {
+		return err
+	}
+	if resource != nil {
+		a.reportResourceLog(defaultCheckIntervalLowPriority, NewResourceLog(a.opts.Hostname, resource.Type, resource.Config))
+	}
+	return nil
+}
+
 func (a *Agent) reportResourceLog(resourceTTL time.Duration, resourceLog *ResourceLog) {
+	store := workloadmeta.GetGlobalStore()
 	expireAt := time.Now().Add(2 * resourceTTL).Truncate(1 * time.Second)
 	resourceLog.ExpireAt = &expireAt
+	if store != nil && resourceLog.Container != nil {
+		if ctnr, _ := store.GetContainer(resourceLog.Container.ContainerID); ctnr != nil {
+			resourceLog.Container.ImageID = ctnr.Image.ID
+			resourceLog.Container.ImageName = ctnr.Image.Name
+			resourceLog.Container.ImageTag = ctnr.Image.Tag
+		}
+	}
 	a.opts.Reporter.ReportEvent(resourceLog)
 }
 

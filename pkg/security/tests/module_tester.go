@@ -71,6 +71,7 @@ var (
 	logger seelog.LoggerInterface
 	//nolint:deadcode,unused
 	testSuitePid uint32
+	errSkipEvent = errors.New("skip event")
 )
 
 const (
@@ -116,6 +117,8 @@ event_monitoring_config:
 
 runtime_security_config:
   enabled: {{ .RuntimeSecurityEnabled }}
+  internal_monitoring:
+    enabled: true
   remote_configuration:
     enabled: false
   socket: /tmp/test-runtime-security.sock
@@ -154,7 +157,10 @@ runtime_security_config:
     dir: {{ .SecurityProfileDir }}
     watch_dir: {{ .SecurityProfileWatchDir }}
     anomaly_detection:
-      minimum_stable_period: {{.AnomalyDetectionMinimumStablePeriod}}
+      default_minimum_stable_period: {{.AnomalyDetectionDefaultMinimumStablePeriod}}
+      minimum_stable_period:
+        exec: {{.AnomalyDetectionMinimumStablePeriodExec}}
+        dns: {{.AnomalyDetectionMinimumStablePeriodDNS}}
       workload_warmup_period: {{.AnomalyDetectionWarmupPeriod}}
 {{end}}
 
@@ -206,6 +212,12 @@ rules:
           scope: {{$Action.Set.Scope}}
           append: {{$Action.Set.Append}}
 {{- end}}
+{{- if $Action.Kill}}
+      - kill:
+          {{- if $Action.Kill.Signal}}
+          signal: {{$Action.Kill.Signal}}
+          {{- end}}
+{{- end}}
 {{- end}}
 {{end}}
 `
@@ -227,37 +239,38 @@ const (
 )
 
 type testOpts struct {
-	testDir                             string
-	disableFilters                      bool
-	disableApprovers                    bool
-	enableActivityDump                  bool
-	activityDumpRateLimiter             int
-	activityDumpTagRules                bool
-	activityDumpDuration                time.Duration
-	activityDumpLoadControllerPeriod    time.Duration
-	activityDumpCleanupPeriod           time.Duration
-	activityDumpLoadControllerTimeout   time.Duration
-	activityDumpTracedCgroupsCount      int
-	activityDumpTracedEventTypes        []string
-	activityDumpLocalStorageDirectory   string
-	activityDumpLocalStorageCompression bool
-	activityDumpLocalStorageFormats     []string
-	enableSecurityProfile               bool
-	securityProfileDir                  string
-	securityProfileWatchDir             bool
-	anomalyDetectionMinimumStablePeriod time.Duration
-	anomalyDetectionWarmupPeriod        time.Duration
-	disableDiscarders                   bool
-	eventsCountThreshold                int
-	disableERPCDentryResolution         bool
-	disableMapDentryResolution          bool
-	envsWithValue                       []string
-	disableAbnormalPathCheck            bool
-	disableRuntimeSecurity              bool
-	enableSBOM                          bool
-	preStartCallback                    func(test *testModule)
-	tagsResolver                        tags.Resolver
-	snapshotRuleMatchHandler            func(*testModule, *model.Event, *rules.Rule)
+	testDir                                    string
+	disableFilters                             bool
+	disableApprovers                           bool
+	enableActivityDump                         bool
+	activityDumpRateLimiter                    int
+	activityDumpTagRules                       bool
+	activityDumpDuration                       time.Duration
+	activityDumpLoadControllerPeriod           time.Duration
+	activityDumpCleanupPeriod                  time.Duration
+	activityDumpLoadControllerTimeout          time.Duration
+	activityDumpTracedCgroupsCount             int
+	activityDumpTracedEventTypes               []string
+	activityDumpLocalStorageDirectory          string
+	activityDumpLocalStorageCompression        bool
+	activityDumpLocalStorageFormats            []string
+	enableSecurityProfile                      bool
+	securityProfileDir                         string
+	securityProfileWatchDir                    bool
+	anomalyDetectionDefaultMinimumStablePeriod time.Duration
+	anomalyDetectionMinimumStablePeriodExec    time.Duration
+	anomalyDetectionMinimumStablePeriodDNS     time.Duration
+	anomalyDetectionWarmupPeriod               time.Duration
+	disableDiscarders                          bool
+	disableERPCDentryResolution                bool
+	disableMapDentryResolution                 bool
+	envsWithValue                              []string
+	disableAbnormalPathCheck                   bool
+	disableRuntimeSecurity                     bool
+	enableSBOM                                 bool
+	preStartCallback                           func(test *testModule)
+	tagsResolver                               tags.Resolver
+	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
 }
 
 func (s *stringSlice) String() string {
@@ -286,18 +299,20 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.enableSecurityProfile == opts.enableSecurityProfile &&
 		to.securityProfileDir == opts.securityProfileDir &&
 		to.securityProfileWatchDir == opts.securityProfileWatchDir &&
-		to.anomalyDetectionMinimumStablePeriod == opts.anomalyDetectionMinimumStablePeriod &&
+		to.anomalyDetectionDefaultMinimumStablePeriod == opts.anomalyDetectionDefaultMinimumStablePeriod &&
+		to.anomalyDetectionMinimumStablePeriodExec == opts.anomalyDetectionMinimumStablePeriodExec &&
+		to.anomalyDetectionMinimumStablePeriodDNS == opts.anomalyDetectionMinimumStablePeriodDNS &&
 		to.anomalyDetectionWarmupPeriod == opts.anomalyDetectionWarmupPeriod &&
 		to.disableDiscarders == opts.disableDiscarders &&
 		to.disableFilters == opts.disableFilters &&
-		to.eventsCountThreshold == opts.eventsCountThreshold &&
 		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
 		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
 		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
-		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil
+		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
+		to.preStartCallback == nil && opts.preStartCallback == nil
 }
 
 type testModule struct {
@@ -720,10 +735,6 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 		return nil, nil, err
 	}
 
-	if opts.eventsCountThreshold == 0 {
-		opts.eventsCountThreshold = 100000000
-	}
-
 	if opts.activityDumpRateLimiter == 0 {
 		opts.activityDumpRateLimiter = 500
 	}
@@ -765,34 +776,35 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":                     dir,
-		"DisableApprovers":                    opts.disableApprovers,
-		"DisableDiscarders":                   opts.disableDiscarders,
-		"EnableActivityDump":                  opts.enableActivityDump,
-		"ActivityDumpRateLimiter":             opts.activityDumpRateLimiter,
-		"ActivityDumpTagRules":                opts.activityDumpTagRules,
-		"ActivityDumpDuration":                opts.activityDumpDuration,
-		"ActivityDumpLoadControllerPeriod":    opts.activityDumpLoadControllerPeriod,
-		"ActivityDumpLoadControllerTimeout":   opts.activityDumpLoadControllerTimeout,
-		"ActivityDumpCleanupPeriod":           opts.activityDumpCleanupPeriod,
-		"ActivityDumpTracedCgroupsCount":      opts.activityDumpTracedCgroupsCount,
-		"ActivityDumpTracedEventTypes":        opts.activityDumpTracedEventTypes,
-		"ActivityDumpLocalStorageDirectory":   opts.activityDumpLocalStorageDirectory,
-		"ActivityDumpLocalStorageCompression": opts.activityDumpLocalStorageCompression,
-		"ActivityDumpLocalStorageFormats":     opts.activityDumpLocalStorageFormats,
-		"EnableSecurityProfile":               opts.enableSecurityProfile,
-		"SecurityProfileDir":                  opts.securityProfileDir,
-		"SecurityProfileWatchDir":             opts.securityProfileWatchDir,
-		"AnomalyDetectionMinimumStablePeriod": opts.anomalyDetectionMinimumStablePeriod,
-		"AnomalyDetectionWarmupPeriod":        opts.anomalyDetectionWarmupPeriod,
-		"EventsCountThreshold":                opts.eventsCountThreshold,
-		"ErpcDentryResolutionEnabled":         erpcDentryResolutionEnabled,
-		"MapDentryResolutionEnabled":          mapDentryResolutionEnabled,
-		"LogPatterns":                         logPatterns,
-		"LogTags":                             logTags,
-		"EnvsWithValue":                       opts.envsWithValue,
-		"RuntimeSecurityEnabled":              runtimeSecurityEnabled,
-		"SBOMEnabled":                         opts.enableSBOM,
+		"TestPoliciesDir":                            dir,
+		"DisableApprovers":                           opts.disableApprovers,
+		"DisableDiscarders":                          opts.disableDiscarders,
+		"EnableActivityDump":                         opts.enableActivityDump,
+		"ActivityDumpRateLimiter":                    opts.activityDumpRateLimiter,
+		"ActivityDumpTagRules":                       opts.activityDumpTagRules,
+		"ActivityDumpDuration":                       opts.activityDumpDuration,
+		"ActivityDumpLoadControllerPeriod":           opts.activityDumpLoadControllerPeriod,
+		"ActivityDumpLoadControllerTimeout":          opts.activityDumpLoadControllerTimeout,
+		"ActivityDumpCleanupPeriod":                  opts.activityDumpCleanupPeriod,
+		"ActivityDumpTracedCgroupsCount":             opts.activityDumpTracedCgroupsCount,
+		"ActivityDumpTracedEventTypes":               opts.activityDumpTracedEventTypes,
+		"ActivityDumpLocalStorageDirectory":          opts.activityDumpLocalStorageDirectory,
+		"ActivityDumpLocalStorageCompression":        opts.activityDumpLocalStorageCompression,
+		"ActivityDumpLocalStorageFormats":            opts.activityDumpLocalStorageFormats,
+		"EnableSecurityProfile":                      opts.enableSecurityProfile,
+		"SecurityProfileDir":                         opts.securityProfileDir,
+		"SecurityProfileWatchDir":                    opts.securityProfileWatchDir,
+		"AnomalyDetectionDefaultMinimumStablePeriod": opts.anomalyDetectionDefaultMinimumStablePeriod,
+		"AnomalyDetectionMinimumStablePeriodExec":    opts.anomalyDetectionMinimumStablePeriodExec,
+		"AnomalyDetectionMinimumStablePeriodDNS":     opts.anomalyDetectionMinimumStablePeriodDNS,
+		"AnomalyDetectionWarmupPeriod":               opts.anomalyDetectionWarmupPeriod,
+		"ErpcDentryResolutionEnabled":                erpcDentryResolutionEnabled,
+		"MapDentryResolutionEnabled":                 mapDentryResolutionEnabled,
+		"LogPatterns":                                logPatterns,
+		"LogTags":                                    logTags,
+		"EnvsWithValue":                              opts.envsWithValue,
+		"RuntimeSecurityEnabled":                     runtimeSecurityEnabled,
+		"SBOMEnabled":                                opts.enableSBOM,
 	}); err != nil {
 		return nil, nil, err
 	}
@@ -1169,11 +1181,11 @@ func GetStatusMetrics(probe *sprobe.Probe) string {
 	if probe == nil {
 		return ""
 	}
-	monitor := probe.GetMonitor()
-	if monitor == nil {
+	monitors := probe.GetMonitors()
+	if monitors == nil {
 		return ""
 	}
-	eventStreamMonitor := monitor.GetEventStreamMonitor()
+	eventStreamMonitor := monitors.GetEventStreamMonitor()
 	if eventStreamMonitor == nil {
 		return ""
 	}
@@ -1254,10 +1266,42 @@ func (err ErrSkipTest) Error() string {
 	return err.msg
 }
 
+func (tm *testModule) mapFilters(filters ...func(event *model.Event, rule *rules.Rule) error) func(event *model.Event, rule *rules.Rule) error {
+	return func(event *model.Event, rule *rules.Rule) error {
+		for _, filter := range filters {
+			if err := filter(event, rule); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
+func (tm *testModule) WaitSignals(tb testing.TB, action func() error, cbs ...func(event *model.Event, rule *rules.Rule) error) {
+	tb.Helper()
+
+	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+		validateProcessContext(tb, event, tm.probe)
+
+		return tm.mapFilters(cbs...)(event, rule)
+	})
+
+}
+
 func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHandler) {
 	tb.Helper()
 
-	if err := tm.GetSignal(tb, action, validateEvent(tb, cb, tm.probe)); err != nil {
+	tm.waitSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+		validateProcessContext(tb, event, tm.probe)
+		cb(event, rule)
+		return nil
+	})
+}
+
+func (tm *testModule) waitSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) {
+	tb.Helper()
+
+	if err := tm.getSignal(tb, action, cb); err != nil {
 		if _, ok := err.(ErrSkipTest); ok {
 			tb.Skip(err)
 		} else {
@@ -1267,6 +1311,13 @@ func (tm *testModule) WaitSignal(tb testing.TB, action func() error, cb onRuleHa
 }
 
 func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHandler) error {
+	return tm.getSignal(tb, action, func(event *model.Event, rule *rules.Rule) error {
+		cb(event, rule)
+		return nil
+	})
+}
+
+func (tm *testModule) getSignal(tb testing.TB, action func() error, cb func(*model.Event, *rules.Rule) error) error {
 	tb.Helper()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -1283,7 +1334,13 @@ func (tm *testModule) GetSignal(tb testing.TB, action func() error, cb onRuleHan
 		case msg := <-message:
 			switch msg {
 			case Continue:
-				cb(e, r)
+				if err := cb(e, r); err != nil {
+					if errors.Is(err, errSkipEvent) {
+						message <- Continue
+						return
+					}
+					tb.Error(err)
+				}
 				if tb.Skipped() || tb.Failed() {
 					failNow <- true
 				}

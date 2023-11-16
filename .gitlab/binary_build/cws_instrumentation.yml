@@ -1,0 +1,34 @@
+---
+.cws_instrumentation-build_common:
+  stage: binary_build
+  needs: ["go_mod_tidy_check"]
+  script:
+    - inv check-go-version
+    - inv -e cws-instrumentation.build
+    - $S3_CP_CMD $CI_PROJECT_DIR/$CWS_INSTRUMENTATION_BINARIES_DIR/cws-instrumentation $S3_ARTIFACTS_URI/cws-instrumentation.$ARCH
+
+cws_instrumentation-build_amd64:
+  extends: .cws_instrumentation-build_common
+  rules:
+    !reference [.on_tag_or_a7]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:amd64"]
+  needs: ["go_mod_tidy_check", "go_deps"]
+  variables:
+    ARCH: amd64
+  before_script:
+    - source /root/.bashrc
+    - !reference [.retrieve_linux_go_deps]
+
+cws_instrumentation-build_arm64:
+  extends: .cws_instrumentation-build_common
+  rules:
+    !reference [.on_tag_or_a7]
+  image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/deb_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
+  tags: ["arch:arm64"]
+  needs: ["go_mod_tidy_check", "go_deps"]
+  variables:
+    ARCH: arm64
+  before_script:
+    - source /root/.bashrc
+    - !reference [.retrieve_linux_go_deps]
