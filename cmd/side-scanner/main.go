@@ -1677,7 +1677,7 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole string, metricta
 		waiter := ec2.NewSnapshotCompletedWaiter(ec2client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
 			scwo.MinDelay = 1 * time.Second
 		})
-		err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{SnapshotIds: []string{*copySnapshot.SnapshotId}}, 15*time.Minute)
+		err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{SnapshotIds: []string{*copySnapshot.SnapshotId}}, 10*time.Minute)
 		if err != nil {
 			err = fmt.Errorf("could not finish copying %q to %q as %q: %w", snapshotARN, self.Region, *copySnapshot.SnapshotId, err)
 			return
@@ -1749,11 +1749,9 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole string, metricta
 	}
 
 	var mountPoints []mountPoint
-	for i := 0; i < 10; i++ {
-		if i > 0 {
-			if !sleepCtx(ctx, 1*time.Second) {
-				break
-			}
+	for i := 0; i < 60; i++ {
+		if !sleepCtx(ctx, 500*time.Millisecond) {
+			break
 		}
 		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", device, "--paths", "--json", "--bytes", "--fs", "--output", "NAME,PATH,TYPE,FSTYPE").Output()
 		if err != nil {
@@ -1820,13 +1818,13 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole string, metricta
 		})
 
 		var mountOutput []byte
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 50; i++ {
 			log.Debugf("execing mount %q %q", mp.partDevice, mountTarget)
 			mountOutput, err = exec.CommandContext(ctx, "mount", "-t", mp.partFsType, "--source", mp.partDevice, "--target", mountTarget).CombinedOutput()
 			if err == nil {
 				break
 			}
-			if !sleepCtx(ctx, 1*time.Second) {
+			if !sleepCtx(ctx, 200*time.Millisecond) {
 				break
 			}
 		}
