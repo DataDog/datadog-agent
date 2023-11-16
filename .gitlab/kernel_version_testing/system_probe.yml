@@ -353,7 +353,7 @@ kernel_matrix_testing_setup_env_x64:
         echo "These jobs do not permit retries. The go tests are retried a user-specified number of times automatically. In order to re-run the tests, you must trigger the pipeline again"
         'false'
       fi
-    - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-instance-ip | cut -d ' ' -f 2)
+    - INSTANCE_IP=$(grep "$ARCH-instance-ip" $CI_PROJECT_DIR/stack.outputs | cut -d ' ' -f 2 | tr -d '\n')
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 2)
     - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.outputs | grep $ARCH-$TAG | cut -d ' ' -f 1)
     - GO_VERSION=$(inv go-version)
@@ -405,7 +405,7 @@ kernel_matrix_testing_run_tests_arm64:
   script:
     - |
       if [ -f $CI_PROJECT_DIR/stack.outputs ]; then
-        INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.outputs | grep -e "$ARCH-instance-ip" | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
+        INSTANCE_IP=$(grep "$ARCH-instance-ip" $CI_PROJECT_DIR/stack.outputs | cut -d ' ' -f 2 | tr -d '\n')
         IP_FILTER="Name=private-ip-address,Values=$INSTANCE_IPS"
       else
         echo "No ${CI_PROJECT_DIR}/stack.outputs file found"
