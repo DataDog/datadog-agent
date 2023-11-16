@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -38,6 +39,7 @@ type protocol struct {
 	// TODO: Do we need to duplicate?
 	statkeeper              *http.StatKeeper
 	http2InFlightMapCleaner *ddebpf.MapCleaner
+	dynamicTableMapCleaner  *ddebpf.MapCleaner
 	eventsConsumer          *events.Consumer
 
 	terminatedConnectionsEventsConsumer *events.Consumer
@@ -204,6 +206,7 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
 	p.setupHTTP2InFlightMapCleaner(mgr)
+	p.setupDynamicTableMapCleaner(mgr)
 
 	return nil
 }
@@ -211,6 +214,8 @@ func (p *protocol) PostStart(mgr *manager.Manager) error {
 func (p *protocol) Stop(_ *manager.Manager) {
 	// http2InFlightMapCleaner handles nil pointer receivers
 	p.http2InFlightMapCleaner.Stop()
+	// dynamicTableMapCleaner handles nil pointer receivers
+	p.dynamicTableMapCleaner.Stop()
 
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
@@ -286,6 +291,54 @@ func (p *protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	})
 
 	p.http2InFlightMapCleaner = mapCleaner
+}
+
+func (p *protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
+	dynamicTableMap, _, err := mgr.GetMap(dynamicTable)
+	if err != nil {
+		log.Errorf("error getting %q map: %s", dynamicTable, err)
+		return
+	}
+
+	mapCleaner, err := ddebpf.NewMapCleaner(dynamicTableMap, new(http2DynamicTableIndex), new(http2DynamicTableEntry))
+	if err != nil {
+		log.Errorf("error creating map cleaner: %s", err)
+		return
+	}
+
+	terminatedConnections := make([]netebpf.ConnTuple, 0)
+	terminatedConnectionsMap := make(map[netebpf.ConnTuple]struct{})
+	terminatedConnectionsMapMutex := sync.Mutex{}
+	mapCleaner.Clean(time.Second*30,
+		func() bool {
+			p.terminatedConnectionsEventsConsumer.Sync()
+			terminatedConnections = terminatedConnections[:0]
+			p.terminatedConnectionMux.Lock()
+			terminatedConnections = append(terminatedConnections, p.terminatedConnections...)
+			p.terminatedConnections = p.terminatedConnections[:0]
+			p.terminatedConnectionMux.Unlock()
+			for _, conn := range terminatedConnections {
+				terminatedConnectionsMap[conn] = struct{}{}
+			}
+			if len(terminatedConnectionsMap) > 0 {
+				terminatedConnectionsMapMutex.Lock()
+				return true
+			}
+			return false
+		},
+		func() {
+			terminatedConnectionsMapMutex.Unlock()
+		},
+		func(now int64, key, val interface{}) bool {
+			keyIndex, ok := key.(*http2DynamicTableIndex)
+			if !ok {
+				return false
+			}
+
+			_, ok = terminatedConnectionsMap[keyIndex.Tup]
+			return ok
+		})
+	p.dynamicTableMapCleaner = mapCleaner
 }
 
 // GetStats returns a map of HTTP2 stats stored in the following format:
