@@ -1849,6 +1849,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFinode, "struct file", "f_inode", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFpath, "struct file", "f_path", "linux/fs.h")
 	if kv.Code >= kernel.Kernel5_3 {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
 	}

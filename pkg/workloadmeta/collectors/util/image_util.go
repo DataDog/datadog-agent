@@ -5,10 +5,12 @@
 
 //go:build trivy
 
-package workloadmeta
+// Package util contains utility functions for image metadata collection
+package util
 
 import (
 	"github.com/CycloneDX/cyclonedx-go"
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	trivydx "github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
 )
 
@@ -17,10 +19,15 @@ const (
 	repoDigestPropertyKey = trivydx.Namespace + trivydx.PropertyRepoDigest
 )
 
-// updateSBOMRepoMetadata updates entered SBOM with new metadata properties if the initial SBOM status was successful
+// UpdateSBOMRepoMetadata updates entered SBOM with new metadata properties if the initial SBOM status was successful
 // and there are new repoTags and repoDigests missing in the SBOM. It returns the updated SBOM.
-func updateSBOMRepoMetadata(sbom *SBOM, repoTags, repoDigests []string) *SBOM {
-	if sbom.Status != Success || sbom.CycloneDXBOM.Metadata.Component.Properties == nil {
+func UpdateSBOMRepoMetadata(sbom *workloadmeta.SBOM, repoTags, repoDigests []string) *workloadmeta.SBOM {
+	if sbom == nil ||
+		sbom.Status != workloadmeta.Success ||
+		sbom.CycloneDXBOM == nil ||
+		sbom.CycloneDXBOM.Metadata == nil ||
+		sbom.CycloneDXBOM.Metadata.Component == nil ||
+		sbom.CycloneDXBOM.Metadata.Component.Properties == nil {
 		return sbom
 	}
 
