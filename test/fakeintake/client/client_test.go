@@ -37,7 +37,7 @@ var supportFlareResponse []byte
 
 func TestClient(t *testing.T) {
 	t.Run("getFakePayloads should properly format the request", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(func(w http.ResponseWriter, r *http.Request) {
 			// allow requests only to "/foo/bar"
 			routes := r.URL.Query()["endpoint"]
 
@@ -58,7 +58,7 @@ func TestClient(t *testing.T) {
 			})
 			require.NoError(t, err)
 			w.Write(resp)
-		}))
+		})
 		defer ts.Close()
 
 		client := NewClient(t, ts.URL)
@@ -71,7 +71,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getFakePayloads should handle response with errors", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 		}))
 		defer ts.Close()
@@ -83,7 +83,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getMetrics", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2SeriesResponse)
 		}))
 		defer ts.Close()
@@ -98,7 +98,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getMetric", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2SeriesResponse)
 		}))
 		defer ts.Close()
@@ -111,7 +111,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("FilterMetrics", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2SeriesResponse)
 		}))
 		defer ts.Close()
@@ -127,7 +127,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getCheckRun", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV1CheckRunResponse)
 		}))
 		defer ts.Close()
@@ -142,7 +142,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("GetCheckRun", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV1CheckRunResponse)
 		}))
 		defer ts.Close()
@@ -155,7 +155,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getLogs", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2LogsResponse)
 		}))
 		defer ts.Close()
@@ -168,7 +168,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("getLog", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2LogsResponse)
 		}))
 		defer ts.Close()
@@ -183,7 +183,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("FilterLogs", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(apiV2LogsResponse)
 		}))
 		defer ts.Close()
@@ -195,12 +195,8 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("GetServerHealth", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path != "/fakeintake/health" {
-				w.WriteHeader(http.StatusBadRequest)
-				return
-			}
-			w.WriteHeader(http.StatusOK)
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
 		}))
 		defer ts.Close()
 
@@ -209,8 +205,18 @@ func TestClient(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("FlushPayloads", func(t *testing.T) {
+	t.Run("Unhealthy", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusBadRequest)
+		}))
+		defer ts.Close()
+
+		client := newClientNoWait(ts.URL)
+		require.Error(t, client.GetServerHealth())
+	})
+
+	t.Run("FlushPayloads", func(t *testing.T) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/fakeintake/flushPayloads" {
 				w.WriteHeader(http.StatusBadRequest)
 				return
@@ -225,7 +231,7 @@ func TestClient(t *testing.T) {
 	})
 
 	t.Run("GetLatestFlare", func(t *testing.T) {
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write(supportFlareResponse)
 		}))
 		defer ts.Close()
@@ -251,7 +257,7 @@ func TestClient(t *testing.T) {
 				]
 			}`, base64.StdEncoding.EncodeToString(payload))
 
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(response))
 		}))
 		defer ts.Close()
@@ -276,7 +282,7 @@ func TestClient(t *testing.T) {
 				]
 			}`, base64.StdEncoding.EncodeToString(payload))
 
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(response))
 		}))
 		defer ts.Close()
@@ -301,7 +307,7 @@ func TestClient(t *testing.T) {
 				]
 			}`, base64.StdEncoding.EncodeToString(payload))
 
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ts := newServerWithHealth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(response))
 		}))
 		defer ts.Close()
@@ -312,4 +318,16 @@ func TestClient(t *testing.T) {
 		assert.True(t, client.processDiscoveryAggregator.ContainsPayloadName("i-078e212"))
 		assert.False(t, client.processDiscoveryAggregator.ContainsPayloadName("totoro"))
 	})
+}
+
+// newServerWithHealth returns an http server which handles the health endpoint of the fakeintake
+// and answers to all other requests using the provided handler.
+func newServerWithHealth(handlerFunc func(http.ResponseWriter, *http.Request)) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/fakeintake/health" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		handlerFunc(w, r)
+	}))
 }

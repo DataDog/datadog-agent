@@ -84,10 +84,8 @@ type Client struct {
 	processDiscoveryAggregator aggregator.ProcessDiscoveryAggregator
 }
 
-// NewClient creates a new fake intake client
-// fakeIntakeURL: the host of the fake Datadog intake server
-func NewClient(t *testing.T, fakeIntakeURL string) *Client {
-	client := &Client{
+func newClientNoWait(fakeIntakeURL string) *Client {
+	return &Client{
 		fakeIntakeURL:              strings.TrimSuffix(fakeIntakeURL, "/"),
 		metricAggregator:           aggregator.NewMetricAggregator(),
 		checkRunAggregator:         aggregator.NewCheckRunAggregator(),
@@ -97,7 +95,12 @@ func NewClient(t *testing.T, fakeIntakeURL string) *Client {
 		containerAggregator:        aggregator.NewContainerAggregator(),
 		processDiscoveryAggregator: aggregator.NewProcessDiscoveryAggregator(),
 	}
+}
 
+// NewClient creates a new fake intake client and requires it to be healthy.
+// fakeIntakeURL: the host of the fake Datadog intake server
+func NewClient(t *testing.T, fakeIntakeURL string) *Client {
+	client := newClientNoWait(fakeIntakeURL)
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		assert.NoError(ct, client.GetServerHealth())
 	}, 5*time.Minute, 20*time.Second)
