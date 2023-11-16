@@ -78,7 +78,7 @@ type ebpfProgram struct {
 	disabledProtocols []*protocols.ProtocolSpec
 
 	// Used for connection_protocol data expiration
-	mapCleaner *ddebpf.MapCleaner
+	mapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
 	buildMode  buildmode.Type
 }
 
@@ -170,6 +170,16 @@ func (e *ebpfProgram) Init() error {
 }
 
 func (e *ebpfProgram) Start() error {
+	// Mainly for tests, but possible for other cases as well, we might have a nil (not shared) connection protocol map
+	// between NPM and USM. In such a case we just create our own instance, but we don't modify the
+	// `e.connectionProtocolMap` field.
+	if e.connectionProtocolMap == nil {
+		m, _, err := e.GetMap(probes.ConnectionProtocolMap)
+		if err != nil {
+			return err
+		}
+		e.connectionProtocolMap = m
+	}
 	mapCleaner, err := e.setupMapCleaner()
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
@@ -403,22 +413,16 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 const connProtoTTL = 3 * time.Minute
 const connProtoCleaningInterval = 5 * time.Minute
 
-func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner, error) {
-	mapCleaner, err := ddebpf.NewMapCleaner(e.connectionProtocolMap, new(netebpf.ConnTuple), new(netebpf.ProtocolStackWrapper))
+func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](e.connectionProtocolMap, 1024)
 	if err != nil {
 		return nil, err
 	}
 
 	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, func(now int64, key, val interface{}) bool {
-		protoStack, ok := val.(*netebpf.ProtocolStackWrapper)
-		if !ok {
-			return false
-		}
-
-		updated := int64(protoStack.Updated)
-		return (now - updated) > ttl
-	})
+	mapCleaner.Clean(connProtoCleaningInterval, func(now int64, key netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
+		return (now - int64(val.Updated)) > ttl
+	}, true)
 
 	return mapCleaner, nil
 }

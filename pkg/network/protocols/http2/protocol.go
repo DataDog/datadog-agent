@@ -35,7 +35,7 @@ type protocol struct {
 	telemetry *http.Telemetry
 	// TODO: Do we need to duplicate?
 	statkeeper     *http.StatKeeper
-	mapCleaner     *ddebpf.MapCleaner
+	mapCleaner     *ddebpf.MapCleaner[http2StreamKey, EbpfTx]
 	eventsConsumer *events.Consumer
 }
 
@@ -233,26 +233,21 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting %q map: %s", inFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner(http2Map, new(http2StreamKey), new(EbpfTx))
+	mapCleaner, err := ddebpf.NewMapCleaner[http2StreamKey, EbpfTx](http2Map, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		http2Txn, ok := val.(*EbpfTx)
-		if !ok {
-			return false
-		}
-
-		if updated := int64(http2Txn.Response_last_seen); updated > 0 {
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, func(now int64, key http2StreamKey, val EbpfTx) bool {
+		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(http2Txn.Request_started)
+		started := int64(val.Request_started)
 		return started > 0 && (now-started) > ttl
-	})
+	}, true)
 
 	p.mapCleaner = mapCleaner
 }
