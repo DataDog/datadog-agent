@@ -4,4 +4,4 @@
 // Copyright 2018-present Datadog, Inc.
 
 // Package winutil - Windows utility functions
-package wnutil
+package winutil
