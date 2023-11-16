@@ -2,6 +2,7 @@ package snmp
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sync"
 )
 
@@ -9,6 +10,8 @@ import (
 func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
+
+	log.Info("RC Callback, updates: %+v", updates)
 }
 
 // RemoteConfigProvider receives configuration from remote-config
