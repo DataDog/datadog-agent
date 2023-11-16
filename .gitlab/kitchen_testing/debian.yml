@@ -87,14 +87,6 @@ kitchen_debian_install_script_agent-a7_x64:
     - .kitchen_scenario_debian_a7_x64
     - .kitchen_test_install_script_agent
 
-kitchen_debian_install_script_agent-a7_arm64:
-  rules:
-    !reference [.on_all_kitchen_builds_a7]
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_debian_a7_arm64
-    - .kitchen_test_install_script_agent
-
 kitchen_debian_install_script_iot_agent-a7:
   extends:
     - .kitchen_scenario_debian_a7_x64
