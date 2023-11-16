@@ -979,7 +979,6 @@ retry:
 	}
 
 	snapshotID = *result.SnapshotId
-	snapshotDuration := time.Since(snapshotStartedAt)
 
 	waiter := ec2.NewSnapshotCompletedWaiter(ec2client)
 	err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{
@@ -987,6 +986,7 @@ retry:
 	}, 15*time.Minute)
 
 	if err == nil {
+		snapshotDuration := time.Since(snapshotStartedAt)
 		log.Debugf("volume snapshotting finished sucessfully %q (took %s)", snapshotID, snapshotDuration)
 		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), metrictags, 1.0)
 		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(metrictags), 1.0)
