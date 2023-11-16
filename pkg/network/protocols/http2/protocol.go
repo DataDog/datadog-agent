@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -309,7 +308,7 @@ func (p *protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
 	terminatedConnections := make([]netebpf.ConnTuple, 0)
 	terminatedConnectionsMap := make(map[netebpf.ConnTuple]struct{})
 	terminatedConnectionsMapMutex := sync.Mutex{}
-	mapCleaner.Clean(time.Second*30,
+	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval,
 		func() bool {
 			p.terminatedConnectionsEventsConsumer.Sync()
 			terminatedConnections = terminatedConnections[:0]
