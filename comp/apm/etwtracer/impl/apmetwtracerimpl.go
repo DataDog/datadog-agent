@@ -9,6 +9,7 @@
 package apmetwtracerimpl
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/binary"
@@ -285,7 +286,16 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 				UserDataLength: e.UserDataLength,
 			}
 			ev.header.Size = uint16(unsafe.Sizeof(ev)) + e.UserDataLength
-			_, writeErr := pidCtx.conn.Write(etwutil.GoBytes(unsafe.Pointer(&ev), int(ev.header.Size)))
+
+			var b bytes.Buffer
+			binWriter := bufio.NewWriter(&b)
+			binary.Write(binWriter, binary.LittleEndian, ev.header)
+			binary.Write(binWriter, binary.LittleEndian, ev.EventHeader)
+			binary.Write(binWriter, binary.LittleEndian, ev.UserDataLength)
+			binWriter.Write(ev.UserData)
+			binWriter.Flush()
+
+			_, writeErr := pidCtx.conn.Write(b.Bytes())
 			if writeErr != nil {
 				a.log.Errorf("Could not write ETW event for PID %d, %v", pid, writeErr)
 				err = a.removePID(pid)
