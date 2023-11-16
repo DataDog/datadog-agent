@@ -98,6 +98,8 @@ var (
 	defaultHTTPClient = &http.Client{
 		Timeout: 10 * time.Second,
 	}
+
+	cleanupMaxDuration = 1 * time.Minute
 )
 
 type scanType string
@@ -552,7 +554,7 @@ func mountCmd(assumedRole string) error {
 
 	var cleanups []func(context.Context)
 	defer func() {
-		cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 		defer cancel()
 		for _, cleanup := range cleanups {
 			cleanup(cleanupctx)
@@ -1192,7 +1194,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	case ec2types.ResourceTypeVolume:
 		sID, cleanupSnapshot, err := createSnapshot(ctx, ec2client, tags, resourceID)
 		defer func() {
-			cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
 			cleanupSnapshot(cleanupctx)
 		}()
@@ -1231,7 +1233,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	if scan.AttachVolume || globalParams.attachVolumes {
 		mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, ec2client, tags, snapshotID)
 		defer func() {
-			cleanupctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
 			cleanupVolume(cleanupctx)
 		}()
