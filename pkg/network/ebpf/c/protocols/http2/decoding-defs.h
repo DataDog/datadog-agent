@@ -31,6 +31,8 @@
 // Http2 max batch size.
 #define HTTP2_BATCH_SIZE 17
 
+#define HTTP2_TERMINATED_BATCH_SIZE 80
+
 // MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
 // 1 << 6 - 1
 #define MAX_6_BITS 63

@@ -37,18 +37,21 @@ type protocol struct {
 	statkeeper     *http.StatKeeper
 	mapCleaner     *ddebpf.MapCleaner
 	eventsConsumer *events.Consumer
+
+	terminatedConnectionsEventsConsumer *events.Consumer
 }
 
 const (
-	inFlightMap               = "http2_in_flight"
-	dynamicTable              = "http2_dynamic_table"
-	dynamicTableCounter       = "http2_dynamic_counter_table"
-	http2IterationsTable      = "http2_iterations"
-	staticTable               = "http2_static_table"
-	firstFrameHandlerTailCall = "socket__http2_handle_first_frame"
-	filterTailCall            = "socket__http2_filter"
-	parserTailCall            = "socket__http2_frames_parser"
-	eventStream               = "http2"
+	inFlightMap                      = "http2_in_flight"
+	dynamicTable                     = "http2_dynamic_table"
+	dynamicTableCounter              = "http2_dynamic_counter_table"
+	http2IterationsTable             = "http2_iterations"
+	staticTable                      = "http2_static_table"
+	firstFrameHandlerTailCall        = "socket__http2_handle_first_frame"
+	filterTailCall                   = "socket__http2_filter"
+	parserTailCall                   = "socket__http2_frames_parser"
+	eventStream                      = "http2"
+	terminatedConnectionsEventStream = "terminated_http2"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -159,6 +162,7 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	utils.EnableOption(opts, "http2_monitoring_enabled")
 	// Configure event stream
 	events.Configure(eventStream, mgr, opts)
+	events.Configure(terminatedConnectionsEventStream, mgr, opts)
 }
 
 func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
@@ -171,8 +175,18 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 		return
 	}
 
+	p.terminatedConnectionsEventsConsumer, err = events.NewConsumer(
+		terminatedConnectionsEventStream,
+		mgr,
+		p.processTerminatedConnections,
+	)
+	if err != nil {
+		return
+	}
+
 	p.statkeeper = http.NewStatkeeper(p.cfg, p.telemetry)
 	p.eventsConsumer.Start()
+	p.terminatedConnectionsEventsConsumer.Start()
 
 	if err = p.createStaticTable(mgr); err != nil {
 		return fmt.Errorf("error creating a static table for http2 monitoring: %w", err)
@@ -194,6 +208,10 @@ func (p *protocol) Stop(_ *manager.Manager) {
 
 	if p.eventsConsumer != nil {
 		p.eventsConsumer.Stop()
+	}
+
+	if p.terminatedConnectionsEventsConsumer != nil {
+		p.terminatedConnectionsEventsConsumer.Stop()
 	}
 
 	if p.statkeeper != nil {
@@ -225,6 +243,10 @@ func (p *protocol) processHTTP2(data []byte) {
 	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
 	p.telemetry.Count(tx)
 	p.statkeeper.Process(tx)
+}
+
+func (p *protocol) processTerminatedConnections([]byte) {
+	// Currently empty
 }
 
 func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
