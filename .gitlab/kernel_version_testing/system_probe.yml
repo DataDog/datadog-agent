@@ -314,8 +314,7 @@ kernel_matrix_testing_setup_env_arm64:
   extends:
     - .kernel_matrix_testing_setup_env
   variables:
-    EC2_ARM_INSTANCE_TYPE: "m6gd.metal"
-    INSTANCE_TYPE: $EC2_ARM_INSTANCE_TYPE
+    INSTANCE_TYPE: "m6gd.metal"
     INSTANCE_TYPE_ARG: "--instance-type-arm=$INSTANCE_TYPE"
     ARCH: arm64
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
@@ -326,8 +325,7 @@ kernel_matrix_testing_setup_env_x64:
   extends:
     - .kernel_matrix_testing_setup_env
   variables:
-    EC2_X86_INSTANCE_TYPE: "m5d.metal"
-    INSTANCE_TYPE: $EC2_X86_INSTANCE_TYPE
+    INSTANCE_TYPE: "m5d.metal"
     INSTANCE_TYPE_ARG: "--instance-type-x86=$INSTANCE_TYPE"
     ARCH: x86_64
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
