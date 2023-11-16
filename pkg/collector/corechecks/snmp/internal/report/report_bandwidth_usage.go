@@ -113,10 +113,9 @@ calculateRate is responsible for checking the state for previously seen metric s
 If the ifSpeed has changed for the interface, the rate will not be submitted (drop the previous sample)
 */
 func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageValue float64, usageName string, tags []string) error {
-	ms.interfaceRateMap.mu.Lock()
-	defer ms.interfaceRateMap.mu.Unlock()
-
+	ms.interfaceRateMap.mu.RLock()
 	interfaceRate, ok := ms.interfaceRateMap.rates[interfaceID]
+	ms.interfaceRateMap.mu.RUnlock()
 	log.Debugf("in the calculate rate, interfaceID: %s", interfaceID)
 
 	// current data point has the same interface speed as last data point
@@ -132,7 +131,9 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 		// update the map previous as the current for next rate
 		interfaceRate.previousSample = usageValue
 		interfaceRate.previousTs = currentTimestamp
+		ms.interfaceRateMap.mu.Lock()
 		ms.interfaceRateMap.rates[interfaceID] = interfaceRate
+		ms.interfaceRateMap.mu.Unlock()
 
 		if delta < 0 {
 			return fmt.Errorf("Rate value for device/interface %s is negative, discarding it", interfaceID)
@@ -151,11 +152,13 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 		ms.sendMetric(sample)
 	} else {
 		// otherwise, no previous data point / different ifSpeed - make new entry for interface
+		ms.interfaceRateMap.mu.Lock()
 		ms.interfaceRateMap.rates[interfaceID] = InterfaceRate{
 			ifSpeed:        ifSpeed,
 			previousSample: usageValue,
 			previousTs:     TimeNow(),
 		}
+		ms.interfaceRateMap.mu.Unlock()
 		log.Debugf("new entry in interface map: interface ID: %s, ifSpeed: %d, previous sample: %f, ts: %f", interfaceID, ifSpeed, usageValue, TimeNow())
 		// do not send a sample to metrics, send error for ifSpeed change (previous entry conflicted)
 		if ok {
