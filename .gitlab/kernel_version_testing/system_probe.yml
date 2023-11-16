@@ -414,11 +414,12 @@ kernel_matrix_testing_run_tests_arm64:
         IP_FILTER=""
       fi
     - !reference [.shared_filters_and_queries]
-    - INSTANCE_IDS=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $IP_FILTER --output text --query $QUERY_INSTANCE_IDS | tr '\n' ' ')
-    - echo $INSTANCE_IDS
+    - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $IP_FILTER --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
+    - INSTANCE_ID="$(jq -r '.Instances[0].InstanceId' < instance.json)"
+    - echo ${INSTANCE_ID}
     - |
-      if [ $(echo $INSTANCE_IDS | wc -w) != "0" ]; then
-        aws ec2 terminate-instances --instance-ids $INSTANCE_IDS
+      if [[ "${INSTANCE_ID}" != "" ]]; then
+        aws ec2 terminate-instances --instance-ids "${INSTANCE_ID}"
       fi
 
 kernel_matrix_testing_cleanup_arm64:
