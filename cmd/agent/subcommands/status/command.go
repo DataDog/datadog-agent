@@ -26,7 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -151,6 +150,12 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 		v.Set("verbose", "true")
 	}
 
+	if cliParams.prettyPrintJSON || cliParams.jsonStatus {
+		v.Set("format", "json")
+	} else {
+		v.Set("format", "text")
+	}
+
 	url := url.URL{
 		Scheme:   "https",
 		Host:     fmt.Sprintf("%v:%v", ipcAddress, config.GetInt("cmd_port")),
@@ -163,13 +168,14 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 		return err
 	}
 	// attach trace-agent status, if obtainable
-	temp := make(map[string]interface{})
-	if err := json.Unmarshal(r, &temp); err == nil {
-		temp["apmStats"] = getAPMStatus(config)
-		if newr, err := json.Marshal(temp); err == nil {
-			r = newr
-		}
-	}
+	// TODO: figure out what to do with this
+	// temp := make(map[string]interface{})
+	// if err := json.Unmarshal(r, &temp); err == nil {
+	// 	temp["apmStats"] = getAPMStatus(config)
+	// 	if newr, err := json.Marshal(temp); err == nil {
+	// 		r = newr
+	// 	}
+	// }
 
 	// The rendering is done in the client so that the agent has less work to do
 	if cliParams.prettyPrintJSON {
@@ -179,11 +185,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	} else if cliParams.jsonStatus {
 		s = string(r)
 	} else {
-		formattedStatus, err := render.FormatStatus(r)
-		if err != nil {
-			return err
-		}
-		s = scrubMessage(formattedStatus)
+		s = scrubMessage(string(r))
 	}
 
 	if cliParams.statusFilePath != "" {

@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -42,7 +43,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/secrets"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -64,15 +64,17 @@ func SetupHandlers(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	statusComponent status.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, invAgent) }).Methods("GET")
+	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, statusComponent) }).Methods("GET")
 	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
-	r.HandleFunc("/status/formatted", func(w http.ResponseWriter, r *http.Request) { getFormattedStatus(w, r, invAgent) }).Methods("GET")
+	// This endpoint can be remove and use GET status?format=text
+	// r.HandleFunc("/status/formatted", func(w http.ResponseWriter, r *http.Request) { getFormattedStatus(w, r, invAgent) }).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
@@ -107,6 +109,11 @@ func setJSONError(w http.ResponseWriter, err error, errorCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	body, _ := json.Marshal(map[string]string{"error": err.Error()})
 	http.Error(w, string(body), errorCode)
+}
+
+func setTextError(w http.ResponseWriter, err error, errorCode int) {
+	w.Header().Set("Content-Type", "text/plain")
+	http.Error(w, err.Error(), errorCode)
 }
 
 func stopAgent(w http.ResponseWriter, r *http.Request) {
@@ -196,23 +203,32 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.Component) {
+func getStatus(w http.ResponseWriter, r *http.Request, status status.Component) {
 	log.Info("Got a request for the status. Making status.")
-	verbose := r.URL.Query().Get("verbose") == "true"
-	s, err := status.GetStatus(verbose, invAgent)
-	w.Header().Set("Content-Type", "application/json")
-	if err != nil {
-		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
-		return
+	// Todo: Figure what to do with verbose
+	// verbose := r.URL.Query().Get("verbose") == "true"
+	format := r.URL.Query().Get("format")
+
+	// TODO: validate format
+	s, err := status.Get(format)
+
+	if format == "text" {
+		w.Header().Set("Content-Type", "text/plain")
+		if err != nil {
+			setTextError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
+			return
+		}
 	}
 
-	jsonStats, err := json.Marshal(s)
-	if err != nil {
-		setJSONError(w, log.Errorf("Error marshalling status. Error: %v, Status: %v", err, s), 500)
-		return
+	if format == "json" {
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
+			return
+		}
 	}
 
-	w.Write(jsonStats)
+	w.Write(s)
 }
 
 func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {
@@ -334,16 +350,16 @@ func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer d
 	w.Write(jsonStats)
 }
 
-func getFormattedStatus(w http.ResponseWriter, _ *http.Request, invAgent inventoryagent.Component) {
-	log.Info("Got a request for the formatted status. Making formatted status.")
-	s, err := status.GetAndFormatStatus(invAgent)
-	if err != nil {
-		setJSONError(w, log.Errorf("Error getting status: %v %v", err, s), 500)
-		return
-	}
+// func getFormattedStatus(w http.ResponseWriter, _ *http.Request, invAgent inventoryagent.Component) {
+// 	log.Info("Got a request for the formatted status. Making formatted status.")
+// 	s, err := status.GetAndFormatStatus(invAgent)
+// 	if err != nil {
+// 		setJSONError(w, log.Errorf("Error getting status: %v %v", err, s), 500)
+// 		return
+// 	}
 
-	w.Write(s)
-}
+// 	w.Write(s)
+// }
 
 func getHealth(w http.ResponseWriter, r *http.Request) {
 	h := health.GetReady()

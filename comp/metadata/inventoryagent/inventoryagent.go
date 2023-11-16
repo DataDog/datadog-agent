@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -78,9 +79,10 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp          Component
-	Provider      runnerimpl.Provider
-	FlareProvider flaretypes.Provider
+	Comp           Component
+	Provider       runnerimpl.Provider
+	FlareProvider  flaretypes.Provider
+	StatusProvider status.Provider
 }
 
 func newInventoryAgentProvider(deps dependencies) provides {
@@ -98,9 +100,10 @@ func newInventoryAgentProvider(deps dependencies) provides {
 	}
 
 	return provides{
-		Comp:          ia,
-		Provider:      ia.MetadataProvider(),
-		FlareProvider: ia.FlareProvider(),
+		Comp:           ia,
+		Provider:       ia.MetadataProvider(),
+		FlareProvider:  ia.FlareProvider(),
+		StatusProvider: ia.statusProvider(),
 	}
 }
 
