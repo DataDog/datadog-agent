@@ -5,9 +5,14 @@
 
 //go:build !trivy
 
-package workloadmeta
+// Package util contains utility functions for image metadata collection
+package util
 
-// updateSBOMRepoMetadata does nothing
-func updateSBOMRepoMetadata(sbom *SBOM, _, _ []string) *SBOM {
+import (
+	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+)
+
+// UpdateSBOMRepoMetadata does nothing
+func UpdateSBOMRepoMetadata(sbom *workloadmeta.SBOM, _, _ []string) *workloadmeta.SBOM {
 	return sbom
 }

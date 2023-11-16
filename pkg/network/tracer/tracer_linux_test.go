@@ -388,33 +388,52 @@ func (s *TracerSuite) TestConntrackExpiration() {
 
 	tr := setupTracer(t, testConfig())
 
-	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
-	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
-	rand.Seed(time.Now().UnixNano())
-	port := 5430 + rand.Intn(100)
-	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
+	server := NewTCPServerOnAddress("1.1.1.1:0", func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
 		defer c.Close()
 
 		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
+		for {
+			b, err := r.ReadBytes(byte('\n'))
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+				require.NoError(t, err)
+			}
+			if bytes.Equal(b, []byte("\n")) {
+				return
+			}
+		}
 	})
-	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
+	t.Cleanup(server.Shutdown)
 
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
+	_, port, err := net.SplitHostPort(server.address)
+	require.NoError(t, err, "could not split server address %s", server.address)
+
+	c, err := net.Dial("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
-	defer c.Close()
-	_, err = c.Write([]byte("ping"))
-	require.NoError(t, err)
+	t.Cleanup(func() {
+		c.Close()
+	})
 
 	var conn *network.ConnectionStats
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_, err = c.Write([]byte("ping\n"))
+		if !assert.NoError(collect, err, "error sending data to server") {
+			return
+		}
+
 		connections := getConnections(t, tr)
+		t.Log(connections) // for debugging failures
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		return ok && tr.conntracker.GetTranslationForConn(*conn) != nil
+		if !assert.True(collect, ok, "connection not found") {
+			return
+		}
+		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(*conn), "connection does not have NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection translation")
 
 	// This will force the connection to be expired next time we call getConnections, but
@@ -1196,7 +1215,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 	out, err := testutil.RunCommandWithContext(ctx, "testdata/reuseport.py")
-	require.NoError(t, err)
+	require.NoError(t, err, "error running reuseport.py, output: %s", out)
 
 	port, err := strconv.ParseUint(strings.TrimSpace(strings.Split(out, "\n")[0]), 10, 16)
 	require.NoError(t, err, "could not convert %s to integer port", out)
@@ -1216,6 +1235,8 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 		for _, c := range _conns {
 			conns[string(c.ByteKey(buf))] = c
 		}
+
+		t.Log(conns)
 
 		return len(conns) == 4
 	}, 3*time.Second, 100*time.Millisecond, "could not find expected number of udp connections, expected: 4")
