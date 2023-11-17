@@ -60,6 +60,11 @@
                     "dir": "debian-12-generic-arm64.qcow2",
                     "tag": "debian_12",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-12-generic-arm64.qcow2.xz"
+                },
+                {
+                    "dir": "CentOS-7-aarch64-GenericCloud-2211.qcow2",
+                    "tag": "centos_79",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/CentOS-7-aarch64-GenericCloud-2211.qcow2.xz"
                 }
             ],
             "machine": "virt",
