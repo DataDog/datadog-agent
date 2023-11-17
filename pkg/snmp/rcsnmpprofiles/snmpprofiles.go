@@ -6,6 +6,8 @@
 package rcsnmpprofiles
 
 import (
+	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sync"
@@ -16,7 +18,18 @@ func (rc *RemoteConfigSNMPProfilesManager) Callback(updates map[string]state.Raw
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 
-	log.Infof("RC Callback, updates: %+v", updates)
+	log.Info("RC Callback")
+
+	for path, rawConfig := range updates {
+		log.Infof("Path: %s", path)
+
+		profileDef := profiledefinition.DeviceProfileRcConfig{}
+		json.Unmarshal(rawConfig.Config, &profileDef)
+
+		log.Infof("Profile Name: %s", profileDef.Profile.Name)
+		log.Infof("Profile: %+v", profileDef.Profile)
+	}
+
 }
 
 // RemoteConfigSNMPProfilesManager receives configuration from remote-config
