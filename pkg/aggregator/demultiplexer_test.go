@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/orchestrator/forwarder/forwarderimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -32,7 +33,7 @@ func demuxTestOptions() AgentDemultiplexerOptions {
 
 // Check whether we are built with the +orchestrator build tag
 func orchestratorEnabled(log log.Component) bool {
-	return buildOrchestratorForwarder(log) != nil
+	return forwarderimpl.NewOrchestratorForwarder(log) != nil
 }
 
 func TestDemuxIsSetAsGlobalInstance(t *testing.T) {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/orchestrator/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
@@ -141,7 +142,7 @@ func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forward
 	if options.UseNoopOrchestratorForwarder {
 		orchestratorForwarder = new(forwarder.NoopForwarder)
 	} else if options.UseOrchestratorForwarder {
-		orchestratorForwarder = buildOrchestratorForwarder(log)
+		orchestratorForwarder = forwarderimpl.NewOrchestratorForwarder(log)
 	}
 
 	// event platform forwarder
