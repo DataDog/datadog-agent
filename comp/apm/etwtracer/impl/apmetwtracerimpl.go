@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	etwutil "github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 	"github.com/Microsoft/go-winio"
+	"github.com/alecthomas/units"
 	"go.uber.org/fx"
 	"golang.org/x/sys/windows"
 	"io"
@@ -89,23 +90,17 @@ type header struct {
 	CommandResponse uint8
 }
 
-type clrEvent struct {
-	header
-	EventHeader    etw.DDEventHeader
-	UserDataLength uint16
-	UserData       []byte
-}
-
 const (
 	magicHeaderString   = "DD_ETW_IPC_V1"
 	serverNamedPipePath = "\\\\.\\pipe\\DD_ETW_DISPATCHER"
 	clientNamedPipePath = "\\\\.\\pipe\\DD_ETW_CLIENT_%d"
-	headerSize          = 17
+	headerSize          = 17 // byte
 	okResponse          = 0
 	registerCommand     = 1
 	unregisterCommand   = 2
 	clrEventResponse    = 16
 	errorResponse       = 255
+	payloadBufferSize   = 64 * units.Kilobyte
 )
 
 type win32MessageBytePipe interface {
@@ -262,8 +257,9 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 	}()
 
 	go func() {
-		var b bytes.Buffer
-		b.Grow(64 * 1024)
+		var payloadBuffer bytes.Buffer
+		// preallocate a fixed size
+		payloadBuffer.Grow(int(payloadBufferSize))
 
 		// StartTracing blocks the caller
 		_ = a.session.StartTracing(func(e *etw.DDEventRecord) {
@@ -279,26 +275,20 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 				// after a process un-registers itself, no need to log anything here.
 				return
 			}
-			ev := clrEvent{
-				header: header{
-					Magic:           a.magic,
-					CommandResponse: clrEventResponse,
-				},
-				EventHeader:    e.EventHeader,
-				UserData:       etwutil.GoBytes(unsafe.Pointer(e.UserData), int(e.UserDataLength)),
-				UserDataLength: e.UserDataLength,
-			}
-			ev.header.Size = uint16(unsafe.Sizeof(ev)) + e.UserDataLength
-			
-			b.Reset()
-			binWriter := bufio.NewWriter(&b)
-			binary.Write(binWriter, binary.LittleEndian, ev.header)
-			binary.Write(binWriter, binary.LittleEndian, ev.EventHeader)
-			binary.Write(binWriter, binary.LittleEndian, ev.UserDataLength)
-			binWriter.Write(ev.UserData)
+
+			payloadBuffer.Reset()
+			binWriter := bufio.NewWriter(&payloadBuffer)
+			binary.Write(binWriter, binary.LittleEndian, header{
+				Magic:           a.magic,
+				CommandResponse: clrEventResponse,
+				Size:            uint16(headerSize+unsafe.Sizeof(e.EventHeader)+unsafe.Sizeof(e.UserDataLength)) + e.UserDataLength,
+			})
+			binary.Write(binWriter, binary.LittleEndian, e.EventHeader)
+			binary.Write(binWriter, binary.LittleEndian, e.UserDataLength)
+			binWriter.Write(etwutil.GoBytes(unsafe.Pointer(e.UserData), int(e.UserDataLength)))
 			binWriter.Flush()
 
-			_, writeErr := pidCtx.conn.Write(b.Bytes())
+			_, writeErr := pidCtx.conn.Write(payloadBuffer.Bytes())
 			if writeErr != nil {
 				a.log.Errorf("Could not write ETW event for PID %d, %v", pid, writeErr)
 				err = a.removePID(pid)
