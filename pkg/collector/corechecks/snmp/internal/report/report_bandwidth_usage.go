@@ -100,7 +100,6 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	usageValue := ((octetsFloatValue * 8) / (float64(ifSpeed))) * 100.0
 
 	interfaceID := ms.deviceID + ":" + fullIndex + "." + usageName
-	log.Debugf("interfaceID: %s, octetsFloatValue: %f, ifSpeed: %d", interfaceID, octetsFloatValue, ifSpeed)
 	err = ms.calculateRate(interfaceID, ifSpeed, usageValue, usageName, tags)
 	if err != nil {
 		return err
@@ -116,18 +115,13 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 	ms.interfaceRateMap.mu.RLock()
 	interfaceRate, ok := ms.interfaceRateMap.rates[interfaceID]
 	ms.interfaceRateMap.mu.RUnlock()
-	log.Debugf("in the calculate rate, interfaceID: %s", interfaceID)
 
 	// current data point has the same interface speed as last data point
 	if ok && interfaceRate.ifSpeed == ifSpeed {
-		log.Debugf("in the calculate rate and in the if statement ok, interfaceID: %s", interfaceID)
 		// calculate the delta, taken from pkg/metrics/rate.go
 		// https://github.com/DataDog/datadog-agent/blob/ecedf4648f41193988b4727fc6f893a0dfc3991e/pkg/metrics/rate.go#L37
 		currentTimestamp := TimeNow()
 		delta := (usageValue - interfaceRate.previousSample) / (currentTimestamp - interfaceRate.previousTs)
-		if delta > 100.0 {
-			log.Debugf("delta over 100%% for interfaceID: %s | ifSpeed: %d, usageValue: %f, previousVal: %f, currentTs: %f, previousTs:%f", interfaceID, ifSpeed, usageValue, interfaceRate.previousSample, currentTimestamp, interfaceRate.previousTs)
-		}
 		// update the map previous as the current for next rate
 		interfaceRate.previousSample = usageValue
 		interfaceRate.previousTs = currentTimestamp
@@ -147,7 +141,6 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 			forcedType: profiledefinition.ProfileMetricTypeGauge,
 			options:    profiledefinition.MetricsConfigOption{},
 		}
-		log.Debugf("send metric, interfaceID: %s, delta: %f", interfaceID, delta)
 		// send the metric
 		ms.sendMetric(sample)
 	} else {
@@ -159,7 +152,6 @@ func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageV
 			previousTs:     TimeNow(),
 		}
 		ms.interfaceRateMap.mu.Unlock()
-		log.Debugf("new entry in interface map: interface ID: %s, ifSpeed: %d, previous sample: %f, ts: %f", interfaceID, ifSpeed, usageValue, TimeNow())
 		// do not send a sample to metrics, send error for ifSpeed change (previous entry conflicted)
 		if ok {
 			log.Infof("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", interfaceRate.ifSpeed, ifSpeed, interfaceID)
