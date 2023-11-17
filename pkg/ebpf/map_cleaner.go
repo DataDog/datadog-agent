@@ -62,6 +62,9 @@ func (mc *MapCleaner[K, V]) Clean(interval time.Duration, shouldClean func(nowTS
 		return
 	}
 
+	// Since kernel 5.6, the eBPF library supports batch operations on maps, which reduces the number of syscalls
+	// required to clean the map. We use the new batch operations if the kernel version is >= 5.6, and fallback to
+	// the old method otherwise. The new API is also more efficient because it minimizes the number of allocations.
 	cleaner := mc.cleanWithoutBatches
 	if version, err := kernel.HostVersion(); err == nil && version >= kernel.VersionCode(5, 6, 0) {
 		cleaner = mc.cleanWithBatches
