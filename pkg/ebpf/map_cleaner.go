@@ -143,6 +143,7 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 		deletedCount,
 		elapsed,
 	)
+	mc.shrinkKeysToDelete()
 }
 
 func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool) {
@@ -175,4 +176,14 @@ func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(no
 		deletedCount,
 		elapsed,
 	)
+
+	mc.shrinkKeysToDelete()
+}
+
+func (mc *MapCleaner[K, V]) shrinkKeysToDelete() {
+	// If the number of keys to delete is greater than the batch size, shrinking its capacity
+	// by `mc.keysToDelete[:len(mc.keyBatch):len(mc.keyBatch)]` (similar to slices.Clip), and then resetting its length to 0
+	if len(mc.keysToDelete) > len(mc.keyBatch) {
+		mc.keysToDelete = mc.keysToDelete[:len(mc.keyBatch):len(mc.keyBatch)][:0]
+	}
 }
