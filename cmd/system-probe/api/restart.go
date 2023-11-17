@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
@@ -42,8 +41,6 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	log.Info("Closing all modules...")
-	module.Close()
 
 	w.WriteHeader(http.StatusOK)
 }
