@@ -127,10 +127,9 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 	telemetry := http.NewTelemetry("http2")
 
 	return &protocol{
-		cfg:                     cfg,
-		telemetry:               telemetry,
-		terminatedConnections:   make([]netebpf.ConnTuple, 0),
-		terminatedConnectionMux: sync.Mutex{},
+		cfg:                   cfg,
+		telemetry:             telemetry,
+		terminatedConnections: make([]netebpf.ConnTuple, 0),
 	}, nil
 }
 
