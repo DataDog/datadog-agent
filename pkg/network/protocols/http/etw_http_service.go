@@ -126,6 +126,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -1342,6 +1343,16 @@ func ipAndPortFromTup(tup driver.ConnTupleType, local bool) ([16]uint8, uint16) 
 		return tup.LocalAddr, tup.LocalPort
 	}
 	return tup.RemoteAddr, tup.RemotePort
+}
+
+func ip4format(ip [16]uint8) string {
+	ipObj := netip.AddrFrom4(*(*[4]byte)(ip[:4]))
+	return ipObj.String()
+}
+
+func ip6format(ip [16]uint8) string {
+	ipObj := netip.AddrFrom16(ip)
+	return ipObj.String()
 }
 
 // IPFormat takes a binary ip representation and returns a string type

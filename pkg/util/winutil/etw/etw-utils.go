@@ -10,7 +10,6 @@ package etw
 import (
 	"bytes"
 	"fmt"
-	"net/netip"
 	"reflect"
 	"strconv"
 	"time"
@@ -291,14 +290,4 @@ func skipASCIIString(data []byte, offset int) (nextOffset int, valFound bool, fo
 	}
 
 	return (offset + termZeroIdx + 1), true, (offset + termZeroIdx + 1)
-}
-
-func ip4format(ip [16]uint8) string {
-	ipObj := netip.AddrFrom4(*(*[4]byte)(ip[:4]))
-	return ipObj.String()
-}
-
-func ip6format(ip [16]uint8) string {
-	ipObj := netip.AddrFrom16(ip)
-	return ipObj.String()
 }
