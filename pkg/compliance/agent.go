@@ -448,7 +448,7 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 			} else {
 				err := a.reportDBConfigurationFromSystemProbe(ctx, pid)
 				if err != nil {
-					log.Errorf("error evaluating cross-container benchmark from system-probe: %v", err)
+					log.Infof("error evaluating cross-container benchmark from system-probe: %v", err)
 				}
 			}
 		}
@@ -463,12 +463,12 @@ func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, pid in
 		return fmt.Errorf("system-probe socket client was not created")
 	}
 
-	qs := new(url.Values)
+	qs := make(url.Values)
 	qs.Add("pid", strconv.FormatInt(int64(pid), 10))
 	sysProbeComplianceModuleURL := &url.URL{
 		Scheme:   "http",
 		Host:     "unix",
-		Path:     "/dbconfig",
+		Path:     "/compliance/dbconfig",
 		RawQuery: qs.Encode(),
 	}
 
