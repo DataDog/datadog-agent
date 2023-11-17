@@ -57,6 +57,7 @@ func (l *EnvironmentListener) createServices() {
 		"kubelet":           config.Kubernetes,
 		"ecs_fargate":       config.ECSFargate,
 		"eks_fargate":       config.EKSFargate,
+		"cloudrun":          config.CloudRun,
 		"cri":               config.Cri,
 		"containerd":        config.Containerd,
 		"kube_orchestrator": config.KubeOrchestratorExplorer,

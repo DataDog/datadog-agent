@@ -522,6 +522,7 @@ RUN apt-get update && \
 
 ENV DELVE_PAGER=less
 
+COPY --from=src /usr/src/datadog-agent/Dockerfiles/agent/cont-init.d/ /etc/cont-init.d/
 COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
 COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent

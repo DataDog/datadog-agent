@@ -50,6 +50,7 @@ var (
 	IsServerless                 = env.IsServerless
 	IsContainerized              = env.IsContainerized
 	IsDockerRuntime              = env.IsDockerRuntime
+	IsCloudRun                   = env.IsCloudRun
 	GetEnvDefault                = env.GetEnvDefault
 	IsHostProcAvailable          = env.IsHostProcAvailable
 	IsHostSysAvailable           = env.IsHostSysAvailable
@@ -72,6 +73,7 @@ const (
 	EKSFargate               = env.EKSFargate
 	ECSEC2                   = env.ECSEC2
 	Kubernetes               = env.Kubernetes
+	CloudRun                 = env.CloudRun
 	CloudFoundry             = env.CloudFoundry
 	Cri                      = env.Cri
 	Containerd               = env.Containerd

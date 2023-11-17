@@ -74,6 +74,11 @@ func IsECSFargate() bool {
 	return os.Getenv("ECS_FARGATE") != "" || os.Getenv("AWS_EXECUTION_ENV") == "AWS_ECS_FARGATE"
 }
 
+// IsECSFargate returns whether the Agent is running in Google Cloud Run
+func IsCloudRun() bool {
+	return os.Getenv("K_REVISION") != ""
+}
+
 // IsHostProcAvailable returns whether host proc is available or not
 func IsHostProcAvailable() bool {
 	if IsContainerized() {

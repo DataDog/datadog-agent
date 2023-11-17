@@ -21,6 +21,8 @@ const (
 	ECSFargate Feature = "ecsfargate"
 	// EKSFargate environment
 	EKSFargate Feature = "eksfargate"
+	// CloudRun environment
+	CloudRun Feature = "cloudrun"
 	// KubeOrchestratorExplorer can be enabled
 	KubeOrchestratorExplorer Feature = "orchestratorexplorer"
 	// CloudFoundry socket present

@@ -88,7 +88,8 @@ func DiscoverComponentsFromEnv() ([]config.ConfigurationProviders, []config.List
 	isContainerEnv := config.IsFeaturePresent(config.Docker) ||
 		config.IsFeaturePresent(config.Containerd) ||
 		config.IsFeaturePresent(config.Podman) ||
-		config.IsFeaturePresent(config.ECSFargate)
+		config.IsFeaturePresent(config.ECSFargate) ||
+		config.IsFeaturePresent(config.CloudRun)
 	isKubeEnv := config.IsFeaturePresent(config.Kubernetes)
 
 	if isContainerEnv || isKubeEnv {

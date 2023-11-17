@@ -1,0 +1,9 @@
+## Provides autodetected defaults, for Cloud Run environments,
+## please see datadog.yaml.example for all supported options
+
+# Enable APM by setting the DD_APM_ENABLED envvar to true, or override this configuration
+apm_config:
+  apm_non_local_traffic: true
+
+# Use java container support
+jmx_use_container_support: true

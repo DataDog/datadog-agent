@@ -41,6 +41,7 @@ func init() {
 	registerFeature(ECSEC2)
 	registerFeature(ECSFargate)
 	registerFeature(EKSFargate)
+	registerFeature(CloudRun)
 	registerFeature(KubeOrchestratorExplorer)
 	registerFeature(CloudFoundry)
 	registerFeature(Podman)
@@ -55,6 +56,7 @@ func IsAnyContainerFeaturePresent() bool {
 		IsFeaturePresent(ECSEC2) ||
 		IsFeaturePresent(ECSFargate) ||
 		IsFeaturePresent(EKSFargate) ||
+		IsFeaturePresent(CloudRun) ||
 		IsFeaturePresent(CloudFoundry) ||
 		IsFeaturePresent(Podman)
 }
@@ -177,6 +179,12 @@ func detectAWSEnvironments(features FeatureMap, cfg model.Reader) {
 
 	if IsECS() {
 		features[ECSEC2] = struct{}{}
+	}
+}
+
+func detectCloudRun(features FeatureMap, cfg model.Reader) {
+	if cfg.GetBool("cloud_run") {
+		features[CloudRun] = struct{}{}
 	}
 }
 
