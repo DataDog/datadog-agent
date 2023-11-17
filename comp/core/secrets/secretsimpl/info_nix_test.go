@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build secrets && !windows
+//go:build !windows
 
-package secrets
+package secretsimpl
 
 import (
 	"bytes"
@@ -27,22 +27,21 @@ instances:
 )
 
 func TestGetExecutablePermissionsError(t *testing.T) {
-	secretBackendCommand = "some_command"
-	t.Cleanup(resetPackageVars)
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
 
-	_, err := getExecutablePermissions()
+	_, err := getExecutablePermissions(resolver)
 	assert.Error(t, err, "getExecutablePermissions should fail when secretBackendCommand file does not exists")
 }
 
-func setupSecretCommmand(t *testing.T) (string, string) {
+func setupSecretCommand(t *testing.T, resolver *secretResolver) (string, string) {
 	dir := t.TempDir()
-	t.Cleanup(resetPackageVars)
 
-	secretBackendCommand = filepath.Join(dir, "executable")
-	f, err := os.Create(secretBackendCommand)
+	resolver.backendCommand = filepath.Join(dir, "executable")
+	f, err := os.Create(resolver.backendCommand)
 	require.NoError(t, err)
 	f.Close()
-	os.Chmod(secretBackendCommand, 0700)
+	os.Chmod(resolver.backendCommand, 0700)
 
 	u, err := user.Current()
 	require.NoError(t, err)
@@ -55,9 +54,10 @@ func setupSecretCommmand(t *testing.T) (string, string) {
 }
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {
-	currentUser, currentGroup := setupSecretCommmand(t)
+	resolver := newEnabledSecretResolver()
+	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
-	res, err := getExecutablePermissions()
+	res, err := getExecutablePermissions(resolver)
 	require.NoError(t, err)
 	require.IsType(t, permissionsDetails{}, res)
 	details := res.(permissionsDetails)
@@ -67,25 +67,26 @@ func TestGetExecutablePermissionsSuccess(t *testing.T) {
 }
 
 func TestDebugInfo(t *testing.T) {
-	currentUser, currentGroup := setupSecretCommmand(t)
+	resolver := newEnabledSecretResolver()
+	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
-	runCommand = func(string) ([]byte, error) {
+	resolver.commandHookFunc = func(string) ([]byte, error) {
 		res := []byte("{\"pass1\":{\"value\":\"password1\"},")
 		res = append(res, []byte("\"pass2\":{\"value\":\"password2\"},")...)
 		res = append(res, []byte("\"pass3\":{\"value\":\"password3\"}}")...)
 		return res, nil
 	}
 
-	_, err := Decrypt(testConf, "test")
+	_, err := resolver.Decrypt(testConf, "test")
 	require.NoError(t, err)
-	_, err = Decrypt(testConfInfo, "test2")
+	_, err = resolver.Decrypt(testConfInfo, "test2")
 	require.NoError(t, err)
 
 	var buffer bytes.Buffer
-	GetDebugInfo(&buffer)
+	resolver.GetDebugInfo(&buffer)
 
 	expectedResult := `=== Checking executable permissions ===
-Executable path: ` + secretBackendCommand + `
+Executable path: ` + resolver.backendCommand + `
 Executable permissions: OK, the executable has the correct permissions
 
 Permissions Detail:
@@ -110,23 +111,23 @@ Secrets handle decrypted:
 }
 
 func TestDebugInfoError(t *testing.T) {
-	secretBackendCommand = "some_command"
-	t.Cleanup(resetPackageVars)
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
 
-	runCommand = func(string) ([]byte, error) {
+	resolver.commandHookFunc = func(string) ([]byte, error) {
 		res := []byte("{\"pass1\":{\"value\":\"password1\"},")
 		res = append(res, []byte("\"pass2\":{\"value\":\"password2\"},")...)
 		res = append(res, []byte("\"pass3\":{\"value\":\"password3\"}}")...)
 		return res, nil
 	}
 
-	_, err := Decrypt(testConf, "test")
+	_, err := resolver.Decrypt(testConf, "test")
 	require.NoError(t, err)
-	_, err = Decrypt(testConfInfo, "test2")
+	_, err = resolver.Decrypt(testConfInfo, "test2")
 	require.NoError(t, err)
 
 	var buffer bytes.Buffer
-	GetDebugInfo(&buffer)
+	resolver.GetDebugInfo(&buffer)
 
 	expectedResult := `=== Checking executable permissions ===
 Executable path: some_command

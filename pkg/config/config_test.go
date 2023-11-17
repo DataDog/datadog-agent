@@ -17,7 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -428,11 +431,12 @@ func TestProxy(t *testing.T) {
 			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
+			resolver := secretsimpl.NewMockSecretResolver()
 			if c.setup != nil {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", true, nil)
+			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1045,7 +1049,7 @@ func TestProxyLoadedFromEnvVars(t *testing.T) {
 	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
 
 	Datadog = conf
-	Load()
+	LoadWithoutSecret()
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")
@@ -1066,7 +1070,7 @@ func TestProxyLoadedFromConfigFile(t *testing.T) {
 
 	conf.AddConfigPath(tempDir)
 	Datadog = conf
-	Load()
+	LoadWithoutSecret()
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")
@@ -1092,7 +1096,7 @@ func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 
 	conf.AddConfigPath(tempDir)
 	Datadog = conf
-	Load()
+	LoadWithoutSecret()
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -27,10 +28,10 @@ func TestCommand(t *testing.T) {
 		// this command has a lot of options, so just test a few
 		[]string{"check", "cleopatra", "--delay", "1", "--flare"},
 		run,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{"cleopatra"}, cliParams.args)
 			require.Equal(t, 1, cliParams.checkDelay)
 			require.True(t, cliParams.saveFlare)
-			require.Equal(t, true, coreParams.ConfigLoadSecrets())
+			require.Equal(t, true, secretParams.Enabled)
 		})
 }

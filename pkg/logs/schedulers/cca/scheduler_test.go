@@ -18,7 +18,7 @@ import (
 )
 
 func setup() (scheduler *Scheduler, ac *autodiscovery.AutoConfig, spy *schedulers.MockSourceManager) {
-	ac = autodiscovery.NewAutoConfigNoStart(nil)
+	ac = autodiscovery.NewAutoConfigNoStart(nil, nil)
 	scheduler = New(ac).(*Scheduler)
 	spy = &schedulers.MockSourceManager{}
 	return

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -26,9 +27,9 @@ func TestConfigCommand(t *testing.T) {
 		commands,
 		[]string{"config"},
 		showRuntimeConfiguration,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{}, cliParams.args)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+			require.Equal(t, false, secretParams.Enabled)
 		})
 }
 
@@ -43,9 +44,9 @@ func TestConfigListRuntimeCommand(t *testing.T) {
 		commands,
 		[]string{"config", "list-runtime"},
 		listRuntimeConfigurableValue,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{}, cliParams.args)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+			require.Equal(t, false, secretParams.Enabled)
 		})
 }
 
@@ -60,9 +61,9 @@ func TestConfigSetCommand(t *testing.T) {
 		commands,
 		[]string{"config", "set", "foo", "bar"},
 		setConfigValue,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{"foo", "bar"}, cliParams.args)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+			require.Equal(t, false, secretParams.Enabled)
 		})
 }
 
@@ -77,8 +78,8 @@ func TestConfigGetCommand(t *testing.T) {
 		commands,
 		[]string{"config", "get", "foo"},
 		getConfigValue,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{"foo"}, cliParams.args)
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+			require.Equal(t, false, secretParams.Enabled)
 		})
 }

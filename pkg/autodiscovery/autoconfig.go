@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers"
@@ -64,8 +65,8 @@ func (l *listenerCandidate) try() (listeners.ServiceListener, error) {
 }
 
 // NewAutoConfig creates an AutoConfig instance and starts it.
-func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
-	ac := NewAutoConfigNoStart(scheduler)
+func NewAutoConfig(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *AutoConfig {
+	ac := NewAutoConfigNoStart(scheduler, secretResolver)
 
 	// We need to listen to the service channels before anything is sent to them
 	go ac.serviceListening()
@@ -74,8 +75,8 @@ func NewAutoConfig(scheduler *scheduler.MetaScheduler) *AutoConfig {
 }
 
 // NewAutoConfigNoStart creates an AutoConfig instance.
-func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler) *AutoConfig {
-	cfgMgr := newReconcilingConfigManager()
+func NewAutoConfigNoStart(scheduler *scheduler.MetaScheduler, secretResolver secrets.Component) *AutoConfig {
+	cfgMgr := newReconcilingConfigManager(secretResolver)
 	ac := &AutoConfig{
 		configPollers:      make([]*configPoller, 0, 9),
 		listenerCandidates: make(map[string]*listenerCandidate),
