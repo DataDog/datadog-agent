@@ -87,7 +87,9 @@ func refreshPdhObjectCache(forceRefresh bool) (didrefresh bool, err error) {
 	// log errors and warnings but will decrease the time before the failing
 	// counters have a chance to initialize successfully.
 
+	//revive:disable:redefines-builtin-id
 	var len uint32
+	//revive:enable:redefines-builtin-id
 
 	refreshInterval := config.Datadog.GetInt("windows_counter_refresh_interval")
 	if refreshInterval == 0 {
