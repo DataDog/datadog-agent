@@ -31,6 +31,9 @@ if [ -z "${STACK_SECURITY_GROUP}" ]; then
   exit 1
 fi
 
+if [ -z "${STACK_INSTANCE_TYPE}" ]; then
+  STACK_INSTANCE_TYPE="t4g.medium"
+fi
 BASEDIR=$(dirname "$0")
 
 # Stack meta
@@ -56,7 +59,7 @@ Parameters:
 
   DatadogSideScannerInstanceType:
     Type: String
-    Default: 't4g.medium'
+    Default: '${STACK_INSTANCE_TYPE}'
 
 Resources:
   DatadogSideScannerKeyPair:
@@ -147,7 +150,7 @@ aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" --regio
 printf "\n"
 
 printf "creating stack %s..." "${STACK_NAME}"
-STACK_ID=$(aws cloudformation create-stack \
+STACK_ARN=$(aws cloudformation create-stack \
   --stack-name "$STACK_NAME" \
   --region "$STACK_AWS_REGION" \
   --template-body "$STACK_TEMPLATE" \
@@ -156,7 +159,9 @@ STACK_ID=$(aws cloudformation create-stack \
   --output text)
 
 
-printf " waiting for stack \"%s\" to complete..." "${STACK_ID}"
+printf " waiting for stack \"%s\" to complete...\n" "${STACK_ARN}"
+printf "> https://%s.console.aws.amazon.com/cloudformation/home?region=%s#/stacks/stackinfo?stackId=%s\n" "${STACK_AWS_REGION}" "${STACK_AWS_REGION}" "${STACK_ARN}"
+
 if aws cloudformation wait stack-create-complete --stack-name "$STACK_NAME" --region "$STACK_AWS_REGION" > /dev/null;
 then
   printf "\n"
