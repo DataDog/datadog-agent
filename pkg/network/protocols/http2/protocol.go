@@ -127,9 +127,8 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 	telemetry := http.NewTelemetry("http2")
 
 	return &protocol{
-		cfg:                   cfg,
-		telemetry:             telemetry,
-		terminatedConnections: make([]netebpf.ConnTuple, 0),
+		cfg:       cfg,
+		telemetry: telemetry,
 	}, nil
 }
 
@@ -304,7 +303,7 @@ func (p *protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
 		return
 	}
 
-	terminatedConnections := make([]netebpf.ConnTuple, 0)
+	var terminatedConnections []netebpf.ConnTuple
 	terminatedConnectionsMap := make(map[netebpf.ConnTuple]struct{})
 	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval,
 		func() bool {
