@@ -337,7 +337,7 @@ func (m *SyscallMsg) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = encodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x42
+		dAtA[i] = 0x4a
 	}
 	if m.Exit != nil {
 		size, err := m.Exit.MarshalToSizedBufferVT(dAtA[:i])
@@ -347,7 +347,7 @@ func (m *SyscallMsg) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = encodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x3a
+		dAtA[i] = 0x42
 	}
 	if m.Fork != nil {
 		size, err := m.Fork.MarshalToSizedBufferVT(dAtA[:i])
@@ -357,7 +357,7 @@ func (m *SyscallMsg) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = encodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x32
+		dAtA[i] = 0x3a
 	}
 	if m.Open != nil {
 		size, err := m.Open.MarshalToSizedBufferVT(dAtA[:i])
@@ -367,7 +367,7 @@ func (m *SyscallMsg) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = encodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x2a
+		dAtA[i] = 0x32
 	}
 	if m.Exec != nil {
 		size, err := m.Exec.MarshalToSizedBufferVT(dAtA[:i])
@@ -377,7 +377,7 @@ func (m *SyscallMsg) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = encodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x22
+		dAtA[i] = 0x2a
 	}
 	if m.ContainerContext != nil {
 		size, err := m.ContainerContext.MarshalToSizedBufferVT(dAtA[:i])
@@ -387,15 +387,20 @@ func (m *SyscallMsg) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = encodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x1a
+		dAtA[i] = 0x22
 	}
 	if m.PID != 0 {
 		i = encodeVarint(dAtA, i, uint64(m.PID))
 		i--
-		dAtA[i] = 0x10
+		dAtA[i] = 0x18
 	}
 	if m.Type != 0 {
 		i = encodeVarint(dAtA, i, uint64(m.Type))
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.SeqNum != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.SeqNum))
 		i--
 		dAtA[i] = 0x8
 	}
@@ -562,6 +567,9 @@ func (m *SyscallMsg) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
+	if m.SeqNum != 0 {
+		n += 1 + sov(uint64(m.SeqNum))
+	}
 	if m.Type != 0 {
 		n += 1 + sov(uint64(m.Type))
 	}
@@ -1287,6 +1295,25 @@ func (m *SyscallMsg) UnmarshalVT(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SeqNum", wireType)
+			}
+			m.SeqNum = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.SeqNum |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Type", wireType)
 			}
 			m.Type = 0
@@ -1304,7 +1331,7 @@ func (m *SyscallMsg) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 2:
+		case 3:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field PID", wireType)
 			}
@@ -1323,7 +1350,7 @@ func (m *SyscallMsg) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 3:
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ContainerContext", wireType)
 			}
@@ -1359,7 +1386,7 @@ func (m *SyscallMsg) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 4:
+		case 5:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Exec", wireType)
 			}
@@ -1395,7 +1422,7 @@ func (m *SyscallMsg) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 5:
+		case 6:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Open", wireType)
 			}
@@ -1431,7 +1458,7 @@ func (m *SyscallMsg) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 6:
+		case 7:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Fork", wireType)
 			}
@@ -1467,7 +1494,7 @@ func (m *SyscallMsg) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 7:
+		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Exit", wireType)
 			}
@@ -1503,7 +1530,7 @@ func (m *SyscallMsg) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 8:
+		case 9:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Fcntl", wireType)
 			}

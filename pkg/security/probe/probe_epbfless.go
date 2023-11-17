@@ -31,9 +31,15 @@ type PlatformProbe struct {
 	// internals
 	ebpfless.UnimplementedSyscallMsgStreamServer
 	server *grpc.Server
+	seqNum uint64
 }
 
 func (p *Probe) SendSyscallMsg(ctx context.Context, syscallMsg *ebpfless.SyscallMsg) (*ebpfless.Response, error) {
+	if p.seqNum != syscallMsg.SeqNum {
+		seclog.Errorf("communication out of sync %d vs %d", p.seqNum, syscallMsg.SeqNum)
+	}
+	p.seqNum++
+
 	event := p.zeroEvent()
 
 	switch syscallMsg.Type {

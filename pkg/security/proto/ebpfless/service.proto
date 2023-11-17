@@ -44,15 +44,16 @@ message OpenSyscallMsg {
 }
 
 message SyscallMsg {
-    SyscallType Type = 1;
-    uint32 PID = 2;
-    ContainerContext ContainerContext = 3;
+    uint64 SeqNum = 1;
+    SyscallType Type = 2;
+    uint32 PID = 3;
+    ContainerContext ContainerContext = 4;
 
-    ExecSyscallMsg Exec = 4;
-    OpenSyscallMsg Open = 5;
-    ForkSyscallMsg Fork = 6;
-    ExitSyscallMsg Exit = 7;
-    FcntlSyscallMsg Fcntl = 8;
+    ExecSyscallMsg Exec = 5;
+    OpenSyscallMsg Open = 6;
+    ForkSyscallMsg Fork = 7;
+    ExitSyscallMsg Exit = 8;
+    FcntlSyscallMsg Fcntl = 9;
 }
 
 message Response {}
