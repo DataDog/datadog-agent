@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -70,13 +72,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
-				fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
+				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
+				fx.Supply(secrets.NewDisabledParams()),
 				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				config.Module,
 				telemetry.Module,
 				sysprobeconfigimpl.Module,
 				rcclient.Module,
+				secretsimpl.Module,
 				// use system-probe config instead of agent config for logging
 				fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 					return log.NewLogger(lc, params, sysprobeconfig)
@@ -183,7 +187,7 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 				return nil
 			},
 			// no config file path specification in this situation
-			fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
+			fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 			fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
 			fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 			rcclient.Module,

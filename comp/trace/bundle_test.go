@@ -14,6 +14,8 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
@@ -32,6 +34,8 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module,
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
+		secretsimpl.MockModule,
+		fx.Provide(secrets.NewDisabledParams),
 		fx.Supply(&agent.Params{}),
 	)
 }

@@ -3,10 +3,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package secrets
+package secretsimpl
 
 // SecretBackendTimeoutDefault is the default value of the secret_backend_timeout config.
 const SecretBackendTimeoutDefault = 30
 
 // SecretBackendOutputMaxSizeDefault defines the default value of the max size of the JSON output from a secrets reader backend
-var SecretBackendOutputMaxSizeDefault = 1024 * 1024
+const SecretBackendOutputMaxSizeDefault = 1024 * 1024

@@ -13,30 +13,21 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"github.com/DataDog/viper"
 )
 
-// SetupConfigWithWarnings fires up the configuration system and returns warnings if any.
-func SetupConfigWithWarnings(confFilePath, configName string) (*config.Warnings, error) {
-	return setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, false, true, config.SystemProbe.GetEnvVars())
-}
-
-// SetupConfigWithoutSecrets fires up the configuration system without secrets support
-func SetupConfigWithoutSecrets(confFilePath string, configName string) error {
-	_, err := setupConfig(config.Datadog, "datadog.yaml", confFilePath, configName, true, true, config.SystemProbe.GetEnvVars())
-	return err
-}
-
-func setupConfig(cfg config.Config, origin string, confFilePath string, configName string, withoutSecrets bool, failOnMissingFile bool, additionalKnownEnvVars []string) (*config.Warnings, error) {
-	if configName != "" {
-		cfg.SetConfigName(configName)
-	}
+// SetupConfigForTest fires up the configuration system and returns warnings if any.
+func SetupConfigForTest(confFilePath string) (*config.Warnings, error) {
+	cfg := config.Datadog
+	origin := "datadog.yaml"
 	// set the paths where a config file is expected
 	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,
@@ -49,10 +40,10 @@ func setupConfig(cfg config.Config, origin string, confFilePath string, configNa
 	}
 	cfg.AddConfigPath(path.DefaultConfPath)
 	// load the configuration
-	warnings, err := config.LoadDatadogCustom(cfg, origin, !withoutSecrets, nil)
+	warnings, err := config.LoadDatadogCustom(cfg, origin, optional.NewNoneOption[secrets.Component](), nil)
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
-	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {
+	if err != nil && (!errors.As(err, &e) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message
 		if errors.Is(err, fs.ErrPermission) {
 			if runtime.GOOS == "windows" {

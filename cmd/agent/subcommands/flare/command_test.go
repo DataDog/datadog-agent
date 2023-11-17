@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -159,8 +160,8 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"flare", "1234"},
 		makeFlare,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{"1234"}, cliParams.args)
-			require.Equal(t, true, coreParams.ConfigLoadSecrets())
+			require.Equal(t, true, secretParams.Enabled)
 		})
 }

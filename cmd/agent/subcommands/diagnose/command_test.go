@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -20,8 +21,8 @@ func TestDiagnoseCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose"},
 		cmdDiagnose,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
 		})
 }
 
@@ -30,8 +31,8 @@ func TestShowMetadataV5Command(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose", "show-metadata", "v5"},
 		printPayload,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
 			require.Equal(t, "v5", cliParams.payloadName)
 		})
 }
@@ -41,8 +42,8 @@ func TestShowMetadataGohaiCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose", "show-metadata", "gohai"},
 		printPayload,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
 			require.Equal(t, "gohai", cliParams.payloadName)
 		})
 }
@@ -52,8 +53,8 @@ func TestShowMetadataInventoryCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose", "show-metadata", "inventory"},
 		printPayload,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
 			require.Equal(t, "inventory", cliParams.payloadName)
 		})
 }
@@ -63,8 +64,8 @@ func TestShowMetadataInventoryAgentCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose", "show-metadata", "inventory-agent"},
 		printPayload,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
 			require.Equal(t, "inventory-agent", cliParams.payloadName)
 		})
 }
