@@ -60,7 +60,7 @@ func TestMapCleaner(t *testing.T) {
 	// Clean all the even entries
 	cleaner.Clean(100*time.Millisecond, func(now int64, k int64, v int64) bool {
 		return k%2 == 0
-	}, false)
+	})
 
 	time.Sleep(1 * time.Second)
 	cleaner.Stop()

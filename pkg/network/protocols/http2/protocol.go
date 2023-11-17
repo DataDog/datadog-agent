@@ -247,7 +247,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 
 		started := int64(val.Request_started)
 		return started > 0 && (now-started) > ttl
-	}, true)
+	})
 
 	p.mapCleaner = mapCleaner
 }
