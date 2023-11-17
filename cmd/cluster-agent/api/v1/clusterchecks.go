@@ -29,6 +29,7 @@ func installClusterCheckEndpoints(r *mux.Router, sc clusteragent.ServerContext) 
 	r.HandleFunc("/clusterchecks/configs/{identifier}", api.WithTelemetryWrapper("getCheckConfigs", getCheckConfigs(sc))).Methods("GET")
 	r.HandleFunc("/clusterchecks/rebalance", api.WithTelemetryWrapper("postRebalanceChecks", postRebalanceChecks(sc))).Methods("POST")
 	r.HandleFunc("/clusterchecks", api.WithTelemetryWrapper("getState", getState(sc))).Methods("GET")
+	r.HandleFunc("/clusterchecks/isolate/check/{identifier}", api.WithTelemetryWrapper("postIsolateCheck", postIsolateCheck(sc))).Methods("POST")
 }
 
 // RebalancePostPayload struct is for the JSON messages received from a client POST request
@@ -112,6 +113,30 @@ func postRebalanceChecks(sc clusteragent.ServerContext) func(w http.ResponseWrit
 		}
 
 		response, err := sc.ClusterCheckHandler.RebalanceClusterChecks(requestData.Force)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		writeJSONResponse(w, response)
+	}
+}
+
+// postIsolateCheck requests that a specified check be isolated in a runner
+func postIsolateCheck(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
+	if sc.ClusterCheckHandler == nil {
+		return clusterChecksDisabledHandler
+	}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if sc.ClusterCheckHandler.RejectOrForwardLeaderQuery(w, r) {
+			return
+		}
+
+		vars := mux.Vars(r)
+		isolateCheckID := vars["identifier"]
+
+		response, err := sc.ClusterCheckHandler.IsolateCheck(isolateCheckID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

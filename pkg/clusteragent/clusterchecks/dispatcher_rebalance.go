@@ -315,6 +315,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 			checkID,
 			currentChecksDistribution.workersNeededForCheck(checkID),
 			currentChecksDistribution.runnerForCheck(checkID),
+			"",
 		)
 	}
 
@@ -446,4 +447,34 @@ func rebalanceIsWorthIt(currentDistribution checksDistribution, proposedDistribu
 
 	maxStdDevAccepted := currentDistribution.utilizationStdDev() * ((100 - float64(minPercImprovement)) / 100)
 	return proposedDistribution.utilizationStdDev() < maxStdDevAccepted
+}
+
+func (d *dispatcher) isolateCheck(isolateCheckID string) string {
+	currentDistribution := d.currentDistribution()
+	isolateNode := currentDistribution.runnerForCheck(isolateCheckID)
+	if isolateNode == "" {
+		return "Was unable to find check " + isolateCheckID
+	}
+	proposedDistribution := newChecksDistribution(currentDistribution.runnerWorkers())
+
+	for _, checkID := range currentDistribution.checksSortedByWorkersNeeded() {
+		if checkID == isolateCheckID {
+			// Keep the check to be isolated on its current runner
+			continue
+		}
+
+		workersNeededForCheck := currentDistribution.workersNeededForCheck(checkID)
+		runnerForCheck := currentDistribution.runnerForCheck(checkID)
+
+		proposedDistribution.addToLeastBusy(
+			checkID,
+			workersNeededForCheck,
+			runnerForCheck,
+			isolateNode,
+		)
+	}
+
+	d.applyDistribution(proposedDistribution, currentDistribution)
+
+	return "Successfully isolated check on " + isolateNode
 }

@@ -119,3 +119,24 @@ func (h *Handler) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse,
 
 	return response, nil
 }
+
+// IsolateCheck triggers an attempt to isolate a check in a runner
+func (h *Handler) IsolateCheck(isolateCheckID string) (string, error) {
+	// func (h *Handler) IsolateCheck(isolateCheckID string) ([]types.RebalanceResponse, error) {
+	rebalancingDecisions := h.dispatcher.isolateCheck(isolateCheckID)
+	// response := []types.RebalanceResponse{}
+
+	// for _, decision := range rebalancingDecisions {
+	// 	response = append(response, types.RebalanceResponse{
+	// 		CheckID:        decision.CheckID,
+	// 		CheckWeight:    decision.CheckWeight,
+	// 		SourceNodeName: decision.SourceNodeName,
+	// 		SourceDiff:     decision.SourceDiff,
+	// 		DestNodeName:   decision.DestNodeName,
+	// 		DestDiff:       decision.DestDiff,
+	// 	})
+	// }
+
+	return rebalancingDecisions, nil
+	// return response, nil
+}

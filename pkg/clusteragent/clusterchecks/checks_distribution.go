@@ -59,8 +59,9 @@ func newChecksDistribution(workersPerRunner map[string]int) checksDistribution {
 // leastBusyRunner returns the runner with the lowest utilization. If there are
 // several options, it gives preference to preferredRunner. If preferredRunner
 // is not among the runners with the lowest utilization, it gives precedence to
-// the runner with the lowest number of checks deployed.
-func (distribution *checksDistribution) leastBusyRunner(preferredRunner string) string {
+// the runner with the lowest number of checks deployed. excludeRunner can be set
+// to avoid assigning a check to a specific runner.
+func (distribution *checksDistribution) leastBusyRunner(preferredRunner string, excludeRunner string) string {
 	leastBusyRunner := ""
 	minUtilization := 0.0
 	numChecksLeastBusyRunner := 0
@@ -74,6 +75,11 @@ func (distribution *checksDistribution) leastBusyRunner(preferredRunner string) 
 			runnerUtilization == minUtilization && runnerName == preferredRunner ||
 			runnerUtilization == minUtilization && runnerNumChecks < numChecksLeastBusyRunner
 
+		// Allow exclusion of a runner from selection
+		if runnerName == excludeRunner {
+			selectRunner = false
+		}
+
 		if selectRunner {
 			leastBusyRunner = runnerName
 			minUtilization = runnerUtilization
@@ -84,8 +90,8 @@ func (distribution *checksDistribution) leastBusyRunner(preferredRunner string) 
 	return leastBusyRunner
 }
 
-func (distribution *checksDistribution) addToLeastBusy(checkID string, workersNeeded float64, preferredRunner string) {
-	leastBusy := distribution.leastBusyRunner(preferredRunner)
+func (distribution *checksDistribution) addToLeastBusy(checkID string, workersNeeded float64, preferredRunner string, excludeRunner string) {
+	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner)
 	if leastBusy == "" {
 		return
 	}

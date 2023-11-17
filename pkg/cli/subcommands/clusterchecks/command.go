@@ -40,8 +40,11 @@ type GlobalParams struct {
 }
 
 type cliParams struct {
+	GlobalParams
+
 	checkName string
 	force     bool
+	checkID   string
 }
 
 // MakeCommand returns a `clusterchecks` command to be used by cluster-agent
@@ -84,6 +87,23 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	rebalanceCmd.Flags().BoolVarP(&cliParams.force, "force", "f", false, "Use to force rebalance")
 
 	cmd.AddCommand(rebalanceCmd)
+
+	isolateCmd := &cobra.Command{
+		Use:   "isolate --checkID <checkID>",
+		Short: "Isolates a single check in the cluster runner",
+		Long:  ``,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			globalParams := globalParamsGetter()
+
+			return fxutil.OneShot(isolate,
+				fx.Supply(cliParams),
+				fx.Supply(bundleParams(globalParams)),
+				core.Bundle,
+			)
+		},
+	}
+	isolateCmd.Flags().StringVarP(&cliParams.checkID, "checkID", "", "", "the check ID to isolate")
+	cmd.AddCommand(isolateCmd)
 
 	return cmd
 }
@@ -151,6 +171,43 @@ func rebalance(_ log.Component, _ config.Component, cliParams *cliParams) error 
 	for _, check := range checksMoved {
 		fmt.Printf("Check %s with weight %d moved from node %s to %s. source diff: %d, dest diff: %d\n",
 			check.CheckID, check.CheckWeight, check.SourceNodeName, check.DestNodeName, check.SourceDiff, check.DestDiff)
+	}
+
+	return nil
+}
+
+func isolate(log log.Component, config config.Component, cliParams *cliParams) error {
+	c := util.GetClient(false) // FIX: get certificates right then make this true
+	if cliParams.checkID == "" {
+		return fmt.Errorf("checkID must be specified")
+	}
+	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"), cliParams.checkID)
+	// Set session token
+	err := util.InitDCAAuthToken()
+	if err != nil {
+		return err
+	}
+	// Set session token
+	err = util.SetAuthToken()
+	if err != nil {
+		return err
+	}
+
+	r, err := util.DoPost(c, urlstr, "application/json", bytes.NewBuffer([]byte{}))
+	if err != nil {
+		var errMap = make(map[string]string)
+		json.Unmarshal(r, &errMap) //nolint:errcheck
+		// If the error has been marshalled into a json object, check it and return it properly
+		if e, found := errMap["error"]; found {
+			err = fmt.Errorf(e)
+		}
+
+		fmt.Printf(`
+		Could not reach agent: %v
+		Make sure the agent is running before requesting to isolate a cluster check.
+		Contact support if you continue having issues.`, err)
+
+		return err
 	}
 
 	return nil
