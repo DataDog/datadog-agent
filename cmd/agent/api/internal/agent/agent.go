@@ -205,12 +205,11 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 
 func getStatus(w http.ResponseWriter, r *http.Request, status status.Component) {
 	log.Info("Got a request for the status. Making status.")
-	// Todo: Figure what to do with verbose
-	// verbose := r.URL.Query().Get("verbose") == "true"
+	verbose := r.URL.Query().Get("verbose") == "true"
 	format := r.URL.Query().Get("format")
 
 	// TODO: validate format
-	s, err := status.Get(format)
+	s, err := status.GetStatus(format, verbose)
 
 	if format == "text" {
 		w.Header().Set("Content-Type", "text/plain")

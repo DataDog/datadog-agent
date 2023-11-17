@@ -1,0 +1,15 @@
+{{printDashes .title "="}}
+{{.title}}
+{{printDashes .title "="}}
+
+  Status date: {{ formatUnixTime .time_nano }}
+  Agent start: {{ formatUnixTime .agent_start_nano }}
+  Pid: {{.pid}}
+  Go Version: {{.go_version}}
+  {{- if .python_version }}
+  Python Version: {{.python_version}}
+  {{- end }}
+  Build arch: {{.build_arch}}
+  Agent flavor: {{.flavor}}
+
+

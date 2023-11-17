@@ -17,10 +17,12 @@ import (
 // Component is the component type.
 type Component interface {
 	// /* TODO: detailed doc comment for the component */
-	Get(format string) ([]byte, error)
+	GetStatus(format string, verbose bool) ([]byte, error)
+	GetStatusSection(section, format string, verbose bool) ([]byte, error)
 }
 
 type StatusProvider interface {
+	Name() string
 	JSON(stats map[string]interface{})
 	Text(buffer io.Writer) error
 }

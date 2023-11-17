@@ -18,6 +18,10 @@ type statusProvider struct {
 	data agentMetadata
 }
 
+func (s statusProvider) Name() string {
+	return "Metadata"
+}
+
 func (s statusProvider) JSON(stats map[string]interface{}) {
 	data := map[string]interface{}{}
 	for k, v := range s.data {
