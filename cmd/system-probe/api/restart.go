@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	"github.com/DataDog/datadog-agent/cmd/system-probe/modules"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -24,17 +25,23 @@ func restartModuleHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// var target module.Factory
-	// for _, f := range modules.All {
-	// 	if f.Name == moduleName {
-	// 		target = f
-	// 	}
-	// }
+	var target module.Factory
+	for _, f := range modules.All {
+		if f.Name == moduleName {
+			target = f
+		}
+	}
 
-	// if target.Name != moduleName {
-	// 	http.Error(w, "invalid module", http.StatusBadRequest)
-	// 	return
-	// }
+	if target.Name != moduleName {
+		http.Error(w, "invalid module", http.StatusBadRequest)
+		return
+	}
+
+	err := module.RestartModule(target)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	log.Info("Closing all modules...")
 	module.Close()
 
