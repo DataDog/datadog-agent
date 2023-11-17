@@ -318,7 +318,7 @@ func TestOffsetGuessPortIPv6Overlap(t *testing.T) {
 			// so we capture i and addr.Zone correctly in the closure below
 			z := addr.Zone
 			ii := i + 1
-			_, err := nettestutil.RunCommand(fmt.Sprintf("ip -6 addr add %s%d/64 dev %s scope link", portMatchingPrefix, ii, z))
+			_, err := nettestutil.RunCommand(fmt.Sprintf("ip -6 addr add %s%d/64 dev %s scope link nodad", portMatchingPrefix, ii, z))
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				_, err = nettestutil.RunCommand(fmt.Sprintf("ip -6 addr del %s%d/64 dev %s scope link", portMatchingPrefix, ii, z))
