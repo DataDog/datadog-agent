@@ -108,7 +108,7 @@ func (p *Resolver) AddForkEntry(pid uint32, ppid uint32) *model.ProcessCacheEntr
 }
 
 // AddExecEntry adds an entry to the local cache and returns the newly created entry
-func (p *Resolver) AddExecEntry(pid uint32, file string, argv []string, envs []string) *model.ProcessCacheEntry {
+func (p *Resolver) AddExecEntry(pid uint32, file string, argv []string, envs []string, ctrID string) *model.ProcessCacheEntry {
 	entry := p.processCacheEntryPool.Get()
 	entry.PIDContext.Pid = pid
 
@@ -122,6 +122,7 @@ func (p *Resolver) AddExecEntry(pid uint32, file string, argv []string, envs []s
 
 	entry.Process.FileEvent.PathnameStr = file
 	entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
+	entry.Process.ContainerID = ctrID
 
 	// TODO fix timestamp
 	entry.ExecTime = time.Now()

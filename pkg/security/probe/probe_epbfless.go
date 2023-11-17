@@ -39,7 +39,7 @@ func (p *Probe) SendSyscallMsg(ctx context.Context, syscallMsg *ebpfless.Syscall
 	switch syscallMsg.Type {
 	case ebpfless.SyscallType_Exec:
 		event.Type = uint32(model.ExecEventType)
-		entry := p.resolvers.ProcessResolver.AddExecEntry(syscallMsg.PID, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs)
+		entry := p.resolvers.ProcessResolver.AddExecEntry(syscallMsg.PID, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, syscallMsg.ContainerContext.ID)
 		event.Exec.Process = &entry.Process
 	case ebpfless.SyscallType_Fork:
 		event.Type = uint32(model.ForkEventType)

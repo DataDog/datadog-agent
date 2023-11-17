@@ -9,6 +9,7 @@ package serializers
 
 import (
 	"encoding/json"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
@@ -160,7 +161,16 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 
 // NewEventSerializer creates a new event serializer based on the event type
 func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *EventSerializer {
-	return &EventSerializer{
+	s := &EventSerializer{
 		BaseEventSerializer: NewBaseEventSerializer(event, resolvers),
 	}
+
+	if ctx, exists := event.FieldHandlers.ResolveContainerContext(event); exists {
+		s.ContainerContextSerializer = &ContainerContextSerializer{
+			ID:        ctx.ID,
+			CreatedAt: getTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
+		}
+	}
+
+	return s
 }

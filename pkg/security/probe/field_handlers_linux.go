@@ -147,8 +147,8 @@ func (fh *FieldHandlers) ResolveMountSourcePath(ev *model.Event, e *model.MountE
 // ResolveContainerContext queries the cgroup resolver to retrieve the ContainerContext of the event
 func (fh *FieldHandlers) ResolveContainerContext(ev *model.Event) (*model.ContainerContext, bool) {
 	if ev.ContainerContext.ID != "" && !ev.ContainerContext.Resolved {
-		if containerContext, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ID); containerContext != nil {
-			ev.ContainerContext = &containerContext.ContainerContext
+		if entry, _ := fh.resolvers.CGroupResolver.GetWorkload(ev.ContainerContext.ID); entry != nil {
+			ev.ContainerContext = &entry.ContainerContext
 			ev.ContainerContext.Resolved = true
 		}
 	}

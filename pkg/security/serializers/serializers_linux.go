@@ -970,14 +970,10 @@ func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *Eve
 		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(&event.SecurityProfileContext)
 	}
 
-	if id := event.FieldHandlers.ResolveContainerID(event, event.ContainerContext); id != "" {
-		var creationTime time.Time
-		if cgroup, _ := resolvers.CGroupResolver.GetWorkload(id); cgroup != nil {
-			creationTime = time.Unix(0, int64(cgroup.CreatedAt))
-		}
+	if ctx, exists := event.FieldHandlers.ResolveContainerContext(event); exists {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
-			ID:        id,
-			CreatedAt: getTimeIfNotZero(creationTime),
+			ID:        ctx.ID,
+			CreatedAt: getTimeIfNotZero(time.Unix(0, int64(ctx.CreatedAt))),
 		}
 	}
 
