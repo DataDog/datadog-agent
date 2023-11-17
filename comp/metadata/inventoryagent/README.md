@@ -92,6 +92,8 @@ The payload is a JSON dict with the following fields
   - `feature_logs_enabled` - **bool**: True if the logs collection is enabled (see: `logs_enabled` config option).
   - `feature_cspm_enabled` - **bool**: True if the Cloud Security Posture Management is enabled (see:
     `compliance_config.enabled` config option).
+  - `feature_cspm_host_benchmarks_enabled` - **bool**: True if host benchmarks are enabled (see:
+    `compliance_config.host_benchmarks.enabled` config option).
   - `feature_apm_enabled` - **bool**: True if the APM Agent is enabled (see: `apm_config.enabled` config option).
   - `feature_otlp_enabled` - **bool**: True if the OTLP pipeline is enabled.
   - `feature_imdsv2_enabled` - **bool**: True if the IMDSv2 is enabled (see: `ec2_prefer_imdsv2` config option).
