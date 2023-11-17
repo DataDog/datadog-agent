@@ -168,7 +168,6 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"ddinfra:aws/defaultARMInstanceType":     auto.ConfigValue{Value: armInstanceType},
 		"ddinfra:aws/defaultInstanceType":        auto.ConfigValue{Value: x86InstanceType},
 		"ddinfra:aws/defaultInstanceStorageSize": auto.ConfigValue{Value: "500"},
-		"ddinfra:extraResourcesTags":             auto.ConfigValue{Value: GetEnv(EC2TagsEnvVar, "")},
 		"microvm:microVMConfigFile":              auto.ConfigValue{Value: opts.VMConfigPath},
 		"microvm:libvirtSSHKeyFileX86":           auto.ConfigValue{Value: sshKeyX86},
 		"microvm:libvirtSSHKeyFileArm":           auto.ConfigValue{Value: sshKeyArm},
@@ -187,6 +186,10 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	if opts.ShutdownPeriod != 0 {
 		config["microvm:shutdownPeriod"] = auto.ConfigValue{Value: strconv.Itoa(opts.ShutdownPeriod)}
 		config["ddinfra:aws/defaultShutdownBehavior"] = auto.ConfigValue{Value: "terminate"}
+	}
+
+	if GetEnv(EC2TagsEnvVar, "") != "" {
+		config["ddinfra:extraResourcesTags"] = auto.ConfigValue{Value: GetEnv(EC2TagsEnvVar, "")}
 	}
 
 	var upResult auto.UpResult
