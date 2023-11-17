@@ -30,7 +30,8 @@ type PlatformProbe struct {
 
 // Probe represents the runtime security probe
 type Probe struct {
-	Config *config.Config
+	Config    *config.Config
+	resolvers *resolvers.Resolvers
 }
 
 // AddEventHandler set the probe event handler
