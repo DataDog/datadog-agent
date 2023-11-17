@@ -72,11 +72,12 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 	port, _ := strconv.Atoi(url[2])
 	destCtx := client.NewDestinationsContext()
 	destCtx.Start()
+	falseVal := false
 	endpoint := config.Endpoint{
 		APIKey:           "test",
 		Host:             strings.Replace(url[1], "/", "", -1),
 		Port:             port,
-		UseSSL:           false,
+		UseSSL:           &falseVal,
 		BackoffFactor:    1,
 		BackoffBase:      1,
 		BackoffMax:       10,

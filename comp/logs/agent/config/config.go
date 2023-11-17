@@ -156,11 +156,11 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = !logsConfig.logsNoSSL()
+		*main.UseSSL = logsConfig.logsNoSSL()
 	} else if logsConfig.usePort443() {
 		main.Host = logsConfig.ddURL443()
 		main.Port = 443
-		main.UseSSL = true
+		*main.UseSSL = true
 	} else {
 		// If no proxy is set, we default to 'logs_config.dd_url' if set, or to 'site'.
 		// if none of them is set, we default to the US agent endpoint.
@@ -170,7 +170,7 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 		} else {
 			main.Port = logsConfig.ddPort()
 		}
-		main.UseSSL = !logsConfig.devModeNoSSL()
+		*main.UseSSL = !logsConfig.devModeNoSSL()
 	}
 
 	additionals := logsConfig.getAdditionalEndpoints()
@@ -225,7 +225,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = useSSL
+		*main.UseSSL = useSSL
 	} else if logsDDURL, logsDDURLDefined := logsConfig.logsDDURL(); logsDDURLDefined {
 		host, port, useSSL, err := parseAddressWithScheme(logsDDURL, defaultNoSSL, parseAddress)
 		if err != nil {
@@ -233,7 +233,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 		}
 		main.Host = host
 		main.Port = port
-		main.UseSSL = useSSL
+		*main.UseSSL = useSSL
 	} else {
 		addr := utils.GetMainEndpoint(coreConfig, endpointPrefix, logsConfig.getConfigKey("dd_url"))
 		host, port, useSSL, err := parseAddressWithScheme(addr, logsConfig.devModeNoSSL(), parseAddressAsHost)
@@ -243,12 +243,15 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 
 		main.Host = host
 		main.Port = port
-		main.UseSSL = useSSL
+		main.UseSSL = new(bool)
+		main.UseSSL = &useSSL
 	}
 
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
-		additionals[i].UseSSL = main.UseSSL
+		if additionals[i].UseSSL == nil {
+			additionals[i].UseSSL = main.UseSSL
+		}
 		additionals[i].APIKey = utils.SanitizeAPIKey(additionals[i].APIKey)
 		additionals[i].UseCompression = main.UseCompression
 		additionals[i].CompressionLevel = main.CompressionLevel

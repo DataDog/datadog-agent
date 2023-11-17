@@ -355,7 +355,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 // buildURL buils a url from a config endpoint.
 func buildURL(endpoint config.Endpoint) string {
 	var scheme string
-	if endpoint.UseSSL {
+	if endpoint.UseSSL == nil || *endpoint.UseSSL {
 		scheme = "https"
 	} else {
 		scheme = "http"

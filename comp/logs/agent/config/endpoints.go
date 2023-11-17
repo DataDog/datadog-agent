@@ -37,7 +37,7 @@ type Endpoint struct {
 	APIKey                  string `mapstructure:"api_key" json:"api_key"`
 	Host                    string
 	Port                    int
-	UseSSL                  bool
+	UseSSL                  *bool
 	UseCompression          bool `mapstructure:"use_compression" json:"use_compression"`
 	CompressionLevel        int  `mapstructure:"compression_level" json:"compression_level"`
 	ProxyAddress            string
@@ -68,7 +68,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 
 	var protocol string
 	if useHTTP {
-		if e.UseSSL {
+		if e.UseSSL == nil || *e.UseSSL {
 			protocol = "HTTPS"
 			if port == 0 {
 				port = 443 // use default port
@@ -83,7 +83,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 			}
 		}
 	} else {
-		if e.UseSSL {
+		if e.UseSSL == nil || *e.UseSSL {
 			protocol = "SSL encrypted TCP"
 		} else {
 			protocol = "TCP"

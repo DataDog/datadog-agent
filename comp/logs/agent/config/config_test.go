@@ -158,11 +158,13 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 	suite.config.SetWithoutSource("logs_config.sender_recovery_reset", true)
 	suite.config.SetWithoutSource("logs_config.use_v2_api", false)
 
+	trueVal := true
+
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
 		Host:             "agent-http-intake.logs.datadoghq.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    3,
@@ -176,7 +178,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		APIKey:           "456",
 		Host:             "additional.endpoint.1",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    3,
@@ -190,7 +192,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsEnvVar() {
 		APIKey:           "789",
 		Host:             "additional.endpoint.2",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    3,
@@ -218,11 +220,13 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 	suite.config.SetWithoutSource("logs_config.socks5_proxy_address", "proxy.test:3128")
 	suite.config.SetWithoutSource("logs_config.dev_mode_use_proto", true)
 
+	trueVal := true
+
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
 		Host:             "agent-http-intake.logs.datadoghq.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   false,
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128",
@@ -231,7 +235,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsEnvVar() {
 		APIKey:           "456",
 		Host:             "additional.endpoint",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   false,
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128",
@@ -269,11 +273,13 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 	}
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", endpointsInConfig)
 
+	trueVal := true
+
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
 		Host:             "agent-http-intake.logs.datadoghq.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -286,7 +292,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		APIKey:           "456",
 		Host:             "additional.endpoint.1",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -299,7 +305,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig() {
 		APIKey:           "789",
 		Host:             "additional.endpoint.2",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -341,11 +347,13 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 	}
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", endpointsInConfig)
 
+	trueVal := true
+
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
 		Host:             "agent-http-intake.logs.datadoghq.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -361,7 +369,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		APIKey:           "456",
 		Host:             "additional.endpoint.1",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -374,7 +382,7 @@ func (suite *ConfigTestSuite) TestMultipleHttpEndpointsInConfig2() {
 		APIKey:           "789",
 		Host:             "additional.endpoint.2",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -409,11 +417,13 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 	}
 	suite.config.SetWithoutSource("logs_config.additional_endpoints", endpointsInConfig)
 
+	trueVal := true
+
 	expectedMainEndpoint := Endpoint{
 		APIKey:           "123",
 		Host:             "agent-http-intake.logs.datadoghq.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   false,
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128",
@@ -422,7 +432,7 @@ func (suite *ConfigTestSuite) TestMultipleTCPEndpointsInConf() {
 		APIKey:           "456",
 		Host:             "additional.endpoint",
 		Port:             1234,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   false,
 		CompressionLevel: 0,
 		ProxyAddress:     "proxy.test:3128",
@@ -444,11 +454,13 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrl() {
 
 	suite.Nil(err)
 
+	trueVal := true
+
 	main := Endpoint{
 		APIKey:           "123",
 		Host:             "my-proxy",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -488,11 +500,13 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDSite() {
 
 	suite.Nil(err)
 
+	trueVal := true
+
 	main := Endpoint{
 		APIKey:           "123",
 		Host:             "default-intake.logs.mydomain.com",
 		Port:             0,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -524,11 +538,13 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 	suite.config.SetWithoutSource("api_key", "123")
 	suite.config.SetWithoutSource("logs_config.batch_wait", 1)
 
+	trueVal := true
+
 	main := Endpoint{
 		APIKey:           "123",
 		Host:             "http-intake.logs.datadoghq.com",
 		Port:             0,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -559,11 +575,10 @@ func (suite *ConfigTestSuite) TestBuildServerlessEndpoints() {
 }
 
 func getTestEndpoint(host string, port int, ssl bool) Endpoint {
-	return Endpoint{
+	e := Endpoint{
 		APIKey:           "123",
 		Host:             host,
 		Port:             port,
-		UseSSL:           ssl,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -575,6 +590,8 @@ func getTestEndpoint(host string, port int, ssl bool) Endpoint {
 		Protocol:         "test-proto",
 		Origin:           "test-source",
 	}
+	*e.UseSSL = ssl
+	return e
 }
 
 func getTestEndpoints(e Endpoint) *Endpoints {
@@ -670,11 +687,13 @@ func (suite *ConfigTestSuite) TestEndpointsSetNonDefaultCustomConfigs() {
 
 	suite.Nil(err)
 
+	trueVal := true
+
 	main := Endpoint{
 		APIKey:                  "123",
 		Host:                    "ndmflow-intake.datadoghq.com",
 		Port:                    0,
-		UseSSL:                  true,
+		UseSSL:                  &trueVal,
 		UseCompression:          false,
 		CompressionLevel:        10,
 		BackoffFactor:           4,
@@ -713,11 +732,13 @@ func (suite *ConfigTestSuite) TestEndpointsSetLogsDDUrlWithPrefix() {
 
 	suite.Nil(err)
 
+	trueVal := true
+
 	main := Endpoint{
 		APIKey:           "123",
 		Host:             "my-proxy.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
@@ -754,11 +775,13 @@ func (suite *ConfigTestSuite) TestEndpointsSetDDUrlWithPrefix() {
 
 	suite.Nil(err)
 
+	trueVal := true
+
 	main := Endpoint{
 		APIKey:           "123",
 		Host:             "my-proxy.com",
 		Port:             443,
-		UseSSL:           true,
+		UseSSL:           &trueVal,
 		UseCompression:   true,
 		CompressionLevel: 6,
 		BackoffFactor:    coreConfig.DefaultLogsSenderBackoffFactor,
