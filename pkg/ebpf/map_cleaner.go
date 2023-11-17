@@ -151,6 +151,8 @@ func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(no
 	totalCount, deletedCount := 0, 0
 
 	entries := mc.emap.Iterate()
+	// we resort to unsafe.Pointers because by doing so the underlying eBPF
+	// library avoids marshaling the key/value variables while traversing the map
 	for entries.Next(unsafe.Pointer(&mc.keyBatch[0]), unsafe.Pointer(&mc.valuesBatch[0])) {
 		totalCount++
 		if !shouldClean(nowTS, mc.keyBatch[0], mc.valuesBatch[0]) {
