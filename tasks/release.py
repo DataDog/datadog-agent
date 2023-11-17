@@ -1132,12 +1132,12 @@ Make sure that milestone is open before trying again.""",
 
 
 @task
-def build_rc(ctx, major_versions="6,7", patch_version=False, staging_deployments=False):
+def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=False):
     """
     To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
 
-    staging_deployments - when set to True the child pipeline deploying to k8s staging clusters would be triggred.
+    k8s_deployments - when set to True the child pipeline deploying to subset of k8s staging clusters would be triggered.
 
     Tags the new RC versions on the current commit, and creates the build pipeline for these
     new tags.
@@ -1208,7 +1208,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, staging_deployments
         major_versions=major_versions,
         repo_branch="beta",
         deploy=True,
-        rc_staging_deployments=staging_deployments,
+        rc_k8s_deployments=k8s_deployments,
     )
 
 
