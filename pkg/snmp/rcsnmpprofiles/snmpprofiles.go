@@ -10,12 +10,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"sync"
 )
 
 // RemoteConfigSNMPProfilesManager receives configuration from remote-config
 type RemoteConfigSNMPProfilesManager struct {
-	mu       sync.RWMutex
 	upToDate bool
 }
 
@@ -28,11 +26,8 @@ func NewRemoteConfigSNMPProfilesManager() *RemoteConfigSNMPProfilesManager {
 
 // Callback is when profiles updates are available (rc product NDM_DEVICE_PROFILES_CUSTOM)
 func (rc *RemoteConfigSNMPProfilesManager) Callback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
-
+	var profiles []profiledefinition.ProfileDefinition
 	log.Info("RC Callback")
-
 	for path, rawConfig := range updates {
 		log.Infof("Path: %s", path)
 
@@ -41,6 +36,11 @@ func (rc *RemoteConfigSNMPProfilesManager) Callback(updates map[string]state.Raw
 
 		log.Infof("Profile Name: %s", profileDef.Profile.Name)
 		log.Infof("Profile: %+v", profileDef.Profile)
+
+		profiles = append(profiles, profileDef.Profile)
 	}
 
+	setGlobalRcProfiles(profiles)
+
+	log.Infof("GetGlobalRcProfiles(): %+v", GetGlobalRcProfiles())
 }
