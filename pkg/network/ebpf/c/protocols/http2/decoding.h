@@ -54,7 +54,7 @@ static __always_inline bool read_var_int_with_given_current_char(struct __sk_buf
     __u64 next_char = 0;
     if (bpf_skb_load_bytes(skb, skb_info->data_off, &next_char, 1) >=0 && (next_char & 128) == 0) {
         skb_info->data_off++;
-        *out = current_char_as_number + next_char & 127;
+        *out = current_char_as_number + (next_char & 127);
         return true;
     }
 
