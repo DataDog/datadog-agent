@@ -43,7 +43,7 @@ static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key
 }
 
 // Similar to read_var_int, but with a small optimization of getting the current character as input argument.
-static __always_inline bool read_var_int_with_given_current_char(struct __sk_buff *skb, skb_info_t *skb_info, __u8 current_char_as_number, __u8 max_number_for_bits, __u8 *out) {
+static __always_inline bool read_var_int_with_given_current_char(struct __sk_buff *skb, skb_info_t *skb_info, __u64 current_char_as_number, __u64 max_number_for_bits, __u64 *out) {
     current_char_as_number &= max_number_for_bits;
 
     if (current_char_as_number < max_number_for_bits) {
@@ -51,8 +51,8 @@ static __always_inline bool read_var_int_with_given_current_char(struct __sk_buf
         return true;
     }
 
-    __u8 next_char = 0;
-    if (bpf_skb_load_bytes(skb, skb_info->data_off, &next_char, sizeof(next_char)) >=0 && (next_char & 128) == 0) {
+    __u64 next_char = 0;
+    if (bpf_skb_load_bytes(skb, skb_info->data_off, &next_char, 1) >=0 && (next_char & 128) == 0) {
         skb_info->data_off++;
         *out = current_char_as_number + next_char & 127;
         return true;
@@ -68,9 +68,9 @@ static __always_inline bool read_var_int_with_given_current_char(struct __sk_buf
 // n must always be between 1 and 8.
 //
 // The returned remain buffer is either a smaller suffix of p, or err != nil.
-static __always_inline bool read_var_int(struct __sk_buff *skb, skb_info_t *skb_info, __u8 max_number_for_bits, __u8 *out) {
-    __u8 current_char_as_number = 0;
-    if (bpf_skb_load_bytes(skb, skb_info->data_off, &current_char_as_number, sizeof(current_char_as_number)) < 0) {
+static __always_inline bool read_var_int(struct __sk_buff *skb, skb_info_t *skb_info, __u64 max_number_for_bits, __u64 *out) {
+    __u64 current_char_as_number = 0;
+    if (bpf_skb_load_bytes(skb, skb_info->data_off, &current_char_as_number, 1) < 0) {
         return false;
     }
     skb_info->data_off++;
@@ -119,8 +119,8 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
-static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
-    __u8 str_len = 0;
+static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
+    __u64 str_len = 0;
     if (!read_var_int(skb, skb_info, MAX_6_BITS, &str_len)) {
         return false;
     }
@@ -162,8 +162,8 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     const __u32 end = frame_end < skb_info->data_end + 1 ? frame_end : skb_info->data_end + 1;
     bool is_literal = false;
     bool is_indexed = false;
-    __u8 max_bits = 0;
-    __u8 index = 0;
+    __u64 max_bits = 0;
+    __u64 index = 0;
 
     __u64 *global_dynamic_counter = get_dynamic_counter(tup);
     if (global_dynamic_counter == NULL) {
