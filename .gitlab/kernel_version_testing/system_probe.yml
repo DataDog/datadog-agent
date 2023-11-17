@@ -286,6 +286,7 @@ upload_minimized_btfs_arm64:
     INFRA_ENV: "aws/agent-qa"
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
+    RESOURCES_TAGS: "instance-type:${INSTANCE_TYPE_ARG},arch:${ARCH}"
   before_script:
     - !reference [.retrieve_linux_go_deps]
     - !reference [.kernel_matrix_testing_new_profile]
