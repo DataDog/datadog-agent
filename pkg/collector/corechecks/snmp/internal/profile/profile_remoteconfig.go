@@ -16,6 +16,11 @@ func loadRemoteConfigProfiles() (ProfileConfigMap, error) {
 	rcProfilesMu.Lock()
 	defer rcProfilesMu.Unlock()
 
+	profiles := GetRemoteConfigProfiles()
+	return profiles, nil
+}
+
+func GetRemoteConfigProfiles() ProfileConfigMap {
 	profiles := make(ProfileConfigMap)
 
 	rcProfiles := rcsnmpprofiles.GetGlobalRcProfiles()
@@ -29,5 +34,5 @@ func loadRemoteConfigProfiles() (ProfileConfigMap, error) {
 			IsUserProfile: true,
 		}
 	}
-	return profiles, nil
+	return profiles
 }

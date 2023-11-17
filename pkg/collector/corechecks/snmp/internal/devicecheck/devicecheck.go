@@ -35,6 +35,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/diagnoses"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
+
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 const (
@@ -245,18 +247,22 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		if err != nil {
 			return fmt.Errorf("failed to fetch sysobjectid: %s", err)
 		}
+
+		if pkgconfig.Datadog.GetBool("remote_configuration.snmp_profiles.enabled") {
+			d.config.Profiles = profile.GetRemoteConfigProfiles()
+		}
 		profile, err := profile.GetProfileForSysObjectID(d.config.Profiles, sysObjectID)
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
-		if profile != d.config.Profile {
-			log.Debugf("detected profile change: %s -> %s", d.config.Profile, profile)
-			err = d.config.SetProfile(profile)
-			if err != nil {
-				// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
-				return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
-			}
+		//if profile != d.config.Profile {
+		log.Debugf("detected profile change: %s -> %s", d.config.Profiles, profile)
+		err = d.config.SetProfile(profile)
+		if err != nil {
+			// Should not happen since the profile is one of those we matched in GetProfileForSysObjectID
+			return fmt.Errorf("failed to refresh with profile `%s` detected using sysObjectID `%s`: %s", profile, sysObjectID, err)
 		}
+		//}
 	}
 	return nil
 }
