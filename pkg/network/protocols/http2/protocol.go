@@ -306,7 +306,6 @@ func (p *protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
 
 	terminatedConnections := make([]netebpf.ConnTuple, 0)
 	terminatedConnectionsMap := make(map[netebpf.ConnTuple]struct{})
-	terminatedConnectionsMapMutex := sync.Mutex{}
 	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval,
 		func() bool {
 			p.terminatedConnectionsEventsConsumer.Sync()
@@ -318,15 +317,9 @@ func (p *protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
 			for _, conn := range terminatedConnections {
 				terminatedConnectionsMap[conn] = struct{}{}
 			}
-			if len(terminatedConnectionsMap) > 0 {
-				terminatedConnectionsMapMutex.Lock()
-				return true
-			}
 			return false
 		},
-		func() {
-			terminatedConnectionsMapMutex.Unlock()
-		},
+		nil,
 		func(now int64, key, val interface{}) bool {
 			keyIndex, ok := key.(*http2DynamicTableIndex)
 			if !ok {
