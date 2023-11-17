@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
 	"github.com/stretchr/testify/require"
 
@@ -89,7 +90,7 @@ func (is *installScriptSuite) TestInstallAgent() {
 	require.NoError(is.T(), err)
 	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
 
-	install.Unix(is.T(), client)
+	install.Unix(is.T(), client, installparams.WithArch(*architecture))
 
 	common.CheckInstallation(is.T(), client)
 	common.CheckAgentBehaviour(is.T(), client)
