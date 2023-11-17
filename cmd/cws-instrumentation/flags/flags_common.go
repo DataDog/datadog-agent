@@ -14,4 +14,9 @@ const (
 	Data = "data"
 	// SessionType represents the type of the user session that is being injected
 	SessionType = "session-type"
+
+	// SystemProbeGRPCAddr defines the system-probe GRPC addr
+	SystemProbeGRPCAddr = "grpc-addr"
+	// LogLevel defines the log level
+	LogLevel = "log-level"
 )
