@@ -188,8 +188,8 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		config["ddinfra:aws/defaultShutdownBehavior"] = auto.ConfigValue{Value: "terminate"}
 	}
 
-	if GetEnv(EC2TagsEnvVar, "") != "" {
-		config["ddinfra:extraResourcesTags"] = auto.ConfigValue{Value: GetEnv(EC2TagsEnvVar, "")}
+	if envVars := GetEnv(EC2TagsEnvVar, ""); envVars != "" {
+		config["ddinfra:extraResourcesTags"] = auto.ConfigValue{Value: envVars}
 	}
 
 	var upResult auto.UpResult
