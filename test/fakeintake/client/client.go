@@ -103,7 +103,7 @@ func NewClient(t *testing.T, fakeIntakeURL string) *Client {
 	client := newClientNoWait(fakeIntakeURL)
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
 		assert.NoError(ct, client.GetServerHealth())
-	}, 5*time.Minute, 20*time.Second)
+	}, 5*time.Minute, 500*time.Millisecond)
 
 	return client
 }
