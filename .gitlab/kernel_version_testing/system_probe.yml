@@ -34,6 +34,8 @@ pull_test_dockers_arm64:
   - FILTER_MANAGED="Name=tag:managed-by,Values=pulumi"
   - FILTER_STATE="Name=instance-state-name,Values=running"
   - FILTER_PIPELINE="Name=tag:pipeline-id,Values=${CI_PIPELINE_ID}"
+  - FILTER_ARCH="Name=tag:arch,Values=${ARCH}"
+  - FILTER_INSTANCE_TYPE="Name=tag:instance-type,Values=${INSTANCE_TYPE}"
   - QUERY_INSTANCE_IDS='Reservations[*].Instances[*].InstanceId'
   - QUERY_PRIVATE_IPS='Reservations[*].Instances[*].PrivateIpAddress'
 
@@ -404,16 +406,8 @@ kernel_matrix_testing_run_tests_arm64:
   before_script:
     - !reference [.kernel_matrix_testing_new_profile]
   script:
-    - |
-      if [ -f $CI_PROJECT_DIR/stack.output ]; then
-        INSTANCE_IP=$(grep "$ARCH-instance-ip" $CI_PROJECT_DIR/stack.output | cut -d ' ' -f 2 | tr -d '\n')
-        IP_FILTER="Name=private-ip-address,Values=$INSTANCE_IPS"
-      else
-        echo "No ${CI_PROJECT_DIR}/stack.output file found"
-        IP_FILTER=""
-      fi
     - !reference [.shared_filters_and_queries]
-    - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $IP_FILTER --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
+    - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
     - INSTANCE_ID="$(jq -r '.Instances[0].InstanceId' < instance.json)"
     - echo ${INSTANCE_ID}
     - |
@@ -427,6 +421,7 @@ kernel_matrix_testing_cleanup_arm64:
   needs: ["kernel_matrix_testing_setup_env_arm64", "kernel_matrix_testing_run_tests_arm64"]
   variables:
     ARCH: arm64
+    INSTANCE_TYPE: "m6gd.metal"
 
 kernel_matrix_testing_cleanup_x64:
   extends:
@@ -434,3 +429,4 @@ kernel_matrix_testing_cleanup_x64:
   needs: ["kernel_matrix_testing_setup_env_x64", "kernel_matrix_testing_run_tests_x64"]
   variables:
     ARCH: x86_64
+    INSTANCE_TYPE: "m5d.metal"
