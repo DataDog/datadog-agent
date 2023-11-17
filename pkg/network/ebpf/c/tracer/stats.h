@@ -57,6 +57,29 @@ static __always_inline void update_conn_state(conn_tuple_t *t, conn_stats_ts_t *
     }
 }
 
+// this function marks the protocol stack object with the connection direction
+//
+// *how is the connection direction determined?*
+//
+// Basically we compare the src-side of the normalized USM tuple (which should
+// contain the client port), with the source port of the TCP *socket* (here
+// supplied as part the `pre_norm_tuple` argument). If they match, we mark the
+// protocol stack with FLAG_CLIENT_SIDE, otherwise we mark it with
+// FLAG_SERVER_SIDE.
+//
+// *why do we do that?*
+//
+// We do this to mitigate a race condition that may arise in the context of
+// localhost traffic when deleting the protocol_stack_t entry. This means that
+// we're pretty much only interested in the case where a protocol stack is
+// annothed with *both* FLAG_SERVER_SIDE and FLAG_CLIENT_SIDE. For more context
+// refer to classification/shared-tracer-maps.h
+//
+// *what if there is something wrong with the USM normalization?*
+//
+// This doesn't matter in our case. Even if FLAG_SERVER_SIDE and
+// FLAG_CLIENT_SIDE are flipped, all we care about is the case where both flags
+// are present.
 static __always_inline void mark_protocol_direction(conn_tuple_t *pre_norm_tuple, conn_tuple_t *norm_tuple, protocol_stack_t *protocol_stack) {
     if (pre_norm_tuple->sport == norm_tuple->sport) {
         set_protocol_flag(protocol_stack, FLAG_CLIENT_SIDE);
