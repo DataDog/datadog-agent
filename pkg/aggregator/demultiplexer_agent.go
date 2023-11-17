@@ -364,11 +364,9 @@ func (d *AgentDemultiplexer) flushLoop() {
 			if trigger.blockChan != nil {
 				trigger.blockChan <- struct{}{}
 			}
-			d.LogRetentions()
 		// automatic flush sequence
 		case t := <-flushTicker:
 			d.flushToSerializer(t, false)
-			d.LogRetentions()
 		}
 	}
 }
@@ -640,19 +638,13 @@ func (d *AgentDemultiplexer) GetMetricSamplePool() *metrics.MetricSamplePool {
 
 // TakeRetentions will Import() all retentions from its parameter and save them under its tag.
 func (d *AgentDemultiplexer) TakeRetentions(retentions cache.InternRetainer, tag string) {
+	d.m.Lock()
+	defer d.m.Unlock()
 	if ret, ok := d.retentions[tag]; !ok {
 		ret = cache.NewRetainerBlock()
 		d.retentions[tag] = ret
 		ret.Import(retentions)
 	} else {
 		ret.Import(retentions)
-	}
-}
-
-// LogRetentions logs every retention kept.
-func (d *AgentDemultiplexer) LogRetentions() {
-	d.log.Debug("cache.Retainer: Cache Retainers:")
-	for tag, retainer := range d.retentions {
-		d.log.Debugf("cache.Retainer: %s: %s", tag, retainer.Summarize())
 	}
 }
