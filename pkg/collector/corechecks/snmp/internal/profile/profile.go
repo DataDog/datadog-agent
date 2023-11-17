@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
+
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
 // GetProfiles returns profiles depending on various sources:
