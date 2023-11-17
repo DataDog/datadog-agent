@@ -314,8 +314,6 @@ func TestCollection(t *testing.T) {
 			mockStore.Unsubscribe(ch)
 			cancel()
 
-			cancel()
-
 			// Verify final state
 			for i := range test.expectedProcesses {
 				pid, err := strconv.Atoi(test.expectedProcesses[i].ID)

@@ -100,7 +100,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					if config.GetBool("process_config.remote_workloadmeta") {
 						catalog = workloadmeta.Remote
 					} else {
-						catalog = workloadmeta.NodeAgent
+						catalog = workloadmeta.ProcessAgent
 					}
 
 					return workloadmeta.Params{AgentType: catalog}

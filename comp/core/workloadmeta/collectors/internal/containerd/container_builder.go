@@ -5,7 +5,7 @@
 
 //go:build containerd
 
-// Package containerd provides the containerd colletor for workloadmeta
+// Package containerd provides the containerd collector for workloadmeta
 package containerd
 
 import (

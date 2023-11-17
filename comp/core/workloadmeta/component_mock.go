@@ -41,6 +41,10 @@ var MockModule fx.Option = fxutil.Component(
 	fx.Provide(newWorkloadMetaMock),
 )
 
+// TODO(components): For consistency, let's add an isV2 field to
+//                   Params, and leverage that in the constructor
+//                   to return the right implementation.
+
 // MockModuleV2 defines the fx options for the mock component.
 var MockModuleV2 fx.Option = fxutil.Component(
 	fx.Provide(newWorkloadMetaMockV2),

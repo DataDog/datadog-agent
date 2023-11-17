@@ -59,7 +59,7 @@ type dependencies struct {
 func newWorkloadMeta(deps dependencies) Component {
 	candidates := make(map[string]Collector)
 	for _, c := range deps.Catalog {
-		if c.GetTargetCatalog() == deps.Params.AgentType {
+		if (c.GetTargetCatalog() & deps.Params.AgentType) > 0 {
 			candidates[c.GetID()] = c
 		}
 	}

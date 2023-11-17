@@ -90,8 +90,9 @@ func StartServer(
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
 	pb.RegisterAgentSecureServer(s, &serverSecure{
-		configService:      configService,
-		taggerServer:       taggerserver.NewServer(tagger.GetDefaultTagger()),
+		configService: configService,
+		taggerServer:  taggerserver.NewServer(tagger.GetDefaultTagger()),
+		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
 		dogstatsdServer:    dogstatsdServer,
 		capture:            capture,

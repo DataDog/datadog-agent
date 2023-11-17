@@ -112,7 +112,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
 		Collector: &collector{
 			id:             collectorID,
-			catalog:        workloadmeta.NodeAgent,
+			catalog:        workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
 			contToExitInfo: make(map[string]*exitInfo),
 			knownImages:    newKnownImages(),
 		},

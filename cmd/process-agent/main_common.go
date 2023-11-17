@@ -134,17 +134,17 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		collectors.GetCatalog(),
-		fx.Provide(func() workloadmeta.Params {
+		fx.Provide(func(c config.Component) workloadmeta.Params {
 			var catalog workloadmeta.AgentType
-			if flavor.GetFlavor() == flavor.ClusterAgent {
-				catalog = workloadmeta.ClusterAgent
+
+			if c.GetBool("process_config.remote_workloadmeta") {
+				catalog = workloadmeta.Remote
 			} else {
-				catalog = workloadmeta.NodeAgent
+				catalog = workloadmeta.ProcessAgent
 			}
 
 			return workloadmeta.Params{AgentType: catalog}
 		}),
-		fx.Supply(context.Background()),
 
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),

@@ -276,15 +276,15 @@ func getSharedFxOption() fx.Option {
 		// workloadmeta setup
 		collectors.GetCatalog(),
 		fx.Provide(func(config config.Component) workloadmeta.Params {
-			var catalog workloadmeta.AgentType
+			var agentType workloadmeta.AgentType
 			if flavor.GetFlavor() == flavor.ClusterAgent {
-				catalog = workloadmeta.ClusterAgent
+				agentType = workloadmeta.ClusterAgent
 			} else {
-				catalog = workloadmeta.NodeAgent
+				agentType = workloadmeta.NodeAgent
 			}
 
 			return workloadmeta.Params{
-				AgentType:  catalog,
+				AgentType:  agentType,
 				InitHelper: common.GetWorkloadmetaInit(),
 			}
 		}),

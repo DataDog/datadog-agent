@@ -37,7 +37,10 @@ type collector struct {
 // NewCollector instantiates a CollectorProvider which can provide a CF container collector
 func NewCollector() (workloadmeta.CollectorProvider, error) {
 	return workloadmeta.CollectorProvider{
-		Collector: &collector{id: collectorID, catalog: workloadmeta.NodeAgent},
+		Collector: &collector{
+			id:      collectorID,
+			catalog: workloadmeta.NodeAgent | workloadmeta.ProcessAgent,
+		},
 	}, nil
 }
 

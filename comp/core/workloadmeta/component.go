@@ -18,6 +18,11 @@ import (
 
 // Component is the component type.
 type Component interface {
+	// TODO(components): Start method is currently unused in components and is
+	//                   a legacy method from pre-componentization and will probably
+	//                   not need to ever be part of the component interface. Clean-up
+	//                   the workloademeta.Component interface.
+
 	// Start starts the store, asynchronously initializing collectors and
 	// beginning to gather workload data.  This is typically called during
 	// agent startup.

@@ -116,7 +116,7 @@ func NewCollector() (workloadmeta.CollectorProvider, error) {
 			CollectorID: collectorID,
 			// TODO(components): make sure StreamHandler uses the config component not pkg/config
 			StreamHandler: &streamHandler{Reader: config.Datadog},
-			Catalog:       workloadmeta.Remote,
+			Catalog:       workloadmeta.NodeAgent,
 			Insecure:      true, // wlm extractor currently does not support TLS
 		},
 	}, nil

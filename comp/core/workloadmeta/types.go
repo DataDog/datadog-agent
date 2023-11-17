@@ -133,6 +133,7 @@ type AgentType uint8
 const (
 	NodeAgent AgentType = 1 << iota
 	ClusterAgent
+	ProcessAgent
 	Remote
 )
 
