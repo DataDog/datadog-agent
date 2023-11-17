@@ -13,6 +13,19 @@ import (
 	"sync"
 )
 
+// RemoteConfigSNMPProfilesManager receives configuration from remote-config
+type RemoteConfigSNMPProfilesManager struct {
+	mu       sync.RWMutex
+	upToDate bool
+}
+
+// NewRemoteConfigSNMPProfilesManager creates a new RemoteConfigSNMPProfilesManager.
+func NewRemoteConfigSNMPProfilesManager() *RemoteConfigSNMPProfilesManager {
+	return &RemoteConfigSNMPProfilesManager{
+		upToDate: false,
+	}
+}
+
 // Callback is when profiles updates are available (rc product NDM_DEVICE_PROFILES_CUSTOM)
 func (rc *RemoteConfigSNMPProfilesManager) Callback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	rc.mu.Lock()
@@ -30,17 +43,4 @@ func (rc *RemoteConfigSNMPProfilesManager) Callback(updates map[string]state.Raw
 		log.Infof("Profile: %+v", profileDef.Profile)
 	}
 
-}
-
-// RemoteConfigSNMPProfilesManager receives configuration from remote-config
-type RemoteConfigSNMPProfilesManager struct {
-	mu       sync.RWMutex
-	upToDate bool
-}
-
-// NewRemoteConfigSNMPProfilesManager creates a new RemoteConfigSNMPProfilesManager.
-func NewRemoteConfigSNMPProfilesManager() *RemoteConfigSNMPProfilesManager {
-	return &RemoteConfigSNMPProfilesManager{
-		upToDate: false,
-	}
 }
