@@ -87,9 +87,4 @@ func PopulateStatus(stats map[string]interface{}) {
 		}
 	}
 	stats["inventories"] = checkMetadata
-	if data, ok := inventoriesStats["agent_metadata"]; ok {
-		stats["agent_metadata"] = data
-	} else {
-		stats["agent_metadata"] = map[string]string{}
-	}
 }
