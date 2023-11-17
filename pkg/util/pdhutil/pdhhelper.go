@@ -193,7 +193,9 @@ func pdhMakeCounterPath(machine string, object string, instance string, counter 
 	if counter != "" {
 		elems.countername = uintptr(unsafe.Pointer(windows.StringToUTF16Ptr(counter)))
 	}
+	//revive:disable:redefines-builtin-id
 	var len uint32
+	//revive:enable:redefines-builtin-id
 	r, _, _ := procPdhMakeCounterPath.Call(
 		uintptr(unsafe.Pointer(&elems)),
 		uintptr(0),
