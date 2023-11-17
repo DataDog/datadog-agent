@@ -11,7 +11,6 @@ import (
 	"errors"
 	_ "expvar" // Blank import used because this isn't directly used in this file
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/snmp/rcsnmpprofiles"
 	"net/http"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
@@ -79,6 +78,7 @@ import (
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
+	"github.com/DataDog/datadog-agent/pkg/snmp/rcsnmpprofiles"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"

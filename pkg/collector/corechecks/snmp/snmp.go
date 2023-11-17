@@ -156,7 +156,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 			return fmt.Errorf("failed to create device check: %s", err)
 		}
 	}
-
 	return nil
 }
 
