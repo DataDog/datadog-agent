@@ -22,6 +22,10 @@ import (
 //   - remote config profiles
 func GetProfiles(initConfigProfiles ProfileConfigMap) (ProfileConfigMap, error) {
 	var profiles ProfileConfigMap
+
+	// TODO: Use a Profile Manager to handle profiles state?
+	//       It can include loops to check for new RC Profiles at regular interval.
+
 	if len(initConfigProfiles) > 0 {
 		// TODO: [PERFORMANCE] Load init config custom profiles once for all integrations
 		//   There are possibly multiple init configs
