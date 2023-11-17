@@ -8,9 +8,6 @@ package snmp
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"sync"
 	"time"
 
@@ -159,23 +156,6 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 			return fmt.Errorf("failed to create device check: %s", err)
 		}
 	}
-
-	// We have to create the client in the constructor and set its name later
-	rcClient, err := remote.NewUnverifiedGRPCClient(
-		"unknown", version.AgentVersion, []data.Product{
-			data.ProductNDMDeviceProfilesCustom,
-		}, 5*time.Second,
-	)
-	if err != nil {
-		return err
-	}
-
-	rcProvider := NewRemoteConfigProvider()
-
-	// Spin up the config provider to schedule integrations through remote-config
-	rcClient.Subscribe(string(data.ProductNDMDeviceProfilesCustom), rcProvider.IntegrationScheduleCallback)
-
-	rcClient.Start()
 
 	return nil
 }
