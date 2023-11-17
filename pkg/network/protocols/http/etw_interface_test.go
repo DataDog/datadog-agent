@@ -239,6 +239,7 @@ func TestEtwTransactions(t *testing.T) {
 			assert.Equal(t, int(test.code), int(tx.Txn.ResponseStatusCode), "unexpected status code")
 			assert.Equal(t, test.port, tx.Txn.Tup.LocalPort, "unexpected port")
 			assert.Equal(t, test.site, tx.SiteName, "unexpected site")
+			assert.Equal(t, MethodGet, Method(tx.Txn.RequestMethod), "unexpected request method")
 		})
 
 	}
