@@ -101,6 +101,16 @@ The payload is a JSON dict with the following fields
     string. This includes the settings configured by the user (throuh the configuration file, the environment or CLI),
     as well as any settings explicitly set by the agent (for example the number of workers is dynamically set by the
     agent itself based on the load).
+  - `file_configuration` - **string**: the Agent configuration specified by the configuration file (scrubbed), as a YAML string.
+    Only the settings written in the configuration file are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+  - `environment_variable_configuration` - **string**: the Agent configuration specified by the environment variables (scrubbed), as a YAML string.
+    Only the settings written in the environment variables are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+  - `agent_runtime_configuration` - **string**: the Agent configuration set by the agent itself (scrubbed), as a YAML string.
+    Only the settings set by the agent itself are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+  - `remote_configuration` - **string**: the Agent configuration specified by the Remote Configuration (scrubbed), as a YAML string.
+    Only the settings currently used by Remote Configuration are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+  - `cli_configuration` - **string**: the Agent configuration specified by the CLI (scrubbed), as a YAML string.
+    Only the settings set in the CLI are included, they cannot be overriden by any other sources.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
 
@@ -112,7 +122,6 @@ Here an example of an inventory payload:
 {
     "agent_metadata": {
         "agent_version": "7.37.0-devel+git.198.68a5b69",
-        "cloud_provider": "AWS",
         "config_apm_dd_url": "",
         "config_dd_url": "",
         "config_logs_dd_url": "",
