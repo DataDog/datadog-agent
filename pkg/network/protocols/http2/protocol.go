@@ -317,7 +317,7 @@ func (p *protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
 			for _, conn := range terminatedConnections {
 				terminatedConnectionsMap[conn] = struct{}{}
 			}
-			return false
+			return len(terminatedConnectionsMap) > 0
 		},
 		nil,
 		func(now int64, key, val interface{}) bool {
