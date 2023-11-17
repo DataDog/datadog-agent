@@ -7,8 +7,6 @@
 package status
 
 import (
-	"io"
-
 	"go.uber.org/fx"
 )
 
@@ -17,13 +15,11 @@ import (
 // Component is the component type.
 type Component interface {
 	// /* TODO: detailed doc comment for the component */
-	Get(format string) ([]byte, error)
+	Get() ([]byte, error)
+	Format(template string) ([]byte, error)
 }
 
-type StatusProvider interface {
-	JSON(stats map[string]interface{})
-	Text(buffer io.Writer) error
-}
+type StatusProvider func(stats map[string]interface{})
 
 type Provider struct {
 	fx.Out

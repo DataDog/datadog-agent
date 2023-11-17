@@ -210,25 +210,26 @@ func getStatus(w http.ResponseWriter, r *http.Request, status status.Component) 
 	format := r.URL.Query().Get("format")
 
 	// TODO: validate format
-	s, err := status.Get(format)
 
 	if format == "text" {
+		s, err := status.Format("status.text")
 		w.Header().Set("Content-Type", "text/plain")
 		if err != nil {
 			setTextError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
 			return
 		}
+		w.Write(s)
 	}
 
 	if format == "json" {
+		s, err := status.Get()
 		w.Header().Set("Content-Type", "application/json")
 		if err != nil {
 			setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
 			return
 		}
+		w.Write(s)
 	}
-
-	w.Write(s)
 }
 
 func streamLogs(logsAgent logsAgent.Component) func(w http.ResponseWriter, r *http.Request) {

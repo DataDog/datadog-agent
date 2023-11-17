@@ -7,13 +7,41 @@ package statusimpl
 
 import (
 	"bytes"
+	"embed"
 	"encoding/json"
+	"fmt"
+	htmlTemplate "html/template"
+	"io"
+	"path"
+	textTemplate "text/template"
 
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type template interface {
+	Execute(wr io.Writer, data any) error
+}
+
+var templates = map[string]template{
+	"status.text": parseTextTemplate("templates/text.tmpl"),
+	"gui.html":    parseHTMLTemplate("templates/html.html"),
+}
+
+//go:embed templates
+var templatesFS embed.FS
+
+func parseTextTemplate(template string) template {
+	tmpl, _ := templatesFS.ReadFile(path.Join("templates", template))
+	return textTemplate.Must(textTemplate.New(template).Parse(string(tmpl)))
+}
+
+func parseHTMLTemplate(template string) template {
+	tmpl, _ := templatesFS.ReadFile(path.Join("templates", template))
+	return htmlTemplate.Must(htmlTemplate.New(template).Parse(string(tmpl)))
+}
 
 type dependencies struct {
 	fx.In
@@ -36,24 +64,24 @@ func newStatus(deps dependencies) (status.Component, error) {
 	}, nil
 }
 
-func (s *statusImplementation) Get(format string) ([]byte, error) {
-	switch format {
-	case "json":
-		stats := make(map[string]interface{})
-		for _, sc := range s.providers {
-			sc.JSON(stats)
-		}
-		return json.Marshal(stats)
-	case "text":
-		var b = new(bytes.Buffer)
-		for _, sc := range s.providers {
-			err := sc.Text(b)
-			if err != nil {
-				return b.Bytes(), err
-			}
-		}
-		return b.Bytes(), nil
-	default:
-		return []byte{}, nil
+func (s *statusImplementation) Get() ([]byte, error) {
+	stats := make(map[string]interface{})
+	for _, sc := range s.providers {
+		sc(stats)
 	}
+	return json.Marshal(stats)
+}
+
+func (s *statusImplementation) Format(template string) ([]byte, error) {
+	val, ok := templates[template]
+	if !ok {
+		return []byte{}, fmt.Errorf("template %s not found", template)
+	}
+	buffer := new(bytes.Buffer)
+	stats := make(map[string]interface{})
+	for _, sc := range s.providers {
+		sc(stats)
+	}
+	err := val.Execute(buffer, stats)
+	return buffer.Bytes(), err
 }
