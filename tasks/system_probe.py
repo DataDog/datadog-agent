@@ -304,7 +304,9 @@ def ninja_runtime_compilation_files(nw, gobin):
     }
 
     nw.rule(
-        name="headerincl", command=f"go generate -run=\"include_headers\" -mod=mod -tags {BPF_TAG} $in", depfile="$out.d"
+        name="headerincl",
+        command=f"go generate -run=\"include_headers\" -mod=mod -tags {BPF_TAG} $in",
+        depfile="$out.d",
     )
     nw.rule(name="integrity", command=f"go generate -run=\"integrity\" -mod=mod -tags {BPF_TAG} $in", depfile="$out.d")
     hash_dir = os.path.join(bc_dir, "runtime")
@@ -495,7 +497,7 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
-    ebpfless=False
+    ebpfless=False,
 ):
     """
     Build the system-probe
@@ -521,7 +523,7 @@ def build(
         race=race,
         incremental_build=incremental_build,
         strip_binary=strip_binary,
-        ebpfless=ebpfless
+        ebpfless=ebpfless,
     )
 
 
