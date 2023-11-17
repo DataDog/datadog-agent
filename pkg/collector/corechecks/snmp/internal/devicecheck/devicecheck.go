@@ -255,6 +255,8 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 		if err != nil {
 			return fmt.Errorf("failed to get profile sys object id for `%s`: %s", sysObjectID, err)
 		}
+
+		// TODO: Temporarily alwas refresh profiles
 		//if profile != d.config.Profile {
 		log.Debugf("detected profile change: %s -> %s", d.config.Profiles, profile)
 		err = d.config.SetProfile(profile)
