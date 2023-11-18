@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -70,31 +71,27 @@ const (
 )
 
 func main() {
-	flavor.SetFlavor(flavor.ServerlessAgent)
-	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
-	stopCh := make(chan struct{})
-
-	// Disable remote configuration for now as it just spams the debug logs
-	// and provides no value.
-	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
-
 	// run the agent
-	serverlessDaemon, err := runAgent(stopCh)
+	err := fxutil.OneShot(runAgent)
+
 	if err != nil {
 		log.Error(err)
 		os.Exit(-1)
 	}
-
-	// handle SIGTERM signal
-	go handleSignals(serverlessDaemon, stopCh)
-
-	// block here until we receive a stop signal
-	<-stopCh
 }
 
-func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error) {
+func runAgent() (err error) {
 
 	startTime := time.Now()
+
+	stopCh := make(chan struct{})
+
+	flavor.SetFlavor(flavor.ServerlessAgent)
+	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
+
+	// Disable remote configuration for now as it just spams the debug logs
+	// and provides no value.
+	os.Setenv("DD_REMOTE_CONFIGURATION_ENABLED", "false")
 
 	// setup logger
 	// -----------
@@ -132,11 +129,11 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		if processError != nil {
 			log.Errorf("Can't process events: %s", processError)
 		}
-		return nil, nil
+		return nil
 	}
 
 	// immediately starts the communication server
-	serverlessDaemon = daemon.StartDaemon(httpServerAddr)
+	serverlessDaemon := daemon.StartDaemon(httpServerAddr)
 	serverlessDaemon.ExecutionContext.SetInitializationTime(startTime)
 	err = serverlessDaemon.ExecutionContext.RestoreCurrentStateFromFile()
 	if err != nil {
@@ -347,21 +344,24 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		}
 	}()
 
+	// setup a channel to catch SIGINT and SIGTERM signals
+	signals := []os.Signal{syscall.SIGINT, syscall.SIGTERM}
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, signals[0], signals[1])
+	go handleTerminationSignals(serverlessDaemon, stopCh, signalCh)
+
 	// this log line is used for performance checks during CI
 	// please be careful before modifying/removing it
 	log.Debugf("serverless agent ready in %v", time.Since(startTime))
+
+	// block here until we receive a stop signal
+	<-stopCh
 	return
 }
 
-// handleSignals handles OS signals, if a SIGTERM is received,
-// the serverless agent stops.
-func handleSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}) {
-	// setup a channel to catch OS signals
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
-
-	// block here until we receive the interrupt signal
-	// when received, shutdown the serverless agent.
+// handleTerminationSignals handles OS termination signals.
+// If a specified signal is received the serverless agent stops.
+func handleTerminationSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}, signalCh chan os.Signal) {
 	for signo := range signalCh {
 		switch signo {
 		default:
