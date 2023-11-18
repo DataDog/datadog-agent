@@ -10,6 +10,7 @@ package http2
 import (
 	"errors"
 	"fmt"
+	"golang.org/x/exp/maps"
 	"strings"
 	"sync"
 	"unsafe"
@@ -303,19 +304,18 @@ func (p *protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
 		return
 	}
 
-	var terminatedConnections []netebpf.ConnTuple
 	terminatedConnectionsMap := make(map[netebpf.ConnTuple]struct{})
 	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval,
 		func() bool {
+			maps.Clear(terminatedConnectionsMap)
 			p.terminatedConnectionsEventsConsumer.Sync()
-			terminatedConnections = terminatedConnections[:0]
 			p.terminatedConnectionMux.Lock()
-			terminatedConnections = append(terminatedConnections, p.terminatedConnections...)
-			p.terminatedConnections = p.terminatedConnections[:0]
-			p.terminatedConnectionMux.Unlock()
-			for _, conn := range terminatedConnections {
+			for _, conn := range p.terminatedConnections {
 				terminatedConnectionsMap[conn] = struct{}{}
 			}
+			p.terminatedConnections = p.terminatedConnections[:0]
+			p.terminatedConnectionMux.Unlock()
+
 			return len(terminatedConnectionsMap) > 0
 		},
 		nil,
