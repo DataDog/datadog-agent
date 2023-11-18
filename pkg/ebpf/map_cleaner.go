@@ -187,6 +187,6 @@ func (mc *MapCleaner[K, V]) shrinkKeysToDelete() {
 	// If the number of keys to delete is greater than the batch size, shrinking its capacity
 	// by `mc.keysToDelete[:len(mc.keyBatch):len(mc.keyBatch)]` (similar to slices.Clip), and then resetting its length to 0
 	if len(mc.keysToDelete) > len(mc.keyBatch) {
-		mc.keysToDelete = mc.keysToDelete[:len(mc.keyBatch):len(mc.keyBatch)][:0]
+		mc.keysToDelete = mc.keysToDelete[:0:len(mc.keyBatch)]
 	}
 }
