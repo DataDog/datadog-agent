@@ -242,7 +242,8 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, diagnos
 	if err != nil {
 		return err
 	}
-	common.LoadComponents(context.Background(), senderManager, config.GetString("confd_path"))
+	common.LoadComponents()
+	common.StartComponents(context.Background(), senderManager, config.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

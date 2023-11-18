@@ -123,6 +123,9 @@ func setupProcesses(config Config) {
 	procBindEnvAndSetDefault(config, "process_config.container_collection.enabled", true)
 	procBindEnvAndSetDefault(config, "process_config.process_collection.enabled", false)
 
+	// This will be linux for only
+	procBindEnvAndSetDefault(config, "process_config.run_in_core_agent.enabled", false)
+
 	config.BindEnv("process_config.process_dd_url",
 		"DD_PROCESS_CONFIG_PROCESS_DD_URL",
 		"DD_PROCESS_AGENT_PROCESS_DD_URL",

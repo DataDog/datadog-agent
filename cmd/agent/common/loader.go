@@ -29,12 +29,9 @@ import (
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(ctx context.Context, senderManager sender.SenderManager, confdPath string) {
-	sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
-	if err != nil {
+func LoadComponents() {
+	if _, err := scanner.CreateGlobalScanner(config.Datadog); err != nil {
 		log.Errorf("failed to create SBOM scanner: %s", err)
-	} else if sbomScanner != nil {
-		sbomScanner.Start(ctx)
 	}
 
 	var catalog workloadmeta.CollectorCatalog
@@ -45,7 +42,6 @@ func LoadComponents(ctx context.Context, senderManager sender.SenderManager, con
 	}
 
 	store := workloadmeta.CreateGlobalStore(catalog)
-	store.Start(ctx)
 
 	var t tagger.Tagger
 
@@ -65,6 +61,17 @@ func LoadComponents(ctx context.Context, senderManager sender.SenderManager, con
 	}
 
 	tagger.SetDefaultTagger(t)
+}
+
+// StartComponents start several common Agent components:
+// tagger, collector, scheduler and autodiscovery
+func StartComponents(ctx context.Context, senderManager sender.SenderManager, confdPath string) {
+	if sbomScanner := scanner.GetGlobalScanner(); sbomScanner != nil {
+		sbomScanner.Start(ctx)
+	}
+	store := workloadmeta.GetGlobalStore()
+	store.Start(ctx)
+
 	if err := tagger.Init(ctx); err != nil {
 		log.Errorf("failed to start the tagger: %s", err)
 	}

@@ -10,10 +10,11 @@ package run
 
 import (
 	"context"
-	_ "expvar" // Blank import used because this isn't directly used in this file
+	_ "expvar"         // Blank import used because this isn't directly used in this file
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
+
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"go.uber.org/fx"
 
@@ -45,6 +46,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
+	processAgent "github.com/DataDog/datadog-agent/comp/process/agent"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -99,6 +101,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				serverDebug,
 				rcclient,
 				logsAgent,
+				optional.NewNoneOption[processAgent.Component](),
 				forwarder,
 				sharedSerializer,
 				otelcollector,
