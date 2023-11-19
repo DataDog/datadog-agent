@@ -102,13 +102,20 @@ static __always_inline __u8 parse_field_indexed(dynamic_table_index_t *dynamic_i
 
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
+
+typedef enum {
+    literalNotInteresting = 0,
+    literalInteresting = 1,
+    literalError = 2,
+} literal_result_t;
+
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
 // TODO: return ERR code instead of bool + interesting_headers_counter
-static __always_inline bool parse_field_literal(skb_wrapper_t *ptr, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
+static __always_inline literal_result_t parse_field_literal(skb_wrapper_t *ptr, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter) {
     __u64 str_len = 0;
     if (!read_var_int(ptr, MAX_6_BITS, &str_len)) {
-        return false;
+        return literalError;
     }
     // The key is new and inserted into the dynamic table. So we are skipping the new value.
 
@@ -116,7 +123,7 @@ static __always_inline bool parse_field_literal(skb_wrapper_t *ptr, http2_header
         ptr->skb_info->data_off += str_len;
         str_len = 0;
         if (!read_var_int(ptr, MAX_6_BITS, &str_len)) {
-            return false;
+            return literalError;
         }
         goto end;
     }
@@ -133,10 +140,11 @@ static __always_inline bool parse_field_literal(skb_wrapper_t *ptr, http2_header
     headers_to_process->type = kNewDynamicHeader;
     headers_to_process->new_dynamic_value_offset = ptr->skb_info->data_off;
     headers_to_process->new_dynamic_value_size = str_len;
-    (*interesting_headers_counter)++;
+    ptr->skb_info->data_off += str_len;
+    return literalInteresting;
 end:
     ptr->skb_info->data_off += str_len;
-    return true;
+    return literalNotInteresting;
 }
 
 // This function reads the http2 headers frame.
@@ -150,7 +158,7 @@ static __always_inline __u8 filter_relevant_headers(skb_wrapper_t *ptr, dynamic_
     bool is_indexed = false;
     __u64 max_bits = 0;
     __u64 index = 0;
-
+    literal_result_t res = 0;
     const __u64 dummy_counter = 0;
     bpf_map_update_elem(&http2_dynamic_counter_table, &dynamic_index->tup, &dummy_counter, BPF_NOEXIST);
     __u64 *global_dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &dynamic_index->tup);
@@ -197,9 +205,11 @@ static __always_inline __u8 filter_relevant_headers(skb_wrapper_t *ptr, dynamic_
             // 6.2.1 Literal Header Field with Incremental Indexing
             // top two bits are 11
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.2.1
-            if (!parse_field_literal(ptr, current_header, index, *global_dynamic_counter, &interesting_headers)) {
+            res = parse_field_literal(ptr, current_header, index, *global_dynamic_counter);
+            if (literalError == res) {
                 break;
             }
+            interesting_headers += res;
         }
     }
 
