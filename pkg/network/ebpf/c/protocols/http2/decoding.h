@@ -300,11 +300,11 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
 
     // response end of stream;
     current_stream->response_last_seen = bpf_ktime_get_ns();
-    current_stream->tup = http2_stream_key_template->tup;
+    current_stream->tup = http2_ctx->http2_stream_key.tup;
 
     // enqueue
     http2_batch_enqueue(current_stream);
-    bpf_map_delete_elem(&http2_in_flight, http2_stream_key_template);
+    bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
 }
 
 // A similar implementation of read_http2_frame_header, but instead of getting both a char array and an out parameter,
@@ -365,13 +365,6 @@ static __always_inline void fix_header_frame(struct __sk_buff *skb, skb_info_t *
         break;
     }
     return;
-}
-
-static __always_inline void reset_frame(struct http2_frame *out) {
-    out->type = 0;
-    out->length = 0;
-    out->stream_id = 0;
-    out->flags = 0;
 }
 
 static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *skb_info, frame_header_remainder_t *frame_state, struct http2_frame *current_frame) {
@@ -435,7 +428,10 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
             frame_state->remainder = 0;
             return false;
         }
-        reset_frame(current_frame);
+        current_frame->type = 0;
+        current_frame->length = 0;
+        current_frame->stream_id = 0;
+        current_frame->flags = 0;
         bpf_skb_load_bytes(skb, skb_info->data_off, (char *)current_frame, HTTP2_FRAME_HEADER_SIZE);
         if (format_http2_frame_header(current_frame)) {
             frame_state->remainder = 0;
