@@ -74,19 +74,18 @@ static __always_inline bool read_var_int(skb_wrapper_t *ptr, __u64 max_number_fo
 
 // parse_field_indexed is handling the case which the header frame is part of the static table.
 // TODO: Return 0/1 instead of getting the interesting_headers_counter
-static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
+static __always_inline __u8 parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter) {
     if (headers_to_process == NULL) {
-        return;
+        return 0;
     }
     // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
     if ((1 < index && index < 6) || (7 < index && index < 15)) {
         headers_to_process->index = index;
         headers_to_process->type = kStaticHeader;
-        (*interesting_headers_counter)++;
-        return;
+        return 1;
     }
     if (index <= MAX_STATIC_TABLE_INDEX) {
-        return;
+        return 0;
     }
 
     // we change the index to fit our internal dynamic table implementation index.
@@ -94,13 +93,12 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
     dynamic_index->index = global_dynamic_counter - (index - MAX_STATIC_TABLE_INDEX);
 
     if (bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) == NULL) {
-        return;
+        return 0;
     }
 
     headers_to_process->index = dynamic_index->index;
     headers_to_process->type = kExistingDynamicHeader;
-    (*interesting_headers_counter)++;
-    return;
+    return 1;
 }
 
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
@@ -195,7 +193,7 @@ static __always_inline __u8 filter_relevant_headers(skb_wrapper_t *ptr, conn_tup
             // Indexed representation.
             // MSB bit set.
             // https://httpwg.org/specs/rfc7541.html#rfc.section.6.1
-            parse_field_indexed(dynamic_index, current_header, index, *global_dynamic_counter, &interesting_headers);
+            interesting_headers += parse_field_indexed(dynamic_index, current_header, index, *global_dynamic_counter);
         } else {
             __sync_fetch_and_add(global_dynamic_counter, 1);
             // 6.2.1 Literal Header Field with Incremental Indexing
