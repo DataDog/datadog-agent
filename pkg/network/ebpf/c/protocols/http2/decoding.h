@@ -73,7 +73,6 @@ static __always_inline bool read_var_int(skb_wrapper_t *ptr, __u64 max_number_fo
 }
 
 // parse_field_indexed is handling the case which the header frame is part of the static table.
-// TODO: Return 0/1 instead of getting the interesting_headers_counter
 static __always_inline __u8 parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter) {
     if (headers_to_process == NULL) {
         return 0;
