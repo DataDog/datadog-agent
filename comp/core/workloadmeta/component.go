@@ -136,3 +136,9 @@ var Module fx.Option = fxutil.Component(
 		newWorkloadMeta,
 	),
 )
+
+var OptionalModule fx.Option = fxutil.Component(
+	fx.Provide(
+		newWorkloadMetaOptional,
+	),
+)

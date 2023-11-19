@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/common"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
@@ -96,4 +97,13 @@ func newWorkloadMeta(deps dependencies) Component {
 	}})
 
 	return wm
+}
+
+func newWorkloadMetaOptional(deps dependencies) optional.Option[Component] {
+	if deps.Params.NoInstance {
+		return optional.NewNoneOption[Component]()
+	}
+	c := newWorkloadMeta(deps)
+
+	return optional.NewOption[Component](c)
 }
