@@ -493,7 +493,7 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
     tests = [
         {
             # Run eventlog tests with the Windows API, which depend on the EventLog service
-            "dir" : "./pkg/util/winutil/",
+            "dir": "./pkg/util/winutil/",
             'prefix': './eventlog/...',
             'extra_args': '-evtapi Windows',
         },
@@ -512,7 +512,8 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
     ]
 
     for test in tests:
-        ctx.run(f"cd {test['dir']} && {go_cmd} {test['prefix']} {test['extra_args']} && cd -")
+        with ctx.cd(f"{test['dir']}"):
+            ctx.run(f"{go_cmd} {test['prefix']} {test['extra_args']}")
 
 
 def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
