@@ -14,17 +14,6 @@
 #include "protocols/http/types.h"
 #include "protocols/classification/defs.h"
 
-// returns true if the given index is one of the relevant headers we care for in the static table.
-// The full table can be found in the user mode code `createStaticTable`.
-static __always_inline bool is_interesting_static_entry(const __u64 index) {
-    return (1 < index && index < 6) || (7 < index && index < 15);
-}
-
-// returns true if the given index is below MAX_STATIC_TABLE_INDEX.
-static __always_inline bool is_static_table_entry(const __u64 index) {
-    return index <= MAX_STATIC_TABLE_INDEX;
-}
-
 // http2_fetch_stream returns the current http2 in flight stream.
 static __always_inline http2_stream_t *http2_fetch_stream(const http2_stream_key_t *http2_stream_key) {
     http2_stream_t *http2_stream_ptr = bpf_map_lookup_elem(&http2_in_flight, http2_stream_key);
@@ -91,13 +80,13 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
         return;
     }
     // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
-    if (is_interesting_static_entry(index)) {
+    if ((1 < index && index < 6) || (7 < index && index < 15)) {
         headers_to_process->index = index;
         headers_to_process->type = kStaticHeader;
         (*interesting_headers_counter)++;
         return;
     }
-    if (is_static_table_entry(index)) {
+    if (index <= MAX_STATIC_TABLE_INDEX) {
         return;
     }
 
