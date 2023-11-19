@@ -271,8 +271,7 @@ static __always_inline void process_headers(skb_wrapper_t *ptr, dynamic_table_in
     }
 }
 
-// TODO: replace tup with dynamic_index
-static __always_inline void process_headers_frame(skb_wrapper_t *ptr, http2_stream_t *current_stream, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, struct http2_frame *current_frame_header) {
+static __always_inline void process_headers_frame(skb_wrapper_t *ptr, http2_stream_t *current_stream, dynamic_table_index_t *dynamic_index, struct http2_frame *current_frame_header) {
     const __u32 zero = 0;
 
     // Allocating an array of headers, to hold all interesting headers from the frame.
@@ -294,7 +293,7 @@ static __always_inline void parse_frame(skb_wrapper_t *ptr, conn_tuple_t *tup, h
     }
 
     if (current_frame->type == kHeadersFrame) {
-        process_headers_frame(ptr, current_stream, tup, &http2_ctx->dynamic_index, current_frame);
+        process_headers_frame(ptr, current_stream, &http2_ctx->dynamic_index, current_frame);
     }
 
     // When we accept an RST, it means that the current stream is terminated.
