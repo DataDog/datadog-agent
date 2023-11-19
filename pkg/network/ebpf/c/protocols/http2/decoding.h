@@ -256,21 +256,6 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
     }
 }
 
-static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template) {
-    if (!current_stream->request_end_of_stream) {
-        current_stream->request_end_of_stream = true;
-        return;
-    }
-
-    // response end of stream;
-    current_stream->response_last_seen = bpf_ktime_get_ns();
-    current_stream->tup = http2_stream_key_template->tup;
-
-    // enqueue
-    http2_batch_enqueue(current_stream);
-    bpf_map_delete_elem(&http2_in_flight, http2_stream_key_template);
-}
-
 static __always_inline void process_headers_frame(struct __sk_buff *skb, http2_stream_t *current_stream, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, struct http2_frame *current_frame_header) {
     const __u32 zero = 0;
 
@@ -304,11 +289,22 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
         bpf_map_delete_elem(&http2_in_flight, &http2_ctx->http2_stream_key);
         return;
     }
-    if (is_rst || ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM)) {
-        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key);
+    if (!is_rst && ((current_frame->flags & HTTP2_END_OF_STREAM) != HTTP2_END_OF_STREAM)) {
+        return;
     }
 
-    return;
+    if (!current_stream->request_end_of_stream) {
+        current_stream->request_end_of_stream = true;
+        return;
+    }
+
+    // response end of stream;
+    current_stream->response_last_seen = bpf_ktime_get_ns();
+    current_stream->tup = http2_stream_key_template->tup;
+
+    // enqueue
+    http2_batch_enqueue(current_stream);
+    bpf_map_delete_elem(&http2_in_flight, http2_stream_key_template);
 }
 
 // A similar implementation of read_http2_frame_header, but instead of getting both a char array and an out parameter,
