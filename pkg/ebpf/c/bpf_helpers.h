@@ -57,7 +57,7 @@
 #define __always_inline inline __attribute__((always_inline))
 
 #ifndef __noinline
-#define __noinline __attribute__((noinline))
+#define __noinline __attribute__((__noinline__))
 #endif
 #ifndef __weak
 #define __weak __attribute__((weak))
