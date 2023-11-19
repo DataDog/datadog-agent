@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 type messageType int
@@ -38,7 +39,7 @@ var (
 // parser parses dogstatsd messages
 // not safe for concurent use
 type parser struct {
-	interner    *stringInterner
+	interner    *cache.KeyedInterner
 	float64List *float64ListPool
 
 	// dsdOriginEnabled controls whether the server should honor the container id sent by the
@@ -55,7 +56,7 @@ func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int) *
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
 
 	return &parser{
-		interner:         newStringInterner(stringInternerCacheSize, workerNum),
+		interner:         cache.NewKeyedStringInternerMemOnly(stringInternerCacheSize),
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),
@@ -97,11 +98,11 @@ func (p *parser) parseTags(rawTags []byte) []string {
 		if tagPos < 0 {
 			break
 		}
-		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos])
+		tagsList[i] = p.interner.LoadOrStore(rawTags[:tagPos], "", nil)
 		rawTags = rawTags[tagPos+len(commaSeparator):]
 		i++
 	}
-	tagsList[i] = p.interner.LoadOrStore(rawTags)
+	tagsList[i] = p.interner.LoadOrStore(rawTags, "", nil)
 	return tagsList
 }
 
@@ -188,7 +189,7 @@ func (p *parser) parseMetricSample(message []byte) (dogstatsdMetricSample, error
 	}
 
 	return dogstatsdMetricSample{
-		name:        p.interner.LoadOrStore(name),
+		name:        p.interner.LoadOrStore(name, "", nil),
 		value:       value,
 		values:      values,
 		setValue:    string(setValue),
