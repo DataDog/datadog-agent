@@ -140,8 +140,7 @@ end:
 }
 
 // This function reads the http2 headers frame.
-// TODO: replace tup with dynamic_index
-static __always_inline __u8 filter_relevant_headers(skb_wrapper_t *ptr, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length) {
+static __always_inline __u8 filter_relevant_headers(skb_wrapper_t *ptr, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
     http2_header_t *current_header;
@@ -153,8 +152,8 @@ static __always_inline __u8 filter_relevant_headers(skb_wrapper_t *ptr, conn_tup
     __u64 index = 0;
 
     const __u64 dummy_counter = 0;
-    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &dummy_counter, BPF_NOEXIST);
-    __u64 *global_dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
+    bpf_map_update_elem(&http2_dynamic_counter_table, &dynamic_index->tup, &dummy_counter, BPF_NOEXIST);
+    __u64 *global_dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, &dynamic_index->tup);
     if (global_dynamic_counter == NULL) {
         return 0;
     }
@@ -273,7 +272,7 @@ static __always_inline void process_headers_frame(skb_wrapper_t *ptr, http2_stre
     }
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
-    __u8 interesting_headers = filter_relevant_headers(ptr, tup, dynamic_index, headers_to_process, current_frame_header->length);
+    __u8 interesting_headers = filter_relevant_headers(ptr, dynamic_index, headers_to_process, current_frame_header->length);
     process_headers(ptr, dynamic_index, current_stream, headers_to_process, interesting_headers);
 }
 
