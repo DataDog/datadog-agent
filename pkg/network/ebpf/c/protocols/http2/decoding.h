@@ -111,7 +111,6 @@ typedef enum {
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
 // which will be stored in the dynamic table.
-// TODO: return ERR code instead of bool + interesting_headers_counter
 static __always_inline literal_result_t parse_field_literal(skb_wrapper_t *ptr, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter) {
     __u64 str_len = 0;
     if (!read_var_int(ptr, MAX_6_BITS, &str_len)) {
@@ -216,18 +215,22 @@ static __always_inline __u8 filter_relevant_headers(skb_wrapper_t *ptr, dynamic_
     return interesting_headers;
 }
 
-// TODO: Wrap http2_header_t to hold the count
-static __always_inline void process_headers(skb_wrapper_t *ptr, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers) {
+typedef struct {
+    http2_header_t *headers_to_process;
+    __u8 interesting_headers;
+} process_headers_args_t;
+
+static __always_inline void process_headers(skb_wrapper_t *ptr, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, process_headers_args_t *process_headers_ptr) {
     http2_header_t *current_header;
     dynamic_table_entry_t dynamic_value = {};
 
 #pragma unroll(HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING)
     for (__u8 iteration = 0; iteration < HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING; ++iteration) {
-        if (iteration >= interesting_headers) {
+        if (iteration >= process_headers_ptr->interesting_headers) {
             break;
         }
 
-        current_header = &headers_to_process[iteration];
+        current_header = &process_headers_ptr->headers_to_process[iteration];
 
         if (current_header->type == kStaticHeader) {
             static_table_value_t *static_value = bpf_map_lookup_elem(&http2_static_table, &current_header->index);
@@ -282,7 +285,8 @@ static __always_inline void process_headers_frame(skb_wrapper_t *ptr, http2_stre
     bpf_memset(headers_to_process, 0, HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING * sizeof(http2_header_t));
 
     __u8 interesting_headers = filter_relevant_headers(ptr, dynamic_index, headers_to_process, current_frame_header->length);
-    process_headers(ptr, dynamic_index, current_stream, headers_to_process, interesting_headers);
+    process_headers_args_t args = {headers_to_process, interesting_headers};
+    process_headers(ptr, dynamic_index, current_stream, &args);
 }
 
 static __always_inline void parse_frame(skb_wrapper_t *ptr, conn_tuple_t *tup, http2_ctx_t *http2_ctx, struct http2_frame *current_frame) {
