@@ -10,7 +10,6 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/dogstatsd"
 	"math/rand"
 	"net"
 	"net/http"
