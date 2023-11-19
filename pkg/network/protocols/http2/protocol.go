@@ -90,20 +90,20 @@ var Spec = &protocols.ProtocolSpec{
 				EBPFFuncName: firstFrameHandlerTailCall,
 			},
 		},
-		{
-			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP2FrameFilter),
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: filterTailCall,
-			},
-		},
-		{
-			ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
-			Key:           uint32(protocols.ProgramHTTP2FrameParser),
-			ProbeIdentificationPair: manager.ProbeIdentificationPair{
-				EBPFFuncName: parserTailCall,
-			},
-		},
+		//{
+		//	ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+		//	Key:           uint32(protocols.ProgramHTTP2FrameFilter),
+		//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+		//		EBPFFuncName: filterTailCall,
+		//	},
+		//},
+		//{
+		//	ProgArrayName: protocols.ProtocolDispatcherProgramsMap,
+		//	Key:           uint32(protocols.ProgramHTTP2FrameParser),
+		//	ProbeIdentificationPair: manager.ProbeIdentificationPair{
+		//		EBPFFuncName: parserTailCall,
+		//	},
+		//},
 	},
 }
 
