@@ -67,13 +67,6 @@ static __always_inline bool read_var_int(struct __sk_buff *skb, skb_info_t *skb_
     return read_var_int_with_given_current_char(skb, skb_info, current_char_as_number, max_number_for_bits, out);
 }
 
-//get_dynamic_counter returns the current dynamic counter by the conn tup.
-static __always_inline __u64 *get_dynamic_counter(conn_tuple_t *tup) {
-    __u64 counter = 0;
-    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &counter, BPF_NOEXIST);
-    return bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
-}
-
 // parse_field_indexed is handling the case which the header frame is part of the static table.
 static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u8 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
     if (headers_to_process == NULL) {
@@ -154,7 +147,9 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     __u64 max_bits = 0;
     __u64 index = 0;
 
-    __u64 *global_dynamic_counter = get_dynamic_counter(tup);
+    const __u64 dummy_counter = 0;
+    bpf_map_update_elem(&http2_dynamic_counter_table, tup, &dummy_counter, BPF_NOEXIST);
+    __u64 *global_dynamic_counter = bpf_map_lookup_elem(&http2_dynamic_counter_table, tup);
     if (global_dynamic_counter == NULL) {
         return 0;
     }
