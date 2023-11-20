@@ -129,7 +129,7 @@ func (p *protocol) Name() string {
 }
 
 const (
-	mapSizeValue = 10240
+	mapSizeValue = 1024
 )
 
 // ConfigureOptions add the necessary options for http2 monitoring to work,
