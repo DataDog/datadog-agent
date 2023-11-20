@@ -268,7 +268,10 @@ func (j *JMXFetch) Start(manage bool) error {
 		jmxLogLevel = "INFO"
 	}
 
-	ipcHost := config.Datadog.GetString("cmd_host")
+	ipcHost, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
 	ipcPort := config.Datadog.GetInt("cmd_port")
 	if j.IPCHost != "" {
 		ipcHost = j.IPCHost
