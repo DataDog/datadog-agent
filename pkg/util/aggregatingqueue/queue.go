@@ -20,7 +20,7 @@ type queue[T any] struct {
 	timer            *clock.Timer
 }
 
-// NewQueue returns a chan to enqueue elements
+// NewQueue returns a  chan to enqueue elements
 // The flushCB function will be called with a slice of elements as soon as
 // * either maxNbItem elements have been enqueued since the last flush
 // * or maxRetentionTime has elapsed since the first element has been enqueued after the last flush.
