@@ -666,6 +666,12 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
     http2_frame_with_offset *frames_array = tail_call_state->frames_array;
     http2_frame_with_offset current_frame;
 
+    // create the http2 ctx for the current http2 frame.
+    bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
+    http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
+    normalize_tuple(&http2_ctx->http2_stream_key.tup);
+    http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
+
     #pragma unroll(HTTP2_FRAMES_PER_TAIL_CALL)
     for (__u8 index = 0; index < HTTP2_FRAMES_PER_TAIL_CALL; index++) {
         if (tail_call_state->iteration >= HTTP2_MAX_FRAMES_ITERATIONS) {
@@ -679,11 +685,6 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
         }
         tail_call_state->iteration += 1;
 
-        // create the http2 ctx for the current http2 frame.
-        bpf_memset(http2_ctx, 0, sizeof(http2_ctx_t));
-        http2_ctx->http2_stream_key.tup = dispatcher_args_copy.tup;
-        normalize_tuple(&http2_ctx->http2_stream_key.tup);
-        http2_ctx->dynamic_index.tup = dispatcher_args_copy.tup;
         dispatcher_args_copy.skb_info.data_off = current_frame.offset;
 
         parse_frame(skb, &dispatcher_args_copy.skb_info, &dispatcher_args_copy.tup, http2_ctx, &current_frame.frame);
