@@ -318,6 +318,35 @@ func TestDropEmptyConnections(t *testing.T) {
 		// Send non-empty connection
 		conn2 := conn
 		conn2.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+
+		// Send empty connection with same cookie
+		emptyconn := ConnectionStats{}
+		emptyconn.Cookie = 2
+		emptyconn.LastUpdateEpoch = 100
+		state.storeClosedConnections([]ConnectionStats{emptyconn})
+
+		// Check that the index stayed the same
+		conns = state.clients[clientID].closed.conns
+		assert.Equal(t, 3, len(conns))
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+	})
+	t.Run("Replace with latest", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		// Send non-empty connection
+		conn2 := conn
+		conn2.Cookie = 2
 		conn2.LastUpdateEpoch = 100
 		state.storeClosedConnections([]ConnectionStats{conn2})
 
@@ -335,6 +364,41 @@ func TestDropEmptyConnections(t *testing.T) {
 		conns = state.clients[clientID].closed.conns
 		assert.Equal(t, 3, len(conns))
 		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+	})
+	t.Run("Replace at index", func(t *testing.T) {
+		state := newDefaultState()
+		state.maxClosedConns = 5
+		state.RegisterClient(clientID)
+
+		state.storeClosedConnections([]ConnectionStats{{}})
+		state.storeClosedConnections([]ConnectionStats{conn})
+
+		// Send non-empty connection
+		conn2 := conn
+		conn2.Cookie = 2
+		state.storeClosedConnections([]ConnectionStats{conn2})
+
+		conns := state.clients[clientID].closed.conns
+
+		// Check that it's stored correctly
+		assert.Equal(t, []ConnectionStats{conn, conn2, {}}, conns)
+
+		// Send empty second connection with same cookie
+		conn3 := conn
+		conn3.Cookie = 2
+		conn3.LastUpdateEpoch = 300
+		conn3.Pid = 300
+		conn3.Last = StatCounters{
+			SentBytes:   22222,
+			RecvBytes:   3333,
+			Retransmits: 4,
+		}
+		state.storeClosedConnections([]ConnectionStats{conn3})
+
+		// Check that the index stayed the same
+		conns = state.clients[clientID].closed.conns
+		assert.Equal(t, 3, len(conns))
+		assert.Equal(t, []ConnectionStats{conn, conn3, {}}, conns)
 	})
 	t.Run("insert empty connection at end", func(t *testing.T) {
 		state := newDefaultState()
