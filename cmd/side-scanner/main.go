@@ -1327,9 +1327,6 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		}
 		trivyArtifactEBS := trivyArtifact.(*vm.EBS)
 		trivyArtifactEBS.SetEBS(EBSClientWithWalk{ebsclient})
-		if err != nil {
-			return nil, fmt.Errorf("unable to create artifact from image: %w", err)
-		}
 	}
 
 	scanStartedAt := time.Now()
