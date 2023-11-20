@@ -48,7 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-var listener net.Listener
+var apiListener net.Listener
 
 // StartServer creates the router and starts the HTTP server
 func StartServer(
@@ -63,11 +63,15 @@ func StartServer(
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
 ) error {
-	initializeTLS()
+	tlsKeyPair, tlsCertPool := initializeTLS()
+
+	apiAddr, err := getIPCAddressPort()
+	if err != nil {
+		panic("unable to get IPC address and port")
+	}
 
 	// get the transport we're going to use under HTTP
-	var err error
-	listener, err = getListener()
+	apiListener, err = getListener(apiAddr)
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
@@ -82,7 +86,7 @@ func StartServer(
 	// gRPC server
 	authInterceptor := grpcutil.AuthInterceptor(parseToken)
 	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, tlsAddr)),
+		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, apiAddr)),
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
 	}
@@ -99,7 +103,7 @@ func StartServer(
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
-		ServerName: tlsAddr,
+		ServerName: apiAddr,
 		RootCAs:    tlsCertPool,
 	})
 	dopts := []grpc.DialOption{grpc.WithTransportCredentials(dcreds)}
@@ -108,13 +112,13 @@ func StartServer(
 	ctx := context.Background()
 	gwmux := runtime.NewServeMux()
 	err = pb.RegisterAgentHandlerFromEndpoint(
-		ctx, gwmux, tlsAddr, dopts)
+		ctx, gwmux, apiAddr, dopts)
 	if err != nil {
 		panic(err)
 	}
 
 	err = pb.RegisterAgentSecureHandlerFromEndpoint(
-		ctx, gwmux, tlsAddr, dopts)
+		ctx, gwmux, apiAddr, dopts)
 	if err != nil {
 		panic(err)
 	}
@@ -149,7 +153,7 @@ func StartServer(
 	logWriter, _ := config.NewLogWriter(5, seelog.ErrorLvl)
 
 	srv := grpcutil.NewMuxedGRPCServer(
-		tlsAddr,
+		apiAddr,
 		&tls.Config{
 			Certificates: []tls.Certificate{*tlsKeyPair},
 			NextProtos:   []string{"h2"},
@@ -161,7 +165,7 @@ func StartServer(
 
 	srv.ErrorLog = stdLog.New(logWriter, "Error from the agent http API server: ", 0) // log errors to seelog
 
-	tlsListener := tls.NewListener(listener, srv.TLSConfig)
+	tlsListener := tls.NewListener(apiListener, srv.TLSConfig)
 
 	go srv.Serve(tlsListener) //nolint:errcheck
 	return nil
@@ -170,12 +174,12 @@ func StartServer(
 // StopServer closes the connection and the server
 // stops listening to new commands.
 func StopServer() {
-	if listener != nil {
-		listener.Close()
+	if apiListener != nil {
+		apiListener.Close()
 	}
 }
 
 // ServerAddress retruns the server address.
 func ServerAddress() *net.TCPAddr {
-	return listener.Addr().(*net.TCPAddr)
+	return apiListener.Addr().(*net.TCPAddr)
 }

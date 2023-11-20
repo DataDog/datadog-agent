@@ -16,12 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 )
 
-var (
-	tlsKeyPair  *tls.Certificate
-	tlsCertPool *x509.CertPool
-	tlsAddr     string
-)
-
 // validateToken - validates token for legacy API
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +41,6 @@ func parseToken(token string) (interface{}, error) {
 }
 
 func buildSelfSignedKeyPair() ([]byte, []byte) {
-
 	hosts := []string{"127.0.0.1", "localhost", "::1"}
 	ipcAddr, err := getIPCAddressPort()
 	if err == nil {
@@ -67,8 +60,7 @@ func buildSelfSignedKeyPair() ([]byte, []byte) {
 	return rootCertPEM, rootKeyPEM
 }
 
-func initializeTLS() {
-
+func initializeTLS() (*tls.Certificate, *x509.CertPool) {
 	cert, key := buildSelfSignedKeyPair()
 	if cert == nil {
 		panic("unable to generate certificate")
@@ -77,15 +69,12 @@ func initializeTLS() {
 	if err != nil {
 		panic(err)
 	}
-	tlsKeyPair = &pair
-	tlsCertPool = x509.NewCertPool()
+
+	tlsCertPool := x509.NewCertPool()
 	ok := tlsCertPool.AppendCertsFromPEM(cert)
 	if !ok {
 		panic("bad certs")
 	}
 
-	tlsAddr, err = getIPCAddressPort()
-	if err != nil {
-		panic("unable to get IPC address and port")
-	}
+	return &pair, tlsCertPool
 }

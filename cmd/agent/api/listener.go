@@ -22,10 +22,6 @@ func getIPCAddressPort() (string, error) {
 }
 
 // getListener returns a listening connection
-func getListener() (net.Listener, error) {
-	address, err := getIPCAddressPort()
-	if err != nil {
-		return nil, err
-	}
+func getListener(address string) (net.Listener, error) {
 	return net.Listen("tcp", address)
 }
