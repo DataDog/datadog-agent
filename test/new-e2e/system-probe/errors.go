@@ -25,13 +25,23 @@ const (
 	retryStack = 0x1 // 0b01
 	emitMetric = 0x2 // 0b10
 
-	aria2cMissingStatusError = "error: wait: remote command exited without exit status or exit signal: running \" aria2c"
+	aria2cMissingStatusErrorStr = "error: wait: remote command exited without exit status or exit signal: running \" aria2c"
+)
+
+type ScenarioError int
+
+const (
+	libvirtDialError ScenarioError = iota
+	insufficientCapacityError
+	aria2cMissingStatusError
+	ec2StateChangeTimeoutError
 )
 
 type handledError struct {
-	errorStr string
-	metric   string
-	action   int
+	errorType   ScenarioError
+	errorString string
+	metric      string
+	action      int
 }
 
 var errors = []handledError{
@@ -39,26 +49,30 @@ var errors = []handledError{
 	// Libvirt daemon on the server occasionally drops the connection established
 	// by the 'Provider'. If this happens we retry the stack to connect again.
 	{
-		errorStr: "failed to dial libvirt",
-		metric:   "failed-to-dial-libvirt",
-		action:   retryStack | emitMetric,
+		errorType:   libvirtDialError,
+		errorString: "failed to dial libvirt",
+		metric:      "failed-to-dial-libvirt",
+		action:      retryStack | emitMetric,
 	},
 	{
-		errorStr: "InsufficientInstanceCapacity",
-		metric:   "insufficient-capacity",
-		action:   retryStack | emitMetric,
+		errorType:   insufficientCapacityError,
+		errorString: "InsufficientInstanceCapacity",
+		metric:      "insufficient-capacity",
+		action:      retryStack | emitMetric,
 	},
 	// Retry when ssh thinks aria2c exited without status. This may happen
 	// due to network connectivity issues if ssh keepalive mecahnism fails.
 	{
-		errorStr: aria2cMissingStatusError,
-		metric:   "aria2c-exit-no-status",
-		action:   retryStack | emitMetric,
+		errorType:   aria2cMissingStatusError,
+		errorString: aria2cMissingStatusErrorStr,
+		metric:      "aria2c-exit-no-status",
+		action:      retryStack | emitMetric,
 	},
 	{
-		errorStr: "timeout while waiting for state to become 'running'",
-		metric:   "ec2-timeout-state-change",
-		action:   emitMetric,
+		errorType:   ec2StateChangeTimeoutError,
+		errorString: "timeout while waiting for state to become 'running'",
+		metric:      "ec2-timeout-state-change",
+		action:      emitMetric,
 	},
 }
 
@@ -83,12 +97,15 @@ func errorMetric(errType string) datadogV2.MetricPayload {
 	}
 }
 
-func handleScenarioFailure(err error) error {
+func handleScenarioFailure(err error, changeRetryState func(handledError)) error {
 	errStr := err.Error()
 	for _, e := range errors {
-		if !strings.Contains(errStr, e.errorStr) {
+		if !strings.Contains(errStr, e.errorString) {
 			continue
 		}
+
+		// modify any state within the retry block
+		changeRetryState(e)
 
 		if (e.action & emitMetric) != 0 {
 			submitError := metric.SubmitExecutionMetric(errorMetric(e.metric))

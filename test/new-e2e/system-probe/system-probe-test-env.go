@@ -126,12 +126,12 @@ func credentials() (string, error) {
 	return password, nil
 }
 
-func getAvailabilityZone(env string, azIndx int) (string, int) {
+func getAvailabilityZone(env string, azIndx int) string {
 	if zones, ok := availabilityZones[env]; ok {
-		return zones[azIndx%len(zones)], azIndx + 1
+		return zones[azIndx%len(zones)]
 	}
 
-	return "", 0
+	return ""
 }
 
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
@@ -190,7 +190,6 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	}
 
 	var upResult auto.UpResult
-	var az string
 	ctx := context.Background()
 	currentAZ := 0 // PrimaryAZ
 	b := retry.NewConstant(3 * time.Second)
@@ -198,7 +197,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	// connection issues in the worst case.
 	b = retry.WithMaxRetries(4, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
-		if az, currentAZ = getAvailabilityZone(opts.InfraEnv, currentAZ); az != "" {
+		if az := getAvailabilityZone(opts.InfraEnv, currentAZ); az != "" {
 			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
 		}
 
@@ -209,7 +208,11 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 			return nil
 		}, opts.FailOnMissing)
 		if err != nil {
-			return handleScenarioFailure(err)
+			return handleScenarioFailure(err, func(possibleError handledError) {
+				if possibleError.errorType == insufficientCapacityError {
+					currentAZ += 1
+				}
+			})
 		}
 
 		return nil
