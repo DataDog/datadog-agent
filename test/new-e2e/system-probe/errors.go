@@ -38,24 +38,24 @@ var errors = []handledError{
 	// Retry if we failed to dial libvirt.
 	// Libvirt daemon on the server occasionally drops the connection established
 	// by the 'Provider'. If this happens we retry the stack to connect again.
-	handledError{
+	{
 		errorStr: "failed to dial libvirt",
 		metric:   "failed-to-dial-libvirt",
 		action:   retryStack | emitMetric,
 	},
-	handledError{
+	{
 		errorStr: "InsufficientInstanceCapacity",
 		metric:   "insufficient-capacity",
 		action:   retryStack | emitMetric,
 	},
 	// Retry when ssh thinks aria2c exited without status. This may happen
 	// due to network connectivity issues if ssh keepalive mecahnism fails.
-	handledError{
+	{
 		errorStr: aria2cMissingStatusError,
 		metric:   "aria2c-exit-no-status",
 		action:   retryStack | emitMetric,
 	},
-	handledError{
+	{
 		errorStr: "timeout while waiting for state to become 'running'",
 		metric:   "ec2-timeout-state-change",
 		action:   emitMetric,
