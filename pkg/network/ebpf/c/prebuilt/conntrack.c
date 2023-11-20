@@ -26,9 +26,15 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         return 0;
     }
-    log_debug("akarp origin: IP: %d, source port: %d, dest port: %d", orig.daddr_l, orig.sport, orig.dport);
-    log_debug("akarp  reply: IP: %d, dest port: %d, source port: %d", reply.daddr_l, reply.dport, reply.sport);
-    if (orig.daddr_l != reply.saddr_l || orig.dport != reply.sport) {
+    // log_debug("akarp origin: saddr: %d, daddr: %d", orig.saddr_l, orig.daddr_l);
+    // log_debug("akarp  reply: daddr: %d, saddr: %d", reply.daddr_l, reply.saddr_l);
+    // log_debug("akarp originH: saddr: %d, daddr: %d", orig.saddr_h, orig.daddr_h);
+    // log_debug("akarp  replyH: daddr: %d, saddr: %d", reply.daddr_h, reply.saddr_h);
+    // log_debug("akarp origin: source port: %d, dest   port: %d", orig.sport, orig.dport);
+    // log_debug("akarp  reply: dest   port: %d, source port: %d", reply.dport, reply.sport);
+    if (orig.daddr_l != reply.saddr_l || orig.dport != reply.sport || 
+        orig.saddr_l != reply.daddr_l || orig.sport != reply.dport || 
+        orig.daddr_h != reply.saddr_h) {
         log_debug("akarp connection was natted");
         return 0;
     }
