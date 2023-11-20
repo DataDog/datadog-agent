@@ -15,15 +15,21 @@ SEC("kprobe/__nf_conntrack_hash_insert")
 int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     struct nf_conn *ct = (struct nf_conn*)PT_REGS_PARM1(ctx);
 
-    u32 status = ct_status(ct);
-    if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
-        return 0;
-    }
+    // u32 status = ct_status(ct);
+    // if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
+    //     return 0;
+    // }
 
-    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u, status: %x", get_netns(ct), status);
+    log_debug("akarp kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+        return 0;
+    }
+    log_debug("akarp origin: IP: %d, source port: %d, dest port: %d", orig.daddr_l, orig.sport, orig.dport);
+    log_debug("akarp  reply: IP: %d, dest port: %d, source port: %d", reply.daddr_l, reply.dport, reply.sport);
+    if (orig.daddr_l != reply.saddr_l || orig.dport != reply.sport) {
+        log_debug("akarp connection was natted");
         return 0;
     }
 
