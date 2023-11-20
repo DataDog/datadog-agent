@@ -15,27 +15,15 @@ SEC("kprobe/__nf_conntrack_hash_insert")
 int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     struct nf_conn *ct = (struct nf_conn*)PT_REGS_PARM1(ctx);
 
-    // u32 status = ct_status(ct);
-    // if (!(status&IPS_CONFIRMED) || !(status&IPS_NAT_MASK)) {
-    //     return 0;
-    // }
-
-    log_debug("akarp kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
+    log_debug("kprobe/__nf_conntrack_hash_insert: netns: %u", get_netns(ct));
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         return 0;
     }
-    // log_debug("akarp origin: saddr: %d, daddr: %d", orig.saddr_l, orig.daddr_l);
-    // log_debug("akarp  reply: daddr: %d, saddr: %d", reply.daddr_l, reply.saddr_l);
-    // log_debug("akarp originH: saddr: %d, daddr: %d", orig.saddr_h, orig.daddr_h);
-    // log_debug("akarp  replyH: daddr: %d, saddr: %d", reply.daddr_h, reply.saddr_h);
-    // log_debug("akarp origin: source port: %d, dest   port: %d", orig.sport, orig.dport);
-    // log_debug("akarp  reply: dest   port: %d, source port: %d", reply.dport, reply.sport);
-    if (orig.daddr_l != reply.saddr_l || orig.dport != reply.sport || 
-        orig.saddr_l != reply.daddr_l || orig.sport != reply.dport || 
-        orig.daddr_h != reply.saddr_h) {
-        log_debug("akarp connection was natted");
+    if (orig.daddr_l == reply.saddr_l && orig.dport == reply.sport && 
+        orig.saddr_l == reply.daddr_l && orig.sport == reply.dport && 
+        orig.daddr_h == reply.saddr_h) {
         return 0;
     }
 
@@ -65,6 +53,12 @@ int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
 
     conntrack_tuple_t orig = {}, reply = {};
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
+        return 0;
+    }
+
+    if (orig.daddr_l == reply.saddr_l && orig.dport == reply.sport && 
+        orig.saddr_l == reply.daddr_l && orig.sport == reply.dport && 
+        orig.daddr_h == reply.saddr_h) {
         return 0;
     }
 
