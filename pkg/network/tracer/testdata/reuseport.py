@@ -33,4 +33,5 @@ for _x in count:
     c.close()
 
 for child in children:
-    os.waitpid(child, 0)
+    _, rc = os.waitpid(child, 0)
+    assert rc == 0, "child process exited with non-zero exit code"

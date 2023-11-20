@@ -15,7 +15,7 @@
     _Static_assert((sizeof(value)*batch_size) <= BATCH_BUFFER_SIZE,                                     \
                    _STR(name)" batch is too large");                                                    \
                                                                                                         \
-    BPF_PERCPU_ARRAY_MAP(name##_batch_state, __u32, batch_state_t, 1)                                   \
+    BPF_PERCPU_ARRAY_MAP(name##_batch_state, batch_state_t, 1)                                          \
     BPF_PERF_EVENT_ARRAY_MAP(name##_batch_events, __u32)                                                \
     BPF_HASH_MAP(name##_batches, batch_key_t, batch_data_t, 1)                                          \
                                                                                                         \

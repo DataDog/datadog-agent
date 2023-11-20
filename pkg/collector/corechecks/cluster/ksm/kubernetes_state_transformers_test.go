@@ -882,6 +882,27 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "CreateContainerConfigError",
+			args: args{
+				name: "kube_pod_container_status_waiting_reason",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"container": "foo",
+						"pod":       "bar",
+						"namespace": "default",
+						"reason":    "CreateContainerConfigError",
+					},
+				},
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:CreateContainerConfigError"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.container.status_report.count.waiting",
+				val:  1,
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:CreateContainerConfigError"},
+			},
+		},
+		{
 			name: "InvalidImageName",
 			args: args{
 				name: "kube_pod_container_status_waiting_reason",

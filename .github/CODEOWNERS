@@ -222,6 +222,7 @@
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
+/comp/core/workloadmeta @DataDog/container-integrations
 # END COMPONENTS
 
 # pkg
@@ -409,8 +410,7 @@
 /pkg/networkdevice/                     @DataDog/network-device-monitoring
 /pkg/snmp/                              @DataDog/network-device-monitoring
 /pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
-/pkg/workloadmeta/                      @DataDog/container-integrations
-/pkg/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
+/comp/core/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
 /pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
 /pkg/internaltelemetry                  @DataDog/windows-kernel-integrations
 /pkg-config/                            @DataDog/agent-platform
