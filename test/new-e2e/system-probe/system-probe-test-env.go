@@ -198,7 +198,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	// connection issues in the worst case.
 	b = retry.WithMaxRetries(4, b)
 	if retryErr := retry.Do(ctx, b, func(_ context.Context) error {
-		if az, currentAz = getAvailabilityZone(opts.InfraEnv, currentAZ); az != "" {
+		if az, currentAZ = getAvailabilityZone(opts.InfraEnv, currentAZ); az != "" {
 			config["ddinfra:aws/defaultSubnets"] = auto.ConfigValue{Value: az}
 		}
 

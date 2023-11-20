@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-api-client-go/api/v1/datadog"
+	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 )
 
-func SubmitExecutionMetric(metric datadogV2.MetricPayload, failType, result string) error {
+func SubmitExecutionMetric(metricBody datadogV2.MetricPayload) error {
 	if _, ok := os.LookupEnv("DD_API_KEY"); !ok {
 		fmt.Fprintf(os.Stderr, "skipping sending metric because DD_API_KEY not present")
 		return nil

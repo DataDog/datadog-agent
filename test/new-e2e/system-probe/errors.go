@@ -84,7 +84,7 @@ func errorMetric(errType string) datadogV2.MetricPayload {
 }
 
 func handleScenarioFailure(err error) error {
-	errStr = err.Error()
+	errStr := err.Error()
 	for _, e := range errors {
 		if !strings.Contains(errStr, e.errorStr) {
 			continue
