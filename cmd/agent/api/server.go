@@ -19,9 +19,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
 	"github.com/cihub/seelog"
 	gorilla "github.com/gorilla/mux"
 	grpc_auth "github.com/grpc-ecosystem/go-grpc-middleware/auth"
@@ -32,12 +29,15 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/check"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -57,6 +57,7 @@ func StartServer(
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
+	wmeta workloadmeta.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
@@ -89,9 +90,10 @@ func StartServer(
 	s := grpc.NewServer(opts...)
 	pb.RegisterAgentServer(s, &server{})
 	pb.RegisterAgentSecureServer(s, &serverSecure{
-		configService:      configService,
-		taggerServer:       taggerserver.NewServer(tagger.GetDefaultTagger()),
-		workloadmetaServer: workloadmetaServer.NewServer(workloadmeta.GetGlobalStore()),
+		configService: configService,
+		taggerServer:  taggerserver.NewServer(tagger.GetDefaultTagger()),
+		// TODO(components): decide if workloadmetaServer should be componentized itself
+		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
 		dogstatsdServer:    dogstatsdServer,
 		capture:            capture,
 	})
@@ -134,6 +136,7 @@ func StartServer(
 				flare,
 				dogstatsdServer,
 				serverDebug,
+				wmeta,
 				logsAgent,
 				senderManager,
 				hostMetadata,
