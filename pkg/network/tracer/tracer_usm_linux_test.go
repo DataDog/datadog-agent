@@ -9,6 +9,7 @@ package tracer
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -100,6 +101,16 @@ func (s *USMSuite) TestEnableHTTPMonitoring() {
 	_ = setupTracer(t, cfg)
 }
 
+func generateTemporaryFile(t *testing.T) string {
+	tmpFile, err := os.CreateTemp("", "example")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.Remove(tmpFile.Name()) })
+
+	_, err = tmpFile.Write(bytes.Repeat([]byte("a"), 1024*4))
+	require.NoError(t, err)
+	return tmpFile.Name()
+}
+
 func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 	t := s.T()
 	if !httpsSupported() {
@@ -111,9 +122,11 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 	ldd, err := exec.LookPath("ldd")
 	lddFound := err == nil
 
+	tempFile := generateTemporaryFile(t)
+
 	tlsLibs := []*regexp.Regexp{
-		regexp.MustCompile(`/[^\ ]+libssl.so[^\ ]*`),
-		regexp.MustCompile(`/[^\ ]+libgnutls.so[^\ ]*`),
+		regexp.MustCompile(`/[^ ]+libssl.so[^ ]*`),
+		regexp.MustCompile(`/[^ ]+libgnutls.so[^ ]*`),
 	}
 	tests := []struct {
 		name         string
@@ -123,11 +136,11 @@ func (s *USMSuite) TestHTTPSViaLibraryIntegration() {
 	}{
 		{
 			name:     "wget",
-			fetchCmd: []string{"wget", "--no-check-certificate", "-O/dev/null"},
+			fetchCmd: []string{"wget", "--no-check-certificate", "-O/dev/null", "--post-data", tempFile},
 		},
 		{
 			name:     "curl",
-			fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null"},
+			fetchCmd: []string{"curl", "--http1.1", "-k", "-o/dev/null", "-d", tempFile},
 		},
 	}
 
@@ -261,7 +274,8 @@ func testHTTPSLibrary(t *testing.T, tr *Tracer, fetchCmd, prefetchLibs []string)
 	// This is necessary (as opposed to using net/http) because we want to
 	// test a HTTP client linked to OpenSSL or GnuTLS
 	const targetURL = "https://127.0.0.1:8443/200/foobar"
-	cmd := append(fetchCmd, targetURL)
+	// Sending 3 requests to ensure we have enough time to hook the process.
+	cmd := append(fetchCmd, targetURL, targetURL, targetURL)
 
 	requestCmd := exec.Command(cmd[0], cmd[1:]...)
 	stdout, err := requestCmd.StdoutPipe()
@@ -316,12 +330,11 @@ func testHTTPSLibrary(t *testing.T, tr *Tracer, fetchCmd, prefetchLibs []string)
 			t.Logf("HTTP stat didn't match criteria %v tags 0x%x\n", key, statsTags)
 		}
 		return false
-	}, 15*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
+	}, 5*time.Second, 100*time.Millisecond, "couldn't find USM HTTPS stats")
 
 	if t.Failed() {
 		o, _ := tr.usmMonitor.DumpMaps("http_in_flight")
 		t.Logf("http_in_flight: %s", o)
-		t.FailNow()
 	}
 
 	// check NPM static TLS tag
