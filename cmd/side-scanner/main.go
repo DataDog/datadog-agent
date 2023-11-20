@@ -1068,14 +1068,18 @@ func (rt *awsClientStats) SendStats() {
 	rt.statsMu.Lock()
 	defer rt.statsMu.Unlock()
 
+	totalec2 := 0
+	totalebs := 0
 	for action, value := range rt.ec2stats {
 		statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ec2", action), 1.0)
+		totalec2 += int(value)
 	}
 	for action, value := range rt.ebsstats {
 		statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ebs", action), 1.0)
+		totalebs += int(value)
 	}
-	statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(len(rt.ec2stats)), rt.tags("ec2"), 1.0)
-	statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(len(rt.ebsstats)), rt.tags("ebs"), 1.0)
+	statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(totalec2), rt.tags("ec2"), 1.0)
+	statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(totalebs), rt.tags("ebs"), 1.0)
 
 	rt.ec2stats = nil
 	rt.ebsstats = nil
