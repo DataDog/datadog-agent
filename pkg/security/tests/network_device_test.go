@@ -46,7 +46,7 @@ func TestNetDevice(t *testing.T) {
 		Expression: `dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestTCFilters(t *testing.T) {
 		Expression: `dns.question.type == A`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
