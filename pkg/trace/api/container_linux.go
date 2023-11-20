@@ -29,6 +29,9 @@ type ucredKey struct{}
 //
 // If the connection c is not a *net.UnixConn, the unchanged context is returned.
 func connContext(ctx context.Context, c net.Conn) context.Context {
+	if oc, ok := c.(*onCloseConn); ok {
+		c = oc.Conn
+	}
 	s, ok := c.(*net.UnixConn)
 	if !ok {
 		return ctx

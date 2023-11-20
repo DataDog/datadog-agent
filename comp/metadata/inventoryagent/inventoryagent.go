@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -26,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"go.uber.org/fx"
 )
 
 var (
@@ -138,8 +139,12 @@ func (ia *inventoryagent) initData() {
 	ia.data["install_method_installer_version"] = installerVersion
 
 	data, err := hostname.GetWithProvider(context.Background())
-	if err != nil && data.Provider != "" && !data.FromFargate() {
-		ia.data["hostname_source"] = data.Provider
+	if err == nil {
+		if data.Provider != "" && !data.FromFargate() {
+			ia.data["hostname_source"] = data.Provider
+		}
+	} else {
+		ia.log.Warnf("could not fetch 'hostname_source': %v", err)
 	}
 
 	ia.data["agent_version"] = version.AgentVersion
@@ -260,4 +265,13 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  data,
 	}
+}
+
+// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
+func (ia *inventoryagent) Get() map[string]interface{} {
+	data := map[string]interface{}{}
+	for k, v := range ia.data {
+		data[k] = v
+	}
+	return data
 }
