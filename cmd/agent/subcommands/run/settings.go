@@ -29,6 +29,16 @@ func initRuntimeSettings(serverDebug dogstatsddebug.Component) error {
 	if err := commonsettings.RegisterRuntimeSetting(settings.NewDsdCaptureDurationRuntimeSetting("dogstatsd_capture_duration")); err != nil {
 		return err
 	}
+	if err := commonsettings.RegisterRuntimeSetting(
+		settings.NewHAMRRuntimeSetting("ha.enabled", "Enable/disable the HA region subsystem."),
+	); err != nil {
+		return err
+	}
+	if err := commonsettings.RegisterRuntimeSetting(
+		settings.NewHAMRRuntimeSetting("ha.failover", "Enable/disable the HA region failover; enabled submits to the secondary site."),
+	); err != nil {
+		return err
+	}
 	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogPayloadsRuntimeSetting()); err != nil {
 		return err
 	}
