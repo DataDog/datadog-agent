@@ -273,8 +273,10 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
 }
 
 static __always_inline void handle_end_of_stream(http2_stream_t *current_stream, http2_stream_key_t *http2_stream_key_template) {
-    if (!current_stream->request_end_of_stream) {
-        current_stream->request_end_of_stream = true;
+    // If that's the first time we see the stream (stream_id not set), we need to mark it (done by setting the stream_id).
+    // If that's the second time we see the stream, we send it to the user mode.
+    if (current_stream->stream_id == 0) {
+        current_stream->stream_id = http2_stream_key_template->stream_id;
         return;
     }
 

@@ -33,14 +33,13 @@ type http2StreamKey struct {
 	Pad_cgo_0 [4]byte
 }
 type http2Stream struct {
-	Response_last_seen    uint64
-	Request_started       uint64
-	Response_status_code  uint16
-	Request_method        uint8
-	Path_size             uint8
-	Request_end_of_stream bool
-	Pad_cgo_0             [3]byte
-	Request_path          [160]uint8
+	Response_last_seen   uint64
+	Request_started      uint64
+	Stream_id            uint32
+	Response_status_code uint16
+	Request_method       uint8
+	Path_size            uint8
+	Request_path         [160]uint8
 }
 type EbpfTx struct {
 	Tuple  connTuple

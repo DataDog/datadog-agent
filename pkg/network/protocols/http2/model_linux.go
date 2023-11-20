@@ -129,7 +129,7 @@ func (tx *EbpfTx) String() string {
 	var output strings.Builder
 	output.WriteString("http2.ebpfTx{")
 	output.WriteString(fmt.Sprintf("[%s] [%s ⇄ %s] ", tx.family(), tx.sourceEndpoint(), tx.destEndpoint()))
-	output.WriteString(" Method: '" + tx.Method().String() + "', ")
+	output.WriteString(fmt.Sprintf("Stream ID: %d; Method: %s; ", tx.Stream.Stream_id, tx.Method()))
 	buf := make([]byte, len(tx.Stream.Request_path))
 	path, ok := tx.Path(buf)
 	if ok {
