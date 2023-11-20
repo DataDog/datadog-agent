@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -179,7 +179,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	} else if cliParams.jsonStatus {
 		s = string(r)
 	} else {
-		formattedStatus, err := status.FormatStatus(r)
+		formattedStatus, err := render.FormatStatus(r)
 		if err != nil {
 			return err
 		}

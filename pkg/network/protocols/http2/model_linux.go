@@ -24,12 +24,12 @@ import (
 
 // Path returns the URL from the request fragment captured in eBPF.
 func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
-	if tx.Path_size == 0 || int(tx.Path_size) > len(tx.Request_path) {
+	if tx.Stream.Path_size == 0 || int(tx.Stream.Path_size) > len(tx.Stream.Request_path) {
 		return nil, false
 	}
 
 	// trim null byte + after
-	str, err := hpack.HuffmanDecodeToString(tx.Request_path[:tx.Path_size])
+	str, err := hpack.HuffmanDecodeToString(tx.Stream.Request_path[:tx.Stream.Path_size])
 	if err != nil {
 		return nil, false
 	}
@@ -46,31 +46,31 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 
 // RequestLatency returns the latency of the request in nanoseconds
 func (tx *EbpfTx) RequestLatency() float64 {
-	if uint64(tx.Request_started) == 0 || uint64(tx.Response_last_seen) == 0 {
+	if uint64(tx.Stream.Request_started) == 0 || uint64(tx.Stream.Response_last_seen) == 0 {
 		return 0
 	}
-	return protocols.NSTimestampToFloat(tx.Response_last_seen - tx.Request_started)
+	return protocols.NSTimestampToFloat(tx.Stream.Response_last_seen - tx.Stream.Request_started)
 }
 
 // Incomplete returns true if the transaction contains only the request or response information
 // This happens in the context of localhost with NAT, in which case we join the two parts in userspace
 func (tx *EbpfTx) Incomplete() bool {
-	return tx.Request_started == 0 || tx.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Path_size == 0 || tx.Method() == http.MethodUnknown
+	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Stream.Path_size == 0 || tx.Method() == http.MethodUnknown
 }
 
 func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
-		SrcIPHigh: tx.Tup.Saddr_h,
-		SrcIPLow:  tx.Tup.Saddr_l,
-		DstIPHigh: tx.Tup.Daddr_h,
-		DstIPLow:  tx.Tup.Daddr_l,
-		SrcPort:   tx.Tup.Sport,
-		DstPort:   tx.Tup.Dport,
+		SrcIPHigh: tx.Tuple.Saddr_h,
+		SrcIPLow:  tx.Tuple.Saddr_l,
+		DstIPHigh: tx.Tuple.Daddr_h,
+		DstIPLow:  tx.Tuple.Daddr_l,
+		SrcPort:   tx.Tuple.Sport,
+		DstPort:   tx.Tuple.Dport,
 	}
 }
 
 func (tx *EbpfTx) Method() http.Method {
-	switch tx.Request_method {
+	switch tx.Stream.Request_method {
 	case GetValue:
 		return http.MethodGet
 	case PostValue:
@@ -81,7 +81,7 @@ func (tx *EbpfTx) Method() http.Method {
 }
 
 func (tx *EbpfTx) StatusCode() uint16 {
-	switch tx.Response_status_code {
+	switch tx.Stream.Response_status_code {
 	case uint16(K200Value):
 		return 200
 	case uint16(K204Value):
@@ -98,23 +98,23 @@ func (tx *EbpfTx) StatusCode() uint16 {
 }
 
 func (tx *EbpfTx) SetStatusCode(code uint16) {
-	tx.Response_status_code = code
+	tx.Stream.Response_status_code = code
 }
 
 func (tx *EbpfTx) ResponseLastSeen() uint64 {
-	return tx.Response_last_seen
+	return tx.Stream.Response_last_seen
 }
 
 func (tx *EbpfTx) SetResponseLastSeen(lastSeen uint64) {
-	tx.Response_last_seen = lastSeen
+	tx.Stream.Response_last_seen = lastSeen
 
 }
 func (tx *EbpfTx) RequestStarted() uint64 {
-	return tx.Request_started
+	return tx.Stream.Request_started
 }
 
 func (tx *EbpfTx) SetRequestMethod(m http.Method) {
-	tx.Request_method = uint8(m)
+	tx.Stream.Request_method = uint8(m)
 }
 
 func (tx *EbpfTx) StaticTags() uint64 {
@@ -130,7 +130,7 @@ func (tx *EbpfTx) String() string {
 	output.WriteString("http2.ebpfTx{")
 	output.WriteString(fmt.Sprintf("[%s] [%s ⇄ %s] ", tx.family(), tx.sourceEndpoint(), tx.destEndpoint()))
 	output.WriteString(" Method: '" + tx.Method().String() + "', ")
-	buf := make([]byte, len(tx.Request_path))
+	buf := make([]byte, len(tx.Stream.Request_path))
 	path, ok := tx.Path(buf)
 	if ok {
 		output.WriteString("Path: '" + string(path) + "'")
@@ -140,7 +140,7 @@ func (tx *EbpfTx) String() string {
 }
 
 func (tx *EbpfTx) family() ebpf.ConnFamily {
-	if tx.Tup.Metadata&uint32(ebpf.IPv6) != 0 {
+	if tx.Tuple.Metadata&uint32(ebpf.IPv6) != 0 {
 		return ebpf.IPv6
 	}
 	return ebpf.IPv4
@@ -148,24 +148,24 @@ func (tx *EbpfTx) family() ebpf.ConnFamily {
 
 func (tx *EbpfTx) sourceAddress() util.Address {
 	if tx.family() == ebpf.IPv4 {
-		return util.V4Address(uint32(tx.Tup.Saddr_l))
+		return util.V4Address(uint32(tx.Tuple.Saddr_l))
 	}
-	return util.V6Address(tx.Tup.Saddr_l, tx.Tup.Saddr_h)
+	return util.V6Address(tx.Tuple.Saddr_l, tx.Tuple.Saddr_h)
 }
 
 func (tx *EbpfTx) sourceEndpoint() string {
-	return net.JoinHostPort(tx.sourceAddress().String(), strconv.Itoa(int(tx.Tup.Sport)))
+	return net.JoinHostPort(tx.sourceAddress().String(), strconv.Itoa(int(tx.Tuple.Sport)))
 }
 
 func (tx *EbpfTx) destAddress() util.Address {
 	if tx.family() == ebpf.IPv4 {
-		return util.V4Address(uint32(tx.Tup.Daddr_l))
+		return util.V4Address(uint32(tx.Tuple.Daddr_l))
 	}
-	return util.V6Address(tx.Tup.Daddr_l, tx.Tup.Daddr_h)
+	return util.V6Address(tx.Tuple.Daddr_l, tx.Tuple.Daddr_h)
 }
 
 func (tx *EbpfTx) destEndpoint() string {
-	return net.JoinHostPort(tx.destAddress().String(), strconv.Itoa(int(tx.Tup.Dport)))
+	return net.JoinHostPort(tx.destAddress().String(), strconv.Itoa(int(tx.Tuple.Dport)))
 }
 
 func (t http2StreamKey) family() ebpf.ConnFamily {

@@ -35,7 +35,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		ruleDefs = append(ruleDefs, rule)
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,7 +177,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		ruleDefs = append(ruleDefs, rule)
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

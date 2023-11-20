@@ -82,7 +82,7 @@ func TestDentryResolutionERPC(t *testing.T) {
 		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/parent/%s" && open.flags & O_CREAT != 0`, basename),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestDentryResolutionMap(t *testing.T) {
 		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/parent/%s" && open.flags & O_CREAT != 0`, basename),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -245,7 +245,7 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableMapDentryResolution: true})
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -309,7 +309,7 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -373,7 +373,7 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, testOpts{disableERPCDentryResolution: true})
+	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
 	if err != nil {
 		b.Fatal(err)
 	}

@@ -65,6 +65,7 @@ jira_statuses = [
 ]
 github_team = "network-device-monitoring"
 github_labels = ["team/network-device-monitoring"]
+exclude_members = ["leeavital", "heyronhay"]
 
 [teams."Network Performance Monitoring"]
 jira_project = "NPM"
