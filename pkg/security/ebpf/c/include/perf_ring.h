@@ -17,7 +17,7 @@ struct ring_buffer_stats_t {
 };
 
 BPF_PERF_EVENT_ARRAY_MAP(events, u32)
-BPF_PERCPU_ARRAY_MAP(events_stats, u32, struct perf_map_stats_t, EVENT_MAX)
+BPF_PERCPU_ARRAY_MAP(events_stats, struct perf_map_stats_t, EVENT_MAX)
 
 #if USE_RING_BUFFER == 1
 BPF_ARRAY_MAP(events_ringbuf_stats, u64, 1)

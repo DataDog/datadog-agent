@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	"github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -125,13 +126,14 @@ func GetAndFormatStatus(invAgent inventoryagent.Component) ([]byte, error) {
 
 // GetCheckStatusJSON gets the status of a single check as JSON
 func GetCheckStatusJSON(c check.Check, cs *checkstats.Stats) ([]byte, error) {
-	stats := make(map[string]interface{})
-	stats = getRunnerStats(stats)
-	checks := stats["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
+	s := collector.GetStatusInfo()
+
+	checks := s["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
+
 	checks[c.String()] = make(map[checkid.ID]interface{})
 	checks[c.String()].(map[checkid.ID]interface{})[c.ID()] = cs
 
-	statusJSON, err := json.Marshal(stats)
+	statusJSON, err := json.Marshal(s)
 	if err != nil {
 		return nil, err
 	}
@@ -350,14 +352,6 @@ func getCommonStatus(invAgent inventoryagent.Component) (map[string]interface{},
 	return stats, nil
 }
 
-func getRunnerStats(stats map[string]interface{}) map[string]interface{} {
-	runnerStatsJSON := []byte(expvar.Get("runner").String())
-	runnerStats := make(map[string]interface{})
-	json.Unmarshal(runnerStatsJSON, &runnerStats) //nolint:errcheck
-	stats["runnerStats"] = runnerStats
-	return stats
-}
-
 func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component) (map[string]interface{}, error) {
 	var err error
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
@@ -365,17 +359,7 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
 	stats["forwarderStats"] = forwarderStats
 
-	stats = getRunnerStats(stats)
-
-	autoConfigStatsJSON := []byte(expvar.Get("autoconfig").String())
-	autoConfigStats := make(map[string]interface{})
-	json.Unmarshal(autoConfigStatsJSON, &autoConfigStats) //nolint:errcheck
-	stats["autoConfigStats"] = autoConfigStats
-
-	checkSchedulerStatsJSON := []byte(expvar.Get("CheckScheduler").String())
-	checkSchedulerStats := make(map[string]interface{})
-	json.Unmarshal(checkSchedulerStatsJSON, &checkSchedulerStats) //nolint:errcheck
-	stats["checkSchedulerStats"] = checkSchedulerStats
+	collector.PopulateStatus(stats)
 
 	aggregatorStatsJSON := []byte(expvar.Get("aggregator").String())
 	aggregatorStats := make(map[string]interface{})
@@ -407,26 +391,6 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 		stats["dogstatsdStats"] = dogstatsdStats
 	}
 
-	pyLoaderData := expvar.Get("pyLoader")
-	if pyLoaderData != nil {
-		pyLoaderStatsJSON := []byte(pyLoaderData.String())
-		pyLoaderStats := make(map[string]interface{})
-		json.Unmarshal(pyLoaderStatsJSON, &pyLoaderStats) //nolint:errcheck
-		stats["pyLoaderStats"] = pyLoaderStats
-	} else {
-		stats["pyLoaderStats"] = nil
-	}
-
-	pythonInitData := expvar.Get("pythonInit")
-	if pythonInitData != nil {
-		pythonInitJSON := []byte(pythonInitData.String())
-		pythonInit := make(map[string]interface{})
-		json.Unmarshal(pythonInitJSON, &pythonInit) //nolint:errcheck
-		stats["pythonInit"] = pythonInit
-	} else {
-		stats["pythonInit"] = nil
-	}
-
 	hostnameStatsJSON := []byte(expvar.Get("hostname").String())
 	hostnameStats := make(map[string]interface{})
 	json.Unmarshal(hostnameStatsJSON, &hostnameStats) //nolint:errcheck
@@ -436,36 +400,6 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 	if ntpOffset != nil && ntpOffset.String() != "" {
 		stats["ntpOffset"], err = strconv.ParseFloat(expvar.Get("ntpOffset").String(), 64)
 	}
-
-	inventories := expvar.Get("inventories")
-	var inventoriesStats map[string]interface{}
-	if inventories != nil {
-		inventoriesStatsJSON := []byte(inventories.String())
-		json.Unmarshal(inventoriesStatsJSON, &inventoriesStats) //nolint:errcheck
-	}
-
-	checkMetadata := map[string]map[string]string{}
-	if data, ok := inventoriesStats["check_metadata"]; ok {
-		for _, instances := range data.(map[string]interface{}) {
-			for _, instance := range instances.([]interface{}) {
-				metadata := map[string]string{}
-				checkHash := ""
-				for k, v := range instance.(map[string]interface{}) {
-					if vStr, ok := v.(string); ok {
-						if k == "config.hash" {
-							checkHash = vStr
-						} else if k != "config.provider" {
-							metadata[k] = vStr
-						}
-					}
-				}
-				if checkHash != "" && len(metadata) != 0 {
-					checkMetadata[checkHash] = metadata
-				}
-			}
-		}
-	}
-	stats["inventories"] = checkMetadata
 
 	// invAgent can be nil when generating a status page for some agent where inventory is not enabled
 	// (clusteragent, security-agent, ...).
