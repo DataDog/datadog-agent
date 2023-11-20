@@ -74,17 +74,21 @@ static __always_inline void http_parse_data(char const *p, http_packet_t *packet
     }
 }
 
+static __always_inline bool http_closed(skb_info_t *skb_info) {
+    return (skb_info && skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST));
+}
+
 // this is merely added here to improve readibility of code.
 // HTTP monitoring code is executed in two "contexts":
 // * via a socket filter program, which is used for monitoring plain traffic;
 // * via a uprobe-based programs, for the purposes of tracing encrypted traffic (SSL, Go TLS, Java TLS etc);
-// When code is executed from uprobes, skb_info is null;
+// When code is executed from uprobes, skb_info is null[1].
+//
+// [1] There is one notable exception that happens when we process uprobes
+// triggering the termination of connections. In that particular context we
+// "inject" a special skb_info that has the tcp_flags field set to `TCPHDR_FIN`.
 static __always_inline bool is_uprobe_context(skb_info_t *skb_info) {
-    return skb_info == NULL;
-}
-
-static __always_inline bool http_closed(skb_info_t *skb_info) {
-    return (skb_info && skb_info->tcp_flags&(TCPHDR_FIN|TCPHDR_RST));
+    return skb_info == NULL || (skb_info->data_end == 0 && http_closed(skb_info));
 }
 
 // The purpose of http_seen_before is to is to avoid re-processing certain TCP segments.
@@ -93,7 +97,7 @@ static __always_inline bool http_closed(skb_info_t *skb_info) {
 // * A segment with the beginning of a response (packet_type == HTTP_RESPONSE);
 // * A segment with a (FIN|RST) flag set;
 static __always_inline bool http_seen_before(http_transaction_t *http, skb_info_t *skb_info, http_packet_t packet_type) {
-    if (is_uprobe_context(skb_info)) {
+    if (is_uprobe_context(skb_info) && !http_closed(skb_info)) {
         // The purpose of setting tcp_seq = 0 in the context of uprobe tracing
         // is innocuous for the most part (as this field will almost aways be 0)
         // The only reason we do this here is to *minimize* the chance of a race
