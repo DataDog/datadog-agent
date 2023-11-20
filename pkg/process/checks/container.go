@@ -48,7 +48,7 @@ type ContainerCheck struct {
 }
 
 // Init initializes a ContainerCheck instance.
-func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
+func (c *ContainerCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
 	c.containerProvider = proccontainers.GetSharedContainerProvider()
 	c.hostInfo = info
 

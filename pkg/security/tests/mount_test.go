@@ -170,6 +170,7 @@ func TestMountPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(dir1Path)
 
 	testDrivePath := path.Join(dir1Path, "test-drive")
 	if err := os.MkdirAll(testDrivePath, 0755); err != nil {
@@ -181,7 +182,16 @@ func TestMountPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer testDrive.Close()
+	defer func() {
+		if testEnvironment == DockerEnvironment {
+			testDrive.Close()
+			return
+		}
+
+		if err := testDrive.DetachDevice(); err != nil {
+			fmt.Printf("failed to detach device: %v", err)
+		}
+	}()
 
 	dir1BindMntPath, _, err := test.Path("dir1-bind-mounted")
 	if err != nil {
@@ -225,7 +235,6 @@ func TestMountPropagated(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return os.Chmod(file, 0700)
 		}, func(event *model.Event, rule *rules.Rule) {
-			t.Log(event.Open.File.PathnameStr)
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
 		})

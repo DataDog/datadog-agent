@@ -15,6 +15,7 @@ import (
 
 	kubeletv1alpha1 "k8s.io/kubelet/pkg/apis/stats/v1alpha1"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -23,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -35,14 +35,14 @@ const (
 type Provider struct {
 	filter                *containers.Filter
 	config                *common.KubeletConfig
-	store                 workloadmeta.Store
+	store                 workloadmeta.Component
 	defaultRateFilterList []*regexp.Regexp
 }
 
 // NewProvider is created by filter, config and workloadmeta
 func NewProvider(filter *containers.Filter,
 	config *common.KubeletConfig,
-	store workloadmeta.Store) *Provider {
+	store workloadmeta.Component) *Provider {
 	defaultRateFilterList := []*regexp.Regexp{
 		regexp.MustCompile("diskio[.]io_service_bytes[.]stats[.]total"),
 		regexp.MustCompile("network[.].._bytes"),

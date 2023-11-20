@@ -570,7 +570,7 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 		HostName: testHostName,
 	}
 	c, err := NewRunnerWithChecks(mockConfig, []checks.Check{check}, true, nil)
-	check.Init(nil, hostInfo)
+	check.Init(nil, hostInfo, true)
 	assert.NoError(t, err)
 	deps := newSubmitterDepsWithConfig(t, mockConfig)
 	c.Submitter, err = NewSubmitter(mockConfig, deps.Log, deps.Forwarders, hostInfo.HostName)
@@ -592,7 +592,7 @@ type testCheck struct {
 	data [][]process.MessageBody
 }
 
-func (t *testCheck) Init(_ *checks.SysProbeConfig, _ *checks.HostInfo) error {
+func (t *testCheck) Init(_ *checks.SysProbeConfig, _ *checks.HostInfo, _ bool) error {
 	return nil
 }
 

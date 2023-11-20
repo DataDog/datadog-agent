@@ -36,11 +36,7 @@ func FormatStatus(data []byte) (string, error) {
 	} else {
 		log.Warn("The Forwarder status format is invalid. Some parts of the `Forwarder` section may be missing.")
 	}
-	runnerStats := stats["runnerStats"]
-	pyLoaderStats := stats["pyLoaderStats"]
-	pythonInit := stats["pythonInit"]
-	autoConfigStats := stats["autoConfigStats"]
-	checkSchedulerStats := stats["checkSchedulerStats"]
+
 	aggregatorStats := stats["aggregatorStats"]
 	s, err := checkstats.TranslateEventPlatformEventTypes(aggregatorStats)
 	if err != nil {
@@ -52,7 +48,6 @@ func FormatStatus(data []byte) (string, error) {
 	logsStats := stats["logsStats"]
 	dcaStats := stats["clusterAgentStatus"]
 	endpointsInfos := stats["endpointsInfos"]
-	inventoriesStats := stats["inventories"]
 	systemProbeStats := stats["systemProbeStats"]
 	processAgentStatus := stats["processAgentStatus"]
 	snmpTrapsStats := stats["snmpTrapsStats"]
@@ -63,7 +58,7 @@ func FormatStatus(data []byte) (string, error) {
 	var b = new(bytes.Buffer)
 	headerFunc := func() error { return RenderStatusTemplate(b, "/header.tmpl", stats) }
 	checkStatsFunc := func() error {
-		return renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, "")
+		return RenderStatusTemplate(b, "/collector.tmpl", stats)
 	}
 	jmxFetchFunc := func() error { return RenderStatusTemplate(b, "/jmxfetch.tmpl", stats) }
 	forwarderFunc := func() error { return RenderStatusTemplate(b, "/forwarder.tmpl", forwarderStats) }
@@ -146,9 +141,10 @@ func FormatDCAStatus(data []byte) (string, error) {
 	}
 
 	forwarderStats := stats["forwarderStats"]
-	runnerStats := stats["runnerStats"]
-	autoConfigStats := stats["autoConfigStats"]
-	checkSchedulerStats := stats["checkSchedulerStats"]
+	// We nil these keys because we do not want to display that information in the collector template
+	stats["pyLoaderStats"] = nil
+	stats["pythonInit"] = nil
+	stats["inventories"] = nil
 	endpointsInfos := stats["endpointsInfos"]
 	logsStats := stats["logsStats"]
 	orchestratorStats := stats["orchestrator"]
@@ -160,7 +156,7 @@ func FormatDCAStatus(data []byte) (string, error) {
 	if err := RenderStatusTemplate(b, "/header.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
-	if err := renderChecksStats(b, runnerStats, nil, nil, autoConfigStats, checkSchedulerStats, nil, ""); err != nil {
+	if err := RenderStatusTemplate(b, "/collector.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := RenderStatusTemplate(b, "/forwarder.tmpl", forwarderStats); err != nil {
@@ -271,32 +267,15 @@ func FormatMetadataMapCLI(data []byte) (string, error) {
 	return b.String(), nil
 }
 
-func renderChecksStats(w io.Writer, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats interface{}, onlyCheck string) error {
-	checkStats := make(map[string]interface{})
-	checkStats["RunnerStats"] = runnerStats
-	checkStats["pyLoaderStats"] = pyLoaderStats
-	checkStats["pythonInit"] = pythonInit
-	checkStats["AutoConfigStats"] = autoConfigStats
-	checkStats["CheckSchedulerStats"] = checkSchedulerStats
-	checkStats["OnlyCheck"] = onlyCheck
-	checkStats["CheckMetadata"] = inventoriesStats
-	return RenderStatusTemplate(w, "/collector.tmpl", checkStats)
-}
-
 func renderCheckStats(data []byte, checkName string) (string, error) {
 	stats, renderError, err := unmarshalStatus(data)
 	if renderError != "" || err != nil {
 		return renderError, err
 	}
-	runnerStats := stats["runnerStats"]
-	pyLoaderStats := stats["pyLoaderStats"]
-	pythonInit := stats["pythonInit"]
-	autoConfigStats := stats["autoConfigStats"]
-	checkSchedulerStats := stats["checkSchedulerStats"]
-	inventoriesStats := stats["inventories"]
+
 	var b = new(bytes.Buffer)
 	var errs []error
-	if err := renderChecksStats(b, runnerStats, pyLoaderStats, pythonInit, autoConfigStats, checkSchedulerStats, inventoriesStats, checkName); err != nil {
+	if err := RenderStatusTemplate(b, "/collector.tmpl", stats); err != nil {
 		errs = append(errs, err)
 	}
 	if err := renderErrors(b, errs); err != nil {

@@ -12,24 +12,24 @@ package slis
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	"github.com/samber/lo"
 )
 
 // Provider provides the metrics related to data collected from the `/metrics/probes` Kubelet endpoint
 type Provider struct {
 	filter *containers.Filter
-	store  workloadmeta.Store
+	store  workloadmeta.Component
 	prometheus.Provider
 }
 
 // NewProvider returns a new Provider
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store) (*Provider, error) {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component) (*Provider, error) {
 	provider := &Provider{
 		filter: filter,
 		store:  store,
@@ -56,21 +56,15 @@ func (p *Provider) sliHealthCheck(metricFam *prom.MetricFamily, sender sender.Se
 	for _, metric := range metricFam.Samples {
 		metricSuffix := string(metric.Metric["__name__"])
 		tags := p.MetricTags(metric)
-		typePresent := false
 		for i, tag := range tags {
 			if strings.HasPrefix(tag, "name:") {
 				tags[i] = strings.Replace(tag, "name:", "sli_name:", 1)
 			}
-			if strings.HasPrefix(tag, "type:") {
-				typePresent = true
-			}
 		}
 
-		if typePresent {
-			tags = lo.Filter(tags, func(x string, index int) bool {
-				return x != "type:"
-			})
-		}
+		tags = lo.Filter(tags, func(x string, index int) bool {
+			return !strings.HasPrefix(x, "type")
+		})
 
 		switch metricSuffix {
 		case "kubernetes_healthchecks_total":
