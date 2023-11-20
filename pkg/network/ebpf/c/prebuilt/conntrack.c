@@ -11,6 +11,17 @@
 #include "ip.h"
 #include "ipv6.h"
 
+#define RETURN_IF_NOT_NAT(orig, reply)                      \
+    if (!is_conn_nat(orig, reply)) {                        \
+        return 0;                                           \
+    }
+
+bool is_conn_nat(conntrack_tuple_t orig, conntrack_tuple_t reply) {
+    return !(orig.daddr_l == reply.saddr_l && orig.dport == reply.sport && 
+        orig.saddr_l == reply.daddr_l && orig.sport == reply.dport && 
+        orig.daddr_h == reply.saddr_h);
+}
+
 SEC("kprobe/__nf_conntrack_hash_insert")
 int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     struct nf_conn *ct = (struct nf_conn*)PT_REGS_PARM1(ctx);
@@ -21,11 +32,7 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         return 0;
     }
-    if (orig.daddr_l == reply.saddr_l && orig.dport == reply.sport && 
-        orig.saddr_l == reply.daddr_l && orig.sport == reply.dport && 
-        orig.daddr_h == reply.saddr_h) {
-        return 0;
-    }
+    RETURN_IF_NOT_NAT(orig, reply);
 
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
@@ -51,11 +58,7 @@ int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
         return 0;
     }
 
-    if (orig.daddr_l == reply.saddr_l && orig.dport == reply.sport && 
-        orig.saddr_l == reply.daddr_l && orig.sport == reply.dport && 
-        orig.daddr_h == reply.saddr_h) {
-        return 0;
-    }
+    RETURN_IF_NOT_NAT(orig, reply);
 
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
