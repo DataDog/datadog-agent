@@ -50,8 +50,13 @@ type headerProvider struct {
 	templatesFunctions template.FuncMap
 }
 
-func (h headerProvider) Name() string                      { return "Header" }
-func (h headerProvider) JSON(stats map[string]interface{}) {}
+func (h headerProvider) Index() int   { return 0 }
+func (h headerProvider) Name() string { return "Header" }
+func (h headerProvider) JSON(stats map[string]interface{}) {
+	for k, v := range h.data {
+		stats[k] = v
+	}
+}
 
 //go:embed templates
 var templatesFS embed.FS

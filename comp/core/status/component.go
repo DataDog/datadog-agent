@@ -23,6 +23,7 @@ type Component interface {
 
 type StatusProvider interface {
 	Name() string
+	Index() int
 	JSON(stats map[string]interface{})
 	Text(buffer io.Writer) error
 }
