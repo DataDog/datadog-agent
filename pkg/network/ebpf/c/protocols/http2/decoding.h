@@ -106,8 +106,12 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
     dynamic_index->index = global_dynamic_counter - (index - MAX_STATIC_TABLE_INDEX);
 
     if (bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) == NULL) {
+        if (dynamic_index->tup.sport != 5050) {
+            bpf_printk("guy missing1 bpf_map_update_elem; index: %d; sport: %d; dport: %d\n", dynamic_index->index, dynamic_index->tup.sport, dynamic_index->tup.dport);
+        }
         return;
     }
+    bpf_printk("guy exists bpf_map_update_elem; index: %d; sport: %d; dport: %d\n", dynamic_index->index, dynamic_index->tup.sport, dynamic_index->tup.dport);
 
     headers_to_process->index = dynamic_index->index;
     headers_to_process->type = kExistingDynamicHeader;
@@ -256,6 +260,7 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
         if (current_header->type == kExistingDynamicHeader) {
             dynamic_table_entry_t *dynamic_value = bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index);
             if (dynamic_value == NULL) {
+                bpf_printk("guy missing bpf_map_update_elem; index: %d; sport: %d; dport: %d\n", dynamic_index->index, dynamic_index->tup.sport, dynamic_index->tup.dport);
                 break;
             }
             current_stream->path_size = dynamic_value->string_len;
@@ -265,7 +270,8 @@ static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table
 
             // create the new dynamic value which will be added to the internal table.
             read_into_buffer_path(dynamic_value.buffer, skb, current_header->new_dynamic_value_offset);
-            bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_ANY);
+            long ret = bpf_map_update_elem(&http2_dynamic_table, dynamic_index, &dynamic_value, BPF_NOEXIST);
+            bpf_printk("guy bpf_map_update_elem ret: %d; index: %d; dport: %d\n", ret, dynamic_index->index, dynamic_index->tup.sport);
             current_stream->path_size = current_header->new_dynamic_value_size;
             bpf_memcpy(current_stream->request_path, dynamic_value.buffer, HTTP2_MAX_PATH_LEN);
         }

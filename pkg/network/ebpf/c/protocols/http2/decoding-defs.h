@@ -8,7 +8,7 @@
 #define HTTP2_FRAMES_PER_TAIL_CALL 4
 // Maximum number of frames to be processed in a single TCP packet. That's also the number of tail calls we'll have.
 // NOTE: we may need to revisit this const if we need to capture more connections.
-#define HTTP2_MAX_FRAMES_ITERATIONS 30
+#define HTTP2_MAX_FRAMES_ITERATIONS 60
 #define HTTP2_MAX_FRAMES_TO_FILTER  100
 
 // A limit of max headers which we process in the request/response.
