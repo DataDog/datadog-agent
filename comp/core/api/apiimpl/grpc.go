@@ -8,7 +8,7 @@ Package api implements the agent IPC api. Using HTTP
 calls, it's possible to communicate with the agent,
 sending commands and receiving infos.
 */
-package api
+package apiimpl
 
 import (
 	"context"

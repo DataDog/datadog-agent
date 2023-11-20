@@ -8,6 +8,8 @@
 package apiimpl
 
 import (
+	"net"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/api"
@@ -27,4 +29,9 @@ var MockModule = fxutil.Component(
 
 func newMock() api.Mock {
 	return &mockApiServer{}
+}
+
+// ServerAddress retruns the server address.
+func (mock *mockApiServer) ServerAddress() *net.TCPAddr {
+	return nil
 }
