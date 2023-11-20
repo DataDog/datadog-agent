@@ -40,7 +40,7 @@ go_deps:
   cache:
     - key:
         files:
-          - go.mod
+          - ./**/go.mod
         prefix: "go_deps"
       paths:
         - modcache.tar.gz
@@ -64,7 +64,7 @@ go_tools_deps:
   cache:
     - key:
         files:
-          - go.mod
+          - ./**/go.mod
         prefix: "go_tools_deps"
       paths:
         - modcache_tools.tar.gz

@@ -33,7 +33,7 @@ func TestSetXAttr(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -164,7 +164,7 @@ func TestRemoveXAttr(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -129,7 +129,8 @@ func (p *protocol) Name() string {
 }
 
 const (
-	mapSizeValue = 1024
+	mapSizeValue        = 1024
+	dynamicMapSizeValue = 10240
 )
 
 // ConfigureOptions add the necessary options for http2 monitoring to work,
@@ -144,11 +145,11 @@ func (p *protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	}
 
 	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
-		MaxEntries: mapSizeValue,
+		MaxEntries: dynamicMapSizeValue,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[dynamicTableCounter] = manager.MapSpecEditor{
-		MaxEntries: mapSizeValue,
+		MaxEntries: dynamicMapSizeValue,
 		EditorFlag: manager.EditMaxEntries,
 	}
 	opts.MapSpecEditors[http2IterationsTable] = manager.MapSpecEditor{
@@ -241,11 +242,11 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
 	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, func(now int64, key http2StreamKey, val EbpfTx) bool {
-		if updated := int64(val.Response_last_seen); updated > 0 {
+		if updated := int64(val.Stream.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(val.Request_started)
+		started := int64(val.Stream.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 
