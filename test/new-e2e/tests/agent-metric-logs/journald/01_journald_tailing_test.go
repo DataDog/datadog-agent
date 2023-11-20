@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -44,7 +45,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 		s.DevMode = true
 	}
 
-	e2e.Run(t, &LinuxVMFakeintakeSuite{}, logsExampleStackDef())
+	e2e.Run(t, &LinuxVMFakeintakeSuite{}, logsExampleStackDef(), params.WithDevMode())
 }
 
 func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
@@ -69,6 +70,10 @@ func (s *LinuxVMFakeintakeSuite) TestLinuxLogTailing() {
 	// Run test cases
 	s.Run("journaldLogCollection", func() {
 		s.journaldLogCollection()
+	})
+
+	s.Run("journaldIncludeServiceLogCollection()", func() {
+		s.journaldIncludeServiceLogCollection()
 	})
 
 }
@@ -97,4 +102,8 @@ func (s *LinuxVMFakeintakeSuite) journaldLogCollection() {
 
 	// Part 3: Assert that logs are found in intake after generation
 	checkLogs(s, "hello", "hello-world")
+}
+
+func (s *LinuxVMFakeintakeSuite) journaldIncludeServiceLogCollection() {
+
 }
