@@ -16,9 +16,8 @@ import (
 
 // Component is the component type.
 type Component interface {
-	// /* TODO: detailed doc comment for the component */
 	GetStatus(format string, verbose bool) ([]byte, error)
-	GetStatusSection(section, format string, verbose bool) ([]byte, error)
+	GetStatusByName(name, format string, verbose bool) ([]byte, error)
 }
 
 type StatusProvider interface {
@@ -26,6 +25,8 @@ type StatusProvider interface {
 	Index() int
 	JSON(stats map[string]interface{})
 	Text(buffer io.Writer) error
+	HTML(buffer io.Writer) error
+	AppendToHeader(stats map[string]interface{})
 }
 
 type Provider struct {

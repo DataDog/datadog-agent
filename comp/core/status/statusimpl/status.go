@@ -10,12 +10,13 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	htmlTemplate "html/template"
 	"io"
 	"os"
 	"path"
 	"runtime"
 	"strings"
-	"text/template"
+	textTemplate "text/template"
 	"time"
 
 	"go.uber.org/fx"
@@ -37,7 +38,8 @@ type dependencies struct {
 }
 
 type statusImplementation struct {
-	providers []status.StatusProvider
+	headerProvider headerProvider
+	providers      []status.StatusProvider
 }
 
 // Module defines the fx options for this component.
@@ -46,8 +48,9 @@ var Module = fxutil.Component(
 )
 
 type headerProvider struct {
-	data               map[string]interface{}
-	templatesFunctions template.FuncMap
+	data                   map[string]interface{}
+	textTemplatesFunctions textTemplate.FuncMap
+	htmlTemplatesFunctions htmlTemplate.FuncMap
 }
 
 func (h headerProvider) Index() int   { return 0 }
@@ -62,15 +65,26 @@ func (h headerProvider) JSON(stats map[string]interface{}) {
 var templatesFS embed.FS
 
 func (h headerProvider) Text(buffer io.Writer) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "header.tmpl"))
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "text.tmpl"))
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t := template.Must(template.New("header").Funcs(h.templatesFunctions).Parse(string(tmpl)))
+	t := textTemplate.Must(textTemplate.New("header").Funcs(h.textTemplatesFunctions).Parse(string(tmpl)))
 	return t.Execute(buffer, h.data)
 }
 
-func newHeaderProvider(config config.Component) status.StatusProvider {
+func (h headerProvider) HTML(buffer io.Writer) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "html.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := htmlTemplate.Must(htmlTemplate.New("header").Funcs(h.htmlTemplatesFunctions).Parse(string(tmpl)))
+	return t.Execute(buffer, h.data)
+}
+
+func (h headerProvider) AppendToHeader(map[string]interface{}) {}
+
+func newHeaderProvider(config config.Component) headerProvider {
 	configObject := config.Object()
 	data := map[string]interface{}{}
 	//  TODO: using globals
@@ -93,16 +107,17 @@ func newHeaderProvider(config config.Component) status.StatusProvider {
 	data["title"] = title
 
 	return headerProvider{
-		data:               data,
-		templatesFunctions: template.FuncMap{},
+		data:                   data,
+		textTemplatesFunctions: textTemplate.FuncMap{},
+		htmlTemplatesFunctions: htmlTemplate.FuncMap{},
 	}
 }
 
 func newStatus(deps dependencies) (status.Component, error) {
-	providers := append([]status.StatusProvider{newHeaderProvider(deps.Config)}, deps.Providers...)
-
+	// TODO: sort providers by index and name
 	return &statusImplementation{
-		providers: providers,
+		headerProvider: newHeaderProvider(deps.Config),
+		providers:      deps.Providers,
 	}, nil
 }
 
@@ -110,12 +125,39 @@ func (s *statusImplementation) GetStatus(format string, verbose bool) ([]byte, e
 	switch format {
 	case "json":
 		stats := make(map[string]interface{})
+
+		s.headerProvider.JSON(stats)
+
 		for _, sc := range s.providers {
 			sc.JSON(stats)
 		}
 		return json.Marshal(stats)
 	case "text":
 		var b = new(bytes.Buffer)
+
+		for _, sc := range s.providers {
+			sc.AppendToHeader(s.headerProvider.data)
+		}
+
+		s.headerProvider.Text(b)
+
+		for _, sc := range s.providers {
+			err := sc.Text(b)
+			if err != nil {
+				return b.Bytes(), err
+			}
+		}
+
+		return b.Bytes(), nil
+	case "html":
+		var b = new(bytes.Buffer)
+
+		for _, sc := range s.providers {
+			sc.AppendToHeader(s.headerProvider.data)
+		}
+
+		s.headerProvider.HTML(b)
+
 		for _, sc := range s.providers {
 			err := sc.Text(b)
 			if err != nil {
@@ -128,7 +170,7 @@ func (s *statusImplementation) GetStatus(format string, verbose bool) ([]byte, e
 	}
 }
 
-func (s *statusImplementation) GetStatusSection(section, format string, verbose bool) ([]byte, error) {
+func (s *statusImplementation) GetStatusByName(section, format string, verbose bool) ([]byte, error) {
 	var statusSectionProvider status.StatusProvider
 	for _, provider := range s.providers {
 		if provider.Name() == section {
@@ -146,6 +188,13 @@ func (s *statusImplementation) GetStatusSection(section, format string, verbose 
 	case "text":
 		var b = new(bytes.Buffer)
 		err := statusSectionProvider.Text(b)
+		if err != nil {
+			return b.Bytes(), err
+		}
+		return b.Bytes(), nil
+	case "html":
+		var b = new(bytes.Buffer)
+		err := statusSectionProvider.HTML(b)
 		if err != nil {
 			return b.Bytes(), err
 		}

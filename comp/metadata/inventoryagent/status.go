@@ -7,11 +7,13 @@ package inventoryagent
 
 import (
 	"embed"
-	"html/template"
 	"io"
 	"path"
 
 	"github.com/DataDog/datadog-agent/comp/core/status"
+
+	htmlTemplate "html/template"
+	textTemplate "text/template"
 )
 
 type statusProvider struct {
@@ -38,13 +40,24 @@ func (s statusProvider) JSON(stats map[string]interface{}) {
 var templatesFS embed.FS
 
 func (s statusProvider) Text(buffer io.Writer) error {
-	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "metadata.tmpl"))
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "text.tmpl"))
 	if tmplErr != nil {
 		return tmplErr
 	}
-	t := template.Must(template.New("metadata").Parse(string(tmpl)))
+	t := textTemplate.Must(textTemplate.New("metadata").Parse(string(tmpl)))
 	return t.Execute(buffer, s.data)
 }
+
+func (s statusProvider) HTML(buffer io.Writer) error {
+	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "html.tmpl"))
+	if tmplErr != nil {
+		return tmplErr
+	}
+	t := htmlTemplate.Must(htmlTemplate.New("metadata").Parse(string(tmpl)))
+	return t.Execute(buffer, s.data)
+}
+
+func (s statusProvider) AppendToHeader(stats map[string]interface{}) {}
 
 // Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
 func (ia *inventoryagent) statusProvider() status.Provider {
