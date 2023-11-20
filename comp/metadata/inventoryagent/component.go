@@ -20,6 +20,8 @@ type Component interface {
 	Set(name string, value interface{})
 	// GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
 	GetAsJSON() ([]byte, error)
+	// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
+	Get() map[string]interface{}
 	// Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
 	Refresh()
 }

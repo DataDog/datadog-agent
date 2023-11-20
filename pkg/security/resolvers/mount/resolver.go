@@ -174,6 +174,10 @@ func (mr *Resolver) delete(mount *model.Mount) {
 				openQueue = append(openQueue, child)
 			}
 		}
+
+		for _, mounts := range mr.pidToMounts {
+			delete(mounts, mount.MountID)
+		}
 	}
 }
 

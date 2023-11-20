@@ -499,7 +499,7 @@ func startAgent(
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {
 		log.Infof("GUI server port -1 specified: not starting the GUI.")
-	} else if err = gui.StartGUIServer(guiPort, flare); err != nil {
+	} else if err = gui.StartGUIServer(guiPort, flare, invAgent); err != nil {
 		log.Errorf("Error while starting GUI: %v", err)
 	}
 
