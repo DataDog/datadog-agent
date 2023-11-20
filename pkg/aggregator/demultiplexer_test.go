@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/orchestrator/forwarder/forwarderimpl"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder/forwarderimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -29,11 +29,6 @@ func demuxTestOptions() AgentDemultiplexerOptions {
 	opts.FlushInterval = time.Hour
 	opts.DontStartForwarders = true
 	return opts
-}
-
-// Check whether we are built with the +orchestrator build tag
-func orchestratorEnabled(log log.Component) bool {
-	return forwarderimpl.NewOrchestratorForwarder(log) != nil
 }
 
 func TestDemuxIsSetAsGlobalInstance(t *testing.T) {
@@ -55,6 +50,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// forwarders since we're not in a cluster-agent environment
 
 	opts := demuxTestOptions()
+
 	deps := createDemuxDeps(t, opts)
 	demux := deps.Demultiplexer
 
@@ -110,19 +106,16 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	if orchestratorEnabled(deps.Log) {
-		require.NotNil(demux.forwarders.orchestrator)
-	} else {
-		require.Nil(demux.forwarders.orchestrator)
-	}
+	require.NotNil(demux.forwarders.orchestrator)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
 	// options no orchestrator forwarder
 
 	opts = demuxTestOptions()
-	opts.UseOrchestratorForwarder = false
-	deps = createDemuxDeps(t, opts)
+	params := orchestratorForwarderImpl.NewDefaultParams()
+	params.UseOrchestratorForwarder = false
+	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params)
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
@@ -133,8 +126,9 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// options noop orchestrator forwarder
 
 	opts = demuxTestOptions()
-	opts.UseNoopOrchestratorForwarder = true
-	deps = createDemuxDeps(t, opts)
+	params = orchestratorForwarderImpl.NewDefaultParams()
+	params.UseNoopOrchestratorForwarder = true
+	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params)
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
@@ -181,7 +175,7 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
 	deps := createDemuxDeps(t, opts)
-	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, opts, "")
+	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, defaultforwarder.NoopForwarder{}, opts, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
@@ -281,7 +275,11 @@ func TestGetDogStatsDWorkerAndPipelineCount(t *testing.T) {
 }
 
 func createDemuxDeps(t *testing.T, opts AgentDemultiplexerOptions) aggregatorDeps {
-	modules := fx.Options(defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	return createDemuxDepsWithOrchestratorFwd(t, opts, orchestratorForwarderImpl.NewDefaultParams())
+}
+
+func createDemuxDepsWithOrchestratorFwd(t *testing.T, opts AgentDemultiplexerOptions, params orchestratorForwarderImpl.Params) aggregatorDeps {
+	modules := fx.Options(defaultforwarder.MockModule, config.MockModule, log.MockModule, orchestratorForwarderImpl.Module, fx.Supply(params))
 	deps := fxutil.Test[TestDeps](t, modules)
 
 	return aggregatorDeps{

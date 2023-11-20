@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -19,8 +20,9 @@ import (
 
 type dependencies struct {
 	fx.In
-	Log             log.Component
-	SharedForwarder defaultforwarder.Component
+	Log                   log.Component
+	SharedForwarder       defaultforwarder.Component
+	OrchestratorForwarder orchestratorforwarder.Component
 
 	Params Params
 }
@@ -57,6 +59,7 @@ func newDemultiplexer(deps dependencies) (provides, error) {
 	agentDemultiplexer := aggregator.InitAndStartAgentDemultiplexer(
 		deps.Log,
 		deps.SharedForwarder,
+		deps.OrchestratorForwarder,
 		deps.Params.Options,
 		hostnameDetected)
 	demultiplexer := demultiplexer{

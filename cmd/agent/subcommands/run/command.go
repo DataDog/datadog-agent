@@ -62,6 +62,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
@@ -300,6 +301,8 @@ func getSharedFxOption() fx.Option {
 			return demultiplexer.Params{Options: opts}
 		}),
 		demultiplexer.Module,
+		orchestratorForwarderImpl.Module,
+		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {

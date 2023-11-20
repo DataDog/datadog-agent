@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -108,6 +109,8 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		forwarder.Bundle,
 		fx.Provide(defaultforwarder.NewParams),
 		demultiplexer.Module,
+		orchestratorForwarderImpl.Module,
+		fx.Supply(orchestratorForwarderImpl.Params{UseOrchestratorForwarder: false}),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -115,7 +118,6 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		}),
 		fx.Provide(func(config config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.UseOrchestratorForwarder = false
 			opts.UseEventPlatformForwarder = false
 			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 			return demultiplexer.Params{Options: opts, ContinueOnMissingHostname: true}

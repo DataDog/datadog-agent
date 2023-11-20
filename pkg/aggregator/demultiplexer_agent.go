@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/orchestrator/forwarder/forwarderimpl"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
@@ -69,9 +69,7 @@ type AgentDemultiplexer struct {
 // AgentDemultiplexerOptions are the options used to initialize a Demultiplexer.
 type AgentDemultiplexerOptions struct {
 	UseNoopEventPlatformForwarder bool
-	UseNoopOrchestratorForwarder  bool
 	UseEventPlatformForwarder     bool
-	UseOrchestratorForwarder      bool
 	FlushInterval                 time.Duration
 
 	EnableNoAggregationPipeline bool
@@ -87,9 +85,7 @@ func DefaultAgentDemultiplexerOptions() AgentDemultiplexerOptions {
 	return AgentDemultiplexerOptions{
 		FlushInterval:                 DefaultFlushInterval,
 		UseEventPlatformForwarder:     true,
-		UseOrchestratorForwarder:      true,
 		UseNoopEventPlatformForwarder: false,
-		UseNoopOrchestratorForwarder:  false,
 		// the different agents/binaries enable it on a per-need basis
 		EnableNoAggregationPipeline: false,
 	}
@@ -126,24 +122,18 @@ type dataOutputs struct {
 // InitAndStartAgentDemultiplexer creates a new Demultiplexer and runs what's necessary
 // in goroutines. As of today, only the embedded BufferedAggregator needs a separate goroutine.
 // In the future, goroutines will be started for the event platform forwarder and/or orchestrator forwarder.
-func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	demux := initAgentDemultiplexer(log, sharedForwarder, options, hostname)
+func InitAndStartAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, orchestratorForwarder orchestratorforwarder.Component, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+	demux := initAgentDemultiplexer(log, sharedForwarder, orchestratorForwarder, options, hostname)
 	go demux.Run()
 	return demux
 }
 
-func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
+func initAgentDemultiplexer(log log.Component, sharedForwarder forwarder.Forwarder, orchestratorForwarder orchestratorforwarder.Component, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
 	// prepare the multiple forwarders
 	// -------------------------------
 
 	log.Debugf("Creating forwarders")
 	// orchestrator forwarder
-	var orchestratorForwarder forwarder.Forwarder
-	if options.UseNoopOrchestratorForwarder {
-		orchestratorForwarder = new(forwarder.NoopForwarder)
-	} else if options.UseOrchestratorForwarder {
-		orchestratorForwarder = forwarderimpl.NewOrchestratorForwarder(log)
-	}
 
 	// event platform forwarder
 	var eventPlatformForwarder epforwarder.EventPlatformForwarder

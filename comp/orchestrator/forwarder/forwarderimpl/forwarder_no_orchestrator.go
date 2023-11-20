@@ -10,8 +10,9 @@ package forwarderimpl
 import (
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/orchestrator/forwarder"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,7 +24,7 @@ var Module = fxutil.Component(
 // NewOrchestratorForwarder builds the orchestrator forwarder.
 // This func has been extracted in this file to not include all the orchestrator
 // dependencies (k8s, several MBs) while building binaries not needing these.
-func NewOrchestratorForwarder(log log.Component) defaultforwarder.Forwarder {
+func NewOrchestratorForwarder(log log.Component, config config.Component, params Params) forwarder.Component {
 	// do not return any forwarder for builds without the orchestrator tag
-	return nil
+	return nil // TODO: (Components): Use optional instead
 }

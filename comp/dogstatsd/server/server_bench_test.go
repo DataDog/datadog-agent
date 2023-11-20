@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -22,16 +22,12 @@ import (
 )
 
 func mockDemultiplexer(config config.Component, log log.Component) aggregator.Demultiplexer {
-	return mockDemultiplexerWithFlushInterval(config, log, time.Millisecond*10)
-}
-
-func mockDemultiplexerWithFlushInterval(config config.Component, log log.Component, d time.Duration) aggregator.Demultiplexer {
+	d := time.Millisecond * 10
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = d
 	opts.DontStartForwarders = true
-	forwarder := forwarder.NewDefaultForwarder(config, log, forwarder.NewOptions(config, log, nil))
-
-	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, opts, "hostname")
+	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
+	demux := aggregator.InitAndStartAgentDemultiplexer(log, forwarder, defaultforwarder.NoopForwarder{}, opts, "hostname")
 	return demux
 }
 

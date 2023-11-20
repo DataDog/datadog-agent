@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder/forwarderimpl"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
 	"github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -70,6 +71,8 @@ func main() {
 		),
 		fx.Provide(newForwarderParams),
 		demultiplexer.Module,
+		orchestratorForwarderImpl.Module,
+		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
 		fx.Provide(newSerializer),
 		fx.Provide(func(cfg config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()

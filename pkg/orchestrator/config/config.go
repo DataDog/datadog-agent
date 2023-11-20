@@ -70,9 +70,10 @@ func key(pieces ...string) string {
 	return strings.Join(pieces, ".")
 }
 
+// OrchestratorNSKey get the config name key for orchestratorNS
 func OrchestratorNSKey(pieces ...string) string {
-	full_key := append([]string{orchestratorNS}, pieces...)
-	return key(full_key...)
+	fullKey := append([]string{orchestratorNS}, pieces...)
+	return key(fullKey...)
 }
 
 // Load loads orchestrator-specific configuration

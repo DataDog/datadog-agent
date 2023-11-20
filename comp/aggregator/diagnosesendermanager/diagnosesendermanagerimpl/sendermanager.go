@@ -58,7 +58,6 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	opts.FlushInterval = 0
 	opts.DontStartForwarders = true
 	opts.UseNoopEventPlatformForwarder = true
-	opts.UseNoopOrchestratorForwarder = true
 
 	log := sender.deps.Log
 	config := sender.deps.Config
@@ -66,6 +65,7 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,
 		forwarder,
+		defaultforwarder.NoopForwarder{},
 		opts,
 		hostnameDetected)
 
