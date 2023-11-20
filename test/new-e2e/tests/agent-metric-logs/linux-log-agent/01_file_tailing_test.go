@@ -8,7 +8,6 @@ package logagent
 import (
 	_ "embed"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -117,8 +116,7 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 			return
 		}
 
-		if strings.Contains(statusOutput, "Status: OK") {
-			assert.Fail(c, "log file is unexpectedly accessible")
+		if !assert.NotContainsf(c, statusOutput, "Status: OK", "Expecting log file to be inaccessible but it is accessible instead: \n %s", statusOutput) {
 			return
 		}
 
@@ -128,15 +126,9 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 	// Part 5: Restore permissions
 	s.Env().VM.Execute("sudo chmod 777 /var/log/hello-world.log")
 
-	// Part 6: Restart the agent, generate new logs
-	s.Env().VM.Execute("sudo service datadog-agent restart")
+	// Part 6: Generate new logs and ceck the Agent status
+	generateLog(s, "hello-world")
 
-	// Wait for agent to be ready
-	if s.Env().Agent.IsReady() {
-		generateLog(s, "hello-world")
-	}
-
-	// Check the Agent status
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		statusOutput, err := s.Env().VM.ExecuteWithError("sudo datadog-agent status | grep -A 10 'custom_logs'")
 		assert.NoError(c, err, "Issue running agent status: %s", err)

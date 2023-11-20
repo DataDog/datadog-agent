@@ -43,14 +43,10 @@ func generateLog(s *LinuxVMFakeintakeSuite, content string) {
 	s.Env().VM.Execute(cmd)
 
 	// Check if the log has been generated.
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		output := s.Env().VM.Execute(checkCmd)
-		if strings.Contains(output, content) {
-			t.Logf("Finished generating %s log.", os)
-		} else {
-			assert.Fail(c, "Log not yet generated.")
-		}
-	}, 5*time.Minute, 2*time.Second)
+	output := s.Env().VM.Execute(checkCmd)
+	if strings.Contains(output, content) {
+		t.Logf("Finished generating %s log.", os)
+	}
 }
 
 // checkLogs checks and verifies logs inside the intake.
@@ -74,9 +70,9 @@ func checkLogs(suite *LinuxVMFakeintakeSuite, service, content string) {
 
 			logs, err = client.FilterLogs(service, fi.WithMessageContaining(content))
 			assert.NoErrorf(c, err, "Error found: %s", err)
-			assert.True(c, len(logs) > 0, "Expected at least 1 log with content: '%s', but received %v logs.", content, len(logs))
+			assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', but received %v logs.", content, logs)
 		}
-	}, 10*time.Minute, 10*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 
 }
 
@@ -103,15 +99,11 @@ func (s *LinuxVMFakeintakeSuite) cleanUp() {
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
-		if err != nil {
-			assert.NoErrorf(c, err, "Having issue flushing server and resetting aggregators, retrying...")
-		}
+		assert.NoErrorf(c, err, "Having issue flushing server and resetting aggregators, retrying...")
 
 		output, err := s.Env().VM.ExecuteWithError(checkCmd)
-		if err != nil {
-			assert.NoErrorf(c, err, "Having issue cleaning log %s files, retrying... %s", os, output)
-		} else {
+		if assert.NoErrorf(c, err, "Having issue cleaning log %s files, retrying... %s", os, output) {
 			t.Log("Successfully cleaned up.")
 		}
-	}, 5*time.Minute, 2*time.Second)
+	}, 5*time.Minute, 10*time.Second)
 }
