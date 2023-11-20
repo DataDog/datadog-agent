@@ -30,7 +30,7 @@ func TestContainerCreatedAt(t *testing.T) {
 			Expression: `container.id != "" && container.created_at > 3s && open.file.path == "{{.Root}}/test-open-delay"`,
 		},
 	}
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +106,7 @@ func TestContainerScopedVariable(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
