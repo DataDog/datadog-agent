@@ -280,10 +280,16 @@ static __always_inline void handle_end_of_stream(http2_stream_t *current_stream,
 
     // response end of stream;
     current_stream->response_last_seen = bpf_ktime_get_ns();
-    current_stream->tup = http2_stream_key_template->tup;
 
-    // enqueue
-    http2_batch_enqueue(current_stream);
+    const u32 zero = 0;
+    http2_event_t *event = bpf_map_lookup_elem(&http2_scratch_buffer, &zero);
+    if (event) {
+        bpf_memcpy(&event->tuple, &http2_stream_key_template->tup, sizeof(conn_tuple_t));
+        bpf_memcpy(&event->stream, current_stream, sizeof(http2_stream_t));
+        // enqueue
+        http2_batch_enqueue(event);
+    }
+
     bpf_map_delete_elem(&http2_in_flight, http2_stream_key_template);
 }
 

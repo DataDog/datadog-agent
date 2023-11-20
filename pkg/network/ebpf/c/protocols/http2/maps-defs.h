@@ -35,6 +35,10 @@ BPF_PERCPU_ARRAY_MAP(http2_frames_to_process, __u32, http2_tail_call_state_t, 1)
 /* Allocating a stream on the heap, the stream is used to save the current stream info. */
 BPF_PERCPU_ARRAY_MAP(http2_stream_heap, __u32, http2_stream_t, 1)
 
+/* This map acts as a scratch buffer for "preparing" http2_event_t objects before they're
+   enqueued. The primary motivation here is to save eBPF stack memory. */
+BPF_PERCPU_ARRAY_MAP(http2_scratch_buffer, __u32, http2_event_t, 1)
+
 /* Allocating a ctx on the heap, in order to save the ctx between the current stream. */
 BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, __u32, http2_ctx_t, 1)
 

@@ -83,7 +83,6 @@ typedef struct {
 } http2_stream_key_t;
 
 typedef struct {
-    conn_tuple_t tup;
     __u64 response_last_seen;
     __u64 request_started;
 
@@ -94,6 +93,11 @@ typedef struct {
 
     __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
 } http2_stream_t;
+
+typedef struct {
+    conn_tuple_t tuple;
+    http2_stream_t stream;
+} http2_event_t;
 
 typedef struct {
     dynamic_table_index_t dynamic_index;

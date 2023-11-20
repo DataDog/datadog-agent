@@ -129,7 +129,7 @@ func (p *protocol) Name() string {
 }
 
 const (
-	mapSizeValue = 1024
+	mapSizeValue = 10240
 )
 
 // ConfigureOptions add the necessary options for http2 monitoring to work,
@@ -246,11 +246,11 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 			return false
 		}
 
-		if updated := int64(http2Txn.Response_last_seen); updated > 0 {
+		if updated := int64(http2Txn.Stream.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(http2Txn.Request_started)
+		started := int64(http2Txn.Stream.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 
