@@ -106,7 +106,7 @@ func TestOverlayFS(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root(), disableApprovers: true})
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}

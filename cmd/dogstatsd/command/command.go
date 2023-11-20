@@ -13,9 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/dogstatsd/subcommands/start"
 	"github.com/DataDog/datadog-agent/pkg/cli/subcommands/version"
-
-	// register all workloadmeta collectors
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 func MakeRootCommand(defaultLogFile string) *cobra.Command {

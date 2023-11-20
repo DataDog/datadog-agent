@@ -7,6 +7,7 @@ include:
   - /.gitlab/package_deps_build.yml
   - /.gitlab/deps_fetch.yml
   - /.gitlab/source_test.yml
+  - /.gitlab/source_test_stats.yml
   - /.gitlab/source_test_junit_upload.yml
   - /.gitlab/binary_build.yml
   - /.gitlab/cancel-prev-pipelines.yml
@@ -63,6 +64,7 @@ stages:
   - deps_build
   - deps_fetch
   - source_test
+  - source_test_stats
   - source_test_junit_upload
   - binary_build
   - package_deps_build
@@ -156,23 +158,23 @@ variables:
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to _test_only
   DATADOG_AGENT_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BUILDIMAGES: v22284534-4d24e62
+  DATADOG_AGENT_BUILDIMAGES: v23168861-fcc48431
   DATADOG_AGENT_WINBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_WINBUILDIMAGES: v22284534-4d24e62
+  DATADOG_AGENT_WINBUILDIMAGES: v23168861-fcc48431
   DATADOG_AGENT_ARMBUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_ARMBUILDIMAGES: v22284534-4d24e62
+  DATADOG_AGENT_ARMBUILDIMAGES: v23168861-fcc48431
   DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v22284534-4d24e62
+  DATADOG_AGENT_SYSPROBE_BUILDIMAGES: v23168861-fcc48431
   DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v22284534-4d24e62
+  DATADOG_AGENT_KERNEL_MATRIX_TESTING_BUILDIMAGES: v23168861-fcc48431
   DATADOG_AGENT_NIKOS_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_NIKOS_BUILDIMAGES: v22284534-4d24e62
+  DATADOG_AGENT_NIKOS_BUILDIMAGES: v23168861-fcc48431
   DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX: ""
-  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v22284534-4d24e62
+  DATADOG_AGENT_BTF_GEN_BUILDIMAGES: v23168861-fcc48431
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 005d20ab699a
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 99ce13afdb49
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -838,6 +840,13 @@ workflow:
     when: always
 
 .on_all_kitchen_builds_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_kitchen
+
+.on_all_new-e2e_tests_a7:
   - <<: *if_not_version_7
     when: never
   - <<: *if_not_run_all_builds

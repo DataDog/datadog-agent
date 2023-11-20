@@ -112,6 +112,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "debug_port"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "telemetry_enabled"), true, "DD_TELEMETRY_ENABLED")
+	cfg.BindEnvAndSetDefault(join(spNS, "health_port"), int64(0), "DD_SYSTEM_PROBE_HEALTH_PORT")
 
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enabled"), false, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED")
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.site"), DefaultSite, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE", "DD_SITE")
@@ -311,7 +312,7 @@ func InitSystemProbeConfig(cfg Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry_amd64"), false)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "event_stream.use_fentry_arm64"), false)
 	eventMonitorBindEnv(cfg, join(evNS, "event_stream.buffer_size"))
-	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE"})
+	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "envs_with_value"), []string{"LD_PRELOAD", "LD_LIBRARY_PATH", "PATH", "HISTSIZE", "HISTFILESIZE", "GLIBC_TUNABLES"})
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "runtime_compilation.enabled"), false)
 	eventMonitorBindEnv(cfg, join(evNS, "runtime_compilation.compiled_constants_enabled"))
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)

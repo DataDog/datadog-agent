@@ -18,8 +18,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
-	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -73,7 +73,7 @@ type CollectorMetadata struct {
 	IsStable                  bool
 	SupportsManifestBuffering bool
 	Name                      string
-	NodeType                  orchestrator.NodeType
+	NodeType                  pkgorchestratormodel.NodeType
 	Version                   string
 	IsSkipped                 bool
 	SkippedReason             string

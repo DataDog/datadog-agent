@@ -1,0 +1,25 @@
+commit d3397b17e413856f3ca8e072cd789ee1bb7e778f
+Author: David du Colombier <djc@datadoghq.com>
+Date:   Fri Nov 17 12:28:17 2023 +0100
+
+    Fix parsing of Status in dpkginfo probe
+    
+    This change fixes a mistake made during a last-minute
+    change in 557ddeed1e3e234a655ad77a691869554064b293.
+    
+    The parsing the Status was incorrect and all
+    packages were considered as deinstalled.
+
+diff --git a/src/OVAL/probes/unix/linux/dpkginfo-helper.c b/src/OVAL/probes/unix/linux/dpkginfo-helper.c
+index 2ba9fb474..fcbb8d150 100644
+--- a/src/OVAL/probes/unix/linux/dpkginfo-helper.c
++++ b/src/OVAL/probes/unix/linux/dpkginfo-helper.c
+@@ -125,7 +125,7 @@ struct dpkginfo_reply_t* dpkginfo_get_by_name(const char *name, int *err)
+ 			}
+ 		} else if (reply != NULL) {
+ 			if (strcmp(key, "Status") == 0) {
+-				if (strcmp(value, "install") != 0) {
++				if (strncmp(value, "install", 7) != 0) {
+ 					// Package deinstalled.
+ 					dD("Package \"%s\" has been deinstalled.", name);
+ 					dpkginfo_free_reply(reply);

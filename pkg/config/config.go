@@ -1074,10 +1074,10 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.command_endpoint", "/inject-command-cws")
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.include", []string{})
 	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.exclude", []string{})
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", false)
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.container_registry", "")
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "datadog/cws-instrumentation")
-	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "master")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.mutate_unlabelled", true)
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.container_registry", "gcr.io/datadoghq")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_name", "cws-instrumentation")
+	config.BindEnvAndSetDefault("admission_controller.cws_instrumentation.image_tag", "latest")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.cpu")
 	config.BindEnv("admission_controller.cws_instrumentation.init_resources.memory")
 
@@ -1204,6 +1204,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("compliance_config.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.xccdf.enabled", false) // deprecated, use host_benchmarks instead
 	config.BindEnvAndSetDefault("compliance_config.host_benchmarks.enabled", false)
+	config.BindEnvAndSetDefault("compliance_config.database_benchmarks.enabled", false)
 	config.BindEnvAndSetDefault("compliance_config.check_interval", 20*time.Minute)
 	config.BindEnvAndSetDefault("compliance_config.check_max_events_per_run", 100)
 	config.BindEnvAndSetDefault("compliance_config.dir", "/etc/datadog-agent/compliance.d")
@@ -1477,15 +1478,21 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 		// these variables are used by the agent, but not via the Config struct,
 		// so must be listed separately.
 		"DD_INSIDE_CI":      {},
-		"DD_PROXY_NO_PROXY": {},
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
+		"DD_PROXY_NO_PROXY": {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_API_KEY_SECRET_ARN":        {},
-		"DD_DOTNET_TRACER_HOME":        {},
-		"DD_SERVERLESS_APPSEC_ENABLED": {},
-		"DD_SERVICE":                   {},
-		"DD_VERSION":                   {},
+		"DD_API_KEY_SECRET_ARN":              {},
+		"DD_APM_FLUSH_DEADLINE_MILLISECONDS": {},
+		"DD_DOTNET_TRACER_HOME":              {},
+		"DD_FLUSH_TO_LOG":                    {},
+		"DD_KMS_API_KEY":                     {},
+		"DD_LAMBDA_HANDLER":                  {},
+		"DD_LOGS_INJECTION":                  {},
+		"DD_MERGE_XRAY_TRACES":               {},
+		"DD_SERVERLESS_APPSEC_ENABLED":       {},
+		"DD_SERVICE":                         {},
+		"DD_VERSION":                         {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
@@ -1590,6 +1597,9 @@ func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEn
 	if err := config.ReadInConfig(); err != nil {
 		if IsServerless() {
 			log.Debug("No config file detected, using environment variable based configuration only")
+			// Proxy settings need to be loaded from environment variables even in the absence of a datadog.yaml file
+			// The remaining code in LoadCustom is not run to keep a low cold start time
+			LoadProxyFromEnv(config)
 			return &warnings, nil
 		}
 		return &warnings, err
@@ -1684,6 +1694,8 @@ func setupFipsEndpoints(config Config) error {
 	os.Unsetenv("HTTP_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 
+	config.Set("fips.https", config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
+
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"
 	if config.GetBool("fips.https") {
@@ -1717,7 +1729,17 @@ func setupFipsEndpoints(config Config) error {
 	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
 	// Network devices
+	// Internally, Viper uses multiple storages for the configuration values and values from datadog.yaml are stored
+	// in a different place from where overrides (created with config.Set(...)) are stored.
+	// Some NDM products are using UnmarshalKey() which either uses overridden data or either configuration file data but not
+	// both at the same time (see https://github.com/spf13/viper/issues/1106)
+	//
+	// Because of that we need to put all the NDM config in the overridden data store (using Set) in order to get
+	// data from the config + data created by the FIPS mode when using UnmarshalKey()
+
+	config.Set("network_devices.snmp_traps", config.Get("network_devices.snmp_traps"), pkgconfigmodel.SourceAgentRuntime)
 	setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
+	config.Set("network_devices.netflow", config.Get("network_devices.netflow"), pkgconfigmodel.SourceAgentRuntime)
 	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
 	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 

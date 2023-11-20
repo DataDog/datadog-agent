@@ -10,7 +10,9 @@ package run
 
 import (
 	"context"
-	_ "expvar"         // Blank import used because this isn't directly used in this file
+	_ "expvar" // Blank import used because this isn't directly used in this file
+	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
+	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"go.uber.org/fx"
@@ -33,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -72,6 +75,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			server dogstatsdServer.Component,
 			serverDebug dogstatsddebug.Component,
 			capture replay.Component,
+			wmeta workloadmeta.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
@@ -95,6 +99,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				server,
 				capture,
 				serverDebug,
+				wmeta,
 				rcclient,
 				logsAgent,
 				forwarder,
@@ -151,10 +156,13 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectimpl.Module,
+		winregistryimpl.Module,
 		comptraceconfig.Module,
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),
-		fx.Invoke(func(_ agentcrashdetect.Component) {}), // Force the instanciation of the component
+		// Force the instantiation of the components
+		fx.Invoke(func(_ agentcrashdetect.Component) {}),
+		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }

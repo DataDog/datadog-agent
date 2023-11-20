@@ -6,12 +6,15 @@ go 1.20
 // The plugin versions NEED to be aligned.
 // TODO: Implement hard check in CI
 
-replace github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
+replace (
+	github.com/DataDog/datadog-agent/pkg/util/pointer => ../../pkg/util/pointer
+	github.com/DataDog/datadog-agent/test/fakeintake => ../fakeintake
+)
 
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.73
-	github.com/DataDog/datadog-agent/pkg/util/pointer v0.48.1
-	github.com/DataDog/datadog-agent/test/fakeintake v0.49.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/pointer v0.50.0-rc.4
+	github.com/DataDog/datadog-agent/test/fakeintake v0.50.0-rc.4
 	github.com/DataDog/datadog-api-client-go v1.16.0
 	github.com/DataDog/datadog-api-client-go/v2 v2.15.0
 	// Are you bumping github.com/DataDog/test-infra-definitions ?
@@ -19,7 +22,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20231109155727-005d20ab699a
+	github.com/DataDog/test-infra-definitions v0.0.0-20231113131450-99ce13afdb49
 	github.com/aws/aws-sdk-go-v2 v1.22.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.40
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.130.0

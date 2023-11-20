@@ -15,6 +15,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
@@ -28,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
@@ -39,6 +42,7 @@ import (
 )
 
 type service struct {
+	servicemain.DefaultSettings
 }
 
 var (
@@ -69,7 +73,7 @@ func (s *service) Run(svcctx context.Context) error {
 	params := &cliParams{}
 	err := fxutil.OneShot(
 		func(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component,
-			telemetry telemetry.Component, params *cliParams, demultiplexer demultiplexer.Component) error {
+			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, demultiplexer demultiplexer.Component) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
@@ -99,6 +103,23 @@ func (s *service) Run(svcctx context.Context) error {
 			opts.UseEventPlatformForwarder = false
 			opts.UseOrchestratorForwarder = false
 			return demultiplexer.Params{Options: opts}
+		}),
+
+		// workloadmeta setup
+		collectors.GetCatalog(),
+		workloadmeta.Module,
+		fx.Provide(func(config config.Component) workloadmeta.Params {
+
+			catalog := workloadmeta.NodeAgent
+
+			if config.GetBool("security_agent.remote_workloadmeta") {
+				catalog = workloadmeta.Remote
+			}
+
+			return workloadmeta.Params{
+				AgentType:  catalog,
+				InitHelper: common.GetWorkloadmetaInit(),
+			}
 		}),
 	)
 

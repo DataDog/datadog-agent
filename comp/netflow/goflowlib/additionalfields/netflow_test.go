@@ -55,7 +55,7 @@ func Test_ProcessMessageNetFlowAdditionalFields(t *testing.T) {
 				123: {
 					Field:       123,
 					Destination: "test_field",
-					Type:        common.Varint,
+					Type:        common.Integer,
 				},
 			},
 			expectedCollectedFields: []common.AdditionalFields{{
@@ -92,7 +92,7 @@ func Test_ProcessMessageNetFlowAdditionalFields(t *testing.T) {
 				},
 			},
 			expectedCollectedFields: []common.AdditionalFields{{
-				"test_field": "2d0c",
+				"test_field": []byte{45, 12},
 			}},
 		},
 		{
@@ -108,7 +108,7 @@ func Test_ProcessMessageNetFlowAdditionalFields(t *testing.T) {
 				123: {
 					Field:       123,
 					Destination: "test_field",
-					Type:        common.Varint,
+					Type:        common.Integer,
 				},
 				124: {
 					Field:       124,
@@ -134,12 +134,12 @@ func Test_ProcessMessageNetFlowAdditionalFields(t *testing.T) {
 				123: {
 					Field:       123,
 					Destination: "test_field",
-					Type:        common.Varint,
+					Type:        common.Integer,
 				},
 				126: {
 					Field:       126,
 					Destination: "missing_field",
-					Type:        common.Varint,
+					Type:        common.Integer,
 				},
 			},
 			expectedCollectedFields: []common.AdditionalFields{{

@@ -14,6 +14,7 @@ import re
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Dict, List
 
 from invoke import task
@@ -27,6 +28,7 @@ from .flavor import AgentFlavor
 from .go import run_golangci_lint
 from .libs.common.color import color_message
 from .libs.copyright import CopyrightLinter
+from .libs.datadog_api import create_count, send_metrics
 from .libs.junit_upload import add_flavor_to_junitxml, junit_upload_from_tgz, produce_junit_tar, repack_macos_junit_tar
 from .modules import DEFAULT_MODULES, GoModule
 from .trace_agent import integration_tests as trace_integration_tests
@@ -631,7 +633,7 @@ def test(
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
     stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} {nocache} std cmd'
+    stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
     cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
     cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {test_run_arg}'
     args = {
@@ -1116,7 +1118,6 @@ def junit_macos_repack(_, infile, outfile):
 
 @task
 def get_modified_packages(ctx) -> List[GoModule]:
-
     modified_files = get_modified_files(ctx)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
@@ -1157,7 +1158,7 @@ def get_modified_packages(ctx) -> List[GoModule]:
 
     print("Running tests for the following modules:")
     for module in modules_to_test:
-        print(f"- {module}: ")
+        print(f"- {module}: {modules_to_test[module].targets}")
 
     return modules_to_test.values()
 
@@ -1168,3 +1169,118 @@ def get_modified_files(ctx):
 
     modified_files = ctx.run(f"git diff --name-only {last_main_commit}", hide=True).stdout.splitlines()
     return modified_files
+
+
+@task
+def send_unit_tests_stats(_, job_name):
+    fast_success = True
+    classic_success = True
+
+    n_test_classic = 0
+    n_test_fast = 0
+
+    series = []
+
+    failed_tests_classic, n_test_classic = parse_test_log("test_output.json")
+    classic_success = len(failed_tests_classic) == 0
+
+    # If the fast tests are not run, we don't have the output file and we consider the job successful since it did not run any test
+    if os.path.isfile("test_output_fast.json"):
+        failed_tests_fast, n_test_fast = parse_test_log("test_output_fast.json")
+        fast_success = len(failed_tests_fast) == 0
+    else:
+        print("test_output_fast.json not found, assuming no tests were run")
+
+    timestamp = int(datetime.now().timestamp())
+    print("Sending unit tests stats to Datadog")
+
+    print(f"Classic test executed: {n_test_classic}")
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.executed",
+            timestamp,
+            n_test_classic,
+            tags=[
+                "experimentation:fast-tests",
+                "test_type:classic",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}",
+            ],
+        )
+    )
+
+    print(f"Fast test executed: {n_test_fast}")
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.executed",
+            timestamp,
+            n_test_fast,
+            tags=[
+                "experimentation:fast-tests",
+                "test_type:fast",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}-fast",
+            ],
+        )
+    )
+
+    print(f"Classic test success: {classic_success}")
+    print(f"Fast test success: {fast_success}")
+
+    if fast_success == classic_success:
+        false_positive = 0
+        false_negative = 0
+    elif fast_success:
+        false_positive = 1
+        false_negative = 0
+    else:
+        false_positive = 0
+        false_negative = 1
+
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.false_positive",
+            timestamp,
+            false_positive,
+            tags=[
+                "experimentation:fast-tests",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}",
+            ],
+        )
+    )
+    series.append(
+        create_count(
+            "datadog.ci.unit_tests.false_negative",
+            timestamp,
+            false_negative,
+            tags=[
+                "experimentation:fast-tests",
+                "repository:datadog-agent",
+                f"pipeline_id:{os.getenv('CI_PIPELINE_ID')}",
+                f"job_name:{job_name}",
+            ],
+        )
+    )
+
+    send_metrics(series)
+
+
+def parse_test_log(log_file):
+    failed_tests = []
+    n_test_executed = 0
+    with open(log_file, "r") as f:
+        for line in f:
+            json_line = json.loads(line)
+            if json_line["Action"] == "fail" and "Test" in json_line:
+                n_test_executed += 1
+                failed_tests.append(f'{json_line["Package"]}/{json_line["Test"]}')
+            if json_line["Action"] == "pass" and "Test" in json_line:
+                n_test_executed += 1
+                if f'{json_line["Package"]}/{json_line["Test"]}' in failed_tests:
+                    failed_tests.remove(f'{json_line["Package"]}/{json_line["Test"]}')
+
+    return failed_tests, n_test_executed

@@ -38,7 +38,7 @@ type PodCheck struct {
 }
 
 // Init initializes a PodCheck instance.
-func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
+func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	c.hostInfo = hostInfo
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 	c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))
@@ -58,6 +58,8 @@ func (c *PodCheck) IsEnabled() bool {
 		log.Info("Skipping pod check on process agent")
 		return false
 	}
+
+	log.Warn("This Process Agent check will be deprecated in 7.51.0 and moved to the Node Agent")
 
 	if kubeClusterName == "" {
 		_ = log.Warnf("Failed to auto-detect a Kubernetes cluster name. Pod collection will not start. To fix this, set it manually via the cluster_name config option")

@@ -23,15 +23,18 @@
       -e GOMODCACHE="c:\modcache"
       -e JUNIT_TAR="c:\mnt\junit-${CI_JOB_NAME}.tgz"
       -e PIP_INDEX_URL=${PIP_INDEX_URL}
-      -e EXTRAPARAMS="${EXTRAPARAMS}"
+      -e TEST_OUTPUT_FILE=${TEST_OUTPUT_FILE}
+      -e EXTRA_OPTS="${EXTRA_OPTS}"
       486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/windows_1809_${ARCH}${Env:DATADOG_AGENT_WINBUILDIMAGES_SUFFIX}:${Env:DATADOG_AGENT_WINBUILDIMAGES}
       c:\mnt\tasks\winbuildscripts\unittests.bat
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+  variables:
+    TEST_OUTPUT_FILE: test_output.json
   artifacts:
     expire_in: 2 weeks
     when: always
     paths:
-      - test_output.json
+      - $TEST_OUTPUT_FILE
       - junit-*.tgz
     reports:
       junit: "**/junit-out-*.xml"
@@ -70,7 +73,8 @@ tests_windows-x64-fast:
   variables:
     PYTHON_RUNTIMES: 3
     ARCH: "x64"
-    EXTRAPARAMS: '--only-modified-packages'
+    EXTRA_OPTS: '--only-modified-packages'
+    TEST_OUTPUT_FILE: test_output_fast.json
   allow_failure: true
 
 lint_windows-x64:
