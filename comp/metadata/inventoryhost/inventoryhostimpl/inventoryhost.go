@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"runtime"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -19,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning/packagesigningimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/gohai/cpu"
 	"github.com/DataDog/datadog-agent/pkg/gohai/memory"
@@ -93,7 +93,7 @@ type hostMetadata struct {
 	DmiBoardVendor      string `json:"dmi_board_vendor"`
 
 	// from package repositories
-	GPGSigningEnabled bool `json:"gpg_signing_enabled"`
+	LinuxPackageSigningEnabled bool `json:"linux_package_signing_enabled"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -149,7 +149,7 @@ func newInventoryHostProvider(deps dependencies) provides {
 		hostname: hname,
 		data:     &hostMetadata{},
 	}
-	ih.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ih.getPayload, "host.json", time.Duration(0))
+	ih.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ih.getPayload, "host.json")
 
 	return provides{
 		Comp:          ih,
@@ -236,10 +236,7 @@ func (ih *invHost) fillData() {
 	ih.data.CloudProviderHostID = cloudproviders.GetHostID(context.Background(), cloudProvider)
 	ih.data.OsVersion = osVersionGet()
 
-	ih.data.GPGSigningEnabled = false
-	if runtime.GOOS == "linux" {
-		ih.data.GPGSigningEnabled = true // TODO implement gpgCheck parsing debian/redhat
-	}
+	ih.data.LinuxPackageSigningEnabled = packagesigningimpl.GetLinuxPackageSigningPolicy()
 }
 
 func (ih *invHost) getPayload() marshaler.JSONMarshaler {

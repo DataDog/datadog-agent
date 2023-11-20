@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package inventorysigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
-package inventorysigning
+// Package packagesigning implements a component to generate the 'signing' metadata payload for DD inventory (REDAPL).
+package packagesigning
 
 // team: agent-platform
 
@@ -12,6 +12,4 @@ package inventorysigning
 type Component interface {
 	// GetAsJSON returns the payload as a JSON string. Useful to be displayed in the CLI or added to a flare.
 	GetAsJSON() ([]byte, error)
-	// Refresh trigger a new payload to be send while still respecting the minimal interval between two updates.
-	Refresh()
 }

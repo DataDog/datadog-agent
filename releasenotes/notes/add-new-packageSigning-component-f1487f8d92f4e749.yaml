@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Creation of a new inventorySigning component to collect Linux package signature information, to improve signature rotation process.
+    Creation of a new packageSigning component, to collect Linux package signature information, to improve signature rotation process.

@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package inventorysigningimpl implements the inventory signing component, to collect package signing keys.
-package inventorysigningimpl
+// Package packagesigningimpl implements the inventory signing component, to collect package signing keys.
+package packagesigningimpl
 
 import (
 	"context"
@@ -17,22 +17,21 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/metadata/internal/util"
-	"github.com/DataDog/datadog-agent/comp/metadata/inventorysigning"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"go.uber.org/fx"
 )
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(newInventorySigningProvider),
+	fx.Provide(newpackagesigningProvider),
 )
 
-const defaultCollectInterval = 86400 * time.Second
+const defaultCollectInterval = 12 * time.Hour
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
@@ -57,7 +56,7 @@ type signingMetadata struct {
 	SigningKeys []SigningKey `json:"signing_keys"`
 }
 
-type invSigning struct {
+type pkgSigning struct {
 	util.InventoryPayload
 
 	log      log.Component
@@ -77,20 +76,21 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp          inventorysigning.Component
+	Comp          packagesigning.Component
 	Provider      runnerimpl.Provider
 	FlareProvider flaretypes.Provider
 }
 
-func newInventorySigningProvider(deps dependencies) provides {
+func newpackagesigningProvider(deps dependencies) provides {
 	hname, _ := hostname.Get(context.Background())
-	is := &invSigning{
+	is := &pkgSigning{
 		conf:     deps.Config,
 		log:      deps.Log,
 		hostname: hname,
 		data:     &signingMetadata{},
 	}
-	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, "signing.json", time.Duration(defaultCollectInterval))
+	is.InventoryPayload.SetIntervals(defaultCollectInterval, defaultCollectInterval)
+	is.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, is.getPayload, "signing.json")
 
 	return provides{
 		Comp:          is,
@@ -99,20 +99,19 @@ func newInventorySigningProvider(deps dependencies) provides {
 	}
 }
 
-func (is *invSigning) fillData() {
+func (is *pkgSigning) fillData() {
 	if runtime.GOOS == "linux" {
-		if platform, err := kernel.Platform(); err == nil {
-			switch platform {
-			case "debian", "ubuntu":
-				is.data.SigningKeys = GetDebianSignatureKeys()
-			default: // We are in linux OS, all other distros are redhat based
-				is.data.SigningKeys = GetRedhatSignatureKeys()
-			}
+		pkgManager := getPackageManager()
+		switch pkgManager {
+		case "apt":
+			is.data.SigningKeys = getAPTSignatureKeys()
+		default: // yum and zypper are similar
+			is.data.SigningKeys = getYUMSignatureKeys(pkgManager)
 		}
 	}
 }
 
-func (is *invSigning) getPayload() marshaler.JSONMarshaler {
+func (is *pkgSigning) getPayload() marshaler.JSONMarshaler {
 	is.fillData()
 
 	return &Payload{
@@ -120,4 +119,18 @@ func (is *invSigning) getPayload() marshaler.JSONMarshaler {
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  is.data,
 	}
+}
+
+// GetLinuxPackageSigningPolicy returns the global GPG signing policy of the host
+func GetLinuxPackageSigningPolicy() bool {
+	if runtime.GOOS == "linux" {
+		pkgManager := getPackageManager()
+		switch pkgManager {
+		case "apt":
+			return getNoDebsig()
+		default: // yum and zypper are similar
+			return getMainGPGCheck(pkgManager)
+		}
+	}
+	return true
 }

@@ -5,9 +5,9 @@
 
 //go:build test
 
-package inventorysigning
+package packagesigning
 
-// Mock implements mock-specific methods for the inventorysigning component.
+// Mock implements mock-specific methods for the packagesigning component.
 type Mock interface {
 	Component
 }

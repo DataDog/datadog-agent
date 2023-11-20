@@ -102,18 +102,14 @@ type InventoryPayload struct {
 
 // CreateInventoryPayload returns an initialized InventoryPayload. 'getPayload' will be called each time a new payload
 // needs to be generated.
-func CreateInventoryPayload(conf config.Component, l log.Component, s serializer.MetricSerializer, getPayload PayloadGetter, flareFileName string, customInterval time.Duration) InventoryPayload {
+func CreateInventoryPayload(conf config.Component, l log.Component, s serializer.MetricSerializer, getPayload PayloadGetter, flareFileName string) InventoryPayload {
 	minInterval := time.Duration(conf.GetInt("inventories_min_interval")) * time.Second
-	if customInterval > 0 {
-		minInterval = customInterval
-	} else if minInterval <= 0 {
+	if minInterval <= 0 {
 		minInterval = defaultMinInterval
 	}
 
 	maxInterval := time.Duration(conf.GetInt("inventories_max_interval")) * time.Second
-	if customInterval > 0 {
-		maxInterval = customInterval
-	} else if maxInterval <= 0 {
+	if maxInterval <= 0 {
 		maxInterval = defaultMaxInterval
 	}
 
@@ -202,4 +198,10 @@ func (i *InventoryPayload) fillFlare(fb flaretypes.FlareBuilder) error {
 
 	fb.AddFileFromFunc(path, i.GetAsJSON)
 	return nil
+}
+
+// SetIntervals update the default intervals between two payloads.
+func (i *InventoryPayload) SetIntervals(minInterval, maxInterval time.Duration) {
+	defaultMinInterval = minInterval
+	defaultMaxInterval = maxInterval
 }

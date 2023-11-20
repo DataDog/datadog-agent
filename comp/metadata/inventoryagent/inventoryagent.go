@@ -91,7 +91,7 @@ func newInventoryAgentProvider(deps dependencies) provides {
 		hostname: hname,
 		data:     make(agentMetadata),
 	}
-	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json", time.Duration(0))
+	ia.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ia.getPayload, "agent.json")
 
 	if ia.Enabled {
 		ia.initData()

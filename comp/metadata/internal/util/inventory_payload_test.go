@@ -42,7 +42,6 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *Invent
 		&serializer.MockSerializer{},
 		func() marshaler.JSONMarshaler { return &testPayload{} },
 		"test.json",
-		time.Duration(0),
 	)
 	return &i
 }

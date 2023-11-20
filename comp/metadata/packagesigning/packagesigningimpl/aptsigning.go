@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package inventorysigningimpl
+package packagesigningimpl
 
 import (
 	"bufio"
@@ -13,42 +13,70 @@ import (
 	"regexp"
 )
 
-// GetDebianSignatureKeys returns the list of debian signature keys
-func GetDebianSignatureKeys() []SigningKey {
-	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
-	allKeys := getTrustedKeys()
-	// Regular files are referenced in the sources.list file by signed-by=filename
-	allKeys = append(allKeys, getKeysFromGPGFiles(getSignedByFiles(), "", "signed-by")...)
-	// In APT we can also sign packages with debsig
-	allKeys = append(allKeys, getDebsigKeys()...)
-	return allKeys
-}
+const (
+	packageConfig  = "/etc/dpkg/dpkg.cfg"
+	trustedFolder  = "/etc/apt/trusted.gpg.d/"
+	trustedFile    = "/etc/apt/trusted.gpg"
+	mainSourceList = "/etc/apt/sources.list"
+	sourceList     = "/etc/apt/sources.list.d/"
+	debsigPolicies = "/etc/debsig/policies/"
+	debsigKeyring  = "/usr/share/debsig/keyrings/"
+)
 
-func getTrustedKeys() []SigningKey {
-	var allKeys []SigningKey
-	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
-	trustedFolder := "/etc/apt/trusted.gpg.d/"
-	if _, err := os.Stat(trustedFolder); os.IsExist(err) {
-		if files, err := os.ReadDir(trustedFolder); err == nil {
-			allKeys = append(allKeys, getKeysFromGPGFiles(files, trustedFolder, "trusted")...)
+// getNoDebsig returns the signature policy for the host. no-debsig means GPG check is enabled
+func getNoDebsig() bool {
+	if _, err := os.Stat(packageConfig); os.IsExist(err) {
+		if file, err := os.Open(packageConfig); err == nil {
+			defer file.Close()
+			scanner := bufio.NewScanner(file)
+			for scanner.Scan() {
+				if scanner.Text() == "no-debsig" {
+					return true
+				}
+			}
 		}
 	}
-	var trustedFiles []os.DirEntry
-	trustedFiles = append(trustedFiles, fileEntry{name: "/etc/apt/trusted.gpg"})
-	if _, err := os.Stat(trustedFiles[0].Name()); os.IsExist(err) {
-		allKeys = append(allKeys, getKeysFromGPGFiles(trustedFiles, "", "trusted")...)
+	return false
+}
+
+// getAPTSignatureKeys returns the list of debian signature keys
+func getAPTSignatureKeys() []SigningKey {
+	allKeys := make(map[SigningKey]struct{})
+	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
+	getTrustedKeys(allKeys)
+	// Regular files are referenced in the sources.list file by signed-by=filename
+	for _, file := range getSignedByFiles() {
+		decryptGPGFile(allKeys, file.Name(), "signed-by")
 	}
-	return allKeys
+	// In APT we can also sign packages with debsig
+	getDebsigKeys(allKeys)
+	var keyList []SigningKey
+	for keys := range allKeys {
+		keyList = append(keyList, keys)
+	}
+	return keyList
+}
+
+func getTrustedKeys(allkeys map[SigningKey]struct{}) {
+	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
+	if _, err := os.Stat(trustedFolder); os.IsExist(err) {
+		if files, err := os.ReadDir(trustedFolder); err == nil {
+			for _, file := range files {
+				decryptGPGFile(allkeys, filepath.Join(trustedFolder, file.Name()), "trusted")
+			}
+		}
+	}
+	if _, err := os.Stat(trustedFile); os.IsExist(err) {
+		decryptGPGFile(allkeys, trustedFile, "trusted")
+	}
 }
 
 func getSignedByFiles() []os.DirEntry {
 	var signedByFiles []os.DirEntry
 	signedByMatch := regexp.MustCompile(`signed-by=([A-Za-z0-9_\-\.\/]+)`)
-	mainSourceList := "/etc/apt/sources.list"
 	if _, err := os.Stat(mainSourceList); os.IsExist(err) {
 		signedByFiles = append(signedByFiles, extractPattern(mainSourceList, signedByMatch)...)
 	}
-	sourceList := "/etc/apt/sources.list.d/"
 	if _, err := os.Stat(sourceList); os.IsExist(err) {
 		if files, err := os.ReadDir(sourceList); err == nil {
 			for _, file := range files {
@@ -59,22 +87,19 @@ func getSignedByFiles() []os.DirEntry {
 	return signedByFiles
 }
 
-func getDebsigKeys() []SigningKey {
-	var allKeys []SigningKey
-	debsigPolicies := "/etc/debsig/policies/"
-	debsigKeyring := "/usr/share/debsig/keyrings/"
+func getDebsigKeys(allKeys map[SigningKey]struct{}) {
 	// Search in the policy files
 	if _, err := os.Stat(debsigPolicies); os.IsExist(err) {
-		if files, err := os.ReadDir(debsigPolicies); err == nil {
-			for _, file := range files {
-				if file.IsDir() {
-					if policyFiles, err := os.ReadDir(debsigPolicies + file.Name()); err != nil {
+		if debsigDirs, err := os.ReadDir(debsigPolicies); err == nil {
+			for _, debsigDir := range debsigDirs {
+				if debsigDir.IsDir() {
+					if policyFiles, err := os.ReadDir(filepath.Join(debsigPolicies, debsigDir.Name())); err == nil {
 						for _, policyFile := range policyFiles {
 							// Get the gpg file name from policy files
-							if debsigFile, _ := getDebsigFileFromPolicy(filepath.Join(debsigPolicies, file.Name(), policyFile.Name())); debsigFile != "" {
-								debsigFilePath := filepath.Join(debsigKeyring, file.Name(), debsigFile)
+							if debsigFile := getDebsigFileFromPolicy(filepath.Join(debsigPolicies, debsigDir.Name(), policyFile.Name())); debsigFile != "" {
+								debsigFilePath := filepath.Join(debsigKeyring, debsigDir.Name(), debsigFile)
 								if _, err := os.Stat(debsigFilePath); os.IsExist(err) {
-									allKeys = append(allKeys, getKeysFromGPGFiles([]os.DirEntry{fileEntry{name: debsigFilePath}}, "", "debsig")...)
+									decryptGPGFile(allKeys, debsigFilePath, "debsig")
 								}
 							}
 						}
@@ -83,7 +108,24 @@ func getDebsigKeys() []SigningKey {
 			}
 		}
 	}
-	return allKeys
+}
+
+// fileEntry implements the os.DirEntry interface to generate a list of files from string
+type fileEntry struct {
+	name string
+}
+
+func (fe fileEntry) Name() string {
+	return fe.name
+}
+func (fe fileEntry) IsDir() bool {
+	return false
+}
+func (fe fileEntry) Type() os.FileMode {
+	return 0
+}
+func (fe fileEntry) Info() (os.FileInfo, error) {
+	return nil, nil
 }
 
 func extractPattern(filePath string, pattern *regexp.Regexp) []os.DirEntry {
@@ -105,6 +147,7 @@ func extractPattern(filePath string, pattern *regexp.Regexp) []os.DirEntry {
 	return patterns
 }
 
+// policy structure to unmarshall the policy files
 type policy struct {
 	XMLName      xml.Name `xml:"Policy"`
 	Origin       origin   `xml:"Origin"`
@@ -133,12 +176,12 @@ type verification struct {
 	Required    required `xml:"Required"`
 }
 
-func getDebsigFileFromPolicy(policyFile string) (string, error) {
+func getDebsigFileFromPolicy(policyFile string) string {
 	if xmlData, err := os.ReadFile(policyFile); err == nil {
 		var policy policy
 		if err = xml.Unmarshal(xmlData, &policy); err == nil {
-			return policy.Verification.Required.File, nil
+			return policy.Verification.Required.File
 		}
 	}
-	return "", nil
+	return ""
 }
