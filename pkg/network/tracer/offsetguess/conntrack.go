@@ -390,9 +390,6 @@ func (e *conntrackEventGenerator) populateUDPExpectedValues(expected *fieldValue
 
 	expected.saddr = saddr
 	expected.daddr = daddr
-	// IPS_CONFIRMED | IPS_SRC_NAT_DONE | IPS_DST_NAT_DONE
-	// see https://elixir.bootlin.com/linux/v5.19.17/source/include/uapi/linux/netfilter/nf_conntrack_common.h#L42
-	expected.ctStatus = 0x188
 	expected.netns, err = kernel.GetCurrentIno()
 	if err != nil {
 		return err
