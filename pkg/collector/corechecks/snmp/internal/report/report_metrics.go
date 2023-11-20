@@ -23,12 +23,12 @@ import (
 
 // MetricSender is a wrapper around sender.Sender
 type MetricSender struct {
-	sender           sender.Sender
-	hostname         string
-	deviceID         string
-	submittedMetrics int
-	interfaceConfigs []snmpintegration.InterfaceConfig
-	interfaceRateMap *InterfaceRateMap
+	sender                  sender.Sender
+	hostname                string
+	deviceID                string
+	submittedMetrics        int
+	interfaceConfigs        []snmpintegration.InterfaceConfig
+	interfaceBandwidthState *InterfaceBandwidthState
 }
 
 // MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
@@ -40,32 +40,32 @@ type MetricSample struct {
 	options    profiledefinition.MetricsConfigOption
 }
 
-// InterfaceRate tracks the interface's current ifSpeed and last seen sample to generate rate with
-type InterfaceRate struct {
+// BandwidthUsage tracks the interface's current ifSpeed and last seen sample to generate rate with
+type BandwidthUsage struct {
 	ifSpeed        uint64
 	previousSample float64
-	previousTs     float64
+	previousTsNano int64
 }
 
-// InterfaceRateMap holds state between runs to be able to calculate rate and know if the ifSpeed has changed
-type InterfaceRateMap struct {
-	rates map[string]InterfaceRate
+// InterfaceBandwidthState holds state between runs to be able to calculate rate and know if the ifSpeed has changed
+type InterfaceBandwidthState struct {
+	state map[string]BandwidthUsage
 	mu    sync.RWMutex
 }
 
-// NewInterfaceRateMap creates a new InterfaceRateMap
-func NewInterfaceRateMap() *InterfaceRateMap {
-	return &InterfaceRateMap{rates: make(map[string]InterfaceRate)}
+// NewInterfaceBandwidthState creates a new InterfaceBandwidthState
+func NewInterfaceBandwidthState() *InterfaceBandwidthState {
+	return &InterfaceBandwidthState{state: make(map[string]BandwidthUsage)}
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender sender.Sender, hostname string, deviceID string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceRateMap *InterfaceRateMap) *MetricSender {
+func NewMetricSender(sender sender.Sender, hostname string, deviceID string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceBandwidthState *InterfaceBandwidthState) *MetricSender {
 	return &MetricSender{
-		sender:           sender,
-		hostname:         hostname,
-		deviceID:         deviceID,
-		interfaceConfigs: interfaceConfigs,
-		interfaceRateMap: interfaceRateMap,
+		sender:                  sender,
+		hostname:                hostname,
+		deviceID:                deviceID,
+		interfaceConfigs:        interfaceConfigs,
+		interfaceBandwidthState: interfaceBandwidthState,
 	}
 }
 

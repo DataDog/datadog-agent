@@ -8,9 +8,8 @@ package report
 
 import (
 	"fmt"
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
@@ -20,6 +19,9 @@ import (
 
 // TODO: Rename file to report_interface_volume_metrics.go in a separate PR.
 //       Making the change in the current PR will make review harder (it makes the whole file considered as deleted).
+
+// TimeNow is the unix time to use for rate (delta) calculations
+var TimeNow = time.Now
 
 var bandwidthMetricNameToUsage = map[string]string{
 	"ifHCInOctets":  "ifBandwidthInUsage",
@@ -100,10 +102,18 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	usageValue := ((octetsFloatValue * 8) / (float64(ifSpeed))) * 100.0
 
 	interfaceID := ms.deviceID + ":" + fullIndex + "." + usageName
-	err = ms.calculateRate(interfaceID, ifSpeed, usageValue, usageName, tags)
+	rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(interfaceID, ifSpeed, usageValue)
 	if err != nil {
 		return err
 	}
+	sample := MetricSample{
+		value:      valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeGauge, Value: rate},
+		tags:       tags,
+		symbol:     profiledefinition.SymbolConfig{Name: usageName + ".rate"},
+		forcedType: profiledefinition.ProfileMetricTypeGauge,
+		options:    profiledefinition.MetricsConfigOption{},
+	}
+	ms.sendMetric(sample)
 	return nil
 }
 
@@ -111,62 +121,47 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 calculateRate is responsible for checking the state for previously seen metric sample to generate the rate from.
 If the ifSpeed has changed for the interface, the rate will not be submitted (drop the previous sample)
 */
-func (ms *MetricSender) calculateRate(interfaceID string, ifSpeed uint64, usageValue float64, usageName string, tags []string) error {
-	ms.interfaceRateMap.mu.RLock()
-	interfaceRate, ok := ms.interfaceRateMap.rates[interfaceID]
-	ms.interfaceRateMap.mu.RUnlock()
-
+func (ibs *InterfaceBandwidthState) calculateBandwidthUsageRate(interfaceID string, ifSpeed uint64, usageValue float64) (float64, error) {
 	// current data point has the same interface speed as last data point
-	if ok && interfaceRate.ifSpeed == ifSpeed {
+	ibs.mu.RLock()
+	state, ok := ibs.state[interfaceID]
+	ibs.mu.RUnlock()
+	if ok && state.ifSpeed == ifSpeed {
+		// Get time in seconds with nanosecond precision, as core agent uses for rate calculation in aggregator
+		// https://github.com/DataDog/datadog-agent/blob/ecedf4648f41193988b4727fc6f893a0dfc3991e/pkg/aggregator/aggregator.go#L96
+		currentTsNano := TimeNow().UnixNano()
+		currentTs := float64(currentTsNano) / float64(time.Second)
+		prevTs := float64(state.previousTsNano) / float64(time.Second)
+
 		// calculate the delta, taken from pkg/metrics/rate.go
 		// https://github.com/DataDog/datadog-agent/blob/ecedf4648f41193988b4727fc6f893a0dfc3991e/pkg/metrics/rate.go#L37
-		currentTimestamp := TimeNow()
-		delta := (usageValue - interfaceRate.previousSample) / (currentTimestamp - interfaceRate.previousTs)
+		delta := (usageValue - state.previousSample) / (currentTs - prevTs)
+
 		// update the map previous as the current for next rate
-		interfaceRate.previousSample = usageValue
-		interfaceRate.previousTs = currentTimestamp
-		ms.interfaceRateMap.mu.Lock()
-		ms.interfaceRateMap.rates[interfaceID] = interfaceRate
-		ms.interfaceRateMap.mu.Unlock()
+		state.previousSample = usageValue
+		state.previousTsNano = currentTsNano
+		ibs.mu.Lock()
+		ibs.state[interfaceID] = state
+		ibs.mu.Unlock()
 
 		if delta < 0 {
-			return fmt.Errorf("Rate value for device/interface %s is negative, discarding it", interfaceID)
+			return 0, fmt.Errorf("Rate value for device/interface %s is negative, discarding it", interfaceID)
 		}
-
-		// create the gauge metric sample
-		sample := MetricSample{
-			value:      valuestore.ResultValue{SubmissionType: profiledefinition.ProfileMetricTypeGauge, Value: delta},
-			tags:       tags,
-			symbol:     profiledefinition.SymbolConfig{Name: usageName + ".rate"},
-			forcedType: profiledefinition.ProfileMetricTypeGauge,
-			options:    profiledefinition.MetricsConfigOption{},
-		}
-		// send the metric
-		ms.sendMetric(sample)
-	} else {
-		// otherwise, no previous data point / different ifSpeed - make new entry for interface
-		ms.interfaceRateMap.mu.Lock()
-		ms.interfaceRateMap.rates[interfaceID] = InterfaceRate{
-			ifSpeed:        ifSpeed,
-			previousSample: usageValue,
-			previousTs:     TimeNow(),
-		}
-		ms.interfaceRateMap.mu.Unlock()
-		// do not send a sample to metrics, send error for ifSpeed change (previous entry conflicted)
-		if ok {
-			log.Infof("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", interfaceRate.ifSpeed, ifSpeed, interfaceID)
-		}
+		return delta, nil
 	}
-	return nil
-}
-
-// TimeNow is the unix time to use for rate (delta) calculations
-var TimeNow = timeNowNano
-
-// Helper function to determine the timestamp for the rate metric sample, lifted from pkg/aggregator
-// https://github.com/DataDog/datadog-agent/blob/ecedf4648f41193988b4727fc6f893a0dfc3991e/pkg/aggregator/aggregator.go#L96
-func timeNowNano() float64 {
-	return float64(time.Now().UnixNano()) / float64(time.Second) // Unix time with nanosecond precision
+	// otherwise, no previous data point / different ifSpeed - make new entry for interface
+	ibs.mu.Lock()
+	ibs.state[interfaceID] = BandwidthUsage{
+		ifSpeed:        ifSpeed,
+		previousSample: usageValue,
+		previousTsNano: TimeNow().UnixNano(),
+	}
+	ibs.mu.Unlock()
+	// do not send a sample to metrics, send error for ifSpeed change (previous entry conflicted)
+	if ok {
+		log.Infof("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", state.ifSpeed, ifSpeed, interfaceID)
+	}
+	return 0, nil
 }
 
 func (ms *MetricSender) sendIfSpeedMetrics(symbol profiledefinition.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) {

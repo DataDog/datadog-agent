@@ -338,9 +338,7 @@ tags:
 }
 
 func Test_Run_customIfSpeed(t *testing.T) {
-	report.TimeNow = func() float64 {
-		return 30
-	}
+	report.TimeNow = common.MockTimeNow
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
@@ -349,8 +347,8 @@ func Test_Run_customIfSpeed(t *testing.T) {
 	}
 
 	chk := Check{
-		sessionFactory:   sessionFactory,
-		interfaceRateMap: report.MockInterfaceRateMap("default:1.2.3.4:1", 50_000_000, 40_000_000, 20, 10, 15),
+		sessionFactory:          sessionFactory,
+		interfaceBandwidthState: report.MockInterfaceRateMap("default:1.2.3.4:1", 50_000_000, 40_000_000, 20, 10, int64(946684785000000000)),
 	}
 
 	senderManager := deps.Demultiplexer

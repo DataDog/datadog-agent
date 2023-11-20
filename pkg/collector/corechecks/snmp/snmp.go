@@ -38,7 +38,7 @@ type Check struct {
 	discovery                  *discovery.Discovery
 	sessionFactory             session.Factory
 	workerRunDeviceCheckErrors *atomic.Uint64
-	interfaceRateMap           *report.InterfaceRateMap
+	interfaceBandwidthState    *report.InterfaceBandwidthState
 }
 
 // Run executes the check
@@ -70,7 +70,7 @@ func (c *Check) Run() error {
 				continue
 			}
 			// `interface_configs` option not supported by SNMP corecheck autodiscovery
-			deviceCk.SetSender(report.NewMetricSender(sender, hostname, deviceID, nil, c.interfaceRateMap))
+			deviceCk.SetSender(report.NewMetricSender(sender, hostname, deviceID, nil, c.interfaceBandwidthState))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -85,7 +85,7 @@ func (c *Check) Run() error {
 		if err != nil {
 			return err
 		}
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, deviceID, c.config.InterfaceConfigs, c.interfaceRateMap))
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, deviceID, c.config.InterfaceConfigs, c.interfaceBandwidthState))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 
@@ -196,7 +196,7 @@ func snmpFactory() check.Check {
 		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
 		sessionFactory:             session.NewGosnmpSession,
 		workerRunDeviceCheckErrors: atomic.NewUint64(0),
-		interfaceRateMap:           report.NewInterfaceRateMap(),
+		interfaceBandwidthState:    report.NewInterfaceBandwidthState(),
 	}
 }
 

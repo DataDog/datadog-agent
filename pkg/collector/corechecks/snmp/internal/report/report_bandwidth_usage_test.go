@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
 	"testing"
@@ -32,20 +33,16 @@ const (
 )
 
 // Mock interface rate map with previous metric samples for the interface with ifSpeed of 30
-func interfaceRateMapWithPrevious() *InterfaceRateMap {
-	return MockInterfaceRateMap(mockInterfaceIDPrefix, ifSpeed, ifSpeed, 30, 5, 15)
+func interfaceRateMapWithPrevious() *InterfaceBandwidthState {
+	return MockInterfaceRateMap(mockInterfaceIDPrefix, ifSpeed, ifSpeed, 30, 5, mockTimeNowNano15SecLater)
 }
 
 // Mock interface rate map with previous metric samples where the ifSpeed is taken from configuration files
-func interfaceRateMapWithConfig() *InterfaceRateMap {
-	return MockInterfaceRateMap(mockInterfaceIDPrefix, 160_000_000, 40_000_000, 20, 10, 15)
+func interfaceRateMapWithConfig() *InterfaceBandwidthState {
+	return MockInterfaceRateMap(mockInterfaceIDPrefix, 160_000_000, 40_000_000, 20, 10, mockTimeNowNano15SecLater)
 }
 
 func Test_metricSender_calculateRate(t *testing.T) {
-	type Metric struct {
-		name  string
-		value float64
-	}
 	tests := []struct {
 		name             string
 		symbols          []profiledefinition.SymbolConfig
@@ -53,7 +50,7 @@ func Test_metricSender_calculateRate(t *testing.T) {
 		values           *valuestore.ResultValueStore
 		tags             []string
 		interfaceConfigs []snmpintegration.InterfaceConfig
-		expectedMetric   []Metric
+		expectedRate     float64
 		usageValue       float64
 	}{
 		{
@@ -83,16 +80,14 @@ func Test_metricSender_calculateRate(t *testing.T) {
 					},
 				},
 			},
-			expectedMetric: []Metric{
-				// current usage value @ ts 30
-				// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
-				// previous usage value @ ts 15
-				// ((3000000 * 8) / (80 * 1000000)) * 100 = 30.0
-				// rate generated between ts 15 and 30
-				// (50 - 30) / (30 - 15)
-				{"snmp.ifBandwidthInUsage.rate", 20.0 / 15.0},
-			},
-			usageValue: 50,
+			// current usage value @ ts 30 for ifBandwidthInUsage
+			// ((5000000 * 8) / (80 * 1000000)) * 100 = 50.0
+			// previous usage value @ ts 15
+			// ((3000000 * 8) / (80 * 1000000)) * 100 = 30.0
+			// rate generated between ts 15 and 30
+			// (50 - 30) / (30 - 15)
+			expectedRate: 20.0 / 15.0,
+			usageValue:   50,
 		},
 		{
 			name:      "snmp.ifBandwidthOutUsage.Rate ifHCOutOctets submitted",
@@ -120,16 +115,14 @@ func Test_metricSender_calculateRate(t *testing.T) {
 					},
 				},
 			},
-			expectedMetric: []Metric{
-				// current usage value @ ts 30
-				// ((1000000 * 8) / (80 * 1000000)) * 100 = 10.0
-				// previous usage value @ ts 15
-				// ((500000 * 8) / (80 * 1000000)) * 100 = 5.0
-				// rate generated between ts 15 and 30
-				// (10 - 5) / (30 - 15)
-				{"snmp.ifBandwidthOutUsage.rate", 5.0 / 15.0},
-			},
-			usageValue: 10,
+			// current usage value @ ts 30 for ifBandwidthOutUsage
+			// ((1000000 * 8) / (80 * 1000000)) * 100 = 10.0
+			// previous usage value @ ts 15
+			// ((500000 * 8) / (80 * 1000000)) * 100 = 5.0
+			// rate generated between ts 15 and 30
+			// (10 - 5) / (30 - 15)
+			expectedRate: 5.0 / 15.0,
+			usageValue:   10,
 		},
 	}
 	for _, tt := range tests {
@@ -137,32 +130,27 @@ func Test_metricSender_calculateRate(t *testing.T) {
 			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			TimeNow = func() float64 {
-				return 30
-			}
+			TimeNow = common.MockTimeNow
 			ms := &MetricSender{
-				sender:           sender,
-				deviceID:         mockDeviceID,
-				interfaceConfigs: tt.interfaceConfigs,
-				interfaceRateMap: interfaceRateMapWithPrevious(),
+				sender:                  sender,
+				deviceID:                mockDeviceID,
+				interfaceConfigs:        tt.interfaceConfigs,
+				interfaceBandwidthState: interfaceRateMapWithPrevious(),
 			}
 
 			usageName := bandwidthMetricNameToUsage[tt.symbols[0].Name]
 			interfaceID := mockInterfaceIDPrefix + "." + usageName
-			err := ms.calculateRate(interfaceID, ifSpeed, tt.usageValue, usageName, tt.tags)
+			rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(interfaceID, ifSpeed, tt.usageValue)
 
 			// Expect no errors
 			assert.Nil(t, err)
 
-			// Expect rate to be submitted as Gauge with expected value
-			for _, metric := range tt.expectedMetric {
-				sender.AssertMetric(t, "Gauge", metric.name, metric.value, "", tt.tags)
-			}
+			assert.Equal(t, tt.expectedRate, rate)
 
 			// Check that the map was updated with current values for next check run
-			assert.Equal(t, ifSpeed, ms.interfaceRateMap.rates[interfaceID].ifSpeed)
-			assert.Equal(t, tt.usageValue, ms.interfaceRateMap.rates[interfaceID].previousSample)
-			assert.Equal(t, 30.0, ms.interfaceRateMap.rates[interfaceID].previousTs)
+			assert.Equal(t, ifSpeed, ms.interfaceBandwidthState.state[interfaceID].ifSpeed)
+			assert.Equal(t, tt.usageValue, ms.interfaceBandwidthState.state[interfaceID].previousSample)
+			assert.Equal(t, mockTimeNowNano, ms.interfaceBandwidthState.state[interfaceID].previousTsNano)
 		})
 	}
 }
@@ -289,14 +277,12 @@ func Test_metricSender_calculateRate_logs(t *testing.T) {
 			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			TimeNow = func() float64 {
-				return 30
-			}
+			TimeNow = common.MockTimeNow
 			ms := &MetricSender{
-				sender:           sender,
-				deviceID:         mockDeviceID,
-				interfaceConfigs: tt.interfaceConfigs,
-				interfaceRateMap: interfaceRateMapWithPrevious(),
+				sender:                  sender,
+				deviceID:                mockDeviceID,
+				interfaceConfigs:        tt.interfaceConfigs,
+				interfaceBandwidthState: interfaceRateMapWithPrevious(),
 			}
 			// conflicting ifSpeed from mocked saved state (80) in interfaceRateMap
 			//newIfSpeed := uint64(100) * (1e6)
@@ -304,7 +290,8 @@ func Test_metricSender_calculateRate_logs(t *testing.T) {
 			for _, symbol := range tt.symbols {
 				usageName := bandwidthMetricNameToUsage[symbol.Name]
 				interfaceID := mockDeviceID + ":" + fullIndex + "." + usageName
-				err := ms.calculateRate(interfaceID, tt.newIfSpeed, tt.usageValue, usageName, tt.tags)
+				rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(interfaceID, tt.newIfSpeed, tt.usageValue)
+
 				if tt.expectedError == nil {
 					assert.Nil(t, err)
 				} else {
@@ -315,11 +302,12 @@ func Test_metricSender_calculateRate_logs(t *testing.T) {
 				logs := b.String()
 
 				assert.Contains(t, logs, tt.expectedLogMessage)
+				assert.Equal(t, float64(0), rate)
 
 				// Check that the map was updated with current values for next check run
-				assert.Equal(t, tt.newIfSpeed, ms.interfaceRateMap.rates[interfaceID].ifSpeed)
-				assert.Equal(t, tt.usageValue, ms.interfaceRateMap.rates[interfaceID].previousSample)
-				assert.Equal(t, 30.0, ms.interfaceRateMap.rates[interfaceID].previousTs)
+				assert.Equal(t, tt.newIfSpeed, ms.interfaceBandwidthState.state[interfaceID].ifSpeed)
+				assert.Equal(t, tt.usageValue, ms.interfaceBandwidthState.state[interfaceID].previousSample)
+				assert.Equal(t, mockTimeNowNano, ms.interfaceBandwidthState.state[interfaceID].previousTsNano)
 			}
 		})
 	}
@@ -339,7 +327,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		interfaceConfigs []snmpintegration.InterfaceConfig
 		expectedMetric   []Metric
 		expectedError    error
-		rateMap          *InterfaceRateMap
+		rateMap          *InterfaceBandwidthState
 	}{
 		{
 			name:      "snmp.ifBandwidthInUsage.Rate submitted",
@@ -726,15 +714,13 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			TimeNow = func() float64 {
-				return 30
-			}
+			TimeNow = common.MockTimeNow
 
 			ms := &MetricSender{
-				sender:           sender,
-				interfaceConfigs: tt.interfaceConfigs,
-				interfaceRateMap: tt.rateMap,
-				deviceID:         mockDeviceID,
+				sender:                  sender,
+				interfaceConfigs:        tt.interfaceConfigs,
+				interfaceBandwidthState: tt.rateMap,
+				deviceID:                mockDeviceID,
 			}
 			for _, symbol := range tt.symbols {
 				err := ms.sendBandwidthUsageMetric(symbol, tt.fullIndex, tt.values, tt.tags)
@@ -901,9 +887,9 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			ms := &MetricSender{
-				sender:           sender,
-				interfaceConfigs: tt.interfaceConfigs,
-				interfaceRateMap: NewInterfaceRateMap(),
+				sender:                  sender,
+				interfaceConfigs:        tt.interfaceConfigs,
+				interfaceBandwidthState: NewInterfaceBandwidthState(),
 			}
 			ms.sendIfSpeedMetrics(tt.symbol, tt.fullIndex, tt.values, tt.tags)
 
@@ -995,13 +981,11 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 			sender.On("Rate", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
-			TimeNow = func() float64 {
-				return 30
-			}
+			TimeNow = common.MockTimeNow
 			ms := &MetricSender{
-				sender:           sender,
-				interfaceRateMap: interfaceRateMapWithPrevious(),
-				deviceID:         mockDeviceID,
+				sender:                  sender,
+				interfaceBandwidthState: interfaceRateMapWithPrevious(),
+				deviceID:                mockDeviceID,
 			}
 			tags := []string{"foo:bar"}
 			ms.sendInterfaceVolumeMetrics(tt.symbol, tt.fullIndex, tt.values, tags)
