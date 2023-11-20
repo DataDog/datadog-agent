@@ -4,7 +4,6 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package main implements the SSH connector between gitlab runners, metal instances, and micro VMs
-
 package main
 
 import (
