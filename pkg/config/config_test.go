@@ -8,6 +8,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -990,4 +991,87 @@ func TestLogDefaults(t *testing.T) {
 	require.True(t, SystemProbe.GetBool("log_to_console"))
 	require.False(t, SystemProbe.GetBool("log_format_json"))
 
+}
+
+func TestProxyNotLoaded(t *testing.T) {
+	conf := SetupConf()
+	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+
+	proxyHTTP := "http://localhost:1234"
+	proxyHTTPS := "https://localhost:1234"
+	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
+	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
+
+	proxyHTTPConfig := conf.GetString("proxy.http")
+	proxyHTTPSConfig := conf.GetString("proxy.https")
+	assert.Equal(t, 0, len(proxyHTTPConfig))
+	assert.Equal(t, 0, len(proxyHTTPSConfig))
+}
+
+func TestProxyLoadedFromEnvVars(t *testing.T) {
+	conf := SetupConf()
+	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+
+	proxyHTTP := "http://localhost:1234"
+	proxyHTTPS := "https://localhost:1234"
+	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
+	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
+
+	Datadog = conf
+	Load()
+
+	proxyHTTPConfig := conf.GetString("proxy.http")
+	proxyHTTPSConfig := conf.GetString("proxy.https")
+
+	assert.Equal(t, proxyHTTP, proxyHTTPConfig)
+	assert.Equal(t, proxyHTTPS, proxyHTTPSConfig)
+
+	Datadog = SetupConf()
+}
+
+func TestProxyLoadedFromConfigFile(t *testing.T) {
+	conf := SetupConf()
+	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+
+	tempDir := t.TempDir()
+	configTest := path.Join(tempDir, "datadog.yaml")
+	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:1234\"\n  https: \"https://localhost:1234\""), 0644)
+
+	conf.AddConfigPath(tempDir)
+	Datadog = conf
+	Load()
+
+	proxyHTTPConfig := conf.GetString("proxy.http")
+	proxyHTTPSConfig := conf.GetString("proxy.https")
+
+	assert.Equal(t, "http://localhost:1234", proxyHTTPConfig)
+	assert.Equal(t, "https://localhost:1234", proxyHTTPSConfig)
+
+	Datadog = SetupConf()
+}
+
+func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
+	conf := SetupConf()
+	os.Setenv("AWS_LAMBDA_FUNCTION_NAME", "TestFunction")
+
+	proxyHTTPEnvVar := "http://localhost:1234"
+	proxyHTTPSEnvVar := "https://localhost:1234"
+	t.Setenv("DD_PROXY_HTTP", proxyHTTPEnvVar)
+	t.Setenv("DD_PROXY_HTTPS", proxyHTTPSEnvVar)
+
+	tempDir := t.TempDir()
+	configTest := path.Join(tempDir, "datadog.yaml")
+	os.WriteFile(configTest, []byte("proxy:\n  http: \"http://localhost:5678\"\n  https: \"http://localhost:5678\""), 0644)
+
+	conf.AddConfigPath(tempDir)
+	Datadog = conf
+	Load()
+
+	proxyHTTPConfig := conf.GetString("proxy.http")
+	proxyHTTPSConfig := conf.GetString("proxy.https")
+
+	assert.Equal(t, proxyHTTPEnvVar, proxyHTTPConfig)
+	assert.Equal(t, proxyHTTPSEnvVar, proxyHTTPSConfig)
+
+	Datadog = SetupConf()
 }
