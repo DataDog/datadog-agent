@@ -27,6 +27,7 @@ import (
 
 	// core components
 	"github.com/DataDog/datadog-agent/comp/core"
+	internalAPI "github.com/DataDog/datadog-agent/comp/core/api"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -82,9 +83,10 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			hostMetadata host.Component,
 			invAgent inventoryagent.Component,
 			_ netflowServer.Component,
+			agentAPI internalAPI.Component,
 		) error {
 
-			defer StopAgentWithDefaults(server, demultiplexer)
+			defer StopAgentWithDefaults(server, demultiplexer, agentAPI)
 
 			err := startAgent(
 				&cliParams{GlobalParams: &command.GlobalParams{}},
@@ -102,7 +104,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				otelcollector,
 				demultiplexer,
 				hostMetadata,
-				invAgent)
+				invAgent,
+				agentAPI)
 			if err != nil {
 				return err
 			}

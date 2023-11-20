@@ -13,6 +13,16 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/api"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	pkgUtil "github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -31,7 +41,18 @@ func newMock() api.Mock {
 	return &mockApiServer{}
 }
 
-func (mock *mockApiServer) StartServer() {
+func (mock *mockApiServer) StartServer(
+	configService *remoteconfig.Service,
+	flare flare.Component,
+	dogstatsdServer dogstatsdServer.Component,
+	capture replay.Component,
+	serverDebug dogstatsddebug.Component,
+	logsAgent pkgUtil.Optional[logsAgent.Component],
+	senderManager sender.DiagnoseSenderManager,
+	hostMetadata host.Component,
+	invAgent inventoryagent.Component,
+) error {
+	return nil
 }
 
 func (mock *mockApiServer) StopServer() {
