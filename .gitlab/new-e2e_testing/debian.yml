@@ -5,7 +5,7 @@
 
 .new-e2e_debian_a7_x64:
   variables:
-    E2E_OSVERS: "debian-10,debian-11,debian-12"
+    E2E_OSVERS: "debian-9,debian-10,debian-11,debian-12"
     E2E_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
     E2E_BRANCH_OSVERS: "debian-11"
   needs: ["deploy_deb_testing-a7_x64"]

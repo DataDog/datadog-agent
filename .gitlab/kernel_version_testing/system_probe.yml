@@ -357,7 +357,7 @@ kernel_matrix_testing_setup_env:
     - GO_VERSION=$(inv go-version)
     - !reference [.setup_ssh_config]
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
-    - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${GO_VERSION} ${RETRY} ${ARCH}'"
+    - NESTED_VM_CMD="/home/ubuntu/connector -host ${MICRO_VM_IP} -user root -ssh-file /home/kernel-version-testing/ddvm_rsa -vm-cmd 'bash /root/fetch_dependencies.sh ${ARCH} && /micro-vm-init.sh ${RETRY} ${ARCH}'"
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}"
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit.tar.gz"
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson.tar.gz"

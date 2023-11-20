@@ -97,33 +97,33 @@ type FieldType string
 var (
 	// String type is used to configure a textual additional field
 	String FieldType = "string"
-	// Varint type is used to configure an integer additional field
-	Varint FieldType = "varint"
-	// Bytes type is used to configure a hex additional field
-	Bytes FieldType = "bytes"
+	// Integer type is used to configure an integer additional field
+	Integer FieldType = "integer"
+	// Hex type is used to configure a hex additional field
+	Hex FieldType = "hex"
 	// DefaultFieldTypes contains types for default payload fields
 	DefaultFieldTypes = map[string]FieldType{
-		"direction":         Varint,
-		"start":             Varint,
-		"end":               Varint,
-		"bytes":             Varint,
-		"packets":           Varint,
-		"ether_type":        Varint,
-		"ip_protocol":       Varint,
-		"exporter.ip":       Bytes,
-		"source.ip":         Bytes,
-		"source.port":       Varint,
-		"source.mac":        Varint,
-		"source.mask":       Varint,
-		"destination.ip":    Bytes,
-		"destination.port":  Varint,
-		"destination.mac":   Varint,
-		"destination.mask":  Varint,
-		"ingress.interface": Varint,
-		"egress.interface":  Varint,
-		"tcp_flags":         Varint,
-		"next_hop.ip":       Bytes,
-		"tos":               Varint,
+		"direction":         Integer,
+		"start":             Integer,
+		"end":               Integer,
+		"bytes":             Integer,
+		"packets":           Integer,
+		"ether_type":        Integer,
+		"ip_protocol":       Integer,
+		"exporter.ip":       Hex,
+		"source.ip":         Hex,
+		"source.port":       Integer,
+		"source.mac":        Integer,
+		"source.mask":       Integer,
+		"destination.ip":    Hex,
+		"destination.port":  Integer,
+		"destination.mac":   Integer,
+		"destination.mask":  Integer,
+		"ingress.interface": Integer,
+		"egress.interface":  Integer,
+		"tcp_flags":         Integer,
+		"next_hop.ip":       Hex,
+		"tos":               Integer,
 	}
 )
 

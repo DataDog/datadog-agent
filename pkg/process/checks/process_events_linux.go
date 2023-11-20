@@ -44,7 +44,7 @@ type ProcessEventsCheck struct {
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, info *HostInfo) error {
+func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, info *HostInfo, _ bool) error {
 	e.initMutex.Lock()
 	defer e.initMutex.Unlock()
 

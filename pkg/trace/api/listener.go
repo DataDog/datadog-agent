@@ -27,6 +27,7 @@ type measuredListener struct {
 	errored  *atomic.Uint32 // errored connection count
 	exit     chan struct{}  // exit signal channel (on Close call)
 	sem      chan struct{}  // Used to limit active connections
+	stop     sync.Once
 }
 
 // NewMeasuredListener wraps ln and emits metrics every 10 seconds. The metric name is
@@ -53,7 +54,6 @@ func NewMeasuredListener(ln net.Listener, name string, maxConn int) net.Listener
 func (ln *measuredListener) run() {
 	tick := time.NewTicker(10 * time.Second)
 	defer tick.Stop()
-	defer close(ln.exit)
 	for {
 		select {
 		case <-tick.C:
@@ -117,16 +117,17 @@ func (ln *measuredListener) Accept() (net.Conn, error) {
 }
 
 // Close implements net.Listener.
-func (ln measuredListener) Close() error {
+func (ln *measuredListener) Close() error {
 	err := ln.Listener.Close()
 	ln.flushMetrics()
-	ln.exit <- struct{}{}
-	<-ln.exit
+	ln.stop.Do(func() {
+		close(ln.exit)
+	})
 	return err
 }
 
 // Addr implements net.Listener.
-func (ln measuredListener) Addr() net.Addr { return ln.Listener.Addr() }
+func (ln *measuredListener) Addr() net.Addr { return ln.Listener.Addr() }
 
 // rateLimitedListener wraps a regular TCPListener with rate limiting.
 type rateLimitedListener struct {
