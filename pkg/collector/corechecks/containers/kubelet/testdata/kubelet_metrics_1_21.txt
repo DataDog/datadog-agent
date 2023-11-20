@@ -312,6 +312,12 @@ kubelet_containers_per_pod_count_bucket{le="16"} 30
 kubelet_containers_per_pod_count_bucket{le="+Inf"} 30
 kubelet_containers_per_pod_count_sum 38
 kubelet_containers_per_pod_count_count 30
+# HELP kubelet_cpu_manager_pinning_errors_total [ALPHA] The number of cpu core allocations which required pinning failed.
+# TYPE kubelet_cpu_manager_pinning_errors_total counter
+kubelet_cpu_manager_pinning_errors_total 7
+# HELP kubelet_cpu_manager_pinning_requests_total [ALPHA] The number of cpu core allocations which required pinning.
+# TYPE kubelet_cpu_manager_pinning_requests_total counter
+kubelet_cpu_manager_pinning_requests_total 28
 # HELP kubelet_docker_operations_duration_seconds [ALPHA] Latency in seconds of Docker operations. Broken down by operation type.
 # TYPE kubelet_docker_operations_duration_seconds histogram
 kubelet_docker_operations_duration_seconds_bucket{operation_type="create_container",le="0.005"} 0

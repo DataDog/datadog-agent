@@ -882,6 +882,27 @@ func Test_containerWaitingReasonTransformer(t *testing.T) {
 			},
 		},
 		{
+			name: "CreateContainerConfigError",
+			args: args{
+				name: "kube_pod_container_status_waiting_reason",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+					Labels: map[string]string{
+						"container": "foo",
+						"pod":       "bar",
+						"namespace": "default",
+						"reason":    "CreateContainerConfigError",
+					},
+				},
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:CreateContainerConfigError"},
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.container.status_report.count.waiting",
+				val:  1,
+				tags: []string{"container:foo", "pod:bar", "namespace:default", "reason:CreateContainerConfigError"},
+			},
+		},
+		{
 			name: "InvalidImageName",
 			args: args{
 				name: "kube_pod_container_status_waiting_reason",
@@ -2344,6 +2365,46 @@ func Test_timestampTransformers(t *testing.T) {
 			tt.transformer(s, tt.name, argsTemplate.metric, argsTemplate.hostname, argsTemplate.tags, currentTime)
 			s.AssertMetric(t, "Gauge", tt.newName, expectedTemplate.val, expectedTemplate.hostname, expectedTemplate.tags)
 			s.AssertNumberOfCalls(t, "Gauge", 1)
+		})
+	}
+}
+
+func Test_removeSecret(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     args
+		expected *metricsExpected
+	}{
+		{
+			name: "secret",
+			args: args{
+				name: "kube_ingress_tls",
+				metric: ksmstore.DDMetric{
+					Val: 1,
+				},
+				tags:     []string{"secret:foo", "tls_host:foo"},
+				hostname: "foo",
+			},
+			expected: &metricsExpected{
+				name: "kubernetes_state.ingress.tls",
+				val:  1.0,
+				tags: []string{"tls_host:foo"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		s := mocksender.NewMockSender("ksm")
+		s.SetupAcceptAll()
+		t.Run(tt.name, func(t *testing.T) {
+			currentTime := time.Now()
+			removeSecretTransformer(s, tt.args.name, tt.args.metric, tt.args.hostname, tt.args.tags, currentTime)
+			if tt.expected != nil {
+				s.AssertMetric(t, "Gauge", tt.expected.name, tt.expected.val, tt.args.hostname, tt.expected.tags)
+				s.AssertMetricNotTaggedWith(t, "secret:foo", tt.expected.name, tt.expected.tags)
+				s.AssertNumberOfCalls(t, "Gauge", 1)
+			} else {
+				s.AssertNotCalled(t, "Gauge")
+			}
 		})
 	}
 }

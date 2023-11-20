@@ -1317,7 +1317,7 @@ func TestEnrichTags(t *testing.T) {
 		{
 			name: "opt-out, entity id present, uds origin present",
 			args: args{
-				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid", "dd.internal.card:none", "host:", "jmx_domain:org.apache"},
+				tags:          []string{"env:prod", "dd.internal.entity_id:pod-uid", "dd.internal.card:none", "host:", "jmx_domain:org.apache", "dd.internal.jmx_check_name:customcheck"},
 				originFromUDS: "originID",
 				originFromMsg: []byte("none"),
 				conf: enrichConfig{
@@ -1357,5 +1357,53 @@ func TestEnrichTags(t *testing.T) {
 				assert.Equal(t, tt.wantedMetricSource, metricSource)
 			})
 		}
+	}
+}
+
+func TestEnrichTagsWithJMXCheckName(t *testing.T) {
+	tests := []struct {
+		name               string
+		jmxCheckName       string
+		tags               []string
+		wantedTags         []string
+		wantedMetricSource metrics.MetricSource
+	}{
+		{
+			name:               "dd.internal.jmx_check_name:kafka, should give MetricSourceKafka",
+			jmxCheckName:       "dd.internal.jmx_check_name:kafka",
+			tags:               []string{"env:prod", "dd.internal.jmx_check_name:kafka"},
+			wantedTags:         []string{"env:prod"},
+			wantedMetricSource: metrics.MetricSourceKafka,
+		},
+		{
+			name:               "dd.internal.jmx_check_name:cassandra, should give MetricSourceCassandra",
+			jmxCheckName:       "dd.internal.jmx_check_name:cassandra",
+			tags:               []string{"foo", "dd.internal.jmx_check_name:cassandra"},
+			wantedTags:         []string{"foo"},
+			wantedMetricSource: metrics.MetricSourceCassandra,
+		},
+		{
+			name:               "dd.internal.jmx_check_name:tomcat, with jmx_domain tag should still set MetricSource",
+			jmxCheckName:       "dd.internal.jmx_check_name:tomcat",
+			tags:               []string{"foo", "jmx_domain:testdomain", "dd.internal.jmx_check_name:tomcat"},
+			wantedTags:         []string{"foo", "jmx_domain:testdomain"},
+			wantedMetricSource: metrics.MetricSourceTomcat,
+		},
+		{
+			name:               "dd.internal.jmx_check_name:thisisacustomcheck, should give MetricSourceJmxCustom",
+			jmxCheckName:       "dd.internal.jmx_check_name:thisisacustomcheck",
+			tags:               []string{"env:prod", "dd.internal.jmx_check_name:thisisacustomcheck"},
+			wantedTags:         []string{"env:prod"},
+			wantedMetricSource: metrics.MetricSourceJmxCustom,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tags, _, _, _, _, metricSource := extractTagsMetadata(tt.tags, "", []byte{}, enrichConfig{})
+			assert.Equal(t, tt.wantedTags, tags)
+			assert.Equal(t, tt.wantedMetricSource, metricSource)
+			assert.NotContains(t, tags, tt.jmxCheckName)
+		})
+
 	}
 }

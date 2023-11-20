@@ -24,6 +24,85 @@ func testCfg(serverUrl string) *config.AgentConfig {
 	return cfg
 }
 
+func TestSendFirstTrace(t *testing.T) {
+	server := newTestServer()
+	defer server.Close()
+
+	cfg := testCfg(server.URL)
+	cfg.InstallSignature = config.InstallSignatureConfig{
+		Found:       true,
+		InstallID:   "foobar",
+		InstallTime: 1,
+		InstallType: "manual",
+	}
+
+	collector := NewCollector(cfg)
+
+	var events []OnboardingEvent
+	server.assertReq = assertReqGetEvent(t, &events)
+	if !collector.SentFirstTrace() {
+		collector.SendFirstTrace()
+	}
+
+	assert.True(t, collector.SentFirstTrace(), true)
+	assert.Len(t, events, 1)
+	assert.Equal(t, events[0].Payload.Tags.InstallID, "foobar")
+	assert.Equal(t, events[0].Payload.Tags.InstallTime, int64(1))
+	assert.Equal(t, events[0].Payload.Tags.InstallType, "manual")
+}
+
+func TestSendFirstTraceSignatureNotFound(t *testing.T) {
+	server := newTestServer()
+	defer server.Close()
+
+	cfg := testCfg(server.URL)
+	cfg.InstallSignature = config.InstallSignatureConfig{
+		Found:       false,
+		InstallTime: 1,
+	}
+
+	collector := NewCollector(cfg)
+
+	var events []OnboardingEvent
+	server.assertReq = assertReqGetEvent(t, &events)
+	if !collector.SentFirstTrace() {
+		collector.SendFirstTrace()
+	}
+
+	assert.True(t, collector.SentFirstTrace(), true)
+	assert.Len(t, events, 1)
+	assert.Equal(t, events[0].Payload.Tags.InstallID, "")
+	assert.Equal(t, events[0].Payload.Tags.InstallTime, int64(0))
+	assert.Equal(t, events[0].Payload.Tags.InstallType, "")
+}
+
+func TestSendFirstTraceError(t *testing.T) {
+	server := newTestServer()
+	server.statusCode = 500
+	defer server.Close()
+
+	cfg := testCfg(server.URL)
+	cfg.InstallSignature = config.InstallSignatureConfig{
+		Found:       false,
+		InstallTime: 1,
+	}
+
+	collector := NewCollector(cfg)
+
+	var events []OnboardingEvent
+	server.assertReq = assertReqGetEvent(t, &events)
+	for i := 0; i < 5; i++ {
+		assert.False(t, collector.SentFirstTrace())
+		collector.SendFirstTrace()
+	}
+	if !collector.SentFirstTrace() {
+		collector.SendFirstTrace()
+		assert.True(t, collector.SentFirstTrace())
+	}
+	assert.True(t, collector.SentFirstTrace(), true)
+	assert.Len(t, events, 5)
+}
+
 func TestTelemetryDisabled(t *testing.T) {
 	server := newTestServer()
 	defer server.Close()
@@ -68,24 +147,14 @@ func TestNoSuccessAfterError(t *testing.T) {
 	cfg := testCfg(server.URL)
 	collector := NewCollector(cfg)
 
-	var eventName string
-	var reqCount int
-
-	server.assertReq = func(req *http.Request) {
-		reqCount += 1
-		body, err := io.ReadAll(req.Body)
-		assert.NoError(t, err)
-		ev := OnboardingEvent{}
-		err = json.Unmarshal(body, &ev)
-		assert.NoError(t, err)
-		eventName = ev.Payload.EventName
-	}
+	var events []OnboardingEvent
+	server.assertReq = assertReqGetEvent(t, &events)
 
 	collector.SendStartupError(GenericError, fmt.Errorf(""))
 	collector.SendStartupSuccess()
 
-	assert.Equal(t, 1, reqCount)
-	assert.Equal(t, "agent.startup.error", eventName)
+	assert.Len(t, events, 1)
+	assert.Equal(t, "agent.startup.error", events[0].Payload.EventName)
 }
 
 func TestErrorAfterSuccess(t *testing.T) {
@@ -95,25 +164,15 @@ func TestErrorAfterSuccess(t *testing.T) {
 	cfg := testCfg(server.URL)
 	collector := NewCollector(cfg)
 
-	var eventNames []string
-	var reqCount int
-
-	server.assertReq = func(req *http.Request) {
-		reqCount += 1
-		body, err := io.ReadAll(req.Body)
-		assert.NoError(t, err)
-		ev := OnboardingEvent{}
-		err = json.Unmarshal(body, &ev)
-		assert.NoError(t, err)
-		eventNames = append(eventNames, ev.Payload.EventName)
-	}
+	var events []OnboardingEvent
+	server.assertReq = assertReqGetEvent(t, &events)
 
 	collector.SendStartupSuccess()
 	collector.SendStartupError(GenericError, fmt.Errorf(""))
 
-	assert.Equal(t, 2, reqCount)
-	assert.Equal(t, "agent.startup.success", eventNames[0])
-	assert.Equal(t, "agent.startup.error", eventNames[1])
+	assert.Len(t, events, 2)
+	assert.Equal(t, "agent.startup.success", events[0].Payload.EventName)
+	assert.Equal(t, "agent.startup.error", events[1].Payload.EventName)
 }
 
 func TestDualShipping(t *testing.T) {
@@ -152,13 +211,16 @@ func TestDualShipping(t *testing.T) {
 }
 
 type testServer struct {
-	server    *httptest.Server
-	URL       string
-	assertReq func(*http.Request)
+	server     *httptest.Server
+	URL        string
+	assertReq  func(*http.Request)
+	statusCode int
 }
 
 func newTestServer() *testServer {
-	srv := &testServer{}
+	srv := &testServer{
+		statusCode: 202,
+	}
 	srv.server = httptest.NewServer(srv)
 	srv.URL = srv.server.URL
 	return srv
@@ -174,8 +236,19 @@ func (ts *testServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		panic(fmt.Sprintf("error reading request body: %v", err))
 	}
 	req.Body.Close()
-	w.WriteHeader(202)
+	w.WriteHeader(ts.statusCode)
 }
 
 // Close closes the underlying http.Server.
 func (ts *testServer) Close() { ts.server.Close() }
+
+func assertReqGetEvent(t *testing.T, events *[]OnboardingEvent) func(*http.Request) {
+	return func(req *http.Request) {
+		body, err := io.ReadAll(req.Body)
+		assert.NoError(t, err)
+		ev := OnboardingEvent{}
+		err = json.Unmarshal(body, &ev)
+		assert.NoError(t, err)
+		*events = append(*events, ev)
+	}
+}

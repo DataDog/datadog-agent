@@ -462,7 +462,18 @@ func TestTailingMode(t *testing.T) {
 			tailer := NewTailer(source, nil, mockJournal, true)
 			tailer.Start(tt.cursor)
 
-			assert.Equal(t, *tt.expectedJournalState, *mockJournal)
+			mockJournal.m.Lock()
+			assert.Equal(t, tt.expectedJournalState.cursor, mockJournal.cursor)
+
+			// .Next() is called again by the tail goroutine, so expect it to be equal or greater than expected.
+			assert.True(t, tt.expectedJournalState.next <= mockJournal.next)
+			assert.Equal(t, tt.expectedJournalState.previous, mockJournal.previous)
+			assert.Equal(t, tt.expectedJournalState.seekHead, mockJournal.seekHead)
+			assert.Equal(t, tt.expectedJournalState.seekTail, mockJournal.seekTail)
+			assert.Equal(t, tt.expectedJournalState.entries, mockJournal.entries)
+
+			mockJournal.m.Unlock()
+
 			tailer.Stop()
 		})
 	}

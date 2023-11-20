@@ -35,7 +35,7 @@
         },
         {
             "label": "go tests",
-            "command": "invoke -e test --skip-linters",
+            "command": "invoke -e test",
             "args": [],
             "type": "shell",
             "problemMatcher": []

@@ -16,14 +16,14 @@ import (
 
 func TestStaticTags(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
-	defer mockConfig.Set("kubernetes_kubelet_nodename", "")
+	mockConfig.SetWithoutSource("kubernetes_kubelet_nodename", "eksnode")
+	defer mockConfig.SetWithoutSource("kubernetes_kubelet_nodename", "")
 
 	config.SetFeatures(t, config.EKSFargate)
 
 	t.Run("just tags", func(t *testing.T) {
-		mockConfig.Set("tags", []string{"some:tag", "another:tag", "nocolon"})
-		defer mockConfig.Set("tags", []string{})
+		mockConfig.SetWithoutSource("tags", []string{"some:tag", "another:tag", "nocolon"})
+		defer mockConfig.SetWithoutSource("tags", []string{})
 		staticTags := GetStaticTags(context.Background())
 		assert.Equal(t, map[string]string{
 			"some":             "tag",
@@ -33,10 +33,10 @@ func TestStaticTags(t *testing.T) {
 	})
 
 	t.Run("tags and extra_tags", func(t *testing.T) {
-		mockConfig.Set("tags", []string{"some:tag", "nocolon"})
-		mockConfig.Set("extra_tags", []string{"extra:tag", "missingcolon"})
-		defer mockConfig.Set("tags", []string{})
-		defer mockConfig.Set("extra_tags", []string{})
+		mockConfig.SetWithoutSource("tags", []string{"some:tag", "nocolon"})
+		mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag", "missingcolon"})
+		defer mockConfig.SetWithoutSource("tags", []string{})
+		defer mockConfig.SetWithoutSource("extra_tags", []string{})
 		staticTags := GetStaticTags(context.Background())
 		assert.Equal(t, map[string]string{
 			"some":             "tag",
@@ -46,8 +46,8 @@ func TestStaticTags(t *testing.T) {
 	})
 
 	t.Run("cluster name already set", func(t *testing.T) {
-		mockConfig.Set("tags", []string{"kube_cluster_name:foo"})
-		defer mockConfig.Set("tags", []string{})
+		mockConfig.SetWithoutSource("tags", []string{"kube_cluster_name:foo"})
+		defer mockConfig.SetWithoutSource("tags", []string{})
 		staticTags := GetStaticTags(context.Background())
 		assert.Equal(t, map[string]string{
 			"eks_fargate_node":  "eksnode",
@@ -58,14 +58,14 @@ func TestStaticTags(t *testing.T) {
 
 func TestStaticTagsSlice(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("kubernetes_kubelet_nodename", "eksnode")
-	defer mockConfig.Set("kubernetes_kubelet_nodename", "")
+	mockConfig.SetWithoutSource("kubernetes_kubelet_nodename", "eksnode")
+	defer mockConfig.SetWithoutSource("kubernetes_kubelet_nodename", "")
 
 	config.SetFeatures(t, config.EKSFargate)
 
 	t.Run("just tags", func(t *testing.T) {
-		mockConfig.Set("tags", []string{"some:tag", "another:tag", "nocolon"})
-		defer mockConfig.Set("tags", []string{})
+		mockConfig.SetWithoutSource("tags", []string{"some:tag", "another:tag", "nocolon"})
+		defer mockConfig.SetWithoutSource("tags", []string{})
 		staticTags := GetStaticTagsSlice(context.Background())
 		assert.ElementsMatch(t, []string{
 			"nocolon",
@@ -76,10 +76,10 @@ func TestStaticTagsSlice(t *testing.T) {
 	})
 
 	t.Run("tags and extra_tags", func(t *testing.T) {
-		mockConfig.Set("tags", []string{"some:tag", "nocolon"})
-		mockConfig.Set("extra_tags", []string{"extra:tag", "missingcolon"})
-		defer mockConfig.Set("tags", []string{})
-		defer mockConfig.Set("extra_tags", []string{})
+		mockConfig.SetWithoutSource("tags", []string{"some:tag", "nocolon"})
+		mockConfig.SetWithoutSource("extra_tags", []string{"extra:tag", "missingcolon"})
+		defer mockConfig.SetWithoutSource("tags", []string{})
+		defer mockConfig.SetWithoutSource("extra_tags", []string{})
 		staticTags := GetStaticTagsSlice(context.Background())
 		assert.ElementsMatch(t, []string{
 			"nocolon",
