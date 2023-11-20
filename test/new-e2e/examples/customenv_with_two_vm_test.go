@@ -22,7 +22,7 @@ type multiVMEnv struct {
 	AppVM  client.VM
 }
 
-func multiEC2VMStackDef() *e2e.StackDefinition[multiVMEnv] {
+func multiEC2VMStackDef() e2e.InfraProvider[multiVMEnv] {
 	return e2e.EnvFactoryStackDef(func(ctx *pulumi.Context) (*multiVMEnv, error) {
 		mainVM, err := ec2vm.NewEc2VM(ctx, ec2params.WithOS(ec2os.UbuntuOS), ec2params.WithName("main"))
 		if err != nil {

@@ -69,7 +69,7 @@ func TestInstallScript(t *testing.T) {
 		t.Run(fmt.Sprintf("test install script on %s", osVers), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
-			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][osVers], e2eOs.AMD64Arch, osMapping[*platform])), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
+			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][osVers], e2eOs.AMD64Arch, osMapping[*platform])), params.WithName(fmt.Sprintf("install-script-test-%v-%v", os.Getenv("CI_PIPELINE_ID"), osVers)))
 		})
 	}
 }

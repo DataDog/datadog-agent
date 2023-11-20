@@ -21,20 +21,9 @@ import (
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )
 
-// StackDefinition contains a Pulumi stack definition
-type StackDefinition[Env any] struct {
-	envFactory func(ctx *pulumi.Context) (*Env, error)
-	configMap  runner.ConfigMap
-}
-
-// NewStackDef creates a custom definition
-func NewStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error), configMap runner.ConfigMap) *StackDefinition[Env] {
-	return &StackDefinition[Env]{envFactory: envFactory, configMap: configMap}
-}
-
 // EnvFactoryStackDef creates a custom stack definition
-func EnvFactoryStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) *StackDefinition[Env] {
-	return NewStackDef(envFactory, runner.ConfigMap{})
+func EnvFactoryStackDef[Env any](envFactory func(ctx *pulumi.Context) (*Env, error)) InfraProvider[Env] {
+	return NewPulumiProvider(envFactory, runner.ConfigMap{})
 }
 
 // VMEnv contains a VM environment
@@ -46,13 +35,13 @@ type VMEnv struct {
 // See [ec2vm.Params] for available options.
 //
 // [ec2vm.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM#Params
-func EC2VMStackDef(options ...ec2params.Option) *StackDefinition[VMEnv] {
+func EC2VMStackDef(options ...ec2params.Option) InfraProvider[VMEnv] {
 	noop := func(vm.VM) (VMEnv, error) { return VMEnv{}, nil }
 	return CustomEC2VMStackDef(noop, options...)
 }
 
 // CustomEC2VMStackDef creates a custom stack definition containing a virtual machine
-func CustomEC2VMStackDef[T any](fct func(vm.VM) (T, error), options ...ec2params.Option) *StackDefinition[VMEnv] {
+func CustomEC2VMStackDef[T any](fct func(vm.VM) (T, error), options ...ec2params.Option) InfraProvider[VMEnv] {
 	return EnvFactoryStackDef(func(ctx *pulumi.Context) (*VMEnv, error) {
 		vm, err := ec2vm.NewEc2VM(ctx, options...)
 		if err != nil {
@@ -151,7 +140,7 @@ func WithFakeIntakeParams(options ...fakeintakeparams.Option) func(*AgentStackDe
 // [agentclientparams.Params]: https://pkg.go.dev/github.com/DataDog/datadog-agent@main/test/new-e2e/pkg/utils/e2e/client/agentclientparams#Params
 //
 // [fakeintakeparams.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/scenario/aws/fakeintake/fakeintakeparams#Params
-func AgentStackDef(options ...func(*AgentStackDefParam) error) *StackDefinition[AgentEnv] {
+func AgentStackDef(options ...func(*AgentStackDefParam) error) InfraProvider[AgentEnv] {
 	return EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*AgentEnv, error) {
 			params, err := newAgentStackDefParam(options...)
@@ -181,7 +170,7 @@ func AgentStackDef(options ...func(*AgentStackDefParam) error) *StackDefinition[
 // See [agent.Params] for available options.
 //
 // [agent.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Params
-func AgentStackDefWithDefaultVMAndAgentClient(options ...agentparams.Option) *StackDefinition[AgentEnv] {
+func AgentStackDefWithDefaultVMAndAgentClient(options ...agentparams.Option) InfraProvider[AgentEnv] {
 	return AgentStackDef(WithAgentParams(options...))
 }
 
@@ -204,7 +193,7 @@ type FakeIntakeEnv struct {
 // [ec2vm.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM#Params
 // [agent.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Params
 // [agentclientparams.Params]: https://pkg.go.dev/github.com/DataDog/datadog-agent@main/test/new-e2e/pkg/utils/e2e/client/agentclientparams#Params
-func FakeIntakeStackDef(options ...func(*AgentStackDefParam) error) *StackDefinition[FakeIntakeEnv] {
+func FakeIntakeStackDef(options ...func(*AgentStackDefParam) error) InfraProvider[FakeIntakeEnv] {
 	return EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*FakeIntakeEnv, error) {
 			params, err := newAgentStackDefParam(options...)
@@ -242,7 +231,7 @@ func FakeIntakeStackDef(options ...func(*AgentStackDefParam) error) *StackDefini
 // See [agent.Params] for available options.
 //
 // [agent.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Params
-func FakeIntakeStackDefWithDefaultVMAndAgentClient(options ...agentparams.Option) *StackDefinition[FakeIntakeEnv] {
+func FakeIntakeStackDefWithDefaultVMAndAgentClient(options ...agentparams.Option) InfraProvider[FakeIntakeEnv] {
 	return FakeIntakeStackDef(WithAgentParams(options...))
 }
 
@@ -256,7 +245,7 @@ type DockerEnv struct {
 // See [dockerparams.Params] for available options for params.
 //
 // [dockerparams.Params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent/dockerparams#Params
-func DockerStackDef(params ...dockerparams.Option) *StackDefinition[DockerEnv] {
+func DockerStackDef(params ...dockerparams.Option) InfraProvider[DockerEnv] {
 	return EnvFactoryStackDef(
 		func(ctx *pulumi.Context) (*DockerEnv, error) {
 			docker, err := docker.NewDaemon(ctx, params...)
