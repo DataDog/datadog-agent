@@ -8,4 +8,4 @@
 ---
 upgrade:
   - |
-    Upgrade the Python version from 3.9 to 3.11
+    Upgrade the Python version from 3.9 to 3.11.
