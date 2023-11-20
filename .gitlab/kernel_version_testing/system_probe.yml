@@ -348,9 +348,9 @@ kernel_matrix_testing_setup_env_x64:
     - !reference [.kernel_matrix_testing_new_profile]
     - !reference [.write_ssh_key_file]
   script:
-    - ALL_INSTANCE_IPS=$(cat $CI_PROJECT_DIR/stack.output | grep -e '-instance-ip' | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
+    - INSTANCE_IP=$(cat $CI_PROJECT_DIR/stack.output | grep -e '-instance-ip' | cut -d ' ' -f 2 | tr '\n' ' ' | awk '{$1=$1};1' | tr ' ' ',')
     - !reference [.shared_filters_and_queries]
-    - RUNNING_INSTANCES=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE "Name=private-ip-address,Values=$ALL_INSTANCE_IPS" --output text --query $QUERY_INSTANCE_IDS | wc -l )
+    - RUNNING_INSTANCES=$(aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE "Name=private-ip-address,Values=$INSTANCE_IP" --output text --query $QUERY_INSTANCE_IDS | wc -l )
     - |
       if [ $RUNNING_INSTANCES -eq "0" ]; then
         echo "These jobs do not permit retries. The go tests are retried a user-specified number of times automatically. In order to re-run the tests, you must trigger the pipeline again"
@@ -408,7 +408,7 @@ kernel_matrix_testing_run_tests_arm64:
   script:
     - !reference [.shared_filters_and_queries]
     - aws ec2 describe-instances --filters $FILTER_TEAM $FILTER_MANAGED $FILTER_PIPELINE $FILTER_ARCH $FILTER_INSTANCE_TYPE --output json --query $QUERY_INSTANCE_IDS | tee -a instance.json
-    - INSTANCE_ID="$(jq -r '.Instances[0].InstanceId' < instance.json)"
+    - INSTANCE_ID="$(jq -r '.[0][0]' < instance.json)"
     - echo ${INSTANCE_ID}
     - |
       if [[ "${INSTANCE_ID}" != "" ]]; then
