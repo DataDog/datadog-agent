@@ -25,7 +25,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-
 type testDef struct {
 	name         string
 	site         string
@@ -212,14 +211,14 @@ func TestEtwTransactions(t *testing.T) {
 			assert.Equal(t, uint16(expectedMax), tx.Txn.MaxRequestFragment)
 			tgtbuf := make([]byte, cfg.HTTPMaxRequestFragment)
 			outbuf, fullpath := computePath(tgtbuf, tx.RequestFragment)
-			as := string(outbuf)
+			pathAsString := string(outbuf)
 
 			if test.pathTrucated {
-				assert.Equal(t, int(test.maxpath-1), len(as))
-				assert.Equal(t, test.path[:test.maxpath-1], as)
+				assert.Equal(t, int(test.maxpath-1), len(pathAsString))
+				assert.Equal(t, test.path[:test.maxpath-1], pathAsString)
 				assert.False(t, fullpath, "expecting fullpath to not be set")
 			} else {
-				assert.Equal(t, test.path, as, "unexpected path")
+				assert.Equal(t, test.path, pathAsString, "unexpected path")
 				assert.True(t, fullpath, "expecting fullpath to be set")
 			}
 
@@ -241,7 +240,7 @@ func TestEtwTransactions(t *testing.T) {
 			assert.Equal(t, test.site, tx.SiteName, "unexpected site")
 			assert.Equal(t, MethodGet, Method(tx.Txn.RequestMethod), "unexpected request method")
 			assert.Equal(t, "DefaultAppPool", tx.AppPool, "unexpectedd App Pool")
-		
+
 		})
 
 	}
