@@ -40,6 +40,7 @@ import (
 	// core components
 	"github.com/DataDog/datadog-agent/comp/core"
 	internalAPI "github.com/DataDog/datadog-agent/comp/core/api"
+	"github.com/DataDog/datadog-agent/comp/core/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -271,7 +272,7 @@ func getSharedFxOption() fx.Option {
 		dogstatsd.Bundle,
 		otelcol.Bundle,
 		rcclient.Module,
-
+		apiimpl.Module,
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
 		// have to ensure this code gets run first. Once the common package is made into a component, this can be removed.
