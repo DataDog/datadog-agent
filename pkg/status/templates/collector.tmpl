@@ -18,7 +18,7 @@ Collector
 
   Running Checks
   ==============
-{{- with .RunnerStats }}
+{{- with .runnerStats }}
   {{- if and (not .Runs) (not .Checks)}}
     No checks have run yet
   {{end -}}
@@ -43,10 +43,10 @@ Collector
       Average Execution Time : {{humanizeDuration .AverageExecutionTime "ms"}}
       Last Execution Date : {{formatUnixTime .UpdateTimestamp}}
       Last Successful Execution Date : {{ if .LastSuccessDate }}{{formatUnixTime .LastSuccessDate}}{{ else }}Never{{ end }}
-      {{- if $.CheckMetadata }}
-      {{- if index $.CheckMetadata .CheckID }}
+      {{- if $.inventories }}
+      {{- if index $.inventories .CheckID }}
       metadata:
-      {{- range $k, $v := index $.CheckMetadata .CheckID }}
+      {{- range $k, $v := index $.inventories .CheckID }}
         {{ $k }}: {{ $v }}
       {{- end }}
       {{- end }}
@@ -93,7 +93,7 @@ Collector
   {{- end }}
 {{- end }}
 
-{{- with .AutoConfigStats }}
+{{- with .autoConfigStats }}
   {{- if .ConfigErrors}}
   Config Errors
   ==============
@@ -105,7 +105,7 @@ Collector
   {{- end}}
 {{- end }}
 
-{{- with .CheckSchedulerStats }}
+{{- with .checkSchedulerStats }}
   {{- if .LoaderErrors}}
   Loading Errors
   ==============

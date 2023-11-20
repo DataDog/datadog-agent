@@ -71,6 +71,12 @@ component temporarily wraps pkg/config.
 
 Package telemetry implements a component for all agent telemetry.
 
+### [comp/core/workloadmeta](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/workloadmeta)
+
+*Datadog Team*: container-integrations
+
+Package workloadmeta provides the workloadmeta component for the Datadog Agent
+
 ## [comp/dogstatsd](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs

@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
@@ -34,6 +35,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
@@ -52,7 +55,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 type cliParams struct {
@@ -94,6 +96,22 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					opts.UseOrchestratorForwarder = false
 					return demultiplexer.Params{Options: opts}
 				}),
+				// workloadmeta setup
+				collectors.GetCatalog(),
+				workloadmeta.Module,
+				fx.Provide(func(config config.Component) workloadmeta.Params {
+
+					catalog := workloadmeta.NodeAgent
+
+					if config.GetBool("security_agent.remote_workloadmeta") {
+						catalog = workloadmeta.Remote
+					}
+
+					return workloadmeta.Params{
+						AgentType:  catalog,
+						InitHelper: common.GetWorkloadmetaInit(),
+					}
+				}),
 			)
 		},
 	}
@@ -103,7 +121,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, params *cliParams) error {
+// start will start the security-agent.
+//
+// TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
+// as a global. This should eventually be fixed and all workloadmeta interactions should be via the
+// injected instance.
+func start(log log.Component, config config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, _ workloadmeta.Component, demultiplexer demultiplexer.Component, params *cliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
@@ -235,15 +258,6 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 	if err != nil {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
-
-	workloadmetaCollectors := workloadmeta.NodeAgentCatalog
-	if config.GetBool("security_agent.remote_workloadmeta") {
-		workloadmetaCollectors = workloadmeta.RemoteCatalog
-	}
-
-	// Start workloadmeta store
-	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
-	store.Start(ctx)
 
 	// Initialize the remote tagger
 	if config.GetBool("security_agent.remote_tagger") {
