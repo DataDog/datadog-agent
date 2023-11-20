@@ -9,7 +9,7 @@
                 {
                     "dir": "xenial-server-cloudimg-amd64.qcow2",
                     "tag": "ubuntu_16.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/usama.saqib/standard-ubuntu-build/xenial-server-cloudimg-amd64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/xenial-server-cloudimg-amd64.qcow2.xz"
                 },
                 {
                     "dir": "bionic-server-cloudimg-amd64.qcow2",

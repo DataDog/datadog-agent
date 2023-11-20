@@ -9,7 +9,7 @@
                 {
                     "dir": "bionic-server-cloudimg-arm64.qcow2",
                     "tag": "ubuntu_18.04",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/bionic-server-cloudimg-arm64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/bionic-server-cloudimg-arm64.qcow2.xz"
                 },
                 {
                     "dir": "focal-server-cloudimg-arm64.qcow2",
