@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
@@ -39,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -325,14 +325,16 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	if c.Tags == nil {
-		c.Tags = make(map[string]struct{}, 3)
+		c.Tags = make([]string, 0, 3)
+	} else {
+		c.Tags = c.Tags[:0]
 	}
 
 	addTag := func(k, v string) {
 		if v == "" {
 			return
 		}
-		c.Tags[k+":"+v] = struct{}{}
+		c.Tags = append(c.Tags, k+":"+v)
 	}
 
 	addTag("env", p.Env("DD_ENV"))

@@ -8,7 +8,6 @@ package encoding
 import (
 	"bytes"
 	"math"
-	"reflect"
 	"unsafe"
 
 	"github.com/twmb/murmur3"
@@ -273,7 +272,7 @@ func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamic
 	}
 
 	// other tags, e.g., from process env vars like DD_ENV, etc.
-	for tag := range c.Tags {
+	for _, tag := range c.Tags {
 		mm.Reset()
 		_, _ = mm.Write(unsafeStringSlice(tag))
 		checksum ^= mm.Sum32()
@@ -288,6 +287,5 @@ func unsafeStringSlice(key string) []byte {
 		return nil
 	}
 	// Reinterpret the string as bytes. This is safe because we don't write into the byte array.
-	sh := (*reflect.StringHeader)(unsafe.Pointer(&key))
-	return unsafe.Slice((*byte)(unsafe.Pointer(sh.Data)), len(key))
+	return unsafe.Slice(unsafe.StringData(key), len(key))
 }
