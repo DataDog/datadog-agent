@@ -10,6 +10,7 @@ import (
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadogV2"
 )
 
+// SubmitExecutionMetric accepts metrics and submits it to Datadog.
 func SubmitExecutionMetric(metricBody datadogV2.MetricPayload) error {
 	if _, ok := os.LookupEnv("DD_API_KEY"); !ok {
 		fmt.Fprintf(os.Stderr, "skipping sending metric because DD_API_KEY not present")
