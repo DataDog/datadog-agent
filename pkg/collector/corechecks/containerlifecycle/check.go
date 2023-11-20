@@ -13,13 +13,13 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -46,7 +46,7 @@ func (c *Config) Parse(data []byte) error {
 // Check reports container lifecycle events
 type Check struct {
 	core.CheckBase
-	workloadmetaStore workloadmeta.Store
+	workloadmetaStore workloadmeta.Component
 	instance          *Config
 	processor         *processor
 	stopCh            chan struct{}
@@ -142,7 +142,8 @@ func (c *Check) Interval() time.Duration { return 0 }
 // CheckFactory registers the container_lifecycle check
 func CheckFactory() check.Check {
 	return &Check{
-		CheckBase:         core.NewCheckBase(checkName),
+		CheckBase: core.NewCheckBase(checkName),
+		// TODO(components): stop using globals, rely instead on injected component
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
 		instance:          &Config{},
 		stopCh:            make(chan struct{}),

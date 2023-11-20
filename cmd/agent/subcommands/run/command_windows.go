@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -74,6 +75,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			server dogstatsdServer.Component,
 			serverDebug dogstatsddebug.Component,
 			capture replay.Component,
+			wmeta workloadmeta.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
@@ -97,6 +99,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				server,
 				capture,
 				serverDebug,
+				wmeta,
 				rcclient,
 				logsAgent,
 				forwarder,
