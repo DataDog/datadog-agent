@@ -1083,7 +1083,8 @@ func (rt *awsClientStats) SendStats() {
 
 func (ty *awsClientStats) tags(serviceName string, actions ...string) []string {
 	tags := []string{
-		fmt.Sprintf("aws_service:", serviceName),
+		fmt.Sprintf("agent_version:%s", version.AgentVersion),
+		fmt.Sprintf("aws_service:%s", serviceName),
 	}
 	for _, action := range actions {
 		tags = append(tags, fmt.Sprintf("aws_action:%s_%s", serviceName, action))
@@ -1214,6 +1215,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	defer statsd.Flush()
 
 	tags := []string{
+		fmt.Sprintf("agent_version:%s", version.AgentVersion),
 		fmt.Sprintf("region:%s", scan.Region),
 		fmt.Sprintf("type:%s", ebsScanType),
 		fmt.Sprintf("scan_host:%s", scan.Hostname),
@@ -1413,6 +1415,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 	defer statsd.Flush()
 
 	tags := []string{
+		fmt.Sprintf("agent_version:%s", version.AgentVersion),
 		fmt.Sprintf("region:%s", scan.Region),
 		fmt.Sprintf("type:%s", "lambda-scan"),
 	}
