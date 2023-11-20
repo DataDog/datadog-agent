@@ -81,9 +81,14 @@ func newWorkloadMeta(deps dependencies) Component {
 
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 
+		var err error
+
 		// create and setup the Autoconfig instance
 		if deps.Params.InitHelper != nil {
-			return deps.Params.InitHelper(c, wm)
+			err = deps.Params.InitHelper(c, wm)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Main context passed to components
