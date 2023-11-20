@@ -11,7 +11,7 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
+	"github.com/DataDog/datadog-agent/comp/core/api/apiimpl/response"
 	snmplistener "github.com/DataDog/datadog-agent/pkg/snmp"
 
 	"github.com/DataDog/datadog-agent/pkg/api/util"

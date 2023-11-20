@@ -31,6 +31,12 @@ func newMock() api.Mock {
 	return &mockApiServer{}
 }
 
+func (mock *mockApiServer) StartServer() {
+}
+
+func (mock *mockApiServer) StopServer() {
+}
+
 // ServerAddress retruns the server address.
 func (mock *mockApiServer) ServerAddress() *net.TCPAddr {
 	return nil
