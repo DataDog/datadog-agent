@@ -137,6 +137,7 @@ var Module fx.Option = fxutil.Component(
 	),
 )
 
+// OptionalModule defines the fx options when workloadmeta should be used as an optional.
 var OptionalModule fx.Option = fxutil.Component(
 	fx.Provide(
 		newWorkloadMetaOptional,
