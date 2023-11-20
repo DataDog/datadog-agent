@@ -524,7 +524,6 @@ def build(
         incremental_build=incremental_build,
         strip_binary=strip_binary,
         ebpfless=ebpfless,
-        windows=windows,
     )
 
 
@@ -555,7 +554,6 @@ def build_sysprobe_binary(
     bundle_ebpf=False,
     strip_binary=False,
     ebpfless=False,
-    windows=is_windows,
 ):
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -570,8 +568,6 @@ def build_sysprobe_binary(
         ldflags += ' -s -w'
     if ebpfless:
         build_tags.append('ebpfless')
-    elif not windows:
-        build_tags.append(BPF_TAG)
 
     cmd = 'go build -mod={go_mod}{race_opt}{build_type} -tags "{go_build_tags}" '
     cmd += '-o {agent_bin} -gcflags="{gcflags}" -ldflags="{ldflags}" {REPO_PATH}/cmd/system-probe'
