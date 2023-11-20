@@ -247,11 +247,11 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 			return false
 		}
 
-		if updated := int64(http2Txn.Response_last_seen); updated > 0 {
+		if updated := int64(http2Txn.Stream.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(http2Txn.Request_started)
+		started := int64(http2Txn.Stream.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 

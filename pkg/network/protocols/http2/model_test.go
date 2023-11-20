@@ -48,8 +48,10 @@ func TestHTTP2Path(t *testing.T) {
 			copy(arr[:], buf)
 
 			request := &EbpfTx{
-				Request_path: arr,
-				Path_size:    uint8(len(buf)),
+				Stream: http2Stream{
+					Request_path: arr,
+					Path_size:    uint8(len(buf)),
+				},
 			}
 
 			outBuf := make([]byte, 200)
