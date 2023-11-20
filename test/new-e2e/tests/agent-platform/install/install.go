@@ -21,6 +21,7 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 
 	params := installparams.NewParams(options...)
 	commandLine := ""
+
 	if params.PipelineID != "" {
 		testEnvVars := []string{}
 		testEnvVars = append(testEnvVars, "TESTING_APT_URL=apttesting.datad0g.com")
@@ -34,6 +35,10 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 		commandLine = strings.Join(testEnvVars, " ")
 	} else {
 		commandLine = fmt.Sprintf("DD_AGENT_MAJOR_VERSION=%s", params.MajorVersion)
+	}
+
+	if params.Flavor != "" {
+		commandLine += fmt.Sprintf(" DD_AGENT_FLAVOR=%s ", params.Flavor)
 	}
 
 	t.Run("Installing the agent", func(tt *testing.T) {

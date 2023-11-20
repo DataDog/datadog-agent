@@ -43,6 +43,8 @@ type Helper interface {
 	GetInstallFolder() string
 	GetConfigFolder() string
 	GetBinaryPath() string
+	GetConfigFileName() string
+	GetServiceName() string
 }
 
 func getServiceManager(vmClient e2eClient.VM) ServiceManager {

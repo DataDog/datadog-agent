@@ -16,6 +16,9 @@ e2e_test_junit_upload:
     - new-e2e-language-detection-main
     - new-e2e-agent-platform-install-script-debian-a7-x64
     - new-e2e-agent-platform-install-script-debian-a7-arm64
+    - new-e2e-agent-platform-install-script-debian-iot-agent-a7-x86_64
+    - new-e2e-agent-platform-install-script-debian-dogstatsd-a7-x86_64
+    - new-e2e-agent-platform-install-script-debian-heroku-agent-a7-x86_64
     - new-e2e-npm-main
   script:
     - set +x

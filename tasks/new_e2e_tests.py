@@ -45,6 +45,7 @@ def run(
     osversion="",
     platform="",
     arch="",
+    flavor="",
     cws_supported_osversion="",
     keep_stacks=False,
     cache=False,
@@ -91,7 +92,7 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {arch} {cws_supported_osversion} {keep_stacks}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags {go_build_tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {arch} {flavor} {cws_supported_osversion} {keep_stacks}'
 
     args = {
         "go_mod": "mod",
@@ -107,6 +108,7 @@ def run(
         "osversion": f"-osversion {osversion}" if osversion else '',
         "platform": f"-platform {platform}" if platform else '',
         "arch": f"-arch {arch}" if arch else '',
+        "flavor": f"-flavor {flavor}" if flavor else '',
         "cws_supported_osversion": f"-cws-supported-osversion {cws_supported_osversion}"
         if cws_supported_osversion
         else '',
