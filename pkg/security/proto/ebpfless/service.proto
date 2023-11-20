@@ -7,8 +7,8 @@ package ebpfless;
 enum SyscallType {
     Unknown = 0;
     Exec = 1;
-	Fork = 2;
-	Open = 3;
+    Fork = 2;
+    Open = 3;
     Exit = 4;
     Fcntl = 5;
 }

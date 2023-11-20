@@ -1081,7 +1081,7 @@ func removeEmptyLines(input *bytes.Buffer) string {
 
 func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
-	flag.StringVar(&docOutput, "doc", "../../../../docs/cloud-workload-security/secl.json", "Generate documentation JSON")
+	flag.StringVar(&docOutput, "doc", "", "Generate documentation JSON")
 	flag.StringVar(&fieldHandlersOutput, "field-handlers", "field_handlers_unix.go", "Field handlers output file")
 	flag.StringVar(&modelFile, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
 	flag.StringVar(&typesFile, "types-file", os.Getenv("TYPESFILE"), "Go type file to use with the model file")

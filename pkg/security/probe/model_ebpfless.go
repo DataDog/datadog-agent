@@ -9,15 +9,10 @@
 package probe
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // NewModel returns a new model with some extra field validation
 func NewModel(probe *Probe) *model.Model {
-	return &model.Model{
-		ExtraValidateFieldFnc: func(field eval.Field, fieldValue eval.FieldValue) error {
-			return nil
-		},
-	}
+	return &model.Model{}
 }
