@@ -8,8 +8,6 @@
     E2E_OSVERS: "debian-9,debian-10,debian-11,debian-12"
     E2E_CWS_SUPPORTED_OSVERS: "debian-10,debian-11"
     E2E_BRANCH_OSVERS: "debian-11"
-  rules:
-    !reference [.on_kitchen_tests_a7] # By default new-e2e tests are launched when kitchen tests are launched
   needs: ["deploy_deb_testing-a7_x64"]
 
 .new-e2e_debian_a7_arm64:
@@ -61,7 +59,7 @@ new-e2e-agent-platform-install-script-debian-iot-agent-a7-x86_64:
   variables:
     TARGETS: ./tests/agent-platform/install-script
     TEAM: agent-platform
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch x86_64 --datadog-iot-agent
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch x86_64 --flavor datadog-iot-agent
 
 new-e2e-agent-platform-install-script-debian-dogstatsd-a7-x86_64:
   stage: kitchen_testing
@@ -73,7 +71,7 @@ new-e2e-agent-platform-install-script-debian-dogstatsd-a7-x86_64:
   variables:
     TARGETS: ./tests/agent-platform/install-script
     TEAM: agent-platform
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch x86_64 --datadog-dogstatsd
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch x86_64 --flavor datadog-dogstatsd
 
 new-e2e-agent-platform-install-script-debian-heroku-agent-a7-x86_64:
   stage: kitchen_testing
@@ -82,12 +80,10 @@ new-e2e-agent-platform-install-script-debian-heroku-agent-a7-x86_64:
     - .new-e2e_os_debian
     - .new-e2e_debian_a7_x64
     - .new-e2e_agent_a7
-  rules:
-    !reference [.on_default_new-e2e_tests_a7]
   variables:
     TARGETS: ./tests/agent-platform/install-script
     TEAM: agent-platform
-    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch x86_64 --datadog-heroku-agent
+    EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --arch x86_64 --flavor datadog-heroku-agent
 
 
 
