@@ -37,6 +37,14 @@ build do
               move "#{install_dir}/etc/datadog-agent/apm-inject.yaml.example", conf_dir_root, :force=>true
             end
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
+
+            # remove the config files for the subservices; they'll be started
+            # based on the config file
+            delete "#{conf_dir}/apm.yaml.default"
+            delete "#{conf_dir}/process_agent.yaml.default"
+            
+            # load isn't supported by windows
+            delete "#{conf_dir}/load.d"
         end
 
         if linux_target? || osx_target?
