@@ -92,7 +92,9 @@ func handleScenarioFailure(err error) error {
 
 		if (e.action & emitMetric) != 0 {
 			submitError := metric.SubmitExecutionMetric(errorMetric(e.metric))
-			log.Printf("failed to submit environment setup error metrics: %v\n", submitError)
+			if submitError != nil {
+				log.Printf("failed to submit environment setup error metrics: %v\n", submitError)
+			}
 		}
 
 		if (e.action & retryStack) != 0 {
