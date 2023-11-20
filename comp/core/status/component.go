@@ -18,10 +18,15 @@ import (
 type Component interface {
 	GetStatus(format string, verbose bool) ([]byte, error)
 	GetStatusByName(name, format string, verbose bool) ([]byte, error)
+	GetStatusByNames(name []string, format string, verbose bool) ([]byte, error)
 }
 
 type StatusProvider interface {
+	// The return value is to fetch specific status provider
+	// when using GetStatusByName and GetStatusByNames function of the status component.
+	// Also, we used the name to sort the status providers
 	Name() string
+	// Used to sort the status providers
 	Index() int
 	JSON(stats map[string]interface{})
 	Text(buffer io.Writer) error
