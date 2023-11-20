@@ -14,9 +14,10 @@ import (
 	"sync"
 	"unsafe"
 
-	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
+
+	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
