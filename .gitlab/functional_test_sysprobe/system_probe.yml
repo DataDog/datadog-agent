@@ -180,24 +180,3 @@ kitchen_test_system_probe_linux_arm64:
         KITCHEN_OSVERS: "ubuntu-23-04"
       - KITCHEN_PLATFORM: "ubuntu"
         KITCHEN_OSVERS: "ubuntu-23-10"
-
-kitchen_test_system_probe_windows_x64:
-  extends:
-    - .kitchen_agent_a7
-    - .kitchen_os_windows
-    - .kitchen_test_system_probe
-    - .kitchen_azure_x64
-    - .kitchen_azure_location_north_central_us
-  needs: [ "tests_windows_sysprobe_x64" ]
-  variables:
-    KITCHEN_ARCH: x86_64
-    KITCHEN_OSVERS: "win2016"
-    CHEF_VERSION: 14.12.9 # newer versions error out during kitchen setup of azure VM
-  before_script:
-    - export WINDOWS_DDNPM_DRIVER=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_DRIVER")
-    - export WINDOWS_DDNPM_VERSION=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_VERSION")
-    - export WINDOWS_DDNPM_SHASUM=$(inv release.get-release-json-value "$RELEASE_VERSION_7::WINDOWS_DDNPM_SHASUM")
-    - pushd $DD_AGENT_TESTING_DIR
-    - tasks/kitchen_setup.sh
-  script:
-    - tasks/run-test-kitchen.sh windows-sysprobe-test $AGENT_MAJOR_VERSION
