@@ -5,8 +5,8 @@
 
 //go:build !windows
 
-// Package systemProbe is sets up the remote testing environment for system-probe using the Kernel Matrix Testing framework
-package systemProbe
+// Package systemprobe is sets up the remote testing environment for system-probe using the Kernel Matrix Testing framework
+package systemprobe
 
 import (
 	"fmt"
