@@ -40,6 +40,7 @@ import (
 	// core components
 	"github.com/DataDog/datadog-agent/comp/core"
 	internalAPI "github.com/DataDog/datadog-agent/comp/core/api"
+	"github.com/DataDog/datadog-agent/comp/core/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -310,6 +311,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		workloadmeta.Module,
+		apiimpl.Module,
 
 		dogstatsd.Bundle,
 		otelcol.Bundle,

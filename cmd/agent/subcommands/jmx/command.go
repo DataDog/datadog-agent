@@ -109,6 +109,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				InitHelper: common.GetWorkloadmetaInit(),
 			}),
 			workloadmeta.Module,
+			apiimpl.Module,
 		)
 	}
 
