@@ -92,7 +92,7 @@ var statsd *ddgostatsd.Client
 var (
 	globalParams struct {
 		configFilePath string
-		assumedRole    string
+		assumedRoleStr string
 		attachVolumes  bool
 	}
 
@@ -135,7 +135,7 @@ func rootCommand() *cobra.Command {
 
 	sideScannerCmd.PersistentFlags().StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to side-scanner configuration yaml file")
 	sideScannerCmd.PersistentFlags().BoolVarP(&globalParams.attachVolumes, "attach-volumes", "", false, "scan EBS snapshots by creating a dedicated volume")
-	sideScannerCmd.PersistentFlags().StringVarP(&globalParams.assumedRole, "assumed-role", "", "", "force an AWS role to perform the scan")
+	sideScannerCmd.PersistentFlags().StringVarP(&globalParams.assumedRoleStr, "assumed-role", "", "", "force an AWS role to perform the scan")
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 	sideScannerCmd.AddCommand(offlineCommand())
@@ -210,7 +210,7 @@ func offlineCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans)
+					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans, optionalARN(globalParams.assumedRoleStr))
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -234,7 +234,7 @@ func mountCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return mountCmd(globalParams.assumedRole)
+					return mountCmd(optionalARN(globalParams.assumedRoleStr))
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -258,7 +258,7 @@ func cleanupCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return cleanupCmd(cliArgs.region, globalParams.assumedRole, cliArgs.dryRun)
+					return cleanupCmd(cliArgs.region, optionalARN(globalParams.assumedRoleStr), cliArgs.dryRun)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -328,14 +328,14 @@ func scanCmd(rawScan []byte) error {
 	return nil
 }
 
-func offlineCmd(poolSize int, regions []string, maxScans int) error {
+func offlineCmd(poolSize int, regions []string, maxScans int, assumedRole *arn.ARN) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	defer statsd.Flush()
 
 	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
-	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", globalParams.assumedRole)
+	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", assumedRole)
 	if err != nil {
 		return err
 	}
@@ -373,7 +373,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 			if ctx.Err() != nil {
 				return
 			}
-			scansForRegion, err := listEBSScansForRegion(ctx, regionName)
+			scansForRegion, err := listEBSScansForRegion(ctx, regionName, assumedRole)
 			if err != nil {
 				log.Errorf("could not scan region %q: %v", regionName, err)
 			}
@@ -417,8 +417,8 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	return nil
 }
 
-func listEBSScansForRegion(ctx context.Context, regionName string) (scans []*scanTask, err error) {
-	cfg, awsstats, err := newAWSConfig(ctx, regionName, globalParams.assumedRole)
+func listEBSScansForRegion(ctx context.Context, regionName string, assumedRole *arn.ARN) (scans []*scanTask, err error) {
+	cfg, awsstats, err := newAWSConfig(ctx, regionName, assumedRole)
 	if err != nil {
 		return nil, err
 	}
@@ -486,7 +486,7 @@ func listEBSScansForRegion(ctx context.Context, regionName string) (scans []*sca
 	return
 }
 
-func cleanupCmd(region string, assumedRole string, dryRun bool) error {
+func cleanupCmd(region string, assumedRole *arn.ARN, dryRun bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -516,8 +516,8 @@ func cleanupCmd(region string, assumedRole string, dryRun bool) error {
 	return nil
 }
 
-func downloadSnapshot(ctx context.Context, w io.Writer, snapshotID string) error {
-	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", "")
+func downloadSnapshot(ctx context.Context, w io.Writer, snapshotID string, assumedRole *arn.ARN) error {
+	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", assumedRole)
 	if err != nil {
 		return err
 	}
@@ -561,7 +561,7 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotID string) error
 	}
 }
 
-func mountCmd(assumedRole string) error {
+func mountCmd(assumedRole *arn.ARN) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -625,7 +625,7 @@ func mountCmd(assumedRole string) error {
 			return fmt.Errorf("unsupport resource type %q", resourceType)
 		}
 
-		localAssumedRole := "" // TODO
+		var localAssumedRole *arn.ARN // TODO
 		mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, localAssumedRole, nil, snapshotARN)
 		cleanups = append(cleanups, cleanupVolume)
 		if err != nil {
@@ -648,12 +648,13 @@ type scansTask struct {
 }
 
 type scanTask struct {
-	Type         scanType
-	ARNString    string  `json:"arn"`
-	ARN          arn.ARN `json:"-"`
-	Hostname     string  `json:"hostname"`
-	AttachVolume bool    `json:"attachVolume,omitempty"`
-	AssumedRole  string  `json:"assumedRole,omitempty"`
+	Type              scanType
+	ARNString         string   `json:"arn"`
+	ARN               arn.ARN  `json:"-"`
+	Hostname          string   `json:"hostname"`
+	AttachVolume      bool     `json:"attachVolume,omitempty"`
+	AssumedRole       *arn.ARN `json:"-"`
+	AssumedRoleString string   `json:"assumedRole,omitempty"`
 }
 
 func (s scanTask) String() string {
@@ -670,6 +671,13 @@ func unmarshalScanTasks(b []byte) ([]*scanTask, error) {
 		scan.ARN, err = arn.Parse(scan.ARNString)
 		if err != nil {
 			return nil, fmt.Errorf("bad or empty arn %q: %w", scan.ARNString, err)
+		}
+		if scan.AssumedRoleString != "" {
+			assumedRole, err := arn.Parse(scan.AssumedRoleString)
+			if err != nil {
+				return nil, fmt.Errorf("bad or empty arn %q: %w", scan.ARNString, err)
+			}
+			scan.AssumedRole = &assumedRole
 		}
 	}
 	return tasks.Scans, nil
@@ -1130,7 +1138,7 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 	return resp, nil
 }
 
-func newAWSConfig(ctx context.Context, region string, assumedRoleARN string) (aws.Config, *awsClientStats, error) {
+func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws.Config, *awsClientStats, error) {
 	awsstats := &awsClientStats{
 		transport: &http.Transport{
 			IdleConnTimeout: 10 * time.Second,
@@ -1148,9 +1156,9 @@ func newAWSConfig(ctx context.Context, region string, assumedRoleARN string) (aw
 	if err != nil {
 		return aws.Config{}, nil, err
 	}
-	if assumedRoleARN != "" {
+	if assumedRole != nil {
 		stsclient := sts.NewFromConfig(cfg)
-		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRoleARN)
+		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.String())
 		cfg.Credentials = aws.NewCredentialsCache(stsassume)
 
 		// TODO(jinroh): we may want to omit this check. This is mostly to
@@ -1158,7 +1166,7 @@ func newAWSConfig(ctx context.Context, region string, assumedRoleARN string) (aw
 		stsclient = sts.NewFromConfig(cfg)
 		result, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 		if err != nil {
-			return aws.Config{}, nil, fmt.Errorf("awsconfig: could not assumerole %q: %w", assumedRoleARN, err)
+			return aws.Config{}, nil, fmt.Errorf("awsconfig: could not assumerole %q: %w", assumedRole, err)
 		}
 		log.Debugf("aws config: assuming role with arn=%q", *result.Arn)
 	}
@@ -1176,9 +1184,6 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 }
 
 func scanEBS(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEntity, err error) {
-	if scan.AssumedRole == "" {
-		scan.AssumedRole = globalParams.assumedRole // TODO(pierre): remove this HACK
-	}
 	resourceType, _, ok := getARNResource(scan.ARN)
 	if !ok {
 		return nil, fmt.Errorf("ebs-scan: bad or missing ARN: %w", err)
@@ -1255,7 +1260,7 @@ func scanEBS(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEntity,
 	var trivyArtifact artifact.Artifact
 
 	if scan.AttachVolume || globalParams.attachVolumes {
-		localAssumedRole := ""
+		var localAssumedRole *arn.ARN // TODO
 		mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, localAssumedRole, tags, snapshotARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
@@ -1388,10 +1393,6 @@ func nextDeviceName() string {
 }
 
 func scanLambda(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEntity, err error) {
-	if scan.AssumedRole == "" {
-		scan.AssumedRole = globalParams.assumedRole // TODO(pierre): remove this HACK
-	}
-
 	defer statsd.Flush()
 
 	tags := []string{
@@ -1603,7 +1604,7 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 	return nil
 }
 
-func attachAndMountVolume(ctx context.Context, localAssumedRole string, metrictags []string, snapshotARN arn.ARN) (mountTargets []string, cleanupVolume func(context.Context), err error) {
+func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metrictags []string, snapshotARN arn.ARN) (mountTargets []string, cleanupVolume func(context.Context), err error) {
 	var cleanups []func(context.Context)
 	pushCleanup := func(cleanup func(context.Context)) {
 		cleanups = append(cleanups, cleanup)
@@ -1842,4 +1843,15 @@ func ec2ARN(region, accountID string, resourceType ec2types.ResourceType, resour
 		AccountID: accountID,
 		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceID),
 	}
+}
+
+func optionalARN(arnStr string) *arn.ARN {
+	if arnStr == "" {
+		return nil
+	}
+	arn, err := arn.Parse(arnStr)
+	if err != nil {
+		return nil
+	}
+	return &arn
 }
