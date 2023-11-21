@@ -63,10 +63,12 @@ func StartServer(
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
 ) error {
-	initializeTLS()
+	err := initializeTLS()
+	if err != nil {
+		return fmt.Errorf("unable to initialize TLS: %v", err)
+	}
 
 	// get the transport we're going to use under HTTP
-	var err error
 	listener, err = getListener()
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
@@ -110,13 +112,13 @@ func StartServer(
 	err = pb.RegisterAgentHandlerFromEndpoint(
 		ctx, gwmux, tlsAddr, dopts)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error registering agent handler from endpoint %s: %v", tlsAddr, err)
 	}
 
 	err = pb.RegisterAgentSecureHandlerFromEndpoint(
 		ctx, gwmux, tlsAddr, dopts)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error registering agent secure handler from endpoint %s: %v", tlsAddr, err)
 	}
 
 	// Setup multiplexer
