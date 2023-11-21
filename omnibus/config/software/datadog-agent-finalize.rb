@@ -42,9 +42,12 @@ build do
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
             delete "#{conf_dir}/process_agent.yaml.default"
-            
+
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
+
+            # Remove .pyc files from embedded Python
+            command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end
 
         if linux_target? || osx_target?

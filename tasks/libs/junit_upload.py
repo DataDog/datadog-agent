@@ -180,7 +180,9 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
     empty_tgzs = []
     for tgz, count in xmlcounts.items():
         print(f"Submitted results for {count} JUnit XML files from {tgz}")
-        if count == 0:
+        if count == 0 and not tgz.endswith(
+            "-fast.tgz"
+        ):  # *-fast.tgz contains only tests related to the modified code, they can be empty
             empty_tgzs.append(tgz)
 
     if empty_tgzs:
