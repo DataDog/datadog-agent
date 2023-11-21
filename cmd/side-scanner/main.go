@@ -616,12 +616,12 @@ func mountCmd(assumedRole string) error {
 		var snapshotARN arn.ARN
 		switch resourceType {
 		case ec2types.ResourceTypeVolume:
-			sID, cleanupSnapshot, err := createSnapshot(ctx, ec2client, nil, resourceARN)
+			var cleanupSnapshot func(context.Context)
+			snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, ec2client, nil, resourceARN)
 			cleanups = append(cleanups, cleanupSnapshot)
 			if err != nil {
 				return err
 			}
-			snapshotARN = ec2ARN(resourceARN.Region, resourceARN.AccountID, ec2types.ResourceTypeSnapshot, sID)
 		case ec2types.ResourceTypeSnapshot:
 			snapshotARN = resourceARN
 		default:
@@ -965,13 +965,13 @@ func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDelet
 	}
 }
 
-func createSnapshot(ctx context.Context, ec2client *ec2.Client, metrictags []string, volumeARN arn.ARN) (snapshotID string, cleanupSnapshot func(context.Context), err error) {
+func createSnapshot(ctx context.Context, ec2client *ec2.Client, metrictags []string, volumeARN arn.ARN) (snapshotARN arn.ARN, cleanupSnapshot func(context.Context), err error) {
 	cleanupSnapshot = func(ctx context.Context) {
-		if snapshotID != "" {
-			log.Debugf("deleting snapshot %q", snapshotID)
+		if snapshotARN.Resource != "" {
+			log.Debugf("deleting snapshot %q for volume %q", snapshotARN, volumeARN)
 			// do not use context here: we want to force snapshot deletion
 			ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-				SnapshotId: &snapshotID,
+				SnapshotId: &snapshotARN.Resource,
 			})
 		}
 	}
@@ -999,13 +999,13 @@ retry:
 				// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/errors-overview.html
 				// Wait at least 15 seconds between concurrent volume snapshots.
 				d := 15 * time.Second
-				log.Debugf("snapshot creation rate exceeded for volume %s; retrying after %v (%d/%d)", volumeARN, d, retries, maxSnapshotRetries)
+				log.Debugf("snapshot creation rate exceeded for volume %q; retrying after %v (%d/%d)", volumeARN, d, retries, maxSnapshotRetries)
 				sleepCtx(ctx, d)
 				goto retry
 			}
 		}
 		if isRateExceededError {
-			log.Debugf("snapshot creation rate exceeded for volume %s; skipping)", volumeARN)
+			log.Debugf("snapshot creation rate exceeded for volume %q; skipping)", volumeARN)
 		}
 	}
 	if err != nil {
@@ -1023,7 +1023,8 @@ retry:
 		return
 	}
 
-	snapshotID = *result.SnapshotId
+	snapshotID := *result.SnapshotId
+	snapshotARN = ec2ARN(volumeARN.Region, volumeARN.AccountID, ec2types.ResourceTypeSnapshot, snapshotID)
 
 	waiter := ec2.NewSnapshotCompletedWaiter(ec2client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
 		scwo.MinDelay = 1 * time.Second
@@ -1032,12 +1033,13 @@ retry:
 
 	if err == nil {
 		snapshotDuration := time.Since(snapshotStartedAt)
-		log.Debugf("volume snapshotting finished sucessfully %q (took %s)", snapshotID, snapshotDuration)
+		log.Debugf("volume snapshotting of %q finished sucessfully %q (took %s)", volumeARN, snapshotID, snapshotDuration)
 		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), metrictags, 1.0)
 		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(metrictags), 1.0)
 	} else {
 		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(metrictags), 1.0)
 	}
+
 	return
 }
 
@@ -1243,7 +1245,8 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	var snapshotARN arn.ARN
 	switch resourceType {
 	case ec2types.ResourceTypeVolume:
-		sID, cleanupSnapshot, err := createSnapshot(ctx, ec2client, tags, resourceARN)
+		var cleanupSnapshot func(context.Context)
+		snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, ec2client, tags, resourceARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
@@ -1252,7 +1255,6 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		if err != nil {
 			return nil, err
 		}
-		snapshotARN = ec2ARN(resourceARN.Region, resourceARN.AccountID, ec2types.ResourceTypeSnapshot, sID)
 	case ec2types.ResourceTypeSnapshot:
 		snapshotARN = resourceARN
 	default:
