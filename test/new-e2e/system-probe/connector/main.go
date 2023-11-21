@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build !windows
+
 // Package main implements the SSH connector between gitlab runners, metal instances, and micro VMs
 package main
 
