@@ -55,6 +55,11 @@
                     "dir": "debian-11-generic-amd64.qcow2",
                     "tag": "debian_11",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-11-generic-amd64.qcow2.xz"
+                },
+                {
+                    "dir": "debian-12-generic-amd64.qcow2",
+                    "tag": "debian_12",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-12-generic-amd64.qcow2.xz"
                 }
             ],
             "vcpu": [
@@ -112,6 +117,11 @@
                     "dir": "Fedora-Cloud-Base-38.arm64.qcow2",
                     "tag": "fedora_38",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/Fedora-Cloud-Base-38.arm64.qcow2.xz"
+                },
+                {
+                    "dir": "debian-12-generic-arm64.qcow2",
+                    "tag": "debian_12",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-12-generic-arm64.qcow2.xz"
                 }
             ],
             "machine": "virt",
