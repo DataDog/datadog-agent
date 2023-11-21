@@ -452,7 +452,6 @@ func listEBSScansForRegion(ctx context.Context, regionName string) (scans []scan
 					if *blockDeviceMapping.DeviceName != *instance.RootDeviceName {
 						continue
 					}
-					fmt.Println(regionName, *instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId)
 					if instance.Architecture == ec2types.ArchitectureValuesX8664Mac || instance.Architecture == ec2types.ArchitectureValuesArm64Mac {
 						// Exclude macOS.
 						continue
@@ -466,6 +465,7 @@ func listEBSScansForRegion(ctx context.Context, regionName string) (scans []scan
 						// Exclude Windows.
 						continue
 					}
+					log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId, *instance.PlatformDetails)
 					accountID := "" // TODO
 					scan := ebsScan{
 						ARN:      ec2ARN(regionName, accountID, ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId).String(),
