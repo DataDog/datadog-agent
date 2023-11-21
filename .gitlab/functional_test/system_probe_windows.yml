@@ -4,6 +4,7 @@
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
+#   - /.gitlab/functional_test/common.yml
 
 .kitchen_test_system_probe:
   extends:

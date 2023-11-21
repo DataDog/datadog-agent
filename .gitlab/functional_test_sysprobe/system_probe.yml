@@ -4,19 +4,7 @@
 # See: https://gitlab.com/gitlab-org/gitlab/-/issues/28987
 # include:
 #   - /.gitlab/kitchen_common/testing.yml
-
-.kitchen_test_system_probe:
-  extends:
-    - .kitchen_common
-    - .kitchen_datadog_agent_flavor
-  rules:
-    !reference [.on_system_probe_changes_or_manual]
-  stage: functional_test_sysprobe
-  timeout: 3h
-  variables:
-    AGENT_MAJOR_VERSION: 7
-    DD_PIPELINE_ID: $CI_PIPELINE_ID-fnct
-    CHEF_VERSION: 14.15.6
+#   - /.gitlab/functional_test/common.yml
 
 .kitchen_test_system_probe_linux:
   extends:
