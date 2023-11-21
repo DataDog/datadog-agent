@@ -10,12 +10,14 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"net"
 	"path/filepath"
 
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
@@ -112,10 +114,12 @@ func (p *EBPFLessProbe) init() error {
 	return nil
 }
 
-func (p *EBPFLessProbe) close() error {
+func (p *EBPFLessProbe) stop() {
 	p.server.GracefulStop()
 	p.cancelFnc()
+}
 
+func (p *EBPFLessProbe) close() error {
 	return nil
 }
 
@@ -134,9 +138,42 @@ func (p *EBPFLessProbe) start() error {
 	return nil
 }
 
-func (p *Probe) sendStats() error {
+func (p *EBPFLessProbe) snapshot() error {
 	return nil
 }
+
+func (p *EBPFLessProbe) setup() error {
+	return nil
+}
+
+func (p *EBPFLessProbe) onNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
+}
+
+func (p *EBPFLessProbe) newModel() *model.Model {
+	return NewEBPFLessModel(p)
+}
+
+func (p *EBPFLessProbe) sendStats() error {
+	return nil
+}
+
+func (p *EBPFLessProbe) dumpDiscarders() (string, error) {
+	return "", errors.New("not supported")
+}
+
+func (p *EBPFLessProbe) flushDiscarders() error {
+	return nil
+}
+
+func (p *EBPFLessProbe) getResolvers() *resolvers.Resolvers {
+	return p.resolvers
+}
+
+func (p *EBPFLessProbe) applyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	return &kfilters.ApplyRuleSetReport{}, nil
+}
+
+func (p *EBPFLessProbe) handleActions(rule *rules.Rule, event eval.Event) {}
 
 func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
@@ -176,6 +213,3 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 
 	return p, nil
 }
-
-// HandleActions executes the actions of a triggered rule
-func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}

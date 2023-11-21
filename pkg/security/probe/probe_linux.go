@@ -289,7 +289,6 @@ func (p *EBPFProbe) init() error {
 		return err
 	}
 
-	// TODO safchain make it plaform
 	p.profileManagers, err = NewSecurityProfileManagers(p)
 	if err != nil {
 		return err
@@ -1200,8 +1199,6 @@ func (p *EBPFProbe) GetDiscarders() (*DiscardersDump, error) {
 }
 
 func (p *EBPFProbe) dumpDiscarders() (string, error) {
-	seclog.Debugf("Dumping discarders")
-
 	dump, err := p.GetDiscarders()
 	if err != nil {
 		return "", err
@@ -1893,8 +1890,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	}
 }
 
-// HandleActions executes the actions of a triggered rule
-func (p *EBPFProbe) HandleActions(rule *rules.Rule, event eval.Event) {
+func (p *EBPFProbe) handleActions(rule *rules.Rule, event eval.Event) {
 	ev := event.(*model.Event)
 	for _, action := range rule.Definition.Actions {
 		switch {

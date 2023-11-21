@@ -16,6 +16,7 @@ func UpdateEventMonitorOpts(opts *eventmonitor.Opts, config *config.Config) {
 	opts.ProbeOpts.PathResolutionEnabled = true
 	opts.ProbeOpts.TTYFallbackEnabled = true
 	opts.ProbeOpts.SyscallsMonitorEnabled = config.Probe.SyscallsMonitorEnabled
+	opts.ProbeOpts.EBPFLessEnabled = config.RuntimeSecurity.EBPFLessEnabled
 }
 
 // DisableRuntimeSecurity disables all the runtime security features
@@ -25,7 +26,7 @@ func DisableRuntimeSecurity(config *config.Config) {
 	config.RuntimeSecurity.SecurityProfileEnabled = false
 }
 
-// platform specific init function
+// platform specifPathResolutionEnabledic init function
 func (c *CWSConsumer) init(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) error { //nolint:revive // TODO fix revive unused-parameter
 	// Activity dumps related
 	if p, ok := evm.Probe.PlatformProbe.(*probe.EBPFProbe); ok {

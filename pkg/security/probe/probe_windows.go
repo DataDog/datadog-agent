@@ -231,5 +231,4 @@ func (p *Probe) FlushDiscarders() error {
 }
 
 // HandleActions executes the actions of a triggered rule
-func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {
-}
+func (p *Probe) handleActions(_ *rules.Rule, _ eval.Event) {}

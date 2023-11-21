@@ -41,6 +41,7 @@ type PlatformProbe interface {
 	flushDiscarders() error
 	applyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
 	onNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
+	handleActions(_ *rules.Rule, _ eval.Event)
 }
 
 // FullAccessEventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
@@ -142,6 +143,7 @@ func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Fi
 
 // DumpDiscarders removes all the discarders
 func (p *Probe) DumpDiscarders() (string, error) {
+	seclog.Debugf("Dumping discarders")
 	return p.PlatformProbe.dumpDiscarders()
 }
 
@@ -157,6 +159,11 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 // GetResolvers returns the resolvers of Probe
 func (p *Probe) GetResolvers() *resolvers.Resolvers {
 	return p.PlatformProbe.getResolvers()
+}
+
+// HandleActions executes the actions of a triggered rule
+func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
+	p.PlatformProbe.handleActions(rule, event)
 }
 
 // AddEventHandler sets a probe event handler
@@ -300,11 +307,19 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		StatsdClient: opts.StatsdClient,
 	}
 
-	pp, err := NewEBPFProbe(p, config, opts)
-	if err != nil {
-		return nil, err
+	if opts.EBPFLessEnabled {
+		pp, err := NewEBPFLessProbe(p, config, opts)
+		if err != nil {
+			return nil, err
+		}
+		p.PlatformProbe = pp
+	} else {
+		pp, err := NewEBPFProbe(p, config, opts)
+		if err != nil {
+			return nil, err
+		}
+		p.PlatformProbe = pp
 	}
-	p.PlatformProbe = pp
 
 	return p, nil
 }
