@@ -15,7 +15,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
@@ -117,8 +116,7 @@ func (s *service) Run(svcctx context.Context) error {
 			}
 
 			return workloadmeta.Params{
-				AgentType:  catalog,
-				InitHelper: common.GetWorkloadmetaInit(),
+				AgentType: catalog,
 			}
 		}),
 	)
