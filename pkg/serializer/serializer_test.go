@@ -322,11 +322,24 @@ func TestSendSeries(t *testing.T) {
 func TestSendSketch(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 
-	matcher := createProtoscopeMatcher(`2: {}`)
+	matcher := createProtoscopeMatcher(`
+		1: {
+			1: {"fakename"}
+			2: {"fakehost"}
+			8: {
+				1: {
+					4: 10
+					5: 0
+					6: 0
+				}
+			}
+		}
+		2: {}
+		`)
 	f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
 
 	s := NewSerializer(f, nil)
-	err := s.SendSketch(metrics.NewSketchesSourceTest())
+	err := s.SendSketch(metrics.NewSketchesSourceTestWithSketch())
 	require.Nil(t, err)
 	f.AssertExpectations(t)
 }
