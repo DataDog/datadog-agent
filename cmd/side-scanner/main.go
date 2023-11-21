@@ -1357,6 +1357,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		return nil, fmt.Errorf("trivy scan failed: %w", err)
 	}
 
+	// This is different from "!trivyReport.Results.Failed()".
 	noResult = !hasPackages(trivyReport.Results)
 	scanDuration := time.Since(scanStartedAt)
 	log.Debugf("ebs-scan: finished (took %s)", scanDuration)
