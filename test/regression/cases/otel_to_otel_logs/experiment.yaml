@@ -3,6 +3,7 @@ erratic: false
 
 environment:
   DD_TELEMETRY_ENABLED: true
+  DD_API_KEY: 00000001
 
 profiling_environment:
   DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000

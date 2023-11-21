@@ -1478,15 +1478,21 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 		// these variables are used by the agent, but not via the Config struct,
 		// so must be listed separately.
 		"DD_INSIDE_CI":      {},
-		"DD_PROXY_NO_PROXY": {},
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
+		"DD_PROXY_NO_PROXY": {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_API_KEY_SECRET_ARN":        {},
-		"DD_DOTNET_TRACER_HOME":        {},
-		"DD_SERVERLESS_APPSEC_ENABLED": {},
-		"DD_SERVICE":                   {},
-		"DD_VERSION":                   {},
+		"DD_API_KEY_SECRET_ARN":              {},
+		"DD_APM_FLUSH_DEADLINE_MILLISECONDS": {},
+		"DD_DOTNET_TRACER_HOME":              {},
+		"DD_FLUSH_TO_LOG":                    {},
+		"DD_KMS_API_KEY":                     {},
+		"DD_LAMBDA_HANDLER":                  {},
+		"DD_LOGS_INJECTION":                  {},
+		"DD_MERGE_XRAY_TRACES":               {},
+		"DD_SERVERLESS_APPSEC_ENABLED":       {},
+		"DD_SERVICE":                         {},
+		"DD_VERSION":                         {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
@@ -1591,6 +1597,9 @@ func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEn
 	if err := config.ReadInConfig(); err != nil {
 		if IsServerless() {
 			log.Debug("No config file detected, using environment variable based configuration only")
+			// Proxy settings need to be loaded from environment variables even in the absence of a datadog.yaml file
+			// The remaining code in LoadCustom is not run to keep a low cold start time
+			LoadProxyFromEnv(config)
 			return &warnings, nil
 		}
 		return &warnings, err

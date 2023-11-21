@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -96,7 +96,7 @@ func runStatus(log log.Component, config config.Component, params *cliParams) er
 	} else if params.json {
 		s = string(r)
 	} else {
-		formattedStatus, err := status.FormatSecurityAgentStatus(r)
+		formattedStatus, err := render.FormatSecurityAgentStatus(r)
 		if err != nil {
 			return err
 		}

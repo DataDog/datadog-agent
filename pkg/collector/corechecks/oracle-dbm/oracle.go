@@ -67,6 +67,7 @@ type Check struct {
 	agentVersion                            string
 	checkInterval                           float64
 	tags                                    []string
+	tagsWithoutDbRole                       []string
 	configTags                              []string
 	tagsString                              string
 	cdbName                                 string
@@ -88,6 +89,15 @@ type Check struct {
 	initialized                             bool
 	multitenant                             bool
 	lastOracleRows                          []OracleRow // added for tests
+	databaseRole                            string
+	openMode                                string
+}
+
+type vDatabase struct {
+	Name         string `db:"NAME"`
+	Cdb          string `db:"CDB"`
+	DatabaseRole string `db:"DATABASE_ROLE"`
+	OpenMode     string `db:"OPEN_MODE"`
 }
 
 func handleServiceCheck(c *Check, err error) {
@@ -161,6 +171,14 @@ func (c *Check) Run() error {
 	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
 
 	if metricIntervalExpired {
+		if c.dbmEnabled {
+			err := c.dataGuard()
+			if err != nil {
+				return err
+			}
+		}
+		fixTags(c)
+
 		err := c.OS_Stats()
 		if err != nil {
 			db, errConnect := c.Connect()
@@ -377,4 +395,14 @@ func isDbVersionLessThan(c *Check, v string) bool {
 
 func isDbVersionGreaterOrEqualThan(c *Check, v string) bool {
 	return !isDbVersionLessThan(c, v)
+}
+
+func fixTags(c *Check) {
+	c.tags = make([]string, len(c.tagsWithoutDbRole))
+	copy(c.tags, c.tagsWithoutDbRole)
+	if c.databaseRole != "" {
+		roleTag := strings.ToLower(strings.ReplaceAll(string(c.databaseRole), " ", "_"))
+		c.tags = append(c.tags, "database_role:"+roleTag)
+	}
+	c.tagsString = strings.Join(c.tags, ",")
 }

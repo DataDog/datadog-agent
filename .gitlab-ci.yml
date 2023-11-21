@@ -93,6 +93,7 @@ stages:
   - e2e_test_junit_upload
   - kitchen_cleanup
   - functional_test
+  - functional_test_sysprobe
   - functional_test_cleanup
   - functional_test_junit_upload
   - internal_kubernetes_deploy
@@ -846,6 +847,13 @@ workflow:
     when: never
   - <<: *if_kitchen
 
+.on_all_new-e2e_tests_a7:
+  - <<: *if_not_version_7
+    when: never
+  - <<: *if_not_run_all_builds
+    when: never
+  - <<: *if_kitchen
+
 # Default kitchen tests are also run on dev branches
 # In that case, the target OS versions is a subset of the
 # available versions, stored in DEFAULT_KITCHEN_OSVERS
@@ -911,7 +919,7 @@ workflow:
         - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
         - test/kitchen/test/integration/system-probe-test/**/*
         - test/kitchen/test/integration/win-sysprobe-test/**/*
-        - .gitlab/functional_test/system_probe.yml
+        - .gitlab/functional_test_sysprobe/system_probe.yml
         - .gitlab/kernel_version_testing/system_probe.yml
         - test/new-e2e/system-probe/**/*
         - test/new-e2e/scenarios/system-probe/**/*
