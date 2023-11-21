@@ -157,6 +157,7 @@ type SketchesSourceTest struct {
 	currentIndex int
 }
 
+// NewSketchesSourceTestWithSketch populates values with a single test sketch
 func NewSketchesSourceTestWithSketch() *SketchesSourceTest {
 	return &SketchesSourceTest{
 		currentIndex: -1,
