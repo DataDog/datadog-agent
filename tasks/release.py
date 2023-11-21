@@ -1137,7 +1137,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=Fal
     To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
 
-    k8s_deployments - when set to True the child pipeline deploying to subset of k8s staging clusters would be triggered.
+    k8s_deployments - when set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
 
     Tags the new RC versions on the current commit, and creates the build pipeline for these
     new tags.
