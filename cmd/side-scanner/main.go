@@ -29,6 +29,7 @@ import (
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -147,6 +148,7 @@ func rootCommand() *cobra.Command {
 
 func runCommand() *cobra.Command {
 	var runParams struct {
+		pidfilePath      string
 		poolSize         int
 		allowedScanTypes []string
 	}
@@ -157,7 +159,7 @@ func runCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return runCmd(runParams.poolSize, runParams.allowedScanTypes)
+					return runCmd(runParams.pidfilePath, runParams.poolSize, runParams.allowedScanTypes)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -166,6 +168,7 @@ func runCommand() *cobra.Command {
 			)
 		},
 	}
+	runCmd.Flags().StringVarP(&runParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
 	runCmd.Flags().IntVarP(&runParams.poolSize, "workers", "", 40, "number of scans running in parallel")
 	runCmd.Flags().StringSliceVarP(&runParams.allowedScanTypes, "allowed-scans-type", "", nil, "lists of allowed scan types (ebs-scan, lambda-scan)")
 	return runCmd
@@ -283,11 +286,20 @@ func initStatsdClient() {
 	}
 }
 
-func runCmd(poolSize int, allowedScanTypes []string) error {
+func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
 	common.SetupInternalProfiling(pkgconfig.Datadog, "")
+
+	if pidfilePath != "" {
+		err := pidfile.WritePID(pidfilePath)
+		if err != nil {
+			return log.Errorf("Error while writing PID file, exiting: %v", err)
+		}
+		defer os.Remove(pidfilePath)
+		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
+	}
 
 	hostname, err := utils.GetHostnameWithContext(ctx)
 	if err != nil {
