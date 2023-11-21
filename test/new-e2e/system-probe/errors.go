@@ -27,7 +27,7 @@ const (
 	aria2cMissingStatusErrorStr = "error: wait: remote command exited without exit status or exit signal: running \" aria2c"
 )
 
-type ScenarioError int
+type scenarioError int
 
 const (
 	libvirtDialError ScenarioError = iota

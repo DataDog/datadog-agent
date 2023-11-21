@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// This package is sets up the remote testing environment for system-probe using the Kernel Matrix Testing framework
 package systemProbe
 
 import (
@@ -209,7 +210,7 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		if err != nil {
 			return handleScenarioFailure(err, func(possibleError handledError) {
 				if possibleError.errorType == insufficientCapacityError {
-					currentAZ += 1
+					currentAZ++
 				}
 			})
 		}
