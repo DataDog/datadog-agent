@@ -47,6 +47,7 @@ include:
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
+  - /.gitlab/rc_kubernetes_deploy.yml
 
 default:
   retry:
