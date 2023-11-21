@@ -41,6 +41,7 @@ const (
 
 	DatadogAgentQAEnv = "aws/agent-qa"
 	SandboxEnv        = "aws/sandbox"
+	EC2TagsEnvVar     = "RESOURCE_TAGS"
 
 	Aria2cMissingStatusError = "error: wait: remote command exited without exit status or exit signal: running \" aria2c"
 )
@@ -81,7 +82,7 @@ var (
 	sshKeyX86      = GetEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
 	sshKeyArm      = GetEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
 
-	stackOutputs = filepath.Join(CI_PROJECT_DIR, "stack.outputs")
+	stackOutputs = filepath.Join(CI_PROJECT_DIR, "stack.output")
 )
 
 func outputsToFile(output auto.OutputMap) error {
@@ -185,6 +186,10 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	if opts.ShutdownPeriod != 0 {
 		config["microvm:shutdownPeriod"] = auto.ConfigValue{Value: strconv.Itoa(opts.ShutdownPeriod)}
 		config["ddinfra:aws/defaultShutdownBehavior"] = auto.ConfigValue{Value: "terminate"}
+	}
+
+	if envVars := GetEnv(EC2TagsEnvVar, ""); envVars != "" {
+		config["ddinfra:extraResourcesTags"] = auto.ConfigValue{Value: envVars}
 	}
 
 	var upResult auto.UpResult
