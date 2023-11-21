@@ -78,6 +78,9 @@ core,github.com/DataDog/ebpf-manager/tracefs,MIT,Copyright (c) 2021 Authors of D
 core,github.com/DataDog/extendeddaemonset/api/v1alpha1,Apache-2.0,"Copyright 2016-2020 Datadog, Inc"
 core,github.com/DataDog/go-libddwaf,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-libddwaf/internal/noopfree,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v2,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v2/internal/lib,Apache-2.0,"Copyright 2016-present Datadog, Inc"
+core,github.com/DataDog/go-libddwaf/v2/internal/noopfree,Apache-2.0,"Copyright 2016-present Datadog, Inc"
 core,github.com/DataDog/go-sqllexer,MIT,"Copyright (c) 2023 Datadog, Inc"
 core,github.com/DataDog/go-tuf/client,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
 core,github.com/DataDog/go-tuf/data,BSD-3-Clause,"Copyright (c) 2014-2020 Prime Directive, Inc. All rights reserved"
@@ -1745,6 +1748,8 @@ core,go.opentelemetry.io/otel/semconv/v1.17.0,Apache-2.0,Copyright The OpenTelem
 core,go.opentelemetry.io/otel/semconv/v1.17.0/httpconv,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/semconv/v1.21.0,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/otel/trace,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/trace/embedded,Apache-2.0,Copyright The OpenTelemetry Authors
+core,go.opentelemetry.io/otel/trace/noop,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/proto/otlp/collector/metrics/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/proto/otlp/collector/trace/v1,Apache-2.0,Copyright The OpenTelemetry Authors
 core,go.opentelemetry.io/proto/otlp/common/v1,Apache-2.0,Copyright The OpenTelemetry Authors

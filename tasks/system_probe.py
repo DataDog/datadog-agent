@@ -1672,6 +1672,8 @@ def start_microvms(
     vmconfig=None,
     local=False,
     provision=False,
+    run_agent=False,
+    agent_version=None,
 ):
     args = [
         f"--instance-type-x86 {instance_type_x86}" if instance_type_x86 else "",
@@ -1688,6 +1690,8 @@ def start_microvms(
         f"--vmconfig {vmconfig}" if vmconfig else "",
         "--run-provision" if provision else "",
         "--local" if local else "",
+        "--run-agent" if run_agent else "",
+        f"--agent-version {agent_version}" if agent_version else "",
     ]
 
     go_args = ' '.join(filter(lambda x: x != "", args))

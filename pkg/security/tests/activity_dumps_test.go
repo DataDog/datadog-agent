@@ -43,7 +43,7 @@ func TestActivityDumps(t *testing.T) {
 
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -53,7 +53,7 @@ func TestActivityDumps(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpCleanupPeriod:           testActivityDumpCleanupPeriod,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

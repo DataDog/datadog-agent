@@ -31,7 +31,7 @@ func TestRename(t *testing.T) {
 		Expression: `rename.file.path == "{{.Root}}/test-rename" && rename.file.uid == 98 && rename.file.gid == 99 && rename.file.destination.path == "{{.Root}}/test2-rename" && rename.file.destination.uid == 98 && rename.file.destination.gid == 99`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func TestRenameInvalidate(t *testing.T) {
 		Expression: `rename.file.path in ["{{.Root}}/test-rename", "{{.Root}}/test2-rename"]`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +274,7 @@ func TestRenameReuseInode(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +350,7 @@ func TestRenameFolder(t *testing.T) {
 		Expression: `open.file.name == "test-rename" && (open.flags & O_CREAT) > 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}

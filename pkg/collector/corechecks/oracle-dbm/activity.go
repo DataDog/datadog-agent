@@ -357,6 +357,13 @@ func (c *Check) SampleSession() error {
 		if sample.PdbName.Valid {
 			sessionRow.PdbName = sample.PdbName.String
 		}
+		if sessionRow.PdbName == "" {
+			if c.multitenant {
+				sessionRow.PdbName = "CDB$ROOT"
+			} else {
+				sessionRow.PdbName = c.cdbName
+			}
+		}
 		sessionRow.CdbName = c.cdbName
 		sessionRows = append(sessionRows, sessionRow)
 	}

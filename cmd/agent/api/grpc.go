@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"time"
 
-	workloadmetaServer "github.com/DataDog/datadog-agent/pkg/workloadmeta/server"
+	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"

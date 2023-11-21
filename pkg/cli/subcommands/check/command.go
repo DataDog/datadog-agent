@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -39,11 +40,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -122,6 +125,11 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
+
+				workloadmeta.Module,
+				fx.Supply(workloadmeta.NewParams()),
+				fx.Supply(context.Background()),
+
 				forwarder.Bundle,
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				demultiplexer.Module,
@@ -173,7 +181,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component) error {
+func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
@@ -224,11 +232,11 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, demultiplexer); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, demultiplexer); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}
@@ -364,6 +372,8 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
 	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
+	collectorData := statuscollector.GetStatusInfo()
+	checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
 
@@ -372,20 +382,13 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 
 		if cliParams.formatJSON {
 			aggregatorData := printer.GetMetricsDataForPrint()
-			var collectorData map[string]interface{}
-
-			collectorJSON, _ := status.GetCheckStatusJSON(c, s)
-			err = json.Unmarshal(collectorJSON, &collectorData)
-			if err != nil {
-				return err
-			}
-
-			checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})[cliParams.checkName].(map[string]interface{})
+			checkRuns[c.String()] = make(map[checkid.ID]interface{})
+			checkRuns[c.String()].(map[checkid.ID]interface{})[c.ID()] = s
 
 			// There is only one checkID per run so we'll just access that
-			var runnerData map[string]interface{}
+			var runnerData map[checkid.ID]interface{}
 			for _, checkIDData := range checkRuns {
-				runnerData = checkIDData.(map[string]interface{})
+				runnerData = checkIDData.(map[checkid.ID]interface{})
 				break
 			}
 
@@ -456,8 +459,11 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 				checkFileOutput.WriteString(data + "\n")
 			}
 
-			checkStatus, _ := status.GetCheckStatus(c, s)
-			p(string(checkStatus))
+			checkRuns[c.String()] = make(map[checkid.ID]interface{})
+			checkRuns[c.String()].(map[checkid.ID]interface{})[c.ID()] = s
+			statusJSON, _ := json.Marshal(collectorData)
+			checkStatus, _ := render.FormatCheckStats(statusJSON)
+			p(checkStatus)
 
 			metadata := inventories.GetCheckMetadata(c)
 			if metadata != nil {

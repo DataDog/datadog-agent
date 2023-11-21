@@ -19,13 +19,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 )
 
-func clearMetadata() {
-	inventoryMutex.Lock()
-	defer inventoryMutex.Unlock()
+func setupHostMetadataMock(t *testing.T) {
+	dmi.SetupMock(t, "hypervisorUUID", "dmiUUID", "boardTag", "boardVendor")
+}
 
+func clearMetadata() {
 	checkMetadata = make(map[string]*checkMetadataCacheEntry)
 
 	// purge metadataUpdatedC
@@ -248,41 +249,9 @@ func TestGetPayload(t *testing.T) {
 					"instance_config": "{}"
 				}
 			]
-		},
-		"host_metadata":
-		{
-			"cpu_cores": 6,
-			"cpu_logical_processors": 6,
-			"cpu_vendor": "GenuineIntel",
-			"cpu_model": "Intel_i7-8750H",
-			"cpu_model_id": "158",
-			"cpu_family": "6",
-			"cpu_stepping": "10",
-			"cpu_frequency": 2208.006,
-			"cpu_cache_size": 9437184,
-			"kernel_name": "Linux",
-			"kernel_release": "5.17.0-1-amd64",
-			"kernel_version": "Debian_5.17.3-1",
-			"os": "GNU/Linux",
-			"cpu_architecture": "unknown",
-			"memory_total_kb": 1205632,
-			"memory_swap_total_kb": 1205632,
-			"ip_address": "192.168.24.138",
-			"ipv6_address": "fe80::20c:29ff:feb6:d232",
-			"mac_address": "00:0c:29:b6:d2:32",
-			"agent_version": "%v",
-			"cloud_provider": "some_cloud_provider",
-			"cloud_provider_source": "",
-			"cloud_provider_account_id": "",
-			"cloud_provider_host_id": "",
-			"os_version": "testOS",
-			"hypervisor_guest_uuid": "hypervisorUUID",
-			"dmi_product_uuid": "dmiUUID",
-			"dmi_board_asset_tag": "boardTag",
-			"dmi_board_vendor": "boardVendor"
 		}
 	}`
-	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano(), version.AgentVersion)
+	jsonString = fmt.Sprintf(jsonString, startNow.UnixNano())
 	// jsonString above is structure for easy editing, we have to convert if to a compact JSON
 	jsonString = strings.Replace(jsonString, "\t", "", -1)      // Removes tabs
 	jsonString = strings.Replace(jsonString, "\n", "", -1)      // Removes line breaks

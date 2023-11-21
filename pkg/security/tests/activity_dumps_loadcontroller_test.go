@@ -49,7 +49,7 @@ func TestActivityDumpsLoadControllerTimeout(t *testing.T) {
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
 		activityDumpLoadControllerTimeout:   time.Minute,
 	}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, opts)
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -110,7 +110,7 @@ func TestActivityDumpsLoadControllerEventTypes(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +188,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -198,7 +198,7 @@ func TestActivityDumpsLoadControllerRateLimiter(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpLoadControllerPeriod:    testActivityDumpLoadControllerPeriod,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

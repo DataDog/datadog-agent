@@ -29,7 +29,7 @@ func TestRmdir(t *testing.T) {
 		Expression: `rmdir.file.path in ["{{.Root}}/test-rmdir", "{{.Root}}/test-unlink-rmdir"] && rmdir.file.uid == 0 && rmdir.file.gid == 0`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +170,7 @@ func TestRmdirInvalidate(t *testing.T) {
 		Expression: `rmdir.file.path =~ "{{.Root}}/test-rmdir-*"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}

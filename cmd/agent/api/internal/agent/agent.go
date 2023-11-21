@@ -25,11 +25,13 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -50,7 +52,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // SetupHandlers adds the specific handlers for /agent endpoints
@@ -59,19 +60,21 @@ func SetupHandlers(
 	flareComp flare.Component,
 	server dogstatsdServer.Component,
 	serverDebug dogstatsddebug.Component,
+	wmeta workloadmeta.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	invHost inventoryhost.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, flareComp) }).Methods("POST")
 	r.HandleFunc("/stop", stopAgent).Methods("POST")
-	r.HandleFunc("/status", getStatus).Methods("GET")
+	r.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) { getStatus(w, r, invAgent) }).Methods("GET")
 	r.HandleFunc("/stream-event-platform", streamEventPlatform()).Methods("POST")
-	r.HandleFunc("/status/formatted", getFormattedStatus).Methods("GET")
+	r.HandleFunc("/status/formatted", func(w http.ResponseWriter, r *http.Request) { getFormattedStatus(w, r, invAgent) }).Methods("GET")
 	r.HandleFunc("/status/health", getHealth).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusGetterHandler).Methods("GET")
 	r.HandleFunc("/{component}/status", componentStatusHandler).Methods("POST")
@@ -83,9 +86,11 @@ func SetupHandlers(
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
-	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
+	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
+		getWorkloadList(w, r, wmeta)
+	}).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
-	r.HandleFunc("/metadata/{payload}", func(w http.ResponseWriter, r *http.Request) { metadataPayload(w, r, hostMetadata, invAgent) }).Methods("GET")
+	r.HandleFunc("/metadata/{payload}", func(w http.ResponseWriter, r *http.Request) { metadataPayload(w, r, hostMetadata, invAgent, invHost) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager) }).Methods("POST")
 
 	// Some agent subcommands do not provide these dependencies (such as JMX)
@@ -193,10 +198,10 @@ func componentStatusHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func getStatus(w http.ResponseWriter, r *http.Request) {
+func getStatus(w http.ResponseWriter, r *http.Request, invAgent inventoryagent.Component) {
 	log.Info("Got a request for the status. Making status.")
 	verbose := r.URL.Query().Get("verbose") == "true"
-	s, err := status.GetStatus(verbose)
+	s, err := status.GetStatus(verbose, invAgent)
 	w.Header().Set("Content-Type", "application/json")
 	if err != nil {
 		setJSONError(w, log.Errorf("Error getting status. Error: %v, Status: %v", err, s), 500)
@@ -331,9 +336,9 @@ func getDogstatsdStats(w http.ResponseWriter, _ *http.Request, dogstatsdServer d
 	w.Write(jsonStats)
 }
 
-func getFormattedStatus(w http.ResponseWriter, r *http.Request) {
+func getFormattedStatus(w http.ResponseWriter, _ *http.Request, invAgent inventoryagent.Component) {
 	log.Info("Got a request for the formatted status. Making formatted status.")
-	s, err := status.GetAndFormatStatus()
+	s, err := status.GetAndFormatStatus(invAgent)
 	if err != nil {
 		setJSONError(w, log.Errorf("Error getting status: %v %v", err, s), 500)
 		return
@@ -403,7 +408,7 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonTags)
 }
 
-func getWorkloadList(w http.ResponseWriter, r *http.Request) {
+func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	verbose := false
 	params := r.URL.Query()
 	if v, ok := params["verbose"]; ok {
@@ -412,7 +417,7 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response := workloadmeta.GetGlobalStore().Dump(verbose)
+	response := wmeta.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
 		setJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
@@ -426,7 +431,7 @@ func secretInfo(w http.ResponseWriter, r *http.Request) {
 	secrets.GetDebugInfo(w)
 }
 
-func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp host.Component, invAgent inventoryagent.Component) {
+func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp host.Component, invAgent inventoryagent.Component, invHost inventoryhost.Component) {
 	vars := mux.Vars(r)
 	payloadType := vars["payload"]
 
@@ -469,6 +474,13 @@ func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp ho
 	case "inventory-agent":
 		// GetLastPayload already return scrubbed data
 		scrubbed, err = invAgent.GetAsJSON()
+		if err != nil {
+			setJSONError(w, err, 500)
+			return
+		}
+	case "inventory-host":
+		// GetLastPayload already return scrubbed data
+		scrubbed, err = invHost.GetAsJSON()
 		if err != nil {
 			setJSONError(w, err, 500)
 			return
