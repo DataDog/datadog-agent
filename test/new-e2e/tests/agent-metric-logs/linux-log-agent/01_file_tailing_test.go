@@ -78,13 +78,10 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 		if !assert.NoError(c, err, "Unable to filter logs by the service 'hello'.") {
 			return
 		}
-		assert.Empty(c, logs, "Logs were found when none were expected.")
-
 		// If logs are found, print their content for debugging
-		if len(logs) != 0 {
+		if !assert.Empty(c, logs, "Logs were found when none were expected.") {
 			cat, _ := s.Env().VM.ExecuteWithError("cat /var/log/hello-world.log")
 			t.Logf("Logs detected when none were expected: %v", cat)
-			assert.Empty(c, logs, "Logs were found when none were expected.")
 		}
 	}, 5*time.Minute, 10*time.Second)
 
