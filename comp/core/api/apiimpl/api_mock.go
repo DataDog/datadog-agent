@@ -34,6 +34,7 @@ func (mock *mockAPIServer) StartServer(
 	_ dogstatsdServer.Component,
 	_ replay.Component,
 	_ dogstatsddebug.Component,
+	_ workloadmeta.Component,
 	_ pkgUtil.Optional[logsAgent.Component],
 	_ sender.DiagnoseSenderManager,
 	_ host.Component,

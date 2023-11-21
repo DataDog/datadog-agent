@@ -7,10 +7,25 @@
 package apiimpl
 
 import (
+	"net"
+
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api"
+	apiPackage "github.com/DataDog/datadog-agent/cmd/agent/api"
+	"github.com/DataDog/datadog-agent/comp/core/api"
+	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
+	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
+	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
+	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
+	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
@@ -28,35 +43,40 @@ func newAPIServer() api.Component {
 }
 
 // StartServer creates the router and starts the HTTP server
-func (server *apiServer) StartServer(configService *remoteconfig.Service,
+func (server *apiServer) StartServer(
+	configService *remoteconfig.Service,
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
 	capture replay.Component,
 	serverDebug dogstatsddebug.Component,
-	logsAgent pkgUtil.Optional[logsAgent.Component],
+	wmeta workloadmeta.Component,
+	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	invHost inventoryhost.Component,
 ) error {
-	return api.StartServer(configService,
+	return apiPackage.StartServer(configService,
 		flare,
 		dogstatsdServer,
 		capture,
 		serverDebug,
+		wmeta,
 		logsAgent,
 		senderManager,
 		hostMetadata,
 		invAgent,
+		invHost,
 	)
 }
 
 // StopServer closes the connection and the server
 // stops listening to new commands.
 func (server *apiServer) StopServer() {
-	return api.StopServer()
+	apiPackage.StopServer()
 }
 
 // ServerAddress returns the server address.
 func (server *apiServer) ServerAddress() *net.TCPAddr {
-	return api.ServerAddress()
+	return apiPackage.ServerAddress()
 }

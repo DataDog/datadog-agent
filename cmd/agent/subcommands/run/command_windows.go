@@ -88,9 +88,10 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			invAgent inventoryagent.Component,
 			invHost inventoryhost.Component,
 			_ netflowServer.Component,
+			agentAPI internalAPI.Component,
 		) error {
 
-			defer StopAgentWithDefaults(server, demultiplexer)
+			defer StopAgentWithDefaults(server, demultiplexer, agentAPI)
 
 			err := startAgent(
 				&cliParams{GlobalParams: &command.GlobalParams{}},
@@ -111,6 +112,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				hostMetadata,
 				invAgent,
 				invHost,
+				agentAPI,
 			)
 			if err != nil {
 				return err

@@ -23,7 +23,6 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
@@ -205,9 +204,10 @@ func run(log log.Component,
 	invHost inventoryhost.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
+	agentAPI internalAPI.Component,
 ) error {
 	defer func() {
-		stopAgent(cliParams, server, demultiplexer)
+		stopAgent(cliParams, server, demultiplexer, agentAPI)
 	}()
 
 	// prepare go runtime
@@ -264,6 +264,7 @@ func run(log log.Component,
 		hostMetadata,
 		invAgent,
 		invHost,
+		agentAPI,
 	); err != nil {
 		return err
 	}
@@ -629,8 +630,8 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(server dogstatsdServer.Component, demultiplexer demultiplexer.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, demultiplexer)
+func StopAgentWithDefaults(server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
+	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, demultiplexer, agentAPI)
 }
 
 // stopAgent Tears down the agent process
