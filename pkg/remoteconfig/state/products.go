@@ -6,7 +6,6 @@
 package state
 
 var validProducts = map[string]struct{}{
-	ProductDebug:             {},
 	ProductAgentConfig:       {},
 	ProductAgentTask:         {},
 	ProductAgentIntegrations: {},
@@ -14,6 +13,7 @@ var validProducts = map[string]struct{}{
 	ProductCWSDD:             {},
 	ProductCWSCustom:         {},
 	ProductCWSProfiles:       {},
+	ProductCSMSideScanning:   {},
 	ProductASM:               {},
 	ProductASMFeatures:       {},
 	ProductASMDD:             {},
@@ -24,8 +24,6 @@ var validProducts = map[string]struct{}{
 }
 
 const (
-	// ProductDebug is to receive debug configurations
-	ProductDebug = "DEBUG"
 	// ProductAgentConfig is to receive agent configurations, like the log level
 	ProductAgentConfig = "AGENT_CONFIG"
 	// ProductAgentIntegrations is to receive integrations to schedule
@@ -40,6 +38,8 @@ const (
 	ProductCWSCustom = "CWS_CUSTOM"
 	// ProductCWSProfiles is the cloud workload security profile product
 	ProductCWSProfiles = "CWS_SECURITY_PROFILES"
+	// ProductCSMSideScanning is the side scanning product
+	ProductCSMSideScanning = "CSM_SIDE_SCANNING"
 	// ProductASM is the ASM product used by customers to issue rules configurations
 	ProductASM = "ASM"
 	// ProductASMFeatures is the ASM product used form ASM activation through remote config
