@@ -8,9 +8,7 @@ import (
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	"github.com/DataDog/datadog-agent/rc-update-client/pkg/catalog"
-
-	// "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/rc-updater/catalog"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 )

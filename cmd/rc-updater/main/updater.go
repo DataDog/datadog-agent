@@ -15,8 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	"github.com/DataDog/datadog-agent/pkg/rc-updater/catalog"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
-	"github.com/DataDog/datadog-agent/rc-update-client/pkg/catalog"
 	"github.com/Masterminds/semver/v3"
 	"github.com/pkg/errors"
 
