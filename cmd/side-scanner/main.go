@@ -1359,6 +1359,13 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 
 	// This is different from "!trivyReport.Results.Failed()".
 	noResult = !hasPackages(trivyReport.Results)
+
+	if noResult {
+		log.Debugf("scan on %s %s reported no result", scan.Hostname, resourceARN)
+	} else {
+		log.Debugf("scan on %s %s reported results", scan.Hostname, resourceARN)
+	}
+
 	scanDuration := time.Since(scanStartedAt)
 	log.Debugf("ebs-scan: finished (took %s)", scanDuration)
 	statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tags, 1.0)
