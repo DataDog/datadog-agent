@@ -21,10 +21,9 @@ import (
 // MapCleaner is responsible for periodically sweeping an eBPF map
 // and deleting entries that satisfy a certain predicate function supplied by the user
 type MapCleaner[K any, V any] struct {
-	emap         *cebpf.Map
-	keyBatch     []K
-	valuesBatch  []V
-	keysToDelete []K
+	emap        *cebpf.Map
+	keyBatch    []K
+	valuesBatch []V
 
 	once sync.Once
 
@@ -44,11 +43,10 @@ func NewMapCleaner[K any, V any](emap *cebpf.Map, defaultBatchSize uint32) (*Map
 	}
 
 	return &MapCleaner[K, V]{
-		emap:         emap,
-		keyBatch:     make([]K, batchSize),
-		valuesBatch:  make([]V, batchSize),
-		keysToDelete: make([]K, 0, batchSize),
-		done:         make(chan struct{}),
+		emap:        emap,
+		keyBatch:    make([]K, batchSize),
+		valuesBatch: make([]V, batchSize),
+		done:        make(chan struct{}),
 	}, nil
 }
 
@@ -109,7 +107,7 @@ func (mc *MapCleaner[K, V]) Stop() {
 func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool) {
 	now := time.Now()
 
-	mc.keysToDelete = mc.keysToDelete[:0]
+	var keysToDelete []K
 	totalCount, deletedCount := 0, 0
 	var next K
 	var n int
@@ -124,11 +122,11 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 			if !shouldClean(nowTS, mc.keyBatch[i], mc.valuesBatch[i]) {
 				continue
 			}
-			mc.keysToDelete = append(mc.keysToDelete, mc.keyBatch[i])
+			keysToDelete = append(keysToDelete, mc.keyBatch[i])
 		}
 	}
-	if len(mc.keysToDelete) > 0 {
-		count, err := mc.emap.BatchDelete(mc.keysToDelete, nil)
+	if len(keysToDelete) > 0 {
+		count, err := mc.emap.BatchDelete(keysToDelete, nil)
 		if err != nil {
 			log.Debugf("failed to delete map entries: %v", err)
 			return
@@ -144,13 +142,12 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 		deletedCount,
 		elapsed,
 	)
-	mc.shrinkKeysToDelete()
 }
 
 func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(nowTS int64, k K, v V) bool) {
 	now := time.Now()
 
-	mc.keysToDelete = mc.keysToDelete[:0]
+	var keysToDelete []K
 	totalCount, deletedCount := 0, 0
 
 	entries := mc.emap.Iterate()
@@ -161,10 +158,10 @@ func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(no
 		if !shouldClean(nowTS, mc.keyBatch[0], mc.valuesBatch[0]) {
 			continue
 		}
-		mc.keysToDelete = append(mc.keysToDelete, mc.keyBatch[0])
+		keysToDelete = append(keysToDelete, mc.keyBatch[0])
 	}
 
-	for _, key := range mc.keysToDelete {
+	for _, key := range keysToDelete {
 		err := mc.emap.Delete(unsafe.Pointer(&key))
 		if err == nil {
 			deletedCount++
@@ -179,14 +176,4 @@ func (mc *MapCleaner[K, V]) cleanWithoutBatches(nowTS int64, shouldClean func(no
 		deletedCount,
 		elapsed,
 	)
-
-	mc.shrinkKeysToDelete()
-}
-
-func (mc *MapCleaner[K, V]) shrinkKeysToDelete() {
-	// If the number of keys to delete is greater than the batch size, shrinking its capacity
-	// by `mc.keysToDelete[:len(mc.keyBatch):len(mc.keyBatch)]` (similar to slices.Clip), and then resetting its length to 0
-	if len(mc.keysToDelete) > len(mc.keyBatch) {
-		mc.keysToDelete = mc.keysToDelete[:0:len(mc.keyBatch)]
-	}
 }
