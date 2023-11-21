@@ -1329,9 +1329,9 @@ func scanEBS(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEntity,
 	noResult = !hasPackages(trivyReport.Results)
 
 	if noResult {
-		log.Debugf("scan on %s %s reported no result", scan.Hostname, resourceARN)
+		log.Debugf("scan on %s %s reported no result", scan.Hostname, scan.ARN)
 	} else {
-		log.Debugf("scan on %s %s reported results", scan.Hostname, resourceARN)
+		log.Debugf("scan on %s %s reported results", scan.Hostname, scan.ARN)
 	}
 
 	scanDuration := time.Since(scanStartedAt)
