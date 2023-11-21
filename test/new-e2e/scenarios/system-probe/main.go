@@ -53,7 +53,7 @@ func main() {
 	vmconfigPathPtr := flag.String("vmconfig", defaultVMConfigPath, "vmconfig path")
 	local := flag.Bool("local", false, "is scenario running locally")
 	runAgentPtr := flag.Bool("run-agent", false, "Run datadog agent on the metal instance")
-	agentVersionPtr := flag.String("agent-version", "7.49", "Version of datadog-agent")
+	agentVersionPtr := flag.String("agent-version", "", "Version of datadog-agent")
 
 	flag.Parse()
 

@@ -289,7 +289,6 @@ upload_minimized_btfs_arm64:
     PIPELINE_ID: $CI_PIPELINE_ID
     TEAM: "ebpf-platform"
     RESOURCE_TAGS: "instance-type:${INSTANCE_TYPE},arch:${ARCH}"
-    AGENT_VERSION: "7.49"
     KUBERNETES_MEMORY_REQUEST: "12Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
   before_script:
@@ -302,7 +301,7 @@ upload_minimized_btfs_arm64:
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_PATH $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$ARCH-$CI_PIPELINE_ID --run-agent --agent-version=$AGENT_VERSION
+    - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_PATH $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$ARCH-$CI_PIPELINE_ID --run-agent
     - cat $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:

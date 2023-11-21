@@ -188,7 +188,6 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
 		"ddagent:deploy":                         auto.ConfigValue{Value: strconv.FormatBool(opts.RunAgent)},
-		"ddagent:version":                        auto.ConfigValue{Value: opts.AgentVersion},
 		"ddagent:apiKey":                         auto.ConfigValue{Value: apiKey, Secret: true},
 	}
 	// We cannot add defaultPrivateKeyPath if the key is in ssh-agent, otherwise passphrase is needed
@@ -201,6 +200,11 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	if opts.ShutdownPeriod != 0 {
 		config["microvm:shutdownPeriod"] = auto.ConfigValue{Value: strconv.Itoa(opts.ShutdownPeriod)}
 		config["ddinfra:aws/defaultShutdownBehavior"] = auto.ConfigValue{Value: "terminate"}
+	}
+
+	// If no agent version is provided the framework will automatically install the latest agent
+	if opts.AgentVersion != "" {
+		config["ddagent:version"] = auto.ConfigValue{Value: opts.AgentVersion}
 	}
 
 	if envVars := GetEnv(EC2TagsEnvVar, ""); envVars != "" {
