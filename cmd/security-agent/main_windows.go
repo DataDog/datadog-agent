@@ -96,7 +96,7 @@ func (s *service) Run(svcctx context.Context) error {
 			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 		}),
 		core.Bundle,
-		dogstatsd.Bundle,
+		dogstatsd.ClientBundle,
 		forwarder.Bundle,
 		fx.Provide(defaultforwarder.NewParamsWithResolvers),
 		demultiplexer.Module,

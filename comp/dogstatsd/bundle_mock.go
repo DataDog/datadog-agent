@@ -20,5 +20,9 @@ var MockBundle = fxutil.Bundle(
 	serverdebugimpl.MockModule,
 	server.MockModule,
 	replay.Module,
+)
+
+// MockClientBundle defines the mock fx options for this bundle.
+var MockClientBundle = fxutil.Bundle(
 	statsd.MockModule,
 )

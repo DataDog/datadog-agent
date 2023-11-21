@@ -93,7 +93,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
 				core.Bundle,
-				dogstatsd.Bundle,
+				dogstatsd.ClientBundle,
 			)
 		},
 	}
