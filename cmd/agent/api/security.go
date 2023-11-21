@@ -40,12 +40,9 @@ func parseToken(token string) (interface{}, error) {
 	return struct{}{}, nil
 }
 
-func buildSelfSignedKeyPair() ([]byte, []byte) {
+func buildSelfSignedKeyPair(extraHosts ...string) ([]byte, []byte) {
 	hosts := []string{"127.0.0.1", "localhost", "::1"}
-	ipcAddr, err := getIPCAddressPort()
-	if err == nil {
-		hosts = append(hosts, ipcAddr)
-	}
+	hosts = append(hosts, extraHosts...)
 	_, rootCertPEM, rootKey, err := security.GenerateRootCert(hosts, 2048)
 	if err != nil {
 		return nil, nil
@@ -60,8 +57,8 @@ func buildSelfSignedKeyPair() ([]byte, []byte) {
 	return rootCertPEM, rootKeyPEM
 }
 
-func initializeTLS() (*tls.Certificate, *x509.CertPool) {
-	cert, key := buildSelfSignedKeyPair()
+func initializeTLS(extraHosts ...string) (*tls.Certificate, *x509.CertPool) {
+	cert, key := buildSelfSignedKeyPair(extraHosts...)
 	if cert == nil {
 		panic("unable to generate certificate")
 	}
