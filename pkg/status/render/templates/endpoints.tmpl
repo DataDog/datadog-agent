@@ -1,14 +1,11 @@
 {{/*
 NOTE: Changes made to this template should be reflected on the following templates, if applicable:
 * cmd/agent/gui/views/templates/generalStatus.tmpl
-*/}}
-
-==========
+*/}}==========
 Endpoints
 ==========
-
-{{- with .endpointsInfos}}
-  {{- range $key, $value := .}}
+{{- with .endpointsInfos -}}
+{{ range $key, $value := .}}
   {{$key}} - API Key{{ if gt (len $value) 1}}s{{end}} ending with:
     {{- range $idx, $apikey := $value }}
       - {{$apikey}}
@@ -16,6 +13,6 @@ Endpoints
   {{- end}}
 {{- else }}
 
-  No endpoints information. The agent may be misconfigured.
-{{- end }}
+No endpoints information. The agent may be misconfigured.
+{{end }}
 
