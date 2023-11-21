@@ -58,17 +58,11 @@ func (s *LinuxVMFakeintakeSuite) TearDownSuite() {
 
 func (s *LinuxVMFakeintakeSuite) TestLinuxLogTailing() {
 	// Run test cases
-	s.Run("LogCollection", func() {
-		s.LogCollection()
-	})
+	s.Run("LogCollection", s.LogCollection)
 
-	s.Run("LogPermission", func() {
-		s.LogPermission()
-	})
+	s.Run("LogPermission", s.LogPermission)
 
-	s.Run("LogRotation", func() {
-		s.LogRotation()
-	})
+	s.Run("LogRotation", s.LogRotation)
 }
 
 func (s *LinuxVMFakeintakeSuite) LogCollection() {
