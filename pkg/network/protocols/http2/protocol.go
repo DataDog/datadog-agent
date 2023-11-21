@@ -10,7 +10,10 @@ package http2
 import (
 	"errors"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/cihub/seelog"
 	"strings"
+	"time"
 	"unsafe"
 
 	"github.com/cilium/ebpf"
@@ -26,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type protocol struct {
@@ -37,6 +39,9 @@ type protocol struct {
 	statkeeper     *http.StatKeeper
 	mapCleaner     *ddebpf.MapCleaner
 	eventsConsumer *events.Consumer
+
+	// kernelTelemetry is used to retrieve metrics from the kernel
+	http2Telemetry *kernelTelemetry
 }
 
 const (
@@ -117,10 +122,12 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	telemetry := http.NewTelemetry("http2")
+	http2KernelTelemetry := newHTTP2KernelTelemetry("http2")
 
 	return &protocol{
-		cfg:       cfg,
-		telemetry: telemetry,
+		cfg:            cfg,
+		telemetry:      telemetry,
+		http2Telemetry: http2KernelTelemetry,
 	}, nil
 }
 
@@ -185,6 +192,9 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
 	p.setupMapCleaner(mgr)
+	go func() {
+		p.UpdateKernelTelemetry(mgr)
+	}()
 
 	return nil
 }
@@ -266,6 +276,47 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 	return &protocols.ProtocolStats{
 		Type:  protocols.HTTP2,
 		Stats: p.statkeeper.GetAndResetAllStats(),
+	}
+}
+
+// UpdateKernelTelemetry should be moved to the HTTP/2 part as well
+func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) {
+	var zero uint64
+
+	for {
+		mp, _, err := mgr.GetMap(probes.HTTP2TelemetryMap)
+		if err != nil {
+			log.Warnf("error retrieving http2 telemetry map: %s", err)
+			return
+		}
+
+		http2Telemetry := &HTTP2Telemetry{}
+		if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+			// This can happen if we haven't initialized the telemetry object yet
+			// so let's just use a trace log
+			if log.ShouldLog(seelog.TraceLvl) {
+				log.Tracef("error retrieving the http2 telemetry struct: %s", err)
+			}
+			return
+		}
+
+		p.http2Telemetry.http2requests.Set(int64(http2Telemetry.Request_seen))
+		p.http2Telemetry.http2responses.Set(int64(http2Telemetry.Response_seen))
+		p.http2Telemetry.endOfStreamEOS.Set(int64(http2Telemetry.End_of_stream_eos))
+		p.http2Telemetry.endOfStreamRST.Set(int64(http2Telemetry.End_of_stream_rst))
+		p.http2Telemetry.strLenExceedsFrame.Set(int64(http2Telemetry.Str_len_exceeds_frame))
+		p.http2Telemetry.pathSizeBucket0.Set(int64(http2Telemetry.Path_size_bucket0))
+		p.http2Telemetry.pathSizeBucket1.Set(int64(http2Telemetry.Path_size_bucket1))
+		p.http2Telemetry.pathSizeBucket2.Set(int64(http2Telemetry.Path_size_bucket2))
+		p.http2Telemetry.pathSizeBucket3.Set(int64(http2Telemetry.Path_size_bucket3))
+		p.http2Telemetry.pathSizeBucket4.Set(int64(http2Telemetry.Path_size_bucket4))
+		p.http2Telemetry.pathSizeBucket5.Set(int64(http2Telemetry.Path_size_bucket5))
+		p.http2Telemetry.pathSizeBucket6.Set(int64(http2Telemetry.Path_size_bucket6))
+		p.http2Telemetry.maxInterestingFrames.Set(int64(http2Telemetry.Max_interesting_frames))
+		p.http2Telemetry.maxFramesToFilter.Set(int64(http2Telemetry.Max_frames_to_filter))
+
+		time.Sleep(10 * time.Second)
+		p.http2Telemetry.Log()
 	}
 }
 

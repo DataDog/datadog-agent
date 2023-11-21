@@ -42,4 +42,10 @@ BPF_PERCPU_ARRAY_MAP(http2_scratch_buffer, http2_event_t, 1)
 /* Allocating a ctx on the heap, in order to save the ctx between the current stream. */
 BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, http2_ctx_t, 1)
 
+/* This map is used for telemetry in kernelspace
+ * only key 0 is used
+ * value is a telemetry object
+ */
+BPF_ARRAY_MAP(http2_telemetry, http2_telemetry_t, 1)
+
 #endif
