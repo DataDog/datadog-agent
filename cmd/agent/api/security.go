@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -57,21 +58,21 @@ func buildSelfSignedKeyPair(extraHosts ...string) ([]byte, []byte) {
 	return rootCertPEM, rootKeyPEM
 }
 
-func initializeTLS(extraHosts ...string) (*tls.Certificate, *x509.CertPool) {
+func initializeTLS(extraHosts ...string) (*tls.Certificate, *x509.CertPool, error) {
 	cert, key := buildSelfSignedKeyPair(extraHosts...)
 	if cert == nil {
-		panic("unable to generate certificate")
+		return nil, nil, errors.New("unable to generate certificate")
 	}
 	pair, err := tls.X509KeyPair(cert, key)
 	if err != nil {
-		panic(err)
+		return nil, nil, fmt.Errorf("unable to generate TLS key pair: %v", err)
 	}
 
 	tlsCertPool := x509.NewCertPool()
 	ok := tlsCertPool.AppendCertsFromPEM(cert)
 	if !ok {
-		panic("bad certs")
+		return nil, nil, fmt.Errorf("unable to add new certificate to pool")
 	}
 
-	return &pair, tlsCertPool
+	return &pair, tlsCertPool, nil
 }

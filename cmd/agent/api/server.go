@@ -28,6 +28,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -61,10 +62,11 @@ func StartServer(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	invHost inventoryhost.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
-		panic("unable to get IPC address and port")
+		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
 
 	extraHosts := []string{apiAddr}
@@ -80,7 +82,10 @@ func StartServer(
 		extraHosts = append(extraHosts, apiConfigHostPort)
 	}
 
-	tlsKeyPair, tlsCertPool := initializeTLS(extraHosts...)
+	tlsKeyPair, tlsCertPool, err := initializeTLS(extraHosts...)
+	if err != nil {
+		return fmt.Errorf("unable to initialize TLS: %v", err)
+	}
 
 	tlsConfig := &tls.Config{
 		Certificates: []tls.Certificate{*tlsKeyPair},
@@ -97,6 +102,7 @@ func StartServer(
 		configService, flare, dogstatsdServer,
 		capture, serverDebug, wmeta, logsAgent,
 		senderManager, hostMetadata, invAgent,
+		invHost,
 	); err != nil {
 		return err
 	}

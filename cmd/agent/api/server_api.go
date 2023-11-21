@@ -31,6 +31,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -57,6 +58,7 @@ func startAPIServer(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	invHost inventoryhost.Component,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	apiListener, err = getListener(apiAddr)
@@ -97,13 +99,13 @@ func startAPIServer(
 	err = pb.RegisterAgentHandlerFromEndpoint(
 		ctx, gwmux, apiAddr, dopts)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error registering agent handler from endpoint %s: %v", apiAddr, err)
 	}
 
 	err = pb.RegisterAgentSecureHandlerFromEndpoint(
 		ctx, gwmux, apiAddr, dopts)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error registering agent secure handler from endpoint %s: %v", apiAddr, err)
 	}
 
 	// Setup multiplexer
@@ -128,6 +130,7 @@ func startAPIServer(
 				senderManager,
 				hostMetadata,
 				invAgent,
+				invHost,
 			)))
 	apiMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	apiMux.Handle("/", gwmux)

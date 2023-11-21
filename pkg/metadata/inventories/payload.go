@@ -12,13 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
-// AgentMetadataName is an enum type containing all defined keys for
-// SetAgentMetadata.
-type AgentMetadataName string
-
-// AgentMetadata contains metadata provided by the agent itself
-type AgentMetadata map[AgentMetadataName]interface{}
-
 // CheckMetadata contains metadata provided by all integrations.
 // Each check has an entry in the top level map, each containing an array with
 // all its instances, each containing its metadata.
@@ -32,7 +25,6 @@ type Payload struct {
 	Hostname      string         `json:"hostname"`
 	Timestamp     int64          `json:"timestamp"`
 	CheckMetadata *CheckMetadata `json:"check_metadata"`
-	HostMetadata  *HostMetadata  `json:"host_metadata"`
 }
 
 // MarshalJSON serialization a Payload to JSON
@@ -46,35 +38,5 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 // In this case, the payload can only be split at the top level, so `times` is ignored
 // and each top-level component is returned as a distinct payload.
 func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
-	newPayloads := []marshaler.AbstractMarshaler{}
-	fieldName := ""
-
-	// Each field can be sent individually but we can't split any more than this as the backend expects each payload
-	// to be received complete.
-
-	if p.CheckMetadata != nil {
-		fieldName = "check_metadata"
-		newPayloads = append(newPayloads,
-			&Payload{
-				Hostname:      p.Hostname,
-				Timestamp:     p.Timestamp,
-				CheckMetadata: p.CheckMetadata,
-			})
-	}
-	if p.HostMetadata != nil {
-		fieldName = "host_metadata"
-		newPayloads = append(newPayloads,
-			&Payload{
-				Hostname:     p.Hostname,
-				Timestamp:    p.Timestamp,
-				HostMetadata: p.HostMetadata,
-			})
-	}
-
-	// if only one field is set we can't split any more
-	if len(newPayloads) <= 1 {
-		return nil, fmt.Errorf("could not split inventories payload any more, %s metadata is too big for intake", fieldName)
-	}
-
-	return newPayloads, nil
+	return nil, fmt.Errorf("could not split inventories payload any more, payload is too big for intake")
 }

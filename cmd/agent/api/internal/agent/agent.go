@@ -31,6 +31,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -64,6 +65,7 @@ func SetupHandlers(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	invHost inventoryhost.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -88,7 +90,7 @@ func SetupHandlers(
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
 	r.HandleFunc("/secrets", secretInfo).Methods("GET")
-	r.HandleFunc("/metadata/{payload}", func(w http.ResponseWriter, r *http.Request) { metadataPayload(w, r, hostMetadata, invAgent) }).Methods("GET")
+	r.HandleFunc("/metadata/{payload}", func(w http.ResponseWriter, r *http.Request) { metadataPayload(w, r, hostMetadata, invAgent, invHost) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager) }).Methods("POST")
 
 	// Some agent subcommands do not provide these dependencies (such as JMX)
@@ -429,7 +431,7 @@ func secretInfo(w http.ResponseWriter, r *http.Request) {
 	secrets.GetDebugInfo(w)
 }
 
-func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp host.Component, invAgent inventoryagent.Component) {
+func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp host.Component, invAgent inventoryagent.Component, invHost inventoryhost.Component) {
 	vars := mux.Vars(r)
 	payloadType := vars["payload"]
 
@@ -472,6 +474,13 @@ func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp ho
 	case "inventory-agent":
 		// GetLastPayload already return scrubbed data
 		scrubbed, err = invAgent.GetAsJSON()
+		if err != nil {
+			setJSONError(w, err, 500)
+			return
+		}
+	case "inventory-host":
+		// GetLastPayload already return scrubbed data
+		scrubbed, err = invHost.GetAsJSON()
 		if err != nil {
 			setJSONError(w, err, 500)
 			return
