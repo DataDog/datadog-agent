@@ -468,6 +468,7 @@ func listEBSScansForRegion(ctx context.Context, regionName string, assumedRole *
 					log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId, *instance.PlatformDetails)
 					accountID := "" // TODO
 					scan := scanTask{
+						Type:     ebsScanType,
 						ARN:      ec2ARN(regionName, accountID, ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId),
 						Hostname: *instance.InstanceId,
 					}
