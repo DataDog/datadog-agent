@@ -25,6 +25,7 @@
 
 offset_ct(origin)
 offset_ct(reply)
+offset_ct(status)
 offset_ct(netns)
 offset_ct(ino)
 

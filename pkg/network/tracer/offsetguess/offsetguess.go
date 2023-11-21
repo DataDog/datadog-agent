@@ -74,7 +74,6 @@ var whatString = map[GuessWhat]string{
 
 	GuessCtTupleOrigin: "conntrack origin tuple",
 	GuessCtTupleReply:  "conntrack reply tuple",
-	GuessCtStatus:      "conntrack status",
 	GuessCtNet:         "conntrack network namespace",
 }
 

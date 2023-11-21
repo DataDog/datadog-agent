@@ -154,25 +154,11 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 		}
 
 		if c.status.Saddr == expected.daddr {
-			c.logAndAdvance(c.status.Offset_reply, GuessCtStatus)
+			c.logAndAdvance(c.status.Offset_reply, GuessCtNet)
 			break
 		}
 		c.status.Offset_reply++
 		c.status.Offset_reply, _ = skipOverlaps(c.status.Offset_reply, c.nfConnRanges())
-	case GuessCtStatus:
-		c.status.Offset_status, overlapped = skipOverlaps(c.status.Offset_status, c.nfConnRanges())
-		if overlapped {
-			// adjusted offset from eBPF overlapped with another field, we need to check new offset
-			break
-		}
-
-		if c.status.Status == expected.ctStatus {
-			c.status.Offset_netns = c.status.Offset_status + 1
-			c.logAndAdvance(c.status.Offset_status, GuessCtNet)
-			break
-		}
-		c.status.Offset_status++
-		c.status.Offset_status, _ = skipOverlaps(c.status.Offset_status, c.nfConnRanges())
 	case GuessCtNet:
 		c.status.Offset_netns, overlapped = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
 		if overlapped {

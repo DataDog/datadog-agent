@@ -85,9 +85,7 @@ type ConntrackStatus struct {
 	Offset_netns  uint64
 	Offset_ino    uint64
 	Saddr         uint32
-	Status        uint32
 	Netns         uint32
-	Pad_cgo_0     [4]byte
 }
 type ConntrackState uint8
 
@@ -120,7 +118,6 @@ const (
 
 	GuessCtTupleOrigin GuessWhat = 0x14
 	GuessCtTupleReply  GuessWhat = 0x15
-	GuessCtStatus      GuessWhat = 0x16
 	GuessCtNet         GuessWhat = 0x17
 
 	GuessNotApplicable GuessWhat = 99999
