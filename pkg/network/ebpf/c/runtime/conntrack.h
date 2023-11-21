@@ -28,15 +28,10 @@ static __always_inline u32 get_netns(void *p_net) {
     return net_ns_inum;
 }
 
-#define RETURN_IF_NOT_NAT(orig, reply)                      \
-    if (!is_conn_nat(orig, reply)) {                        \
-        return 0;                                           \
-    }
-
-bool is_conn_nat(conntrack_tuple_t orig, conntrack_tuple_t reply) {
-    return orig.daddr_l != reply.saddr_l || orig.dport != reply.sport || 
-        orig.saddr_l != reply.daddr_l || orig.sport != reply.dport || 
-        orig.daddr_h != reply.saddr_h;
+static __always_inline u32 ct_status(const struct nf_conn *ct) {
+    u32 status = 0;
+    bpf_probe_read_kernel_with_telemetry(&status, sizeof(status), (void *)&ct->status);
+    return status;
 }
 
 static __always_inline int nf_conn_to_conntrack_tuples(struct nf_conn* ct, conntrack_tuple_t* orig, conntrack_tuple_t* reply) {

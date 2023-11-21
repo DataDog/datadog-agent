@@ -21,7 +21,7 @@ int kprobe___nf_conntrack_hash_insert(struct pt_regs* ctx) {
     if (nf_conn_to_conntrack_tuples(ct, &orig, &reply) != 0) {
         return 0;
     }
-    RETURN_IF_NOT_NAT(orig, reply);
+    RETURN_IF_NOT_NAT(&orig, &reply);
 
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
@@ -47,7 +47,7 @@ int kprobe_ctnetlink_fill_info(struct pt_regs* ctx) {
         return 0;
     }
 
-    RETURN_IF_NOT_NAT(orig, reply);
+    RETURN_IF_NOT_NAT(&orig, &reply);
 
     bpf_map_update_with_telemetry(conntrack, &orig, &reply, BPF_ANY);
     bpf_map_update_with_telemetry(conntrack, &reply, &orig, BPF_ANY);
