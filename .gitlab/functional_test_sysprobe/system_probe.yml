@@ -9,6 +9,7 @@
 .kitchen_test_system_probe_linux:
   extends:
     - .kitchen_test_system_probe
+  stage: functional_test_sysprobe
   before_script:
     - echo "CI_JOB_URL=${CI_JOB_URL}" >> $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/job_env.txt
     - echo "CI_JOB_ID=${CI_JOB_ID}" >> $DD_AGENT_TESTING_DIR/site-cookbooks/dd-system-probe-check/files/job_env.txt
