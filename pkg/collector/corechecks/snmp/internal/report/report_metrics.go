@@ -7,8 +7,6 @@ package report
 
 import (
 	"fmt"
-	"sync"
-
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -38,24 +36,6 @@ type MetricSample struct {
 	symbol     profiledefinition.SymbolConfig
 	forcedType profiledefinition.ProfileMetricType
 	options    profiledefinition.MetricsConfigOption
-}
-
-// BandwidthUsage tracks the interface's current ifSpeed and last seen sample to generate rate with
-type BandwidthUsage struct {
-	ifSpeed        uint64
-	previousSample float64
-	previousTsNano int64
-}
-
-// InterfaceBandwidthState holds state between runs to be able to calculate rate and know if the ifSpeed has changed
-type InterfaceBandwidthState struct {
-	state map[string]BandwidthUsage
-	mu    sync.RWMutex
-}
-
-// NewInterfaceBandwidthState creates a new InterfaceBandwidthState
-func NewInterfaceBandwidthState() *InterfaceBandwidthState {
-	return &InterfaceBandwidthState{state: make(map[string]BandwidthUsage)}
 }
 
 // NewMetricSender create a new MetricSender

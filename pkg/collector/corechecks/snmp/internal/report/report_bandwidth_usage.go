@@ -101,8 +101,7 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	}
 	usageValue := ((octetsFloatValue * 8) / (float64(ifSpeed))) * 100.0
 
-	interfaceID := ms.deviceID + ":" + fullIndex + "." + usageName
-	rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(interfaceID, ifSpeed, usageValue)
+	rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(ms.deviceID, fullIndex, usageName, ifSpeed, usageValue)
 	if err != nil {
 		return err
 	}
@@ -115,53 +114,6 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	}
 	ms.sendMetric(sample)
 	return nil
-}
-
-/*
-calculateRate is responsible for checking the state for previously seen metric sample to generate the rate from.
-If the ifSpeed has changed for the interface, the rate will not be submitted (drop the previous sample)
-*/
-func (ibs *InterfaceBandwidthState) calculateBandwidthUsageRate(interfaceID string, ifSpeed uint64, usageValue float64) (float64, error) {
-	// current data point has the same interface speed as last data point
-	ibs.mu.RLock()
-	state, ok := ibs.state[interfaceID]
-	ibs.mu.RUnlock()
-	if ok && state.ifSpeed == ifSpeed {
-		// Get time in seconds with nanosecond precision, as core agent uses for rate calculation in aggregator
-		// https://github.com/DataDog/datadog-agent/blob/ecedf4648f41193988b4727fc6f893a0dfc3991e/pkg/aggregator/aggregator.go#L96
-		currentTsNano := TimeNow().UnixNano()
-		currentTs := float64(currentTsNano) / float64(time.Second)
-		prevTs := float64(state.previousTsNano) / float64(time.Second)
-
-		// calculate the delta, taken from pkg/metrics/rate.go
-		// https://github.com/DataDog/datadog-agent/blob/ecedf4648f41193988b4727fc6f893a0dfc3991e/pkg/metrics/rate.go#L37
-		delta := (usageValue - state.previousSample) / (currentTs - prevTs)
-
-		// update the map previous as the current for next rate
-		state.previousSample = usageValue
-		state.previousTsNano = currentTsNano
-		ibs.mu.Lock()
-		ibs.state[interfaceID] = state
-		ibs.mu.Unlock()
-
-		if delta < 0 {
-			return 0, fmt.Errorf("Rate value for device/interface %s is negative, discarding it", interfaceID)
-		}
-		return delta, nil
-	}
-	// otherwise, no previous data point / different ifSpeed - make new entry for interface
-	ibs.mu.Lock()
-	ibs.state[interfaceID] = BandwidthUsage{
-		ifSpeed:        ifSpeed,
-		previousSample: usageValue,
-		previousTsNano: TimeNow().UnixNano(),
-	}
-	ibs.mu.Unlock()
-	// do not send a sample to metrics, send error for ifSpeed change (previous entry conflicted)
-	if ok {
-		log.Infof("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", state.ifSpeed, ifSpeed, interfaceID)
-	}
-	return 0, nil
 }
 
 func (ms *MetricSender) sendIfSpeedMetrics(symbol profiledefinition.SymbolConfig, fullIndex string, values *valuestore.ResultValueStore, tags []string) {
