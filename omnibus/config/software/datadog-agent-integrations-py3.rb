@@ -398,56 +398,56 @@ build do
       end
     end
 
-    checks_to_install.each do |check|
-      check_dir = File.join(project_dir, check)
-      check_conf_dir = "#{conf_dir}/#{check}.d"
+    block "Install integrations" do
+      # This needs to be done in a block because `checks_to_install` can only be known at build-time
+      checks_to_install.each do |check|
+        check_dir = File.join(project_dir, check)
+        check_conf_dir = "#{conf_dir}/#{check}.d"
 
-      # For each conf file, if it already exists, that means the `datadog-agent` software def
-      # wrote it first. In that case, since the agent's confs take precedence, skip the conf
-      conf_files = ["conf.yaml.example", "conf.yaml.default", "metrics.yaml", "auto_conf.yaml"]
-      conf_files.each do |filename|
-        src = windows_safe_path(check_dir,"datadog_checks", check, "data", filename)
-        if File.exist? src
-          mkdir check_conf_dir
+        # For each conf file, if it already exists, that means the `datadog-agent` software def
+        # wrote it first. In that case, since the agent's confs take precedence, skip the conf
+        conf_files = ["conf.yaml.example", "conf.yaml.default", "metrics.yaml", "auto_conf.yaml"]
+        conf_files.each do |filename|
+          src = windows_safe_path(check_dir,"datadog_checks", check, "data", filename)
           dest = check_conf_dir
-          # Requires a block because requires info only available at build time
-          block "Copy #{src} to #{dest} without overwriting" do
-            FileUtils.cp_r(src, dest) unless File.exist(windows_safe_path(dest, filename))
+          if File.exist?(src) and !File.exist?(windows_safe_path(dest, filename))
+            FileUtils.mkdir_p(dest)
+            FileUtils.cp_r(src, dest)
           end
         end
-      end
 
-      # Copy SNMP profiles
-      profile_folders = ['profiles', 'default_profiles']
-      profile_folders.each do |profile_folder|
-        folder_path = "#{check_dir}/datadog_checks/#{check}/data/#{profile_folder}"
-        if File.exist? folder_path
-          copy folder_path, "#{check_conf_dir}/"
+        # Copy SNMP profiles
+        profile_folders = ['profiles', 'default_profiles']
+        profile_folders.each do |profile_folder|
+          folder_path = "#{check_dir}/datadog_checks/#{check}/data/#{profile_folder}"
+          if File.exist? folder_path
+            FileUtils.cp_r folder_path, "#{check_conf_dir}/"
+          end
         end
-      end
 
-      # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
-      # whether or not this might switch back in the future is not guaranteed, so we check for both name
-      # with dashes and underscores
-      if installed_list.include?(check) || installed_list.include?(check.gsub('_', '-'))
-        next
-      end
+        # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
+        # whether or not this might switch back in the future is not guaranteed, so we check for both name
+        # with dashes and underscores
+        if installed_list.include?(check) || installed_list.include?(check.gsub('_', '-'))
+          next
+        end
 
-      if windows_target?
-        command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
-      else
-        command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
-      end
-      command "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
-      if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
-        command "inv -e agent.upload-integration-to-cache " \
-                "--python 3 --bucket #{cache_bucket} " \
-                "--branch #{cache_branch} " \
-                "--integrations-dir #{windows_safe_path(project_dir)} " \
-                "--build-dir #{wheel_build_dir} " \
-                "--integration #{check} " \
-                "--awscli #{awscli}",
-                :cwd => tasks_dir_in
+        if windows_target?
+          shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
+        else
+          shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
+        end
+        shellout! "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
+        if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
+          shellout! "inv -e agent.upload-integration-to-cache " \
+                    "--python 3 --bucket #{cache_bucket} " \
+                    "--branch #{cache_branch} " \
+                    "--integrations-dir #{windows_safe_path(project_dir)} " \
+                    "--build-dir #{wheel_build_dir} " \
+                    "--integration #{check} " \
+                    "--awscli #{awscli}",
+                    :cwd => tasks_dir_in
+        end
       end
     end
 
