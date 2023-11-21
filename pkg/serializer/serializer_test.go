@@ -323,17 +323,7 @@ func TestSendSketch(t *testing.T) {
 	f := &forwarder.MockedForwarder{}
 
 	matcher := createProtoscopeMatcher(`
-		1: {
-			1: {"fakename"}
-			2: {"fakehost"}
-			8: {
-				1: {
-					4: 10
-					5: 0
-					6: 0
-				}
-			}
-		}
+		1: { 1: {"fakename"} 2: {"fakehost"} 8: { 1: { 4: 10 }}}
 		2: {}
 		`)
 	f.On("SubmitSketchSeries", matcher, protobufExtraHeadersWithCompression).Return(nil).Times(1)
