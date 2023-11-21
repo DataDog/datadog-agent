@@ -20,8 +20,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/api"
 	"github.com/DataDog/datadog-agent/cmd/security-agent/command"
@@ -37,6 +35,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -85,7 +85,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle,
-
+				dogstatsd.ClientBundle,
 				forwarder.Bundle,
 				fx.Provide(defaultforwarder.NewParamsWithResolvers),
 				demultiplexer.Module,
@@ -124,11 +124,11 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 // TODO(components): note how workloadmeta is passed anonymously, it is still required as it is used
 // as a global. This should eventually be fixed and all workloadmeta interactions should be via the
 // injected instance.
-func start(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, _ workloadmeta.Component, demultiplexer demultiplexer.Component, params *cliParams) error {
+func start(log log.Component, config config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, _ workloadmeta.Component, demultiplexer demultiplexer.Component, params *cliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer StopAgent(cancel, log)
 
-	err := RunAgent(ctx, log, config, sysprobeconfig, telemetry, params.pidfilePath, demultiplexer)
+	err := RunAgent(ctx, log, config, statsd, sysprobeconfig, telemetry, params.pidfilePath, demultiplexer)
 	if errors.Is(err, errAllComponentsDisabled) || errors.Is(err, errNoAPIKeyConfigured) {
 		return nil
 	}
@@ -181,7 +181,7 @@ var errAllComponentsDisabled = errors.New("all security-agent component are disa
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component) (err error) {
+func RunAgent(ctx context.Context, log log.Component, config config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component) (err error) {
 	if err := util.SetupCoreDump(config); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
@@ -252,17 +252,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 
 	stopper = startstop.NewSerialStopper()
 
-	// Create a statsd Client
-	statsdAddr := os.Getenv("STATSD_URL")
-	if statsdAddr == "" {
-		// Retrieve statsd host and port from the datadog agent configuration file
-		statsdHost := pkgconfig.GetBindHost()
-		statsdPort := config.GetInt("dogstatsd_port")
-
-		statsdAddr = fmt.Sprintf("%s:%d", statsdHost, statsdPort)
-	}
-
-	statsdClient, err := ddgostatsd.New(statsdAddr)
+	statsdClient, err := statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
 	if err != nil {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
