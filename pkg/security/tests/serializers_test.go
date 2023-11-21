@@ -38,7 +38,7 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSeriali
 		Expression: `open.file.path == "{{.Root}}/test-open" && open.flags & O_CREAT != 0`,
 	}
 
-	test, err := newTestModule(tb, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(tb, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		tb.Fatal(err)
 	}

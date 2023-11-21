@@ -3,6 +3,7 @@ erratic: true
 
 environment:
   DD_TELEMETRY_ENABLED: true
+  DD_API_KEY: 00000001
   DD_PROCESS_CONFIG_PROCESS_DD_URL: http://127.0.0.1:9092
   # For regression detection we only care about the processes generated inside the container
   # so this disables checking of the processes of the host the container is running on

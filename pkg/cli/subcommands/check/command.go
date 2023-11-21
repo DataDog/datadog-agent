@@ -40,11 +40,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -370,6 +372,8 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
 	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
+	collectorData := statuscollector.GetStatusInfo()
+	checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
 
@@ -378,20 +382,13 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 
 		if cliParams.formatJSON {
 			aggregatorData := printer.GetMetricsDataForPrint()
-			var collectorData map[string]interface{}
-
-			collectorJSON, _ := status.GetCheckStatusJSON(c, s)
-			err = json.Unmarshal(collectorJSON, &collectorData)
-			if err != nil {
-				return err
-			}
-
-			checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})[cliParams.checkName].(map[string]interface{})
+			checkRuns[c.String()] = make(map[checkid.ID]interface{})
+			checkRuns[c.String()].(map[checkid.ID]interface{})[c.ID()] = s
 
 			// There is only one checkID per run so we'll just access that
-			var runnerData map[string]interface{}
+			var runnerData map[checkid.ID]interface{}
 			for _, checkIDData := range checkRuns {
-				runnerData = checkIDData.(map[string]interface{})
+				runnerData = checkIDData.(map[checkid.ID]interface{})
 				break
 			}
 
@@ -462,8 +459,11 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 				checkFileOutput.WriteString(data + "\n")
 			}
 
-			checkStatus, _ := status.GetCheckStatus(c, s)
-			p(string(checkStatus))
+			checkRuns[c.String()] = make(map[checkid.ID]interface{})
+			checkRuns[c.String()].(map[checkid.ID]interface{})[c.ID()] = s
+			statusJSON, _ := json.Marshal(collectorData)
+			checkStatus, _ := render.FormatCheckStats(statusJSON)
+			p(checkStatus)
 
 			metadata := inventories.GetCheckMetadata(c)
 			if metadata != nil {
