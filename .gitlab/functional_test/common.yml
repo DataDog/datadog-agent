@@ -11,7 +11,6 @@
     - .kitchen_datadog_agent_flavor
   rules:
     !reference [.on_system_probe_changes_or_manual]
-  stage: functional_test
   timeout: 3h
   variables:
     AGENT_MAJOR_VERSION: 7
