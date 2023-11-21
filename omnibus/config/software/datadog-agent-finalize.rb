@@ -57,6 +57,7 @@ build do
                 delete "#{install_dir}/embedded/bin/pip"
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
 
+                # Used in https://docs.datadoghq.com/agent/guide/python-3/
                 delete "#{install_dir}/embedded/bin/2to3"
                 link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
             # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
@@ -69,6 +70,7 @@ build do
                 delete "#{install_dir}/embedded/bin/python"
                 link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
 
+                # Used in https://docs.datadoghq.com/agent/guide/python-3/
                 delete "#{install_dir}/embedded/bin/2to3"
                 link "#{install_dir}/embedded/bin/2to3-3.11", "#{install_dir}/embedded/bin/2to3"
             end
