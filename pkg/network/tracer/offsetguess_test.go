@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -27,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	"github.com/DataDog/datadog-agent/pkg/process/statsd"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
-	manager "github.com/DataDog/ebpf-manager"
 )
 
 //go:generate $GOPATH/bin/include_headers pkg/network/ebpf/c/runtime/offsetguess-test.c pkg/ebpf/bytecode/build/runtime/offsetguess-test.c pkg/ebpf/c pkg/ebpf/c/protocols pkg/network/ebpf/c/runtime pkg/network/ebpf/c
@@ -317,12 +318,19 @@ func TestOffsetGuessPortIPv6Overlap(t *testing.T) {
 			// so we capture i and addr.Zone correctly in the closure below
 			z := addr.Zone
 			ii := i + 1
-			_, err := nettestutil.RunCommand(fmt.Sprintf("ip -6 addr add %s%d/64 dev %s scope link", portMatchingPrefix, ii, addr.Zone))
+			_, err := nettestutil.RunCommand(fmt.Sprintf("ip -6 addr add %s%d/64 dev %s scope link nodad", portMatchingPrefix, ii, z))
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, _ = nettestutil.RunCommand(fmt.Sprintf("ip -6 addr del %s%d/64 dev %s scope link", portMatchingPrefix, ii, z))
+				_, err = nettestutil.RunCommand(fmt.Sprintf("ip -6 addr del %s%d/64 dev %s scope link", portMatchingPrefix, ii, z))
+				if err != nil {
+					t.Logf("remove link-local error: %s\n", err)
+				}
 			})
 		}
+
+		showout, err := nettestutil.RunCommand("ip -6 addr show")
+		require.NoError(t, err)
+		t.Log(showout)
 
 		testOffsetGuess(t)
 	})

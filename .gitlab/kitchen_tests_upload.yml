@@ -30,7 +30,6 @@ kitchen_tests_upload_common:
     - kitchen_centos_upgrade7_iot_agent-a7
     - kitchen_debian_install_script_agent-a6_arm64
     - kitchen_debian_install_script_agent-a6_x64
-    - kitchen_debian_install_script_agent-a7_arm64
     - kitchen_debian_install_script_dogstatsd-a7
     - kitchen_debian_install_script_heroku_agent-a6
     - kitchen_debian_install_script_heroku_agent-a7
