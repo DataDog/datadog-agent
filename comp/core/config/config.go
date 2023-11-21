@@ -29,7 +29,7 @@ type cfg struct {
 }
 
 // configDependencies is an interface that mimics the fx-oriented dependencies struct
-// TODO: investigate whether this interrface is worth keeping, otherwise delete it and just use dependencies
+// TODO: (components) investigate whether this interface is worth keeping, otherwise delete it and just use dependencies
 type configDependencies interface {
 	getParams() *Params
 	getSecretResolver() secrets.Component

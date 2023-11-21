@@ -29,11 +29,6 @@ func (m *MockSecretResolver) Configure(_ string, _ []string, _, _ int, _, _ bool
 // GetDebugInfo is not implemented
 func (m *MockSecretResolver) GetDebugInfo(_ io.Writer) {}
 
-// IsEnabled always returns true
-func (m *MockSecretResolver) IsEnabled() bool {
-	return true
-}
-
 // Inject adds data to be decrypted, by returning the value for the given key
 func (m *MockSecretResolver) Inject(key, value string) {
 	m.resolve[key] = value

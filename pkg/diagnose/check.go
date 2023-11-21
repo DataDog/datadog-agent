@@ -98,7 +98,7 @@ func diagnoseChecksInCLIProcess(diagCfg diagnosis.Config, senderManager diagnose
 		}
 	}
 
-	// TODO: Hack to retrieve a singleton reference to the secrets Component
+	// TODO: (components) Hack to retrieve a singleton reference to the secrets Component
 	//
 	// Only needed temporarily, since the secrets.Component is needed for the diagnose functionality.
 	// It is very difficult right now to modify diagnose because it would require modifying many

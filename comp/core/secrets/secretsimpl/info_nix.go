@@ -24,10 +24,10 @@ type permissionsDetails struct {
 	Group    string
 }
 
-func getExecutablePermissions(secret *secretResolver) (interface{}, error) {
+func (r *secretResolver) getExecutablePermissions() (interface{}, error) {
 	var stat syscall.Stat_t
-	if err := syscall.Stat(secret.backendCommand, &stat); err != nil {
-		return nil, fmt.Errorf("Could not stat %s: %s", secret.backendCommand, err)
+	if err := syscall.Stat(r.backendCommand, &stat); err != nil {
+		return nil, fmt.Errorf("Could not stat %s: %s", r.backendCommand, err)
 	}
 
 	details := permissionsDetails{

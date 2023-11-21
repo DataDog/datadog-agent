@@ -38,20 +38,13 @@ func (b *limitBuffer) Write(p []byte) (n int, err error) {
 }
 
 func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
+	// hook used only for tests
 	if r.commandHookFunc != nil {
 		return r.commandHookFunc(inputPayload)
 	}
-	commandTimeout := r.backendTimeout
-	if commandTimeout == 0 {
-		commandTimeout = SecretBackendTimeoutDefault
-	}
-	responseMaxSize := r.responseMaxSize
-	if responseMaxSize == 0 {
-		responseMaxSize = SecretBackendOutputMaxSizeDefault
-	}
 
 	ctx, cancel := context.WithTimeout(context.Background(),
-		time.Duration(commandTimeout)*time.Second)
+		time.Duration(r.backendTimeout)*time.Second)
 	defer cancel()
 
 	cmd, done, err := commandContext(ctx, r.backendCommand, r.backendArguments...)
@@ -68,11 +61,11 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 
 	stdout := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: responseMaxSize,
+		max: r.responseMaxSize,
 	}
 	stderr := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: responseMaxSize,
+		max: r.responseMaxSize,
 	}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr

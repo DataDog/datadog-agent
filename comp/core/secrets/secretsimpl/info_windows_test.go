@@ -19,10 +19,10 @@ import (
 )
 
 func TestGetExecutablePermissionsError(t *testing.T) {
-	secretBackendCommand = "some_command"
-	t.Cleanup(resetPackageVars)
+	resolver := newEnabledSecretResolver()
+	resolver.backendCommand = "some_command"
 
-	res, err := getExecutablePermissions()
+	res, err := resolver.getExecutablePermissions()
 	require.NoError(t, err)
 	require.IsType(t, permissionsDetails{}, res)
 	details := res.(permissionsDetails)
@@ -31,17 +31,16 @@ func TestGetExecutablePermissionsError(t *testing.T) {
 	assert.NotEqual(t, "", details.Stderr)
 }
 
-func setupSecretCommmand(t *testing.T) {
+func setupSecretCommmand(t *testing.T, resolver *secretResolver) {
 	dir := t.TempDir()
-	t.Cleanup(resetPackageVars)
 
-	secretBackendCommand = filepath.Join(dir, "an executable with space")
-	f, err := os.Create(secretBackendCommand)
+	resolver.backendCommand = filepath.Join(dir, "an executable with space")
+	f, err := os.Create(resolver.backendCommand)
 	require.NoError(t, err)
 	f.Close()
 
 	exec.Command("powershell", "test/setAcl.ps1",
-		"-file", fmt.Sprintf("\"%s\"", secretBackendCommand),
+		"-file", fmt.Sprintf("\"%s\"", resolver.backendCommand),
 		"-removeAllUser", "0",
 		"-removeAdmin", "0",
 		"-removeLocalSystem", "0",
@@ -49,9 +48,10 @@ func setupSecretCommmand(t *testing.T) {
 }
 
 func TestGetExecutablePermissionsSuccess(t *testing.T) {
-	setupSecretCommmand(t)
+	resolver := newEnabledSecretResolver()
+	setupSecretCommmand(t, resolver)
 
-	res, err := getExecutablePermissions()
+	res, err := resolver.getExecutablePermissions()
 	require.NoError(t, err)
 	require.IsType(t, permissionsDetails{}, res)
 	details := res.(permissionsDetails)

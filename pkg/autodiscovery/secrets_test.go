@@ -38,10 +38,6 @@ func (m *MockSecretResolver) Configure(_ string, _ []string, _, _ int, _, _ bool
 
 func (m *MockSecretResolver) GetDebugInfo(_ io.Writer) {}
 
-func (m *MockSecretResolver) IsEnabled() bool {
-	return true
-}
-
 func (m *MockSecretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
 	if m.scenarios == nil {
 		return data, nil

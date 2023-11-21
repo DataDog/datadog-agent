@@ -18,8 +18,6 @@ type Component interface {
 	Configure(command string, arguments []string, timeout, maxSize int, groupExecPerm, removeLinebreak bool)
 	// Get debug information and write it to the parameter
 	GetDebugInfo(w io.Writer)
-	// Whether this component is enabled, if disabled other methods will only log and error and return
-	IsEnabled() bool
 	// Decrypt the given handle and return the corresponding secret value
 	Decrypt(data []byte, origin string) ([]byte, error)
 }

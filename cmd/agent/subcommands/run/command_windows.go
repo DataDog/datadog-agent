@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -88,6 +89,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			hostMetadata host.Component,
 			invAgent inventoryagent.Component,
 			invHost inventoryhost.Component,
+			secretResolver secrets.Component,
 			_ netflowServer.Component,
 		) error {
 
@@ -113,6 +115,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invAgent,
 				invHost,
 			)
+				secretResolver)
 			if err != nil {
 				return err
 			}
