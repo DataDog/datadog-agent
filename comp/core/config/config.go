@@ -39,7 +39,8 @@ type dependencies struct {
 	fx.In
 
 	Params Params
-	Secret secrets.Component
+	// secrets Component is optional, if not provided, the config will not decrypt secrets
+	Secret secrets.Component `optional:"true"`
 }
 
 func (d dependencies) getParams() *Params {

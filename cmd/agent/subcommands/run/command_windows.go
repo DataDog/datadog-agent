@@ -114,8 +114,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				hostMetadata,
 				invAgent,
 				invHost,
+				secretResolver,
 			)
-				secretResolver)
 			if err != nil {
 				return err
 			}
