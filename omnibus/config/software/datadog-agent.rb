@@ -163,6 +163,11 @@ build do
     end
   end
 
+  if linux_target?
+    command "invoke -e side-scanner.build"
+    copy "bin/side-scanner/side-scanner", "#{install_dir}/embedded/bin"
+  end
+
   # APM Injection agent
   if windows_target?
     if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
