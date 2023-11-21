@@ -106,8 +106,8 @@ var (
 type scanType string
 
 const (
-	ebsScanType    scanType = "ebs-scan"
-	lambdaScanType          = "lambda-scan"
+	ebsScanType    scanType = "ebs-volume"
+	lambdaScanType          = "lambda"
 )
 
 func main() {
@@ -363,11 +363,11 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 		}
 	}
 
-	scansCh := make(chan scanTask)
+	scansCh := make(chan *scanTask)
 
 	go func() {
 		defer close(scansCh)
-		scans := make([]scanTask, 0)
+		scans := make([]*scanTask, 0)
 
 		for _, regionName := range allRegions {
 			if ctx.Err() != nil {
@@ -417,7 +417,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	return nil
 }
 
-func listEBSScansForRegion(ctx context.Context, regionName string) (scans []scanTask, err error) {
+func listEBSScansForRegion(ctx context.Context, regionName string) (scans []*scanTask, err error) {
 	cfg, awsstats, err := newAWSConfig(ctx, regionName, globalParams.assumedRole)
 	if err != nil {
 		return nil, err
@@ -467,15 +467,11 @@ func listEBSScansForRegion(ctx context.Context, regionName string) (scans []scan
 					}
 					log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId, *instance.PlatformDetails)
 					accountID := "" // TODO
-					scan := ebsScan{
-						ARN:      ec2ARN(regionName, accountID, ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId).String(),
+					scan := scanTask{
+						ARN:      ec2ARN(regionName, accountID, ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId),
 						Hostname: *instance.InstanceId,
 					}
-					scans = append(scans, scanTask{
-						Type: ebsScanType,
-						Scan: scan,
-					})
-
+					scans = append(scans, &scan)
 				}
 			}
 		}
@@ -647,60 +643,36 @@ func mountCmd(assumedRole string) error {
 }
 
 type scansTask struct {
-	Type     scanType          `json:"type"`
-	RawScans []json.RawMessage `json:"scans"`
+	Type  scanType    `json:"type"`
+	Scans []*scanTask `json:"scans"`
 }
 
 type scanTask struct {
-	Type scanType
-	Scan interface{}
+	Type         scanType
+	ARNString    string  `json:"arn"`
+	ARN          arn.ARN `json:"-"`
+	Hostname     string  `json:"hostname"`
+	AttachVolume bool    `json:"attachVolume,omitempty"`
+	AssumedRole  string  `json:"assumedRole,omitempty"`
 }
 
-func unmarshalScanTasks(b []byte) ([]scanTask, error) {
-	var task scansTask
-	if err := json.Unmarshal(b, &task); err != nil {
+func (s scanTask) String() string {
+	return fmt.Sprintf("ebs_scan=%s hostname=%q", s.ARN, s.Hostname)
+}
+
+func unmarshalScanTasks(b []byte) ([]*scanTask, error) {
+	var tasks scansTask
+	if err := json.Unmarshal(b, &tasks); err != nil {
 		return nil, err
 	}
-	tasks := make([]scanTask, 0, len(task.RawScans))
-	for _, rawScan := range task.RawScans {
-		switch task.Type {
-		case ebsScanType:
-			var scan ebsScan
-			if err := json.Unmarshal(rawScan, &scan); err != nil {
-				return nil, err
-			}
-			tasks = append(tasks, scanTask{
-				Type: task.Type,
-				Scan: scan,
-			})
-		case lambdaScanType:
-			var scan lambdaScan
-			if err := json.Unmarshal(rawScan, &scan); err != nil {
-				return nil, err
-			}
-			tasks = append(tasks, scanTask{
-				Type: task.Type,
-				Scan: scan,
-			})
+	for _, scan := range tasks.Scans {
+		var err error
+		scan.ARN, err = arn.Parse(scan.ARNString)
+		if err != nil {
+			return nil, fmt.Errorf("bad or empty arn %q: %w", scan.ARNString, err)
 		}
 	}
-	return tasks, nil
-}
-
-type ebsScan struct {
-	ARN          string `json:"arn"`
-	Hostname     string `json:"hostname"`
-	AttachVolume bool   `json:"attachVolume,omitempty"`
-	AssumedRole  string `json:"assumedRole,omitempty"`
-}
-
-func (s ebsScan) Region() string {
-	arn, _ := arn.Parse(s.ARN)
-	return arn.Region
-}
-
-func (s ebsScan) String() string {
-	return fmt.Sprintf("ebs_scan=%s hostname=%q", s.ARN, s.Hostname)
+	return tasks.Scans, nil
 }
 
 func getARNResource(arn arn.ARN) (resourceType ec2types.ResourceType, resourceID string, ok bool) {
@@ -735,7 +707,7 @@ type sideScanner struct {
 	eventForwarder   epforwarder.EventPlatformForwarder
 	allowedScanTypes []string
 
-	scansCh           chan scanTask
+	scansCh           chan *scanTask
 	scansInProgress   map[interface{}]struct{}
 	scansInProgressMu sync.RWMutex
 }
@@ -746,7 +718,7 @@ func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epf
 		rcClient:         rcClient,
 		eventForwarder:   eventForwarder,
 		poolSize:         poolSize,
-		scansCh:          make(chan scanTask),
+		scansCh:          make(chan *scanTask),
 		scansInProgress:  make(map[interface{}]struct{}),
 		allowedScanTypes: allowedScanTypes,
 	}
@@ -763,7 +735,7 @@ func (s *sideScanner) start(ctx context.Context) {
 	defer s.rcClient.Close()
 
 	log.Infof("subscribing to remote-config")
-	s.rcClient.Subscribe(state.ProductDebug, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
+	s.rcClient.Subscribe(state.ProductCSMSideScanning, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
 			s.pushOrSkipScan(ctx, rawConfig)
@@ -819,7 +791,7 @@ func (s *sideScanner) pushOrSkipScan(ctx context.Context, rawConfig state.RawCon
 	}
 }
 
-func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan scanTask) error {
+func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan *scanTask) error {
 	s.scansInProgressMu.Lock()
 	s.scansInProgress[scan] = struct{}{}
 	s.scansInProgressMu.Unlock()
@@ -864,12 +836,12 @@ func (s *sideScanner) sendSBOM(sourceAgent string, entity *sbommodel.SBOMEntity)
 	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
 }
 
-func launchScan(ctx context.Context, scan scanTask) (*sbommodel.SBOMEntity, error) {
+func launchScan(ctx context.Context, scan *scanTask) (*sbommodel.SBOMEntity, error) {
 	switch scan.Type {
 	case ebsScanType:
-		return scanEBS(ctx, scan.Scan.(ebsScan))
+		return scanEBS(ctx, scan)
 	case lambdaScanType:
-		return scanLambda(ctx, scan.Scan.(lambdaScan))
+		return scanLambda(ctx, scan)
 	default:
 		return nil, fmt.Errorf("unknown scan type: %s", scan.Type)
 	}
@@ -1203,15 +1175,11 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
 }
 
-func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, err error) {
+func scanEBS(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEntity, err error) {
 	if scan.AssumedRole == "" {
 		scan.AssumedRole = globalParams.assumedRole // TODO(pierre): remove this HACK
 	}
-	resourceARN, err := arn.Parse(scan.ARN)
-	if err != nil {
-		return
-	}
-	resourceType, _, ok := getARNResource(resourceARN)
+	resourceType, _, ok := getARNResource(scan.ARN)
 	if !ok {
 		return nil, fmt.Errorf("ebs-scan: bad or missing ARN: %w", err)
 	}
@@ -1223,7 +1191,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 
 	tags := []string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("region:%s", scan.Region),
+		fmt.Sprintf("region:%s", scan.ARN.Region),
 		fmt.Sprintf("type:%s", ebsScanType),
 		fmt.Sprintf("scan_host:%s", scan.Hostname),
 	}
@@ -1232,7 +1200,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 		return nil, err
 	}
 
-	cfg, awsstats, err := newAWSConfig(ctx, scan.Region(), scan.AssumedRole)
+	cfg, awsstats, err := newAWSConfig(ctx, scan.ARN.Region, scan.AssumedRole)
 	if err != nil {
 		return nil, err
 	}
@@ -1247,7 +1215,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 	switch resourceType {
 	case ec2types.ResourceTypeVolume:
 		var cleanupSnapshot func(context.Context)
-		snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, ec2client, tags, resourceARN)
+		snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, ec2client, tags, scan.ARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
@@ -1257,9 +1225,9 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 			return nil, err
 		}
 	case ec2types.ResourceTypeSnapshot:
-		snapshotARN = resourceARN
+		snapshotARN = scan.ARN
 	default:
-		return nil, fmt.Errorf("ebs-scan: bad arn %q", resourceARN)
+		return nil, fmt.Errorf("ebs-scan: bad arn %q", scan.ARN)
 	}
 
 	if snapshotARN.Resource == "" {
@@ -1312,7 +1280,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 				filepath.Join(mountTarget, "var/lib/rpm"),
 				filepath.Join(mountTarget, "lib/apk"),
 			},
-			AWSRegion: scan.Region(),
+			AWSRegion: scan.ARN.Region,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
@@ -1328,7 +1296,7 @@ func scanEBS(ctx context.Context, scan ebsScan) (entity *sbommodel.SBOMEntity, e
 			SBOMSources:       []string{},
 			DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
 			OnlyDirs:          []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"},
-			AWSRegion:         scan.Region(),
+			AWSRegion:         scan.ARN.Region,
 		})
 		ebsclient := ebs.NewFromConfig(cfg)
 		if err != nil {
@@ -1419,19 +1387,16 @@ func nextDeviceName() string {
 	return fmt.Sprintf("/dev/sd%c", deviceName.letter)
 }
 
-func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEntity, err error) {
+func scanLambda(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEntity, err error) {
 	if scan.AssumedRole == "" {
 		scan.AssumedRole = globalParams.assumedRole // TODO(pierre): remove this HACK
-	}
-	if _, err := arn.Parse(scan.ARN); err != nil {
-		return nil, fmt.Errorf("lambda-scan: bad or missing ARN: %w", err)
 	}
 
 	defer statsd.Flush()
 
 	tags := []string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("region:%s", scan.Region),
+		fmt.Sprintf("region:%s", scan.ARN.Region),
 		fmt.Sprintf("type:%s", "lambda-scan"),
 	}
 
@@ -1463,7 +1428,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 		DisabledAnalyzers: []analyzer.Type{},
 		Slow:              true,
 		SBOMSources:       []string{},
-		AWSRegion:         scan.Region(),
+		AWSRegion:         scan.ARN.Region,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create artifact from fs: %w", err)
@@ -1499,7 +1464,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 		Id:     "",
 		InUse:  true,
 		DdTags: []string{
-			"function:" + scan.ARN,
+			"function:" + scan.ARN.String(),
 		},
 		GeneratedAt:        timestamppb.New(createdAt),
 		GenerationDuration: convertDuration(duration),
@@ -1511,7 +1476,7 @@ func scanLambda(ctx context.Context, scan lambdaScan) (entity *sbommodel.SBOMEnt
 	return
 }
 
-func downloadLambda(ctx context.Context, scan lambdaScan, tempDir string, tags []string) (codePath string, err error) {
+func downloadLambda(ctx context.Context, scan *scanTask, tempDir string, tags []string) (codePath string, err error) {
 	statsd.Count("datadog.sidescanner.functions.started", 1.0, tags, 1.0)
 	defer func() {
 		if err != nil {
@@ -1531,7 +1496,7 @@ func downloadLambda(ctx context.Context, scan lambdaScan, tempDir string, tags [
 
 	functionStartedAt := time.Now()
 
-	cfg, awsstats, err := newAWSConfig(ctx, scan.Region(), scan.AssumedRole)
+	cfg, awsstats, err := newAWSConfig(ctx, scan.ARN.Region, scan.AssumedRole)
 	if err != nil {
 		return "", err
 	}
@@ -1543,7 +1508,7 @@ func downloadLambda(ctx context.Context, scan lambdaScan, tempDir string, tags [
 	}
 
 	lambdaFunc, err := lambdaclient.GetFunction(ctx, &lambda.GetFunctionInput{
-		FunctionName: aws.String(scan.ARN),
+		FunctionName: aws.String(scan.ARN.String()),
 	})
 	if err != nil {
 		return "", err
