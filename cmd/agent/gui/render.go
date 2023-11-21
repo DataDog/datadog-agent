@@ -16,10 +16,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 )
 
-var fmap = status.Fmap()
+var fmap = render.Fmap()
 
 func init() {
 	fmap["lastErrorTraceback"] = lastErrorTraceback
