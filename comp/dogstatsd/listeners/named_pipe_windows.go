@@ -30,8 +30,9 @@ const pipeNamePrefix = `\\.\pipe\`
 // It listens to a given pipe name and sends back packets ready to be processed.
 // Origin detection is not implemented for named pipe.
 type NamedPipeListener struct {
-	pipe           net.Listener
-	packetManager  *packets.PacketManager
+	pipe          net.Listener
+	packetManager *packets.PacketManager
+	// TODO: Migrate to `ConnectionTracker` instead
 	connections    *namedPipeConnections
 	trafficCapture replay.Component // Currently ignored
 }
