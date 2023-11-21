@@ -100,29 +100,34 @@ func (h *eventHandlerWrapper) HandleEvent(ev any) {
 // Copy copies the necessary fields from the event received from the event monitor
 func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 	m := theMonitor.Load()
-	if m != nil {
-		// If this consumer subscribes to more event types, this block will have to account for those additional event types
-		var processStartTime time.Time
-		if ev.GetEventType() == model.ExecEventType {
-			processStartTime = ev.GetProcessExecTime()
-		}
-		if ev.GetEventType() == model.ForkEventType {
-			processStartTime = ev.GetProcessForkTime()
-		}
-
-		return &Process{
-			Pid:         ev.GetProcessPid(),
-			ContainerID: intern.GetByString(ev.GetContainerId()),
-			StartTime:   processStartTime.UnixNano(),
-			Envs: ev.GetProcessEnvp(map[string]bool{
-				"DD_SERVICE": true,
-				"DD_VERSION": true,
-				"DD_ENV":     true,
-			}),
-		}
+	if m == nil {
+		return nil
 	}
 
-	return nil
+	// If this consumer subscribes to more event types, this block will have to account for those additional event types
+	var processStartTime time.Time
+	if ev.GetEventType() == model.ExecEventType {
+		processStartTime = ev.GetProcessExecTime()
+	}
+	if ev.GetEventType() == model.ForkEventType {
+		processStartTime = ev.GetProcessForkTime()
+	}
+
+	p := &Process{
+		Pid:       ev.GetProcessPid(),
+		StartTime: processStartTime.UnixNano(),
+		Envs: ev.GetProcessEnvp(map[string]bool{
+			"DD_SERVICE": true,
+			"DD_VERSION": true,
+			"DD_ENV":     true,
+		}),
+	}
+
+	if cid := ev.GetContainerId(); cid != "" {
+		p.ContainerID = intern.GetByString(cid)
+	}
+
+	return p
 }
 
 func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {

@@ -602,9 +602,8 @@ func (ev *Event) GetContainerCreatedAt() int {
 
 // GetContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerId() string {
-	zeroValue := ""
 	if ev.BaseEvent.ContainerContext == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 }

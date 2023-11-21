@@ -272,7 +272,7 @@ func formatTags(c network.ConnectionStats, tagsSet *network.TagsSet, connDynamic
 	}
 
 	// other tags, e.g., from process env vars like DD_ENV, etc.
-	for _, tag := range c.Tags {
+	for tag := range c.Tags {
 		mm.Reset()
 		_, _ = mm.Write(unsafeStringSlice(tag))
 		checksum ^= mm.Sum32()

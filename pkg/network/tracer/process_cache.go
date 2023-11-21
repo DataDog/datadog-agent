@@ -8,7 +8,6 @@
 package tracer
 
 import (
-	"strings"
 	"sync"
 	"time"
 
@@ -20,12 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-var defaultFilteredEnvs = []string{
-	"DD_ENV",
-	"DD_VERSION",
-	"DD_SERVICE",
-}
 
 const (
 	maxProcessQueueLen = 100
@@ -74,16 +67,11 @@ type processCacheKey struct {
 	startTime int64
 }
 
-func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error) {
+func newProcessCache(maxProcs int) (*processCache, error) {
 	pc := &processCache{
-		filteredEnvs: make(map[string]struct{}, len(filteredEnvs)),
-		cacheByPid:   map[uint32]processList{},
-		in:           make(chan *events.Process, maxProcessQueueLen),
-		stopped:      make(chan struct{}),
-	}
-
-	for _, e := range filteredEnvs {
-		pc.filteredEnvs[e] = struct{}{}
+		cacheByPid: map[uint32]processList{},
+		in:         make(chan *events.Process, maxProcessQueueLen),
+		stopped:    make(chan struct{}),
 	}
 
 	var err error
@@ -138,27 +126,10 @@ func (pc *processCache) HandleProcessEvent(entry *events.Process) {
 }
 
 func (pc *processCache) processEvent(entry *events.Process) *events.Process {
-	envs := entry.Envs[:0]
-	for _, e := range entry.Envs {
-		k, _, _ := strings.Cut(e, "=")
-		if len(pc.filteredEnvs) > 0 {
-			if _, found := pc.filteredEnvs[k]; !found {
-				continue
-			}
-		}
-
-		envs = append(envs, e)
-
-		if len(pc.filteredEnvs) > 0 && len(pc.filteredEnvs) == len(envs) {
-			break
-		}
-	}
-
-	if len(envs) == 0 && len(pc.filteredEnvs) > 0 && entry.ContainerID == nil {
+	if len(entry.Envs) == 0 && entry.ContainerID == nil {
 		return nil
 	}
 
-	entry.Envs = envs
 	return entry
 }
 

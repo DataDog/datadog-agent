@@ -186,7 +186,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
 		}
 
-		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
+		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
 		coretelemetry.GetCompatComponent().RegisterCollector(tr.processCache)
@@ -324,25 +324,25 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		log.Tracef("got process cache entry for pid %d: %+v", c.Pid, p)
 	}
 
-	if c.Tags == nil {
-		c.Tags = make([]string, 0, 3)
-	} else {
-		c.Tags = c.Tags[:0]
-	}
-
-	addTag := func(k, v string) {
-		if v == "" {
-			return
+	if len(p.Envs) > 0 {
+		if c.Tags == nil {
+			c.Tags = make(map[string]struct{}, len(p.Envs))
 		}
-		c.Tags = append(c.Tags, k+":"+v)
+
+		addTag := func(k, v string) {
+			if v == "" {
+				return
+			}
+			c.Tags[k+":"+v] = struct{}{}
+		}
+
+		addTag("env", p.Env("DD_ENV"))
+		addTag("version", p.Env("DD_VERSION"))
+		addTag("service", p.Env("DD_SERVICE"))
 	}
 
-	addTag("env", p.Env("DD_ENV"))
-	addTag("version", p.Env("DD_VERSION"))
-	addTag("service", p.Env("DD_SERVICE"))
-
-	containerID := p.ContainerID.Get().(string)
-	if containerID != "" {
+	if p.ContainerID != nil {
+		containerID := p.ContainerID.Get().(string)
 		c.ContainerID = &containerID
 	}
 }
