@@ -12,7 +12,6 @@
 package trace
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -24,5 +23,4 @@ import (
 var Bundle = fxutil.Bundle(
 	config.Module,
 	agent.Module,
-	secretsimpl.Module,
 )

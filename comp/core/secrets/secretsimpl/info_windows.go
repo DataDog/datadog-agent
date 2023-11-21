@@ -24,8 +24,8 @@ type permissionsDetails struct {
 	Stderr string
 }
 
-func getExecutablePermissions() (interface{}, error) {
-	execPath := fmt.Sprintf("\"%s\"", strings.TrimSpace(secretBackendCommand))
+func (r *secretResolver) getExecutablePermissions() (interface{}, error) {
+	execPath := fmt.Sprintf("\"%s\"", strings.TrimSpace(r.backendCommand))
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
 		return nil, fmt.Errorf("Could not find executable powershell.exe: %s", err)
