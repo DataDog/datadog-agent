@@ -17,10 +17,11 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/exp/slices"
 
 	// DataDog agent: config stuffs
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
