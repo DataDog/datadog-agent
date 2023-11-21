@@ -60,6 +60,9 @@ type SystemProbeEnvOpts struct {
 	DependenciesDirectory string
 	VMConfigPath          string
 	Local                 bool
+	RunAgent              bool
+	APIKey                string
+	AgentVersion          string
 }
 
 type TestEnv struct {
@@ -90,8 +93,12 @@ func outputsToFile(output auto.OutputMap) error {
 	defer f.Close()
 
 	for key, value := range output {
-		if _, err := f.WriteString(fmt.Sprintf("%s %s\n", key, value.Value.(string))); err != nil {
-			return fmt.Errorf("write string: %s", err)
+		switch v := value.Value.(type) {
+		case string:
+			if _, err := f.WriteString(fmt.Sprintf("%s %s\n", key, v)); err != nil {
+				return fmt.Errorf("write string: %s", err)
+			}
+		default:
 		}
 	}
 	return f.Sync()
@@ -154,6 +161,11 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		sudoPassword = ""
 	}
 
+	apiKey := GetEnv("DD_API_KEY", "")
+	if opts.RunAgent && apiKey == "" {
+		return nil, fmt.Errorf("No API Key for datadog-agent provided")
+	}
+
 	config := runner.ConfigMap{
 		runner.InfraEnvironmentVariables: auto.ConfigValue{Value: opts.InfraEnv},
 		runner.AWSKeyPairName:            auto.ConfigValue{Value: opts.SSHKeyName},
@@ -168,10 +180,12 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		"microvm:microVMConfigFile":              auto.ConfigValue{Value: opts.VMConfigPath},
 		"microvm:libvirtSSHKeyFileX86":           auto.ConfigValue{Value: sshKeyX86},
 		"microvm:libvirtSSHKeyFileArm":           auto.ConfigValue{Value: sshKeyArm},
-		"microvm:provision":                      auto.ConfigValue{Value: fmt.Sprintf("%v", opts.Provision)},
+		"microvm:provision":                      auto.ConfigValue{Value: strconv.FormatBool(opts.Provision)},
 		"microvm:x86AmiID":                       auto.ConfigValue{Value: opts.X86AmiID},
 		"microvm:arm64AmiID":                     auto.ConfigValue{Value: opts.ArmAmiID},
 		"microvm:workingDir":                     auto.ConfigValue{Value: CustomAMIWorkingDir},
+		"ddagent:deploy":                         auto.ConfigValue{Value: strconv.FormatBool(opts.RunAgent)},
+		"ddagent:apiKey":                         auto.ConfigValue{Value: apiKey, Secret: true},
 	}
 	// We cannot add defaultPrivateKeyPath if the key is in ssh-agent, otherwise passphrase is needed
 	if opts.SSHKeyPath != "" {
@@ -183,6 +197,11 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	if opts.ShutdownPeriod != 0 {
 		config["microvm:shutdownPeriod"] = auto.ConfigValue{Value: strconv.Itoa(opts.ShutdownPeriod)}
 		config["ddinfra:aws/defaultShutdownBehavior"] = auto.ConfigValue{Value: "terminate"}
+	}
+
+	// If no agent version is provided the framework will automatically install the latest agent
+	if opts.AgentVersion != "" {
+		config["ddagent:version"] = auto.ConfigValue{Value: opts.AgentVersion}
 	}
 
 	if envVars := GetEnv(EC2TagsEnvVar, ""); envVars != "" {
