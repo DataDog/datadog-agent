@@ -3,7 +3,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package apiimpl ... /* TODO: detailed doc comment for the component */
+/*
+Package apiimpl implements the agent IPC api. Using HTTP
+calls, it's possible to communicate with the agent,
+sending commands and receiving infos.
+*/
 package apiimpl
 
 import (

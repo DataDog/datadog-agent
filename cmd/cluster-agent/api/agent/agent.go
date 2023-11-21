@@ -17,10 +17,10 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/comp/core/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -72,7 +72,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
-func getHealth(w http.ResponseWriter, r *http.Request) {
+func getHealth(w http.ResponseWriter, _ *http.Request) {
 	h := health.GetReady()
 
 	if len(h.Unhealthy) > 0 {
@@ -89,14 +89,14 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonHealth)
 }
 
-func stopAgent(w http.ResponseWriter, r *http.Request) {
+func stopAgent(w http.ResponseWriter, _ *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
 	w.Write(j)
 }
 
-func getVersion(w http.ResponseWriter, r *http.Request) {
+func getVersion(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, err := version.Agent()
 	if err != nil {
@@ -162,7 +162,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 	w.Write([]byte(filePath))
 }
 
-func getConfigCheck(w http.ResponseWriter, r *http.Request) {
+func getConfigCheck(w http.ResponseWriter, _ *http.Request) {
 	var response response.ConfigCheckResponse
 
 	if common.AC == nil {
@@ -190,7 +190,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonConfig)
 }
 
-func getTaggerList(w http.ResponseWriter, r *http.Request) {
+func getTaggerList(w http.ResponseWriter, _ *http.Request) {
 	response := tagger.List(collectors.HighCardinality)
 
 	jsonTags, err := json.Marshal(response)

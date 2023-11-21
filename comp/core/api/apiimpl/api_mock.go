@@ -26,11 +26,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-type mockApiServer struct {
-	name string
+type mockAPIServer struct {
 }
 
-var _ api.Mock = (*mockApiServer)(nil)
+var _ api.Mock = (*mockAPIServer)(nil)
 
 // MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(
@@ -38,27 +37,27 @@ var MockModule = fxutil.Component(
 )
 
 func newMock() api.Mock {
-	return &mockApiServer{}
+	return &mockAPIServer{}
 }
 
-func (mock *mockApiServer) StartServer(
-	configService *remoteconfig.Service,
-	flare flare.Component,
-	dogstatsdServer dogstatsdServer.Component,
-	capture replay.Component,
-	serverDebug dogstatsddebug.Component,
-	logsAgent pkgUtil.Optional[logsAgent.Component],
-	senderManager sender.DiagnoseSenderManager,
-	hostMetadata host.Component,
-	invAgent inventoryagent.Component,
+func (mock *mockAPIServer) StartServer(
+	_ *remoteconfig.Service,
+	_ flare.Component,
+	_ dogstatsdServer.Component,
+	_ replay.Component,
+	_ dogstatsddebug.Component,
+	_ pkgUtil.Optional[logsAgent.Component],
+	_ sender.DiagnoseSenderManager,
+	_ host.Component,
+	_ inventoryagent.Component,
 ) error {
 	return nil
 }
 
-func (mock *mockApiServer) StopServer() {
+func (mock *mockAPIServer) StopServer() {
 }
 
 // ServerAddress retruns the server address.
-func (mock *mockApiServer) ServerAddress() *net.TCPAddr {
+func (mock *mockAPIServer) ServerAddress() *net.TCPAddr {
 	return nil
 }
