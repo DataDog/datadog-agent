@@ -118,6 +118,7 @@ const (
 
 	GuessCtTupleOrigin GuessWhat = 0x14
 	GuessCtTupleReply  GuessWhat = 0x15
+	GuessCtStatus      GuessWhat = 0x16
 	GuessCtNet         GuessWhat = 0x17
 
 	GuessNotApplicable GuessWhat = 99999
