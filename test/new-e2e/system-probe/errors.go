@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-// This package is sets up the remote testing environment for system-probe using the Kernel Matrix Testing framework
+// Package systemProbe is sets up the remote testing environment for system-probe using the Kernel Matrix Testing framework
 package systemProbe
 
 import (
@@ -31,14 +31,14 @@ const (
 type scenarioError int
 
 const (
-	libvirtDialError ScenarioError = iota
+	libvirtDialError scenarioError = iota
 	insufficientCapacityError
 	aria2cMissingStatusError
 	ec2StateChangeTimeoutError
 )
 
 type handledError struct {
-	errorType   ScenarioError
+	errorType   scenarioError
 	errorString string
 	metric      string
 	action      int

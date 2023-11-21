@@ -5,7 +5,7 @@
 
 //go:build !windows
 
-// This package is responsible for emitting metrics to Datadog
+// Package metric is responsible for emitting metrics to Datadog
 package metric
 
 import (
