@@ -4,9 +4,9 @@
 // Copyright 2016-present Datadog, Inc.
 
 //go:build !windows
-// +build !windows
 
-package systemProbe
+// Package systemprobe sets up the remote testing environment for system-probe using the Kernel Matrix Testing framework
+package systemprobe
 
 import (
 	"context"
@@ -15,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -42,8 +41,6 @@ const (
 	DatadogAgentQAEnv = "aws/agent-qa"
 	SandboxEnv        = "aws/sandbox"
 	EC2TagsEnvVar     = "RESOURCE_TAGS"
-
-	Aria2cMissingStatusError = "error: wait: remote command exited without exit status or exit signal: running \" aria2c"
 )
 
 var availabilityZones = map[string][]string{
@@ -211,29 +208,11 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 			return nil
 		}, opts.FailOnMissing)
 		if err != nil {
-			// Retry if we failed to dial libvirt.
-			// Libvirt daemon on the server occasionally crashes with the following error
-			// "End of file while reading data: Input/output error"
-			// The root cause of this is unknown. The problem usually fixes itself upon retry.
-			if strings.Contains(err.Error(), "failed to dial libvirt") {
-				fmt.Println("[Error] Failed to dial libvirt. Retrying stack.")
-				return retry.RetryableError(err)
-
-				// Retry if we have capacity issues in our current AZ.
-				// We switch to a different AZ and attempt to launch the instance again.
-			} else if strings.Contains(err.Error(), "InsufficientInstanceCapacity") {
-				fmt.Printf("[Error] Insufficient instance capacity in %s. Retrying stack with %s as the AZ.", getAvailabilityZone(opts.InfraEnv, currentAZ), getAvailabilityZone(opts.InfraEnv, currentAZ+1))
-				currentAZ += 1
-				return retry.RetryableError(err)
-
-				// Retry when ssh thinks aria2c exited without status. This may happen
-				// due to network connectivity issues if ssh keepalive mecahnism fails.
-			} else if strings.Contains(err.Error(), Aria2cMissingStatusError) {
-				fmt.Println("[Error] Missing exit status from Aria2c. Retrying stack")
-				return retry.RetryableError(err)
-			} else {
-				return err
-			}
+			return handleScenarioFailure(err, func(possibleError handledError) {
+				if possibleError.errorType == insufficientCapacityError {
+					currentAZ++
+				}
+			})
 		}
 
 		return nil
