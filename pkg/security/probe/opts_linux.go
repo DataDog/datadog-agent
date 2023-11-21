@@ -27,6 +27,8 @@ type Opts struct {
 	SyscallsMonitorEnabled bool
 	// TTYFallbackEnabled enable the tty procfs fallback
 	TTYFallbackEnabled bool
+	// EBPFLEess use ebpfless source
+	EBPFLEess bool
 }
 
 func (o *Opts) normalize() {

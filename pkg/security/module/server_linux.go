@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -44,7 +45,12 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 
 // DumpActivity handle an activity dump request
 func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) { //nolint:revive // TODO fix revive unused-parameter
-	if managers := a.probe.GetProfileManagers(); managers != nil {
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+
+	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.DumpActivity(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
@@ -57,7 +63,12 @@ func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpPa
 
 // ListActivityDumps returns the list of active dumps
 func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) { //nolint:revive // TODO fix revive unused-parameter
-	if managers := a.probe.GetProfileManagers(); managers != nil {
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+
+	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.ListActivityDumps(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
@@ -70,7 +81,12 @@ func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityD
 
 // StopActivityDump stops an active activity dump if it exists
 func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) { //nolint:revive // TODO fix revive unused-parameter
-	if managers := a.probe.GetProfileManagers(); managers != nil {
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+
+	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.StopActivityDump(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
@@ -83,7 +99,12 @@ func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDu
 
 // TranscodingRequest encodes an activity dump following the requested parameters
 func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) { //nolint:revive // TODO fix revive unused-parameter
-	if managers := a.probe.GetProfileManagers(); managers != nil {
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+
+	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.GenerateTranscoding(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
@@ -96,7 +117,12 @@ func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.Transcod
 
 // ListSecurityProfiles returns the list of security profiles
 func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) { //nolint:revive // TODO fix revive unused-parameter
-	if managers := a.probe.GetProfileManagers(); managers != nil {
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+
+	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.ListSecurityProfiles(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
@@ -109,7 +135,12 @@ func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.Securi
 
 // SaveSecurityProfile saves the requested security profile to disk
 func (a *APIServer) SaveSecurityProfile(ctx context.Context, params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) { //nolint:revive // TODO fix revive unused-parameter
-	if managers := a.probe.GetProfileManagers(); managers != nil {
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+
+	if managers := p.GetProfileManagers(); managers != nil {
 		msg, err := managers.SaveSecurityProfile(params)
 		if err != nil {
 			seclog.Errorf(err.Error())
@@ -122,41 +153,44 @@ func (a *APIServer) SaveSecurityProfile(ctx context.Context, params *api.Securit
 
 // GetStatus returns the status of the module
 func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) (*api.Status, error) { //nolint:revive // TODO fix revive unused-parameter
-	status, err := a.probe.GetConstantFetcherStatus()
-	if err != nil {
-		return nil, err
-	}
-
-	constants := make([]*api.ConstantValueAndSource, 0, len(status.Values))
-	for _, v := range status.Values {
-		constants = append(constants, &api.ConstantValueAndSource{
-			ID:     v.ID,
-			Value:  v.Value,
-			Source: v.FetcherName,
-		})
-	}
-
 	apiStatus := &api.Status{
-		Environment: &api.EnvironmentStatus{
+		SelfTests: a.selfTester.GetStatus(),
+	}
+
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if ok {
+		status, err := p.GetConstantFetcherStatus()
+		if err != nil {
+			return nil, err
+		}
+
+		constants := make([]*api.ConstantValueAndSource, 0, len(status.Values))
+		for _, v := range status.Values {
+			constants = append(constants, &api.ConstantValueAndSource{
+				ID:     v.ID,
+				Value:  v.Value,
+				Source: v.FetcherName,
+			})
+		}
+
+		apiStatus.Environment = &api.EnvironmentStatus{
 			Constants: &api.ConstantFetcherStatus{
 				Fetchers: status.Fetchers,
 				Values:   constants,
 			},
-		},
-		SelfTests: a.selfTester.GetStatus(),
+			KernelLockdown:  string(kernel.GetLockdownMode()),
+			UseMmapableMaps: p.GetKernelVersion().HaveMmapableMaps(),
+			UseRingBuffer:   p.UseRingBuffers(),
+		}
 	}
 
-	envErrors := a.probe.VerifyEnvironment()
+	envErrors := p.VerifyEnvironment()
 	if envErrors != nil {
 		apiStatus.Environment.Warnings = make([]string, len(envErrors.Errors))
 		for i, err := range envErrors.Errors {
 			apiStatus.Environment.Warnings[i] = err.Error()
 		}
 	}
-
-	apiStatus.Environment.KernelLockdown = string(kernel.GetLockdownMode())
-	apiStatus.Environment.UseMmapableMaps = a.probe.GetKernelVersion().HaveMmapableMaps()
-	apiStatus.Environment.UseRingBuffer = a.probe.UseRingBuffers()
 
 	return apiStatus, nil
 }

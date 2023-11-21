@@ -8,6 +8,7 @@ package module
 import (
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/probe"
 )
 
 // UpdateEventMonitorOpts adapt the event monitor options
@@ -27,7 +28,9 @@ func DisableRuntimeSecurity(config *config.Config) {
 // platform specific init function
 func (c *CWSConsumer) init(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) error { //nolint:revive // TODO fix revive unused-parameter
 	// Activity dumps related
-	evm.Probe.AddActivityDumpHandler(c)
+	if p, ok := evm.Probe.PlatformProbe.(*probe.EBPFProbe); ok {
+		p.AddActivityDumpHandler(c)
+	}
 
 	return nil
 }

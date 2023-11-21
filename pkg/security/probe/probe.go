@@ -9,23 +9,39 @@
 package probe
 
 import (
-	"context"
 	"errors"
-	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"golang.org/x/time/rate"
 
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
+
+// PlatformProbe defines a platform dependant probe
+type PlatformProbe interface {
+	setup() error
+	init() error
+	start() error
+	stop()
+	sendStats() error
+	snapshot() error
+	close() error
+	newModel() *model.Model
+	dumpDiscarders() (string, error)
+	getResolvers() *resolvers.Resolvers
+	flushDiscarders() error
+	applyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
+	onNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
+}
 
 // FullAccessEventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
 type FullAccessEventHandler interface {
@@ -49,16 +65,13 @@ type NotifyDiscarderPushedCallback func(eventType string, event *model.Event, fi
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
 type Probe struct {
-	PlatformProbe
+	PlatformProbe PlatformProbe
 
 	// Constants and configuration
 	Opts         Opts
 	Config       *config.Config
 	StatsdClient statsd.ClientInterface
 	startTime    time.Time
-	ctx          context.Context
-	cancelFnc    context.CancelFunc
-	wg           sync.WaitGroup
 
 	// internals
 	scrubber *procutil.DataScrubber
@@ -68,16 +81,82 @@ type Probe struct {
 	eventHandlers           [model.MaxAllEventType][]EventHandler
 	customEventHandlers     [model.MaxAllEventType][]CustomEventHandler
 
-	discarderRateLimiter *rate.Limiter
 	// internals
-	resolvers     *resolvers.Resolvers
+	// TODO safchain move resolvers and field handlers to platform specific
 	fieldHandlers *FieldHandlers
 	event         *model.Event
 }
 
+// Init initializes the probe
+func (p *Probe) Init() error {
+	p.startTime = time.Now()
+	return p.PlatformProbe.init()
+}
+
+// Setup the runtime security probe
+func (p *Probe) Setup() error {
+	return p.PlatformProbe.setup()
+}
+
+// Start plays the snapshot data and then start the event stream
+func (p *Probe) Start() error {
+	return p.PlatformProbe.start()
+}
+
+// SendStats sends statistics about the probe to Datadog
+func (p *Probe) SendStats() error {
+	return p.PlatformProbe.sendStats()
+}
+
+// Close the probe
+func (p *Probe) Close() error {
+	return p.PlatformProbe.close()
+}
+
+// Stop the probe
+func (p *Probe) Stop() {
+	p.PlatformProbe.stop()
+}
+
+// FlushDiscarders invalidates all the discarders
+func (p *Probe) FlushDiscarders() error {
+	seclog.Debugf("Flushing discarders")
+	return p.PlatformProbe.flushDiscarders()
+}
+
+// ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
+func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+	return p.PlatformProbe.applyRuleSet(rs)
+}
+
+// Snapshot runs the different snapshot functions of the resolvers that
+// require to sync with the current state of the system
+func (p *Probe) Snapshot() error {
+	return p.PlatformProbe.snapshot()
+}
+
+// OnNewDiscarder is called when a new discarder is found
+func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
+	p.PlatformProbe.onNewDiscarder(rs, ev, field, eventType)
+}
+
+// DumpDiscarders removes all the discarders
+func (p *Probe) DumpDiscarders() (string, error) {
+	return p.PlatformProbe.dumpDiscarders()
+}
+
+// GetDebugStats returns the debug stats
+func (p *Probe) GetDebugStats() map[string]interface{} {
+	debug := map[string]interface{}{
+		"start_time": p.startTime.String(),
+	}
+	// TODO(Will): add manager state
+	return debug
+}
+
 // GetResolvers returns the resolvers of Probe
 func (p *Probe) GetResolvers() *resolvers.Resolvers {
-	return p.resolvers
+	return p.PlatformProbe.getResolvers()
 }
 
 // AddEventHandler sets a probe event handler
@@ -107,6 +186,36 @@ func (p *Probe) AddCustomEventHandler(eventType model.EventType, handler CustomE
 	p.customEventHandlers[eventType] = append(p.customEventHandlers[eventType], handler)
 
 	return nil
+}
+
+func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
+	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
+		handler.HandleEvent(event)
+	}
+}
+
+func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
+	for _, handler := range p.eventHandlers[event.GetEventType()] {
+		handler.HandleEvent(handler.Copy(event))
+	}
+}
+
+// DispatchCustomEvent sends a custom event to the probe event handler
+func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
+	traceEvent("Dispatching custom event %s", func() ([]byte, model.EventType, error) {
+		eventJSON, err := serializers.MarshalCustomEvent(event)
+		return eventJSON, event.GetEventType(), err
+	})
+
+	// send wildcard first
+	for _, handler := range p.customEventHandlers[model.UnknownEventType] {
+		handler.HandleCustomEvent(rule, event)
+	}
+
+	// send specific event
+	for _, handler := range p.customEventHandlers[event.GetEventType()] {
+		handler.HandleCustomEvent(rule, event)
+	}
 }
 
 func (p *Probe) zeroEvent() *model.Event {
@@ -149,7 +258,7 @@ func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleS
 			return NewEvent(p.fieldHandlers)
 		}
 
-		rs := rules.NewRuleSet(NewModel(p), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
+		rs := rules.NewRuleSet(p.PlatformProbe.newModel(), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
 		ruleSetsToInclude = append(ruleSetsToInclude, rs)
 	}
 
@@ -179,4 +288,23 @@ func (p *Probe) IsActivityDumpTagRulesEnabled() bool {
 // IsSecurityProfileEnabled returns whether security profile is enabled
 func (p *Probe) IsSecurityProfileEnabled() bool {
 	return p.Config.RuntimeSecurity.SecurityProfileEnabled
+}
+
+// NewProbe instantiates a new runtime security agent probe
+func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
+	opts.normalize()
+
+	p := &Probe{
+		Opts:         opts,
+		Config:       config,
+		StatsdClient: opts.StatsdClient,
+	}
+
+	pp, err := NewEBPFProbe(p, config, opts)
+	if err != nil {
+		return nil, err
+	}
+	p.PlatformProbe = pp
+
+	return p, nil
 }

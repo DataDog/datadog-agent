@@ -129,7 +129,6 @@ func (p *Probe) Start() error {
 
 // DispatchEvent sends an event to the probe event handler
 func (p *Probe) DispatchEvent(event *model.Event) {
-
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.sendEventToWildcardHandlers(event)
 
