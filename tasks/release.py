@@ -1370,3 +1370,16 @@ def update_last_stable(_, major_versions="6,7"):
         version.major = major
         release_json['last_stable'][str(major)] = str(version)
     _save_release_json(release_json)
+
+
+@task
+def check_omnibus_branches(_):
+    for branch in ['nightly', 'nightly-a7']:
+        omnibus_ruby_version = _get_release_json_value(f'{branch}::OMNIBUS_RUBY_VERSION')
+        omnibus_software_version = _get_release_json_value(f'{branch}::OMNIBUS_SOFTWARE_VERSION')
+        version_re = re.compile(r'(\d+)\.(\d+)\.x')
+        if omnibus_ruby_version != 'datadog-5.5.0' and not version_re.match(omnibus_ruby_version):
+            raise Exit(code=1, message=f'omnibus-ruby version [{omnibus_ruby_version}] is not mergeable')
+        if omnibus_software_version != 'master' and not version_re.match(omnibus_software_version):
+            raise Exit(code=1, message=f'omnibus-software version [{omnibus_software_version}] is not mergeable')
+    return True
