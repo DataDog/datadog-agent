@@ -6,15 +6,11 @@
 package report
 
 import (
-	"bufio"
-	"bytes"
 	"fmt"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpintegration"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"testing"
@@ -137,16 +133,15 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate(t *testing.T) {
 
 func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T) {
 	tests := []struct {
-		name               string
-		symbols            []profiledefinition.SymbolConfig
-		fullIndex          string
-		values             *valuestore.ResultValueStore
-		tags               []string
-		interfaceConfigs   []snmpintegration.InterfaceConfig
-		expectedLogMessage string
-		expectedError      error
-		usageValue         float64
-		newIfSpeed         uint64
+		name             string
+		symbols          []profiledefinition.SymbolConfig
+		fullIndex        string
+		values           *valuestore.ResultValueStore
+		tags             []string
+		interfaceConfigs []snmpintegration.InterfaceConfig
+		expectedError    error
+		usageValue       float64
+		newIfSpeed       uint64
 	}{
 		{
 			name:      "snmp.ifBandwidthInUsage.Rate ifHCInOctets erred",
@@ -175,7 +170,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 					},
 				},
 			},
-			expectedLogMessage: fmt.Sprintf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "namespace:deviceIP:9.ifBandwidthInUsage"),
+			expectedError: fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "namespace:deviceIP:9.ifBandwidthInUsage"),
 			// ((5000000 * 8) / (100 * 1000000)) * 100 = 40.0
 			usageValue: 40,
 			newIfSpeed: uint64(100) * (1e6),
@@ -206,7 +201,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 					},
 				},
 			},
-			expectedLogMessage: fmt.Sprintf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "namespace:deviceIP:9.ifBandwidthOutUsage"),
+			expectedError: fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "namespace:deviceIP:9.ifBandwidthOutUsage"),
 			// ((1000000 * 8) / (100 * 1000000)) * 100 = 8.0
 			usageValue: 8,
 			newIfSpeed: uint64(100) * (1e6),
@@ -247,13 +242,6 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var b bytes.Buffer
-			w := bufio.NewWriter(&b)
-
-			l, err := seelog.LoggerFromWriterWithMinLevelAndFormat(w, seelog.InfoLvl, "[%LEVEL] %FuncShort: %Msg")
-			assert.Nil(t, err)
-			log.SetupLogger(l, "InfoLvl")
-
 			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
@@ -272,16 +260,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 				interfaceID := mockDeviceID + ":" + fullIndex + "." + usageName
 				rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(ms.deviceID, tt.fullIndex, usageName, tt.newIfSpeed, tt.usageValue)
 
-				if tt.expectedError == nil {
-					assert.Nil(t, err)
-				} else {
-					assert.Equal(t, tt.expectedError, err)
-				}
-
-				w.Flush()
-				logs := b.String()
-
-				assert.Contains(t, logs, tt.expectedLogMessage)
+				assert.Equal(t, tt.expectedError, err)
 				assert.Equal(t, float64(0), rate)
 
 				// Check that the map was updated with current values for next check run

@@ -7,7 +7,6 @@ package report
 
 import (
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"sync"
 	"time"
 )
@@ -73,7 +72,7 @@ func (ibs *InterfaceBandwidthState) calculateBandwidthUsageRate(deviceID string,
 	ibs.mu.Unlock()
 	// do not send a sample to metrics, send error for ifSpeed change (previous entry conflicted)
 	if ok {
-		log.Infof("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", state.ifSpeed, ifSpeed, interfaceID)
+		return 0, fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", state.ifSpeed, ifSpeed, interfaceID)
 	}
 	return 0, nil
 }
