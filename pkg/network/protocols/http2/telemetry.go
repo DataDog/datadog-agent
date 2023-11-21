@@ -35,43 +35,43 @@ type kernelTelemetry struct {
 	// maxInterestingFrames		 Count of times we reached the max number of frames per iteration.
 	// maxFramesToFilter		 Count of times we have left with more frames to filter than the max number of frames to filter.
 
-	http2requests        *libtelemetry.Gauge
-	http2responses       *libtelemetry.Gauge
-	endOfStreamEOS       *libtelemetry.Gauge
-	endOfStreamRST       *libtelemetry.Gauge
-	pathSizeBucket0      *libtelemetry.Gauge
-	pathSizeBucket1      *libtelemetry.Gauge
-	pathSizeBucket2      *libtelemetry.Gauge
-	pathSizeBucket3      *libtelemetry.Gauge
-	pathSizeBucket4      *libtelemetry.Gauge
-	pathSizeBucket5      *libtelemetry.Gauge
-	pathSizeBucket6      *libtelemetry.Gauge
-	strLenExceedsFrame   *libtelemetry.Gauge
-	maxInterestingFrames *libtelemetry.Gauge
-	maxFramesToFilter    *libtelemetry.Gauge
+	http2requests        *libtelemetry.Counter
+	http2responses       *libtelemetry.Counter
+	endOfStreamEOS       *libtelemetry.Counter
+	endOfStreamRST       *libtelemetry.Counter
+	pathSizeBucket0      *libtelemetry.Counter
+	pathSizeBucket1      *libtelemetry.Counter
+	pathSizeBucket2      *libtelemetry.Counter
+	pathSizeBucket3      *libtelemetry.Counter
+	pathSizeBucket4      *libtelemetry.Counter
+	pathSizeBucket5      *libtelemetry.Counter
+	pathSizeBucket6      *libtelemetry.Counter
+	strLenExceedsFrame   *libtelemetry.Counter
+	maxInterestingFrames *libtelemetry.Counter
+	maxFramesToFilter    *libtelemetry.Counter
 }
 
 // newHTTP2KernelTelemetry hold HTTP/2 kernel metrics.
 func newHTTP2KernelTelemetry(protocol string) *kernelTelemetry {
-	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol))
+	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol), libtelemetry.OptStatsd)
 	return &kernelTelemetry{
 		metricGroup: metricGroup,
 
 		// todo: changed it from OptStatsd to OptPrometheus
-		http2requests:        metricGroup.NewGauge("requests", libtelemetry.OptStatsd),
-		http2responses:       metricGroup.NewGauge("responses", libtelemetry.OptStatsd),
-		endOfStreamEOS:       metricGroup.NewGauge("eos", libtelemetry.OptStatsd),
-		endOfStreamRST:       metricGroup.NewGauge("rst", libtelemetry.OptStatsd),
-		strLenExceedsFrame:   metricGroup.NewGauge("str_len_exceeds_frame", libtelemetry.OptStatsd),
-		pathSizeBucket0:      metricGroup.NewGauge("path_size_bucket_0", libtelemetry.OptStatsd),
-		pathSizeBucket1:      metricGroup.NewGauge("path_size_bucket_1", libtelemetry.OptStatsd),
-		pathSizeBucket2:      metricGroup.NewGauge("path_size_bucket_2", libtelemetry.OptStatsd),
-		pathSizeBucket3:      metricGroup.NewGauge("path_size_bucket_3", libtelemetry.OptStatsd),
-		pathSizeBucket4:      metricGroup.NewGauge("path_size_bucket_4", libtelemetry.OptStatsd),
-		pathSizeBucket5:      metricGroup.NewGauge("path_size_bucket_5", libtelemetry.OptStatsd),
-		pathSizeBucket6:      metricGroup.NewGauge("path_size_bucket_6", libtelemetry.OptStatsd),
-		maxInterestingFrames: metricGroup.NewGauge("max_interesting_frames", libtelemetry.OptStatsd),
-		maxFramesToFilter:    metricGroup.NewGauge("max_frames_to_filter", libtelemetry.OptStatsd)}
+		http2requests:        metricGroup.NewCounter("requests"),
+		http2responses:       metricGroup.NewCounter("responses"),
+		endOfStreamEOS:       metricGroup.NewCounter("eos"),
+		endOfStreamRST:       metricGroup.NewCounter("rst"),
+		strLenExceedsFrame:   metricGroup.NewCounter("str_len_exceeds_frame"),
+		pathSizeBucket0:      metricGroup.NewCounter("path_size_bucket_0"),
+		pathSizeBucket1:      metricGroup.NewCounter("path_size_bucket_1"),
+		pathSizeBucket2:      metricGroup.NewCounter("path_size_bucket_2"),
+		pathSizeBucket3:      metricGroup.NewCounter("path_size_bucket_3"),
+		pathSizeBucket4:      metricGroup.NewCounter("path_size_bucket_4"),
+		pathSizeBucket5:      metricGroup.NewCounter("path_size_bucket_5"),
+		pathSizeBucket6:      metricGroup.NewCounter("path_size_bucket_6"),
+		maxInterestingFrames: metricGroup.NewCounter("max_interesting_frames"),
+		maxFramesToFilter:    metricGroup.NewCounter("max_frames_to_filter")}
 }
 
 func (t *kernelTelemetry) Log() {
