@@ -274,7 +274,7 @@ func (p *protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, func(now int64, key, val interface{}) bool {
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key, val interface{}) bool {
 		http2Txn, ok := val.(*EbpfTx)
 		if !ok {
 			return false
@@ -304,10 +304,9 @@ func (p *protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
 		return
 	}
 
-	var terminatedConnectionsMap map[netebpf.ConnTuple]struct{}
+	terminatedConnectionsMap := make(map[netebpf.ConnTuple]struct{})
 	mapCleaner.Clean(p.cfg.HTTP2DynamicTableMapCleanerInterval,
 		func() bool {
-			terminatedConnectionsMap = make(map[netebpf.ConnTuple]struct{})
 			p.terminatedConnectionsEventsConsumer.Sync()
 			p.terminatedConnectionMux.Lock()
 			for _, conn := range p.terminatedConnections {
@@ -317,6 +316,9 @@ func (p *protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
 			p.terminatedConnectionMux.Unlock()
 
 			return len(terminatedConnectionsMap) > 0
+		},
+		func() {
+			terminatedConnectionsMap = make(map[netebpf.ConnTuple]struct{})
 		},
 		func(now int64, key, val interface{}) bool {
 			keyIndex, ok := key.(*http2DynamicTableIndex)

@@ -69,7 +69,8 @@ func NewMapCleaner(emap *cebpf.Map, key, val interface{}) (*MapCleaner, error) {
 // compared to timestamps generated using the `bpf_ktime_get_ns()` helper;
 // `preClean` callback (optional, can pass nil) is invoked before the map is scanned; if it returns false,
 // the map is not scanned; this can be used to synchronize with other maps, or preform preliminary checks.
-func (mc *MapCleaner) Clean(interval time.Duration, preClean func() bool, shouldClean func(nowTS int64, k, v interface{}) bool) {
+// `postClean` callback (optional, can pass nil) is invoked after the map is scanned, to allow resource cleanup.
+func (mc *MapCleaner) Clean(interval time.Duration, preClean func() bool, postClean func(), shouldClean func(nowTS int64, k, v interface{}) bool) {
 	if mc == nil {
 		return
 	}
@@ -91,6 +92,10 @@ func (mc *MapCleaner) Clean(interval time.Duration, preClean func() bool, should
 						continue
 					}
 					mc.clean(now, shouldClean)
+					// Allowing cleanup after the cleanup.
+					if postClean != nil {
+						postClean()
+					}
 				case <-mc.done:
 					return
 				}

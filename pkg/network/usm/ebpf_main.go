@@ -410,7 +410,7 @@ func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner, error) {
 	}
 
 	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, nil, func(now int64, key, val interface{}) bool {
+	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, key, val interface{}) bool {
 		protoStack, ok := val.(*netebpf.ProtocolStackWrapper)
 		if !ok {
 			return false

@@ -182,7 +182,7 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, func(now int64, key, val interface{}) bool {
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key, val interface{}) bool {
 		httpTxn, ok := val.(*EbpfTx)
 		if !ok {
 			return false
