@@ -29,6 +29,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -91,6 +93,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
 				core.Bundle,
+				dogstatsd.ClientBundle,
 			)
 		},
 	}
@@ -106,24 +109,16 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 }
 
 // RunCheck runs a check
-func RunCheck(log log.Component, config config.Component, checkArgs *CliParams) error {
+func RunCheck(log log.Component, config config.Component, statsd statsd.Component, checkArgs *CliParams) error {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
 	}
 
-	var statsdClient *ddgostatsd.Client
+	var statsdClient ddgostatsd.ClientInterface
 	metricsEnabled := config.GetBool("compliance_config.metrics.enabled")
 	if metricsEnabled {
-		// Create a statsd Client
-		statsdAddr := os.Getenv("STATSD_URL")
-		if statsdAddr == "" {
-			// Retrieve statsd host and port from the datadog agent configuration file
-			statsdHost := pkgconfig.GetBindHost()
-			statsdPort := config.GetInt("dogstatsd_port")
-			statsdAddr = fmt.Sprintf("%s:%d", statsdHost, statsdPort)
-		}
-		cl, err := ddgostatsd.New(statsdAddr)
+		cl, err := statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
 		if err != nil {
 			log.Warnf("Error creating statsd Client: %s", err)
 		} else {

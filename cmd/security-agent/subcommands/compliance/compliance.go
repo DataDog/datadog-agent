@@ -27,7 +27,7 @@ import (
 
 // StartCompliance runs the compliance sub-agent running compliance benchmarks
 // and checks.
-func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client, senderManager sender.SenderManager) (*compliance.Agent, error) { //nolint:revive // TODO fix revive unused-parameter
+func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, senderManager sender.SenderManager) (*compliance.Agent, error) { //nolint:revive // TODO fix revive unused-parameter
 	enabled := config.GetBool("compliance_config.enabled")
 	runPath := config.GetString("compliance_config.run_path")
 	configDir := config.GetString("compliance_config.dir")
@@ -98,7 +98,7 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 }
 
 // sendRunningMetrics exports a metric to distinguish between security-agent modules that are activated
-func sendRunningMetrics(statsdClient *ddgostatsd.Client, moduleName string) *time.Ticker {
+func sendRunningMetrics(statsdClient ddgostatsd.ClientInterface, moduleName string) *time.Ticker {
 	// Retrieve the agent version using a dedicated package
 	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 

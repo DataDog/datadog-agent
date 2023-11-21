@@ -1713,14 +1713,19 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 func (s *TracerSuite) TestBlockingReadCounts() {
 	t := s.T()
 	tr := setupTracer(t, testConfig())
+	ch := make(chan struct{})
 	server := NewTCPServer(func(c net.Conn) {
-		c.Write([]byte("foo"))
+		_, err := c.Write([]byte("foo"))
+		require.NoError(t, err, "error writing to client")
 		time.Sleep(time.Second)
-		c.Write([]byte("foo"))
+		_, err = c.Write([]byte("foo"))
+		require.NoError(t, err, "error writing to client")
+		<-ch
 	})
 
 	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
+	t.Cleanup(func() { close(ch) })
 
 	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
 	require.NoError(t, err)

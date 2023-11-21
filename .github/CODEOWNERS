@@ -223,6 +223,7 @@
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/workloadmeta @DataDog/container-integrations
+/comp/dogstatsd/statsd @DataDog/agent-shared-components
 # END COMPONENTS
 
 # pkg
@@ -404,6 +405,7 @@
 /pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
 /pkg/ebpf/bytecode/runtime/tcp-queue-length.go  @DataDog/container-integrations
 /pkg/ebpf/bytecode/runtime/tracer.go    @DataDog/Networks @DataDog/universal-service-monitoring
+/pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security

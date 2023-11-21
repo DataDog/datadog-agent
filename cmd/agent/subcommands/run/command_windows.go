@@ -43,6 +43,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
@@ -85,6 +86,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			demultiplexer demultiplexer.Component,
 			hostMetadata host.Component,
 			invAgent inventoryagent.Component,
+			invHost inventoryhost.Component,
 			_ netflowServer.Component,
 		) error {
 
@@ -107,7 +109,9 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				otelcollector,
 				demultiplexer,
 				hostMetadata,
-				invAgent)
+				invAgent,
+				invHost,
+			)
 			if err != nil {
 				return err
 			}

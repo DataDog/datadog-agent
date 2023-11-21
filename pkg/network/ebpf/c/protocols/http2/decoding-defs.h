@@ -5,7 +5,7 @@
 
 #include "protocols/http2/defs.h"
 
-#define HTTP2_FRAMES_PER_TAIL_CALL 9
+#define HTTP2_FRAMES_PER_TAIL_CALL 7
 // Maximum number of frames to be processed in a single TCP packet. That's also the number of tail calls we'll have.
 // NOTE: we may need to revisit this const if we need to capture more connections.
 #define HTTP2_MAX_FRAMES_ITERATIONS 120
