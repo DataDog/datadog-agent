@@ -17,6 +17,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/trace"
@@ -64,6 +65,7 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath)),
+		secretsimpl.Module,
 		fx.Supply(secrets.NewEnabledParams()),
 		coreconfig.Module,
 		fx.Provide(func() corelog.Params {

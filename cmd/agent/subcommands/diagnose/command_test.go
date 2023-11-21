@@ -75,8 +75,8 @@ func TestShowMetadataInventoryHostCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"diagnose", "show-metadata", "inventory-host"},
 		printPayload,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
-			require.Equal(t, false, coreParams.ConfigLoadSecrets())
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+			require.Equal(t, false, secretParams.Enabled)
 			require.Equal(t, "inventory-host", cliParams.payloadName)
 		})
 }
