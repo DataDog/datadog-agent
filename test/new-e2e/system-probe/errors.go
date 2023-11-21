@@ -5,6 +5,7 @@
 
 //go:build !windows
 
+// This package is sets up the remote testing environment for system-probe using the Kernel Matrix Testing framework
 package systemProbe
 
 import (
