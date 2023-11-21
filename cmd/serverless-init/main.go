@@ -11,6 +11,8 @@ import (
 	"os"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/cloudservice"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/initcontainer"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/log"
@@ -26,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	logger "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -35,13 +38,36 @@ const (
 	loggerName        = "SERVERLESS_INIT"
 )
 
+type params struct {
+	cloudService cloudservice.CloudService
+	logConfig    *log.Config
+	traceAgent   *trace.ServerlessTraceAgent
+	metricAgent  *metrics.ServerlessMetricAgent
+	logsAgent    logsAgent.ServerlessLogsAgent
+	args         []string
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	} else {
 		cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
-		initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, logsAgent, os.Args[1:])
+
+		params := &params{
+			cloudService: cloudService,
+			logConfig:    logConfig,
+			traceAgent:   traceAgent,
+			metricAgent:  metricAgent,
+			logsAgent:    logsAgent,
+			args:         os.Args[1:],
+		}
+
+		fxutil.OneShot(run, fx.Supply(params))
 	}
+}
+
+func run(params *params) {
+	initcontainer.Run(params.cloudService, params.logConfig, params.metricAgent, params.traceAgent, params.logsAgent, params.args)
 }
 
 func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
