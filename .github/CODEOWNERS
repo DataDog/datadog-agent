@@ -83,7 +83,7 @@
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-platform
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/ebpf-platform @DataDog/agent-platform
-/.gitlab/functional_test/system_probe_windows.yml    @DataDog/ebpf-platform @DataDog/agent-platform @DataDog/windows-kernel-integrations
+/.gitlab/functional_test/system_probe_windows.yml    @DataDog/agent-platform @DataDog/windows-kernel-integrations
 /.gitlab/functional_test_sysprobe/system_probe.yml   @DataDog/ebpf-platform @DataDog/agent-platform
 
 /.gitlab/integration_test/windows.yml                @DataDog/agent-platform @DataDog/windows-agent
