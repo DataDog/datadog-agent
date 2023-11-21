@@ -12,7 +12,7 @@ func DebugServerless(v ...interface{}) {
 	Debug(v...)
 }
 
-// DebugfServerless logs with  format at the debug level only in a serverless context
+// DebugfServerless logs with format at the debug level only in a serverless context
 func DebugfServerless(format string, params ...interface{}) {
 	Debugf(format, params...)
 }

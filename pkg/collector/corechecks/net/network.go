@@ -116,7 +116,7 @@ func (n defaultNetworkStats) NetstatTCPExtCounters() (map[string]int64, error) {
 	return netstatTCPExtCounters()
 }
 
-// Run execut es the check
+// Run executes the check
 func (c *NetworkCheck) Run() error {
 	sender, err := c.GetSender()
 	if err != nil {
