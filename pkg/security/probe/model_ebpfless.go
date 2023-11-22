@@ -7,12 +7,27 @@
 package probe
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // NewEBPFLessModel returns a new model with some extra field validation
 func NewEBPFLessModel(probe *EBPFLessProbe) *model.Model {
-	return &model.Model{}
+	return &model.Model{
+		ExtraValidateFieldFnc: func(field eval.Field, fieldValue eval.FieldValue) error {
+			// TODO(safchain) remove this check when multiple model per platform will be supported in the SECL package
+			if !strings.HasPrefix(field, "exec.") &&
+				!strings.HasPrefix(field, "exit.") &&
+				!strings.HasPrefix(field, "open.") &&
+				!strings.HasPrefix(field, "process.") {
+				return fmt.Errorf("%s is not available with the eBPF less version", field)
+			}
+			return nil
+		},
+	}
 }
 
 // NewEvent returns a new event

@@ -58,11 +58,11 @@ func (p *EBPFLessProbe) SendSyscallMsg(ctx context.Context, syscallMsg *ebpfless
 	switch syscallMsg.Type {
 	case ebpfless.SyscallType_Exec:
 		event.Type = uint32(model.ExecEventType)
-		//entry := p.resolvers.ProcessResolver.AddExecEntry(syscallMsg.PID, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, syscallMsg.ContainerContext.ID)
-		//event.Exec.Process = &entry.Process
+		entry := p.Resolvers.ProcessResolver.AddExecEntry(syscallMsg.PID, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, syscallMsg.ContainerContext.ID)
+		event.Exec.Process = &entry.Process
 	case ebpfless.SyscallType_Fork:
 		event.Type = uint32(model.ForkEventType)
-		//p.resolvers.ProcessResolver.AddForkEntry(syscallMsg.PID, syscallMsg.Fork.PPID)
+		p.Resolvers.ProcessResolver.AddForkEntry(syscallMsg.PID, syscallMsg.Fork.PPID)
 	case ebpfless.SyscallType_Open:
 		event.Type = uint32(model.FileOpenEventType)
 		event.Open.File.PathnameStr = syscallMsg.Open.Filename
@@ -82,9 +82,9 @@ func (p *EBPFLessProbe) SendSyscallMsg(ctx context.Context, syscallMsg *ebpfless
 	}
 
 	// use ProcessCacheEntry process context as process context
-	//	event.ProcessCacheEntry = p.resolvers.ProcessResolver.Resolve(syscallMsg.PID)
+	event.ProcessCacheEntry = p.Resolvers.ProcessResolver.Resolve(syscallMsg.PID)
 	if event.ProcessCacheEntry == nil {
-		//		event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(syscallMsg.PID)
+		event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(syscallMsg.PID, syscallMsg.PID, false)
 	}
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
@@ -218,16 +218,15 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 
 	ebpfless.RegisterSyscallMsgStreamServer(p.server, p)
 
-	/*resolversOpts := resolvers.Opts{
+	resolversOpts := resolvers.Opts{
 		TagsResolver: opts.TagsResolver,
-	}*/
+	}
 
-	//var err error
-	// TODO safchain add platform specific resolvers
-	/*p.resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
+	var err error
+	p.Resolvers, err = resolvers.NewEBPFLessResolvers(config, p.statsdClient, probe.scrubber, resolversOpts)
 	if err != nil {
 		return nil, err
-	}*/
+	}
 
 	p.fieldHandlers = &EBPFLessFieldHandlers{resolvers: p.Resolvers}
 
