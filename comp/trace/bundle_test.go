@@ -32,6 +32,7 @@ func TestBundleDependencies(t *testing.T) {
 
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module,
+		statsd.Module,
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		fx.Supply(&agent.Params{}),
 	)
