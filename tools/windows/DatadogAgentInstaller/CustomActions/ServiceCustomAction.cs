@@ -164,17 +164,61 @@ namespace Datadog.CustomActions
             return ActionResult.Success;
         }
 
+        // TODO: Make shared/common with ConfigureUserCustomActions
+        //       maybe set name/SID as a property in ProcessDDAgentUserCredentials ?
+        private SecurityIdentifier GetPreviousAgentUser()
+        {
+            try
+            {
+                using var subkey =
+                    _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
+                if (subkey == null)
+                {
+                    throw new Exception("Datadog registry key does not exist");
+                }
+                var domain = subkey.GetValue("installedDomain")?.ToString();
+                var user = subkey.GetValue("installedUser")?.ToString();
+                if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
+                {
+                    throw new Exception("Agent user information is not in registry");
+                }
+
+                var name = $"{domain}\\{user}";
+                _session.Log($"Found agent user information in registry {name}");
+                var userFound = _nativeMethods.LookupAccountName(name,
+                    out _,
+                    out _,
+                    out var securityIdentifier,
+                    out _);
+                if (!userFound || securityIdentifier == null)
+                {
+                    throw new Exception($"Could not find account for user {name}.");
+                }
+
+                _session.Log($"Found previous agent user {name} ({securityIdentifier})");
+                return securityIdentifier;
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Could not find previous agent user: {e}");
+            }
+
+            return null;
+        }
+
         /// <summary>
         /// Grant ddagentuser start/stop service privileges for the agent services
         /// </summary>
         private void ConfigureServicePermissions()
         {
+            var previousDdAgentUserSid = GetPreviousAgentUser();
+
             // Get SID for agent user
             var ddAgentUserName = $"{_session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")}";
             var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
                 out _,
                 out _,
-                out var securityIdentifier,
+                out var ddAgentUserSid,
                 out _);
             if (!userFound)
             {
@@ -188,7 +232,16 @@ namespace Datadog.CustomActions
             foreach (var serviceName in services)
             {
                 var securityDescriptor = _serviceController.GetAccessSecurity(serviceName);
-                securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, securityIdentifier,
+
+                if (previousDdAgentUserSid != null && previousDdAgentUserSid != ddAgentUserSid)
+                {
+                    // remove previous user
+                    securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow, previousDdAgentUserSid,
+                        (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
+                }
+
+                // add current user
+                securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, ddAgentUserSid,
                     (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP),
                     InheritanceFlags.None, PropagationFlags.None);
 

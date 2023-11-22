@@ -54,6 +54,7 @@ namespace Datadog.CustomActions.Native
     {
         SERVICE_START = 0x0010,
         SERVICE_STOP = 0x0020,
+        SERVICE_ALL_ACCESS = 0xF01FF,
     }
 
     public class Win32NativeMethods : INativeMethods
