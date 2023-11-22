@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add isolate command to clusterchecks to make pinpointing check that is
+    causing high CPU/memory usage easier. Command can be run in the
+    cluster agent with:
+    `datadog-cluster-agent clusterchecks isolate --checkID=<checkID>`
