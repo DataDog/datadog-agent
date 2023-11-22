@@ -281,7 +281,7 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 
 // UpdateKernelTelemetry should be moved to the HTTP/2 part as well
 func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) {
-	var zero uint64
+	var zero uint32
 
 	for {
 		mp, _, err := mgr.GetMap(probes.HTTP2TelemetryMap)
@@ -315,8 +315,8 @@ func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) {
 		p.http2Telemetry.maxInterestingFrames.Add(int64(http2Telemetry.Max_interesting_frames))
 		p.http2Telemetry.maxFramesToFilter.Add(int64(http2Telemetry.Max_frames_to_filter))
 
-		time.Sleep(10 * time.Second)
 		p.http2Telemetry.Log()
+		time.Sleep(10 * time.Second)
 	}
 }
 
