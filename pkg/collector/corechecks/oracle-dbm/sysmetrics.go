@@ -130,7 +130,9 @@ func (c *Check) sendMetric(s sender.Sender, r SysmetricsRowDB, seen map[string]b
 	}
 }
 
-func (c *Check) SysMetrics() (int64, error) {
+// sysMetrics emits sysmetrics metrics
+// It returns the number of metrics emitted and any errors encountered.
+func (c *Check) sysMetrics() (int64, error) {
 	var n int64
 	sender, err := c.GetSender()
 	if err != nil {

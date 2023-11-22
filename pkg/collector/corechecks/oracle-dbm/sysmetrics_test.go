@@ -14,7 +14,7 @@ import (
 )
 
 func TestSysmetrics(t *testing.T) {
-	n, err := chk.SysMetrics()
+	n, err := chk.sysMetrics()
 	assert.NoError(t, err, "failed to run sys metrics")
 	assert.Equal(t, int64(92), n)
 }
