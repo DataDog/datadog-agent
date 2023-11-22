@@ -449,12 +449,18 @@ func rebalanceIsWorthIt(currentDistribution checksDistribution, proposedDistribu
 	return proposedDistribution.utilizationStdDev() < maxStdDevAccepted
 }
 
-func (d *dispatcher) isolateCheck(isolateCheckID string) string {
+func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 	currentDistribution := d.currentDistribution()
 	isolateNode := currentDistribution.runnerForCheck(isolateCheckID)
 	if isolateNode == "" {
-		return "Was unable to find check " + isolateCheckID
+		return types.IsolateResponse{
+			CheckID:   isolateCheckID,
+			CheckNode: "",
+			Result:    false,
+			Reason:    "Unable to find check",
+		}
 	}
+
 	proposedDistribution := newChecksDistribution(currentDistribution.runnerWorkers())
 
 	for _, checkID := range currentDistribution.checksSortedByWorkersNeeded() {
@@ -475,6 +481,9 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) string {
 	}
 
 	d.applyDistribution(proposedDistribution, currentDistribution)
-
-	return "Successfully isolated check on " + isolateNode
+	return types.IsolateResponse{
+		CheckID:   isolateCheckID,
+		CheckNode: isolateNode,
+		Result:    true,
+	}
 }

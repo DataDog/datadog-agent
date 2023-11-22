@@ -182,13 +182,9 @@ func isolate(log log.Component, config config.Component, cliParams *cliParams) e
 		return fmt.Errorf("checkID must be specified")
 	}
 	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfig.Datadog.GetInt("cluster_agent.cmd_port"), cliParams.checkID)
+
 	// Set session token
-	err := util.InitDCAAuthToken()
-	if err != nil {
-		return err
-	}
-	// Set session token
-	err = util.SetAuthToken()
+	err := util.SetAuthToken()
 	if err != nil {
 		return err
 	}
@@ -210,5 +206,13 @@ func isolate(log log.Component, config config.Component, cliParams *cliParams) e
 		return err
 	}
 
+	var response types.IsolateResponse
+
+	json.Unmarshal(r, &response) //nolint:errcheck
+	if response.Result {
+		fmt.Printf("Check %s isolated successfully on node %s\n", response.CheckID, response.CheckNode)
+	} else {
+		fmt.Printf("Check %s could not be isolated: %s\n", response.CheckID, response.Reason)
+	}
 	return nil
 }
