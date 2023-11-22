@@ -102,7 +102,6 @@ func (c *conntrackOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 	return []manager.ConstantEditor{
 		{Name: "offset_ct_origin", Value: c.status.Offset_origin},
 		{Name: "offset_ct_reply", Value: c.status.Offset_reply},
-		{Name: "offset_ct_status", Value: c.status.Offset_status},
 		{Name: "offset_ct_netns", Value: c.status.Offset_netns},
 		{Name: "offset_ct_ino", Value: c.status.Offset_ino},
 		{Name: "tcpv6_enabled", Value: c.tcpv6Enabled},

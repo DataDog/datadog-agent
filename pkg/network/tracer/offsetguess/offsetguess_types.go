@@ -1,4 +1,5 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
+// Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
@@ -61,7 +62,6 @@ const (
 
 	GuessCtTupleOrigin GuessWhat = C.GUESS_CT_TUPLE_ORIGIN
 	GuessCtTupleReply  GuessWhat = C.GUESS_CT_TUPLE_REPLY
-	GuessCtStatus      GuessWhat = C.GUESS_CT_STATUS
 	GuessCtNet         GuessWhat = C.GUESS_CT_NET
 
 	GuessNotApplicable GuessWhat = 99999
