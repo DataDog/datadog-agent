@@ -394,7 +394,7 @@ kernel_matrix_testing_setup_env_x64:
       - $DD_AGENT_TESTING_DIR/junit-$ARCH-$TAG-$TEST_SET.tar.gz
       - $DD_AGENT_TESTING_DIR/testjson-$ARCH-$TAG-$TEST_SET.tar.gz
 
-kernel_matrix_testing_run_tests_x64:
+.kmt_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -408,7 +408,21 @@ kernel_matrix_testing_run_tests_x64:
       - TAG: ["ubuntu_16.04", "ubuntu_18.04", "ubuntu_20.04", "ubuntu_22.04", "ubuntu_23.10", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38", "debian_10", "debian_11", "debian_12", "centos_79", "centos_8"]
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
 
-kernel_matrix_testing_run_tests_arm64:
+kmt_run_tests_no_tracer_x64:
+  extends:
+    - .kmt_run_tests_x64
+  variables:
+    RUNNER_CMD: "-exclude-packages pkg/network/tracer"
+    TEST_SET: "no_tracer"
+
+kmt_run_tests_only_tracer_x64:
+  extends:
+    - .kmt_run_tests_x64
+  variables:
+    RUNNER_CMD: "-include-packages pkg/network/tracer"
+    TEST_SET: "only_tracer"
+
+.kmt_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -421,6 +435,20 @@ kernel_matrix_testing_run_tests_arm64:
     matrix:
       - TAG: ["ubuntu_18.04", "ubuntu_20.04", "ubuntu_22.04", "ubuntu_23.10", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38", "debian_10", "debian_11", "debian_12", "centos_79", "centos_8"]
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
+
+kmt_run_tests_no_tracer_arm64:
+  extends:
+    - .kmt_run_tests_arm64
+  variables:
+    RUNNER_CMD: "-exclude-packages pkg/network/tracer"
+    TEST_SET: "no_tracer"
+
+kmt_run_tests_only_tracer_arm64:
+  extends:
+    - .kmt_run_tests_arm64
+  variables:
+    RUNNER_CMD: "-include-packages pkg/network/tracer"
+    TEST_SET: "only_tracer"
 
 .kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
@@ -444,7 +472,7 @@ kernel_matrix_testing_run_tests_arm64:
 kernel_matrix_testing_cleanup_arm64:
   extends:
     - .kernel_matrix_testing_cleanup
-  needs: ["kernel_matrix_testing_setup_env_arm64", "kernel_matrix_testing_run_tests_arm64"]
+  needs: ["kernel_matrix_testing_setup_env_arm64", "kmt_run_tests_no_tracer_arm64", "kmt_run_tests_only_tracer_arm64"]
   variables:
     ARCH: arm64
     INSTANCE_TYPE: "m6gd.metal"
@@ -452,7 +480,7 @@ kernel_matrix_testing_cleanup_arm64:
 kernel_matrix_testing_cleanup_x64:
   extends:
     - .kernel_matrix_testing_cleanup
-  needs: ["kernel_matrix_testing_setup_env_x64", "kernel_matrix_testing_run_tests_x64"]
+  needs: ["kernel_matrix_testing_setup_env_x64", "kmt_run_tests_no_tracer_x64", "kmt_run_tests_only_tracer_x64"]
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"
