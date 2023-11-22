@@ -1119,7 +1119,6 @@ def junit_macos_repack(_, infile, outfile):
 @task
 def get_modified_packages(ctx) -> List[GoModule]:
     modified_files = get_modified_files(ctx)
-    print(modified_files)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     ]
