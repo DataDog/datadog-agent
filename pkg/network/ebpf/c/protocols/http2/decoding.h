@@ -56,6 +56,10 @@ static __always_inline bool read_hpack_int_with_given_current_char(struct __sk_b
     }
 
     // Read the next byte, and check if it is the last byte of the number.
+    // While HPACK does support arbitrary sized numbers, we are limited by the
+    // number of instructions we can use in a single eBPF program, so we only
+    // parse one additional byte. The max value that can be parsed is
+    // `(2^max_number_for_bits - 1) + 127`.
     __u64 next_char = 0;
     if (bpf_skb_load_bytes(skb, skb_info->data_off, &next_char, 1) >= 0 && (next_char & 128) == 0) {
         skb_info->data_off++;
@@ -129,10 +133,10 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
 
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
-// parse_field_literal parses headers with the header name being in the static
-// table and the value is a literal string to be stored in the dynamic table.
+// parse_field_literal parses a header with a literal value.
 //
-// We are only interested in path headers, and will skip those that are not.
+// We are only interested in path headers, that we will store in our internal
+// dynamic table, and will skip headers that are not path headers.
 static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
     __u64 str_len = 0;
     if (!read_hpack_int(skb, skb_info, MAX_6_BITS, &str_len)) {
@@ -172,8 +176,10 @@ end:
     return true;
 }
 
-// filter_relevant_headers parse the http2 headers frame, and filters headers
+// filter_relevant_headers parses the http2 headers frame, and filters headers
 // that are relevant for us, to be processed later on.
+// The return value is the number of relevant headers that were found and inserted
+// in the `headers_to_process` table.
 static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_info_t *skb_info, conn_tuple_t *tup, dynamic_table_index_t *dynamic_index, http2_header_t *headers_to_process, __u32 frame_length) {
     __u8 current_ch;
     __u8 interesting_headers = 0;
@@ -238,7 +244,8 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
     return interesting_headers;
 }
 
-// process_headers processes the headers that were filtered in filter_relevant_headers, looking for requests path, status code, and methods.
+// process_headers processes the headers that were filtered in filter_relevant_headers,
+// looking for requests path, status code, and methods.
 static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers) {
     http2_header_t *current_header;
     dynamic_table_entry_t dynamic_value = {};
@@ -371,7 +378,8 @@ static __always_inline bool format_http2_frame_header(struct http2_frame *out) {
     return out->type <= kContinuationFrame && out->length <= MAX_FRAME_SIZE && (out->stream_id == 0 || (out->stream_id % 2 == 1));
 }
 
-// skip_preface is a helper function to skip the HTTP2 magic sent at the beginning of an HTTP2 connection.
+// skip_preface is a helper function to check for the HTTP2 magic sent at the beginning
+// of an HTTP2 connection, and skip it if present.
 static __always_inline void skip_preface(struct __sk_buff *skb, skb_info_t *skb_info) {
     char preface[HTTP2_MARKER_SIZE];
     bpf_memset((char *)preface, 0, HTTP2_MARKER_SIZE);
@@ -493,12 +501,24 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
     return false;
 }
 
+// find_relevant_frames iterates over the packet and finds frames that are
+// relevant for us. The frames info and location are stored in the `frames_array` array,
+// and the number of frames found is returned.
+//
+// We consider frames as relevant if they are either:
+// - HEADERS frames
+// - RST_STREAM frames
+// - DATA frames with the END_STREAM flag set
 static __always_inline __u8 find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
     __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
 
-    // We may have found a relevant frame already in http2_handle_first_frame, so we need to adjust the index accordingly
+    // We may have found a relevant frame already in http2_handle_first_frame,
+    // so we need to adjust the index accordingly. We do not set
+    // interesting_frame_index to original_index directly, as this will confuse
+    // the verifier, leading it into thinking the index could have an arbitrary
+    // value.
     if (original_index == 1) {
         interesting_frame_index = 1;
     }
