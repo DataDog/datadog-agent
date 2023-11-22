@@ -365,7 +365,7 @@ func TestFetchAllOIDsUsingGetNext(t *testing.T) {
 	sess.On("GetNext", []string{"1.3.6.1.2.1.1.9.1.4"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.9.1.4.1", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.3.6.1.2.1.1.9.1.5"}).Return(CreateGetNextPacket("999", gosnmp.EndOfMibView, nil), nil)
 
-	resultOIDs := FetchAllOIDsUsingGetNext(sess)
+	resultOIDs := FetchAllFirstRowOIDsUsingGetNext(sess)
 	assert.Equal(t, []string{
 		"1.3.6.1.2.1.1.1.0",
 		"1.3.6.1.2.1.1.2.0",
@@ -385,7 +385,7 @@ func TestFetchAllOIDsUsingGetNext_invalidColumnOid(t *testing.T) {
 	sess.On("GetNext", []string{"1.2.3.4.5"}).Return(CreateGetNextPacket("1.2.3.4.6.0", gosnmp.OctetString, []byte(`123`)), nil)
 	sess.On("GetNext", []string{"1.2.3.4.6.0"}).Return(CreateGetNextPacket("999", gosnmp.EndOfMibView, nil), nil)
 
-	resultOIDs := FetchAllOIDsUsingGetNext(sess)
+	resultOIDs := FetchAllFirstRowOIDsUsingGetNext(sess)
 	assert.Equal(t, []string{
 		"1.3.6.1.2.1.1.9.1.2.1",
 		"1.2.3.4.5",
@@ -402,7 +402,7 @@ func TestFetchAllOIDsUsingGetNext_handleNonSequentialOIDs(t *testing.T) {
 	// invalid non-sequential oid that might lead to infinite loop if not handled
 	sess.On("GetNext", []string{"1.2.3.4.5"}).Return(CreateGetNextPacket("1.2.3.4.5", gosnmp.OctetString, []byte(`123`)), nil)
 
-	resultOIDs := FetchAllOIDsUsingGetNext(sess)
+	resultOIDs := FetchAllFirstRowOIDsUsingGetNext(sess)
 	assert.Equal(t, []string{
 		"1.3.6.1.2.1.1.9.1.2.1",
 		"1.2.3.4.5",
@@ -426,7 +426,7 @@ func TestFetchAllOIDsUsingGetNext_End(t *testing.T) {
 			sess.On("GetNext", []string{"1.0"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.1.0", gosnmp.OctetString, []byte(`123`)), nil)
 			sess.On("GetNext", []string{"1.3.6.1.2.1.1.1.0"}).Return(CreateGetNextPacket("1.3.6.1.2.1.1.2.0", gosnmp.OctetString, []byte(`123`)), nil)
 			sess.On("GetNext", []string{"1.3.6.1.2.1.1.2.0"}).Return(CreateGetNextPacket("", test.valueType, nil), nil)
-			resultOIDs := FetchAllOIDsUsingGetNext(sess)
+			resultOIDs := FetchAllFirstRowOIDsUsingGetNext(sess)
 			assert.Equal(t, []string{"1.3.6.1.2.1.1.1.0", "1.3.6.1.2.1.1.2.0"}, resultOIDs)
 
 		})
@@ -440,7 +440,7 @@ func TestFetchAllOIDsUsingGetNext_invalidMoreThanOneVariables(t *testing.T) {
 	packets.Variables = append(packets.Variables, packets.Variables[0])
 	sess.On("GetNext", []string{"1.0"}).Return(packets, nil)
 
-	resultOIDs := FetchAllOIDsUsingGetNext(sess) // no packet created if variables != 1
+	resultOIDs := FetchAllFirstRowOIDsUsingGetNext(sess) // no packet created if variables != 1
 	assert.Equal(t, []string(nil), resultOIDs)
 }
 
@@ -451,6 +451,6 @@ func TestFetchAllOIDsUsingGetNext_invalidZeroVariable(t *testing.T) {
 	}
 	sess.On("GetNext", []string{"1.0"}).Return(packets, nil)
 
-	resultOIDs := FetchAllOIDsUsingGetNext(sess) // no packet created if variables != 1
+	resultOIDs := FetchAllFirstRowOIDsUsingGetNext(sess) // no packet created if variables != 1
 	assert.Equal(t, []string(nil), resultOIDs)
 }

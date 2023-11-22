@@ -219,6 +219,11 @@ func (fs *FakeSession) GetNext(oids []string) (*gosnmp.SnmpPacket, error) {
 	}, nil
 }
 
+// Walk retrieves a subtree of values using GETNEXT
+func (s *FakeSession) Walk(rootOid string, walkFn gosnmp.WalkFunc) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
+}
+
 // SetByte adds an OctetString PDU with the given OID and value
 func (fs *FakeSession) SetByte(oid string, value []byte) *FakeSession {
 	return fs.Set(oid, gosnmp.OctetString, value)
