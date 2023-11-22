@@ -106,7 +106,7 @@ shared_examples_for 'a Windows Agent with CWS running' do
             expect(is_service_running?("datadog-security-agent")).to be_falsey
             #restart "datadog-agent"
             stop "datadog-agent"
-            sleep 10
+            
             start "datadog-agent"
             sleep 30
             expect(is_service_running?("datadogagent")).to be_truthy
@@ -115,7 +115,7 @@ shared_examples_for 'a Windows Agent with CWS running' do
 
 
             stop "datadog-agent"
-            sleep 30
+            
             expect(is_service_running?("datadogagent")).to be_falsey
             expect(is_service_running?("datadog-system-probe")).to be_falsey
             expect(is_service_running?("datadog-security-agent")).to be_falsey
