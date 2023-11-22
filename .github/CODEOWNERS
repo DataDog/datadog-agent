@@ -82,8 +82,8 @@
 
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-platform
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-platform
-/.gitlab/functional_test/system_probe.yml            @DataDog/ebpf-platform @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/ebpf-platform @DataDog/agent-platform
+/.gitlab/functional_test_sysprobe/system_probe.yml   @DataDog/ebpf-platform @DataDog/agent-platform
 
 /.gitlab/integration_test/windows.yml                @DataDog/agent-platform @DataDog/windows-agent
 
@@ -222,6 +222,8 @@
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations
 /comp/checks/winregistry @DataDog/windows-agent
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
+/comp/core/workloadmeta @DataDog/container-integrations
+/comp/dogstatsd/statsd @DataDog/agent-shared-components
 # END COMPONENTS
 
 # pkg
@@ -403,14 +405,14 @@
 /pkg/ebpf/bytecode/runtime/runtime-security.go  @DataDog/agent-security
 /pkg/ebpf/bytecode/runtime/tcp-queue-length.go  @DataDog/container-integrations
 /pkg/ebpf/bytecode/runtime/tracer.go    @DataDog/Networks @DataDog/universal-service-monitoring
+/pkg/ebpf/map_cleaner*.go               @DataDog/universal-service-monitoring
 /pkg/compliance/                        @DataDog/agent-cspm
 /pkg/kubestatemetrics                   @DataDog/container-integrations
 /pkg/security/                          @DataDog/agent-security
 /pkg/networkdevice/                     @DataDog/network-device-monitoring
 /pkg/snmp/                              @DataDog/network-device-monitoring
 /pkg/windowsdriver/                     @DataDog/windows-kernel-integrations
-/pkg/workloadmeta/                      @DataDog/container-integrations
-/pkg/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
+/comp/core/workloadmeta/collectors/internal/cloudfoundry @DataDog/platform-integrations
 /pkg/sbom/                              @DataDog/container-integrations @DataDog/agent-security
 /pkg/internaltelemetry                  @DataDog/windows-kernel-integrations
 /pkg-config/                            @DataDog/agent-platform

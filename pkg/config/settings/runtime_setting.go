@@ -7,7 +7,6 @@
 package settings
 
 import (
-	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -45,7 +44,7 @@ type RuntimeSetting interface {
 // RegisterRuntimeSetting keeps track of configurable settings
 func RegisterRuntimeSetting(setting RuntimeSetting) error {
 	if _, ok := runtimeSettings[setting.Name()]; ok {
-		return errors.New("duplicated settings detected")
+		return fmt.Errorf("duplicated settings detected: %s", setting.Name())
 	}
 	runtimeSettings[setting.Name()] = setting
 	return nil

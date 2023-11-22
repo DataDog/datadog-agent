@@ -131,6 +131,10 @@ func (f *FallbackConstantFetcher) appendRequest(id string) {
 		value = getVMAreaStructFlagsOffset(f.kernelVersion)
 	case OffsetNameKernelCloneArgsExitSignal:
 		value = getKernelCloneArgsExitSignalOffset(f.kernelVersion)
+	case OffsetNameFileFinode:
+		value = getFileFinodeOffset(f.kernelVersion)
+	case OffsetNameFileFpath:
+		value = getFileFpathOffset(f.kernelVersion)
 	}
 	f.res[id] = value
 }
@@ -952,5 +956,23 @@ func getKernelCloneArgsExitSignalOffset(kv *kernel.Version) uint64 {
 		return 40
 	default:
 		return 32
+	}
+}
+
+func getFileFinodeOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_5, kernel.Kernel6_6):
+		return 168
+	default:
+		return 32
+	}
+}
+
+func getFileFpathOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.IsUbuntuKernel() && kv.IsInRangeCloseOpen(kernel.Kernel6_5, kernel.Kernel6_6):
+		return 152
+	default:
+		return 16
 	}
 }

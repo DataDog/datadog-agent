@@ -28,6 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
@@ -69,12 +73,12 @@ func (s *service) Run(svcctx context.Context) error {
 
 	params := &cliParams{}
 	err := fxutil.OneShot(
-		func(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component,
-			telemetry telemetry.Component, params *cliParams, demultiplexer demultiplexer.Component) error {
+		func(log log.Component, config config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component,
+			telemetry telemetry.Component, _ workloadmeta.Component, params *cliParams, demultiplexer demultiplexer.Component) error {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer start.StopAgent(cancel, log)
 
-			err := start.RunAgent(ctx, log, config, sysprobeconfig, telemetry, "", demultiplexer)
+			err := start.RunAgent(ctx, log, config, statsd, sysprobeconfig, telemetry, "", demultiplexer)
 			if err != nil {
 				return err
 			}
@@ -92,6 +96,7 @@ func (s *service) Run(svcctx context.Context) error {
 			LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 		}),
 		core.Bundle,
+		dogstatsd.ClientBundle,
 		forwarder.Bundle,
 		fx.Provide(defaultforwarder.NewParamsWithResolvers),
 		demultiplexer.Module,
@@ -100,6 +105,22 @@ func (s *service) Run(svcctx context.Context) error {
 			opts.UseEventPlatformForwarder = false
 			opts.UseOrchestratorForwarder = false
 			return demultiplexer.Params{Options: opts}
+		}),
+
+		// workloadmeta setup
+		collectors.GetCatalog(),
+		workloadmeta.Module,
+		fx.Provide(func(config config.Component) workloadmeta.Params {
+
+			catalog := workloadmeta.NodeAgent
+
+			if config.GetBool("security_agent.remote_workloadmeta") {
+				catalog = workloadmeta.Remote
+			}
+
+			return workloadmeta.Params{
+				AgentType: catalog,
+			}
 		}),
 	)
 

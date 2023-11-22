@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -42,6 +43,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
@@ -74,6 +76,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			server dogstatsdServer.Component,
 			serverDebug dogstatsddebug.Component,
 			capture replay.Component,
+			wmeta workloadmeta.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
 			logsAgent optional.Option[logsAgent.Component],
@@ -83,6 +86,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			demultiplexer demultiplexer.Component,
 			hostMetadata host.Component,
 			invAgent inventoryagent.Component,
+			invHost inventoryhost.Component,
 			_ netflowServer.Component,
 		) error {
 
@@ -97,6 +101,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				server,
 				capture,
 				serverDebug,
+				wmeta,
 				rcclient,
 				logsAgent,
 				forwarder,
@@ -104,7 +109,9 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				otelcollector,
 				demultiplexer,
 				hostMetadata,
-				invAgent)
+				invAgent,
+				invHost,
+			)
 			if err != nil {
 				return err
 			}

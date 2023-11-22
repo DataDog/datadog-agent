@@ -17,13 +17,13 @@ func (_m *Check) Cleanup() {
 	_m.Called()
 }
 
-// Init provides a mock function with given fields: syscfg, info
-func (_m *Check) Init(syscfg *checks.SysProbeConfig, info *checks.HostInfo) error {
-	ret := _m.Called(syscfg, info)
+// Init provides a mock function with given fields: syscfg, info, oneShot
+func (_m *Check) Init(syscfg *checks.SysProbeConfig, info *checks.HostInfo, oneShot bool) error {
+	ret := _m.Called(syscfg, info, oneShot)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(*checks.SysProbeConfig, *checks.HostInfo) error); ok {
-		r0 = rf(syscfg, info)
+	if rf, ok := ret.Get(0).(func(*checks.SysProbeConfig, *checks.HostInfo, bool) error); ok {
+		r0 = rf(syscfg, info, oneShot)
 	} else {
 		r0 = ret.Error(0)
 	}

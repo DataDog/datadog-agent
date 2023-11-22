@@ -212,3 +212,16 @@ func TestInitData(t *testing.T) {
 
 	assert.ElementsMatch(t, []string{"http://noprox.example.com", "http://name:********@proxy.example.com/"}, ia.data["config_no_proxy"])
 }
+
+func TestGet(t *testing.T) {
+	ia := getTestInventoryPayload(t, nil)
+
+	ia.Set("test", 1234)
+
+	p := ia.Get()
+	assert.Equal(t, 1234, p["test"])
+
+	// verify that the return map is a copy
+	p["test"] = 21
+	assert.Equal(t, 1234, ia.data["test"])
+}

@@ -23,7 +23,6 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -126,15 +125,6 @@ var (
 
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
-
-// PrometheusScrapeChecksTransformer unmarshals a prometheus check.
-func PrometheusScrapeChecksTransformer(in string) interface{} {
-	var promChecks []*types.PrometheusCheck
-	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
-		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
-	}
-	return promChecks
-}
 
 // ConfigurationProviders helps unmarshalling `config_providers` config param
 type ConfigurationProviders struct {
@@ -670,8 +660,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
 	config.BindEnv("prometheus_scrape.checks")                                // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
-	config.SetEnvKeyTransformer("prometheus_scrape.checks", PrometheusScrapeChecksTransformer)
-	config.BindEnvAndSetDefault("prometheus_scrape.version", 1) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
+	config.BindEnvAndSetDefault("prometheus_scrape.version", 1)               // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// Network Devices Monitoring
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
@@ -1478,15 +1467,21 @@ func findUnknownEnvVars(config Config, environ []string, additionalKnownEnvVars 
 		// these variables are used by the agent, but not via the Config struct,
 		// so must be listed separately.
 		"DD_INSIDE_CI":      {},
-		"DD_PROXY_NO_PROXY": {},
 		"DD_PROXY_HTTP":     {},
 		"DD_PROXY_HTTPS":    {},
+		"DD_PROXY_NO_PROXY": {},
 		// these variables are used by serverless, but not via the Config struct
-		"DD_API_KEY_SECRET_ARN":        {},
-		"DD_DOTNET_TRACER_HOME":        {},
-		"DD_SERVERLESS_APPSEC_ENABLED": {},
-		"DD_SERVICE":                   {},
-		"DD_VERSION":                   {},
+		"DD_API_KEY_SECRET_ARN":              {},
+		"DD_APM_FLUSH_DEADLINE_MILLISECONDS": {},
+		"DD_DOTNET_TRACER_HOME":              {},
+		"DD_FLUSH_TO_LOG":                    {},
+		"DD_KMS_API_KEY":                     {},
+		"DD_LAMBDA_HANDLER":                  {},
+		"DD_LOGS_INJECTION":                  {},
+		"DD_MERGE_XRAY_TRACES":               {},
+		"DD_SERVERLESS_APPSEC_ENABLED":       {},
+		"DD_SERVICE":                         {},
+		"DD_VERSION":                         {},
 		// this variable is used by CWS functional tests
 		"DD_TESTS_RUNTIME_COMPILED": {},
 		// this variable is used by the Kubernetes leader election mechanism
@@ -1591,6 +1586,9 @@ func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEn
 	if err := config.ReadInConfig(); err != nil {
 		if IsServerless() {
 			log.Debug("No config file detected, using environment variable based configuration only")
+			// Proxy settings need to be loaded from environment variables even in the absence of a datadog.yaml file
+			// The remaining code in LoadCustom is not run to keep a low cold start time
+			LoadProxyFromEnv(config)
 			return &warnings, nil
 		}
 		return &warnings, err
@@ -1685,18 +1683,7 @@ func setupFipsEndpoints(config Config) error {
 	os.Unsetenv("HTTP_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 
-	// We're creating a temporary configuration which will be merged to the main config later.
-	// Internally, Viper uses multiple storages for the configuration values and values from datadog.yaml are stored
-	// in a different place from where overrides (created with config.Set(...)) are stored.
-	// Some products are using UnmarshalKey() which either uses overridden data or either configuration file data but not
-	// both at the same time (see https://github.com/spf13/viper/issues/1106)
-	//
-	// Because of that we cannot rely on Set() because it creates overridden data and then UnmarshalKey() will only use the
-	// option created with Set() instead of using option from Set() + option from configuration file.
-	// Instead we merge all the options we need into the main configuration (basically we dynamically add data to the place
-	// where configuration file data are stored)
-	fipsConfig := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	fipsConfig.Set("fips.https", config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("fips.https", config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
 
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"
@@ -1709,40 +1696,49 @@ func setupFipsEndpoints(config Config) error {
 	// config_template.yaml
 
 	// Metrics
-	fipsConfig.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("dd_url", protocol+urlFor(metrics), pkgconfigmodel.SourceAgentRuntime)
 
 	// Logs
-	setupFipsLogsConfig(fipsConfig, "logs_config.", urlFor(logs))
+	setupFipsLogsConfig(config, "logs_config.", urlFor(logs))
 
 	// APM
-	fipsConfig.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("apm_config.apm_dd_url", protocol+urlFor(traces), pkgconfigmodel.SourceAgentRuntime)
 	// Adding "/api/v2/profile" because it's not added to the 'apm_config.profiling_dd_url' value by the Agent
-	fipsConfig.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", pkgconfigmodel.SourceAgentRuntime)
-	fipsConfig.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("apm_config.profiling_dd_url", protocol+urlFor(profiles)+"/api/v2/profile", pkgconfigmodel.SourceAgentRuntime)
+	config.Set("apm_config.telemetry.dd_url", protocol+urlFor(instrumentationTelemetry), pkgconfigmodel.SourceAgentRuntime)
 
 	// Processes
-	fipsConfig.Set("process_config.process_dd_url", protocol+urlFor(processes), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("process_config.process_dd_url", protocol+urlFor(processes), pkgconfigmodel.SourceAgentRuntime)
 
 	// Database monitoring
 	// Historically we used a different port for samples because the intake hostname defined in epforwarder.go was different
 	// (even though the underlying IPs were the same as the ones for DBM metrics intake hostname). We're keeping 2 ports for backward compatibility reason.
-	setupFipsLogsConfig(fipsConfig, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
-	setupFipsLogsConfig(fipsConfig, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
-	setupFipsLogsConfig(fipsConfig, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
+	setupFipsLogsConfig(config, "database_monitoring.metrics.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(config, "database_monitoring.activity.", urlFor(databasesMonitoringMetrics))
+	setupFipsLogsConfig(config, "database_monitoring.samples.", urlFor(databasesMonitoringSamples))
 
 	// Network devices
-	setupFipsLogsConfig(fipsConfig, "network_devices.metadata.", urlFor(networkDevicesMetadata))
-	setupFipsLogsConfig(fipsConfig, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
-	setupFipsLogsConfig(fipsConfig, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
+	// Internally, Viper uses multiple storages for the configuration values and values from datadog.yaml are stored
+	// in a different place from where overrides (created with config.Set(...)) are stored.
+	// Some NDM products are using UnmarshalKey() which either uses overridden data or either configuration file data but not
+	// both at the same time (see https://github.com/spf13/viper/issues/1106)
+	//
+	// Because of that we need to put all the NDM config in the overridden data store (using Set) in order to get
+	// data from the config + data created by the FIPS mode when using UnmarshalKey()
+
+	config.Set("network_devices.snmp_traps", config.Get("network_devices.snmp_traps"), pkgconfigmodel.SourceAgentRuntime)
+	setupFipsLogsConfig(config, "network_devices.metadata.", urlFor(networkDevicesMetadata))
+	config.Set("network_devices.netflow", config.Get("network_devices.netflow"), pkgconfigmodel.SourceAgentRuntime)
+	setupFipsLogsConfig(config, "network_devices.snmp_traps.forwarder.", urlFor(networkDevicesSnmpTraps))
+	setupFipsLogsConfig(config, "network_devices.netflow.forwarder.", urlFor(networkDevicesNetflow))
 
 	// Orchestrator Explorer
-	fipsConfig.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), pkgconfigmodel.SourceAgentRuntime)
+	config.Set("orchestrator_explorer.orchestrator_dd_url", protocol+urlFor(orchestratorExplorer), pkgconfigmodel.SourceAgentRuntime)
 
 	// CWS
-	setupFipsLogsConfig(fipsConfig, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
+	setupFipsLogsConfig(config, "runtime_security_config.endpoints.", urlFor(runtimeSecurity))
 
-	// Merge the configurations
-	return config.MergeConfigMap(fipsConfig.AllSettings())
+	return nil
 }
 
 func setupFipsLogsConfig(config Config, configPrefix string, url string) {

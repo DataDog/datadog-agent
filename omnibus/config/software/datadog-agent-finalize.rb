@@ -37,6 +37,17 @@ build do
               move "#{install_dir}/etc/datadog-agent/apm-inject.yaml.example", conf_dir_root, :force=>true
             end
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
+
+            # remove the config files for the subservices; they'll be started
+            # based on the config file
+            delete "#{conf_dir}/apm.yaml.default"
+            delete "#{conf_dir}/process_agent.yaml.default"
+
+            # load isn't supported by windows
+            delete "#{conf_dir}/load.d"
+
+            # Remove .pyc files from embedded Python
+            command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
         end
 
         if linux_target? || osx_target?
@@ -46,6 +57,7 @@ build do
                 delete "#{install_dir}/embedded/bin/pip"
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
 
+                # Used in https://docs.datadoghq.com/agent/guide/python-3/
                 delete "#{install_dir}/embedded/bin/2to3"
                 link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
             # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
@@ -58,8 +70,9 @@ build do
                 delete "#{install_dir}/embedded/bin/python"
                 link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
 
+                # Used in https://docs.datadoghq.com/agent/guide/python-3/
                 delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-3.9", "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-3.11", "#{install_dir}/embedded/bin/2to3"
             end
             delete "#{install_dir}/embedded/lib/config_guess"
 
