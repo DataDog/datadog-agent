@@ -538,7 +538,7 @@ func initResources(pod *corev1.Pod) (corev1.ResourceRequirements, bool, error) {
 	var resources = corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
 	annotations := pod.Annotations
 
-	if rawQuantity, cpuFromAnnotation = annotations[initContainerCpuAnnotationKey]; cpuFromAnnotation {
+	if rawQuantity, cpuFromAnnotation = annotations[initContainerCPUAnnotationKey]; cpuFromAnnotation {
 		quantity, err := resource.ParseQuantity(rawQuantity)
 		if err != nil {
 			return resources, hasResources, err
