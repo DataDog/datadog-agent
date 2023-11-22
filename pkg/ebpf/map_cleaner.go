@@ -71,8 +71,6 @@ func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, 
 		cleaner = mc.cleanWithBatches
 	}
 
-	var err error
-	now := int64(0)
 	mc.once.Do(func() {
 		ticker := time.NewTicker(interval)
 		go func() {
@@ -81,7 +79,7 @@ func (mc *MapCleaner[K, V]) Clean(interval time.Duration, preClean func() bool, 
 			for {
 				select {
 				case <-ticker.C:
-					now, err = NowNanoseconds()
+					now, err := NowNanoseconds()
 					if err != nil {
 						break
 					}
