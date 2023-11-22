@@ -1,12 +1,13 @@
 using System;
 using System.ComponentModel;
-using System.ComponentModel.Design;
 using System.Diagnostics;
 using System.DirectoryServices.ActiveDirectory;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Security.Principal;
 using System.Text;
 using Datadog.CustomActions.Interfaces;
+
 // ReSharper disable InconsistentNaming
 
 namespace Datadog.CustomActions.Native
@@ -45,6 +46,14 @@ namespace Datadog.CustomActions.Native
         SidTypeInvalid,
         SidTypeUnknown,
         SidTypeComputer
+    }
+
+    // https://learn.microsoft.com/en-us/windows/win32/services/service-security-and-access-rights
+    [Flags]
+    public enum ServiceAccess
+    {
+        SERVICE_START = 0x0010,
+        SERVICE_STOP = 0x0020,
     }
 
     public class Win32NativeMethods : INativeMethods
@@ -396,6 +405,15 @@ namespace Datadog.CustomActions.Native
         int dwStartType, int dwErrorControl, string lpBinaryPathName, string lpLoadOrderGroup,
         string lpdwTagId, string lpDependencies, string lpServiceStartName, string lpPassword,
         string lpDisplayName);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        private static extern bool QueryServiceObjectSecurity(SafeHandle serviceHandle,
+            SecurityInfos secInfo,
+            byte[] lpSecDescBuf, uint bufSize, out uint bufSizeNeeded);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool SetServiceObjectSecurity(SafeHandle serviceHandle,
+            SecurityInfos secInfos, byte[] lpSecDescBuf);
 
         [StructLayout(LayoutKind.Sequential)]
         public class GuidClass
@@ -756,6 +774,8 @@ namespace Datadog.CustomActions.Native
             return result;
         }
 
+
+
         /// <summary>
         /// Enable privilege on current token
         /// https://learn.microsoft.com/en-us/windows/win32/secauthz/enabling-and-disabling-privileges-in-c--
@@ -816,6 +836,49 @@ namespace Datadog.CustomActions.Native
                 {
                     CloseHandle(token);
                 }
+            }
+        }
+
+        public static CommonSecurityDescriptor QueryServiceObjectSecurity(SafeHandle serviceHandle,
+            System.Security.AccessControl.SecurityInfos secInfo)
+        {
+            byte[] secDescBuf = null;
+            if (!QueryServiceObjectSecurity(serviceHandle, secInfo, null, 0, out var bytesNeeded))
+            {
+                var result = (ReturnCodes)Marshal.GetLastWin32Error();
+                if (result != ReturnCodes.ERROR_INSUFFICIENT_BUFFER)
+                {
+                    throw new Exception("Failed to get size for service security descriptor",
+                        new Win32Exception((int)result));
+                }
+            }
+            else
+            {
+                throw new Exception("Failed to get size for service security descriptor");
+            }
+
+            // alloc space
+            secDescBuf = new byte[bytesNeeded];
+
+            if (!QueryServiceObjectSecurity(serviceHandle, secInfo, secDescBuf, bytesNeeded, out _))
+            {
+                throw new Exception("Failed to get service security descriptor",
+                    new Win32Exception(Marshal.GetLastWin32Error()));
+            }
+
+            return new CommonSecurityDescriptor(false, false, new RawSecurityDescriptor(secDescBuf, 0));
+        }
+
+        public static void SetServiceObjectSecurity(SafeHandle serviceHandle,
+            System.Security.AccessControl.SecurityInfos secInfo,
+            CommonSecurityDescriptor securityDescriptor)
+        {
+            var secDescBuf = new byte[securityDescriptor.BinaryLength];
+            securityDescriptor.GetBinaryForm(secDescBuf, 0);
+            if (!SetServiceObjectSecurity(serviceHandle, secInfo, secDescBuf))
+            {
+                throw new Exception("Failed to set service security descriptor",
+                    new Win32Exception(Marshal.GetLastWin32Error()));
             }
         }
 

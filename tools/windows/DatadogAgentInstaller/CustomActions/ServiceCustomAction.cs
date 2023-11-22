@@ -1,5 +1,7 @@
 using System;
 using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Authentication.ExtendedProtection;
 using System.Security.Principal;
 using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
@@ -151,6 +153,8 @@ namespace Datadog.CustomActions
                 {
                     _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
                 }
+
+                ConfigureServicePermissions();
             }
             catch (Exception e)
             {
@@ -158,6 +162,38 @@ namespace Datadog.CustomActions
                 return ActionResult.Failure;
             }
             return ActionResult.Success;
+        }
+
+        /// <summary>
+        /// Grant ddagentuser start/stop service privileges for the agent services
+        /// </summary>
+        private void ConfigureServicePermissions()
+        {
+            // Get SID for agent user
+            var ddAgentUserName = $"{_session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")}";
+            var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
+                out _,
+                out _,
+                out var securityIdentifier,
+                out _);
+            if (!userFound)
+            {
+                throw new Exception($"Could not find user {ddAgentUserName}.");
+            }
+
+            var services = new string[]
+            {
+                "datadog-process-agent", "datadog-trace-agent", "datadog-system-probe", "datadogagent",
+            };
+            foreach (var serviceName in services)
+            {
+                var securityDescriptor = _serviceController.GetAccessSecurity(serviceName);
+                securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, securityIdentifier,
+                    (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP),
+                    InheritanceFlags.None, PropagationFlags.None);
+
+                _serviceController.SetAccessSecurity(serviceName, securityDescriptor);
+            }
         }
 
         [CustomAction]
