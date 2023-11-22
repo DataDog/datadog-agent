@@ -64,6 +64,8 @@ github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4 h1:CdM5V+VdDZURW
 github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4/go.mod h1:EOGgNrSPskIxY3+KgCl+yEggMjrGqrA2oL5va+/p2jM=
 github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.4 h1:53Kl0f+NR5QQ9V0iii7p8A13X7ZNTdqggxK0cWJGhpE=
 github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.4/go.mod h1:iL/4tq2keb2jIJhEwdZcHnIxJlZoEUuGjPQygpYtUH0=
+github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4 h1:dYHPxWIgI18+Z/3d2YCXRtsLb9QBiO0iXyYp8lxOzG8=
+github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4/go.mod h1:mahW6uT3c+PZA04AUKba8mHzIGjc/2YCpXe/4HY0uBc=
 github.com/DataDog/viper v1.12.0 h1:FufyZpZPxyszafSV5B8Q8it75IhhuJwH0T7QpT6HnD0=
 github.com/DataDog/viper v1.12.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=

@@ -24,6 +24,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4 // indirect
 	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect

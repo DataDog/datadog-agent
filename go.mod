@@ -598,7 +598,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/status/health v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/tagset v0.50.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/telemetry v0.50.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/common v0.50.0-rc.4
