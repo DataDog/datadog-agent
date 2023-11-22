@@ -43,6 +43,10 @@ Package winregistry implements the Windows Registry check
 Package core implements the "core" bundle, providing services common to all
 agent flavors and binaries.
 
+### [comp/core/api](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/api)
+
+Package api implements the internal Agent API which exposes endpoints such as config, flare or status
+
 ### [comp/core/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/config)
 
 Package config implements a component to handle agent configuration.  This
