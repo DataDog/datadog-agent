@@ -173,6 +173,7 @@ func TestForwardErrors(t *testing.T) {
 	r, err := http.DefaultClient.Do(req)
 	assert.NoError(err)
 	assert.Equal(404, r.StatusCode)
+	r.Body.Close()
 }
 
 type agentGRPCConfigFetcher struct {
