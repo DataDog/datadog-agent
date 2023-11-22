@@ -23,7 +23,7 @@ const (
 	//
 	// Request: Trace chunks.
 	// 	Content-Type: application/msgpack
-	// 	Payload: An array of arrays of Span (pkg/trace/pb/span.proto)
+	// 	Payload: An array of arrays of Span (pkg/proto/datadog/trace/span.proto)
 	//
 	// Response: Service sampling rates.
 	// 	Content-Type: application/json
