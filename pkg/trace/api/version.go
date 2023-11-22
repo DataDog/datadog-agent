@@ -113,7 +113,7 @@ const (
 	//
 	// Request: Tracer Payload.
 	// 	Content-Type: application/msgpack
-	// 	Payload: TracerPayload (pkg/trace/pb/tracer_payload.proto)
+	// 	Payload: TracerPayload (pkg/proto/datadog/trace/tracer_payload.proto)
 	//
 	// Response: Service sampling rates (see description in v04).
 	//
