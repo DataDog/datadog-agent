@@ -197,7 +197,7 @@ func (c *Check) Run() error {
 
 		if c.config.SysMetrics.Enabled {
 			log.Debugf("%s Entered sysmetrics", c.logPrompt)
-			err := c.SysMetrics()
+			_, err := c.SysMetrics()
 			if err != nil {
 				return fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err)
 			}
