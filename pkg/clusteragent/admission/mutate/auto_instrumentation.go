@@ -86,7 +86,7 @@ const (
 	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
 
-	initContainerCpuAnnotationKey = "admission.datadoghq.com/init_resources.cpu"
+	initContainerCPUAnnotationKey = "admission.datadoghq.com/init_resources.cpu"
 	initContainerMemAnnotationKey = "admission.datadoghq.com/init_resources.mem"
 
 	// Env vars
