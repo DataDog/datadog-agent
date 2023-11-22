@@ -1119,6 +1119,7 @@ def junit_macos_repack(_, infile, outfile):
 @task
 def get_modified_packages(ctx) -> List[GoModule]:
     modified_files = get_modified_files(ctx)
+    print(modified_files)
     modified_go_files = [
         f"./{file}" for file in modified_files if file.endswith(".go") or file.endswith(".mod") or file.endswith(".sum")
     ]
@@ -1146,7 +1147,13 @@ def get_modified_packages(ctx) -> List[GoModule]:
             modules_to_test[best_module_path] = DEFAULT_MODULES[best_module_path]
             go_mod_modified_modules.add(best_module_path)
             continue
+
+        # If the package has been deleted we do not try to run tests
+        if not os.path.exists(os.path.dirname(modified_file)):
+            continue
+
         relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
+
         if best_module_path in modules_to_test:
             if (
                 modules_to_test[best_module_path].targets is not None
