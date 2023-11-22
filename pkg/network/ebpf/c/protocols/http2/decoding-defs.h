@@ -137,7 +137,11 @@ typedef struct {
 typedef struct {
     __u64 end_of_stream_eos;
     __u64 end_of_stream_rst;
+    __u64 request_seen;
+    __u64 response_seen;
     __u64 str_len_exceeds_frame;
+    __u64 max_interesting_frames;
+    __u64 max_frames_to_filter;
     __u64 path_size_bucket0;
     __u64 path_size_bucket1;
     __u64 path_size_bucket2;
@@ -145,10 +149,6 @@ typedef struct {
     __u64 path_size_bucket4;
     __u64 path_size_bucket5;
     __u64 path_size_bucket6;
-    __u64 request_seen;
-    __u64 response_seen;
-    __u64 max_interesting_frames;
-    __u64 max_frames_to_filter;
 } http2_telemetry_t;
 
 #endif

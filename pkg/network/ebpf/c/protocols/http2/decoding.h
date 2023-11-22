@@ -117,7 +117,7 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
 
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
-
+// get_bucket_index returns the bucket index for the given path size.
 static __always_inline __u32 get_bucket_index(__u32 size) {
     if (size < HTTP2_MAX_PATH_LEN) {
         return 0;
@@ -128,6 +128,7 @@ static __always_inline __u32 get_bucket_index(__u32 size) {
     return bucket_idx;
 }
 
+// update_path_size_telemetry updates the path size telemetry.
 static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_tel, __u32 bucket_idx) {
     switch (bucket_idx) {
         case 0:

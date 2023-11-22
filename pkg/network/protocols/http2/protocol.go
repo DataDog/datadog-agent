@@ -10,12 +10,11 @@ package http2
 import (
 	"errors"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/cihub/seelog"
 	"strings"
 	"time"
 	"unsafe"
 
+	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
@@ -29,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/buildmode"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type protocol struct {
