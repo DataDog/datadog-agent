@@ -225,7 +225,7 @@ func FetchAllFirstRowOIDsUsingGetNext(session Session) []string {
 // FetchAllOIDsUsingGetNext fetches all available OIDs
 func FetchAllOIDsUsingGetNext(session Session) ([]gosnmp.SnmpPDU, error) {
 	var results []gosnmp.SnmpPDU
-	rootOid := ".1.3.6.1.2.1"
+	rootOid := "1.0"
 
 	err := session.Walk(rootOid, func(dataUnit gosnmp.SnmpPDU) error {
 		results = append(results, dataUnit)
