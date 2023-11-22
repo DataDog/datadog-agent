@@ -77,6 +77,9 @@ shared_examples_for 'a Windows Agent with CWS running' do
                 sa_conf_path = "#{ENV['ProgramData']}\\Datadog\\security-agent.yaml"
                 sp_conf_path = "#{ENV['ProgramData']}\\Datadog\\system-probe.yaml"
             end
+            expect(File).to exist(sa_conf_path)
+            expect(File).to exist(sp_conf_path)
+            
             f = File.read(sa_conf_path)
             confYaml = YAML.load(f)
             if !confYaml
