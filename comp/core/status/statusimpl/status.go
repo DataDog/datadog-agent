@@ -37,7 +37,7 @@ var Module = fxutil.Component(
 	fx.Provide(newStatus),
 )
 
-func sortByNameAndSection(section string, providers []status.StatusProvider) []status.StatusProvider {
+func sortByNameAndSection(section status.StatusSection, providers []status.StatusProvider) []status.StatusProvider {
 	var sectionProviders []status.StatusProvider
 	for _, provider := range providers {
 		if provider.Section() == section {
@@ -53,9 +53,9 @@ func sortByNameAndSection(section string, providers []status.StatusProvider) []s
 }
 
 func newStatus(deps dependencies) (status.Component, error) {
-	metadataSection := sortByNameAndSection("metadata", deps.Providers)
-	collectorSection := sortByNameAndSection("collector", deps.Providers)
-	componentsSection := sortByNameAndSection("components", deps.Providers)
+	metadataSection := sortByNameAndSection(status.MetadataSection, deps.Providers)
+	collectorSection := sortByNameAndSection(status.CollectorSection, deps.Providers)
+	componentsSection := sortByNameAndSection(status.ComponentSection, deps.Providers)
 
 	return &statusImplementation{
 		headerProvider:    newHeaderProvider(deps.Config),
@@ -219,7 +219,7 @@ func (s *statusImplementation) GetStatusByNames(names []string, format string, v
 	}
 }
 
-func (s *statusImplementation) GetStatusBySection(section, format string, verbose bool) ([]byte, error) {
+func (s *statusImplementation) GetStatusBySection(section status.StatusSection, format string, verbose bool) ([]byte, error) {
 	output := func(format string, providers []status.StatusProvider) ([]byte, error) {
 		switch format {
 		case "json":
@@ -256,11 +256,11 @@ func (s *statusImplementation) GetStatusBySection(section, format string, verbos
 	}
 
 	switch section {
-	case "metadata":
+	case status.MetadataSection:
 		return output(format, s.metadataSection)
-	case "collector":
+	case status.CollectorSection:
 		return output(format, s.collectorSection)
-	case "components":
+	case status.ComponentSection:
 		return output(format, s.componentsSection)
 	default:
 		return []byte{}, nil

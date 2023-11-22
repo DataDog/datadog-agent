@@ -20,8 +20,8 @@ type statusProvider struct {
 	data agentMetadata
 }
 
-func (s statusProvider) Section() string {
-	return "metadata"
+func (s statusProvider) Section() status.StatusSection {
+	return status.MetadataSection
 }
 
 func (s statusProvider) Name() string {

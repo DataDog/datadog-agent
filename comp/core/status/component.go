@@ -14,11 +14,18 @@ import (
 
 // team: agent-shared-components
 
+type StatusSection string
+
+const MetadataSection StatusSection = "metadata"
+const CollectorSection StatusSection = "collector"
+const ComponentSection StatusSection = "component"
+
 // Component is the component type.
 type Component interface {
 	GetStatus(format string, verbose bool) ([]byte, error)
 	GetStatusByName(name, format string, verbose bool) ([]byte, error)
 	GetStatusByNames(name []string, format string, verbose bool) ([]byte, error)
+	GetStatusBySection(section StatusSection, format string, verbose bool) ([]byte, error)
 }
 
 type StatusProvider interface {
@@ -26,7 +33,7 @@ type StatusProvider interface {
 	// when using GetStatusByName and GetStatusByNames function of the status component.
 	// Also, we used the name to sort the status providers
 	Name() string
-	Section() string
+	Section() StatusSection
 	JSON(stats map[string]interface{})
 	Text(buffer io.Writer) error
 	HTML(buffer io.Writer) error
