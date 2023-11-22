@@ -4,11 +4,12 @@ go 1.20
 
 replace (
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log/
+	github.com/DataDog/datadog-agent/pkg/util/scrubber => ../../util/scrubber/
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ../../util/system/socket/
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/log v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
 	github.com/DataDog/viper v1.12.0
 	github.com/spf13/afero v1.1.2
 	github.com/spf13/pflag v1.0.3
@@ -16,7 +17,7 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.49.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/fsnotify/fsnotify v1.4.7 // indirect

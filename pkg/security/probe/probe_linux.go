@@ -309,7 +309,7 @@ func (p *Probe) Setup() error {
 
 	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
 
-	if err := p.updateProbes(defaultEventTypes, true, needRawSyscalls); err != nil {
+	if err := p.updateProbes(defaultEventTypes, needRawSyscalls); err != nil {
 		return err
 	}
 
@@ -343,8 +343,8 @@ func (p *Probe) playSnapshot() {
 		event.Exec.Process = &entry.Process
 		event.ProcessContext.Process.ContainerID = entry.ContainerID
 
-		if !entry.HasCompleteLineage() {
-			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
+		if _, err := entry.HasValidLineage(); err != nil {
+			event.Error = &model.ErrProcessBrokenLineage{Err: err}
 		}
 
 		events = append(events, event)
@@ -486,8 +486,7 @@ func eventWithNoProcessContext(eventType model.EventType) bool {
 	return eventType == model.DNSEventType || eventType == model.LoadModuleEventType || eventType == model.UnloadModuleEventType
 }
 
-// UnmarshalProcessCacheEntry unmarshal a Process
-func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
+func (p *Probe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, error) {
 	entry := p.resolvers.ProcessResolver.NewProcessCacheEntry(ev.PIDContext)
 	ev.ProcessCacheEntry = entry
 
@@ -496,6 +495,7 @@ func (p *Probe) UnmarshalProcessCacheEntry(ev *model.Event, data []byte) (int, e
 		return n, err
 	}
 	entry.Process.ContainerID = ev.ContainerContext.ID
+	entry.Source = model.ProcessCacheEntryFromEvent
 
 	return n, nil
 }
@@ -516,14 +516,6 @@ func (p *Probe) onEventLost(perfMapName string, perEvent map[string]uint64) {
 // setProcessContext set the process context, should return false if the event shouldn't be dispatched
 func (p *Probe) setProcessContext(eventType model.EventType, event *model.Event) bool {
 	entry, isResolved := p.fieldHandlers.ResolveProcessCacheEntry(event)
-	if !eventWithNoProcessContext(eventType) {
-		if !isResolved {
-			event.Error = &ErrNoProcessContext{Err: errors.New("process context not resolved")}
-		} else if !entry.HasValidLineage() {
-			event.Error = &ErrProcessBrokenLineage{PIDContext: entry.PIDContext}
-			p.resolvers.ProcessResolver.CountBrokenLineage()
-		}
-	}
 	event.ProcessCacheEntry = entry
 	if event.ProcessCacheEntry == nil {
 		panic("should always return a process cache entry")
@@ -537,6 +529,15 @@ func (p *Probe) setProcessContext(eventType model.EventType, event *model.Event)
 
 	if process.IsKThread(event.ProcessContext.PPid, event.ProcessContext.Pid) {
 		return false
+	}
+
+	if !eventWithNoProcessContext(eventType) {
+		if !isResolved {
+			event.Error = &model.ErrNoProcessContext{Err: errors.New("process context not resolved")}
+		} else if _, err := entry.HasValidLineage(); err != nil {
+			event.Error = &model.ErrProcessBrokenLineage{Err: err}
+			p.resolvers.ProcessResolver.CountBrokenLineage()
+		}
 	}
 
 	// flush exited process
@@ -636,7 +637,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 	// handle exec and fork before process context resolution as they modify the process context resolution
 	switch eventType {
 	case model.ForkEventType:
-		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode fork event: %s (offset %d, len %d)", err, offset, dataLen)
 			return
 		}
@@ -651,7 +652,7 @@ func (p *Probe) handleEvent(CPU int, data []byte) {
 		p.resolvers.ProcessResolver.AddForkEntry(event.ProcessCacheEntry, event.PIDContext.ExecInode)
 	case model.ExecEventType:
 		// unmarshal and fill event.processCacheEntry
-		if _, err = p.UnmarshalProcessCacheEntry(event, data[offset:]); err != nil {
+		if _, err = p.unmarshalProcessCacheEntry(event, data[offset:]); err != nil {
 			seclog.Errorf("failed to decode exec event: %s (offset %d, len %d)", err, offset, len(data))
 			return
 		}
@@ -1106,7 +1107,7 @@ func (p *Probe) validEventTypeForConfig(eventType string) bool {
 
 // updateProbes applies the loaded set of rules and returns a report
 // of the applied approvers for it.
-func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes, needRawSyscalls bool) error {
+func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscalls bool) error {
 	// event types enabled either by event handlers or by rules
 	eventTypes := append([]eval.EventType{}, defaultEventTypes...)
 	eventTypes = append(eventTypes, ruleEventTypes...)
@@ -1122,11 +1123,7 @@ func (p *Probe) updateProbes(ruleEventTypes []eval.EventType, useSnapshotProbes,
 		}
 	}
 
-	var activatedProbes []manager.ProbesSelector
-
-	if useSnapshotProbes {
-		activatedProbes = append(activatedProbes, probes.SnapshotSelectors(p.useFentry)...)
-	}
+	activatedProbes := probes.SnapshotSelectors(p.useFentry)
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
@@ -1438,7 +1435,7 @@ func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, e
 		}
 	}
 
-	if err := p.updateProbes(rs.GetEventTypes(), false, needRawSyscalls); err != nil {
+	if err := p.updateProbes(rs.GetEventTypes(), needRawSyscalls); err != nil {
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
@@ -1476,7 +1473,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 			approvers:          make(map[eval.EventType]kfilters.ActiveApprovers),
 			managerOptions:     ebpf.NewDefaultOptions(),
 			Erpc:               nerpc,
-			erpcRequest:        &erpc.Request{},
+			erpcRequest:        erpc.NewERPCRequest(0),
 			isRuntimeDiscarded: !opts.DontDiscardRuntime,
 		},
 	}
@@ -1540,10 +1537,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		seclog.Warnf("constant fetcher failed: %v", err)
 		return nil, err
 	}
-	// the constant fetching mechanism can be quite memory intensive, between kernel header downloading,
-	// runtime compilation, BTF parsing...
-	// let's ensure the GC has run at this point before doing further memory intensive stuff
-	runtime.GC()
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
@@ -1856,6 +1849,8 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmArgc, "struct linux_binprm", "argc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameLinuxBinprmEnvc, "struct linux_binprm", "envc", "linux/binfmts.h")
 	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameVMAreaStructFlags, "struct vm_area_struct", "vm_flags", "linux/mm_types.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFinode, "struct file", "f_inode", "linux/fs.h")
+	constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameFileFpath, "struct file", "f_path", "linux/fs.h")
 	if kv.Code >= kernel.Kernel5_3 {
 		constantFetcher.AppendOffsetofRequest(constantfetch.OffsetNameKernelCloneArgsExitSignal, "struct kernel_clone_args", "exit_signal", "linux/sched/task.h")
 	}

@@ -30,6 +30,12 @@ Package checks implements the "checks" bundle, for all of the component based ag
 
 Package agentcrashdetect ... /* TODO: detailed doc comment for the component */
 
+### [comp/checks/winregistry](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks/winregistry)
+
+*Datadog Team*: windows-agent
+
+Package winregistry implements the Windows Registry check
+
 ## [comp/core](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -65,6 +71,12 @@ component temporarily wraps pkg/config.
 
 Package telemetry implements a component for all agent telemetry.
 
+### [comp/core/workloadmeta](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/workloadmeta)
+
+*Datadog Team*: container-integrations
+
+Package workloadmeta provides the workloadmeta component for the Datadog Agent
+
 ## [comp/dogstatsd](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd) (Component Bundle)
 
 *Datadog Team*: agent-metrics-logs
@@ -82,6 +94,12 @@ Package server implements a component to run the dogstatsd server
 ### [comp/dogstatsd/serverDebug](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/serverDebug)
 
 Package serverdebug implements a component to run the dogstatsd server debug
+
+### [comp/dogstatsd/statsd](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/dogstatsd/statsd)
+
+*Datadog Team*: agent-shared-components
+
+Package statsd implements a component to get a statsd client.
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder) (Component Bundle)
 
@@ -127,6 +145,10 @@ Package host implements a component to generate the 'host' metadata payload (als
 ### [comp/metadata/inventoryagent](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/inventoryagent)
 
 Package inventoryagent implements a component to generate the 'datadog_agent' metadata payload for inventory.
+
+### [comp/metadata/inventoryhost](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/inventoryhost)
+
+Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
 
 ### [comp/metadata/resources](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/resources)
 

@@ -10,3 +10,9 @@ services:
      POSTGRES_USER: admin
      POSTGRES_PASSWORD: password
      POSTGRES_DB: testdb
+   networks:
+     - postgres
+
+networks:
+  postgres:
+    driver: bridge

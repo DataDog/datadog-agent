@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var emptyTimestampUnix = new(time.Time).Unix()
@@ -398,7 +398,11 @@ func toProtoLaunchType(launchType workloadmeta.ECSLaunchType) (pb.ECSLaunchType,
 func WorkloadmetaFilterFromProtoFilter(protoFilter *pb.WorkloadmetaFilter) (*workloadmeta.Filter, error) {
 	if protoFilter == nil {
 		// Return filter that subscribes to everything
-		return workloadmeta.NewFilter(nil, workloadmeta.SourceAll, workloadmeta.EventTypeAll), nil
+		filterParams := workloadmeta.FilterParams{
+			Source:    workloadmeta.SourceAll,
+			EventType: workloadmeta.EventTypeAll,
+		}
+		return workloadmeta.NewFilter(&filterParams), nil
 	}
 
 	var kinds []workloadmeta.Kind
@@ -422,7 +426,12 @@ func WorkloadmetaFilterFromProtoFilter(protoFilter *pb.WorkloadmetaFilter) (*wor
 		return nil, err
 	}
 
-	return workloadmeta.NewFilter(kinds, source, eventType), nil
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     kinds,
+		Source:    source,
+		EventType: eventType,
+	}
+	return workloadmeta.NewFilter(&filterParams), nil
 }
 
 // WorkloadmetaEventFromProtoEvent converts the given protobuf workloadmeta event into a workloadmeta.Event

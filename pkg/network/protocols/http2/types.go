@@ -15,13 +15,16 @@ import "C"
 
 const (
 	maxHTTP2Path = C.HTTP2_MAX_PATH_LEN
+	// The kernel limit per page in the per-cpu array of the http2 terminated connections map.
+	HTTP2TerminatedBatchSize = C.HTTP2_TERMINATED_BATCH_SIZE
 )
 
 type connTuple = C.conn_tuple_t
 type http2DynamicTableIndex C.dynamic_table_index_t
 type http2DynamicTableEntry C.dynamic_table_entry_t
 type http2StreamKey C.http2_stream_key_t
-type EbpfTx C.http2_stream_t
+type http2Stream C.http2_stream_t
+type EbpfTx C.http2_event_t
 
 type StaticTableEnumValue = C.static_table_value_t
 

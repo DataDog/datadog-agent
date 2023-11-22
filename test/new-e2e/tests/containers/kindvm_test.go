@@ -38,10 +38,19 @@ func (suite *kindSuite) SetupSuite() {
 		"ddagent:deploy":        auto.ConfigValue{Value: "true"},
 		"ddagent:fakeintake":    auto.ConfigValue{Value: "true"},
 		"ddtestworkload:deploy": auto.ConfigValue{Value: "true"},
+		"dddogstatsd:deploy":    auto.ConfigValue{Value: "true"},
 	}
 
-	_, stackOutput, err := infra.GetStackManager().GetStack(ctx, "kind-cluster", stackConfig, kindvm.Run, false)
-	suite.Require().NoError(err)
+	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(ctx, "kind-cluster", stackConfig, kindvm.Run, false)
+	if !suite.Assert().NoError(err) {
+		stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
+		suite.Require().NoError(err)
+		suite.T().Log(dumpKindClusterState(ctx, stackName))
+		if !runner.GetProfile().AllowDevMode() || !*keepStacks {
+			infra.GetStackManager().DeleteStack(ctx, "kind-cluster")
+		}
+		suite.T().FailNow()
+	}
 
 	fakeintakeHost := stackOutput.Outputs["fakeintake-host"].Value.(string)
 	suite.Fakeintake = fakeintake.NewClient(fmt.Sprintf("http://%s", fakeintakeHost))

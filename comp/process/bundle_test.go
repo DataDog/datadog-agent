@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/process/runner"
 	"github.com/DataDog/datadog-agent/comp/process/types"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -27,7 +28,9 @@ var mockCoreBundleParams = core.BundleParams{
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle,
 		fx.Supply(mockCoreBundleParams),
+		fx.Supply(workloadmeta.NewParams()),
 		fx.Provide(func() types.CheckComponent { return nil }),
+		core.MockBundle,
 	)
 }
 
@@ -58,6 +61,7 @@ func TestBundleOneShot(t *testing.T) {
 
 			mockCoreBundleParams,
 		),
+		core.MockBundle,
 		Bundle,
 	)
 	require.NoError(t, err)

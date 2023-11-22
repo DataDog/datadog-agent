@@ -65,8 +65,6 @@ k8s-e2e-tags-7:
   - export DATADOG_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_api_key --with-decryption --query "Parameter.Value" --out text)
   - export DATADOG_AGENT_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_app_key --with-decryption --query "Parameter.Value" --out text)
   - export DATADOG_AGENT_RC_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_rc_key --with-decryption --query "Parameter.Value" --out text)
-  # workaround until CWS is able to support 6.4 kernel correctly
-  - export AMI=ami-083a735d0245929cd
 
 k8s-e2e-cws-dev:
   extends: .k8s_e2e_template
@@ -144,7 +142,7 @@ k8s-e2e-otlp-main:
     E2E_KEY_PAIR_NAME: datadog-agent-ci
     E2E_PIPELINE_ID: $CI_PIPELINE_ID
   script:
-    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
+    - inv -e new-e2e-tests.run --targets $TARGETS -c ddagent:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:clusterAgentFullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/cluster-agent:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c dddogstatsd:fullImagePath=669783387624.dkr.ecr.us-east-1.amazonaws.com/dogstatsd:${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA} -c ddagent:imagePullRegistry=669783387624.dkr.ecr.us-east-1.amazonaws.com -c ddagent:imagePullUsername=AWS -c ddagent:imagePullPassword=$(aws ecr get-login-password) --junit-tar "junit-${CI_JOB_NAME}.tgz" ${EXTRA_PARAMS}
   artifacts:
     expire_in: 2 weeks
     when: always
@@ -188,6 +186,23 @@ new-e2e-containers-main:
       - EXTRA_PARAMS: --run TestEKSSuite
       - EXTRA_PARAMS: --run TestECSSuite
       - EXTRA_PARAMS: --skip "Test(Kind|EKS|ECS)Suite"
+  # Temporary, until we manage to stabilize those tests.
+  allow_failure: true
+
+new-e2e-agent-shared-components-dev:
+  extends: .new_e2e_template
+  rules: !reference [.on_dev_branch_manual]
+  needs: []
+  variables:
+    TARGETS: ./tests/agent-shared-components
+    TEAM: agent-shared-components
+
+new-e2e-agent-shared-components-main:
+  extends: .new_e2e_template
+  rules: !reference [.on_main_and_no_skip_e2e]
+  variables:
+    TARGETS: ./tests/agent-shared-components
+    TEAM: agent-shared-components
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
 

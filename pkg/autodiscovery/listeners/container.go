@@ -12,12 +12,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -39,11 +39,12 @@ type ContainerListener struct {
 func NewContainerListener(Config) (ServiceListener, error) {
 	const name = "ad-containerlistener"
 	l := &ContainerListener{}
-	f := workloadmeta.NewFilter(
-		[]workloadmeta.Kind{workloadmeta.KindContainer},
-		workloadmeta.SourceRuntime,
-		workloadmeta.EventTypeAll,
-	)
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainer},
+		Source:    workloadmeta.SourceRuntime,
+		EventType: workloadmeta.EventTypeAll,
+	}
+	f := workloadmeta.NewFilter(&filterParams)
 
 	var err error
 	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.createContainerService)

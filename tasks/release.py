@@ -1132,10 +1132,12 @@ Make sure that milestone is open before trying again.""",
 
 
 @task
-def build_rc(ctx, major_versions="6,7", patch_version=False):
+def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=False):
     """
     To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
+
+    k8s_deployments - when set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
 
     Tags the new RC versions on the current commit, and creates the build pipeline for these
     new tags.
@@ -1206,6 +1208,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
         major_versions=major_versions,
         repo_branch="beta",
         deploy=True,
+        rc_k8s_deployments=k8s_deployments,
     )
 
 
@@ -1349,3 +1352,37 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     )
 
     tag_version(ctx, devel_tag, tag_modules=False, push=True, force=redo)
+
+
+@task
+def update_last_stable(_, major_versions="6,7"):
+    """
+    Updates the last_release field(s) of release.json
+    """
+    gh = GithubAPI('datadog/datadog-agent')
+    latest_release = gh.latest_release()
+    match = VERSION_RE.search(latest_release)
+    if not match:
+        raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
+    version = _create_version_from_match(match)
+
+    release_json = _load_release_json()
+    list_major_versions = parse_major_versions(major_versions)
+    # If the release isn't a RC, update the last stable release field
+    for major in list_major_versions:
+        version.major = major
+        release_json['last_stable'][str(major)] = str(version)
+    _save_release_json(release_json)
+
+
+@task
+def check_omnibus_branches(_):
+    for branch in ['nightly', 'nightly-a7']:
+        omnibus_ruby_version = _get_release_json_value(f'{branch}::OMNIBUS_RUBY_VERSION')
+        omnibus_software_version = _get_release_json_value(f'{branch}::OMNIBUS_SOFTWARE_VERSION')
+        version_re = re.compile(r'(\d+)\.(\d+)\.x')
+        if omnibus_ruby_version != 'datadog-5.5.0' and not version_re.match(omnibus_ruby_version):
+            raise Exit(code=1, message=f'omnibus-ruby version [{omnibus_ruby_version}] is not mergeable')
+        if omnibus_software_version != 'master' and not version_re.match(omnibus_software_version):
+            raise Exit(code=1, message=f'omnibus-software version [{omnibus_software_version}] is not mergeable')
+    return True

@@ -16,6 +16,7 @@ import (
 
 	logConfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless"
@@ -70,7 +71,7 @@ const (
 
 func main() {
 	flavor.SetFlavor(flavor.ServerlessAgent)
-	config.Datadog.Set("use_v2_api.series", false)
+	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
 	stopCh := make(chan struct{})
 
 	// Disable remote configuration for now as it just spams the debug logs
@@ -168,8 +169,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	apikey.CheckForSingleAPIKey()
 
-	config.LoadProxyFromEnv(config.Datadog)
-
 	// Set secrets from the environment that are suffixed with
 	// KMS_ENCRYPTED or SECRET_ARN
 	apikey.SetSecretsFromEnv(os.Environ())
@@ -240,7 +239,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if len(os.Getenv(daemon.LocalTestEnvVar)) > 0 {
+		if os.Getenv(daemon.LocalTestEnvVar) == "true" || os.Getenv(daemon.LocalTestEnvVar) == "1" {
 			log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
 			return
 		}

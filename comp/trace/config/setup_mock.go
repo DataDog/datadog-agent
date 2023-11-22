@@ -18,7 +18,7 @@ import (
 func setupConfig(deps dependencies, apikey string) (*config.AgentConfig, error) {
 	if apikey != "" {
 		if mock, ok := deps.Config.(corecompcfg.Mock); ok && !mock.IsSet("api_key") {
-			mock.Set("api_key", apikey)
+			mock.SetWithoutSource("api_key", apikey)
 		}
 	}
 

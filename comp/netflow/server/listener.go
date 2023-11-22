@@ -13,6 +13,8 @@ import (
 	"go.uber.org/atomic"
 )
 
+// netflowListener contains state of goflow listener and the related netflow config
+// flowState can be of type *utils.StateNetFlow/StateSFlow/StateNFLegacy
 type netflowListener struct {
 	flowState *goflowlib.FlowStateWrapper
 	config    config.ListenerConfig
@@ -30,6 +32,7 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 		listenerConfig.Port,
 		listenerConfig.Workers,
 		listenerConfig.Namespace,
+		listenerConfig.Mapping,
 		flowAgg.GetFlowInChan(),
 		logger,
 		listenerAtomicErr,

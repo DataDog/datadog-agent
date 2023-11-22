@@ -29,6 +29,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api/agent"
 	v1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -46,19 +47,19 @@ var (
 )
 
 // StartServer creates the router and starts the HTTP server
-func StartServer(senderManager sender.DiagnoseSenderManager) error {
+func StartServer(w workloadmeta.Component, senderManager sender.DiagnoseSenderManager) error {
 	// create the root HTTP router
 	router = mux.NewRouter()
 	apiRouter = router.PathPrefix("/api/v1").Subrouter()
 
 	// IPC REST API server
-	agent.SetupHandlers(router, senderManager)
+	agent.SetupHandlers(router, w, senderManager)
 
 	// API V1 Metadata APIs
-	v1.InstallMetadataEndpoints(apiRouter)
+	v1.InstallMetadataEndpoints(apiRouter, w)
 
 	// API V1 Language Detection APIs
-	v1.InstallLanguageDetectionEndpoints(apiRouter)
+	v1.InstallLanguageDetectionEndpoints(apiRouter, w)
 
 	// Validate token for every request
 	router.Use(validateToken)
@@ -177,6 +178,7 @@ func validateToken(next http.Handler) http.Handler {
 func isExternalPath(path string) bool {
 	return strings.HasPrefix(path, "/api/v1/metadata/") && len(strings.Split(path, "/")) == 7 || // support for agents < 6.5.0
 		path == "/version" ||
+		path == "/api/v1/languagedetection" ||
 		strings.HasPrefix(path, "/api/v1/tags/pod/") && (len(strings.Split(path, "/")) == 6 || len(strings.Split(path, "/")) == 8) ||
 		strings.HasPrefix(path, "/api/v1/tags/node/") && len(strings.Split(path, "/")) == 6 ||
 		strings.HasPrefix(path, "/api/v1/tags/namespace/") && len(strings.Split(path, "/")) == 6 ||

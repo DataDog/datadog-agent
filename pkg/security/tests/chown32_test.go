@@ -35,7 +35,7 @@ func TestChown32(t *testing.T) {
 		Expression: `chown.file.path == "{{.Root}}/test-symlink" && chown.file.destination.uid in [100, 101, 102, 103, 104, 105, 106] && chown.file.destination.gid in [200, 201, 202, 203, 204, 205, 206]`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef, ruleDef2}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef, ruleDef2})
 	if err != nil {
 		t.Fatal(err)
 	}

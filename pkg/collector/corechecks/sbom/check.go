@@ -13,13 +13,13 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -106,7 +106,7 @@ func (c *Config) Parse(data []byte) error {
 // Check reports SBOM
 type Check struct {
 	core.CheckBase
-	workloadmetaStore workloadmeta.Store
+	workloadmetaStore workloadmeta.Component
 	instance          *Config
 	processor         *processor
 	sender            sender.Sender
@@ -116,7 +116,8 @@ type Check struct {
 // CheckFactory registers the sbom check
 func CheckFactory() check.Check {
 	return &Check{
-		CheckBase:         core.NewCheckBase(checkName),
+		CheckBase: core.NewCheckBase(checkName),
+		// TODO)components): stop using global and rely instead on injected workloadmeta component.
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
 		instance:          &Config{},
 		stopCh:            make(chan struct{}),
@@ -163,17 +164,19 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
+	filterParams := workloadmeta.FilterParams{
+		Kinds: []workloadmeta.Kind{
+			workloadmeta.KindContainerImageMetadata,
+			workloadmeta.KindContainer,
+		},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeAll,
+	}
+
 	imgEventsCh := c.workloadmetaStore.Subscribe(
 		checkName,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{
-				workloadmeta.KindContainerImageMetadata,
-				workloadmeta.KindContainer,
-			},
-			workloadmeta.SourceAll,
-			workloadmeta.EventTypeAll,
-		),
+		workloadmeta.NewFilter(&filterParams),
 	)
 
 	// Trigger an initial scan on host

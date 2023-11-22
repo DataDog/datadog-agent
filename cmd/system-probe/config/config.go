@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/viper"
 
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -37,6 +38,7 @@ const (
 	EBPFModule                   ModuleName = "ebpf"
 	LanguageDetectionModule      ModuleName = "language_detection"
 	WindowsCrashDetectModule     ModuleName = "windows_crash_detection"
+	ComplianceModule             ModuleName = "compliance"
 )
 
 // Config represents the configuration options for the system-probe
@@ -54,6 +56,7 @@ type Config struct {
 	LogFile          string
 	LogLevel         string
 	DebugPort        int
+	HealthPort       int
 	TelemetryEnabled bool
 
 	StatsdHost string
@@ -123,6 +126,7 @@ func load() (*Config, error) {
 		LogFile:          cfg.GetString("log_file"),
 		LogLevel:         cfg.GetString("log_level"),
 		DebugPort:        cfg.GetInt(spNS("debug_port")),
+		HealthPort:       cfg.GetInt(spNS("health_port")),
 		TelemetryEnabled: cfg.GetBool(spNS("telemetry_enabled")),
 
 		StatsdHost: aconfig.GetBindHost(),
@@ -147,6 +151,9 @@ func load() (*Config, error) {
 		cfg.GetBool(evNS("process.enabled")) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) {
 		c.EnabledModules[EventMonitorModule] = struct{}{}
+	}
+	if cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled")) {
+		c.EnabledModules[ComplianceModule] = struct{}{}
 	}
 	if cfg.GetBool(spNS("process_config.enabled")) {
 		c.EnabledModules[ProcessModule] = struct{}{}
@@ -174,7 +181,7 @@ func load() (*Config, error) {
 
 	c.Enabled = len(c.EnabledModules) > 0
 	// only allowed raw config adjustments here, otherwise use Adjust function
-	cfg.Set(spNS("enabled"), c.Enabled)
+	cfg.Set(spNS("enabled"), c.Enabled, model.SourceAgentRuntime)
 
 	return c, nil
 }

@@ -30,6 +30,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -94,6 +96,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					opts.UseEventPlatformForwarder = false
 					return demultiplexer.Params{Options: opts}
 				}),
+				// setup workloadmeta
+				collectors.GetCatalog(),
+				fx.Supply(workloadmeta.Params{
+					InitHelper: common.GetWorkloadmetaInit(),
+				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
+				fx.Supply(context.Background()),
+				workloadmeta.Module,
 			)
 		},
 	}
@@ -101,7 +110,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component) error {
+func start(log log.Component, config config.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -169,7 +178,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(demultiplexer); err != nil {
+	if err := api.StartServer(wmeta, demultiplexer); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -245,6 +254,8 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	// don't import cmd/agent
 
 	// create and setup the Autoconfig instance
+	// The Autoconfig instance setup happens in the workloadmeta start hook
+	// create and setup the Collector and others.
 	common.LoadComponents(mainCtx, demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
@@ -330,9 +341,18 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 			// Webhook and secret controllers are started successfully
 			// Setup the k8s admission webhook server
 			server := admissioncmd.NewServer()
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), mutate.InjectAutoInstrumentation, apiCl.DynamicCl)
+			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl, apiCl.Cl)
+			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl, apiCl.Cl)
+			server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), mutate.InjectAutoInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+
+			// CWS Instrumentation webhooks
+			cwsInstrumentation, err := mutate.NewCWSInstrumentation()
+			if err != nil {
+				pkglog.Errorf("failed to register CWS Instrumentation webhook: %v", err)
+			} else {
+				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"), cwsInstrumentation.InjectCWSPodInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"), cwsInstrumentation.InjectCWSCommandInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+			}
 
 			// Start the k8s admission webhook server
 			wg.Add(1)

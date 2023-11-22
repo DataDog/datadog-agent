@@ -16,11 +16,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -29,19 +29,17 @@ import (
 )
 
 type MockDCAClient struct {
-	payload []*pbgo.ParentLanguageAnnotationRequest
-	doneCh  chan struct{}
+	respCh chan *pbgo.ParentLanguageAnnotationRequest
 }
 
 func (m *MockDCAClient) PostLanguageMetadata(_ context.Context, request *pbgo.ParentLanguageAnnotationRequest) error {
-	m.payload = append(m.payload, request)
-	go func() { m.doneCh <- struct{}{} }()
+	go func() { m.respCh <- request }()
 	return nil
 }
 
-func newTestClient(t *testing.T, store workloadmeta.Store) (*client, *MockDCAClient, chan struct{}) {
-	doneCh := make(chan struct{})
-	mockDCAClient := &MockDCAClient{doneCh: doneCh}
+func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRequest) {
+	respCh := make(chan *pbgo.ParentLanguageAnnotationRequest)
+	mockDCAClient := &MockDCAClient{respCh: respCh}
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
 		config.MockModule,
@@ -52,15 +50,19 @@ func newTestClient(t *testing.T, store workloadmeta.Store) (*client, *MockDCACli
 		}}),
 		telemetry.MockModule,
 		log.MockModule,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2,
+		fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
+			return m.(workloadmeta.Component)
+		}),
 	))
 
-	optComponent := newClient(deps).(util.Optional[Component])
+	optComponent := newClient(deps).(optional.Option[Component])
 	comp, _ := optComponent.Get()
 	client := comp.(*client)
 	client.langDetectionCl = mockDCAClient
-	client.store = store
 
-	return client, mockDCAClient, doneCh
+	return client, respCh
 }
 
 func TestClientEnabled(t *testing.T) {
@@ -85,16 +87,21 @@ func TestClientEnabled(t *testing.T) {
 				}}),
 				telemetry.MockModule,
 				log.MockModule,
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2,
+				fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
+					return m.(workloadmeta.Component)
+				}),
 			))
 
-			optionalCl := newClient(deps).(util.Optional[Component])
+			optionalCl := newClient(deps).(optional.Option[Component])
 			assert.Equal(t, testCase.isSet, optionalCl.IsSet())
 		})
 	}
 }
 
 func TestClientSend(t *testing.T) {
-	client, mockDCAClient, doneCh := newTestClient(t, nil)
+	client, respCh := newTestClient(t)
 	container := langUtil.ContainersLanguages{
 		"java-cont": {
 			"java": {},
@@ -123,30 +130,28 @@ func TestClientSend(t *testing.T) {
 	client.send(context.Background(), client.currentBatch.toProto())
 
 	// wait that the mock dca client processes the message
-	<-doneCh
-	assert.Equal(t, []*pbgo.ParentLanguageAnnotationRequest{
-		{
-			PodDetails: []*pbgo.PodLanguageDetails{
-				{
-					Name:                 podName,
-					Namespace:            podInfo.namespace,
-					InitContainerDetails: podInfo.initContainerInfo.ToProto(),
-					ContainerDetails:     podInfo.containerInfo.ToProto(),
-					Ownerref: &pbgo.KubeOwnerInfo{
-						Name: "dummyrs",
-						Kind: "replicaset",
-						Id:   "dummyid",
-					},
+	req := <-respCh
+	assert.Equal(t, &pbgo.ParentLanguageAnnotationRequest{
+		PodDetails: []*pbgo.PodLanguageDetails{
+			{
+				Name:                 podName,
+				Namespace:            podInfo.namespace,
+				InitContainerDetails: podInfo.initContainerInfo.ToProto(),
+				ContainerDetails:     podInfo.containerInfo.ToProto(),
+				Ownerref: &pbgo.KubeOwnerInfo{
+					Name: "dummyrs",
+					Kind: "replicaset",
+					Id:   "dummyid",
 				},
 			},
 		},
-	}, mockDCAClient.payload)
+	}, req)
 	// make sure we didn't touch the current batch
 	assert.Equal(t, client.currentBatch, batch{podName: podInfo})
 }
 
 func TestClientSendFreshPods(t *testing.T) {
-	client, _, _ := newTestClient(t, nil)
+	client, _ := newTestClient(t)
 	container := langUtil.ContainersLanguages{
 		"java-cont": {
 			"java": {},
@@ -196,13 +201,10 @@ func TestClientSendFreshPods(t *testing.T) {
 	}, freshData)
 	// make sure we didn't touch the current batch
 	assert.Equal(t, client.currentBatch, batch{podName: podInfo})
-	// make sure `freshlyUpdatedPods` is emptied
-	assert.Empty(t, client.freshlyUpdatedPods)
 }
 
 func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
-	mockStore := workloadmeta.NewMockStore()
-	client, _, _ := newTestClient(t, mockStore)
+	client, _ := newTestClient(t)
 
 	container := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -326,9 +328,9 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 		},
 	}
 
-	mockStore.Notify(collectorEvents)
+	client.store.Notify(collectorEvents)
 
-	client.processEvent(eventBundle)
+	client.handleEvent(eventBundle)
 
 	assert.NotEmpty(t, client.currentBatch)
 	assert.Equal(t,
@@ -367,14 +369,13 @@ func TestClientProcessEvent_EveryEntityStored(t *testing.T) {
 		Ch: make(chan struct{}),
 	}
 
-	client.processEvent(unsetPodEventBundle)
+	client.handleEvent(unsetPodEventBundle)
 	assert.Empty(t, client.currentBatch)
 	assert.Empty(t, client.freshlyUpdatedPods)
 }
 
 func TestClientProcessEvent_PodMissing(t *testing.T) {
-	mockStore := workloadmeta.NewMockStore()
-	client, _, _ := newTestClient(t, mockStore)
+	client, _ := newTestClient(t)
 
 	container := &workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
@@ -494,20 +495,20 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 	}
 
 	// store everything but the pod
-	mockStore.Notify(collectorEvents)
+	client.store.Notify(collectorEvents)
 
 	// process the events
-	client.processEvent(eventBundle)
+	client.handleEvent(eventBundle)
 
 	// make sure the current batch is not updated
 	assert.Empty(t, client.currentBatch)
 
 	// make sure the events are added in `processesWithoutPod` so processing can be retried
-	assert.Equal(t, eventBundle.Events, client.processesWithoutPod)
+	assert.Len(t, client.processesWithoutPod, 2)
 	assert.Empty(t, client.freshlyUpdatedPods)
 
 	// add the pod in workloadmeta
-	mockStore.Notify([]workloadmeta.CollectorEvent{
+	client.store.Notify([]workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
@@ -516,7 +517,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 	})
 
 	// retry processing processes without pod
-	client.retryProcessEventsWithoutPod()
+	client.retryProcessEventsWithoutPod([]string{"init-nginx-cont-id", "nginx-cont-id"})
 	assert.Equal(t,
 		batch{
 			"nginx-pod-name": {
@@ -553,7 +554,7 @@ func TestClientProcessEvent_PodMissing(t *testing.T) {
 		Ch: make(chan struct{}),
 	}
 
-	client.processEvent(unsetPodEventBundle)
+	client.handleEvent(unsetPodEventBundle)
 	assert.Empty(t, client.currentBatch)
 	assert.Empty(t, client.freshlyUpdatedPods)
 }
@@ -697,13 +698,60 @@ func TestPodHasOwner(t *testing.T) {
 	}
 }
 
+func TestCleanUpProcesssesWithoutPod(t *testing.T) {
+	ttl := 1 * time.Minute
+
+	now := time.Now()
+	past := now.Add(-ttl)
+	future := now.Add(ttl)
+
+	tests := []struct {
+		name                string
+		time                time.Time
+		processesWithoutPod map[string]*eventsToRetry
+		expected            map[string]*eventsToRetry
+	}{
+		{
+			name: "has not expired",
+			time: now,
+			processesWithoutPod: map[string]*eventsToRetry{
+				"a": {
+					expirationTime: future,
+				},
+			},
+			expected: map[string]*eventsToRetry{
+				"a": {
+					expirationTime: future,
+				},
+			},
+		},
+		{
+			name: "has expired",
+			time: now,
+			processesWithoutPod: map[string]*eventsToRetry{
+				"a": {
+					expirationTime: past,
+				},
+			},
+			expected: map[string]*eventsToRetry{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, _ := newTestClient(t)
+			client.processesWithoutPod = tt.processesWithoutPod
+			client.cleanUpProcesssesWithoutPod(tt.time)
+			assert.Equal(t, tt.expected, client.processesWithoutPod)
+		})
+	}
+}
+
 // TestRun checks that the client runs as expected and will help to identify potential data races
 func TestRun(t *testing.T) {
-	mockStore := workloadmeta.NewMockStore()
-	client, mockDCAClient, doneCh := newTestClient(t, mockStore)
-	client.newUpdatePeriod = 50 * time.Millisecond
+	client, respCh := newTestClient(t)
+	client.freshDataPeriod = 50 * time.Millisecond
 	client.periodicalFlushPeriod = 1 * time.Second
-	client.retryProcessWithoutPodPeriod = 100 * time.Millisecond
+	client.processesWithoutPodCleanupPeriod = 100 * time.Millisecond
 
 	err := client.start(context.Background())
 	require.NoError(t, err)
@@ -840,28 +888,27 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	mockStore.Notify(collectorEvents1)
+	client.store.Notify(collectorEvents1)
 
-	// The entire batch should be sent with the first event, we can wait only once
-	<-doneCh
-	assert.Equal(t,
-		batch{
-			"nginx-pod-name1": {
-				namespace: "nginx-pod-namespace1",
-				containerInfo: langUtil.ContainersLanguages{
-					"nginx-cont-name1": {
-						"java": {},
-					},
-				},
-				ownerRef: &workloadmeta.KubernetesPodOwner{
-					ID:   "nginx-replicaset-id1",
-					Name: "nginx-replicaset-name1",
-					Kind: "replicaset",
+	expectedBatch := batch{
+		"nginx-pod-name1": {
+			namespace: "nginx-pod-namespace1",
+			containerInfo: langUtil.ContainersLanguages{
+				"nginx-cont-name1": {
+					"java": {},
 				},
 			},
-		}.toProto(),
-		mockDCAClient.payload[0],
-	)
+			ownerRef: &workloadmeta.KubernetesPodOwner{
+				ID:   "nginx-replicaset-id1",
+				Name: "nginx-replicaset-name1",
+				Kind: "replicaset",
+			},
+		},
+	}
+
+	// The entire batch should be sent with the first event, we can wait only once
+	req := <-respCh
+	assert.True(t, expectedBatch.equals(protoToBatch(req)))
 
 	collectorEvents2 := []workloadmeta.CollectorEvent{
 		{
@@ -881,7 +928,7 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	mockStore.Notify(collectorEvents2)
+	client.store.Notify(collectorEvents2)
 
 	b := batch{
 		"nginx-pod-name2": {
@@ -914,8 +961,8 @@ func TestRun(t *testing.T) {
 
 	// the periodic flush mechanism should send the entire data every 100ms
 	assert.Eventually(t, func() bool {
-		<-doneCh
-		a := protoToBatch(mockDCAClient.payload[len(mockDCAClient.payload)-1])
+		req := <-respCh
+		a := protoToBatch(req)
 		return a.equals(b)
 	},
 		5*time.Second,
@@ -930,7 +977,7 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	mockStore.Notify(unsetPodEvent)
+	client.store.Notify(unsetPodEvent)
 
 	// the periodic flush mechanism should send the up to date data after removing the pod
 	b = batch{
@@ -950,8 +997,8 @@ func TestRun(t *testing.T) {
 	}
 
 	assert.Eventually(t, func() bool {
-		<-doneCh
-		a := protoToBatch(mockDCAClient.payload[len(mockDCAClient.payload)-1])
+		req := <-respCh
+		a := protoToBatch(req)
 		return a.equals(b)
 	},
 		5*time.Second,

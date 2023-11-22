@@ -313,6 +313,9 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 
 	// Time
 	httpConnLink.http.Txn.ResponseLastSeen = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
+	if httpConnLink.http.Txn.ResponseLastSeen == httpConnLink.http.Txn.RequestStarted {
+		httpConnLink.http.Txn.ResponseLastSeen++
+	}
 
 	// Clean it up related containers
 	cleanupActivityIdViaConnOpen(connOpen, eventInfo.Event.ActivityId)
@@ -705,6 +708,15 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 
 		// copy rest of arguments
 		copy(httpConnLink.http.RequestFragment[1:], urlParsed.Path)
+
+		// the above `getPath` is expecting characters after the path (the user agent)
+		// string or whatever else is in the request headers.
+		// if it doesn't have anything, it assumes that we weren't able to acquire the
+		// entire URL path.  So, if there's room, append another char on the end so
+		// it knows we got the whole thing
+		if len(urlParsed.Path)+1 < int(maxRequestFragmentBytes) {
+			httpConnLink.http.RequestFragment[len(urlParsed.Path)+1] = 32 // also a space
+		}
 
 	}
 

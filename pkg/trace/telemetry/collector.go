@@ -35,6 +35,11 @@ const (
 	InvalidIntakeEndpoint      = 17
 )
 
+// The agent will try to send a "first trace sent" event up to 5 times.
+// If all five retries fail, it will not send any more of them to avoid
+// spamming the Datadog backend.
+const maxFirstTraceFailures = 5
+
 // OnboardingEvent contains
 type OnboardingEvent struct {
 	RequestType string                 `json:"request_type"`
@@ -51,11 +56,16 @@ type OnboardingEventPayload struct {
 
 // OnboardingEventTags ...
 type OnboardingEventTags struct {
+	InstallID     string `json:"install_id,omitempty"`
+	InstallType   string `json:"install_type,omitempty"`
+	InstallTime   int64  `json:"install_time,omitempty"`
 	AgentPlatform string `json:"agent_platform,omitempty"`
 	AgentVersion  string `json:"agent_version,omitempty"`
 	AgentHostname string `json:"agent_hostname,omitempty"`
 	Env           string `json:"env,omitempty"`
 }
+
+var errReceivedUnsuccessfulStatusCode = fmt.Errorf("received a 4XX or 5xx error code while submitting telemetry data")
 
 // OnboardingEventError ...
 type OnboardingEventError struct {
@@ -67,6 +77,8 @@ type OnboardingEventError struct {
 type TelemetryCollector interface {
 	SendStartupSuccess()
 	SendStartupError(code int, err error)
+	SentFirstTrace() bool
+	SendFirstTrace()
 }
 
 type telemetryCollector struct {
@@ -76,6 +88,8 @@ type telemetryCollector struct {
 	userAgent             string
 	cfg                   *config.AgentConfig
 	collectedStartupError *atomic.Bool
+	collectedFirstTrace   *atomic.Bool
+	firstTraceFailures    *atomic.Int32
 }
 
 // NewCollector returns either collector, or a noop implementation if instrumentation telemetry is disabled
@@ -104,6 +118,8 @@ func NewCollector(cfg *config.AgentConfig) TelemetryCollector {
 
 		cfg:                   cfg,
 		collectedStartupError: &atomic.Bool{},
+		collectedFirstTrace:   &atomic.Bool{},
+		firstTraceFailures:    &atomic.Int32{},
 	}
 }
 
@@ -112,15 +128,16 @@ func NewNoopCollector() TelemetryCollector {
 	return &noopTelemetryCollector{}
 }
 
-func (f *telemetryCollector) sendEvent(event *OnboardingEvent) {
+func (f *telemetryCollector) sendEvent(event *OnboardingEvent) (err error) {
 	body, err := json.Marshal(event)
 	if err != nil {
-		return
+		return err
 	}
 	bodyLen := strconv.Itoa(len(body))
 	for _, endpoint := range f.endpoints {
-		req, err := http.NewRequest("POST", endpoint.Host, bytes.NewReader(body))
-		if err != nil {
+		req, reqErr := http.NewRequest("POST", endpoint.Host, bytes.NewReader(body))
+		if reqErr != nil {
+			err = reqErr
 			continue
 		}
 		req.Header.Add("Content-Type", "application/json")
@@ -128,18 +145,24 @@ func (f *telemetryCollector) sendEvent(event *OnboardingEvent) {
 		req.Header.Add("DD-Api-Key", endpoint.APIKey)
 		req.Header.Add("Content-Length", bodyLen)
 
-		resp, err := f.client.Do(req)
-		if err != nil {
+		resp, reqErr := f.client.Do(req)
+		if reqErr != nil {
+			err = reqErr
 			continue
 		}
 		// Unconditionally read the body and ignore any errors
 		_, _ = io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
+
+		if resp.StatusCode >= 400 {
+			err = errReceivedUnsuccessfulStatusCode
+		}
 	}
+	return err
 }
 
 func newOnboardingTelemetryPayload(config *config.AgentConfig) OnboardingEvent {
-	return OnboardingEvent{
+	ev := OnboardingEvent{
 		RequestType: "apm-onboarding-event",
 		ApiVersion:  "v1",
 		Payload: OnboardingEventPayload{
@@ -150,6 +173,12 @@ func newOnboardingTelemetryPayload(config *config.AgentConfig) OnboardingEvent {
 			},
 		},
 	}
+	if config.InstallSignature.Found {
+		ev.Payload.Tags.InstallID = config.InstallSignature.InstallID
+		ev.Payload.Tags.InstallType = config.InstallSignature.InstallType
+		ev.Payload.Tags.InstallTime = config.InstallSignature.InstallTime
+	}
+	return ev
 }
 
 func (f *telemetryCollector) SendStartupSuccess() {
@@ -159,6 +188,23 @@ func (f *telemetryCollector) SendStartupSuccess() {
 	ev := newOnboardingTelemetryPayload(f.cfg)
 	ev.Payload.EventName = "agent.startup.success"
 	f.sendEvent(&ev)
+}
+
+func (f *telemetryCollector) SentFirstTrace() bool {
+	swapped := f.collectedFirstTrace.CompareAndSwap(false, true)
+	return !swapped
+}
+
+func (f *telemetryCollector) SendFirstTrace() {
+	ev := newOnboardingTelemetryPayload(f.cfg)
+	ev.Payload.EventName = "agent.first_trace.sent"
+	err := f.sendEvent(&ev)
+	fmt.Println(err)
+	if err != nil {
+		if f.firstTraceFailures.Inc() < maxFirstTraceFailures {
+			f.collectedFirstTrace.Store(false)
+		}
+	}
 }
 
 func (f *telemetryCollector) SendStartupError(code int, err error) {
@@ -174,3 +220,5 @@ type noopTelemetryCollector struct{}
 
 func (*noopTelemetryCollector) SendStartupSuccess()                  {}
 func (*noopTelemetryCollector) SendStartupError(code int, err error) {}
+func (*noopTelemetryCollector) SendFirstTrace()                      {}
+func (*noopTelemetryCollector) SentFirstTrace() bool                 { return true }

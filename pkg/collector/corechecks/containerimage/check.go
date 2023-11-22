@@ -10,15 +10,15 @@ import (
 	"errors"
 	"time"
 
-	yaml "gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -88,7 +88,7 @@ func (c *Config) Parse(data []byte) error {
 // Check reports container images
 type Check struct {
 	core.CheckBase
-	workloadmetaStore workloadmeta.Store
+	workloadmetaStore workloadmeta.Component
 	instance          *Config
 	processor         *processor
 	stopCh            chan struct{}
@@ -97,7 +97,8 @@ type Check struct {
 // CheckFactory registers the container_image check
 func CheckFactory() check.Check {
 	return &Check{
-		CheckBase:         core.NewCheckBase(checkName),
+		CheckBase: core.NewCheckBase(checkName),
+		// TODO)components): stop using global and rely instead on injected workloadmeta component.
 		workloadmetaStore: workloadmeta.GetGlobalStore(),
 		instance:          &Config{},
 		stopCh:            make(chan struct{}),
@@ -133,14 +134,15 @@ func (c *Check) Run() error {
 	log.Infof("Starting long-running check %q", c.ID())
 	defer log.Infof("Shutting down long-running check %q", c.ID())
 
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeSet, // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
+	}
 	imgEventsCh := c.workloadmetaStore.Subscribe(
 		checkName,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{workloadmeta.KindContainerImageMetadata},
-			workloadmeta.SourceAll,
-			workloadmeta.EventTypeSet, // We don’t care about images removal because we just have to wait for them to expire on BE side once we stopped refreshing them periodically.
-		),
+		workloadmeta.NewFilter(&filterParams),
 	)
 
 	imgRefreshTicker := time.NewTicker(time.Duration(c.instance.PeriodicRefreshSeconds) * time.Second)

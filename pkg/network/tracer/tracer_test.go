@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -1002,10 +1003,6 @@ func getConnections(t require.TestingT, tr *Tracer) *network.Connections {
 	return connections
 }
 
-const (
-	validDNSServer = "8.8.8.8"
-)
-
 func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, timeout int, serverIP string) {
 	tr.removeClient(clientID)
 	initTracerState(t, tr)
@@ -1016,15 +1013,16 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
 	queryMsg.RecursionDesired = true
 
-	dnsClient := new(dns.Client)
-	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-	require.NoError(t, err)
-	defer dnsConn.Close()
-	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
+	var dnsClientAddr *net.UDPAddr
 	require.Eventually(t, func() bool {
+		dnsClient := new(dns.Client)
+		dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
+		require.NoError(t, err)
+		dnsClientAddr = dnsConn.LocalAddr().(*net.UDPAddr)
 		_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
+		_ = dnsConn.Close()
 		return err == nil || timeout != 0
-	}, 3*time.Second, 100*time.Millisecond, "Failed to get dns response")
+	}, 6*time.Second, 100*time.Millisecond, "Failed to get dns response")
 
 	// Allow the DNS reply to be processed in the snooper
 	time.Sleep(time.Millisecond * 500)
@@ -1060,9 +1058,9 @@ func testDNSStats(t *testing.T, tr *Tracer, domain string, success, failure, tim
 	failedResponses := total - successfulResponses
 
 	// DNS Stats
-	assert.Equal(t, uint32(success), successfulResponses)
+	assert.Equal(t, uint32(success), successfulResponses, "expected %d successful responses but got %d", success, successfulResponses)
 	assert.Equal(t, uint32(failure), failedResponses)
-	assert.Equal(t, uint32(timeout), timeouts)
+	assert.Equal(t, uint32(timeout), timeouts, "expected %d timeouts but got %d", timeout, timeouts)
 }
 
 func (s *TracerSuite) TestDNSStats() {
@@ -1070,12 +1068,13 @@ func (s *TracerSuite) TestDNSStats() {
 	cfg := testConfig()
 	cfg.CollectDNSStats = true
 	cfg.DNSTimeout = 1 * time.Second
+	cfg.CollectLocalDNS = true
 	tr := setupTracer(t, cfg)
 	t.Run("valid domain", func(t *testing.T) {
-		testDNSStats(t, tr, "golang.org", 1, 0, 0, validDNSServer)
+		testDNSStats(t, tr, "good.com", 1, 0, 0, testdns.GetServerIP(t).String())
 	})
 	t.Run("invalid domain", func(t *testing.T) {
-		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, validDNSServer)
+		testDNSStats(t, tr, "abcdedfg", 0, 1, 0, testdns.GetServerIP(t).String())
 	})
 	t.Run("timeout", func(t *testing.T) {
 		testDNSStats(t, tr, "golang.org", 0, 0, 1, "1.2.3.4")

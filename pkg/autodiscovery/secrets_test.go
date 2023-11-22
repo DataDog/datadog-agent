@@ -126,8 +126,8 @@ func TestSkipSecretDecrypt(t *testing.T) {
 	defer mockDecrypt.install()()
 
 	cfg := config.Mock(t)
-	cfg.Set("secret_backend_skip_checks", true)
-	defer cfg.Set("secret_backend_skip_checks", false)
+	cfg.SetWithoutSource("secret_backend_skip_checks", true)
+	defer cfg.SetWithoutSource("secret_backend_skip_checks", false)
 
 	c, err := decryptConfig(sharedTpl)
 	require.NoError(t, err)

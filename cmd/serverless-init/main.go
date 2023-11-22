@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/otlp"
@@ -65,7 +66,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
-	setupProxy()
+	config.LoadProxyFromEnv(config.Datadog)
 
 	cloudService := cloudservice.GetCloudServiceType()
 
@@ -112,7 +113,7 @@ func setupTraceAgent(traceAgent *trace.ServerlessTraceAgent, tags map[string]str
 }
 
 func setupMetricAgent(tags map[string]string) *metrics.ServerlessMetricAgent {
-	config.Datadog.Set("use_v2_api.series", false)
+	config.Datadog.Set("use_v2_api.series", false, model.SourceAgentRuntime)
 	metricAgent := &metrics.ServerlessMetricAgent{
 		SketchesBucketOffset: time.Second * 0,
 	}
@@ -137,8 +138,4 @@ func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
 	for range time.Tick(3 * time.Second) {
 		metricAgent.Flush()
 	}
-}
-
-func setupProxy() {
-	config.LoadProxyFromEnv(config.Datadog)
 }

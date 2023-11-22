@@ -30,38 +30,24 @@ build do
             end
             if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty? and not windows_arch_i386?
               move "#{install_dir}/etc/datadog-agent/security-agent.yaml.example", conf_dir_root, :force=>true
+              move "#{install_dir}/etc/datadog-agent/runtime-security.d", conf_dir_root, :force=>true
+              move "#{conf_dir_root}/runtime-security.d/default.policy", "#{conf_dir_root}/runtime-security.d/default.policy.example", :force=>true
             end
             if ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
               move "#{install_dir}/etc/datadog-agent/apm-inject.yaml.example", conf_dir_root, :force=>true
             end
             move "#{install_dir}/etc/datadog-agent/conf.d/*", conf_dir, :force=>true
-            delete "#{install_dir}/bin/agent/agent.exe"
-            # TODO why does this get generated at all
-            delete "#{install_dir}/bin/agent/agent.exe~"
-
-            #remove unneccessary copies caused by blanked copy of bin to #{install_dir} in datadog-agent recipe
-            delete "#{install_dir}/bin/agent/libdatadog-agent-three.dll"
-            delete "#{install_dir}/bin/agent/libdatadog-agent-two.dll"
-            delete "#{install_dir}/bin/agent/customaction.dll"
-
-            # not sure where it's coming from, but we're being left with an `embedded` dir.
-            # delete it
-            delete "#{install_dir}/embedded"
 
             # remove the config files for the subservices; they'll be started
             # based on the config file
             delete "#{conf_dir}/apm.yaml.default"
             delete "#{conf_dir}/process_agent.yaml.default"
+
             # load isn't supported by windows
             delete "#{conf_dir}/load.d"
 
-            # cleanup clutter
-            delete "#{install_dir}/etc"
-            delete "#{install_dir}/bin/agent/dist/conf.d"
-            delete "#{install_dir}/bin/agent/dist/*.conf*"
-            delete "#{install_dir}/bin/agent/dist/*.yaml"
+            # Remove .pyc files from embedded Python
             command "del /q /s #{windows_safe_path(install_dir)}\\*.pyc"
-
         end
 
         if linux_target? || osx_target?
@@ -71,6 +57,7 @@ build do
                 delete "#{install_dir}/embedded/bin/pip"
                 link "#{install_dir}/embedded/bin/pip2", "#{install_dir}/embedded/bin/pip"
 
+                # Used in https://docs.datadoghq.com/agent/guide/python-3/
                 delete "#{install_dir}/embedded/bin/2to3"
                 link "#{install_dir}/embedded/bin/2to3-2.7", "#{install_dir}/embedded/bin/2to3"
             # Setup script aliases, e.g. `/opt/datadog-agent/embedded/bin/pip` will
@@ -83,8 +70,9 @@ build do
                 delete "#{install_dir}/embedded/bin/python"
                 link "#{install_dir}/embedded/bin/python3", "#{install_dir}/embedded/bin/python"
 
+                # Used in https://docs.datadoghq.com/agent/guide/python-3/
                 delete "#{install_dir}/embedded/bin/2to3"
-                link "#{install_dir}/embedded/bin/2to3-3.9", "#{install_dir}/embedded/bin/2to3"
+                link "#{install_dir}/embedded/bin/2to3-3.11", "#{install_dir}/embedded/bin/2to3"
             end
             delete "#{install_dir}/embedded/lib/config_guess"
 
