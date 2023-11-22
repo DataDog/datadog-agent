@@ -4,7 +4,7 @@
 package http2
 
 const (
-	maxHTTP2Path = 0xa0
+	maxHTTP2Path = 0x78
 
 	HTTP2TerminatedBatchSize = 0x50
 )

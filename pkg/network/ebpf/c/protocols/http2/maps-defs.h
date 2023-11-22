@@ -44,7 +44,7 @@ BPF_PERCPU_ARRAY_MAP(http2_ctx_heap, http2_ctx_t, 1)
 
 /* This map is used for telemetry in kernelspace
  * only key 0 is used
- * value is a telemetry object
+ * value is a http2 telemetry object
  */
 BPF_ARRAY_MAP(http2_telemetry, http2_telemetry_t, 1)
 

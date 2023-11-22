@@ -210,7 +210,6 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 
 func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
-	p.setupMapCleaner(mgr)
 	go func() {
 		p.UpdateKernelTelemetry(mgr)
 	}()
