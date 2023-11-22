@@ -10,6 +10,9 @@ package containerd
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/opencontainers/go-digest"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -70,4 +73,102 @@ func TestKnownImages(t *testing.T) {
 	assert.Empty(t, images.getRepoTags(imageID))
 	assert.Empty(t, images.getRepoDigests(imageID))
 	assert.Empty(t, images.getAReference(imageID))
+}
+
+func TestGetLayersWithHistory(t *testing.T) {
+	// Create a new image
+	imageConfig := ocispec.Image{
+		History: []ocispec.History{
+			{
+				EmptyLayer: false,
+				Comment:    "not-empty1",
+			},
+			{
+				EmptyLayer: true,
+				Comment:    "empty1",
+			},
+			{
+				EmptyLayer: true,
+				Comment:    "empty2",
+			},
+			{
+				EmptyLayer: false,
+				Comment:    "not-empty2",
+			},
+			{
+				EmptyLayer: true,
+				Comment:    "empty3",
+			},
+			{
+				EmptyLayer: false,
+				Comment:    "not-empty3",
+			},
+			{
+				EmptyLayer: true,
+				Comment:    "empty4",
+			},
+			{
+				EmptyLayer: true,
+				Comment:    "empty5",
+			},
+		},
+	}
+
+	manifest := ocispec.Manifest{
+		Layers: []ocispec.Descriptor{
+			{
+				MediaType: ocispec.MediaTypeImageLayer,
+				Digest:    digest.FromString("foo"),
+				Size:      1,
+			},
+			{
+				MediaType: ocispec.MediaTypeImageLayer,
+				Digest:    digest.FromString("bar"),
+				Size:      2,
+			},
+			{
+				MediaType: ocispec.MediaTypeImageLayer,
+				Digest:    digest.FromString("baz"),
+				Size:      3,
+			},
+			{
+				MediaType: ocispec.MediaTypeImageLayer,
+				Digest:    digest.FromString("bow"),
+				Size:      4,
+			},
+		},
+	}
+
+	layers := getLayersWithHistory(imageConfig, manifest)
+	assert.Equal(t, []workloadmeta.ContainerImageLayer{
+		{
+			MediaType: ocispec.MediaTypeImageLayer,
+			Digest:    digest.FromString("foo").String(),
+			SizeBytes: 1,
+			History: &ocispec.History{
+				Comment: "not-empty1",
+			},
+		},
+		{
+			MediaType: ocispec.MediaTypeImageLayer,
+			Digest:    digest.FromString("bar").String(),
+			SizeBytes: 2,
+			History: &ocispec.History{
+				Comment: "not-empty2",
+			},
+		},
+		{
+			MediaType: ocispec.MediaTypeImageLayer,
+			Digest:    digest.FromString("baz").String(),
+			SizeBytes: 3,
+			History: &ocispec.History{
+				Comment: "not-empty3",
+			},
+		},
+		{
+			MediaType: ocispec.MediaTypeImageLayer,
+			Digest:    digest.FromString("bow").String(),
+			SizeBytes: 4,
+		},
+	}, layers)
 }

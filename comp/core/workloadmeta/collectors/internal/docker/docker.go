@@ -658,7 +658,7 @@ func layersFromDockerHistory(history []image.HistoryResponseItem) []workloadmeta
 		layer := workloadmeta.ContainerImageLayer{
 			Digest:    history[i].ID,
 			SizeBytes: history[i].Size,
-			History: v1.History{
+			History: &v1.History{
 				Created:    &created,
 				CreatedBy:  history[i].CreatedBy,
 				Comment:    history[i].Comment,
