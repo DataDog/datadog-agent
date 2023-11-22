@@ -7,6 +7,7 @@ package fetch
 
 import (
 	"fmt"
+	"github.com/gosnmp/gosnmp"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -59,5 +60,18 @@ func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.R
 		}
 	}
 
-	return &valuestore.ResultValueStore{ScalarValues: scalarResults, ColumnValues: columnResults}, nil
+	var results []gosnmp.SnmpPDU
+	if config.DeviceScanEnabled {
+		fetchedResults, err := session.FetchAllOIDsUsingGetNext(sess)
+		if err != nil {
+			log.Warnf("[FetchAllOIDsUsingGetNext] error: %s", err)
+		}
+		log.Warnf("[FetchAllOIDsUsingGetNext] PRINT PDUs (len: %d)", len(results))
+		for _, resultPdu := range fetchedResults {
+			log.Warnf("[FetchAllOIDsUsingGetNext] PDU: %+v", resultPdu)
+		}
+		results = fetchedResults
+	}
+
+	return &valuestore.ResultValueStore{ScalarValues: scalarResults, ColumnValues: columnResults, DeviceScanValues: results}, nil
 }

@@ -8,6 +8,7 @@ package valuestore
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/gosnmp/gosnmp"
 	"sort"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -27,8 +28,9 @@ type ScalarResultValuesType map[string]ResultValue
 // ResultValueStore store OID values
 type ResultValueStore struct {
 	// TODO: make fields private + use a constructor instead
-	ScalarValues ScalarResultValuesType `json:"scalar_values"`
-	ColumnValues ColumnResultValuesType `json:"column_values"`
+	ScalarValues     ScalarResultValuesType `json:"scalar_values"`
+	ColumnValues     ColumnResultValuesType `json:"column_values"`
+	DeviceScanValues []gosnmp.SnmpPDU
 }
 
 // GetScalarValue look for oid in ResultValueStore and returns the value and boolean

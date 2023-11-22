@@ -61,7 +61,7 @@ func TestResultValueStoreAsString(t *testing.T) {
 		},
 	}
 	str := ResultValueStoreAsString(store)
-	assert.Equal(t, "{\"scalar_values\":{\"1.1.1.1.0\":{\"value\":10}},\"column_values\":{\"1.1.1\":{\"1\":{\"value\":10}}}}", str)
+	assert.Equal(t, "{\"scalar_values\":{\"1.1.1.1.0\":{\"value\":10}},\"column_values\":{\"1.1.1\":{\"1\":{\"value\":10}}},\"DeviceScanValues\":null}", str)
 
 	str = ResultValueStoreAsString(nil)
 	assert.Equal(t, "", str)
