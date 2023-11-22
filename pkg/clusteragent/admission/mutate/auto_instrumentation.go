@@ -86,6 +86,9 @@ const (
 	libVersionAnnotationKeyCtrFormat = "admission.datadoghq.com/%s.%s-lib.version"
 	customLibAnnotationKeyCtrFormat  = "admission.datadoghq.com/%s.%s-lib.custom-image"
 
+	initContainerCpuAnnotationKey = "admission.datadoghq.com/init_resources.cpu"
+	initContainerMemAnnotationKey = "admission.datadoghq.com/init_resources.mem"
+
 	// Env vars
 	instrumentationInstallTypeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TYPE"
 	instrumentationInstallTimeEnvVarName = "DD_INSTRUMENTATION_INSTALL_TIME"
@@ -516,7 +519,7 @@ func injectLibInitContainer(pod *corev1.Pod, image string, lang language) error 
 			},
 		},
 	}
-	resources, hasResources, err := initResources()
+	resources, hasResources, err := initResources(pod)
 	if err != nil {
 		return err
 	}
@@ -527,10 +530,37 @@ func injectLibInitContainer(pod *corev1.Pod, image string, lang language) error 
 	return nil
 }
 
-func initResources() (corev1.ResourceRequirements, bool, error) {
+func initResources(pod *corev1.Pod) (corev1.ResourceRequirements, bool, error) {
 	hasResources := false
+	cpuFromAnnotation := false
+	memFromAnnotation := false
+	var rawQuantity string
 	var resources = corev1.ResourceRequirements{Limits: corev1.ResourceList{}, Requests: corev1.ResourceList{}}
-	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
+	annotations := pod.Annotations
+
+	if rawQuantity, cpuFromAnnotation = annotations[initContainerCpuAnnotationKey]; cpuFromAnnotation {
+		quantity, err := resource.ParseQuantity(rawQuantity)
+		if err != nil {
+			return resources, hasResources, err
+		}
+		resources.Requests[corev1.ResourceCPU] = quantity
+		resources.Limits[corev1.ResourceCPU] = quantity
+		hasResources = true
+	}
+
+	if rawQuantity, memFromAnnotation = annotations[initContainerMemAnnotationKey]; memFromAnnotation {
+		quantity, err := resource.ParseQuantity(rawQuantity)
+		if err != nil {
+			return resources, hasResources, err
+		}
+		resources.Requests[corev1.ResourceMemory] = quantity
+		resources.Limits[corev1.ResourceMemory] = quantity
+		hasResources = true
+	}
+
+	// Pod annotations take precedence over the global Admission Controller setting.
+	// If there are no pod annotations, use global setting.
+	if !cpuFromAnnotation && config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.cpu") {
 		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.cpu"))
 		if err != nil {
 			return resources, hasResources, err
@@ -539,7 +569,7 @@ func initResources() (corev1.ResourceRequirements, bool, error) {
 		resources.Limits[corev1.ResourceCPU] = quantity
 		hasResources = true
 	}
-	if config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
+	if !memFromAnnotation && config.Datadog.IsSet("admission_controller.auto_instrumentation.init_resources.memory") {
 		quantity, err := resource.ParseQuantity(config.Datadog.GetString("admission_controller.auto_instrumentation.init_resources.memory"))
 		if err != nil {
 			return resources, hasResources, err
