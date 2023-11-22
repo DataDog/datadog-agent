@@ -159,7 +159,7 @@ func (c *Check) SysMetrics() (int64, error) {
 	}
 
 	seenInGlobalMetrics := make(map[string]bool)
-	err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$sysmetric")+" ORDER BY begin_time ASC, metric_name ASC")
+	err = selectWrapper(c, &metricRows, fmt.Sprintf(sysMetricsQuery, "v$sysmetric")+" ORDER BY begin_time DESC, metric_name ASC")
 	if err != nil {
 		return 0, fmt.Errorf("failed to collect sysmetrics: %w", err)
 	}
