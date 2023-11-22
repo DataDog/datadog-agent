@@ -182,12 +182,12 @@ end
 
 if with_python_runtime? "2"
   dependency 'pylint2'
-  dependency 'datadog-agent-integrations-py2'
 end
 
-if with_python_runtime? "3"
-  dependency 'datadog-agent-integrations-py3'
+if with_python_runtime? "3" or with_python_runtime? "2"
+  dependency 'datadog-agent-integrations'
 end
+
 
 if linux_target?
   dependency 'datadog-security-agent-policies'
