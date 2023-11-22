@@ -614,6 +614,34 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 	})
 }
 
+func TestHTTP2DynamicTableMapCleanerInterval(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  http2_dynamic_table_map_cleaner_interval_seconds: 1025
+`)
+
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_DYNAMIC_TABLE_MAP_CLEANER_INTERVAL_SECONDS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 30*time.Second)
+	})
+}
+
 func TestHTTPMapCleanerInterval(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)

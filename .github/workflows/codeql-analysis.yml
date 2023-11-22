@@ -24,7 +24,7 @@ jobs:
       - name: Setup Python3
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9.16"
+          python-version: "3.11.5"
           cache: "pip"
       - run: pip3 install -r requirements.txt
 

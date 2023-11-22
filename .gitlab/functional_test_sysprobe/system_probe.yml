@@ -11,7 +11,7 @@
     - .kitchen_datadog_agent_flavor
   rules:
     !reference [.on_system_probe_changes_or_manual]
-  stage: functional_test
+  stage: functional_test_sysprobe
   timeout: 3h
   variables:
     AGENT_MAJOR_VERSION: 7
@@ -57,7 +57,7 @@
 # This way the stage.duration metric will allow us to measure what we want.
 # This will most likely be temporary, until we decide which approach to move forward with for testing in the future.
 kitchen_test_dummy_job_tmp:
-  stage: functional_test
+  stage: functional_test_sysprobe
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/btf-gen$DATADOG_AGENT_BTF_GEN_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BTF_GEN_BUILDIMAGES
   needs: []
   tags: ["arch:amd64"]

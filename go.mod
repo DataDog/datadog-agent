@@ -71,7 +71,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.2
-	github.com/DataDog/appsec-internal-go v1.0.1
+	github.com/DataDog/appsec-internal-go v1.0.2
 	github.com/DataDog/datadog-agent/pkg/gohai v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.50.0-rc.4
@@ -81,7 +81,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4
-	github.com/DataDog/datadog-go/v5 v5.3.0
+	github.com/DataDog/datadog-go/v5 v5.3.1-0.20231115110321-54ec306d83b2
 	// do not update datadog-operator to 1.2.1 because the indirect dependency github.com/DataDog/datadog-api-client-go/v2 v2.15.0 is trigger a huge Go heap memory increase.
 	github.com/DataDog/datadog-operator v1.1.0
 	github.com/DataDog/ebpf-manager v0.3.6
@@ -250,7 +250,7 @@ require (
 	google.golang.org/grpc v1.59.0
 	google.golang.org/grpc/examples v0.0.0-20221020162917-9127159caf5a
 	google.golang.org/protobuf v1.31.0
-	gopkg.in/DataDog/dd-trace-go.v1 v1.55.0
+	gopkg.in/DataDog/dd-trace-go.v1 v1.58.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gopkg.in/zorkian/go-datadog-api.v2 v2.30.0
@@ -639,13 +639,14 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-api-client-go/v2 v2.13.0 // indirect
+	github.com/DataDog/go-libddwaf/v2 v2.1.0 // indirect
 	github.com/DataDog/go-sqllexer v0.0.8 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr v1.4.10 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
-	github.com/ebitengine/purego v0.5.0-alpha.1 // indirect
+	github.com/ebitengine/purego v0.5.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.6.0 // indirect
 	github.com/godror/knownpb v0.1.0 // indirect
@@ -731,8 +732,3 @@ exclude (
 	github.com/knadh/koanf/maps v0.1.1
 	github.com/knadh/koanf/providers/confmap v0.1.0
 )
-
-// Once a version of dd-trace-go with commit 1e7a3e0de599 is released, this can
-// be removed and the version of listed above dd-trace-go.v1 bumped to the
-// newer version.
-replace gopkg.in/DataDog/dd-trace-go.v1 => github.com/DataDog/dd-trace-go v0.0.0-20231030162158-1e7a3e0de599

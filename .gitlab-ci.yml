@@ -47,6 +47,7 @@ include:
   - /.gitlab/kitchen_common/testing.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
+  - /.gitlab/rc_kubernetes_deploy.yml
 
 default:
   retry:
@@ -93,6 +94,7 @@ stages:
   - e2e_test_junit_upload
   - kitchen_cleanup
   - functional_test
+  - functional_test_sysprobe
   - functional_test_cleanup
   - functional_test_junit_upload
   - internal_kubernetes_deploy
@@ -174,7 +176,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 99ce13afdb49
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 58b54f06414b
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -918,7 +920,7 @@ workflow:
         - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
         - test/kitchen/test/integration/system-probe-test/**/*
         - test/kitchen/test/integration/win-sysprobe-test/**/*
-        - .gitlab/functional_test/system_probe.yml
+        - .gitlab/functional_test_sysprobe/system_probe.yml
         - .gitlab/kernel_version_testing/system_probe.yml
         - test/new-e2e/system-probe/**/*
         - test/new-e2e/scenarios/system-probe/**/*

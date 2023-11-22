@@ -37,7 +37,6 @@ type checkMetadataCacheEntry struct {
 
 var (
 	checkMetadata = make(map[string]*checkMetadataCacheEntry) // by check ID
-	hostMetadata  = make(AgentMetadata)
 
 	inventoryMutex = &sync.Mutex{}
 
@@ -58,18 +57,6 @@ var (
 	timeSince = time.Since
 )
 
-// Constants for the metadata names; these are defined in
-// pkg/metadata/inventories/README.md and any additions should
-// be updated there as well.
-const (
-	// key for the host metadata cache. See host_metadata.go
-	HostOSVersion              AgentMetadataName = "os_version"
-	HostCloudProvider          AgentMetadataName = "cloud_provider"
-	HostCloudProviderSource    AgentMetadataName = "cloud_provider_source"
-	HostCloudProviderAccountID AgentMetadataName = "cloud_provider_account_id"
-	HostCloudProviderHostID    AgentMetadataName = "cloud_provider_host_id"
-)
-
 // Refresh signals that some data has been updated and a new payload should be sent (ex: when configuration is changed
 // by the user, new checks starts, etc). This will trigger a new payload to be sent while still respecting
 // 'inventories_min_interval'.
@@ -77,23 +64,6 @@ func Refresh() {
 	select {
 	case metadataUpdatedC <- nil:
 	default: // To make sure this call is not blocking
-	}
-}
-
-// SetHostMetadata updates the host metadata value in the cache
-func SetHostMetadata(name AgentMetadataName, value interface{}) {
-	if !config.Datadog.GetBool("inventories_enabled") {
-		return
-	}
-
-	log.Debugf("setting host metadata '%s': '%s'", name, value)
-	inventoryMutex.Lock()
-	defer inventoryMutex.Unlock()
-
-	if !reflect.DeepEqual(hostMetadata[name], value) {
-		hostMetadata[name] = value
-
-		Refresh()
 	}
 }
 
@@ -225,7 +195,6 @@ func createPayload(ctx context.Context, hostname string, coll CollectorInterface
 		Hostname:      hostname,
 		Timestamp:     timeNow().UnixNano(),
 		CheckMetadata: &payloadCheckMeta,
-		HostMetadata:  getHostMetadata(),
 	}
 }
 
