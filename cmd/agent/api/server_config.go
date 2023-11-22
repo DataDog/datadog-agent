@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gorilla/mux"
 	gorilla "github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -28,7 +27,7 @@ func startConfigServer(apiConfigHostPort string, tlsConfig *tls.Config) (err err
 	}
 
 	configEndpointHandler := func(w http.ResponseWriter, r *http.Request) {
-		vars := mux.Vars(r)
+		vars := gorilla.Vars(r)
 
 		body, err := getConfigMarshalled(vars["path"])
 		if err != nil {
