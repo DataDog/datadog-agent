@@ -14,7 +14,7 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/DataDog/datadog-go/v5/statsd"
+	gostatsd "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
@@ -36,13 +36,16 @@ func findAddr(conf *config.AgentConfig) (string, error) {
 	return "", errors.New("dogstatsd_port is set to 0 and no alternative is available")
 }
 
+type statsdFactory func(addr string, options ...gostatsd.Option) (gostatsd.ClientInterface, error)
+
 // Configure creates a statsd client for the given agent's configuration, using the specified global tags.
-func Configure(conf *config.AgentConfig, tags []string) error {
+func Configure(conf *config.AgentConfig, tags []string, factory statsdFactory) error {
 	addr, err := findAddr(conf)
 	if err != nil {
 		return err
 	}
-	client, err := statsd.New(addr, statsd.WithTags(tags))
+
+	client, err := factory(addr, gostatsd.WithTags(tags))
 	if err != nil {
 		return err
 	}

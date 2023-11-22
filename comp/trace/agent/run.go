@@ -58,14 +58,6 @@ func runAgentSidekicks(ctx context.Context, cfg config.Component, wmeta workload
 		return fmt.Errorf("Unable to configure auto-exit, err: %v", err)
 	}
 
-	err = metrics.Configure(tracecfg, []string{"version:" + version.AgentVersion})
-	if err != nil {
-		telemetryCollector.SendStartupError(telemetry.CantConfigureDogstatsd, err)
-		return fmt.Errorf("cannot configure dogstatsd: %v", err)
-	}
-
-	metrics.Count("datadog.trace_agent.started", 1, nil, 1)
-
 	rand.Seed(time.Now().UTC().UnixNano())
 
 	remoteTagger := coreconfig.Datadog.GetBool("apm_config.remote_tagger")
