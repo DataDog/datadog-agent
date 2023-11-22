@@ -45,6 +45,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
+	deviceScanOids := buildDeviceScanMetadata(config.DeviceID, store)
 
 	metadataPayloads := devicemetadata.BatchPayloads(
 		config.Namespace, config.ResolvedSubnetName,
@@ -56,6 +57,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		topologyLinks,
 		nil,
 		diagnoses,
+		deviceScanOids,
 	)
 
 	for _, payload := range metadataPayloads {
@@ -94,6 +96,20 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 
 		ms.sender.Gauge(interfaceStatusMetric, 1, "", interfaceTags)
 	}
+}
+
+func buildDeviceScanMetadata(deviceId string, oidsValues *valuestore.ResultValueStore) []devicemetadata.DeviceScanOid {
+	var deviceScanOids []devicemetadata.DeviceScanOid
+	if oidsValues == nil {
+		return deviceScanOids
+	}
+	for _, oidValue := range oidsValues.DeviceScanValues {
+		deviceScanOids = append(deviceScanOids, devicemetadata.DeviceScanOid{
+			DeviceID: deviceId,
+			Oid:      oidValue.Name,
+		})
+	}
+	return deviceScanOids
 }
 
 func computeInterfaceStatus(adminStatus devicemetadata.IfAdminStatus, operStatus devicemetadata.IfOperStatus) devicemetadata.InterfaceStatus {
