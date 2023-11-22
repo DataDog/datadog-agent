@@ -6,9 +6,10 @@
 package cache
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"unsafe"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func heapAlloc(key []byte) string {
@@ -16,7 +17,7 @@ func heapAlloc(key []byte) string {
 }
 
 func Test_lruStringCache_deduplicate(t *testing.T) {
-	table := newLruStringCache(4, false)
+	table := newLruStringCache(4, "test")
 	assert.Empty(t, table.strings)
 
 	foo := table.lookupOrInsert([]byte("foo"), heapAlloc)
@@ -32,7 +33,7 @@ func Test_lruStringCache_deduplicate(t *testing.T) {
 }
 
 func Test_lruStringCache_evicts(t *testing.T) {
-	table := newLruStringCache(1, false)
+	table := newLruStringCache(1, "test")
 	assert.Empty(t, table.strings)
 
 	foo := table.lookupOrInsert([]byte("foo"), heapAlloc)

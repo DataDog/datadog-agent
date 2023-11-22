@@ -538,6 +538,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_mmap_minsizekb", 65536)
 	// Initial size used for LRU string cache.
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_per_origin_initial_size", 64)
+	// Use multi-level LRU interner, or use old map-based interner
+	config.BindEnvAndSetDefault("dogstatsd_string_interner_enable_lru", false)
 
 	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
 	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)

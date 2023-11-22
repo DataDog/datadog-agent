@@ -39,7 +39,7 @@ var (
 // parser parses dogstatsd messages
 // not safe for concurent use
 type parser struct {
-	interner    *cache.KeyedInterner
+	interner    cache.Interner
 	float64List *float64ListPool
 
 	// dsdOriginEnabled controls whether the server should honor the container id sent by the
@@ -54,9 +54,17 @@ type parser struct {
 func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int) *parser {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
+	useKeyedInterner := cfg.GetBool("dogstatsd_string_interner_enable_lru")
+
+	var interner cache.Interner
+	if useKeyedInterner {
+		interner = cache.NewKeyedStringInternerMemOnly(stringInternerCacheSize)
+	} else {
+		interner = newStringInterner(stringInternerCacheSize, workerNum)
+	}
 
 	return &parser{
-		interner:         cache.NewKeyedStringInternerMemOnly(stringInternerCacheSize),
+		interner:         interner,
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),

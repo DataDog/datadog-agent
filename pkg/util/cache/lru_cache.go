@@ -8,6 +8,7 @@ package cache
 import (
 	"unsafe"
 
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -15,19 +16,19 @@ var (
 	// There are multiple instances of the interner, one per worker. Counters are normally fine,
 	// gauges require special care to make sense. We don't need to clean up when an instance is
 	// dropped, because it only happens on agent shutdown.
-	tlmSIResets = telemetry.NewSimpleCounter("dogstatsd_lru", "string_interner_resets",
-		"Amount of resets of the string interner used in dogstatsd")
-	tlmSIRSize = telemetry.NewSimpleGauge("dogstatsd_lru", "string_interner_entries",
+	TlmSIDrops = telemetry.NewCounter("dogstatsd", "string_interner_drops", []string{"interner_id"},
+		"Amount of drops of the string interner used in dogstatsd")
+	TlmSIRSize = telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"},
 		"Number of entries in the string interner")
-	tlmSIRBytes = telemetry.NewSimpleGauge("dogstatsd_lru", "string_interner_bytes",
+	TlmSIRBytes = telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"},
 		"Number of bytes stored in the string interner")
-	tlmSIRHits = telemetry.NewSimpleCounter("dogstatsd_lru", "string_interner_hits",
+	TlmSIRHits = telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"},
 		"Number of times string interner returned an existing string")
-	tlmSIRMiss = telemetry.NewSimpleCounter("dogstatsd_lru", "string_interner_miss",
+	TlmSIRMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
 		"Number of times string interner created a new string object")
-	tlmSIRNew = telemetry.NewSimpleCounter("dogstatsd_lru", "string_interner_new",
+	TlmSIRNew = telemetry.NewSimpleCounter("dogstatsd", "string_interner_new",
 		"Number of times string interner was created")
-	tlmSIRStrBytes = telemetry.NewSimpleHistogram("dogstatsd_lru", "string_interner_str_bytes",
+	TlmSIRStrBytes = telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
 		"Number of times string with specific length were added",
 		[]float64{1, 2, 4, 8, 16, 32, 64, 128})
 )
@@ -48,19 +49,41 @@ type lruStringCache struct {
 	// next candidate for eviction.
 	head, tail *stringCacheItem
 	maxSize    int
-	curBytes   int
-	tlmEnabled bool
+	origin     string
+	telemetry  siTelemetry
 }
 
-func newLruStringCache(maxSize int, tlmEnabled bool) lruStringCache {
-	if tlmEnabled {
-		tlmSIRNew.Inc()
+type siTelemetry struct {
+	enabled  bool
+	curBytes int
+
+	drops, hits, miss telemetry.SimpleCounter
+	size, bytes       telemetry.SimpleGauge
+}
+
+func newLruStringCache(maxSize int, origin string) lruStringCache {
+	i := &lruStringCache{
+		strings: make(map[string]*stringCacheItem),
+		maxSize: maxSize,
+		origin:  origin,
+		telemetry: siTelemetry{
+			enabled: utils.IsTelemetryEnabled(),
+		},
 	}
-	return lruStringCache{
-		strings:    make(map[string]*stringCacheItem),
-		maxSize:    maxSize,
-		tlmEnabled: tlmEnabled,
+
+	if i.telemetry.enabled {
+		i.prepareTelemetry()
 	}
+
+	return *i
+}
+
+func (i *lruStringCache) prepareTelemetry() {
+	i.telemetry.drops = TlmSIDrops.WithValues(i.origin)
+	i.telemetry.size = TlmSIRSize.WithValues(i.origin)
+	i.telemetry.bytes = TlmSIRBytes.WithValues(i.origin)
+	i.telemetry.hits = TlmSIRHits.WithValues(i.origin)
+	i.telemetry.miss = TlmSIRMiss.WithValues(i.origin)
 }
 
 func (c *lruStringCache) deleteOldestNode() {
@@ -75,18 +98,18 @@ func (c *lruStringCache) deleteOldestNode() {
 	lastLen := len(last.s)
 	delete(c.strings, last.s)
 
-	if c.tlmEnabled {
-		tlmSIResets.Inc()
-		tlmSIRBytes.Sub(float64(c.curBytes))
-		tlmSIRSize.Sub(float64(len(c.strings)))
-		c.curBytes -= lastLen
+	if c.telemetry.enabled {
+		c.telemetry.drops.Inc()
+		c.telemetry.bytes.Sub(float64(c.telemetry.curBytes))
+		c.telemetry.size.Sub(float64(len(c.strings)))
+		c.telemetry.curBytes -= lastLen
 	}
 }
 
 // promoteNode marks the given node as the most-recently-used.
 func (c *lruStringCache) promoteNode(s *stringCacheItem) {
-	if c.tlmEnabled {
-		tlmSIRHits.Inc()
+	if c.telemetry.enabled {
+		c.telemetry.hits.Inc()
 	}
 	// If we found it, it's now the least recently used item, so rearrange it
 	// in the LRU linked list.
@@ -128,13 +151,13 @@ func (c *lruStringCache) addItemToCacheHead(str string) *stringCacheItem {
 	}
 	c.strings[str] = s
 
-	if c.tlmEnabled {
+	if c.telemetry.enabled {
 		length := len(s.s)
-		tlmSIRMiss.Inc()
-		tlmSIRSize.Inc()
-		tlmSIRBytes.Add(float64(length))
-		tlmSIRStrBytes.Observe(float64(length))
-		c.curBytes += length
+		c.telemetry.miss.Inc()
+		c.telemetry.size.Inc()
+		c.telemetry.bytes.Add(float64(length))
+		TlmSIRStrBytes.Observe(float64(length))
+		c.telemetry.curBytes += length
 	}
 
 	return s

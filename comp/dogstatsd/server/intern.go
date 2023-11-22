@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
 var (
@@ -18,19 +19,6 @@ var (
 	// Note `New` vs `NewSimple`
 	tlmSIResets = telemetry.NewCounter("dogstatsd", "string_interner_resets", []string{"interner_id"},
 		"Amount of resets of the string interner used in dogstatsd")
-	tlmSIRSize = telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"},
-		"Number of entries in the string interner")
-	tlmSIRBytes = telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"},
-		"Number of bytes stored in the string interner")
-	tlmSIRHits = telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"},
-		"Number of times string interner returned an existing string")
-	tlmSIRMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
-		"Number of times string interner created a new string object")
-	tlmSIRNew = telemetry.NewSimpleCounter("dogstatsd", "string_interner_new",
-		"Number of times string interner was created")
-	tlmSIRStrBytes = telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
-		"Number of times string with specific length were added",
-		[]float64{1, 2, 4, 8, 16, 32, 64, 128})
 )
 
 // stringInterner is a string cache providing a longer life for strings,
@@ -74,17 +62,21 @@ func newStringInterner(maxSize int, internerID int) *stringInterner {
 
 func (i *stringInterner) prepareTelemetry() {
 	i.telemetry.resets = tlmSIResets.WithValues(i.id)
-	i.telemetry.size = tlmSIRSize.WithValues(i.id)
-	i.telemetry.bytes = tlmSIRBytes.WithValues(i.id)
-	i.telemetry.hits = tlmSIRHits.WithValues(i.id)
-	i.telemetry.miss = tlmSIRMiss.WithValues(i.id)
+	i.telemetry.size = cache.TlmSIRSize.WithValues(i.id)
+	i.telemetry.bytes = cache.TlmSIRBytes.WithValues(i.id)
+	i.telemetry.hits = cache.TlmSIRHits.WithValues(i.id)
+	i.telemetry.miss = cache.TlmSIRMiss.WithValues(i.id)
+}
+
+func (i *stringInterner) LoadOrStore(b []byte, origin string, retainer cache.InternRetainer) string {
+	return i.loadOrStore(b)
 }
 
 // LoadOrStore always returns the string from the cache, adding it into the
 // cache if needed.
 // If we need to store a new entry and the cache is at its maximum capacity,
 // it is reset.
-func (i *stringInterner) LoadOrStore(key []byte) string {
+func (i *stringInterner) loadOrStore(key []byte) string {
 	// here is the string interner trick: the map lookup using
 	// string(key) doesn't actually allocate a string, but is
 	// returning the string value -> no new heap allocation
@@ -114,7 +106,7 @@ func (i *stringInterner) LoadOrStore(key []byte) string {
 		i.telemetry.miss.Inc()
 		i.telemetry.size.Inc()
 		i.telemetry.bytes.Add(float64(len(s)))
-		tlmSIRStrBytes.Observe(float64(len(s)))
+		cache.TlmSIRStrBytes.Observe(float64(len(s)))
 		i.telemetry.curBytes += len(s)
 	}
 

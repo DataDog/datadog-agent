@@ -91,16 +91,16 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 	bar := []byte("bar")
 	boo := []byte("boo")
 
-	v := sInterner.loadOrStore(foo, "", retainer)
+	v := sInterner.LoadOrStore(foo, "", retainer)
 	assert.Equal("foo", v)
-	v2 := sInterner.loadOrStore(foo, "", retainer)
+	v2 := sInterner.LoadOrStore(foo, "", retainer)
 	assert.Equal(&v, &v2, "must point to the same address")
-	v2 = sInterner.loadOrStore(bar, "", retainer)
+	v2 = sInterner.LoadOrStore(bar, "", retainer)
 	assert.NotEqual(&v, &v2, "must point to a different address")
-	v3 := sInterner.loadOrStore(bar, "", retainer)
+	v3 := sInterner.LoadOrStore(bar, "", retainer)
 	assert.Equal(&v2, &v3, "must point to the same address")
 
-	v4 := sInterner.loadOrStore(boo, "", retainer)
+	v4 := sInterner.LoadOrStore(boo, "", retainer)
 	assert.NotEqual(&v, &v4, "must point to a different address")
 	assert.NotEqual(&v2, &v4, "must point to a different address")
 	assert.NotEqual(&v3, &v4, "must point to a different address")
@@ -108,7 +108,8 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 
 func TestInternLoadOrStoreReset(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := NewKeyedStringInternerVals(1, true, "/", 512, 4, true)
+	pureInterner := NewKeyedStringInternerVals(1, true, "/", 512, 4, true)
+	sInterner := pureInterner.(*KeyedInterner)
 	retainer := newRetainer()
 	cacheLen := func() int {
 		internerUntyped, ok := sInterner.interners.Get("")
@@ -136,25 +137,25 @@ func TestInternLoadOrStoreReset(t *testing.T) {
 		assert.NotContainsf(interner.cache.strings, s, comment)
 	}
 
-	sInterner.loadOrStore([]byte("foo"), "", retainer)
+	sInterner.LoadOrStore([]byte("foo"), "", retainer)
 	assert.Equal(1, cacheLen())
-	sInterner.loadOrStore([]byte("bar"), "", retainer)
-	sInterner.loadOrStore([]byte("bar"), "", retainer)
+	sInterner.LoadOrStore([]byte("bar"), "", retainer)
+	sInterner.LoadOrStore([]byte("bar"), "", retainer)
 	assert.Equal(2, cacheLen())
-	sInterner.loadOrStore([]byte("boo"), "", retainer)
+	sInterner.LoadOrStore([]byte("boo"), "", retainer)
 	assert.Equal(3, cacheLen())
-	sInterner.loadOrStore([]byte("far"), "", retainer)
-	sInterner.loadOrStore([]byte("far"), "", retainer)
-	sInterner.loadOrStore([]byte("far"), "", retainer)
+	sInterner.LoadOrStore([]byte("far"), "", retainer)
+	sInterner.LoadOrStore([]byte("far"), "", retainer)
+	sInterner.LoadOrStore([]byte("far"), "", retainer)
 	// Foo is the 4th-least recently used.
 	assertCacheContains("foo", "first element still in cache")
 	assert.Equal(4, cacheLen())
-	sInterner.loadOrStore([]byte("val"), "", retainer)
+	sInterner.LoadOrStore([]byte("val"), "", retainer)
 	// Something got bumped
 	assert.Equal(4, cacheLen())
 	// Foo was it.
 	assertCacheNotContains("foo", "oldest element evicted")
-	sInterner.loadOrStore([]byte("val"), "", retainer)
+	sInterner.LoadOrStore([]byte("val"), "", retainer)
 	assert.Equal(4, cacheLen())
 }
 

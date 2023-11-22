@@ -90,7 +90,7 @@ func newStringInterner(origin string, maxStringCount int, tmpPath string, closeO
 		}
 	}
 	i := &stringInterner{
-		cache:          newLruStringCache(maxStringCount, false),
+		cache:          newLruStringCache(maxStringCount, origin),
 		fileBacking:    backing,
 		maxStringCount: maxStringCount,
 		refcount:       1,
@@ -160,7 +160,8 @@ func (i *stringInterner) Release(n int32) {
 	if i.refcount > 0 && i.refcount-n < 1 {
 		log.Debugf("Finalizing backing, refcount=%d, n=%d", i.refcount, n)
 		i.fileBacking.finalize()
-		i.cache = newLruStringCache(0, false)
+		// a dead interner in case anyone comes looking for us again.
+		i.cache = newLruStringCache(0, i.cache.origin)
 		i.maxStringCount = 0
 	}
 	i.refcount -= n
@@ -173,6 +174,11 @@ func (i *stringInterner) retain() {
 		log.Error("Dead interner being re-retained!")
 	}
 	i.refcount++
+}
+
+// Interner interns strings to reduce memory usage.
+type Interner interface {
+	LoadOrStore([]byte, string, InternRetainer) string
 }
 
 // KeyedInterner has an origin-keyed set of interners.
@@ -189,7 +195,7 @@ type KeyedInterner struct {
 }
 
 // NewKeyedStringInterner creates a Keyed String Interner with a max per-origin quota of maxQuota
-func NewKeyedStringInterner(cfg cconfig.Component) *KeyedInterner {
+func NewKeyedStringInterner(cfg cconfig.Component) Interner {
 	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
 	enableMMap := cfg.GetBool("dogstatsd_string_interner_mmap_enable")
 
@@ -205,7 +211,7 @@ func NewKeyedStringInterner(cfg cconfig.Component) *KeyedInterner {
 }
 
 // NewKeyedStringInternerVals takes args explicitly for initialization
-func NewKeyedStringInternerVals(stringInternerCacheSize int, closeOnRelease bool, tempPath string, minFileKb, maxStringsPerInterner int, enableDiagnostics bool) *KeyedInterner {
+func NewKeyedStringInternerVals(stringInternerCacheSize int, closeOnRelease bool, tempPath string, minFileKb, maxStringsPerInterner int, enableDiagnostics bool) Interner {
 	cache, err := lru.NewWithEvict(stringInternerCacheSize, func(_, internerUntyped interface{}) {
 		interner := internerUntyped.(*stringInterner)
 		interner.Release(1)
@@ -226,7 +232,7 @@ func NewKeyedStringInternerVals(stringInternerCacheSize int, closeOnRelease bool
 }
 
 // NewKeyedStringInternerMemOnly is a memory-only cache with no disk needs.
-func NewKeyedStringInternerMemOnly(stringInternerCacheSize int) *KeyedInterner {
+func NewKeyedStringInternerMemOnly(stringInternerCacheSize int) Interner {
 	cache, err := lru.NewWithEvict(stringInternerCacheSize, func(_, internerUntyped interface{}) {
 		interner := internerUntyped.(*stringInterner)
 		interner.Release(1)
@@ -247,7 +253,7 @@ func NewKeyedStringInternerMemOnly(stringInternerCacheSize int) *KeyedInterner {
 
 // NewKeyedStringInternerForTest is a memory-only cache with a small default size.  Useful for
 // most tests.
-func NewKeyedStringInternerForTest() *KeyedInterner {
+func NewKeyedStringInternerForTest() Interner {
 	return NewKeyedStringInternerMemOnly(512)
 }
 

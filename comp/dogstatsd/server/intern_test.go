@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func BenchmarkLoadOrStoreReset(b *testing.B) {
+func BenchmarkloadOrStoreReset(b *testing.B) {
 	sInterner := newStringInterner(4, 1)
 
 	// benchmark with the internal telemetry enabled
@@ -26,11 +26,11 @@ func BenchmarkLoadOrStoreReset(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sInterner.LoadOrStore([]byte(list[i%len(list)]))
+		sInterner.loadOrStore([]byte(list[i%len(list)]))
 	}
 }
 
-func TestInternLoadOrStoreValue(t *testing.T) {
+func TestInternloadOrStoreValue(t *testing.T) {
 	assert := assert.New(t)
 	sInterner := newStringInterner(3, 1)
 
@@ -41,17 +41,17 @@ func TestInternLoadOrStoreValue(t *testing.T) {
 
 	// first test that the good value is returned.
 
-	v := sInterner.LoadOrStore(foo)
+	v := sInterner.loadOrStore(foo)
 	assert.Equal("foo", v)
-	v = sInterner.LoadOrStore(bar)
+	v = sInterner.loadOrStore(bar)
 	assert.Equal("bar", v)
-	v = sInterner.LoadOrStore(far)
+	v = sInterner.loadOrStore(far)
 	assert.Equal("far", v)
-	v = sInterner.LoadOrStore(boo)
+	v = sInterner.loadOrStore(boo)
 	assert.Equal("boo", v)
 }
 
-func TestInternLoadOrStorePointer(t *testing.T) {
+func TestInternloadOrStorePointer(t *testing.T) {
 	assert := assert.New(t)
 	sInterner := newStringInterner(4, 1)
 
@@ -61,39 +61,39 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 
 	// first test that the good value is returned.
 
-	v := sInterner.LoadOrStore(foo)
+	v := sInterner.loadOrStore(foo)
 	assert.Equal("foo", v)
-	v2 := sInterner.LoadOrStore(foo)
+	v2 := sInterner.loadOrStore(foo)
 	assert.Equal(&v, &v2, "must point to the same address")
-	v2 = sInterner.LoadOrStore(bar)
+	v2 = sInterner.loadOrStore(bar)
 	assert.NotEqual(&v, &v2, "must point to a different address")
-	v3 := sInterner.LoadOrStore(bar)
+	v3 := sInterner.loadOrStore(bar)
 	assert.Equal(&v2, &v3, "must point to the same address")
 
-	v4 := sInterner.LoadOrStore(boo)
+	v4 := sInterner.loadOrStore(boo)
 	assert.NotEqual(&v, &v4, "must point to a different address")
 	assert.NotEqual(&v2, &v4, "must point to a different address")
 	assert.NotEqual(&v3, &v4, "must point to a different address")
 }
 
-func TestInternLoadOrStoreReset(t *testing.T) {
+func TestInternloadOrStoreReset(t *testing.T) {
 	assert := assert.New(t)
 	sInterner := newStringInterner(4, 1)
 
 	// first test that the good value is returned.
-	sInterner.LoadOrStore([]byte("foo"))
+	sInterner.loadOrStore([]byte("foo"))
 	assert.Equal(1, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("bar"))
-	sInterner.LoadOrStore([]byte("bar"))
+	sInterner.loadOrStore([]byte("bar"))
+	sInterner.loadOrStore([]byte("bar"))
 	assert.Equal(2, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("boo"))
+	sInterner.loadOrStore([]byte("boo"))
 	assert.Equal(3, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("far"))
-	sInterner.LoadOrStore([]byte("far"))
-	sInterner.LoadOrStore([]byte("far"))
+	sInterner.loadOrStore([]byte("far"))
+	sInterner.loadOrStore([]byte("far"))
+	sInterner.loadOrStore([]byte("far"))
 	assert.Equal(4, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("val"))
+	sInterner.loadOrStore([]byte("val"))
 	assert.Equal(1, len(sInterner.strings))
-	sInterner.LoadOrStore([]byte("val"))
+	sInterner.loadOrStore([]byte("val"))
 	assert.Equal(1, len(sInterner.strings))
 }
