@@ -114,7 +114,7 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
     }
 
     // We change the index to match our internal dynamic table implementation index.
-    // Our indexes start from 1, so we substract 62 in order to match the given index.
+    // Our internal indexes start from 1, so we subtract 61 in order to match the given index.
     dynamic_index->index = global_dynamic_counter - (index - MAX_STATIC_TABLE_INDEX);
 
     if (bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) == NULL) {
