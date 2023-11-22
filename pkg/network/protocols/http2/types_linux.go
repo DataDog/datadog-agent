@@ -47,10 +47,10 @@ type EbpfTx struct {
 	Stream http2Stream
 }
 type HTTP2Telemetry struct {
-	End_of_stream_eos      uint64
-	End_of_stream_rst      uint64
 	Request_seen           uint64
 	Response_seen          uint64
+	End_of_stream_eos      uint64
+	End_of_stream_rst      uint64
 	Str_len_exceeds_frame  uint64
 	Max_interesting_frames uint64
 	Max_frames_to_filter   uint64

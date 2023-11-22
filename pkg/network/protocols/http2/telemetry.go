@@ -53,11 +53,10 @@ type kernelTelemetry struct {
 
 // newHTTP2KernelTelemetry hold HTTP/2 kernel metrics.
 func newHTTP2KernelTelemetry(protocol string) *kernelTelemetry {
-	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol), libtelemetry.OptStatsd)
+	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol), libtelemetry.OptPrometheus)
 	return &kernelTelemetry{
 		metricGroup: metricGroup,
 
-		// todo: changed it from OptStatsd to OptPrometheus
 		http2requests:        metricGroup.NewCounter("requests"),
 		http2responses:       metricGroup.NewCounter("responses"),
 		endOfStreamEOS:       metricGroup.NewCounter("eos"),
