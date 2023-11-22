@@ -1174,7 +1174,7 @@ def get_modified_files(ctx):
     last_main_commit = ctx.run("git merge-base HEAD origin/main", hide=True).stdout
     print(f"Checking diff from {last_main_commit} commit on main branch")
 
-    modified_files = ctx.run(f"git diff --name-only {last_main_commit}", hide=True).stdout.splitlines()
+    modified_files = ctx.run(f"git diff --name-only --no-renames {last_main_commit}", hide=True).stdout.splitlines()
     return modified_files
 
 
