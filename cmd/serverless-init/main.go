@@ -38,36 +38,26 @@ const (
 	loggerName        = "SERVERLESS_INIT"
 )
 
-type params struct {
-	cloudService cloudservice.CloudService
-	logConfig    *log.Config
-	traceAgent   *trace.ServerlessTraceAgent
-	metricAgent  *metrics.ServerlessMetricAgent
-	logsAgent    logsAgent.ServerlessLogsAgent
-	args         []string
+type cliParams struct {
+	args []string
 }
 
 func main() {
 	if len(os.Args) < 2 {
 		panic("[datadog init process] invalid argument count, did you forget to set CMD ?")
 	} else {
-		cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
 
-		params := &params{
-			cloudService: cloudService,
-			logConfig:    logConfig,
-			traceAgent:   traceAgent,
-			metricAgent:  metricAgent,
-			logsAgent:    logsAgent,
-			args:         os.Args[1:],
+		cliParams := &cliParams{
+			args: os.Args[1:],
 		}
 
-		fxutil.OneShot(run, fx.Supply(params))
+		fxutil.OneShot(run, fx.Supply(cliParams))
 	}
 }
 
-func run(params *params) {
-	initcontainer.Run(params.cloudService, params.logConfig, params.metricAgent, params.traceAgent, params.logsAgent, params.args)
+func run(cliParams *cliParams) {
+	cloudService, logConfig, traceAgent, metricAgent, logsAgent := setup()
+	initcontainer.Run(cloudService, logConfig, metricAgent, traceAgent, logsAgent, cliParams.args)
 }
 
 func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgent, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent) {
