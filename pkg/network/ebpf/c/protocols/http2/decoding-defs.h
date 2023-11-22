@@ -135,22 +135,22 @@ typedef struct {
 } frame_header_remainder_t;
 
 // http2_telemetry_t is used to hold the HTTP/2 kernel telemetry.
-// request_seen             Count of HTTP/2 requests seen
-// response_seen            Count of HTTP/2 responses seen
-// endOfStreamEOS            Count of END_OF_STREAM flags seen
-// endOfStreamRST            Count of RST flags seen
+// request_seen                 Count of HTTP/2 requests seen
+// response_seen                Count of HTTP/2 responses seen
+// end_of_stream_eos            Count of END_OF_STREAM flags seen
+// end_of_stream_rst            Count of RST flags seen
 
-// strLenGreaterThanFrameLoc Count of times we couldn't retrieve the path due to reaching the end of the frame.
-// maxInterestingFrames		 Count of times we reached the max number of frames per iteration.
-// maxFramesToFilter		 Count of times we have left with more frames to filter than the max number of frames to filter.
+// str_len_exceeds_frame        Count of times we couldn't retrieve the path due to reaching the end of the frame.
+// max_interesting_frames		Count of times we reached the max number of frames per iteration.
+// max_frames_to_filter		    Count of times we have left with more frames to filter than the max number of frames to filter.
 
-// pathSizeBucket0           Count of path sizes is less or equal than 120
-// pathSizeBucket1           Count of path sizes between 121-130 bytes
-// pathSizeBucket2           Count of path sizes between 131-140 bytes
-// pathSizeBucket3           Count of path sizes between 141-150 bytes
-// pathSizeBucket4           Count of path sizes between 151-160 bytes
-// pathSizeBucket5           Count of path sizes between 161-179 bytes
-// pathSizeBucket6           Count of path is larger or equal to 180
+// path_size_bucket0            Count of path sizes is less or equal than 120
+// path_size_bucket1            Count of path sizes between 121-130 bytes
+// path_size_bucket2            Count of path sizes between 131-140 bytes
+// path_size_bucket3            Count of path sizes between 141-150 bytes
+// path_size_bucket4            Count of path sizes between 151-160 bytes
+// path_size_bucket5            Count of path sizes between 161-179 bytes
+// path_size_bucket6            Count of path is larger or equal to 180
 typedef struct {
     __u64 request_seen;
     __u64 response_seen;
