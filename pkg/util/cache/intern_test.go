@@ -108,7 +108,7 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 
 func TestInternLoadOrStoreReset(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := NewKeyedStringInternerVals(1, true, "/", 512, 4)
+	sInterner := NewKeyedStringInternerVals(1, true, "/", 512, 4, true)
 	retainer := newRetainer()
 	cacheLen := func() int {
 		internerUntyped, ok := sInterner.interners.Get("")

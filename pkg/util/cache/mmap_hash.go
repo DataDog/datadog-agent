@@ -38,7 +38,7 @@ func (*mmapHash) sizes() (int64, int64) {
 	return 0, 0
 }
 
-func newMmapHash(origin string, fileSize int64, prefixPath string, closeOnRelease bool) (*mmapHash, error) {
+func newMmapHash(origin string, fileSize int64, prefixPath string, closeOnRelease, enableDiagnostics bool) (*mmapHash, error) {
 	return nil, errors.New("unsupported platform for mmap hash")
 }
 
