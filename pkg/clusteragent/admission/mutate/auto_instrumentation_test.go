@@ -689,13 +689,15 @@ func TestInjectLibConfig(t *testing.T) {
 
 func TestInjectLibInitContainer(t *testing.T) {
 	tests := []struct {
-		name    string
-		cpu     string
-		mem     string
-		pod     *corev1.Pod
-		image   string
-		lang    language
-		wantErr bool
+		name              string
+		cpu               string
+		mem               string
+		cpuFromAnnotation string
+		memFromAnnotation string
+		pod               *corev1.Pod
+		image             string
+		lang              language
+		wantErr           bool
 	}{
 		{
 			name:    "no resources",
@@ -705,7 +707,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "with resources",
+			name:    "Admission Controller (CPU/Mem)",
 			pod:     fakePod("java-pod"),
 			cpu:     "100m",
 			mem:     "500",
@@ -714,7 +716,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "cpu only",
+			name:    "Admission Controller (CPU)",
 			pod:     fakePod("java-pod"),
 			cpu:     "200m",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
@@ -722,7 +724,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "memory only",
+			name:    "Admission Controller (Mem)",
 			pod:     fakePod("java-pod"),
 			mem:     "512Mi",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
@@ -730,8 +732,100 @@ func TestInjectLibInitContainer(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "with invalid resources",
+			name: "Pod Annotation (CPU/Mem)",
+			pod: fakePodWithAnnotations(map[string]string{
+				initContainerCpuAnnotationKey: "50m",
+				initContainerMemAnnotationKey: "128Mi",
+			}),
+			cpuFromAnnotation: "50m",
+			memFromAnnotation: "128Mi",
+			image:             "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:              java,
+			wantErr:           false,
+		},
+		{
+			name: "Pod Annotation (CPU)",
+			pod: fakePodWithAnnotations(map[string]string{
+				initContainerCpuAnnotationKey: "50m",
+			}),
+			cpuFromAnnotation: "50m",
+			image:             "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:              java,
+			wantErr:           false,
+		},
+		{
+			name: "Pod Annotation (Mem)",
+			pod: fakePodWithAnnotations(map[string]string{
+				initContainerMemAnnotationKey: "128Mi",
+			}),
+			memFromAnnotation: "128Mi",
+			image:             "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:              java,
+			wantErr:           false,
+		},
+		{
+			name: "Admission Controller (CPU/Mem) && Pod Annotation (CPU/Mem)",
+			pod: fakePodWithAnnotations(map[string]string{
+				initContainerCpuAnnotationKey: "50m",
+				initContainerMemAnnotationKey: "128Mi",
+			}),
+			cpu:               "200m",
+			mem:               "256Mi",
+			cpuFromAnnotation: "50m",
+			memFromAnnotation: "128Mi",
+			image:             "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:              java,
+			wantErr:           false,
+		},
+		{
+			name: "Admission Controller (CPU) && Pod Annotation (CPU/Mem)",
+			pod: fakePodWithAnnotations(map[string]string{
+				initContainerCpuAnnotationKey: "50m",
+				initContainerMemAnnotationKey: "128Mi",
+			}),
+			cpu:               "200m",
+			cpuFromAnnotation: "50m",
+			memFromAnnotation: "128Mi",
+			image:             "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:              java,
+			wantErr:           false,
+		},
+		{
+			name: "Admission Controller (CPU/Mem) && Pod Annotation (Mem)",
+			pod: fakePodWithAnnotations(map[string]string{
+				initContainerMemAnnotationKey: "128Mi",
+			}),
+			cpu:               "200m",
+			mem:               "256Mi",
+			memFromAnnotation: "128Mi",
+			image:             "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:              java,
+			wantErr:           false,
+		},
+		{
+			name: "Admission Controller (CPU) && Pod Annotation (Mem)",
+			pod: fakePodWithAnnotations(map[string]string{
+				initContainerMemAnnotationKey: "128Mi",
+			}),
+			cpu:               "200m",
+			memFromAnnotation: "128Mi",
+			image:             "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:              java,
+			wantErr:           false,
+		},
+		{
+			name:    "Admission Controller: invalid resources",
 			pod:     fakePod("java-pod"),
+			cpu:     "foo",
+			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
+			lang:    java,
+			wantErr: true,
+		},
+		{
+			name: "Pod Annotation: invalid resources",
+			pod: fakePodWithAnnotations(map[string]string{
+				initContainerMemAnnotationKey: "foo",
+			}),
 			cpu:     "foo",
 			image:   "gcr.io/datadoghq/dd-lib-java-init:v1",
 			lang:    java,
@@ -755,17 +849,39 @@ func TestInjectLibInitContainer(t *testing.T) {
 				return
 			}
 			require.Len(t, tt.pod.Spec.InitContainers, 1)
+			if tt.cpuFromAnnotation != "" {
+				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU]
+				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
+				require.Equal(t, tt.cpuFromAnnotation, req.String())
+				require.Equal(t, tt.cpuFromAnnotation, lim.String())
+			}
+			if tt.memFromAnnotation != "" {
+				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceMemory]
+				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceMemory]
+				require.Equal(t, tt.memFromAnnotation, req.String())
+				require.Equal(t, tt.memFromAnnotation, lim.String())
+			}
 			if tt.cpu != "" {
 				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceCPU]
 				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceCPU]
-				require.Equal(t, tt.cpu, req.String())
-				require.Equal(t, tt.cpu, lim.String())
+				if tt.cpuFromAnnotation != "" {
+					require.Equal(t, tt.cpuFromAnnotation, req.String())
+					require.Equal(t, tt.cpuFromAnnotation, lim.String())
+				} else {
+					require.Equal(t, tt.cpu, req.String())
+					require.Equal(t, tt.cpu, lim.String())
+				}
 			}
 			if tt.mem != "" {
 				req := tt.pod.Spec.InitContainers[0].Resources.Requests[corev1.ResourceMemory]
 				lim := tt.pod.Spec.InitContainers[0].Resources.Limits[corev1.ResourceMemory]
-				require.Equal(t, tt.mem, req.String())
-				require.Equal(t, tt.mem, lim.String())
+				if tt.memFromAnnotation != "" {
+					require.Equal(t, tt.memFromAnnotation, req.String())
+					require.Equal(t, tt.memFromAnnotation, lim.String())
+				} else {
+					require.Equal(t, tt.mem, req.String())
+					require.Equal(t, tt.mem, lim.String())
+				}
 			}
 		})
 	}
