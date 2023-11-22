@@ -441,9 +441,7 @@ func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
 		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
 	}
 
-	if err := configService.Start(ctx); err != nil {
-		return nil, fmt.Errorf("unable to start remote-config service: %w", err)
-	}
+	configService.Start(ctx)
 
 	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductAPMTracing}, time.Second*5)
 	if err != nil {
