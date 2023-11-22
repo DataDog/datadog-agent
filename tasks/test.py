@@ -1146,15 +1146,15 @@ def get_modified_packages(ctx) -> List[GoModule]:
             modules_to_test[best_module_path] = DEFAULT_MODULES[best_module_path]
             go_mod_modified_modules.add(best_module_path)
             continue
-
+        relative_target = "./" + os.path.relpath(os.path.dirname(modified_file), best_module_path)
         if best_module_path in modules_to_test:
             if (
                 modules_to_test[best_module_path].targets is not None
                 and os.path.dirname(modified_file) not in modules_to_test[best_module_path].targets
             ):
-                modules_to_test[best_module_path].targets.append(os.path.dirname(modified_file))
+                modules_to_test[best_module_path].targets.append(relative_target)
         else:
-            modules_to_test[best_module_path] = GoModule(best_module_path, targets=[os.path.dirname(modified_file)])
+            modules_to_test[best_module_path] = GoModule(best_module_path, targets=[relative_target])
 
     print("Running tests for the following modules:")
     for module in modules_to_test:

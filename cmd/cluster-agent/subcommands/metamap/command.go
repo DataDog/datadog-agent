@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -88,7 +88,7 @@ func getMetadataMap(nodeName string) error {
 		return e
 	}
 
-	formattedMetadataMap, err := status.FormatMetadataMapCLI(r)
+	formattedMetadataMap, err := render.FormatMetadataMapCLI(r)
 	if err != nil {
 		return err
 	}

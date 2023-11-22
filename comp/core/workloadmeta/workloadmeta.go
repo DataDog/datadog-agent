@@ -76,14 +76,19 @@ func newWorkloadMeta(deps dependencies) Component {
 		ongoingPulls: make(map[string]time.Time),
 	}
 
+	// Set global
+	SetGlobalStore(wm)
+
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 
-		// Set global
-		SetGlobalStore(wm)
+		var err error
 
 		// create and setup the Autoconfig instance
 		if deps.Params.InitHelper != nil {
-			return deps.Params.InitHelper(c, wm)
+			err = deps.Params.InitHelper(c, wm)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Main context passed to components

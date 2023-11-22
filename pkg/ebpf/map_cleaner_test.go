@@ -45,7 +45,7 @@ func TestMapCleaner(t *testing.T) {
 	}
 
 	// Clean all the even entries
-	cleaner.Clean(100*time.Millisecond, func(now int64, k, v interface{}) bool {
+	cleaner.Clean(100*time.Millisecond, nil, nil, func(now int64, k, v interface{}) bool {
 		key := k.(*int64)
 		return *key%2 == 0
 	})

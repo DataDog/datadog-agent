@@ -9,13 +9,11 @@ package utils
 
 import (
 	"runtime"
-	"strings"
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/host"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -80,9 +78,6 @@ func getSystemStats() *systemStats {
 			} else {
 				stats.Nixver = osVersion{hostInfo.Platform, hostInfo.PlatformVersion, ""}
 			}
-
-			hostVersion := strings.Trim(hostInfo.Platform+" "+hostInfo.PlatformVersion, " ")
-			inventories.SetHostMetadata(inventories.HostOSVersion, hostVersion)
 			return stats, nil
 		},
 	)

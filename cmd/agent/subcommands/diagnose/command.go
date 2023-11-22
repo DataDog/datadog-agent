@@ -172,10 +172,27 @@ This command print the inventory-agent metadata payload. This payload is used by
 			)
 		},
 	}
+
+	payloadInventoriesHostCmd := &cobra.Command{
+		Use:   "inventory-host",
+		Short: "Print the Inventory host metadata payload.",
+		Long: `
+This command print the inventory-host metadata payload. This payload is used by the 'inventories/sql' product.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			cliParams.payloadName = "inventory-host"
+			return fxutil.OneShot(printPayload,
+				fx.Supply(cliParams),
+				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
+				core.Bundle,
+			)
+		},
+	}
+
 	showPayloadCommand.AddCommand(payloadV5Cmd)
 	showPayloadCommand.AddCommand(payloadGohaiCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesCmd)
 	showPayloadCommand.AddCommand(payloadInventoriesAgentCmd)
+	showPayloadCommand.AddCommand(payloadInventoriesHostCmd)
 	diagnoseCommand.AddCommand(showPayloadCommand)
 
 	return []*cobra.Command{diagnoseCommand}

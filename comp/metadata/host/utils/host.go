@@ -12,6 +12,7 @@ package utils
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
@@ -157,6 +158,12 @@ func getProxyMeta(conf config.Reader) *ProxyMeta {
 		ProxyBehaviorChanged:              httputils.GetNumberOfWarnings() > 0,
 		NoProxyNonexactMatchExplicitlySet: NoProxyNonexactMatchExplicitlySetState,
 	}
+}
+
+// GetOSVersion returns the current OS version
+func GetOSVersion() string {
+	hostInfo := GetInformation()
+	return strings.Trim(hostInfo.Platform+" "+hostInfo.PlatformVersion, " ")
 }
 
 // GetPayload builds a metadata payload every time is called.

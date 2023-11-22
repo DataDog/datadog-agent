@@ -31,6 +31,9 @@ func handleError(c *Check, db **sqlx.DB, err error) error {
 	if err == nil {
 		return err
 	}
+	if strings.Contains(err.Error(), "no rows in result") {
+		return nil
+	}
 	isPrivilegeError, err := handlePrivilegeError(c, err)
 	if err != nil && isPrivilegeError {
 		return err

@@ -18,9 +18,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
 )
 
 // AssertPointsEqual evaluate if two list of point are equal (order doesn't matters).
@@ -154,6 +155,14 @@ var _ SketchesSource = (*SketchesSourceTest)(nil)
 type SketchesSourceTest struct {
 	values       SketchSeriesList
 	currentIndex int
+}
+
+// NewSketchesSourceTestWithSketch populates values with a single test sketch
+func NewSketchesSourceTestWithSketch() *SketchesSourceTest {
+	return &SketchesSourceTest{
+		currentIndex: -1,
+		values:       SketchSeriesList{&SketchSeries{Name: "fakename", Host: "fakehost"}},
+	}
 }
 
 func NewSketchesSourceTest() *SketchesSourceTest {
