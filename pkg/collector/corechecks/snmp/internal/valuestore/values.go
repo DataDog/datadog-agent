@@ -30,7 +30,7 @@ type ResultValueStore struct {
 	// TODO: make fields private + use a constructor instead
 	ScalarValues     ScalarResultValuesType `json:"scalar_values"`
 	ColumnValues     ColumnResultValuesType `json:"column_values"`
-	DeviceScanValues []gosnmp.SnmpPDU
+	DeviceScanValues []gosnmp.SnmpPDU       `json:"device_scan_values"`
 }
 
 // GetScalarValue look for oid in ResultValueStore and returns the value and boolean
