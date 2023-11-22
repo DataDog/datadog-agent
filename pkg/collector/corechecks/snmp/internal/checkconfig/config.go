@@ -78,6 +78,7 @@ type InitConfig struct {
 	Namespace                    string                            `yaml:"namespace"`
 	DetectMetricsEnabled         Boolean                           `yaml:"experimental_detect_metrics_enabled"`
 	DetectMetricsRefreshInterval int                               `yaml:"experimental_detect_metrics_refresh_interval"`
+	DeviceScanEnabled            Boolean                           `yaml:"device_scan_enabled"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -137,6 +138,8 @@ type InstanceConfig struct {
 	DetectMetricsEnabled         *Boolean `yaml:"experimental_detect_metrics_enabled"`
 	DetectMetricsRefreshInterval int      `yaml:"experimental_detect_metrics_refresh_interval"`
 
+	DeviceScanEnabled *Boolean `yaml:"device_scan_enabled"`
+
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
 	InterfaceConfigs InterfaceConfigs `yaml:"interface_configs"`
@@ -187,6 +190,8 @@ type CheckConfig struct {
 
 	DetectMetricsEnabled         bool
 	DetectMetricsRefreshInterval int
+
+	DeviceScanEnabled bool
 
 	Network                  string
 	DiscoveryWorkers         int
@@ -375,6 +380,12 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.DetectMetricsEnabled = bool(*instance.DetectMetricsEnabled)
 	} else {
 		c.DetectMetricsEnabled = bool(initConfig.DetectMetricsEnabled)
+	}
+
+	if instance.DeviceScanEnabled != nil {
+		c.DeviceScanEnabled = bool(*instance.DeviceScanEnabled)
+	} else {
+		c.DeviceScanEnabled = bool(initConfig.DeviceScanEnabled)
 	}
 
 	if instance.DetectMetricsRefreshInterval != 0 {
@@ -645,6 +656,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.AutodetectProfile = c.AutodetectProfile
 	newConfig.DetectMetricsEnabled = c.DetectMetricsEnabled
 	newConfig.DetectMetricsRefreshInterval = c.DetectMetricsRefreshInterval
+	newConfig.DeviceScanEnabled = c.DeviceScanEnabled
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 	newConfig.InterfaceConfigs = c.InterfaceConfigs
 

@@ -230,13 +230,15 @@ func (d *DeviceCheck) getValuesAndTags() (bool, []string, *valuestore.ResultValu
 }
 
 func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
-	results, err := session.FetchAllOIDsUsingGetNext(d.session)
-	if err != nil {
-		log.Warnf("[FetchAllOIDsUsingGetNext] error: %s", err)
-	}
-	log.Warnf("[FetchAllOIDsUsingGetNext] PRINT PDUs")
-	for _, resultPdu := range results {
-		log.Warnf("[FetchAllOIDsUsingGetNext] PDU: %+v", resultPdu)
+	if d.config.DeviceScanEnabled {
+		results, err := session.FetchAllOIDsUsingGetNext(d.session)
+		if err != nil {
+			log.Warnf("[FetchAllOIDsUsingGetNext] error: %s", err)
+		}
+		log.Warnf("[FetchAllOIDsUsingGetNext] PRINT PDUs (len: %d)", len(results))
+		for _, resultPdu := range results {
+			log.Warnf("[FetchAllOIDsUsingGetNext] PDU: %+v", resultPdu)
+		}
 	}
 
 	if d.config.DetectMetricsEnabled {
