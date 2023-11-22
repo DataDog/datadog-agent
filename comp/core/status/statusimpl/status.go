@@ -8,6 +8,7 @@ package statusimpl
 import (
 	"bytes"
 	"encoding/json"
+	"sort"
 
 	"go.uber.org/fx"
 
@@ -24,8 +25,11 @@ type dependencies struct {
 }
 
 type statusImplementation struct {
-	headerProvider headerProvider
-	providers      []status.StatusProvider
+	headerProvider    headerProvider
+	metadataSection   []status.StatusProvider
+	collectorSection  []status.StatusProvider
+	componentsSection []status.StatusProvider
+	providers         []status.StatusProvider
 }
 
 // Module defines the fx options for this component.
@@ -33,11 +37,32 @@ var Module = fxutil.Component(
 	fx.Provide(newStatus),
 )
 
+func sortByNameAndSection(section string, providers []status.StatusProvider) []status.StatusProvider {
+	var sectionProviders []status.StatusProvider
+	for _, provider := range providers {
+		if provider.Section() == section {
+			sectionProviders = append(sectionProviders, provider)
+		}
+	}
+
+	sort.SliceStable(sectionProviders, func(i, j int) bool {
+		return sectionProviders[i].Name() < sectionProviders[j].Name()
+	})
+
+	return sectionProviders
+}
+
 func newStatus(deps dependencies) (status.Component, error) {
-	// TODO: sort providers by index and name
+	metadataSection := sortByNameAndSection("metadata", deps.Providers)
+	collectorSection := sortByNameAndSection("collector", deps.Providers)
+	componentsSection := sortByNameAndSection("components", deps.Providers)
+
 	return &statusImplementation{
-		headerProvider: newHeaderProvider(deps.Config),
-		providers:      deps.Providers,
+		headerProvider:    newHeaderProvider(deps.Config),
+		metadataSection:   metadataSection,
+		collectorSection:  collectorSection,
+		componentsSection: componentsSection,
+		providers:         deps.Providers,
 	}, nil
 }
 
@@ -61,7 +86,21 @@ func (s *statusImplementation) GetStatus(format string, verbose bool) ([]byte, e
 
 		s.headerProvider.Text(b)
 
-		for _, sc := range s.providers {
+		for _, sc := range s.metadataSection {
+			err := sc.Text(b)
+			if err != nil {
+				return b.Bytes(), err
+			}
+		}
+
+		for _, sc := range s.collectorSection {
+			err := sc.Text(b)
+			if err != nil {
+				return b.Bytes(), err
+			}
+		}
+
+		for _, sc := range s.componentsSection {
 			err := sc.Text(b)
 			if err != nil {
 				return b.Bytes(), err
@@ -78,7 +117,21 @@ func (s *statusImplementation) GetStatus(format string, verbose bool) ([]byte, e
 
 		s.headerProvider.HTML(b)
 
-		for _, sc := range s.providers {
+		for _, sc := range s.metadataSection {
+			err := sc.Text(b)
+			if err != nil {
+				return b.Bytes(), err
+			}
+		}
+
+		for _, sc := range s.collectorSection {
+			err := sc.Text(b)
+			if err != nil {
+				return b.Bytes(), err
+			}
+		}
+
+		for _, sc := range s.componentsSection {
 			err := sc.Text(b)
 			if err != nil {
 				return b.Bytes(), err
@@ -161,6 +214,54 @@ func (s *statusImplementation) GetStatusByNames(names []string, format string, v
 			}
 		}
 		return b.Bytes(), nil
+	default:
+		return []byte{}, nil
+	}
+}
+
+func (s *statusImplementation) GetStatusBySection(section, format string, verbose bool) ([]byte, error) {
+	output := func(format string, providers []status.StatusProvider) ([]byte, error) {
+		switch format {
+		case "json":
+			stats := make(map[string]interface{})
+
+			for _, sc := range providers {
+				sc.JSON(stats)
+			}
+			return json.Marshal(stats)
+		case "text":
+			var b = new(bytes.Buffer)
+
+			for _, sc := range providers {
+				err := sc.Text(b)
+				if err != nil {
+					return b.Bytes(), err
+				}
+			}
+
+			return b.Bytes(), nil
+		case "html":
+			var b = new(bytes.Buffer)
+
+			for _, sc := range providers {
+				err := sc.HTML(b)
+				if err != nil {
+					return b.Bytes(), err
+				}
+			}
+			return b.Bytes(), nil
+		default:
+			return []byte{}, nil
+		}
+	}
+
+	switch section {
+	case "metadata":
+		return output(format, s.metadataSection)
+	case "collector":
+		return output(format, s.collectorSection)
+	case "components":
+		return output(format, s.componentsSection)
 	default:
 		return []byte{}, nil
 	}

@@ -26,8 +26,7 @@ type StatusProvider interface {
 	// when using GetStatusByName and GetStatusByNames function of the status component.
 	// Also, we used the name to sort the status providers
 	Name() string
-	// Used to sort the status providers
-	Index() int
+	Section() string
 	JSON(stats map[string]interface{})
 	Text(buffer io.Writer) error
 	HTML(buffer io.Writer) error

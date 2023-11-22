@@ -25,8 +25,6 @@ type headerProvider struct {
 	htmlTemplatesFunctions htmlTemplate.FuncMap
 }
 
-func (h headerProvider) Index() int   { return 0 }
-func (h headerProvider) Name() string { return "Header" }
 func (h headerProvider) JSON(stats map[string]interface{}) {
 	for k, v := range h.data {
 		stats[k] = v
