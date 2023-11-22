@@ -19,4 +19,4 @@ profiling_environment:
   DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
   DD_PROFILING_WAIT_PROFILE: true
 
-  DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:uds_dogstatsd_to_api_10MiB_16
+  DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:uds_dogstatsd_to_api_150MiB_16

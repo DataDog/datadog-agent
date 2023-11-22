@@ -3,51 +3,58 @@ generator:
       seed: [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53,
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
       path: "/tmp/dsd.socket"
+      throttle: stable
       variant:
         dogstatsd:
           contexts:
             inclusive:
-              min: 1000
-              max: 10000
+              min: 80000
+              max: 90000
+          value:
+            float_probability: 256
+            range:
+              inclusive:
+                min: 1
+                max: 10000000
           name_length:
             inclusive:
-              min: 1
-              max: 200
+              min: 8
+              max: 64
           tag_key_length:
             inclusive:
-              min: 1
-              max: 100
+              min: 8
+              max: 64
           tag_value_length:
             inclusive:
-              min: 1
-              max: 100
+              min: 8
+              max: 64
           tags_per_msg:
             inclusive:
-              min: 2
+              min: 20
               max: 50
           multivalue_count:
             inclusive:
-              min: 2
-              max: 32
-          multivalue_pack_probability: 0.08
+              min: 1
+              max: 1
+          multivalue_pack_probability: 0
           sampling:
             inclusive:
               min: 0.1
               max: 1.0
-          sampling_probability: 0.5
+          sampling_probability: 0
           kind_weights:
-            metric: 90
-            event: 5
-            service_check: 5
+            metric: 100
+            event: 0
+            service_check: 0
           metric_weights:
-            count: 100
-            gauge: 10
+            count: 1
+            gauge: 0
             timer: 0
             distribution: 0
             set: 0
             histogram: 0
-      bytes_per_second: "100 MiB"
-      block_sizes: ["256b", "512b", "1Kb", "2Kb", "3Kb", "4Kb", "5Kb", "6Kb"]
+      bytes_per_second: "250 MiB"
+      block_sizes: ["130b", "213b", "300b", "560b"]
       maximum_prebuild_cache_size_bytes: "500 Mb"
 
 blackhole:

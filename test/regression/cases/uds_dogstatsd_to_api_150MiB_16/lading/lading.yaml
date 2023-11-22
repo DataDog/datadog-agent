@@ -7,8 +7,8 @@ generator:
         dogstatsd:
           contexts:
             inclusive:
-              min: 50000
-              max: 100000
+              min: 1000
+              max: 10000
           name_length:
             inclusive:
               min: 1
@@ -46,7 +46,7 @@ generator:
             distribution: 50
             set: 0
             histogram: 0
-      bytes_per_second: "1 MiB"
+      bytes_per_second: "150 MiB"
       block_sizes: ["256b", "512b", "1Kb", "2Kb", "3Kb", "4Kb", "5Kb", "6Kb"]
       maximum_prebuild_cache_size_bytes: "500 Mb"
 
