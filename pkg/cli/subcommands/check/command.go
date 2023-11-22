@@ -376,25 +376,20 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 	checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
+		check := make(map[checkid.ID]*stats.Stats)
+		check[c.ID()] = s
+		checkRuns[c.String()] = check
 
 		// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 		time.Sleep(time.Duration(cliParams.checkDelay) * time.Millisecond)
 
 		if cliParams.formatJSON {
 			aggregatorData := printer.GetMetricsDataForPrint()
-			checkRuns[c.String()] = make(map[checkid.ID]interface{})
-			checkRuns[c.String()].(map[checkid.ID]interface{})[c.ID()] = s
 
 			// There is only one checkID per run so we'll just access that
-			var runnerData map[checkid.ID]interface{}
-			for _, checkIDData := range checkRuns {
-				runnerData = checkIDData.(map[checkid.ID]interface{})
-				break
-			}
-
 			instanceData := map[string]interface{}{
 				"aggregator":  aggregatorData,
-				"runner":      runnerData,
+				"runner":      s,
 				"inventories": collectorData["inventories"],
 			}
 			instancesData = append(instancesData, instanceData)
@@ -459,8 +454,6 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 				checkFileOutput.WriteString(data + "\n")
 			}
 
-			checkRuns[c.String()] = make(map[checkid.ID]interface{})
-			checkRuns[c.String()].(map[checkid.ID]interface{})[c.ID()] = s
 			statusJSON, _ := json.Marshal(collectorData)
 			checkStatus, _ := render.FormatCheckStats(statusJSON)
 			p(checkStatus)
