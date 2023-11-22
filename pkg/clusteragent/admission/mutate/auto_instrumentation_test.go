@@ -734,7 +734,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 		{
 			name: "Pod Annotation (CPU/Mem)",
 			pod: fakePodWithAnnotations(map[string]string{
-				initContainerCpuAnnotationKey: "50m",
+				initContainerCPUAnnotationKey: "50m",
 				initContainerMemAnnotationKey: "128Mi",
 			}),
 			cpuFromAnnotation: "50m",
@@ -746,7 +746,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 		{
 			name: "Pod Annotation (CPU)",
 			pod: fakePodWithAnnotations(map[string]string{
-				initContainerCpuAnnotationKey: "50m",
+				initContainerCPUAnnotationKey: "50m",
 			}),
 			cpuFromAnnotation: "50m",
 			image:             "gcr.io/datadoghq/dd-lib-java-init:v1",
@@ -766,7 +766,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 		{
 			name: "Admission Controller (CPU/Mem) && Pod Annotation (CPU/Mem)",
 			pod: fakePodWithAnnotations(map[string]string{
-				initContainerCpuAnnotationKey: "50m",
+				initContainerCPUAnnotationKey: "50m",
 				initContainerMemAnnotationKey: "128Mi",
 			}),
 			cpu:               "200m",
@@ -780,7 +780,7 @@ func TestInjectLibInitContainer(t *testing.T) {
 		{
 			name: "Admission Controller (CPU) && Pod Annotation (CPU/Mem)",
 			pod: fakePodWithAnnotations(map[string]string{
-				initContainerCpuAnnotationKey: "50m",
+				initContainerCPUAnnotationKey: "50m",
 				initContainerMemAnnotationKey: "128Mi",
 			}),
 			cpu:               "200m",
