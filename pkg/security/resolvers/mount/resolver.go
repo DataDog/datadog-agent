@@ -160,7 +160,7 @@ func (mr *Resolver) delete(mount *model.Mount) {
 		curr, rest := openQueue[len(openQueue)-1], openQueue[:len(openQueue)-1]
 		openQueue = rest
 
-		delete(mr.mounts, curr.MountID)
+		mr.finalize(curr)
 
 		entry := redemptionEntry{
 			mount:      curr,
