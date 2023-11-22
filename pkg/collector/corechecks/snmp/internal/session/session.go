@@ -225,15 +225,46 @@ func FetchAllFirstRowOIDsUsingGetNext(session Session) []string {
 // FetchAllOIDsUsingGetNext fetches all available OIDs
 func FetchAllOIDsUsingGetNext(session Session) ([]gosnmp.SnmpPDU, error) {
 	var results []gosnmp.SnmpPDU
-	rootOid := "1.0"
+	curRequestOid := "1.0"
+	alreadySeenOIDs := make(map[string]bool)
 
-	err := session.Walk(rootOid, func(dataUnit gosnmp.SnmpPDU) error {
-		results = append(results, dataUnit)
-		return nil
-	})
-	if err != nil {
-		log.Debugf("GetNext error: %s", err)
-		return nil, err
+	// TODO: WHY gosnmp Walk does not work?
+
+	//err := session.Walk(rootOid, func(dataUnit gosnmp.SnmpPDU) error {
+	//	results = append(results, dataUnit)
+	//	return nil
+	//})
+	//if err != nil {
+	//	log.Debugf("GetNext error: %s", err)
+	//	return nil, err
+	//}
+
+	for {
+		curResults, err := session.GetNext([]string{curRequestOid})
+		if err != nil {
+			log.Debugf("GetNext error: %s", err)
+			break
+		}
+		if len(curResults.Variables) != 1 {
+			log.Debugf("Expect 1 variable, but got %d: %+v", len(curResults.Variables), curResults.Variables)
+			break
+		}
+		variable := curResults.Variables[0]
+		if variable.Type == gosnmp.EndOfContents || variable.Type == gosnmp.EndOfMibView {
+			log.Debug("No more OIDs to fetch")
+			break
+		}
+		if alreadySeenOIDs[curRequestOid] {
+			// breaking on already seen OIDs prevent infinite loop if the device mis behave by responding with non-sequential OIDs when called with GETNEXT
+			log.Debug("error: received non sequential OIDs")
+			break
+		}
+		alreadySeenOIDs[curRequestOid] = true
+
+		oid := strings.TrimLeft(variable.Name, ".")
+		curRequestOid = oid
+
+		results = append(results, variable)
 	}
 	return results, nil
 }
