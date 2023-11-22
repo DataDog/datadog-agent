@@ -1737,19 +1737,18 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metric
 		return
 	}
 
-	type mountPoint struct {
-		partDevice string
-		partFsType string
+	type devicePartition struct {
+		devicePath string
+		fsType     string
 	}
 
-	var mountPoints []mountPoint
-	for i := 0; i < 60; i++ {
+	var partitions []devicePartition
+	for i := 0; i < 120; i++ {
 		if !sleepCtx(ctx, 500*time.Millisecond) {
 			break
 		}
 		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", device, "--paths", "--json", "--bytes", "--fs", "--output", "NAME,PATH,TYPE,FSTYPE").Output()
 		if err != nil {
-			log.Warnf("lsblk error: %v", err)
 			continue
 		}
 		log.Debugf("lsblk %q: %s", device, string(lsblkJSON))
@@ -1777,19 +1776,19 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metric
 		blockDevice := blockDevices.BlockDevices[0]
 		for _, child := range blockDevice.Children {
 			if child.Type == "part" && (child.FsType == "ext4" || child.FsType == "xfs") {
-				mountPoints = append(mountPoints, mountPoint{
-					partDevice: child.Path,
-					partFsType: child.FsType,
+				partitions = append(partitions, devicePartition{
+					devicePath: child.Path,
+					fsType:     child.FsType,
 				})
 			}
 		}
-		if len(mountPoints) > 0 {
+		if len(partitions) > 0 {
 			break
 		}
 	}
 
-	if len(mountPoints) == 0 {
-		err = fmt.Errorf("could not find any mountpoint in the snapshot %q", snapshotARN)
+	if len(partitions) == 0 {
+		err = fmt.Errorf("could not find any ext4 or xfs devicePartition in the snapshot %q", snapshotARN)
 		return
 	}
 
@@ -1799,8 +1798,8 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metric
 		os.Remove(baseMountTarget)
 	})
 
-	for _, mp := range mountPoints {
-		mountTarget := fmt.Sprintf("/data/%s/%s", localSnapshotID, path.Base(mp.partDevice))
+	for _, mp := range partitions {
+		mountTarget := fmt.Sprintf("/data/%s/%s", localSnapshotID, path.Base(mp.devicePath))
 		err = os.MkdirAll(mountTarget, 0700)
 		if err != nil {
 			err = fmt.Errorf("could not create mountTarget directory %q: %w", mountTarget, err)
@@ -1813,8 +1812,8 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metric
 
 		var mountOutput []byte
 		for i := 0; i < 50; i++ {
-			log.Debugf("execing mount %q %q", mp.partDevice, mountTarget)
-			mountOutput, err = exec.CommandContext(ctx, "mount", "-t", mp.partFsType, "--source", mp.partDevice, "--target", mountTarget).CombinedOutput()
+			log.Debugf("execing mount %q %q", mp.devicePath, mountTarget)
+			mountOutput, err = exec.CommandContext(ctx, "mount", "-o", "ro", "-t", mp.fsType, "--source", mp.devicePath, "--target", mountTarget).CombinedOutput()
 			if err == nil {
 				break
 			}
@@ -1823,7 +1822,7 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metric
 			}
 		}
 		if err != nil {
-			err = fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountTarget, mp.partDevice, string(mountOutput), err)
+			err = fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountTarget, mp.devicePath, string(mountOutput), err)
 			return
 		}
 		pushCleanup(func(ctx context.Context) {
