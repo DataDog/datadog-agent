@@ -430,8 +430,8 @@ func startAgent(
 		configService, err = remoteconfig.NewService()
 		if err != nil {
 			log.Errorf("Failed to initialize config management service: %s", err)
-		} else if err := configService.Start(context.Background()); err != nil {
-			log.Errorf("Failed to start config management service: %s", err)
+		} else {
+			configService.Start(context.Background())
 		}
 
 		if err := rcclient.Start("core-agent"); err != nil {

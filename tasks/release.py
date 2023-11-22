@@ -1132,10 +1132,12 @@ Make sure that milestone is open before trying again.""",
 
 
 @task
-def build_rc(ctx, major_versions="6,7", patch_version=False):
+def build_rc(ctx, major_versions="6,7", patch_version=False, k8s_deployments=False):
     """
     To be done after the PR created by release.create-rc is merged, with the same options
     as release.create-rc.
+
+    k8s_deployments - when set to True the child pipeline deploying to subset of k8s staging clusters will be triggered.
 
     Tags the new RC versions on the current commit, and creates the build pipeline for these
     new tags.
@@ -1206,6 +1208,7 @@ def build_rc(ctx, major_versions="6,7", patch_version=False):
         major_versions=major_versions,
         repo_branch="beta",
         deploy=True,
+        rc_k8s_deployments=k8s_deployments,
     )
 
 
@@ -1370,3 +1373,16 @@ def update_last_stable(_, major_versions="6,7"):
         version.major = major
         release_json['last_stable'][str(major)] = str(version)
     _save_release_json(release_json)
+
+
+@task
+def check_omnibus_branches(_):
+    for branch in ['nightly', 'nightly-a7']:
+        omnibus_ruby_version = _get_release_json_value(f'{branch}::OMNIBUS_RUBY_VERSION')
+        omnibus_software_version = _get_release_json_value(f'{branch}::OMNIBUS_SOFTWARE_VERSION')
+        version_re = re.compile(r'(\d+)\.(\d+)\.x')
+        if omnibus_ruby_version != 'datadog-5.5.0' and not version_re.match(omnibus_ruby_version):
+            raise Exit(code=1, message=f'omnibus-ruby version [{omnibus_ruby_version}] is not mergeable')
+        if omnibus_software_version != 'master' and not version_re.match(omnibus_software_version):
+            raise Exit(code=1, message=f'omnibus-software version [{omnibus_software_version}] is not mergeable')
+    return True
