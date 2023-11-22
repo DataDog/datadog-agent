@@ -70,7 +70,7 @@ func newDatadogSingleClient() (*datadog.Client, error) {
 	log.Infof("Initialized the Datadog Client for HPA with endpoint %q", endpoint)
 
 	client := datadog.NewClient(apiKey, appKey)
-	client.HttpClient.Transport = httputils.CreateHTTPTransport()
+	client.HttpClient.Transport = httputils.CreateHTTPTransport(config.Datadog)
 	client.RetryTimeout = 3 * time.Second
 	client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
 	client.SetBaseUrl(endpoint)
@@ -119,7 +119,7 @@ func newDatadogFallbackClient(endpoints []config.Endpoint) (*datadogFallbackClie
 	}
 	for _, endpoint := range endpoints {
 		client := datadog.NewClient(endpoint.APIKey, endpoint.APPKey)
-		client.HttpClient.Transport = httputils.CreateHTTPTransport()
+		client.HttpClient.Transport = httputils.CreateHTTPTransport(config.Datadog)
 		client.RetryTimeout = 3 * time.Second
 		client.ExtraHeader["User-Agent"] = "Datadog-Cluster-Agent"
 		client.SetBaseUrl(endpoint.URL)

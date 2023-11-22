@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const cacheGCInterval = 30 * time.Second
+
 type cacheEntry struct {
 	value     interface{}
 	err       error

@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -107,7 +108,7 @@ func getMetadataMap(fb flaretypes.FlareBuilder) error {
 		return log.Errorf("Error while marshalling the cluster level metadata: %q", err)
 	}
 
-	str, err := status.FormatMetadataMapCLI(metaBytes)
+	str, err := render.FormatMetadataMapCLI(metaBytes)
 	if err != nil {
 		return log.Errorf("Error while rendering the cluster level metadata: %q", err)
 	}
@@ -138,7 +139,7 @@ func getHPAStatus(fb flaretypes.FlareBuilder) error {
 		return log.Errorf("Error while marshalling the cluster level metadata: %q", err)
 	}
 
-	str, err := status.FormatHPAStatus(statsBytes)
+	str, err := render.FormatHPAStatus(statsBytes)
 	if err != nil {
 		return log.Errorf("Could not collect custommetricsprovider.log: %s", err)
 	}

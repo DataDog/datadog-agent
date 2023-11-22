@@ -12,11 +12,15 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
 	langUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
+
+	"go.uber.org/fx"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -25,7 +29,7 @@ import (
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 )
 
-func newMockLanguagePatcher(mockClient dynamic.Interface, mockStore *workloadmeta.MockStore) LanguagePatcher {
+func newMockLanguagePatcher(mockClient dynamic.Interface, mockStore workloadmeta.Mock) LanguagePatcher {
 	return LanguagePatcher{
 		k8sClient: mockClient,
 		store:     mockStore,
@@ -206,9 +210,13 @@ func TestGetOwnersLanguages(t *testing.T) {
 }
 
 func TestDetectedNewLanguages(t *testing.T) {
-	mockStore := workloadmeta.NewMockStore()
+	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2,
+	))
 
-	mockStore.SetEntity(&workloadmeta.KubernetesDeployment{
+	mockStore.Set(&workloadmeta.KubernetesDeployment{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesDeployment,
 			ID:   "default/dummy",
@@ -248,59 +256,15 @@ func TestDetectedNewLanguages(t *testing.T) {
 	assert.True(t, lp.detectedNewLanguages(&namespacedOwnerReference, detectedContainersLanguages))
 }
 
-func TestGetUpdatedOwnerAnnotations(t *testing.T) {
-	lp := newMockLanguagePatcher(nil, nil)
-
-	mockContainersLanguages := langUtil.NewContainersLanguages()
-	mockContainersLanguages.GetOrInitializeLanguageset("container-1").Parse("cpp,java,python")
-	mockContainersLanguages.GetOrInitializeLanguageset("container-2").Parse("python,ruby")
-	mockContainersLanguages.GetOrInitializeLanguageset("container-3").Parse("cpp")
-	mockContainersLanguages.GetOrInitializeLanguageset("container-4").Parse("")
-
-	// Case of existing annotations
-	mockCurrentAnnotations := map[string]string{
-		"annotationkey1": "annotationvalue1",
-		"annotationkey2": "annotationvalue2",
-		"apm.datadoghq.com/container-1.languages": "java,python",
-		"apm.datadoghq.com/container-2.languages": "cpp",
-	}
-
-	expectedUpdatedAnnotations := map[string]string{
-		"annotationkey1": "annotationvalue1",
-		"annotationkey2": "annotationvalue2",
-		"apm.datadoghq.com/container-1.languages": "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages": "cpp,python,ruby",
-		"apm.datadoghq.com/container-3.languages": "cpp",
-	}
-
-	expectedAddedLanguages := 4
-
-	actualUpdatedAnnotations, actualAddedLanguages := lp.getUpdatedOwnerAnnotations(mockCurrentAnnotations, mockContainersLanguages)
-
-	assert.Equal(t, expectedAddedLanguages, actualAddedLanguages)
-	assert.Equal(t, expectedUpdatedAnnotations, actualUpdatedAnnotations)
-
-	// Case of non-existing annotations
-	mockCurrentAnnotations = nil
-
-	expectedUpdatedAnnotations = map[string]string{
-		"apm.datadoghq.com/container-1.languages": "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages": "python,ruby",
-		"apm.datadoghq.com/container-3.languages": "cpp",
-	}
-
-	expectedAddedLanguages = 6
-
-	actualUpdatedAnnotations, actualAddedLanguages = lp.getUpdatedOwnerAnnotations(mockCurrentAnnotations, mockContainersLanguages)
-
-	assert.Equal(t, expectedAddedLanguages, actualAddedLanguages)
-	assert.Equal(t, expectedUpdatedAnnotations, actualUpdatedAnnotations)
-
-}
-
 func TestPatchOwner(t *testing.T) {
+
+	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2,
+	))
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
-	lp := newMockLanguagePatcher(mockK8sClient, workloadmeta.NewMockStore())
+	lp := newMockLanguagePatcher(mockK8sClient, mockStore)
 
 	deploymentName := "test-deployment"
 	ns := "test-namespace"
@@ -348,7 +312,7 @@ func TestPatchOwner(t *testing.T) {
 
 	expectedAnnotations := map[string]string{
 		"apm.datadoghq.com/container-1.languages": "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages": "cpp,python,ruby",
+		"apm.datadoghq.com/container-2.languages": "python,ruby",
 		"apm.datadoghq.com/container-3.languages": "cpp",
 		"annotationkey1": "annotationvalue1",
 		"annotationkey2": "annotationvalue2",
@@ -358,8 +322,13 @@ func TestPatchOwner(t *testing.T) {
 }
 
 func TestPatchAllOwners(t *testing.T) {
+	mockStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2,
+	))
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
-	lp := newMockLanguagePatcher(mockK8sClient, workloadmeta.NewMockStore())
+	lp := newMockLanguagePatcher(mockK8sClient, mockStore)
 
 	gvr := schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 
@@ -459,7 +428,7 @@ func TestPatchAllOwners(t *testing.T) {
 					"annotationkey1": "annotationvalue1",
 					"annotationkey2": "annotationvalue2",
 					"apm.datadoghq.com/container-1.languages": "java,python",
-					"apm.datadoghq.com/container-2.languages": "cpp",
+					"apm.datadoghq.com/container-2.languages": "python",
 				},
 			},
 			"spec": map[string]interface{}{},
@@ -503,7 +472,7 @@ func TestPatchAllOwners(t *testing.T) {
 
 	expectedAnnotationsA := map[string]string{
 		"apm.datadoghq.com/container-1.languages":      "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages":      "cpp,python,ruby",
+		"apm.datadoghq.com/container-2.languages":      "python,ruby",
 		"apm.datadoghq.com/init.container-3.languages": "cpp",
 		"annotationkey1": "annotationvalue1",
 		"annotationkey2": "annotationvalue2",

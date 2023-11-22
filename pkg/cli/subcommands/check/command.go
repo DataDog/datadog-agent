@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
@@ -39,10 +40,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/cli/standalone"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -121,6 +125,11 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
+
+				workloadmeta.Module,
+				fx.Supply(workloadmeta.NewParams()),
+				fx.Supply(context.Background()),
+
 				forwarder.Bundle,
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				demultiplexer.Module,
@@ -172,7 +181,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component) error {
+func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
@@ -183,8 +192,8 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 		if pkgconfig.Datadog.IsSet("integration_tracing_exhaustive") {
 			previousIntegrationTracingExhaustive = pkgconfig.Datadog.GetBool("integration_tracing_exhaustive")
 		}
-		pkgconfig.Datadog.Set("integration_tracing", true)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true)
+		pkgconfig.Datadog.Set("integration_tracing", true, model.SourceAgentRuntime)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", true, model.SourceAgentRuntime)
 	}
 
 	if len(cliParams.args) != 0 {
@@ -223,11 +232,11 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, demultiplexer); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, demultiplexer); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}
@@ -363,34 +372,24 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 	var checkFileOutput bytes.Buffer
 	var instancesData []interface{}
 	printer := aggregator.AgentDemultiplexerPrinter{DemultiplexerWithAggregator: demultiplexer}
+	collectorData := statuscollector.GetStatusInfo()
+	checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
+		check := make(map[checkid.ID]*stats.Stats)
+		check[c.ID()] = s
+		checkRuns[c.String()] = check
 
 		// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 		time.Sleep(time.Duration(cliParams.checkDelay) * time.Millisecond)
 
 		if cliParams.formatJSON {
 			aggregatorData := printer.GetMetricsDataForPrint()
-			var collectorData map[string]interface{}
-
-			collectorJSON, _ := status.GetCheckStatusJSON(c, s)
-			err = json.Unmarshal(collectorJSON, &collectorData)
-			if err != nil {
-				return err
-			}
-
-			checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})[cliParams.checkName].(map[string]interface{})
 
 			// There is only one checkID per run so we'll just access that
-			var runnerData map[string]interface{}
-			for _, checkIDData := range checkRuns {
-				runnerData = checkIDData.(map[string]interface{})
-				break
-			}
-
 			instanceData := map[string]interface{}{
 				"aggregator":  aggregatorData,
-				"runner":      runnerData,
+				"runner":      s,
 				"inventories": collectorData["inventories"],
 			}
 			instancesData = append(instancesData, instanceData)
@@ -455,8 +454,9 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 				checkFileOutput.WriteString(data + "\n")
 			}
 
-			checkStatus, _ := status.GetCheckStatus(c, s)
-			p(string(checkStatus))
+			statusJSON, _ := json.Marshal(collectorData)
+			checkStatus, _ := render.FormatCheckStats(statusJSON)
+			p(checkStatus)
 
 			metadata := inventories.GetCheckMetadata(c)
 			if metadata != nil {
@@ -497,8 +497,8 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 	}
 
 	if cliParams.generateIntegrationTraces {
-		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing)
-		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive)
+		pkgconfig.Datadog.Set("integration_tracing", previousIntegrationTracing, model.SourceAgentRuntime)
+		pkgconfig.Datadog.Set("integration_tracing_exhaustive", previousIntegrationTracingExhaustive, model.SourceAgentRuntime)
 	}
 
 	return nil

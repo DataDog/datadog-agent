@@ -29,7 +29,6 @@ import (
 	"time"
 
 	"github.com/golang/mock/gomock"
-	"github.com/miekg/dns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	vnetns "github.com/vishvananda/netns"
@@ -51,6 +50,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
 	tracertest "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/testutil/testdns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -61,22 +61,6 @@ var kv = kernel.MustHostVersion()
 
 func platformInit() {
 	// linux-specific tasks here
-}
-
-func doDNSQuery(t *testing.T, domain string, serverIP string) (*net.UDPAddr, *net.UDPAddr) {
-	dnsServerAddr := &net.UDPAddr{IP: net.ParseIP(serverIP), Port: 53}
-	queryMsg := new(dns.Msg)
-	queryMsg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
-	queryMsg.RecursionDesired = true
-	dnsClient := new(dns.Client)
-	dnsConn, err := dnsClient.Dial(dnsServerAddr.String())
-	require.NoError(t, err)
-	dnsClientAddr := dnsConn.LocalAddr().(*net.UDPAddr)
-	_, _, err = dnsClient.ExchangeWithConn(queryMsg, dnsConn)
-	_ = dnsConn.Close()
-	require.NoError(t, err)
-
-	return dnsClientAddr, dnsServerAddr
 }
 
 func (s *TracerSuite) TestTCPRemoveEntries() {
@@ -404,33 +388,52 @@ func (s *TracerSuite) TestConntrackExpiration() {
 
 	tr := setupTracer(t, testConfig())
 
-	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
-	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
-	rand.Seed(time.Now().UnixNano())
-	port := 5430 + rand.Intn(100)
-	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
+	server := NewTCPServerOnAddress("1.1.1.1:0", func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
 		defer c.Close()
 
 		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
+		for {
+			b, err := r.ReadBytes(byte('\n'))
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+				require.NoError(t, err)
+			}
+			if bytes.Equal(b, []byte("\n")) {
+				return
+			}
+		}
 	})
-	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
+	t.Cleanup(server.Shutdown)
 
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
+	_, port, err := net.SplitHostPort(server.address)
+	require.NoError(t, err, "could not split server address %s", server.address)
+
+	c, err := net.Dial("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
-	defer c.Close()
-	_, err = c.Write([]byte("ping"))
-	require.NoError(t, err)
+	t.Cleanup(func() {
+		c.Close()
+	})
 
 	var conn *network.ConnectionStats
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_, err = c.Write([]byte("ping\n"))
+		if !assert.NoError(collect, err, "error sending data to server") {
+			return
+		}
+
 		connections := getConnections(t, tr)
+		t.Log(connections) // for debugging failures
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		return ok && tr.conntracker.GetTranslationForConn(*conn) != nil
+		if !assert.True(collect, ok, "connection not found") {
+			return
+		}
+		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(*conn), "connection does not have NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection translation")
 
 	// This will force the connection to be expired next time we call getConnections, but
@@ -612,8 +615,8 @@ func (s *TracerSuite) TestGatewayLookupNotEnabled() {
 		cloud = m
 
 		clouds := ddconfig.Datadog.Get("cloud_provider_metadata")
-		ddconfig.Datadog.Set("cloud_provider_metadata", []string{})
-		defer ddconfig.Datadog.Set("cloud_provider_metadata", clouds)
+		ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", []string{})
+		defer ddconfig.Datadog.SetWithoutSource("cloud_provider_metadata", clouds)
 
 		tr := setupTracer(t, cfg)
 		require.Nil(t, tr.gwLookup)
@@ -632,7 +635,8 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 	m.EXPECT().IsAWS().Return(true)
 	cloud = m
 
-	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
+	dnsAddr := net.ParseIP("8.8.8.8")
+	ifi := ipRouteGet(t, "", dnsAddr.String(), nil)
 	ifs, err := net.Interfaces()
 	require.NoError(t, err)
 
@@ -659,7 +663,15 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 
 	initTracerState(t, tr)
 
-	dnsClientAddr, dnsServerAddr := doDNSQuery(t, "google.com", "8.8.8.8")
+	var clientIP string
+	var clientPort int
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{"google.com"}, dnsAddr, "udp")
+		assert.NoError(c, err)
+	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
+
+	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
+	dnsServerAddr := &net.UDPAddr{IP: dnsAddr, Port: 53}
 
 	var conn *network.ConnectionStats
 	require.Eventually(t, func() bool {
@@ -684,6 +696,8 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	m.EXPECT().IsAWS().Return(true)
 	cloud = m
 
+	destAddr := net.ParseIP("8.8.8.8")
+	destDomain := "google.com"
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	// create the tracer without starting it
@@ -693,7 +707,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	t.Cleanup(tr.Stop)
 	require.NotNil(t, tr.gwLookup)
 
-	ifi := ipRouteGet(t, "", "8.8.8.8", nil)
+	ifi := ipRouteGet(t, "", destAddr.String(), nil)
 	calls := 0
 	tr.gwLookup.subnetForHwAddrFunc = func(hwAddr net.HardwareAddr) (network.Subnet, error) {
 		if hwAddr.String() == ifi.HardwareAddr.String() {
@@ -707,20 +721,32 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 
 	initTracerState(t, tr)
 
-	// do two dns queries to prompt more than one subnet lookup attempt
-	localAddr, remoteAddr := doDNSQuery(t, "google.com", "8.8.8.8")
+	var clientIP string
+	var clientPort int
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{destDomain}, destAddr, "udp")
+		assert.NoError(c, err)
+	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
+
+	dnsClientAddr := &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
+	dnsServerAddr := &net.UDPAddr{IP: destAddr, Port: 53}
 	var c *network.ConnectionStats
 	require.Eventually(t, func() bool {
 		var ok bool
-		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
 	}, 3*time.Second, 500*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
 
-	localAddr, remoteAddr = doDNSQuery(t, "google.com", "8.8.8.8")
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{destDomain}, destAddr, "udp")
+		assert.NoError(c, err)
+	}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
+
+	dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
 	require.Eventually(t, func() bool {
 		var ok bool
-		c, ok = findConnection(localAddr, remoteAddr, getConnections(t, tr))
+		c, ok = findConnection(dnsClientAddr, dnsServerAddr, getConnections(t, tr))
 		return ok
 	}, 3*time.Second, 500*time.Millisecond, "connection not found")
 	require.Nil(t, c.Via)
@@ -861,14 +887,23 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 		require.Nil(t, conn.Via)
 
 		// try connecting to something outside
+		dnsAddr := net.ParseIP("8.8.8.8")
 		var dnsClientAddr, dnsServerAddr *net.UDPAddr
-		kernel.WithNS(test2Ns, func() error {
-			dnsClientAddr, dnsServerAddr = doDNSQuery(t, "google.com", "8.8.8.8")
-			return nil
-		})
+		var clientIP string
+		var clientPort int
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			kernel.WithNS(test2Ns, func() error {
+				clientIP, clientPort, _, err = testdns.SendDNSQueries(t, []string{"google.com"}, dnsAddr, "udp")
+				return nil
+			})
+			assert.NoError(c, err)
+		}, 6*time.Second, 100*time.Millisecond, "failed to send dns query")
+
+		dnsClientAddr = &net.UDPAddr{IP: net.ParseIP(clientIP), Port: clientPort}
+		dnsServerAddr = &net.UDPAddr{IP: dnsAddr, Port: 53}
 
 		iif := ipRouteGet(t, "", dnsClientAddr.IP.String(), nil)
-		ifi := ipRouteGet(t, dnsClientAddr.IP.String(), "8.8.8.8", iif)
+		ifi := ipRouteGet(t, dnsClientAddr.IP.String(), dnsAddr.String(), iif)
 
 		require.Eventually(t, func() bool {
 			var ok bool
@@ -1180,7 +1215,7 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	t.Cleanup(cancel)
 	out, err := testutil.RunCommandWithContext(ctx, "testdata/reuseport.py")
-	require.NoError(t, err)
+	require.NoError(t, err, "error running reuseport.py, output: %s", out)
 
 	port, err := strconv.ParseUint(strings.TrimSpace(strings.Split(out, "\n")[0]), 10, 16)
 	require.NoError(t, err, "could not convert %s to integer port", out)
@@ -1200,6 +1235,8 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 		for _, c := range _conns {
 			conns[string(c.ByteKey(buf))] = c
 		}
+
+		t.Log(conns)
 
 		return len(conns) == 4
 	}, 3*time.Second, 100*time.Millisecond, "could not find expected number of udp connections, expected: 4")
@@ -1674,14 +1711,19 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 func (s *TracerSuite) TestBlockingReadCounts() {
 	t := s.T()
 	tr := setupTracer(t, testConfig())
+	ch := make(chan struct{})
 	server := NewTCPServer(func(c net.Conn) {
-		c.Write([]byte("foo"))
+		_, err := c.Write([]byte("foo"))
+		require.NoError(t, err, "error writing to client")
 		time.Sleep(time.Second)
-		c.Write([]byte("foo"))
+		_, err = c.Write([]byte("foo"))
+		require.NoError(t, err, "error writing to client")
+		<-ch
 	})
 
 	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
+	t.Cleanup(func() { close(ch) })
 
 	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
 	require.NoError(t, err)

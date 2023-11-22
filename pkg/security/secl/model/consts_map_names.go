@@ -77,6 +77,7 @@ var bpfMapNames = []string{
 	"traced_cgroups",
 	"traced_comms",
 	"traced_pids",
+	"user_sessions",
 	"veth_device_nam",
 	"veth_devices",
 	"veth_state_mach",

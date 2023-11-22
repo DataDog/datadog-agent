@@ -176,7 +176,7 @@ func runTestDiscarders(t *testing.T, metrics map[string]*metric) {
 			Expression: fmt.Sprintf(`unlink.file.path =~ "{{.Root}}/files_generator_root/%s/no-approver-*"`, noDiscardersDirName),
 		},
 	}
-	test, err := newTestModule(t, nil, rules, testOpts{enableActivityDump: false})
+	test, err := newTestModule(t, nil, rules, withStaticOpts(testOpts{enableActivityDump: false}))
 	if err != nil {
 		t.Fatal(err)
 	}
