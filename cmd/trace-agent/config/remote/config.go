@@ -76,7 +76,6 @@ func ConfigHandler(r *api.HTTPReceiver, client remote.ConfigUpdater, cfg *config
 		}
 		cfg, err := client.ClientGetConfigs(req.Context(), &configsRequest)
 		if err != nil {
-			log.Errorf("XXXX %v", err)
 			if e, ok := status.FromError(err); ok {
 				switch e.Code() {
 				case codes.Unimplemented, codes.NotFound:
