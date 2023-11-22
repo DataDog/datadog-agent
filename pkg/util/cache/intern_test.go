@@ -15,18 +15,15 @@ type localRetainer struct {
 	retentions map[Refcounted]int32
 }
 
-func (r *localRetainer) ReferenceN(obj Refcounted, n int32) {
-	//TODO implement me
+func (r *localRetainer) ReferenceN(Refcounted, int32) {
 	panic("implement me")
 }
 
-func (r *localRetainer) CopyTo(dest InternRetainer) {
-	//TODO implement me
+func (r *localRetainer) CopyTo(InternRetainer) {
 	panic("implement me")
 }
 
-func (r *localRetainer) Import(source InternRetainer) {
-	//TODO implement me
+func (r *localRetainer) Import(InternRetainer) {
 	panic("implement me")
 }
 

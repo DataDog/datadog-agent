@@ -38,12 +38,12 @@ func (*mmapHash) sizes() (int64, int64) {
 	return 0, 0
 }
 
-func newMmapHash(origin string, fileSize int64, prefixPath string, closeOnRelease, enableDiagnostics bool) (*mmapHash, error) {
+func newMmapHash(string, int64, string, bool, bool) (*mmapHash, error) {
 	return nil, errors.New("unsupported platform for mmap hash")
 }
 
 // Check a string to make sure it's still valid.  Save a histogram of failures for tracking
-func Check(tag string) bool {
+func Check(string) bool {
 	return true
 }
 

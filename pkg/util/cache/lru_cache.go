@@ -16,18 +16,26 @@ var (
 	// There are multiple instances of the interner, one per worker. Counters are normally fine,
 	// gauges require special care to make sense. We don't need to clean up when an instance is
 	// dropped, because it only happens on agent shutdown.
+
+	// TlmSIDrops counts strings dropped for being the least recently used
 	TlmSIDrops = telemetry.NewCounter("dogstatsd", "string_interner_drops", []string{"interner_id"},
 		"Amount of drops of the string interner used in dogstatsd")
+	// TlmSIRSize counts the number of entries in the string interner
 	TlmSIRSize = telemetry.NewGauge("dogstatsd", "string_interner_entries", []string{"interner_id"},
 		"Number of entries in the string interner")
+	// TlmSIRBytes counts the number of bytes stored in the string interner
 	TlmSIRBytes = telemetry.NewGauge("dogstatsd", "string_interner_bytes", []string{"interner_id"},
 		"Number of bytes stored in the string interner")
+	// TlmSIRHits counts the number of times string interner returned an existing string
 	TlmSIRHits = telemetry.NewCounter("dogstatsd", "string_interner_hits", []string{"interner_id"},
 		"Number of times string interner returned an existing string")
+	// TlmSIRMiss counts the number of times string interner created a new string object
 	TlmSIRMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
 		"Number of times string interner created a new string object")
+	// TlmSIRNew counts the number of times string interner was created
 	TlmSIRNew = telemetry.NewSimpleCounter("dogstatsd", "string_interner_new",
 		"Number of times string interner was created")
+	// TlmSIRStrBytes is a histogram for interned string lengths.
 	TlmSIRStrBytes = telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",
 		"Number of times string with specific length were added",
 		[]float64{1, 2, 4, 8, 16, 32, 64, 128})
@@ -78,12 +86,12 @@ func newLruStringCache(maxSize int, origin string) lruStringCache {
 	return *i
 }
 
-func (i *lruStringCache) prepareTelemetry() {
-	i.telemetry.drops = TlmSIDrops.WithValues(i.origin)
-	i.telemetry.size = TlmSIRSize.WithValues(i.origin)
-	i.telemetry.bytes = TlmSIRBytes.WithValues(i.origin)
-	i.telemetry.hits = TlmSIRHits.WithValues(i.origin)
-	i.telemetry.miss = TlmSIRMiss.WithValues(i.origin)
+func (c *lruStringCache) prepareTelemetry() {
+	c.telemetry.drops = TlmSIDrops.WithValues(c.origin)
+	c.telemetry.size = TlmSIRSize.WithValues(c.origin)
+	c.telemetry.bytes = TlmSIRBytes.WithValues(c.origin)
+	c.telemetry.hits = TlmSIRHits.WithValues(c.origin)
+	c.telemetry.miss = TlmSIRMiss.WithValues(c.origin)
 }
 
 func (c *lruStringCache) deleteOldestNode() {
