@@ -456,6 +456,7 @@ func (ev *Event) resolveFields(forADs bool) {
 	case "mount":
 		_ = ev.FieldHandlers.ResolveMountPointPath(ev, &ev.Mount)
 		_ = ev.FieldHandlers.ResolveMountSourcePath(ev, &ev.Mount)
+		_ = ev.FieldHandlers.ResolveMountRootPath(ev, &ev.Mount)
 	case "mprotect":
 	case "open":
 		_ = ev.FieldHandlers.ResolveFileFieldsUser(ev, &ev.Open.File.FileFields)
@@ -958,6 +959,7 @@ type FieldHandlers interface {
 	ResolveModuleArgs(ev *Event, e *LoadModuleEvent) string
 	ResolveModuleArgv(ev *Event, e *LoadModuleEvent) []string
 	ResolveMountPointPath(ev *Event, e *MountEvent) string
+	ResolveMountRootPath(ev *Event, e *MountEvent) string
 	ResolveMountSourcePath(ev *Event, e *MountEvent) string
 	ResolveNetworkDeviceIfName(ev *Event, e *NetworkDeviceContext) string
 	ResolvePackageName(ev *Event, e *FileEvent) string
@@ -1042,6 +1044,9 @@ func (dfh *DefaultFieldHandlers) ResolveModuleArgv(ev *Event, e *LoadModuleEvent
 }
 func (dfh *DefaultFieldHandlers) ResolveMountPointPath(ev *Event, e *MountEvent) string {
 	return e.MountPointPath
+}
+func (dfh *DefaultFieldHandlers) ResolveMountRootPath(ev *Event, e *MountEvent) string {
+	return e.MountRootPath
 }
 func (dfh *DefaultFieldHandlers) ResolveMountSourcePath(ev *Event, e *MountEvent) string {
 	return e.MountSourcePath

@@ -18,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -28,20 +27,22 @@ import (
 
 // PlatformProbe defines a platform dependant probe
 type PlatformProbe interface {
-	setup() error
-	init() error
-	start() error
-	stop()
-	sendStats() error
-	snapshot() error
-	close() error
-	newModel() *model.Model
-	dumpDiscarders() (string, error)
-	getResolvers() *resolvers.Resolvers
-	flushDiscarders() error
-	applyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
-	onNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
-	handleActions(_ *rules.Rule, _ eval.Event)
+	Setup() error
+	Init() error
+	Start() error
+	Stop()
+	SendStats() error
+	Snapshot() error
+	Close() error
+	NewModel() *model.Model
+	DumpDiscarders() (string, error)
+	FlushDiscarders() error
+	ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error)
+	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
+	HandleActions(_ *rules.Rule, _ eval.Event)
+	NewEvent() *model.Event
+	GetFieldHandlers() model.FieldHandlers
+	DumpProcessCache(_ bool) (string, error)
 }
 
 // FullAccessEventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
@@ -83,68 +84,72 @@ type Probe struct {
 	customEventHandlers     [model.MaxAllEventType][]CustomEventHandler
 
 	// internals
-	// TODO safchain move resolvers and field handlers to platform specific
-	fieldHandlers *FieldHandlers
-	event         *model.Event
+	event     *model.Event
+	eventCtor func() eval.Event
 }
 
 // Init initializes the probe
 func (p *Probe) Init() error {
 	p.startTime = time.Now()
-	return p.PlatformProbe.init()
+	return p.PlatformProbe.Init()
 }
 
 // Setup the runtime security probe
 func (p *Probe) Setup() error {
-	return p.PlatformProbe.setup()
+	return p.PlatformProbe.Setup()
 }
 
 // Start plays the snapshot data and then start the event stream
 func (p *Probe) Start() error {
-	return p.PlatformProbe.start()
+	return p.PlatformProbe.Start()
 }
 
 // SendStats sends statistics about the probe to Datadog
 func (p *Probe) SendStats() error {
-	return p.PlatformProbe.sendStats()
+	return p.PlatformProbe.SendStats()
 }
 
 // Close the probe
 func (p *Probe) Close() error {
-	return p.PlatformProbe.close()
+	return p.PlatformProbe.Close()
 }
 
 // Stop the probe
 func (p *Probe) Stop() {
-	p.PlatformProbe.stop()
+	p.PlatformProbe.Stop()
 }
 
 // FlushDiscarders invalidates all the discarders
 func (p *Probe) FlushDiscarders() error {
 	seclog.Debugf("Flushing discarders")
-	return p.PlatformProbe.flushDiscarders()
+	return p.PlatformProbe.FlushDiscarders()
 }
 
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *Probe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
-	return p.PlatformProbe.applyRuleSet(rs)
+	return p.PlatformProbe.ApplyRuleSet(rs)
 }
 
 // Snapshot runs the different snapshot functions of the resolvers that
 // require to sync with the current state of the system
 func (p *Probe) Snapshot() error {
-	return p.PlatformProbe.snapshot()
+	return p.PlatformProbe.Snapshot()
 }
 
 // OnNewDiscarder is called when a new discarder is found
 func (p *Probe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
-	p.PlatformProbe.onNewDiscarder(rs, ev, field, eventType)
+	p.PlatformProbe.OnNewDiscarder(rs, ev, field, eventType)
 }
 
 // DumpDiscarders removes all the discarders
 func (p *Probe) DumpDiscarders() (string, error) {
 	seclog.Debugf("Dumping discarders")
-	return p.PlatformProbe.dumpDiscarders()
+	return p.PlatformProbe.DumpDiscarders()
+}
+
+// DumpProcessCache dump the process cache
+func (p *Probe) DumpProcessCache(withArgs bool) (string, error) {
+	return p.PlatformProbe.DumpProcessCache(withArgs)
 }
 
 // GetDebugStats returns the debug stats
@@ -156,14 +161,9 @@ func (p *Probe) GetDebugStats() map[string]interface{} {
 	return debug
 }
 
-// GetResolvers returns the resolvers of Probe
-func (p *Probe) GetResolvers() *resolvers.Resolvers {
-	return p.PlatformProbe.getResolvers()
-}
-
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
-	p.PlatformProbe.handleActions(rule, event)
+	p.PlatformProbe.HandleActions(rule, event)
 }
 
 // AddEventHandler sets a probe event handler
@@ -227,7 +227,7 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 
 func (p *Probe) zeroEvent() *model.Event {
 	p.event.Zero()
-	p.event.FieldHandlers = p.fieldHandlers
+	p.event.FieldHandlers = p.PlatformProbe.GetFieldHandlers()
 	return p.event
 }
 
@@ -238,7 +238,9 @@ func (p *Probe) StatsPollingInterval() time.Duration {
 
 // GetEventTags returns the event tags
 func (p *Probe) GetEventTags(containerID string) []string {
-	return p.GetResolvers().TagsResolver.Resolve(containerID)
+	// TODO(safchain) restore this
+	return nil
+	//	return p.GetResolvers().TagsResolver.Resolve(containerID)
 }
 
 // GetService returns the service name from the process tree
@@ -262,10 +264,10 @@ func (p *Probe) NewEvaluationSet(eventTypeEnabled map[eval.EventType]bool, ruleS
 		}
 
 		eventCtor := func() eval.Event {
-			return NewEvent(p.fieldHandlers)
+			return p.PlatformProbe.NewEvent()
 		}
 
-		rs := rules.NewRuleSet(p.PlatformProbe.newModel(), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
+		rs := rules.NewRuleSet(p.PlatformProbe.NewModel(), eventCtor, ruleOpts.WithRuleSetTag(ruleSetTagValue), evalOpts)
 		ruleSetsToInclude = append(ruleSetsToInclude, rs)
 	}
 
@@ -320,6 +322,11 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		}
 		p.PlatformProbe = pp
 	}
+
+	p.event = p.PlatformProbe.NewEvent()
+
+	// be sure to zero the probe event before everything else
+	p.zeroEvent()
 
 	return p, nil
 }

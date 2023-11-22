@@ -14,3 +14,10 @@ import (
 func NewEBPFLessModel(probe *EBPFLessProbe) *model.Model {
 	return &model.Model{}
 }
+
+// NewEvent returns a new event
+func NewEBPFLessEvent(fh *EBPFLessFieldHandlers) *model.Event {
+	event := model.NewDefaultEvent()
+	event.FieldHandlers = fh
+	return event
+}

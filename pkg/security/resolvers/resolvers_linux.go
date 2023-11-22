@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux
-
 // Package resolvers holds resolvers related files
 package resolvers
 
@@ -40,16 +38,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// Opts defines common options
-type Opts struct {
-	PathResolutionEnabled bool
-	TagsResolver          tags.Resolver
-	UseRingBuffer         bool
-	TTYFallbackEnabled    bool
-}
-
-// Resolvers holds the list of the event attribute resolvers
-type Resolvers struct {
+// EBPFResolvers holds the list of the event attribute resolvers
+type EBPFResolvers struct {
 	manager           *manager.Manager
 	MountResolver     *mount.Resolver
 	ContainerResolver *container.Resolver
@@ -57,7 +47,7 @@ type Resolvers struct {
 	UserGroupResolver *usergroup.Resolver
 	TagsResolver      tags.Resolver
 	DentryResolver    *dentry.Resolver
-	ProcessResolver   *process.Resolver
+	ProcessResolver   *process.EBPFResolver
 	NamespaceResolver *netns.Resolver
 	CGroupResolver    *cgroup.Resolver
 	TCResolver        *tc.Resolver
@@ -67,8 +57,8 @@ type Resolvers struct {
 	UserSessions      *usersessions.Resolver
 }
 
-// NewResolvers creates a new instance of Resolvers
-func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*Resolvers, error) {
+// NewEBPFResolvers creates a new instance of EBPFResolvers
+func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, eRPC *erpc.ERPC, opts Opts) (*EBPFResolvers, error) {
 	dentryResolver, err := dentry.NewResolver(config.Probe, statsdClient, eRPC)
 	if err != nil {
 		return nil, err
@@ -145,7 +135,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		processOpts.WithTTYFallbackEnabled()
 	}
 
-	processResolver, err := process.NewResolver(manager, config.Probe, statsdClient,
+	processResolver, err := process.NewEBPFResolver(manager, config.Probe, statsdClient,
 		scrubber, containerResolver, mountResolver, cgroupsResolver, userGroupResolver, timeResolver, pathResolver, processOpts)
 	if err != nil {
 		return nil, err
@@ -160,7 +150,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
-	resolvers := &Resolvers{
+	resolvers := &EBPFResolvers{
 		manager:           manager,
 		MountResolver:     mountResolver,
 		ContainerResolver: containerResolver,
@@ -182,7 +172,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 }
 
 // Start the resolvers
-func (r *Resolvers) Start(ctx context.Context) error {
+func (r *EBPFResolvers) Start(ctx context.Context) error {
 	if err := r.ProcessResolver.Start(ctx); err != nil {
 		return err
 	}
@@ -207,7 +197,7 @@ func (r *Resolvers) Start(ctx context.Context) error {
 }
 
 // Snapshot collects data on the current state of the system to populate user space and kernel space caches.
-func (r *Resolvers) Snapshot() error {
+func (r *EBPFResolvers) Snapshot() error {
 	if err := r.snapshot(); err != nil {
 		return fmt.Errorf("unable to snapshot processes: %w", err)
 	}
@@ -228,7 +218,7 @@ func (r *Resolvers) Snapshot() error {
 }
 
 // snapshot internal version of Snapshot. Calls the relevant resolvers to sync their caches.
-func (r *Resolvers) snapshot() error {
+func (r *EBPFResolvers) snapshot() error {
 	// List all processes, to trigger the process and mount snapshots
 	processes, err := utils.GetProcesses()
 	if err != nil {
@@ -288,7 +278,7 @@ func (r *Resolvers) snapshot() error {
 }
 
 // Close cleans up any underlying resolver that requires a cleanup
-func (r *Resolvers) Close() error {
+func (r *EBPFResolvers) Close() error {
 	// clean up the dentry resolver eRPC segment
 	return r.DentryResolver.Close()
 }

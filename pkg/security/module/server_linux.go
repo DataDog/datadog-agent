@@ -19,7 +19,7 @@ import (
 )
 
 // DumpDiscarders handles discarder dump requests
-func (a *APIServer) DumpDiscarders(ctx context.Context, params *api.DumpDiscardersParams) (*api.DumpDiscardersMessage, error) { //nolint:revive // TODO fix revive unused-parameter
+func (a *APIServer) DumpDiscarders(_ context.Context, _ *api.DumpDiscardersParams) (*api.DumpDiscardersMessage, error) {
 	filePath, err := a.probe.DumpDiscarders()
 	if err != nil {
 		return nil, err
@@ -30,10 +30,8 @@ func (a *APIServer) DumpDiscarders(ctx context.Context, params *api.DumpDiscarde
 }
 
 // DumpProcessCache handles process cache dump requests
-func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) { //nolint:revive // TODO fix revive unused-parameter
-	resolvers := a.probe.GetResolvers()
-
-	filename, err := resolvers.ProcessResolver.Dump(params.WithArgs)
+func (a *APIServer) DumpProcessCache(_ context.Context, params *api.DumpProcessCacheParams) (*api.SecurityDumpProcessCacheMessage, error) {
+	filename, err := a.probe.DumpProcessCache(params.WithArgs)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +42,7 @@ func (a *APIServer) DumpProcessCache(ctx context.Context, params *api.DumpProces
 }
 
 // DumpActivity handle an activity dump request
-func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) { //nolint:revive // TODO fix revive unused-parameter
+func (a *APIServer) DumpActivity(_ context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
 		return nil, fmt.Errorf("not supported")
@@ -62,7 +60,7 @@ func (a *APIServer) DumpActivity(ctx context.Context, params *api.ActivityDumpPa
 }
 
 // ListActivityDumps returns the list of active dumps
-func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) { //nolint:revive // TODO fix revive unused-parameter
+func (a *APIServer) ListActivityDumps(_ context.Context, params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
 		return nil, fmt.Errorf("not supported")
@@ -80,7 +78,7 @@ func (a *APIServer) ListActivityDumps(ctx context.Context, params *api.ActivityD
 }
 
 // StopActivityDump stops an active activity dump if it exists
-func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) { //nolint:revive // TODO fix revive unused-parameter
+func (a *APIServer) StopActivityDump(_ context.Context, params *api.ActivityDumpStopParams) (*api.ActivityDumpStopMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
 		return nil, fmt.Errorf("not supported")
@@ -98,7 +96,7 @@ func (a *APIServer) StopActivityDump(ctx context.Context, params *api.ActivityDu
 }
 
 // TranscodingRequest encodes an activity dump following the requested parameters
-func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) { //nolint:revive // TODO fix revive unused-parameter
+func (a *APIServer) TranscodingRequest(_ context.Context, params *api.TranscodingRequestParams) (*api.TranscodingRequestMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
 		return nil, fmt.Errorf("not supported")
@@ -116,7 +114,7 @@ func (a *APIServer) TranscodingRequest(ctx context.Context, params *api.Transcod
 }
 
 // ListSecurityProfiles returns the list of security profiles
-func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) { //nolint:revive // TODO fix revive unused-parameter
+func (a *APIServer) ListSecurityProfiles(_ context.Context, params *api.SecurityProfileListParams) (*api.SecurityProfileListMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
 		return nil, fmt.Errorf("not supported")
@@ -134,7 +132,7 @@ func (a *APIServer) ListSecurityProfiles(ctx context.Context, params *api.Securi
 }
 
 // SaveSecurityProfile saves the requested security profile to disk
-func (a *APIServer) SaveSecurityProfile(ctx context.Context, params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) { //nolint:revive // TODO fix revive unused-parameter
+func (a *APIServer) SaveSecurityProfile(_ context.Context, params *api.SecurityProfileSaveParams) (*api.SecurityProfileSaveMessage, error) {
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if !ok {
 		return nil, fmt.Errorf("not supported")
@@ -152,7 +150,7 @@ func (a *APIServer) SaveSecurityProfile(ctx context.Context, params *api.Securit
 }
 
 // GetStatus returns the status of the module
-func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) (*api.Status, error) { //nolint:revive // TODO fix revive unused-parameter
+func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.Status, error) {
 	apiStatus := &api.Status{
 		SelfTests: a.selfTester.GetStatus(),
 	}
@@ -196,12 +194,17 @@ func (a *APIServer) GetStatus(ctx context.Context, params *api.GetStatusParams) 
 }
 
 // DumpNetworkNamespace handles network namespace cache dump requests
-func (a *APIServer) DumpNetworkNamespace(ctx context.Context, params *api.DumpNetworkNamespaceParams) (*api.DumpNetworkNamespaceMessage, error) { //nolint:revive // TODO fix revive unused-parameter
-	return a.probe.GetResolvers().NamespaceResolver.DumpNetworkNamespaces(params), nil
+func (a *APIServer) DumpNetworkNamespace(_ context.Context, params *api.DumpNetworkNamespaceParams) (*api.DumpNetworkNamespaceMessage, error) {
+	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
+	if !ok {
+		return nil, fmt.Errorf("not supported")
+	}
+
+	return p.Resolvers.NamespaceResolver.DumpNetworkNamespaces(params), nil
 }
 
 // RunSelfTest runs self test and then reload the current policies
-func (a *APIServer) RunSelfTest(ctx context.Context, params *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) { //nolint:revive // TODO fix revive unused-parameter
+func (a *APIServer) RunSelfTest(_ context.Context, _ *api.RunSelfTestParams) (*api.SecuritySelfTestResultMessage, error) {
 	if a.cwsConsumer == nil {
 		return nil, errors.New("failed to found module in APIServer")
 	}

@@ -593,7 +593,6 @@ type BaseExtraFieldHandlers interface {
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
 	ResolveEventTime(ev *Event) time.Time
 	GetProcessService(ev *Event) string
-	ResolveK8SExtra(ev *Event, ctx *UserSessionContext) map[string][]string
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -614,14 +613,4 @@ func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
 // GetProcessService stub implementation
 func (dfh *DefaultFieldHandlers) GetProcessService(ev *Event) string {
 	return ""
-}
-
-// ResolveHashes resolves the hash of the provided file
-func (dfh *DefaultFieldHandlers) ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string {
-	return nil
-}
-
-// ResolveK8SExtra resolves the K8S user session extra field
-func (dfh *DefaultFieldHandlers) ResolveK8SExtra(_ *Event, _ *UserSessionContext) map[string][]string {
-	return nil
 }

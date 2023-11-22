@@ -74,7 +74,7 @@ func (m *EBPFMonitors) Init() error {
 		}
 	}
 
-	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.statsdClient, p.resolvers.CGroupResolver)
+	m.cgroupsMonitor = cgroups.NewCgroupsMonitor(p.statsdClient, p.Resolvers.CGroupResolver)
 
 	return nil
 }
@@ -90,7 +90,7 @@ func (m *EBPFMonitors) SendStats() error {
 	const delay = time.Second
 	time.Sleep(delay)
 
-	if resolvers := m.ebpfProbe.resolvers; resolvers != nil {
+	if resolvers := m.ebpfProbe.Resolvers; resolvers != nil {
 		if err := resolvers.ProcessResolver.SendStats(); err != nil {
 			return fmt.Errorf("failed to send process_resolver stats: %w", err)
 		}
@@ -168,21 +168,21 @@ func (m *EBPFMonitors) ProcessEvent(event *model.Event) {
 	var pathErr *path.ErrPathResolution
 	if errors.As(event.Error, &pathErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, m.ebpfProbe.resolvers, pathErr.Err),
+			NewAbnormalEvent(events.AbnormalPathRuleID, events.AbnormalPathRuleDesc, event, pathErr.Err),
 		)
 	}
 
 	var processContextErr *model.ErrNoProcessContext
 	if errors.As(event.Error, &processContextErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, m.ebpfProbe.resolvers, event.Error),
+			NewAbnormalEvent(events.NoProcessContextErrorRuleID, events.NoProcessContextErrorRuleDesc, event, event.Error),
 		)
 	}
 
 	var brokenLineageErr *model.ErrProcessBrokenLineage
 	if errors.As(event.Error, &brokenLineageErr) {
 		m.ebpfProbe.probe.DispatchCustomEvent(
-			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, m.ebpfProbe.resolvers, event.Error),
+			NewAbnormalEvent(events.BrokenProcessLineageErrorRuleID, events.BrokenProcessLineageErrorRuleDesc, event, event.Error),
 		)
 	}
 }

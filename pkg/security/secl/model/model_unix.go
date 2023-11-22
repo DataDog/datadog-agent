@@ -284,6 +284,35 @@ func (p *Process) IsNotKworker() bool {
 	return !p.IsKworker
 }
 
+// GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
+func (p *Process) GetProcessArgv() ([]string, bool) {
+	if p.ArgsEntry == nil {
+		return p.Argv, p.ArgsTruncated
+	}
+
+	argv := p.ArgsEntry.Values
+	if len(argv) > 0 {
+		argv = argv[1:]
+	}
+	p.Argv = argv
+	p.ArgsTruncated = p.ArgsTruncated || p.ArgsEntry.Truncated
+	return p.Argv, p.ArgsTruncated
+}
+
+// GetProcessArgv0 returns the first arg of the event and whether the process arguments are truncated
+func (p *Process) GetProcessArgv0() (string, bool) {
+	if p.ArgsEntry == nil {
+		return p.Argv0, p.ArgsTruncated
+	}
+
+	argv := p.ArgsEntry.Values
+	if len(argv) > 0 {
+		p.Argv0 = argv[0]
+	}
+	p.ArgsTruncated = p.ArgsTruncated || p.ArgsEntry.Truncated
+	return p.Argv0, p.ArgsTruncated
+}
+
 // LinuxBinprm contains content from the linux_binprm struct, which holds the arguments used for loading binaries
 type LinuxBinprm struct {
 	FileEvent FileEvent `field:"file"`
@@ -507,8 +536,10 @@ type MountEvent struct {
 	Mount
 	MountPointPath                 string `field:"mountpoint.path,handler:ResolveMountPointPath"` // SECLDoc[mountpoint.path] Definition:`Path of the mount point`
 	MountSourcePath                string `field:"source.path,handler:ResolveMountSourcePath"`    // SECLDoc[source.path] Definition:`Source path of a bind mount`
+	MountRootPath                  string `field:"root.path,handler:ResolveMountRootPath"`        // SECLDoc[root.path] Definition:`Root path of the mount`
 	MountPointPathResolutionError  error  `field:"-"`
 	MountSourcePathResolutionError error  `field:"-"`
+	MountRootPathResolutionError   error  `field:"-"`
 }
 
 // UnshareMountNSEvent represents a mount cloned from a newly created mount namespace
@@ -885,4 +916,15 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 type ExtraFieldHandlers interface {
 	BaseExtraFieldHandlers
 	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
+	ResolveK8SExtra(ev *Event, ctx *UserSessionContext) map[string][]string
+}
+
+// ResolveHashes resolves the hash of the provided file
+func (dfh *DefaultFieldHandlers) ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string {
+	return nil
+}
+
+// ResolveK8SExtra resolves the K8S user session extra field
+func (dfh *DefaultFieldHandlers) ResolveK8SExtra(_ *Event, _ *UserSessionContext) map[string][]string {
+	return nil
 }

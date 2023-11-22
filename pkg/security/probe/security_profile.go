@@ -36,7 +36,7 @@ func NewSecurityProfileManagers(p *EBPFProbe) (*SecurityProfileManagers, error) 
 	}
 
 	if p.probe.IsActivityDumpEnabled() {
-		activityDumpManager, err := dump.NewActivityDumpManager(p.config, p.statsdClient, func() *model.Event { return NewEvent(p.probe.fieldHandlers) }, p.resolvers, p.kernelVersion, p.Manager)
+		activityDumpManager, err := dump.NewActivityDumpManager(p.config, p.statsdClient, p.NewEvent, p.Resolvers, p.kernelVersion, p.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the activity dump manager: %w", err)
 		}
@@ -44,7 +44,7 @@ func NewSecurityProfileManagers(p *EBPFProbe) (*SecurityProfileManagers, error) 
 	}
 
 	if p.probe.IsSecurityProfileEnabled() {
-		securityProfileManager, err := profile.NewSecurityProfileManager(p.config, p.statsdClient, p.resolvers, p.Manager)
+		securityProfileManager, err := profile.NewSecurityProfileManager(p.config, p.statsdClient, p.Resolvers, p.Manager)
 		if err != nil {
 			return nil, fmt.Errorf("couldn't create the security profile manager: %w", err)
 		}

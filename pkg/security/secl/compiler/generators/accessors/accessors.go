@@ -835,14 +835,6 @@ func needScrubbed(fieldName string) bool {
 	return false
 }
 
-func needFiltered(fieldName string) bool {
-	loweredFieldName := strings.ToLower(fieldName)
-	if strings.Contains(loweredFieldName, "env") && !strings.Contains(loweredFieldName, "truncated") {
-		return true
-	}
-	return false
-}
-
 func combineFieldMaps(map1 map[string]*common.StructField, map2 map[string]*common.StructField) map[string]*common.StructField {
 	combined := make(map[string]*common.StructField)
 	for k, v := range map1 {
@@ -977,7 +969,6 @@ var funcMap = map[string]interface{}{
 	"PascalCaseFieldName":      pascalCaseFieldName,
 	"GetDefaultValueOfType":    getDefaultValueOfType,
 	"NeedScrubbed":             needScrubbed,
-	"NeedFiltered":             needFiltered,
 	"CombineFieldMaps":         combineFieldMaps,
 	"AddSuffixToFuncPrototype": addSuffixToFuncPrototype,
 }
@@ -1076,7 +1067,7 @@ func removeEmptyLines(input *bytes.Buffer) string {
 
 func init() {
 	flag.BoolVar(&verbose, "verbose", false, "Be verbose")
-	flag.StringVar(&docOutput, "doc", "../../../../docs/cloud-workload-security/secl.json", "Generate documentation JSON")
+	flag.StringVar(&docOutput, "doc", "", "Generate documentation JSON")
 	flag.StringVar(&fieldHandlersOutput, "field-handlers", "field_handlers_unix.go", "Field handlers output file")
 	flag.StringVar(&modelFile, "input", os.Getenv("GOFILE"), "Go file to generate decoders from")
 	flag.StringVar(&typesFile, "types-file", os.Getenv("TYPESFILE"), "Go type file to use with the model file")

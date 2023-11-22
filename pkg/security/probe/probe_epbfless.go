@@ -30,7 +30,7 @@ import (
 
 // EBPFLessProbe defines an eBPF less probe
 type EBPFLessProbe struct {
-	probe *Probe
+	Resolvers *resolvers.EBPFLessResolvers
 
 	// Constants and configuration
 	opts         Opts
@@ -39,11 +39,12 @@ type EBPFLessProbe struct {
 
 	// internals
 	ebpfless.UnimplementedSyscallMsgStreamServer
-	server    *grpc.Server
-	seqNum    uint64
-	resolvers *resolvers.Resolvers
-	ctx       context.Context
-	cancelFnc context.CancelFunc
+	server        *grpc.Server
+	seqNum        uint64
+	probe         *Probe
+	ctx           context.Context
+	cancelFnc     context.CancelFunc
+	fieldHandlers *EBPFLessFieldHandlers
 }
 
 func (p *EBPFLessProbe) SendSyscallMsg(ctx context.Context, syscallMsg *ebpfless.SyscallMsg) (*ebpfless.Response, error) {
@@ -95,7 +96,7 @@ func (p *EBPFLessProbe) SendSyscallMsg(ctx context.Context, syscallMsg *ebpfless
 // DispatchEvent sends an event to the probe event handler
 func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 	traceEvent("Dispatching event %s", func() ([]byte, model.EventType, error) {
-		eventJSON, err := serializers.MarshalEvent(event, p.resolvers)
+		eventJSON, err := serializers.MarshalEvent(event)
 		return eventJSON, event.GetEventType(), err
 	})
 
@@ -106,24 +107,28 @@ func (p *EBPFLessProbe) DispatchEvent(event *model.Event) {
 	p.probe.sendEventToSpecificEventTypeHandlers(event)
 }
 
-func (p *EBPFLessProbe) init() error {
-	if err := p.resolvers.Start(p.ctx); err != nil {
+// Init the probe
+func (p *EBPFLessProbe) Init() error {
+	if err := p.Resolvers.Start(p.ctx); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (p *EBPFLessProbe) stop() {
+// Stop the probe
+func (p *EBPFLessProbe) Stop() {
 	p.server.GracefulStop()
 	p.cancelFnc()
 }
 
-func (p *EBPFLessProbe) close() error {
+// Close the probe
+func (p *EBPFLessProbe) Close() error {
 	return nil
 }
 
-func (p *EBPFLessProbe) start() error {
+// Start the probe
+func (p *EBPFLessProbe) Start() error {
 	family, address := config.GetFamilyAddress(p.config.RuntimeSecurity.EBPFLessSocket)
 
 	conn, err := net.Listen(family, address)
@@ -138,42 +143,62 @@ func (p *EBPFLessProbe) start() error {
 	return nil
 }
 
-func (p *EBPFLessProbe) snapshot() error {
+// Snapshot the already exsisting entities
+func (p *EBPFLessProbe) Snapshot() error {
 	return nil
 }
 
-func (p *EBPFLessProbe) setup() error {
+// Setup the probe
+func (p *EBPFLessProbe) Setup() error {
 	return nil
 }
 
-func (p *EBPFLessProbe) onNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
+// OnNewDiscarder handles discarders
+func (p *EBPFLessProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
 }
 
-func (p *EBPFLessProbe) newModel() *model.Model {
+// NewModel returns a new Model
+func (p *EBPFLessProbe) NewModel() *model.Model {
 	return NewEBPFLessModel(p)
 }
 
-func (p *EBPFLessProbe) sendStats() error {
+// SendStats send the stats
+func (p *EBPFLessProbe) SendStats() error {
 	return nil
 }
 
-func (p *EBPFLessProbe) dumpDiscarders() (string, error) {
+// DumpDiscarders dump the discarders
+func (p *EBPFLessProbe) DumpDiscarders() (string, error) {
 	return "", errors.New("not supported")
 }
 
-func (p *EBPFLessProbe) flushDiscarders() error {
+// FlushDiscarders flush the discarders
+func (p *EBPFLessProbe) FlushDiscarders() error {
 	return nil
 }
 
-func (p *EBPFLessProbe) getResolvers() *resolvers.Resolvers {
-	return p.resolvers
-}
-
-func (p *EBPFLessProbe) applyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+// ApplyRuleSet applies the new ruleset
+func (p *EBPFLessProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	return &kfilters.ApplyRuleSetReport{}, nil
 }
 
-func (p *EBPFLessProbe) handleActions(rule *rules.Rule, event eval.Event) {}
+// HandleActions handles the rule actions
+func (p *EBPFLessProbe) HandleActions(rule *rules.Rule, event eval.Event) {}
+
+// NewEvent returns a new event
+func (p *EBPFLessProbe) NewEvent() *model.Event {
+	return NewEBPFLessEvent(p.fieldHandlers)
+}
+
+// GetFieldHandlers returns the field handlers
+func (p *EBPFLessProbe) GetFieldHandlers() model.FieldHandlers {
+	return p.fieldHandlers
+}
+
+// DumpProcessCache dumps the process cache
+func (p *EBPFLessProbe) DumpProcessCache(withArgs bool) (string, error) {
+	return p.Resolvers.ProcessResolver.Dump(withArgs)
+}
 
 func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
@@ -204,12 +229,7 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 		return nil, err
 	}*/
 
-	probe.fieldHandlers = &FieldHandlers{resolvers: p.resolvers}
-
-	probe.event = NewEvent(probe.fieldHandlers)
-
-	// be sure to zero the probe event before everything else
-	probe.zeroEvent()
+	p.fieldHandlers = &EBPFLessFieldHandlers{resolvers: p.Resolvers}
 
 	return p, nil
 }

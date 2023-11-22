@@ -12,7 +12,6 @@ package probe
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -91,10 +90,10 @@ func (a AbnormalEvent) ToJSON() ([]byte, error) {
 }
 
 // NewAbnormalEvent returns the rule and a populated custom event for a abnormal event
-func NewAbnormalEvent(id string, description string, event *model.Event, resolvers *resolvers.Resolvers, err error) (*rules.Rule, *events.CustomEvent) {
+func NewAbnormalEvent(id string, description string, event *model.Event, err error) (*rules.Rule, *events.CustomEvent) {
 	marshalerCtor := func() events.EventMarshaler {
 		evt := AbnormalEvent{
-			Event: serializers.NewEventSerializer(event, resolvers),
+			Event: serializers.NewEventSerializer(event),
 			Error: err.Error(),
 		}
 		evt.FillCustomEventCommonFields()
