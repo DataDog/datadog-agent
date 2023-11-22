@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Pod annotations ``admission.datadoghq.com/init_resources.cpu`` and ``admission.datadoghq.com/init_resources.mem`` can now be used to set resource requests and limits on the ``init-container`` created by the Admission Controller to perform APM Library injection.
+    These annotations take precedence over the equivalent Admission Controller parameters (``admission_controller.auto_instrumentation.init_resources.cpu`` and ``admission_controller.auto_instrumentation.init_resources.memory``) if both are set.
