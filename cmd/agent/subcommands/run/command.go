@@ -327,11 +327,9 @@ func getSharedFxOption() fx.Option {
 		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, _ workloadmeta.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
-					// Main context passed to components
-					mainCtx, _ := pkgcommon.GetMainCtxCancel()
 
 					// create and setup the Autoconfig instance
-					common.LoadComponents(mainCtx, demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
+					common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
 				OnStop: func(ctx context.Context) error {

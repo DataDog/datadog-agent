@@ -205,7 +205,7 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 		return nil
 	}
 
-	common.LoadComponents(context.Background(), demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
