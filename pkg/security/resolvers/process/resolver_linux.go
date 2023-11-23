@@ -8,6 +8,7 @@
 // Package process holds process related files
 package process
 
+// TODO(safchain) rename file to ebpf
 import (
 	"context"
 	"errors"

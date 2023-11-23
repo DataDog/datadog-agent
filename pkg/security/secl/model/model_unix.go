@@ -364,6 +364,9 @@ type Process struct {
 	Envp          []string `field:"envp,handler:ResolveProcessEnvp,weight:100"`                                                                                                                     // SECLDoc[envp] Definition:`Environment variables of the process`
 	EnvsTruncated bool     `field:"envs_truncated,handler:ResolveProcessEnvsTruncated"`                                                                                                             // SECLDoc[envs_truncated] Definition:`Indicator of environment variables truncation`
 
+	ArgsScrubbed string   `field:"args_scrubbed,handler:ResolveProcessArgsScrubbed,weight:500,opts:getters_only"`
+	ArgvScrubbed []string `field:"argv_scrubbed,handler:ResolveProcessArgvScrubbed,weight:500,opts:getters_only"`
+
 	// symlink to the process binary
 	SymlinkPathnameStr [MaxSymlinks]string `field:"-" json:"-"`
 	SymlinkBasenameStr string              `field:"-" json:"-"`

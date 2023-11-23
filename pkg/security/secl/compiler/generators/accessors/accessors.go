@@ -112,8 +112,12 @@ func isBasicType(kind string) bool {
 }
 
 func isBasicTypeForGettersOnly(kind string) bool {
+	if isBasicType(kind) {
+		return true
+	}
+
 	switch kind {
-	case "string", "bool", "int", "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "net.IPNet", "time.Time":
+	case "time.Time":
 		return true
 	}
 	return false
@@ -156,13 +160,10 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 		Struct:      containerStructName,
 		Alias:       alias,
 		AliasPrefix: aliasPrefix,
+		GettersOnly: field.gettersOnly,
 	}
 
-	if field.gettersOnly {
-		module.GettersOnlyFields[alias] = newStructField
-	} else {
-		module.Fields[alias] = newStructField
-	}
+	module.Fields[alias] = newStructField
 
 	if _, ok := module.EventTypes[event]; !ok {
 		module.EventTypes[event] = common.NewEventTypeMetada()
@@ -187,13 +188,10 @@ func handleBasic(module *common.Module, field seclField, name, alias, aliasPrefi
 			Struct:      "string",
 			Alias:       alias,
 			AliasPrefix: aliasPrefix,
+			GettersOnly: field.gettersOnly,
 		}
 
-		if field.gettersOnly {
-			module.GettersOnlyFields[alias] = newStructField
-		} else {
-			module.Fields[alias] = newStructField
-		}
+		module.Fields[alias] = newStructField
 	}
 }
 
@@ -288,13 +286,10 @@ func handleFieldWithHandler(module *common.Module, field seclField, aliasPrefix,
 		Check:            field.check,
 		Alias:            alias,
 		AliasPrefix:      aliasPrefix,
+		GettersOnly:      field.gettersOnly,
 	}
 
-	if field.gettersOnly {
-		module.GettersOnlyFields[alias] = newStructField
-	} else {
-		module.Fields[alias] = newStructField
-	}
+	module.Fields[alias] = newStructField
 
 	if field.lengthField {
 		var lengthField = *module.Fields[alias]
@@ -563,7 +558,6 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				}
 
 				if handler := seclField.handler; handler != "" {
-
 					handleFieldWithHandler(module, seclField, aliasPrefix, prefix, prefixedFieldName, fieldType, seclField.containerStructName, event, fieldCommentText, opOverrides, handler, isPointer, isArray, fieldIterator)
 
 					delete(dejavu, fieldBasename)
@@ -682,15 +676,14 @@ func parseFile(modelFile string, typesFile string, pkgName string) (*common.Modu
 	}
 
 	module := &common.Module{
-		Name:              moduleName,
-		SourcePkg:         pkgName,
-		TargetPkg:         pkgName,
-		BuildTags:         formatBuildTags(buildTags),
-		Fields:            make(map[string]*common.StructField),
-		GettersOnlyFields: make(map[string]*common.StructField),
-		AllFields:         make(map[string]*common.StructField),
-		Iterators:         make(map[string]*common.StructField),
-		EventTypes:        make(map[string]*common.EventTypeMetadata),
+		Name:       moduleName,
+		SourcePkg:  pkgName,
+		TargetPkg:  pkgName,
+		BuildTags:  formatBuildTags(buildTags),
+		Fields:     make(map[string]*common.StructField),
+		AllFields:  make(map[string]*common.StructField),
+		Iterators:  make(map[string]*common.StructField),
+		EventTypes: make(map[string]*common.EventTypeMetadata),
 	}
 
 	// If the target package is different from the model package
@@ -835,17 +828,6 @@ func needScrubbed(fieldName string) bool {
 	return false
 }
 
-func combineFieldMaps(map1 map[string]*common.StructField, map2 map[string]*common.StructField) map[string]*common.StructField {
-	combined := make(map[string]*common.StructField)
-	for k, v := range map1 {
-		combined[k] = v
-	}
-	for key, value := range map2 {
-		combined[key] = value
-	}
-	return combined
-}
-
 func addSuffixToFuncPrototype(suffix string, prototype string) string {
 	chunks := strings.SplitN(prototype, "(", 3)
 	chunks = append(chunks[:1], append([]string{suffix, "("}, chunks[1:]...)...)
@@ -969,7 +951,6 @@ var funcMap = map[string]interface{}{
 	"PascalCaseFieldName":      pascalCaseFieldName,
 	"GetDefaultValueOfType":    getDefaultValueOfType,
 	"NeedScrubbed":             needScrubbed,
-	"CombineFieldMaps":         combineFieldMaps,
 	"AddSuffixToFuncPrototype": addSuffixToFuncPrototype,
 }
 

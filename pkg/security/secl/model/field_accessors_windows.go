@@ -1030,5 +1030,5 @@ func (ev *Event) GetProcessPpid() uint32 {
 
 // GetTimestamp returns the value of the field, resolving if necessary
 func (ev *Event) GetTimestamp() time.Time {
-	return ev.FieldHandlers.ResolveEventTime(ev)
+	return ev.FieldHandlers.ResolveEventTime(ev, &ev.BaseEvent)
 }

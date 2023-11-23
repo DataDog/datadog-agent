@@ -718,6 +718,18 @@ func (ev *Event) GetExecArgsOptions() []string {
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exec.Process)
 }
 
+// GetExecArgsScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetExecArgsScrubbed() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, ev.Exec.Process)
+}
+
 // GetExecArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetExecArgsTruncated() bool {
 	zeroValue := false
@@ -739,7 +751,7 @@ func (ev *Event) GetExecArgv() []string {
 	if ev.Exec.Process == nil {
 		return zeroValue
 	}
-	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Exec.Process)
+	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process)
 }
 
 // GetExecArgv0 returns the value of the field, resolving if necessary
@@ -752,6 +764,18 @@ func (ev *Event) GetExecArgv0() string {
 		return zeroValue
 	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exec.Process)
+}
+
+// GetExecArgvScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetExecArgvScrubbed() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Exec.Process)
 }
 
 // GetExecCapEffective returns the value of the field, resolving if necessary
@@ -1762,6 +1786,18 @@ func (ev *Event) GetExitArgsOptions() []string {
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Exit.Process)
 }
 
+// GetExitArgsScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetExitArgsScrubbed() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, ev.Exit.Process)
+}
+
 // GetExitArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetExitArgsTruncated() bool {
 	zeroValue := false
@@ -1783,7 +1819,7 @@ func (ev *Event) GetExitArgv() []string {
 	if ev.Exit.Process == nil {
 		return zeroValue
 	}
-	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Exit.Process)
+	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process)
 }
 
 // GetExitArgv0 returns the value of the field, resolving if necessary
@@ -1796,6 +1832,18 @@ func (ev *Event) GetExitArgv0() string {
 		return zeroValue
 	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Exit.Process)
+}
+
+// GetExitArgvScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetExitArgvScrubbed() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Exit.Process)
 }
 
 // GetExitCapEffective returns the value of the field, resolving if necessary
@@ -4231,6 +4279,28 @@ func (ev *Event) GetProcessAncestorsArgsOptions() []string {
 	return values
 }
 
+// GetProcessAncestorsArgsScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsArgsScrubbed() []string {
+	zeroValue := []string{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, &element.ProcessContext.Process)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetProcessAncestorsArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgsTruncated() []bool {
 	zeroValue := []bool{}
@@ -4268,7 +4338,7 @@ func (ev *Event) GetProcessAncestorsArgv() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessArgv(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -4292,6 +4362,28 @@ func (ev *Event) GetProcessAncestorsArgv0() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessArgv0(ev, &element.ProcessContext.Process)
 		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetProcessAncestorsArgvScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsArgvScrubbed() []string {
+	zeroValue := []string{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &element.ProcessContext.Process)
+		values = append(values, result...)
 		ptr = iterator.Next()
 	}
 	return values
@@ -5842,6 +5934,15 @@ func (ev *Event) GetProcessArgsOptions() []string {
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
+// GetProcessArgsScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessArgsScrubbed() string {
+	zeroValue := ""
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, &ev.BaseEvent.ProcessContext.Process)
+}
+
 // GetProcessArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgsTruncated() bool {
 	zeroValue := false
@@ -5857,7 +5958,7 @@ func (ev *Event) GetProcessArgv() []string {
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
 	}
-	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.BaseEvent.ProcessContext.Process)
+	return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessArgv0 returns the value of the field, resolving if necessary
@@ -5867,6 +5968,15 @@ func (ev *Event) GetProcessArgv0() string {
 		return zeroValue
 	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.BaseEvent.ProcessContext.Process)
+}
+
+// GetProcessArgvScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessArgvScrubbed() []string {
+	zeroValue := []string{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessCapEffective returns the value of the field, resolving if necessary
@@ -6589,6 +6699,21 @@ func (ev *Event) GetProcessParentArgsOptions() []string {
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
+// GetProcessParentArgsScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentArgsScrubbed() string {
+	zeroValue := ""
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return zeroValue
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, ev.BaseEvent.ProcessContext.Parent)
+}
+
 // GetProcessParentArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentArgsTruncated() bool {
 	zeroValue := false
@@ -6616,7 +6741,7 @@ func (ev *Event) GetProcessParentArgv() []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.BaseEvent.ProcessContext.Parent)
+	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentArgv0 returns the value of the field, resolving if necessary
@@ -6632,6 +6757,21 @@ func (ev *Event) GetProcessParentArgv0() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.BaseEvent.ProcessContext.Parent)
+}
+
+// GetProcessParentArgvScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentArgvScrubbed() []string {
+	zeroValue := []string{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return zeroValue
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentCapEffective returns the value of the field, resolving if necessary
@@ -7939,6 +8079,31 @@ func (ev *Event) GetPtraceTraceeAncestorsArgsOptions() []string {
 	return values
 }
 
+// GetPtraceTraceeAncestorsArgsScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsArgsScrubbed() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, &element.ProcessContext.Process)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetPtraceTraceeAncestorsArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeAncestorsArgsTruncated() []bool {
 	zeroValue := []bool{}
@@ -7982,7 +8147,7 @@ func (ev *Event) GetPtraceTraceeAncestorsArgv() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessArgv(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -8009,6 +8174,31 @@ func (ev *Event) GetPtraceTraceeAncestorsArgv0() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessArgv0(ev, &element.ProcessContext.Process)
 		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetPtraceTraceeAncestorsArgvScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsArgvScrubbed() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &element.ProcessContext.Process)
+		values = append(values, result...)
 		ptr = iterator.Next()
 	}
 	return values
@@ -9775,6 +9965,18 @@ func (ev *Event) GetPtraceTraceeArgsOptions() []string {
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.PTrace.Tracee.Process)
 }
 
+// GetPtraceTraceeArgsScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeArgsScrubbed() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, &ev.PTrace.Tracee.Process)
+}
+
 // GetPtraceTraceeArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeArgsTruncated() bool {
 	zeroValue := false
@@ -9796,7 +9998,7 @@ func (ev *Event) GetPtraceTraceeArgv() []string {
 	if ev.PTrace.Tracee == nil {
 		return zeroValue
 	}
-	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.PTrace.Tracee.Process)
+	return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process)
 }
 
 // GetPtraceTraceeArgv0 returns the value of the field, resolving if necessary
@@ -9809,6 +10011,18 @@ func (ev *Event) GetPtraceTraceeArgv0() string {
 		return zeroValue
 	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.PTrace.Tracee.Process)
+}
+
+// GetPtraceTraceeArgvScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeArgvScrubbed() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.PTrace.Tracee.Process)
 }
 
 // GetPtraceTraceeCapEffective returns the value of the field, resolving if necessary
@@ -10729,6 +10943,24 @@ func (ev *Event) GetPtraceTraceeParentArgsOptions() []string {
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.PTrace.Tracee.Parent)
 }
 
+// GetPtraceTraceeParentArgsScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentArgsScrubbed() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return zeroValue
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, ev.PTrace.Tracee.Parent)
+}
+
 // GetPtraceTraceeParentArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceeParentArgsTruncated() bool {
 	zeroValue := false
@@ -10762,7 +10994,7 @@ func (ev *Event) GetPtraceTraceeParentArgv() []string {
 	if !ev.PTrace.Tracee.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.PTrace.Tracee.Parent)
+	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent)
 }
 
 // GetPtraceTraceeParentArgv0 returns the value of the field, resolving if necessary
@@ -10781,6 +11013,24 @@ func (ev *Event) GetPtraceTraceeParentArgv0() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.PTrace.Tracee.Parent)
+}
+
+// GetPtraceTraceeParentArgvScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentArgvScrubbed() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return zeroValue
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.PTrace.Tracee.Parent)
 }
 
 // GetPtraceTraceeParentCapEffective returns the value of the field, resolving if necessary
@@ -13438,6 +13688,31 @@ func (ev *Event) GetSignalTargetAncestorsArgsOptions() []string {
 	return values
 }
 
+// GetSignalTargetAncestorsArgsScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsArgsScrubbed() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, &element.ProcessContext.Process)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetSignalTargetAncestorsArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetAncestorsArgsTruncated() []bool {
 	zeroValue := []bool{}
@@ -13481,7 +13756,7 @@ func (ev *Event) GetSignalTargetAncestorsArgv() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &element.ProcessContext.Process)
+		result := ev.FieldHandlers.ResolveProcessArgv(ev, &element.ProcessContext.Process)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -13508,6 +13783,31 @@ func (ev *Event) GetSignalTargetAncestorsArgv0() []string {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessArgv0(ev, &element.ProcessContext.Process)
 		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetSignalTargetAncestorsArgvScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsArgvScrubbed() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &element.ProcessContext.Process)
+		values = append(values, result...)
 		ptr = iterator.Next()
 	}
 	return values
@@ -15274,6 +15574,18 @@ func (ev *Event) GetSignalTargetArgsOptions() []string {
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, &ev.Signal.Target.Process)
 }
 
+// GetSignalTargetArgsScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetArgsScrubbed() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, &ev.Signal.Target.Process)
+}
+
 // GetSignalTargetArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetArgsTruncated() bool {
 	zeroValue := false
@@ -15295,7 +15607,7 @@ func (ev *Event) GetSignalTargetArgv() []string {
 	if ev.Signal.Target == nil {
 		return zeroValue
 	}
-	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.Signal.Target.Process)
+	return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process)
 }
 
 // GetSignalTargetArgv0 returns the value of the field, resolving if necessary
@@ -15308,6 +15620,18 @@ func (ev *Event) GetSignalTargetArgv0() string {
 		return zeroValue
 	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, &ev.Signal.Target.Process)
+}
+
+// GetSignalTargetArgvScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetArgvScrubbed() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, &ev.Signal.Target.Process)
 }
 
 // GetSignalTargetCapEffective returns the value of the field, resolving if necessary
@@ -16228,6 +16552,24 @@ func (ev *Event) GetSignalTargetParentArgsOptions() []string {
 	return ev.FieldHandlers.ResolveProcessArgsOptions(ev, ev.Signal.Target.Parent)
 }
 
+// GetSignalTargetParentArgsScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentArgsScrubbed() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	if ev.Signal.Target.Parent == nil {
+		return zeroValue
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveProcessArgsScrubbed(ev, ev.Signal.Target.Parent)
+}
+
 // GetSignalTargetParentArgsTruncated returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetParentArgsTruncated() bool {
 	zeroValue := false
@@ -16261,7 +16603,7 @@ func (ev *Event) GetSignalTargetParentArgv() []string {
 	if !ev.Signal.Target.HasParent() {
 		return []string{}
 	}
-	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Signal.Target.Parent)
+	return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent)
 }
 
 // GetSignalTargetParentArgv0 returns the value of the field, resolving if necessary
@@ -16280,6 +16622,24 @@ func (ev *Event) GetSignalTargetParentArgv0() string {
 		return ""
 	}
 	return ev.FieldHandlers.ResolveProcessArgv0(ev, ev.Signal.Target.Parent)
+}
+
+// GetSignalTargetParentArgvScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentArgvScrubbed() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	if ev.Signal.Target.Parent == nil {
+		return zeroValue
+	}
+	if !ev.Signal.Target.HasParent() {
+		return []string{}
+	}
+	return ev.FieldHandlers.ResolveProcessArgvScrubbed(ev, ev.Signal.Target.Parent)
 }
 
 // GetSignalTargetParentCapEffective returns the value of the field, resolving if necessary
@@ -17946,7 +18306,7 @@ func (ev *Event) GetSpliceRetval() int64 {
 
 // GetTimestamp returns the value of the field, resolving if necessary
 func (ev *Event) GetTimestamp() time.Time {
-	return ev.FieldHandlers.ResolveEventTime(ev)
+	return ev.FieldHandlers.ResolveEventTime(ev, &ev.BaseEvent)
 }
 
 // GetUnlinkFileChangeTime returns the value of the field, resolving if necessary

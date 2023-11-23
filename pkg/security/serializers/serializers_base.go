@@ -218,7 +218,7 @@ func NewBaseEventSerializer(event *model.Event) *BaseEventSerializer {
 			Name: eventType.String(),
 		},
 		ProcessContextSerializer: newProcessContextSerializer(pc, event),
-		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTime(event)),
+		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {

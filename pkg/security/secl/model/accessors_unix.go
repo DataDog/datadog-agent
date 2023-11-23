@@ -759,7 +759,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "exec.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -795,7 +795,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "exec.argv0":
 		return &eval.StringEvaluator{
@@ -1550,7 +1550,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "exit.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -1586,7 +1586,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "exit.argv0":
 		return &eval.StringEvaluator{
@@ -3772,7 +3772,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -3856,7 +3856,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "process.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -5487,7 +5487,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "process.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -5523,7 +5523,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "process.argv0":
 		return &eval.StringEvaluator{
@@ -6200,7 +6200,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -6248,7 +6248,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "process.parent.argv0":
 		return &eval.StringEvaluator{
@@ -7312,7 +7312,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -7396,7 +7396,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "ptrace.tracee.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -9027,7 +9027,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.PTrace.Tracee.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -9063,7 +9063,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.PTrace.Tracee.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.argv0":
 		return &eval.StringEvaluator{
@@ -9740,7 +9740,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.PTrace.Tracee.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -9788,7 +9788,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.PTrace.Tracee.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "ptrace.tracee.parent.argv0":
 		return &eval.StringEvaluator{
@@ -11988,7 +11988,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -12072,7 +12072,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				ctx.StringCache[field] = results
 				return results
 			}, Field: field,
-			Weight: 100 * eval.IteratorWeight,
+			Weight: 500 * eval.IteratorWeight,
 		}, nil
 	case "signal.target.ancestors.argv0":
 		return &eval.StringArrayEvaluator{
@@ -13703,7 +13703,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, &ev.Signal.Target.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -13739,7 +13739,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, &ev.Signal.Target.Process)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.argv0":
 		return &eval.StringEvaluator{
@@ -14416,7 +14416,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgs(ev, ev.Signal.Target.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.args_flags":
 		return &eval.StringArrayEvaluator{
@@ -14464,7 +14464,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				return ev.FieldHandlers.ResolveProcessArgv(ev, ev.Signal.Target.Parent)
 			},
 			Field:  field,
-			Weight: 100 * eval.HandlerWeight,
+			Weight: 500 * eval.HandlerWeight,
 		}, nil
 	case "signal.target.parent.argv0":
 		return &eval.StringEvaluator{

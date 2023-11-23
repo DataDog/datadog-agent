@@ -340,7 +340,7 @@ func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
 
 // ResolveEventTime uses the field handler
 func (e *Event) ResolveEventTime() time.Time {
-	return e.FieldHandlers.ResolveEventTime(e)
+	return e.FieldHandlers.ResolveEventTime(e, &e.BaseEvent)
 }
 
 // GetProcessService uses the field handler
@@ -591,7 +591,6 @@ type DNSEvent struct {
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
-	ResolveEventTime(ev *Event) time.Time
 	GetProcessService(ev *Event) string
 }
 
@@ -603,11 +602,6 @@ func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCa
 // ResolveContainerContext stub implementation
 func (dfh *DefaultFieldHandlers) ResolveContainerContext(ev *Event) (*ContainerContext, bool) {
 	return nil, false
-}
-
-// ResolveEventTime stub implementation
-func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
-	return ev.Timestamp
 }
 
 // GetProcessService stub implementation

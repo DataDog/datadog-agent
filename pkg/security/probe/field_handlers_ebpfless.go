@@ -100,6 +100,11 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessArgvScrubbed(ev *model.Event, pro
 	return argv
 }
 
+// ResolveProcessArgsScrubbed resolves the args of the event
+func (fh *EBPFLessFieldHandlers) ResolveProcessArgsScrubbed(ev *model.Event, process *model.Process) string {
+	return strings.Join(fh.ResolveProcessArgvScrubbed(ev, process), " ")
+}
+
 // ResolveProcessEnvp resolves the envp of the event as an array
 func (fh *EBPFLessFieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Process) []string {
 	envp, _ := fh.resolvers.ProcessResolver.GetProcessEnvp(process)
@@ -137,7 +142,7 @@ func (fh *EBPFLessFieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.P
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
-func (fh *EBPFLessFieldHandlers) ResolveEventTime(ev *model.Event) time.Time {
+func (fh *EBPFLessFieldHandlers) ResolveEventTime(ev *model.Event, e *model.BaseEvent) time.Time {
 	if ev.Timestamp.IsZero() {
 		ev.Timestamp = time.Now()
 	}

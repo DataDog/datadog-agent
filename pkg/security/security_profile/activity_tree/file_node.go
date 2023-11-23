@@ -87,7 +87,7 @@ func (fn *FileNode) enrichFromEvent(event *model.Event) {
 		return
 	}
 	if fn.FirstSeen.IsZero() {
-		fn.FirstSeen = event.FieldHandlers.ResolveEventTime(event)
+		fn.FirstSeen = event.ResolveEventTime()
 	}
 
 	fn.MatchedRules = model.AppendMatchedRule(fn.MatchedRules, event.Rules)

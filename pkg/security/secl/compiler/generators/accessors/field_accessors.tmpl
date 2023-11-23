@@ -15,9 +15,7 @@ import (
     "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
-{{$combinedFieldMaps := CombineFieldMaps .Fields .GettersOnlyFields}}
-
-{{range $Name, $Field := $combinedFieldMaps}}
+{{range $Name, $Field := .Fields}}
 
 {{ $pascalCaseName := PascalCaseFieldName $Name }}
 
@@ -65,11 +63,7 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
             {{if $Field.Handler}}
                 {{$SubName = $Field.Iterator.Name | TrimPrefix $Field.Prefix}}
                 {{$Handler := $Field.Iterator.Name | TrimPrefix $Field.Handler}}
-				{{ if NeedScrubbed $Name }}
-                    {{$Return = print "ev.FieldHandlers." $Handler "Scrubbed(ev, &element" $SubName ")"}}
-                {{ else }}
-                    {{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
-                {{ end }}
+                {{$Return = print "ev.FieldHandlers." $Handler "(ev, &element" $SubName ")"}}
             {{end}}
 
             {{if $Field.IsLength}}
@@ -120,12 +114,10 @@ func (ev *Event) Get{{$pascalCaseName}}() {{ $accessorReturnType }} {
             {{end}}
 
             {{$Prefix := $Field.Prefix}}
-            {{ if or (eq $Field.Handler "ResolveEventTime") (not $Prefix) }}
+            {{ if not $Prefix }}
                 {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev)"}}
             {{- else if $Field.IsLength }}
                 {{$Return = print "len(ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix "))"}}
-            {{- else if NeedScrubbed $Field.Handler }}
-                {{$Return = print "ev.FieldHandlers." $Field.Handler "Scrubbed(ev, " $Ptr "ev." $Prefix ")"}}
             {{ else }}
                 {{$Return = print "ev.FieldHandlers." $Field.Handler "(ev, " $Ptr "ev." $Prefix ")"}}
             {{end}}

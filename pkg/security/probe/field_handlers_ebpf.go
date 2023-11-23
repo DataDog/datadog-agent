@@ -206,6 +206,11 @@ func (fh *EBPFFieldHandlers) ResolveProcessArgs(ev *model.Event, process *model.
 	return strings.Join(fh.ResolveProcessArgv(ev, process), " ")
 }
 
+// ResolveProcessArgsScrubbed resolves the args of the event
+func (fh *EBPFFieldHandlers) ResolveProcessArgsScrubbed(ev *model.Event, process *model.Process) string {
+	return strings.Join(fh.ResolveProcessArgvScrubbed(ev, process), " ")
+}
+
 // ResolveProcessArgv resolves the unscrubbed args of the process as an array. Use with caution.
 func (fh *EBPFFieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
 	argv, _ := sprocess.GetProcessArgv(process)
@@ -213,7 +218,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.
 }
 
 // ResolveProcessArgvScrubbed resolves the args of the process as an array
-func (fh *EBPFFieldHandlers) ResolveProcessArgvScrubbed(ev *model.Event, process *model.Process) []string { //nolint:revive // TODO fix revive unused-parameter
+func (fh *EBPFFieldHandlers) ResolveProcessArgvScrubbed(_ *model.Event, process *model.Process) []string {
 	argv, _ := fh.resolvers.ProcessResolver.GetProcessArgvScrubbed(process)
 	return argv
 }
@@ -342,7 +347,7 @@ func (fh *EBPFFieldHandlers) ResolveFileFieldsUser(ev *model.Event, e *model.Fil
 
 // ResolveEventTimestamp resolves the monolitic kernel event timestamp to an absolute time
 func (fh *EBPFFieldHandlers) ResolveEventTimestamp(ev *model.Event, e *model.BaseEvent) int {
-	return int(fh.ResolveEventTime(ev).UnixNano())
+	return int(fh.ResolveEventTime(ev, e).UnixNano())
 }
 
 // GetProcessService returns the service tag based on the process context
@@ -355,7 +360,7 @@ func (fh *EBPFFieldHandlers) GetProcessService(ev *model.Event) string {
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
-func (fh *EBPFFieldHandlers) ResolveEventTime(ev *model.Event) time.Time {
+func (fh *EBPFFieldHandlers) ResolveEventTime(ev *model.Event, e *model.BaseEvent) time.Time {
 	if ev.Timestamp.IsZero() {
 		fh := ev.FieldHandlers.(*EBPFFieldHandlers)
 
