@@ -72,6 +72,8 @@ func getDeviceScanValues(sess session.Session, config *checkconfig.CheckConfig) 
 	// TODO: Use a internal type instead of gosnmp.SnmpPDU to avoid leaking gosnmp types ?
 	var results []gosnmp.SnmpPDU
 	if config.DeviceScanEnabled {
+		// TODO: ONLY RUN once every X time
+
 		rootOid := config.DeviceScanLastOid // default root Oid
 		if rootOid == "" {
 			// NEW DEVICE SCAN
