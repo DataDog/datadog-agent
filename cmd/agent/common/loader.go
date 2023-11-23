@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
@@ -56,7 +57,7 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(ctx context.Context, senderManager sender.SenderManager, confdPath string) {
+func LoadComponents(ctx context.Context, senderManager sender.SenderManager, secretResolver secrets.Component, confdPath string) {
 
 	confSearchPaths := []string{
 		confdPath,
@@ -71,7 +72,7 @@ func LoadComponents(ctx context.Context, senderManager sender.SenderManager, con
 	// No big concern here, but be sure to understand there is an implicit
 	// assumption about the initializtion of the tagger prior to being here.
 	// because of subscription to metadata store.
-	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler())
+	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver)
 
 	sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
 	if err != nil {
@@ -83,5 +84,4 @@ func LoadComponents(ctx context.Context, senderManager sender.SenderManager, con
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment, if available
 	Coll = collector.NewCollector(senderManager, GetPythonPaths()...)
-
 }

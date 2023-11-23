@@ -25,10 +25,6 @@ type Params struct {
 	// SecurityAgentConfigFilePaths or from ConfFilePath.
 	configLoadSecurityAgent bool
 
-	// ConfigLoadSecrets determines whether secrets in the configuration file
-	// should be evaluated.  This is typically false for one-shot commands.
-	configLoadSecrets bool
-
 	// configMissingOK determines whether it is a fatal error if the config
 	// file does not exist.
 	configMissingOK bool
@@ -53,20 +49,10 @@ func NewParams(defaultConfPath string, options ...func(*Params)) Params {
 	return params
 }
 
-// NewAgentParamsWithSecrets creates a new instance of Params using secrets for the Agent.
-func NewAgentParamsWithSecrets(confFilePath string, options ...func(*Params)) Params {
-	return newAgentParams(confFilePath, true, options...)
-}
-
-// NewAgentParamsWithoutSecrets creates a new instance of Params without using secrets for the Agent.
-func NewAgentParamsWithoutSecrets(confFilePath string, options ...func(*Params)) Params {
-	return newAgentParams(confFilePath, false, options...)
-}
-
-func newAgentParams(confFilePath string, configLoadSecrets bool, options ...func(*Params)) Params {
+// NewAgentParams creates a new instance of Params for the Agent.
+func NewAgentParams(confFilePath string, options ...func(*Params)) Params {
 	params := NewParams(DefaultConfPath, options...)
 	params.ConfFilePath = confFilePath
-	params.configLoadSecrets = configLoadSecrets
 	return params
 }
 
@@ -80,8 +66,6 @@ func NewSecurityAgentParams(securityAgentConfigFilePaths []string, options ...fu
 		params.securityAgentConfigFilePaths = securityAgentConfigFilePaths[1:] // Default: security-agent.yaml
 	}
 	params.configLoadSecurityAgent = true
-
-	params.configLoadSecrets = true
 	params.configMissingOK = false
 	return params
 }
@@ -136,20 +120,7 @@ func WithConfFilePath(confFilePath string) func(*Params) {
 	}
 }
 
-// WithConfigLoadSecrets returns an option which sets configLoadSecrets
-func WithConfigLoadSecrets(configLoadSecrets bool) func(*Params) {
-	return func(b *Params) {
-		b.configLoadSecrets = configLoadSecrets
-	}
-}
-
 // These functions are used in unit tests.
-
-// ConfigLoadSecrets determines whether secrets in the configuration file
-// should be evaluated.  This is typically false for one-shot commands.
-func (p Params) ConfigLoadSecrets() bool {
-	return p.configLoadSecrets
-}
 
 // ConfigMissingOK determines whether it is a fatal error if the config
 // file does not exist.
