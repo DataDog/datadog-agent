@@ -263,7 +263,6 @@ func buildTestConfiguration() (*testConfig, error) {
 		}
 	}
 
-	fmt.Println(breakdown)
 	return &testConfig{
 		retryCount:        *retryPtr,
 		packagesRunConfig: breakdown,
