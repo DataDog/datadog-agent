@@ -118,8 +118,8 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 // update_path_size_telemetry updates the path size telemetry.
-static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_tel, __u32 size) {
-    __s32 bucket_idx = (size - HTTP2_MAX_PATH_LEN) / 10;
+static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_tel, __u64 size) {
+    __s64 bucket_idx = (size - HTTP2_MAX_PATH_LEN) / 10;
     bucket_idx = bucket_idx > 6 ? 6 : bucket_idx;
     bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
 
