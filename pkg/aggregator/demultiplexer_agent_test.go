@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,7 +55,8 @@ func TestDemuxNoAggOptionDisabled(t *testing.T) {
 
 	opts := demuxTestOptions()
 	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), defaultforwarder.NoopForwarder{}, opts, "")
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, "")
 
 	batch := testDemuxSamples(t)
 
@@ -74,7 +76,8 @@ func TestDemuxNoAggOptionEnabled(t *testing.T) {
 	mockSerializer := &MockSerializerIterableSerie{}
 	opts.EnableNoAggregationPipeline = true
 	log := fxutil.Test[log.Component](t, log.MockModule)
-	demux := initAgentDemultiplexer(log, NewForwarderTest(log), defaultforwarder.NoopForwarder{}, opts, "")
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	demux := initAgentDemultiplexer(log, NewForwarderTest(log), &orchestratorForwarder, opts, "")
 	demux.statsd.noAggStreamWorker.serializer = mockSerializer // the no agg pipeline will use our mocked serializer
 
 	go demux.Run()

@@ -12,5 +12,9 @@ import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
 // Component is the component type.
 type Component interface {
-	defaultforwarder.Forwarder
+	Get() (defaultforwarder.Forwarder, bool)
+
+	// TODO: (components): This function is used to know if Stop was already called.
+	// Remove it when Stop is not part of this interface.
+	Reset()
 }

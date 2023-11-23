@@ -62,10 +62,11 @@ func (sender *diagnoseSenderManager) LazyGetSenderManager() (sender.SenderManage
 	log := sender.deps.Log
 	config := sender.deps.Config
 	forwarder := defaultforwarder.NewDefaultForwarder(config, log, defaultforwarder.NewOptions(config, log, nil))
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	senderManager = aggregator.InitAndStartAgentDemultiplexer(
 		log,
 		forwarder,
-		defaultforwarder.NoopForwarder{},
+		&orchestratorForwarder,
 		opts,
 		hostnameDetected)
 

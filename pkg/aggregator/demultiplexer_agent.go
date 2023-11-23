@@ -108,7 +108,7 @@ type statsd struct {
 
 type forwarders struct {
 	shared             forwarder.Forwarder
-	orchestrator       forwarder.Forwarder
+	orchestrator       orchestratorforwarder.Component
 	eventPlatform      epforwarder.EventPlatformForwarder
 	containerLifecycle *forwarder.DefaultForwarder
 }
@@ -269,8 +269,10 @@ func (d *AgentDemultiplexer) Run() {
 		d.log.Debugf("Starting forwarders")
 
 		// orchestrator forwarder
-		if d.forwarders.orchestrator != nil {
-			d.forwarders.orchestrator.Start() //nolint:errcheck
+		orchestratorforwarder, found := d.forwarders.orchestrator.Get()
+
+		if found {
+			orchestratorforwarder.Start() //nolint:errcheck
 		} else {
 			d.log.Debug("not starting the orchestrator forwarder")
 		}
@@ -383,9 +385,10 @@ func (d *AgentDemultiplexer) Stop(flush bool) {
 	// forwarders
 
 	if !d.options.DontStartForwarders {
-		if d.dataOutputs.forwarders.orchestrator != nil {
-			d.dataOutputs.forwarders.orchestrator.Stop()
-			d.dataOutputs.forwarders.orchestrator = nil
+		orchestratorforwarder, found := d.dataOutputs.forwarders.orchestrator.Get()
+		if found {
+			orchestratorforwarder.Stop()
+			d.dataOutputs.forwarders.orchestrator.Reset()
 		}
 		if d.dataOutputs.forwarders.eventPlatform != nil {
 			d.dataOutputs.forwarders.eventPlatform.Stop()

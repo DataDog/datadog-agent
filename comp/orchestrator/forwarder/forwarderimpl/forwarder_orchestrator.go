@@ -19,23 +19,25 @@ import (
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(NewOrchestratorForwarder),
+	fx.Provide(newOrchestratorForwarder),
 )
 
-// NewOrchestratorForwarder returns an orchestratorForwarder
+// newOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func NewOrchestratorForwarder(log log.Component, config config.Component, params Params) forwarder.Component {
+func newOrchestratorForwarder(log log.Component, config config.Component, params Params) forwarder.Component {
 	if params.UseNoopOrchestratorForwarder {
-		return defaultforwarder.NoopForwarder{}
+		return createComponent(defaultforwarder.NoopForwarder{})
 	}
 	if params.UseOrchestratorForwarder {
 
 		if !config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled")) {
-			return nil
+			forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
+			return &forwarder
 		}
 		orchestratorCfg := orchestratorconfig.NewDefaultOrchestratorConfig()
 		if err := orchestratorCfg.Load(); err != nil {
@@ -45,8 +47,14 @@ func NewOrchestratorForwarder(log log.Component, config config.Component, params
 		orchestratorForwarderOpts := defaultforwarder.NewOptionsWithResolvers(config, log, resolver.NewSingleDomainResolvers(keysPerDomain))
 		orchestratorForwarderOpts.DisableAPIKeyChecking = true
 
-		return defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts)
+		return createComponent(defaultforwarder.NewDefaultForwarder(config, log, orchestratorForwarderOpts))
 	}
 
-	return nil // TODO: (Components): Use optional instead
+	forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
+	return &forwarder
+}
+
+func createComponent(forwarder defaultforwarder.Forwarder) forwarder.Component {
+	o := optional.NewOption(forwarder)
+	return &o
 }

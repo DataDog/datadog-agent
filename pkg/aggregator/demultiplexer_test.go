@@ -18,6 +18,7 @@ import (
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 
 	"github.com/stretchr/testify/assert"
@@ -68,7 +69,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.Nil(demux.forwarders.eventPlatform)
-	require.Nil(demux.forwarders.orchestrator)
+	_, found := demux.forwarders.orchestrator.Get()
+	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
@@ -175,7 +177,8 @@ func TestDemuxFlushAggregatorToSerializer(t *testing.T) {
 	opts := demuxTestOptions()
 	opts.FlushInterval = time.Hour
 	deps := createDemuxDeps(t, opts)
-	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, defaultforwarder.NoopForwarder{}, opts, "")
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	demux := initAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, opts, "")
 	demux.Aggregator().tlmContainerTagsEnabled = false
 	require.NotNil(demux)
 	require.NotNil(demux.aggregator)
