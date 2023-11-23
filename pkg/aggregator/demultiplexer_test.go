@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder/forwarderimpl"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
@@ -57,7 +58,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.Nil(demux.forwarders.orchestrator)
+	_, found := demux.forwarders.orchestrator.Get()
+	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
@@ -69,7 +71,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.Nil(demux.forwarders.eventPlatform)
-	_, found := demux.forwarders.orchestrator.Get()
+	_, found = demux.forwarders.orchestrator.Get()
 	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
@@ -82,7 +84,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.Nil(demux.forwarders.orchestrator)
+	_, found = demux.forwarders.orchestrator.Get()
+	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
@@ -108,7 +111,6 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.NotNil(demux.forwarders.orchestrator)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
@@ -121,7 +123,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.Nil(demux.forwarders.orchestrator)
+	_, found = demux.forwarders.orchestrator.Get()
+	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
@@ -134,7 +137,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.NotNil(demux.forwarders.orchestrator)
+	_, found = demux.forwarders.orchestrator.Get()
+	require.True(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 
@@ -147,7 +151,8 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
 	require.NotNil(demux.forwarders.eventPlatform)
-	require.Nil(demux.forwarders.orchestrator)
+	_, found = demux.forwarders.orchestrator.Get()
+	require.False(found)
 	require.NotNil(demux.forwarders.shared)
 	demux.Stop(false)
 }
@@ -281,12 +286,17 @@ func createDemuxDeps(t *testing.T, opts AgentDemultiplexerOptions) aggregatorDep
 	return createDemuxDepsWithOrchestratorFwd(t, opts, orchestratorForwarderImpl.NewDefaultParams())
 }
 
+type internalDemutiplexerDeps struct {
+	TestDeps
+	OrchestratorForwarder orchestratorForwarder.Component
+}
+
 func createDemuxDepsWithOrchestratorFwd(t *testing.T, opts AgentDemultiplexerOptions, params orchestratorForwarderImpl.Params) aggregatorDeps {
 	modules := fx.Options(defaultforwarder.MockModule, config.MockModule, log.MockModule, orchestratorForwarderImpl.Module, fx.Supply(params))
-	deps := fxutil.Test[TestDeps](t, modules)
+	deps := fxutil.Test[internalDemutiplexerDeps](t, modules)
 
 	return aggregatorDeps{
-		TestDeps:      deps,
-		Demultiplexer: InitAndStartAgentDemultiplexerForTest(deps, opts, ""),
+		TestDeps:      deps.TestDeps,
+		Demultiplexer: InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, deps.OrchestratorForwarder, opts, ""),
 	}
 }

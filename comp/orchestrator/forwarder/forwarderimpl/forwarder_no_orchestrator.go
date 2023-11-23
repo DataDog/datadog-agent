@@ -26,7 +26,11 @@ var Module = fxutil.Component(
 // newOrchestratorForwarder builds the orchestrator forwarder.
 // This func has been extracted in this file to not include all the orchestrator
 // dependencies (k8s, several MBs) while building binaries not needing these.
-func newOrchestratorForwarder(_ log.Component, _ config.Component, _ Params) forwarder.Component {
+func newOrchestratorForwarder(_ log.Component, _ config.Component, params Params) forwarder.Component {
+	if params.UseNoopOrchestratorForwarder {
+		forwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+		return &forwarder
+	}
 	forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
 	return &forwarder
 }
