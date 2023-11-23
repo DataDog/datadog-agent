@@ -196,7 +196,7 @@ It does not expose any public methods.
 
 *Datadog Team*: agent-metrics-logs
 
-
+Package orchestrator defines the orchestrator components.
 
 ### [comp/orchestrator/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/orchestrator/forwarder)
 

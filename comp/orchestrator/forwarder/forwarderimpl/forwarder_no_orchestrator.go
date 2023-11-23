@@ -5,6 +5,7 @@
 
 //go:build !orchestrator
 
+// Package forwarderimpl implements the orchestrator forwarder component.
 package forwarderimpl
 
 import (
