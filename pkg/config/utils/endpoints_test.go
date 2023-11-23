@@ -8,9 +8,7 @@ package utils
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +21,7 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := config.SetupConf()
 	conf.SetConfigFile("./tests/datadog_secrets.yaml")
 	// load the configuration
-	_, err := config.LoadDatadogCustom(conf, "datadog_secrets.yaml", optional.NewNoneOption[secrets.Component](), nil)
+	_, err := config.LoadDatadogCustom(conf, "datadog_secrets.yaml", true, nil)
 	assert.NoError(t, err)
 
 	expectedKeysPerDomain := map[string][]string{

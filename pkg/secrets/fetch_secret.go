@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package secretsimpl
+//go:build secrets
+
+package secrets
 
 import (
 	"bytes"
@@ -16,10 +18,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// PayloadVersion defines the current payload version sent to a secret backend
+const PayloadVersion = "1.0"
 
 var (
 	tlmSecretBackendElapsed = telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation")
@@ -37,30 +41,18 @@ func (b *limitBuffer) Write(p []byte) (n int, err error) {
 	return b.buf.Write(p)
 }
 
-func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
-	if r.commandHookFunc != nil {
-		return r.commandHookFunc(inputPayload)
-	}
-	commandTimeout := r.backendTimeout
-	if commandTimeout == 0 {
-		commandTimeout = SecretBackendTimeoutDefault
-	}
-	responseMaxSize := r.responseMaxSize
-	if responseMaxSize == 0 {
-		responseMaxSize = SecretBackendOutputMaxSizeDefault
-	}
-
+func execCommand(inputPayload string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(),
-		time.Duration(commandTimeout)*time.Second)
+		time.Duration(secretBackendTimeout)*time.Second)
 	defer cancel()
 
-	cmd, done, err := commandContext(ctx, r.backendCommand, r.backendArguments...)
+	cmd, done, err := commandContext(ctx, secretBackendCommand, secretBackendArguments...)
 	if err != nil {
 		return nil, err
 	}
 	defer done()
 
-	if err := checkRights(cmd.Path, r.commandAllowGroupExec); err != nil {
+	if err := checkRights(cmd.Path, secretBackendCommandAllowGroupExec); err != nil {
 		return nil, err
 	}
 
@@ -68,11 +60,11 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 
 	stdout := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: responseMaxSize,
+		max: secretBackendOutputMaxSize,
 	}
 	stderr := limitBuffer{
 		buf: &bytes.Buffer{},
-		max: responseMaxSize,
+		max: secretBackendOutputMaxSize,
 	}
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -86,7 +78,7 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 	start := time.Now()
 	err = cmd.Run()
 	elapsed := time.Since(start)
-	log.Debugf("%s | secret_backend_command '%s' completed in %s", time.Now().String(), r.backendCommand, elapsed)
+	log.Debugf("%s | secret_backend_command '%s' completed in %s", time.Now().String(), secretBackendCommand, elapsed)
 
 	// We always log stderr to allow a secret_backend_command to logs info in the agent log file. This is useful to
 	// troubleshoot secret_backend_command in a containerized environment.
@@ -100,37 +92,46 @@ func (r *secretResolver) execCommand(inputPayload string) ([]byte, error) {
 		} else if ctx.Err() == context.DeadlineExceeded {
 			exitCode = "timeout"
 		}
-		tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), r.backendCommand, exitCode)
+		tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), secretBackendCommand, exitCode)
 
 		if ctx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("error while running '%s': command timeout", r.backendCommand)
+			return nil, fmt.Errorf("error while running '%s': command timeout", secretBackendCommand)
 		}
-		return nil, fmt.Errorf("error while running '%s': %s", r.backendCommand, err)
+		return nil, fmt.Errorf("error while running '%s': %s", secretBackendCommand, err)
 	}
 
 	log.Debugf("secret_backend_command stderr: %s", stderr.buf.String())
 
-	tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), r.backendCommand, "0")
+	tlmSecretBackendElapsed.Add(float64(elapsed.Milliseconds()), secretBackendCommand, "0")
 	return stdout.buf.Bytes(), nil
 }
 
+// Secret defines the structure for secrets in JSON output
+type Secret struct {
+	Value    string `json:"value,omitempty"`
+	ErrorMsg string `json:"error,omitempty"`
+}
+
+// for testing purpose
+var runCommand = execCommand
+
 // fetchSecret receives a list of secrets name to fetch, exec a custom
 // executable to fetch the actual secrets and returns them.
-func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string, error) {
+func fetchSecret(secretsHandle []string) (map[string]string, error) {
 	payload := map[string]interface{}{
-		"version": secrets.PayloadVersion,
+		"version": PayloadVersion,
 		"secrets": secretsHandle,
 	}
 	jsonPayload, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("could not serialize secrets IDs to fetch password: %s", err)
 	}
-	output, err := r.execCommand(string(jsonPayload))
+	output, err := runCommand(string(jsonPayload))
 	if err != nil {
 		return nil, err
 	}
 
-	secrets := map[string]secrets.SecretVal{}
+	secrets := map[string]Secret{}
 	err = json.Unmarshal(output, &secrets)
 	if err != nil {
 		return nil, fmt.Errorf("could not unmarshal 'secret_backend_command' output: %s", err)
@@ -147,7 +148,7 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 			return nil, fmt.Errorf("an error occurred while decrypting '%s': %s", sec, v.ErrorMsg)
 		}
 
-		if r.removeTrailingLinebreak {
+		if removeTrailingLinebreak {
 			v.Value = strings.TrimRight(v.Value, "\r\n")
 		}
 
@@ -156,7 +157,7 @@ func (r *secretResolver) fetchSecret(secretsHandle []string) (map[string]string,
 		}
 
 		// add it to the cache
-		r.cache[sec] = v.Value
+		secretCache[sec] = v.Value
 		res[sec] = v.Value
 	}
 	return res, nil

@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build secrets && !windows
 
-package secretsimpl
+package secrets
 
 import (
 	_ "embed"
@@ -24,10 +24,10 @@ type permissionsDetails struct {
 	Group    string
 }
 
-func getExecutablePermissions(secret *secretResolver) (interface{}, error) {
+func getExecutablePermissions() (interface{}, error) {
 	var stat syscall.Stat_t
-	if err := syscall.Stat(secret.backendCommand, &stat); err != nil {
-		return nil, fmt.Errorf("Could not stat %s: %s", secret.backendCommand, err)
+	if err := syscall.Stat(secretBackendCommand, &stat); err != nil {
+		return nil, fmt.Errorf("Could not stat %s: %s", secretBackendCommand, err)
 	}
 
 	details := permissionsDetails{

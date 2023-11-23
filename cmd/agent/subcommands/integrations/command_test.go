@@ -16,7 +16,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -25,10 +24,10 @@ func TestInstallCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"integration", "install", "foo==1.0", "-v"},
 		install,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{"foo==1.0"}, cliParams.args)
 			require.Equal(t, 1, cliParams.verbose)
-			require.Equal(t, false, secretParams.Enabled)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 			require.Equal(t, true, coreParams.ConfigMissingOK())
 		})
 }
@@ -49,10 +48,10 @@ func TestRemoveCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"integration", "remove", "foo"},
 		remove,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{"foo"}, cliParams.args)
 			require.Equal(t, 0, cliParams.verbose)
-			require.Equal(t, false, secretParams.Enabled)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 			require.Equal(t, true, coreParams.ConfigMissingOK())
 		})
 }
@@ -62,10 +61,10 @@ func TestFreezeCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"integration", "freeze"},
 		list,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{}, cliParams.args)
 			require.Equal(t, 0, cliParams.verbose)
-			require.Equal(t, false, secretParams.Enabled)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 			require.Equal(t, true, coreParams.ConfigMissingOK())
 		})
 }
@@ -75,10 +74,10 @@ func TestShowCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"integration", "show", "foo"},
 		show,
-		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
+		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{"foo"}, cliParams.args)
 			require.Equal(t, 0, cliParams.verbose)
-			require.Equal(t, false, secretParams.Enabled)
+			require.Equal(t, false, coreParams.ConfigLoadSecrets())
 			require.Equal(t, true, coreParams.ConfigMissingOK())
 		})
 }

@@ -29,7 +29,6 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/check"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
@@ -65,7 +64,6 @@ func StartServer(
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
 	invHost inventoryhost.Component,
-	secretResolver secrets.Component,
 ) error {
 	err := initializeTLS()
 	if err != nil {
@@ -148,7 +146,6 @@ func StartServer(
 				hostMetadata,
 				invAgent,
 				invHost,
-				secretResolver,
 			)))
 	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	mux.Handle("/", gwmux)

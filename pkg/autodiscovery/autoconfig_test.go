@@ -167,8 +167,7 @@ func (suite *AutoConfigTestSuite) SetupTest() {
 }
 
 func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
-	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	assert.Len(suite.T(), ac.configPollers, 0)
 	mp := &MockProvider{}
 	ac.AddConfigProvider(mp, false, 0)
@@ -184,8 +183,7 @@ func (suite *AutoConfigTestSuite) TestAddConfigProvider() {
 }
 
 func (suite *AutoConfigTestSuite) TestAddListener() {
-	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	assert.Len(suite.T(), ac.listeners, 0)
 
 	ml := &MockListener{}
@@ -222,8 +220,7 @@ func (suite *AutoConfigTestSuite) TestDiffConfigs() {
 }
 
 func (suite *AutoConfigTestSuite) TestStop() {
-	mockResolver := MockSecretResolver{suite.T(), nil}
-	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 
 	ml := &MockListener{}
 	listeners.Register("mock", ml.fakeFactory)
@@ -269,14 +266,13 @@ func (suite *AutoConfigTestSuite) TestListenerRetry() {
 	}
 	listeners.Register("retry", retryFactory.make)
 
-	mockResolver := MockSecretResolver{suite.T(), nil}
 	configs := []config.Listeners{
 		{Name: "noerr"},
 		{Name: "fail"},
 		{Name: "retry"},
 		{Name: "invalid"},
 	}
-	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	assert.Nil(suite.T(), ac.listenerRetryStop)
 	ac.AddListeners(configs)
 
@@ -341,8 +337,7 @@ func TestResolveTemplate(t *testing.T) {
 	sch := &MockScheduler{scheduled: make(map[string]integration.Config)}
 	msch.Register("mock", sch, false)
 
-	mockResolver := MockSecretResolver{t, nil}
-	ac := NewAutoConfig(msch, &mockResolver)
+	ac := NewAutoConfig(msch)
 	tpl := integration.Config{
 		Name:          "cpu",
 		ADIdentifiers: []string{"redis"},
@@ -375,9 +370,8 @@ func countLoadedConfigs(ac *AutoConfig) int {
 func TestRemoveTemplate(t *testing.T) {
 	ctx := context.Background()
 
-	mockResolver := MockSecretResolver{t, nil}
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 
-	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
 	// Add static config
 	c := integration.Config{
 		Name: "memory",
@@ -414,7 +408,7 @@ func TestGetLoadedConfigNotInitialized(t *testing.T) {
 func TestDecryptConfig(t *testing.T) {
 	ctx := context.Background()
 
-	mockResolver := MockSecretResolver{t, []mockSecretScenario{
+	mockDecrypt := MockSecretDecrypt{t, []mockSecretScenario{
 		{
 			expectedData:   []byte{},
 			expectedOrigin: "cpu",
@@ -428,8 +422,9 @@ func TestDecryptConfig(t *testing.T) {
 			returnedError:  nil,
 		},
 	}}
+	defer mockDecrypt.install()()
 
-	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 	ac.processNewService(ctx, &dummyService{ID: "abcd", ADIdentifiers: []string{"redis"}})
 
 	tpl := integration.Config{
@@ -452,13 +447,13 @@ func TestDecryptConfig(t *testing.T) {
 	}
 	assert.Equal(t, resolved, changes.Schedule[0])
 
-	assert.True(t, mockResolver.haveAllScenariosBeenCalled())
+	assert.True(t, mockDecrypt.haveAllScenariosBeenCalled())
 }
 
 func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 	configName := "testConfig"
 
-	mockResolver := MockSecretResolver{t, []mockSecretScenario{
+	mockDecrypt := MockSecretDecrypt{t, []mockSecretScenario{
 		{
 			expectedData:   []byte("foo: ENC[bar]"),
 			expectedOrigin: configName,
@@ -472,7 +467,9 @@ func TestProcessClusterCheckConfigWithSecrets(t *testing.T) {
 			returnedError:  nil,
 		},
 	}}
-	ac := NewAutoConfig(scheduler.NewMetaScheduler(), &mockResolver)
+	defer mockDecrypt.install()()
+
+	ac := NewAutoConfig(scheduler.NewMetaScheduler())
 
 	tpl := integration.Config{
 		Provider:     names.ClusterChecks,

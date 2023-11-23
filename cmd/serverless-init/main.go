@@ -87,7 +87,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	_, err := config.LoadWithoutSecret()
+	_, err := config.Load()
 	if err != nil {
 		logger.Debugf("Error loading config: %v\n", err)
 	}

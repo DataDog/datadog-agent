@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package secretsimpl
+//go:build secrets
+
+package secrets
 
 import (
 	"bytes"
@@ -13,7 +15,6 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -81,136 +82,145 @@ func TestLimitBuffer(t *testing.T) {
 }
 
 func TestExecCommandError(t *testing.T) {
-	inputPayload := "{\"version\": \"" + secrets.PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
+	inputPayload := "{\"version\": \"" + PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 
 	t.Run("Empty secretBackendCommand", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
-		_, err := resolver.execCommand(inputPayload)
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = ""
+		_, err := execCommand(inputPayload)
 		require.NotNil(t, err)
 	})
 
 	t.Run("timeout", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
-		resolver.backendCommand = "./test/timeout/timeout" + binExtension
-		setCorrectRight(resolver.backendCommand)
-		resolver.backendTimeout = 1
-		_, err := resolver.execCommand(inputPayload)
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/timeout/timeout" + binExtension
+		setCorrectRight(secretBackendCommand)
+		secretBackendTimeout = 1
+		_, err := execCommand(inputPayload)
 		require.NotNil(t, err)
 		require.Equal(t, "error while running './test/timeout/timeout"+binExtension+"': command timeout", err.Error())
 	})
 
 	t.Run("No Error", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
-		resolver.backendCommand = "./test/simple/simple" + binExtension
-		setCorrectRight(resolver.backendCommand)
-		resp, err := resolver.execCommand(inputPayload)
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/simple/simple" + binExtension
+		setCorrectRight(secretBackendCommand)
+		resp, err := execCommand(inputPayload)
 		require.NoError(t, err)
 		require.Equal(t, []byte("{\"handle1\":{\"value\":\"simple_password\"}}"), resp)
 	})
 
 	t.Run("Error returned", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
-		resolver.backendCommand = "./test/error/error" + binExtension
-		setCorrectRight(resolver.backendCommand)
-		_, err := resolver.execCommand(inputPayload)
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/error/error" + binExtension
+		setCorrectRight(secretBackendCommand)
+		_, err := execCommand(inputPayload)
 		require.NotNil(t, err)
 	})
 
 	t.Run("argument", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
-		resolver.backendCommand = "./test/argument/argument" + binExtension
-		setCorrectRight(resolver.backendCommand)
-		resolver.backendArguments = []string{"arg1"}
-		_, err := resolver.execCommand(inputPayload)
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/argument/argument" + binExtension
+		setCorrectRight(secretBackendCommand)
+		secretBackendArguments = []string{"arg1"}
+		_, err := execCommand(inputPayload)
 		require.NotNil(t, err)
-		resolver.backendArguments = []string{"arg1", "arg2"}
-		resp, err := resolver.execCommand(inputPayload)
+		secretBackendArguments = []string{"arg1", "arg2"}
+		resp, err := execCommand(inputPayload)
 		require.NoError(t, err)
 		require.Equal(t, []byte("{\"handle1\":{\"value\":\"arg_password\"}}"), resp)
 	})
 
 	t.Run("input", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
-		resolver.backendCommand = "./test/input/input" + binExtension
-		setCorrectRight(resolver.backendCommand)
-		resp, err := resolver.execCommand(inputPayload)
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/input/input" + binExtension
+		setCorrectRight(secretBackendCommand)
+		resp, err := execCommand(inputPayload)
 		require.NoError(t, err)
 		require.Equal(t, []byte("{\"handle1\":{\"value\":\"input_password\"}}"), resp)
 	})
 
 	t.Run("buffer limit", func(t *testing.T) {
-		resolver := newEnabledSecretResolver()
-		resolver.backendCommand = "./test/response_too_long/response_too_long" + binExtension
-		setCorrectRight(resolver.backendCommand)
-		resolver.responseMaxSize = 20
-		_, err := resolver.execCommand(inputPayload)
+		t.Cleanup(resetPackageVars)
+		secretBackendCommand = "./test/response_too_long/response_too_long" + binExtension
+		setCorrectRight(secretBackendCommand)
+		secretBackendOutputMaxSize = 20
+		_, err := execCommand(inputPayload)
 		require.NotNil(t, err)
 		assert.Equal(t, "error while running './test/response_too_long/response_too_long"+binExtension+"': command output was too long: exceeded 20 bytes", err.Error())
 	})
 }
 
-func TestFetchSecretExeceError(t *testing.T) {
-	resolver := newEnabledSecretResolver()
-	resolver.commandHookFunc = func(string) ([]byte, error) { return nil, fmt.Errorf("some error") }
-	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
+func TestFetchSecretExecError(t *testing.T) {
+	t.Cleanup(resetPackageVars)
+
+	runCommand = func(string) ([]byte, error) { return nil, fmt.Errorf("some error") }
+	_, err := fetchSecret([]string{"handle1", "handle2"})
 	assert.NotNil(t, err)
 }
 
 func TestFetchSecretUnmarshalError(t *testing.T) {
-	resolver := newEnabledSecretResolver()
-	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{"), nil }
-	_, err := resolver.fetchSecret([]string{"handle1", "handle2"})
+	t.Cleanup(resetPackageVars)
+
+	runCommand = func(string) ([]byte, error) { return []byte("{"), nil }
+	_, err := fetchSecret([]string{"handle1", "handle2"})
 	assert.NotNil(t, err)
 }
 
 func TestFetchSecretMissingSecret(t *testing.T) {
+	t.Cleanup(resetPackageVars)
+
 	secrets := []string{"handle1", "handle2"}
-	resolver := newEnabledSecretResolver()
-	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{}"), nil }
-	_, err := resolver.fetchSecret(secrets)
+
+	runCommand = func(string) ([]byte, error) { return []byte("{}"), nil }
+	_, err := fetchSecret(secrets)
 	assert.NotNil(t, err)
 	assert.Equal(t, "secret handle 'handle1' was not decrypted by the secret_backend_command", err.Error())
 }
 
 func TestFetchSecretErrorForHandle(t *testing.T) {
-	resolver := newEnabledSecretResolver()
-	resolver.commandHookFunc = func(string) ([]byte, error) {
+	t.Cleanup(resetPackageVars)
+
+	runCommand = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null, \"error\": \"some error\"}}"), nil
 	}
-	_, err := resolver.fetchSecret([]string{"handle1"})
+	_, err := fetchSecret([]string{"handle1"})
 	assert.NotNil(t, err)
 	assert.Equal(t, "an error occurred while decrypting 'handle1': some error", err.Error())
 }
 
 func TestFetchSecretEmptyValue(t *testing.T) {
-	resolver := newEnabledSecretResolver()
-	resolver.commandHookFunc = func(string) ([]byte, error) {
+	t.Cleanup(resetPackageVars)
+
+	runCommand = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": null}}"), nil
 	}
-	_, err := resolver.fetchSecret([]string{"handle1"})
+	_, err := fetchSecret([]string{"handle1"})
 	assert.NotNil(t, err)
 	assert.Equal(t, "decrypted secret for 'handle1' is empty", err.Error())
 
-	resolver.commandHookFunc = func(string) ([]byte, error) {
+	runCommand = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": \"\"}}"), nil
 	}
-	_, err = resolver.fetchSecret([]string{"handle1"})
+	_, err = fetchSecret([]string{"handle1"})
 	assert.NotNil(t, err)
 	assert.Equal(t, "decrypted secret for 'handle1' is empty", err.Error())
 }
 
 func TestFetchSecret(t *testing.T) {
+	t.Cleanup(resetPackageVars)
+
 	secrets := []string{"handle1", "handle2"}
-	resolver := newEnabledSecretResolver()
 	// some dummy value to check the cache is not purge
-	resolver.cache["test"] = "yes"
-	resolver.commandHookFunc = func(string) ([]byte, error) {
+	secretCache["test"] = "yes"
+
+	runCommand = func(string) ([]byte, error) {
 		res := []byte("{\"handle1\":{\"value\":\"p1\"},")
 		res = append(res, []byte("\"handle2\":{\"value\":\"p2\"},")...)
 		res = append(res, []byte("\"handle3\":{\"value\":\"p3\"}}")...)
 		return res, nil
 	}
-	resp, err := resolver.fetchSecret(secrets)
+	resp, err := fetchSecret(secrets)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
 		"handle1": "p1",
@@ -220,17 +230,18 @@ func TestFetchSecret(t *testing.T) {
 		"test":    "yes",
 		"handle1": "p1",
 		"handle2": "p2",
-	}, resolver.cache)
+	}, secretCache)
 }
 
 func TestFetchSecretRemoveTrailingLineBreak(t *testing.T) {
-	resolver := newEnabledSecretResolver()
-	resolver.commandHookFunc = func(string) ([]byte, error) {
+	t.Cleanup(resetPackageVars)
+	removeTrailingLinebreak = true
+
+	runCommand = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\":\"some data\\r\\n\"}}"), nil
 	}
-	resolver.removeTrailingLinebreak = true
 	secrets := []string{"handle1"}
-	resp, err := resolver.fetchSecret(secrets)
+	resp, err := fetchSecret(secrets)
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"handle1": "some data"}, resp)
 }

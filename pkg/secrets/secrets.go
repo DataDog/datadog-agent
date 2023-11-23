@@ -3,71 +3,44 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package secretsimpl is the implementation for the secrets component
-package secretsimpl
+//go:build secrets
+
+package secrets
 
 import (
-	"bufio"
-	"bytes"
 	_ "embed"
 	"fmt"
 	"io"
 	"sort"
 	"strings"
-	"sync"
 	"text/template"
 
-	"go.uber.org/fx"
 	yaml "gopkg.in/yaml.v2"
 
-	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
-type provides struct {
-	fx.Out
-
-	Comp          secrets.Component
-	FlareProvider flaretypes.Provider
-}
-
-type dependencies struct {
-	fx.In
-
-	Params secrets.Params
-}
-
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newSecretResolverProvider),
-)
-
 type handleToContext map[string][]secretContext
 
-type secretResolver struct {
-	enabled bool
-	cache   map[string]string
+var (
+	// testing purpose
+	secretFetcher       = fetchSecret
+	scrubberAddReplacer = scrubber.AddStrippedKeys
+
+	secretCache map[string]string
 	// list of handles and where they were found
-	origin handleToContext
+	secretOrigin handleToContext
 
-	backendCommand          string
-	backendArguments        []string
-	backendTimeout          int
-	commandAllowGroupExec   bool
-	removeTrailingLinebreak bool
-	// responseMaxSize defines max size of the JSON output from a secrets reader backend
-	responseMaxSize int
+	secretBackendCommand               string
+	secretBackendArguments             []string
+	secretBackendTimeout               = SecretBackendTimeoutDefault
+	secretBackendCommandAllowGroupExec bool
+	removeTrailingLinebreak            bool
 
-	// can be overridden for testing purposes
-	commandHookFunc func(string) ([]byte, error)
-	fetchHookFunc   func([]string) (map[string]string, error)
-	scrubHookFunc   func([]string)
-}
-
-var _ secrets.Component = (*secretResolver)(nil)
+	// SecretBackendOutputMaxSize defines max size of the JSON output from a secrets reader backend
+	secretBackendOutputMaxSize = SecretBackendOutputMaxSizeDefault
+)
 
 //go:embed info.tmpl
 var secretInfoTmpl string
@@ -80,72 +53,14 @@ type secretContext struct {
 	yamlPath string
 }
 
-// TODO: Hack to maintain a singleton reference to the secrets Component
-//
-// Only needed temporarily, since the secrets.Component is needed for the diagnose functionality.
-// It is very difficult right now to modify diagnose because it would require modifying many
-// function signatures, which would only increase future maintenance. Once diagnose is better
-// integrated with Components, we should be able to remove this hack.
-//
-// Other components should not copy this pattern, it is only meant to be used temporarily.
-var mu sync.Mutex
-var instance *secretResolver
-
-func newEnabledSecretResolver() *secretResolver {
-	return &secretResolver{
-		cache:   make(map[string]string),
-		origin:  make(handleToContext),
-		enabled: true,
-	}
+func init() {
+	secretCache = make(map[string]string)
+	secretOrigin = make(handleToContext)
 }
 
-func newSecretResolverProvider(deps dependencies) provides {
-	resolver := newEnabledSecretResolver()
-	resolver.enabled = deps.Params.Enabled
-
-	{
-		mu.Lock()
-		defer mu.Unlock()
-		if instance == nil {
-			instance = resolver
-		}
-	}
-
-	return provides{
-		Comp:          resolver,
-		FlareProvider: flaretypes.NewProvider(resolver.fillFlare),
-	}
-}
-
-func (r *secretResolver) IsEnabled() bool {
-	return r.enabled
-}
-
-// GetInstance returns the singleton instance of the secret.Component
-func GetInstance() secrets.Component {
-	mu.Lock()
-	defer mu.Unlock()
-	if instance == nil {
-		deps := dependencies{Params: secrets.Params{Enabled: true}}
-		p := newSecretResolverProvider(deps)
-		instance = p.Comp.(*secretResolver)
-	}
-	return instance
-}
-
-// fillFlare add the inventory payload to flares.
-func (r *secretResolver) fillFlare(fb flaretypes.FlareBuilder) error {
-	var buffer bytes.Buffer
-	writer := bufio.NewWriter(&buffer)
-	r.GetDebugInfo(writer)
-	writer.Flush()
-	fb.AddFile("secrets.log", buffer.Bytes())
-	return nil
-}
-
-func (r *secretResolver) registerSecretOrigin(handle string, origin string, yamlPath []string) {
+func registerSecretOrigin(handle string, origin string, yamlPath []string) {
 	path := strings.Join(yamlPath, "/")
-	for _, info := range r.origin[handle] {
+	for _, info := range secretOrigin[handle] {
 		if info.origin == origin && info.yamlPath == path {
 			// The secret was used twice in the same configuration under the same key: nothing to do
 			return
@@ -154,36 +69,28 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, yaml
 
 	if len(yamlPath) != 0 {
 		lastElem := yamlPath[len(yamlPath)-1:]
-		if r.scrubHookFunc != nil {
-			r.scrubHookFunc(lastElem)
-		} else {
-			scrubber.AddStrippedKeys(lastElem)
-		}
+		scrubberAddReplacer(lastElem)
 	}
 
-	r.origin[handle] = append(
-		r.origin[handle],
+	secretOrigin[handle] = append(
+		secretOrigin[handle],
 		secretContext{
 			origin:   origin,
 			yamlPath: path,
 		})
 }
 
-// Configure initializes the executable command and other options of the secrets component
-func (r *secretResolver) Configure(command string, arguments []string, timeout, maxSize int, groupExecPerm, removeLinebreak bool) {
-	if !r.enabled {
-		log.Errorf("Agent secrets is disabled by caller")
-		return
-	}
-	r.backendCommand = command
-	r.backendArguments = arguments
-	r.backendTimeout = timeout
-	if maxSize != 0 {
-		r.responseMaxSize = maxSize
-	}
-	r.commandAllowGroupExec = groupExecPerm
-	r.removeTrailingLinebreak = removeLinebreak
-	if r.commandAllowGroupExec {
+// Init initializes the command and other options of the secrets package. Since
+// this package is used by the 'config' package to decrypt itself we can't
+// directly use it.
+func Init(command string, arguments []string, timeout int, maxSize int, groupExecPerm bool, removeLinebreak bool) {
+	secretBackendCommand = command
+	secretBackendArguments = arguments
+	secretBackendTimeout = timeout
+	secretBackendOutputMaxSize = maxSize
+	secretBackendCommandAllowGroupExec = groupExecPerm
+	removeTrailingLinebreak = removeLinebreak
+	if secretBackendCommandAllowGroupExec {
 		log.Warnf("Agent configuration relax permissions constraint on the secret backend cmd, Group can read and exec")
 	}
 }
@@ -268,13 +175,8 @@ func isEnc(str string) (bool, string) {
 
 // Decrypt replaces all encrypted secrets in data by executing
 // "secret_backend_command" once if all secrets aren't present in the cache.
-func (r *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
-	if !r.enabled {
-		e := fmt.Errorf("Agent secrets is disabled by caller")
-		log.Error(e)
-		return nil, e
-	}
-	if data == nil || r.backendCommand == "" {
+func Decrypt(data []byte, origin string) ([]byte, error) {
+	if data == nil || secretBackendCommand == "" {
 		return data, nil
 	}
 
@@ -294,10 +196,10 @@ func (r *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
 			if ok, handle := isEnc(str); ok {
 				haveSecret = true
 				// Check if we already know this secret
-				if secret, ok := r.cache[handle]; ok {
+				if secret, ok := secretCache[handle]; ok {
 					log.Debugf("Secret '%s' was retrieved from cache", handle)
 					// keep track of place where a handle was found
-					r.registerSecretOrigin(handle, origin, yamlPath)
+					registerSecretOrigin(handle, origin, yamlPath)
 					return secret, nil
 				}
 				newHandles = append(newHandles, handle)
@@ -315,13 +217,7 @@ func (r *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
 
 	// check if any new secrets need to be fetch
 	if len(newHandles) != 0 {
-		var secrets map[string]string
-		var err error
-		if r.fetchHookFunc != nil {
-			secrets, err = r.fetchHookFunc(newHandles)
-		} else {
-			secrets, err = r.fetchSecret(newHandles)
-		}
+		secrets, err := secretFetcher(newHandles)
 		if err != nil {
 			return nil, err
 		}
@@ -335,7 +231,7 @@ func (r *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
 					if secret, ok := secrets[handle]; ok {
 						log.Debugf("Secret '%s' was retrieved from executable", handle)
 						// keep track of place where a handle was found
-						r.registerSecretOrigin(handle, origin, yamlPath)
+						registerSecretOrigin(handle, origin, yamlPath)
 						return secret, nil
 					}
 					// This should never happen since fetchSecret will return an error
@@ -365,12 +261,8 @@ type secretInfo struct {
 }
 
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
-func (r *secretResolver) GetDebugInfo(w io.Writer) {
-	if !r.enabled {
-		log.Errorf("Agent secrets is disabled by caller")
-		return
-	}
-	if r.backendCommand == "" {
+func GetDebugInfo(w io.Writer) {
+	if secretBackendCommand == "" {
 		fmt.Fprintf(w, "No secret_backend_command set: secrets feature is not enabled")
 		return
 	}
@@ -388,16 +280,16 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 		return
 	}
 
-	err = checkRights(r.backendCommand, r.commandAllowGroupExec)
+	err = checkRights(secretBackendCommand, secretBackendCommandAllowGroupExec)
 
 	permissions := "OK, the executable has the correct permissions"
 	if err != nil {
 		permissions = fmt.Sprintf("error: %s", err)
 	}
 
-	details, err := getExecutablePermissions(r)
+	details, err := getExecutablePermissions()
 	info := secretInfo{
-		Executable:                   r.backendCommand,
+		Executable:                   secretBackendCommand,
 		ExecutablePermissions:        permissions,
 		ExecutablePermissionsDetails: details,
 		Handles:                      map[string][][]string{},
@@ -408,13 +300,13 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 
 	// we sort handles so the output is consistent and testable
 	orderedHandles := []string{}
-	for handle := range r.origin {
+	for handle := range secretOrigin {
 		orderedHandles = append(orderedHandles, handle)
 	}
 	sort.Strings(orderedHandles)
 
 	for _, handle := range orderedHandles {
-		contexts := r.origin[handle]
+		contexts := secretOrigin[handle]
 		details := [][]string{}
 		for _, context := range contexts {
 			details = append(details, []string{context.origin, context.yamlPath})

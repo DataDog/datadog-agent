@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build secrets
+
 // Package secrethelper implements the secrethelper subcommand.
 //
 // This subcommand is shared between multiple agent binaries.
@@ -39,7 +41,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	"github.com/DataDog/datadog-agent/cmd/secrethelper/providers"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	s "github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
@@ -129,7 +131,7 @@ func parseInputSecrets(r io.Reader) ([]string, error) {
 	}
 
 	version := splitVersion(request.Version)
-	compatVersion := splitVersion(secrets.PayloadVersion)
+	compatVersion := splitVersion(s.PayloadVersion)
 	if version[0] != compatVersion[0] {
 		return nil, fmt.Errorf("incompatible protocol version %q", request.Version)
 	}
@@ -141,7 +143,7 @@ func parseInputSecrets(r io.Reader) ([]string, error) {
 	return request.Secrets, nil
 }
 
-func writeFetchedSecrets(w io.Writer, fetchedSecrets map[string]secrets.SecretVal) error {
+func writeFetchedSecrets(w io.Writer, fetchedSecrets map[string]s.Secret) error {
 	out, err := json.Marshal(fetchedSecrets)
 	if err != nil {
 		return err
@@ -151,23 +153,23 @@ func writeFetchedSecrets(w io.Writer, fetchedSecrets map[string]secrets.SecretVa
 	return err
 }
 
-func readSecretsFromFile(secretsList []string, dir string) map[string]secrets.SecretVal {
-	res := make(map[string]secrets.SecretVal)
+func readSecretsFromFile(secrets []string, dir string) map[string]s.Secret {
+	res := make(map[string]s.Secret)
 
-	for _, secretID := range secretsList {
+	for _, secretID := range secrets {
 		res[secretID] = providers.ReadSecretFile(filepath.Join(dir, secretID))
 	}
 
 	return res
 }
 
-func readSecretsUsingPrefixes(secretsList []string, rootPath string, newKubeClientFunc NewKubeClient) map[string]secrets.SecretVal {
-	res := make(map[string]secrets.SecretVal)
+func readSecretsUsingPrefixes(secrets []string, rootPath string, newKubeClientFunc NewKubeClient) map[string]s.Secret {
+	res := make(map[string]s.Secret)
 
-	for _, secretID := range secretsList {
+	for _, secretID := range secrets {
 		prefix, id, err := parseSecretWithPrefix(secretID, rootPath)
 		if err != nil {
-			res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: err.Error()}
+			res[secretID] = s.Secret{Value: "", ErrorMsg: err.Error()}
 			continue
 		}
 
@@ -177,12 +179,12 @@ func readSecretsUsingPrefixes(secretsList []string, rootPath string, newKubeClie
 		case k8sSecretPrefix:
 			kubeClient, err := newKubeClientFunc(10 * time.Second)
 			if err != nil {
-				res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: err.Error()}
+				res[secretID] = s.Secret{Value: "", ErrorMsg: err.Error()}
 			} else {
 				res[secretID] = providers.ReadKubernetesSecret(kubeClient, id)
 			}
 		default:
-			res[secretID] = secrets.SecretVal{Value: "", ErrorMsg: fmt.Sprintf("provider not supported: %s", prefix)}
+			res[secretID] = s.Secret{Value: "", ErrorMsg: fmt.Sprintf("provider not supported: %s", prefix)}
 		}
 	}
 

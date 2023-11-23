@@ -8,13 +8,11 @@ package autodiscovery
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -27,36 +25,25 @@ type mockSecretScenario struct {
 	called         int
 }
 
-type MockSecretResolver struct {
+type MockSecretDecrypt struct {
 	t         *testing.T
 	scenarios []mockSecretScenario
 }
 
-var _ secrets.Component = (*MockSecretResolver)(nil)
-
-func (m *MockSecretResolver) Configure(_ string, _ []string, _, _ int, _, _ bool) {}
-
-func (m *MockSecretResolver) GetDebugInfo(_ io.Writer) {}
-
-func (m *MockSecretResolver) IsEnabled() bool {
-	return true
-}
-
-func (m *MockSecretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
-	if m.scenarios == nil {
-		return data, nil
-	}
-	for n, scenario := range m.scenarios {
-		if bytes.Equal(data, scenario.expectedData) && origin == scenario.expectedOrigin {
-			m.scenarios[n].called++
-			return scenario.returnedData, scenario.returnedError
+func (m *MockSecretDecrypt) getDecryptFunc() func([]byte, string) ([]byte, error) {
+	return func(data []byte, origin string) ([]byte, error) {
+		for n, scenario := range m.scenarios {
+			if bytes.Equal(data, scenario.expectedData) && origin == scenario.expectedOrigin {
+				m.scenarios[n].called++
+				return scenario.returnedData, scenario.returnedError
+			}
 		}
+		m.t.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", data, origin)
+		return nil, fmt.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", data, origin)
 	}
-	m.t.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", string(data), origin)
-	return nil, fmt.Errorf("Decrypt called with unexpected arguments: data=%s, origin=%s", string(data), origin)
 }
 
-func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
+func (m *MockSecretDecrypt) haveAllScenariosBeenCalled() bool {
 	for _, scenario := range m.scenarios {
 		if scenario.called == 0 {
 			fmt.Printf("%#v\n", m.scenarios)
@@ -66,13 +53,20 @@ func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
 	return true
 }
 
-func (m *MockSecretResolver) haveAllScenariosNotCalled() bool {
+func (m *MockSecretDecrypt) haveAllScenariosNotCalled() bool {
 	for _, scenario := range m.scenarios {
 		if scenario.called != 0 {
 			return false
 		}
 	}
 	return true
+}
+
+// Install this secret decryptor, and return a function to uninstall it
+func (m *MockSecretDecrypt) install() func() {
+	originalSecretsDecrypt := secretsDecrypt
+	secretsDecrypt = m.getDecryptFunc()
+	return func() { secretsDecrypt = originalSecretsDecrypt }
 }
 
 var sharedTpl = integration.Config{
@@ -116,9 +110,10 @@ var makeSharedScenarios = func() []mockSecretScenario {
 }
 
 func TestSecretDecrypt(t *testing.T) {
-	mockDecrypt := &MockSecretResolver{t, makeSharedScenarios()}
+	mockDecrypt := MockSecretDecrypt{t, makeSharedScenarios()}
+	defer mockDecrypt.install()()
 
-	newConfig, err := decryptConfig(sharedTpl, mockDecrypt)
+	newConfig, err := decryptConfig(sharedTpl)
 	require.NoError(t, err)
 
 	assert.NotEqual(t, newConfig.Instances, sharedTpl.Instances)
@@ -127,13 +122,14 @@ func TestSecretDecrypt(t *testing.T) {
 }
 
 func TestSkipSecretDecrypt(t *testing.T) {
-	mockDecrypt := &MockSecretResolver{t, makeSharedScenarios()}
+	mockDecrypt := MockSecretDecrypt{t, makeSharedScenarios()}
+	defer mockDecrypt.install()()
 
 	cfg := config.Mock(t)
 	cfg.SetWithoutSource("secret_backend_skip_checks", true)
 	defer cfg.SetWithoutSource("secret_backend_skip_checks", false)
 
-	c, err := decryptConfig(sharedTpl, mockDecrypt)
+	c, err := decryptConfig(sharedTpl)
 	require.NoError(t, err)
 
 	assert.Equal(t, sharedTpl.Instances, c.Instances)

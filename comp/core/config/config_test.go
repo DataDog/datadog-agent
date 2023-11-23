@@ -14,8 +14,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
-	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -35,7 +33,6 @@ func TestRealConfig(t *testing.T) {
 			WithConfigMissingOK(true),
 			WithConfFilePath(dir),
 		)),
-		fx.Provide(func() secrets.Component { return secretsimpl.NewMockSecretResolver() }),
 		Module,
 	))
 	require.Equal(t, "https://example.com", config.GetString("dd_url"))

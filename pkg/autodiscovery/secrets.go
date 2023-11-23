@@ -8,13 +8,16 @@ package autodiscovery
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func decryptConfig(conf integration.Config, secretResolver secrets.Component) (integration.Config, error) {
+// secretsDecrypt allows tests to intercept calls to secrets.Decrypt.
+var secretsDecrypt = secrets.Decrypt
+
+func decryptConfig(conf integration.Config) (integration.Config, error) {
 	if config.Datadog.GetBool("secret_backend_skip_checks") {
 		log.Tracef("'secret_backend_skip_checks' is enabled, not decrypting configuration %q", conf.Name)
 		return conf, nil
@@ -23,7 +26,7 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component) (i
 	var err error
 
 	// init_config
-	conf.InitConfig, err = secretResolver.Decrypt(conf.InitConfig, conf.Name)
+	conf.InitConfig, err = secretsDecrypt(conf.InitConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'init_config': %s", err)
 	}
@@ -32,7 +35,7 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component) (i
 	// we cannot update in place as, being a slice, it would modify the input config as well
 	instances := make([]integration.Data, 0, len(conf.Instances))
 	for _, inputInstance := range conf.Instances {
-		decryptedInstance, err := secretResolver.Decrypt(inputInstance, conf.Name)
+		decryptedInstance, err := secretsDecrypt(inputInstance, conf.Name)
 		if err != nil {
 			return conf, fmt.Errorf("error while decrypting secrets in an instance: %s", err)
 		}
@@ -41,13 +44,13 @@ func decryptConfig(conf integration.Config, secretResolver secrets.Component) (i
 	conf.Instances = instances
 
 	// metrics
-	conf.MetricConfig, err = secretResolver.Decrypt(conf.MetricConfig, conf.Name)
+	conf.MetricConfig, err = secretsDecrypt(conf.MetricConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets in 'metrics': %s", err)
 	}
 
 	// logs
-	conf.LogsConfig, err = secretResolver.Decrypt(conf.LogsConfig, conf.Name)
+	conf.LogsConfig, err = secretsDecrypt(conf.LogsConfig, conf.Name)
 	if err != nil {
 		return conf, fmt.Errorf("error while decrypting secrets 'logs': %s", err)
 	}

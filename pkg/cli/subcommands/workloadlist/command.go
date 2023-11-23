@@ -58,7 +58,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(workloadList,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParams(
+					ConfigParams: config.NewAgentParamsWithoutSecrets(
 						globalParams.ConfFilePath,
 						config.WithConfigName(globalParams.ConfigName),
 					),

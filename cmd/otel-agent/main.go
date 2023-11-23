@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/logs"
@@ -65,8 +64,7 @@ func main() {
 		logs.Bundle,
 		fx.Supply(
 			core.BundleParams{
-				ConfigParams: config.NewAgentParams(*cfgPath),
-				SecretParams: secrets.NewEnabledParams(),
+				ConfigParams: config.NewAgentParamsWithSecrets(*cfgPath),
 				LogParams:    corelog.ForOneShot(loggerName, "debug", true),
 			},
 		),

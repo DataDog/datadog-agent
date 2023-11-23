@@ -23,6 +23,7 @@ func setupConfig(deps configDependencies) (*config.Warnings, error) {
 
 	confFilePath := p.ConfFilePath
 	configName := p.configName
+	withoutSecrets := !p.configLoadSecrets
 	failOnMissingFile := !p.configMissingOK
 	defaultConfPath := p.defaultConfPath
 
@@ -47,13 +48,12 @@ func setupConfig(deps configDependencies) (*config.Warnings, error) {
 	// load the configuration
 	var err error
 	var warnings *config.Warnings
-	resolver := deps.getSecretResolver()
-	if resolver == nil || !resolver.IsEnabled() {
+
+	if withoutSecrets {
 		warnings, err = config.LoadWithoutSecret()
 	} else {
-		warnings, err = config.LoadWithSecret(resolver)
+		warnings, err = config.Load()
 	}
-
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {

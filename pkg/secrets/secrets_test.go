@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package secretsimpl
+//go:build secrets
+
+package secrets
 
 import (
 	"fmt"
@@ -13,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
 var (
@@ -129,6 +133,18 @@ some:
 	}
 )
 
+func resetPackageVars() {
+	secretBackendCommand = ""
+	secretBackendArguments = []string{}
+	secretCache = map[string]string{}
+	secretOrigin = make(handleToContext)
+	secretFetcher = fetchSecret
+	secretBackendTimeout = SecretBackendTimeoutDefault
+	scrubberAddReplacer = scrubber.AddStrippedKeys
+	removeTrailingLinebreak = false
+	secretBackendOutputMaxSize = SecretBackendOutputMaxSizeDefault
+}
+
 func TestIsEnc(t *testing.T) {
 	enc, secret := isEnc("")
 	assert.False(t, enc)
@@ -216,26 +232,26 @@ func TestWalkerComplex(t *testing.T) {
 }
 
 func TestDecryptNoCommand(t *testing.T) {
-	resolver := newEnabledSecretResolver()
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	defer resetPackageVars()
+	secretFetcher = func(secrets []string) (map[string]string, error) {
 		return nil, fmt.Errorf("some error")
 	}
 
 	// since we didn't set any command this should return without any error
-	resConf, err := resolver.Decrypt(testConf, "test")
+	resConf, err := Decrypt(testConf, "test")
 	require.NoError(t, err)
 	assert.Equal(t, testConf, resConf)
 }
 
 func TestDecryptSecretError(t *testing.T) {
-	resolver := newEnabledSecretResolver()
-	resolver.backendCommand = "some_command"
+	secretBackendCommand = "some_command"
+	defer resetPackageVars()
 
-	resolver.fetchHookFunc = func(secrets []string) (map[string]string, error) {
+	secretFetcher = func(secrets []string) (map[string]string, error) {
 		return nil, fmt.Errorf("some error")
 	}
 
-	_, err := resolver.Decrypt(testConf, "test")
+	_, err := Decrypt(testConf, "test")
 	require.NotNil(t, err)
 }
 
@@ -358,21 +374,21 @@ func TestDecrypt(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			currentTest = t
+			t.Cleanup(resetPackageVars)
 
-			resolver := newEnabledSecretResolver()
-			resolver.backendCommand = "some_command"
+			secretBackendCommand = "some_command"
 			if tc.secretCache != nil {
-				resolver.cache = tc.secretCache
+				secretCache = tc.secretCache
 			}
-			resolver.fetchHookFunc = tc.secretFetchCB
+			secretFetcher = tc.secretFetchCB
 			scrubbedKey := []string{}
-			resolver.scrubHookFunc = func(k []string) { scrubbedKey = append(scrubbedKey, k[0]) }
+			scrubberAddReplacer = func(k []string) { scrubbedKey = append(scrubbedKey, k[0]) }
 
-			newConf, err := resolver.Decrypt(tc.testConf, "test")
+			newConf, err := Decrypt(tc.testConf, "test")
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.decryptedConf, string(newConf))
-			assert.Equal(t, tc.expectedSecretOrigin, resolver.origin)
+			assert.Equal(t, tc.expectedSecretOrigin, secretOrigin)
 			assert.Equal(t, tc.expectedScrubbedKey, scrubbedKey)
 		})
 	}

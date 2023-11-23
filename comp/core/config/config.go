@@ -11,7 +11,6 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
@@ -28,32 +27,24 @@ type cfg struct {
 	warnings *config.Warnings
 }
 
-// configDependencies is an interface that mimics the fx-oriented dependencies struct
-// TODO: investigate whether this interrface is worth keeping, otherwise delete it and just use dependencies
 type configDependencies interface {
 	getParams() *Params
-	getSecretResolver() secrets.Component
 }
 
 type dependencies struct {
 	fx.In
 
 	Params Params
-	Secret secrets.Component
 }
 
 func (d dependencies) getParams() *Params {
 	return &d.Params
 }
 
-func (d dependencies) getSecretResolver() secrets.Component {
-	return d.Secret
-}
-
 // NewServerlessConfig initializes a config component from the given config file
 // TODO: serverless must be eventually migrated to fx, this workaround will then become obsolete - ts should not be created directly in this fashion.
 func NewServerlessConfig(path string) (Component, error) {
-	options := []func(*Params){WithConfigName("serverless")}
+	options := []func(*Params){WithConfigName("serverless"), WithConfigLoadSecrets(true)}
 
 	_, err := os.Stat(path)
 	if os.IsNotExist(err) &&
