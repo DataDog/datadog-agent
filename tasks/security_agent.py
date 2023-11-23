@@ -1,12 +1,10 @@
 import datetime
 import errno
 import glob
-import json
 import os
 import re
 import shutil
 import sys
-import tarfile
 import tempfile
 from subprocess import check_output
 
