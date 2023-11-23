@@ -3,16 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package cws holds cws test related functions
-package cws
+// Package e2elib holds cws e2e tests related functions
+package e2elib
 
 import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
+
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-api-client-go/api/v2/datadog"
 )
 
 // APIClient represents the datadog API context
