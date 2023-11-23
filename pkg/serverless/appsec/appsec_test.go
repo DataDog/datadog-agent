@@ -129,6 +129,13 @@ func TestMonitor(t *testing.T) {
 				},
 				schema: `{"_dd.appsec.s.req.params":[{"param":[[[2],[16],[4],[8]],{"len":4}]}],"_dd.appsec.s.req.query":[{"query":[[[8]],{"len":1}]}]}`,
 			},
+			{
+				name: "vin-scanner",
+				pathParams: map[string]any{
+					"vin": "AAAAAAAAAAAAAAAAA",
+				},
+				schema: `{"_dd.appsec.s.req.params":[{"vin":[8,{"category":"pii","type":"vin"}]}],"_dd.appsec.s.req.query":[{"query":[[[8]],{"len":1}]}]}`,
+			},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				res := asm.Monitor(map[string]any{
