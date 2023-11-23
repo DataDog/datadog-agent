@@ -12,7 +12,6 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
@@ -69,9 +68,8 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		fx.Supply(secrets.NewEnabledParams()),
 		coreconfig.Module,
 		fx.Provide(func() corelog.Params {
-			p := corelog.ForDaemon("TRACE", "apm_config.log_file", path.DefaultLogFile)
-			return p
-		}), // fx.Supply(ctx) fails with a missing type error.
+			return corelog.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+		}),
 		corelog.TraceModule,
 		// setup workloadmeta
 		collectors.GetCatalog(),
