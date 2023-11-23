@@ -174,17 +174,11 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		dir := pathToPackage(path)
 
 		if config, ok := testConfig.packagesRunConfig[dir]; ok {
-			if config.Exclude {
-				return false
-			}
-
-			return true
+			return !config.Exclude
 		}
 
 		if config, ok := testConfig.packagesRunConfig[matchAllPackages]; ok {
-			if config.Exclude {
-				return false
-			}
+			return !config.Exclude
 		}
 
 		return true
