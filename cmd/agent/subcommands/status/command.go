@@ -11,10 +11,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
-	"time"
 
 	"go.uber.org/fx"
 
@@ -162,14 +160,6 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	if err != nil {
 		return err
 	}
-	// attach trace-agent status, if obtainable
-	temp := make(map[string]interface{})
-	if err := json.Unmarshal(r, &temp); err == nil {
-		temp["apmStats"] = getAPMStatus(config)
-		if newr, err := json.Marshal(temp); err == nil {
-			r = newr
-		}
-	}
 
 	// The rendering is done in the client so that the agent has less work to do
 	if cliParams.prettyPrintJSON {
@@ -193,30 +183,6 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	}
 
 	return nil
-}
-
-// getAPMStatus returns a set of key/value pairs summarizing the status of the trace-agent.
-// If the status can not be obtained for any reason, the returned map will contain an "error"
-// key with an explanation.
-func getAPMStatus(config config.Component) map[string]interface{} {
-	port := config.GetInt("apm_config.debug.port")
-	url := fmt.Sprintf("http://localhost:%d/debug/vars", port)
-	resp, err := (&http.Client{Timeout: 2 * time.Second}).Get(url)
-	if err != nil {
-		return map[string]interface{}{
-			"port":  port,
-			"error": err.Error(),
-		}
-	}
-	defer resp.Body.Close()
-	status := make(map[string]interface{})
-	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
-		return map[string]interface{}{
-			"port":  port,
-			"error": err.Error(),
-		}
-	}
-	return status
 }
 
 func componentStatusCmd(log log.Component, config config.Component, cliParams *cliParams) error {
