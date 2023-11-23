@@ -204,7 +204,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	case *events.ALBTargetGroupRequest:
 		makeContext(
 			&ctx,
-			&event.Path,
+			nil,
 			&event.Path,
 			event.MultiValueHeaders,
 			event.MultiValueQueryStringParameters,
@@ -217,7 +217,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	case *events.LambdaFunctionURLRequest:
 		makeContext(
 			&ctx,
-			&event.RawPath,
+			nil,
 			&event.RawPath,
 			toMultiValueMap(event.Headers),
 			toMultiValueMap(event.QueryStringParameters),
