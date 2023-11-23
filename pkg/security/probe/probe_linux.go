@@ -1375,7 +1375,7 @@ func (p *EBPFProbe) applyDefaultFilterPolicies() {
 
 // ApplyRuleSet apply the required update to handle the new ruleset
 func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
-	if p.probe.Opts.SyscallsMonitorEnabled {
+	if p.opts.SyscallsMonitorEnabled {
 		if err := p.monitors.syscallsMonitor.Disable(); err != nil {
 			return nil, err
 		}
@@ -1413,7 +1413,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		return nil, fmt.Errorf("failed to select probes: %w", err)
 	}
 
-	if p.probe.Opts.SyscallsMonitorEnabled {
+	if p.opts.SyscallsMonitorEnabled {
 		if err := p.monitors.syscallsMonitor.Flush(); err != nil {
 			return nil, err
 		}
@@ -1500,16 +1500,16 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	}
 
 	p.managerOptions.MapSpecEditors = probes.AllMapSpecEditors(numCPU, probes.MapSpecEditorOpts{
-		TracedCgroupSize:        probe.Config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
+		TracedCgroupSize:        config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
 		UseRingBuffers:          useRingBuffers,
 		UseMmapableMaps:         useMmapableMaps,
-		RingBufferSize:          uint32(probe.Config.Probe.EventStreamBufferSize),
+		RingBufferSize:          uint32(config.Probe.EventStreamBufferSize),
 		PathResolutionEnabled:   probe.Opts.PathResolutionEnabled,
-		SecurityProfileMaxCount: probe.Config.RuntimeSecurity.SecurityProfileMaxCount,
+		SecurityProfileMaxCount: config.RuntimeSecurity.SecurityProfileMaxCount,
 	})
 
-	if probe.Config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range probe.Config.RuntimeSecurity.ActivityDumpTracedEventTypes {
+	if config.RuntimeSecurity.ActivityDumpEnabled {
+		for _, e := range config.RuntimeSecurity.ActivityDumpTracedEventTypes {
 			if e == model.SyscallsEventType {
 				// Add syscall monitor probes
 				p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors...)
@@ -1526,7 +1526,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 
-	areCGroupADsEnabled := probe.Config.RuntimeSecurity.ActivityDumpTracedCgroupsCount > 0
+	areCGroupADsEnabled := config.RuntimeSecurity.ActivityDumpTracedCgroupsCount > 0
 
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
@@ -1584,7 +1584,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		},
 		manager.ConstantEditor{
 			Name:  "cgroup_activity_dumps_enabled",
-			Value: utils.BoolTouint64(probe.Config.RuntimeSecurity.ActivityDumpEnabled && areCGroupADsEnabled),
+			Value: utils.BoolTouint64(config.RuntimeSecurity.ActivityDumpEnabled && areCGroupADsEnabled),
 		},
 		manager.ConstantEditor{
 			Name:  "net_struct_type",
@@ -1592,7 +1592,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		},
 		manager.ConstantEditor{
 			Name:  "syscall_monitor_event_period",
-			Value: uint64(probe.Config.RuntimeSecurity.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
+			Value: uint64(config.RuntimeSecurity.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
 			Name:  "send_signal",
@@ -1600,7 +1600,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		},
 		manager.ConstantEditor{
 			Name:  "anomaly_syscalls",
-			Value: utils.BoolTouint64(slices.Contains(probe.Config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
+			Value: utils.BoolTouint64(slices.Contains(config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
 		},
 		manager.ConstantEditor{
 			Name:  "monitor_syscalls_map_enabled",
@@ -1651,13 +1651,13 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(probe.Config.Probe.ERPCDentryResolutionEnabled, probe.Config.Probe.NetworkEnabled, useMmapableMaps, p.useFentry)
-	if !probe.Config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, useMmapableMaps, p.useFentry)
+	if !config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
 	}
 
-	if !probe.Config.Probe.NetworkEnabled {
+	if !config.Probe.NetworkEnabled {
 		// prevent all TC classifiers from loading
 		p.managerOptions.ExcludedFunctions = append(p.managerOptions.ExcludedFunctions, probes.GetAllTCProgramFunctions()...)
 	}
@@ -1680,7 +1680,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		TTYFallbackEnabled:    probe.Opts.TTYFallbackEnabled,
 	}
 
-	p.Resolvers, err = resolvers.NewEBPFResolvers(probe.Config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
+	p.Resolvers, err = resolvers.NewEBPFResolvers(config, p.Manager, probe.StatsdClient, probe.scrubber, p.Erpc, resolversOpts)
 	if err != nil {
 		return nil, err
 	}

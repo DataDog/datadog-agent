@@ -10,7 +10,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// NewModel returns a new model with some extra field validation
-func NewModel(probe *Probe) *model.Model {
+// NewWindowsModel returns a new model with some extra field validation
+func NewWindowsModel(probe *Probe) *model.Model {
 	return &model.Model{}
 }
