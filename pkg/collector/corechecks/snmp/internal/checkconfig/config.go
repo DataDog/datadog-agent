@@ -191,7 +191,10 @@ type CheckConfig struct {
 	DetectMetricsEnabled         bool
 	DetectMetricsRefreshInterval int
 
-	DeviceScanEnabled bool
+	DeviceScanEnabled          bool
+	DeviceScanLastOid          string
+	DeviceScanCurScanStart     time.Time
+	DeviceScanCurScanOidsCount int
 
 	Network                  string
 	DiscoveryWorkers         int
