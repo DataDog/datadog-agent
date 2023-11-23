@@ -425,20 +425,6 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event) {
 	p.monitors.ProcessEvent(event)
 }
 
-func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) {
-	if !seclog.DefaultLogger.IsTracing() {
-		return
-	}
-
-	eventJSON, eventType, err := marshaller()
-	if err != nil {
-		seclog.DefaultLogger.TraceTagf(eventType, fmt, err)
-		return
-	}
-
-	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
-}
-
 // SendStats sends statistics about the probe to Datadog
 func (p *EBPFProbe) SendStats() error {
 	p.Resolvers.TCResolver.SendTCProgramsStats(p.statsdClient)

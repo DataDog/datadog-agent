@@ -143,9 +143,8 @@ type Event struct {
 	Async bool `field:"event.async,handler:ResolveAsync" event:"*"` // SECLDoc[event.async] Definition:`True if the syscall was asynchronous`
 
 	// context
-	SpanContext            SpanContext            `field:"-" json:"-"`
-	NetworkContext         NetworkContext         `field:"network" event:"dns"`
-	SecurityProfileContext SecurityProfileContext `field:"-"`
+	SpanContext    SpanContext    `field:"-" json:"-"`
+	NetworkContext NetworkContext `field:"network" event:"dns"`
 
 	// fim events
 	Chmod       ChmodEvent    `field:"chmod" event:"chmod"`             // [7.27] [File] A file’s permissions were changed

@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
 // Package probe holds probe related files
 package probe
 
@@ -22,7 +24,8 @@ func NewEBPFLessModel(probe *EBPFLessProbe) *model.Model {
 			if !strings.HasPrefix(field, "exec.") &&
 				!strings.HasPrefix(field, "exit.") &&
 				!strings.HasPrefix(field, "open.") &&
-				!strings.HasPrefix(field, "process.") {
+				!strings.HasPrefix(field, "process.") &&
+				!strings.HasPrefix(field, "container.") {
 				return fmt.Errorf("%s is not available with the eBPF less version", field)
 			}
 			return nil
@@ -30,7 +33,7 @@ func NewEBPFLessModel(probe *EBPFLessProbe) *model.Model {
 	}
 }
 
-// NewEvent returns a new event
+// NewEBPFLessEvent returns a new event
 func NewEBPFLessEvent(fh *EBPFLessFieldHandlers) *model.Event {
 	event := model.NewDefaultEvent()
 	event.FieldHandlers = fh

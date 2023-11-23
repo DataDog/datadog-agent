@@ -27,7 +27,7 @@ import (
 )
 
 type WindowsProbe struct {
-	Resolvers *resolvers.EBPFLessResolvers
+	Resolvers *resolvers.Resolvers
 
 	// Constants and configuration
 	opts         Opts
@@ -39,7 +39,7 @@ type WindowsProbe struct {
 	cancelFnc     context.CancelFunc
 	wg            sync.WaitGroup
 	probe         *Probe
-	fieldHandlers *EBPFLessFieldHandlers
+	fieldHandlers *FieldHandlers
 	pm            *procmon.WinProcmon
 	onStart       chan *procmon.ProcessStartNotification
 	onStop        chan *procmon.ProcessStopNotification
@@ -202,10 +202,6 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 	return p, nil
 }
 
-// OnNewDiscarder is called when a new discarder is found. We currently don't generate discarders on Windows.
-func (p *WindowsProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) { //nolint:revive // TODO fix revive unused-parameter
-}
-
 // ApplyRuleSet setup the probes for the provided set of rules and returns the policy report.
 func (p *WindowsProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	return kfilters.NewApplyRuleSetReport(p.config.Probe, rs)
@@ -222,12 +218,7 @@ func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.F
 
 // NewModel returns a new Model
 func (p *WindowsProbe) NewModel() *model.Model {
-	return NewEBPFLessModel(p)
-}
-
-// SendStats send the stats
-func (p *WindowsProbe) SendStats() error {
-	return nil
+	return NewWindowsModel(p)
 }
 
 // DumpDiscarders dump the discarders
@@ -247,7 +238,7 @@ func (p *WindowsProbe) DumpProcessCache(withArgs bool) (string, error) {
 
 // NewEvent returns a new event
 func (p *WindowsProbe) NewEvent() *model.Event {
-	return NewEBPFLessEvent(p.fieldHandlers)
+	return NewWindowsEvent(p.fieldHandlers)
 }
 
 // HandleActions executes the actions of a triggered rule

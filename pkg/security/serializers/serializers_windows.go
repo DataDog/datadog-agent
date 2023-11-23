@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -70,7 +69,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		Pid:        ps.Pid,
 		PPid:       getUint32Pointer(&ps.PPid),
 		Executable: newFileSerializer(&ps.FileEvent, e),
-		CmdLine:    resolvers.ProcessResolver.GetProcessCmdLineScrubbed(ps),
+		//	CmdLine:    e.GetProcessCmdLineScrubbed(ps),
 	}
 
 	if len(ps.ContainerID) != 0 {

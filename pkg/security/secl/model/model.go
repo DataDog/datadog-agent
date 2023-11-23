@@ -171,10 +171,8 @@ type BaseEvent struct {
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
-	SpanContext            SpanContext            `field:"-" json:"-"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
 	ContainerContext       *ContainerContext      `field:"container" event:"*"`
-	NetworkContext         NetworkContext         `field:"network" event:"dns"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
@@ -285,11 +283,6 @@ func (e *Event) AddToFlags(flag uint32) {
 // RemoveFromFlags remove a flag to the event
 func (e *Event) RemoveFromFlags(flag uint32) {
 	e.Flags ^= flag
-}
-
-// HasProfile returns true if we found a profile for that event
-func (e *Event) HasProfile() bool {
-	return e.SecurityProfileContext.Name != ""
 }
 
 // GetType returns the event type

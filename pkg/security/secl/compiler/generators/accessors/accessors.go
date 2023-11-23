@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"text/template"
@@ -101,6 +102,10 @@ func origTypeToBasicType(kind string) string {
 		return "int"
 	}
 	return kind
+}
+
+func isNetType(kind string) bool {
+	return kind == "net.IPNet"
 }
 
 func isBasicType(kind string) bool {
@@ -522,6 +527,12 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 
 				if len(fieldType) == 0 {
 					continue
+				}
+
+				if isNetType((fieldType)) {
+					if !slices.Contains(module.Imports, "net") {
+						module.Imports = append(module.Imports, "net")
+					}
 				}
 
 				alias := seclField.name
