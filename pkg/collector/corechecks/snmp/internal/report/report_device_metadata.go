@@ -45,7 +45,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	interfaces := buildNetworkInterfacesMetadata(config.DeviceID, metadataStore)
 	ipAddresses := buildNetworkIPAddressesMetadata(config.DeviceID, metadataStore)
 	topologyLinks := buildNetworkTopologyMetadata(config.DeviceID, metadataStore, interfaces)
-	deviceScanOids := buildDeviceScanMetadata(config.DeviceID, store)
+	deviceOids := buildDeviceScanMetadata(config.DeviceID, store)
 
 	metadataPayloads := devicemetadata.BatchPayloads(
 		config.Namespace, config.ResolvedSubnetName,
@@ -57,7 +57,7 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 		topologyLinks,
 		nil,
 		diagnoses,
-		deviceScanOids,
+		deviceOids,
 	)
 
 	for _, payload := range metadataPayloads {
@@ -98,10 +98,10 @@ func (ms *MetricSender) ReportNetworkDeviceMetadata(config *checkconfig.CheckCon
 	}
 }
 
-func buildDeviceScanMetadata(deviceId string, oidsValues *valuestore.ResultValueStore) []devicemetadata.DeviceScanOid {
-	var deviceScanOids []devicemetadata.DeviceScanOid
+func buildDeviceScanMetadata(deviceId string, oidsValues *valuestore.ResultValueStore) []devicemetadata.DeviceOid {
+	var deviceOids []devicemetadata.DeviceOid
 	if oidsValues == nil {
-		return deviceScanOids
+		return deviceOids
 	}
 	for _, variablePdu := range oidsValues.DeviceScanValues {
 		_, value, err := valuestore.GetResultValueFromPDU(variablePdu)
@@ -117,14 +117,14 @@ func buildDeviceScanMetadata(deviceId string, oidsValues *valuestore.ResultValue
 			continue
 		}
 
-		deviceScanOids = append(deviceScanOids, devicemetadata.DeviceScanOid{
+		deviceOids = append(deviceOids, devicemetadata.DeviceOid{
 			DeviceID:    deviceId,
 			Oid:         strings.TrimLeft(variablePdu.Name, "."),
 			Type:        variablePdu.Type.String(), // TODO: Map to internal types?
 			ValueString: strValue,
 		})
 	}
-	return deviceScanOids
+	return deviceOids
 }
 
 func computeInterfaceStatus(adminStatus devicemetadata.IfAdminStatus, operStatus devicemetadata.IfOperStatus) devicemetadata.InterfaceStatus {

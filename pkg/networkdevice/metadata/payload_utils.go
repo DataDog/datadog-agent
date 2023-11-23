@@ -8,7 +8,7 @@ package metadata
 import "time"
 
 // BatchPayloads batch NDM metadata payloads
-func BatchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter, diagnoses []DiagnosisMetadata, deviceScanOids []DeviceScanOid) []NetworkDevicesMetadata {
+func BatchPayloads(namespace string, subnet string, collectTime time.Time, batchSize int, devices []DeviceMetadata, interfaces []InterfaceMetadata, ipAddresses []IPAddressMetadata, topologyLinks []TopologyLinkMetadata, netflowExporters []NetflowExporter, diagnoses []DiagnosisMetadata, deviceOids []DeviceOid) []NetworkDevicesMetadata {
 
 	var payloads []NetworkDevicesMetadata
 	var resourceCount int
@@ -45,10 +45,10 @@ func BatchPayloads(namespace string, subnet string, collectTime time.Time, batch
 		curPayload.Diagnoses = append(curPayload.Diagnoses, diagnosis)
 	}
 
-	for _, deviceScanOid := range deviceScanOids {
+	for _, deviceOid := range deviceOids {
 		// TODO: TEST ME
 		payloads, curPayload, resourceCount = appendToPayloads(namespace, subnet, collectTime, batchSize, resourceCount, payloads, curPayload)
-		curPayload.DeviceScanOids = append(curPayload.DeviceScanOids, deviceScanOid)
+		curPayload.DeviceOids = append(curPayload.DeviceOids, deviceOid)
 	}
 
 	payloads = append(payloads, curPayload)
