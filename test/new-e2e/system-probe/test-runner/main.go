@@ -249,14 +249,18 @@ func buildTestConfiguration() (*testConfig, error) {
 
 	breakdown := make(map[string]packageRunConfiguration)
 	if *packageRunConfigPtr != "" {
-		dec := json.NewDecoder(strings.NewReader(*packageRunConfigPtr))
+		configData, err := os.ReadFile(*packageRunConfigPtr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read config file: %w", err)
+		}
+
+		dec := json.NewDecoder(bytes.NewReader(configData))
 		dec.DisallowUnknownFields()
 		if err := dec.Decode(&breakdown); err != nil {
 			return nil, err
 		}
 	}
 
-	fmt.Println(breakdown)
 	return &testConfig{
 		retryCount:        *retryPtr,
 		packagesRunConfig: breakdown,
