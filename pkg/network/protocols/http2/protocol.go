@@ -210,8 +210,16 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 
 func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
+	ticker := time.NewTicker(10 * time.Second)
 	go func() {
-		p.updateKernelTelemetry(mgr)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				p.updateKernelTelemetry(mgr)
+			}
+		}
 	}()
 	p.setupHTTP2InFlightMapCleaner(mgr)
 	p.setupDynamicTableMapCleaner(mgr)
@@ -364,16 +372,13 @@ func (p *protocol) updateKernelTelemetry(mgr *manager.Manager) {
 		return
 	}
 
-	for {
-		if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-			log.Warnf("unable to lookup http2 telemetry map: %s", err)
-			return
-		}
-
-		p.http2Telemetry.update(http2Telemetry)
-		p.http2Telemetry.Log()
-		time.Sleep(10 * time.Second)
+	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+		log.Warnf("unable to lookup http2 telemetry map: %s", err)
+		return
 	}
+
+	p.http2Telemetry.update(http2Telemetry)
+	p.http2Telemetry.Log()
 }
 
 // The staticTableEntry represents an entry in the static table that contains an index in the table and a value.
