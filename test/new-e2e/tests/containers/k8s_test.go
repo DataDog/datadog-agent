@@ -282,6 +282,16 @@ func (suite *k8sSuite) TestNginx() {
 		},
 	})
 
+	// Test Nginx logs
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "apps-nginx-server",
+		},
+		Expect: testLogExpectArgs{
+			Message: `GET / HTTP/1\.1`,
+		},
+	})
+
 	// Check HPA is properly scaling up and down
 	// This indirectly tests the cluster-agent external metrics server
 	suite.testHPA("workload-nginx", "nginx")
@@ -339,6 +349,16 @@ func (suite *k8sSuite) TestRedis() {
 				Max: 5,
 				Min: 1,
 			},
+		},
+	})
+
+	// Test Redis logs
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "redis",
+		},
+		Expect: testLogExpectArgs{
+			Message: `oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo`,
 		},
 	})
 
@@ -602,7 +622,7 @@ func (suite *k8sSuite) TestPrometheus() {
 }
 
 func (suite *k8sSuite) testHPA(namespace, deployment string) {
-	suite.Run(fmt.Sprintf("kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func() {
+	suite.Run(fmt.Sprintf("hpa   kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func() {
 		sendEvent := func(alertType, text string, time *int) {
 			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
 				Title: pointer.Ptr(fmt.Sprintf("testHPA %s/%s", namespace, deployment)),
