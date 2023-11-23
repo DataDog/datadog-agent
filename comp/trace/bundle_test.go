@@ -10,6 +10,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -29,7 +30,6 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
 		core.Bundle,
-
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module,
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
@@ -45,10 +45,14 @@ func TestMockBundleDependencies(t *testing.T) {
 	os.Setenv("DD_DD_URL", "https://example.com")
 	defer func() { os.Unsetenv("DD_DD_URL") }()
 
+	// Only for test purposes to avoid setting a different default value.
+	os.Setenv("DDTEST_DEFAULT_LOG_FILE_PATH", config.DefaultLogFilePath)
+	defer func() { os.Unsetenv("DDTEST_DEFAULT_LOG_FILE_PATH") }()
+
 	cfg := fxutil.Test[config.Component](t, fx.Options(
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
-		core.MockBundle,
+		traceMockBundle,
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module,
 		fx.Invoke(func(_ config.Component) {}),
@@ -60,3 +64,10 @@ func TestMockBundleDependencies(t *testing.T) {
 
 	require.NotNil(t, cfg.Object())
 }
+
+var traceMockBundle = core.MakeMockBundle(
+	fx.Provide(func() log.Params {
+		return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+	}),
+	log.TraceMockModule,
+)
