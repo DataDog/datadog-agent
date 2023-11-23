@@ -179,6 +179,8 @@ type RuntimeSecurityConfig struct {
 	AnomalyDetectionTagRulesEnabled bool
 	// AnomalyDetectionSilentRuleEventsEnabled do not send rule event if also part of an anomaly event
 	AnomalyDetectionSilentRuleEventsEnabled bool
+	// AnomalyDetectionEnabled defines if we should send anomaly detection events
+	AnomalyDetectionEnabled bool
 
 	// SBOMResolverEnabled defines if the SBOM resolver should be enabled
 	SBOMResolverEnabled bool
