@@ -53,12 +53,12 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*mod
 }
 
 // ResolveFilePath resolves the inode to a full path
-func (fh *EBPFLessFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent) string {
+func (fh *EBPFLessFieldHandlers) ResolveFilePath(_ *model.Event, f *model.FileEvent) string {
 	return f.PathnameStr
 }
 
 // ResolveFileBasename resolves the inode to a full path
-func (fh *EBPFLessFieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent) string {
+func (fh *EBPFLessFieldHandlers) ResolveFileBasename(_ *model.Event, f *model.FileEvent) string {
 	return f.BasenameStr
 }
 
@@ -78,7 +78,7 @@ func (fh *EBPFLessFieldHandlers) ResolveContainerContext(ev *model.Event) (*mode
 }
 
 // ResolveProcessArgv0 resolves the first arg of the event
-func (fh *EBPFLessFieldHandlers) ResolveProcessArgv0(ev *model.Event, process *model.Process) string {
+func (fh *EBPFLessFieldHandlers) ResolveProcessArgv0(_ *model.Event, process *model.Process) string {
 	arg0, _ := sprocess.GetProcessArgv0(process)
 	return arg0
 }
@@ -89,13 +89,13 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessArgs(ev *model.Event, process *mo
 }
 
 // ResolveProcessArgv resolves the unscrubbed args of the process as an array. Use with caution.
-func (fh *EBPFLessFieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
+func (fh *EBPFLessFieldHandlers) ResolveProcessArgv(_ *model.Event, process *model.Process) []string {
 	argv, _ := sprocess.GetProcessArgv(process)
 	return argv
 }
 
 // ResolveProcessArgvScrubbed resolves the args of the process as an array
-func (fh *EBPFLessFieldHandlers) ResolveProcessArgvScrubbed(ev *model.Event, process *model.Process) []string { //nolint:revive // TODO fix revive unused-parameter
+func (fh *EBPFLessFieldHandlers) ResolveProcessArgvScrubbed(_ *model.Event, process *model.Process) []string {
 	argv, _ := fh.resolvers.ProcessResolver.GetProcessArgvScrubbed(process)
 	return argv
 }
@@ -106,25 +106,25 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessArgsScrubbed(ev *model.Event, pro
 }
 
 // ResolveProcessEnvp resolves the envp of the event as an array
-func (fh *EBPFLessFieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Process) []string {
+func (fh *EBPFLessFieldHandlers) ResolveProcessEnvp(_ *model.Event, process *model.Process) []string {
 	envp, _ := fh.resolvers.ProcessResolver.GetProcessEnvp(process)
 	return envp
 }
 
 // ResolveProcessArgsTruncated returns whether the args are truncated
-func (fh *EBPFLessFieldHandlers) ResolveProcessArgsTruncated(ev *model.Event, process *model.Process) bool {
+func (fh *EBPFLessFieldHandlers) ResolveProcessArgsTruncated(_ *model.Event, process *model.Process) bool {
 	_, truncated := sprocess.GetProcessArgv(process)
 	return truncated
 }
 
 // ResolveProcessEnvsTruncated returns whether the envs are truncated
-func (fh *EBPFLessFieldHandlers) ResolveProcessEnvsTruncated(ev *model.Event, process *model.Process) bool {
+func (fh *EBPFLessFieldHandlers) ResolveProcessEnvsTruncated(_ *model.Event, process *model.Process) bool {
 	_, truncated := fh.resolvers.ProcessResolver.GetProcessEnvs(process)
 	return truncated
 }
 
 // ResolveProcessEnvs resolves the unscrubbed envs of the event. Use with caution.
-func (fh *EBPFLessFieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string {
+func (fh *EBPFLessFieldHandlers) ResolveProcessEnvs(_ *model.Event, process *model.Process) []string {
 	envs, _ := fh.resolvers.ProcessResolver.GetProcessEnvs(process)
 	return envs
 }
@@ -142,7 +142,7 @@ func (fh *EBPFLessFieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.P
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
-func (fh *EBPFLessFieldHandlers) ResolveEventTime(ev *model.Event, e *model.BaseEvent) time.Time {
+func (fh *EBPFLessFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
 	if ev.Timestamp.IsZero() {
 		ev.Timestamp = time.Now()
 	}

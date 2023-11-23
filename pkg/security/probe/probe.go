@@ -77,15 +77,12 @@ type Probe struct {
 
 	// internals
 	scrubber *procutil.DataScrubber
+	event    *model.Event
 
 	// Events section
 	fullAccessEventHandlers [model.MaxAllEventType][]FullAccessEventHandler
 	eventHandlers           [model.MaxAllEventType][]EventHandler
 	customEventHandlers     [model.MaxAllEventType][]CustomEventHandler
-
-	// internals
-	event     *model.Event
-	eventCtor func() eval.Event
 }
 
 // Init initializes the probe

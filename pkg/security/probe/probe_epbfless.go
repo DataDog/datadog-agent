@@ -47,7 +47,8 @@ type EBPFLessProbe struct {
 	fieldHandlers *EBPFLessFieldHandlers
 }
 
-func (p *EBPFLessProbe) SendSyscallMsg(ctx context.Context, syscallMsg *ebpfless.SyscallMsg) (*ebpfless.Response, error) {
+// SendSyscallMsg handles gRPC messages
+func (p *EBPFLessProbe) SendSyscallMsg(_ context.Context, syscallMsg *ebpfless.SyscallMsg) (*ebpfless.Response, error) {
 	if p.seqNum != syscallMsg.SeqNum {
 		seclog.Errorf("communication out of sync %d vs %d", p.seqNum, syscallMsg.SeqNum)
 	}
@@ -136,7 +137,9 @@ func (p *EBPFLessProbe) Start() error {
 		return err
 	}
 
-	go p.server.Serve(conn)
+	go func() {
+		_ = p.server.Serve(conn)
+	}()
 
 	seclog.Infof("starting listening for ebpf less events on : %s", p.config.RuntimeSecurity.EBPFLessSocket)
 
@@ -159,7 +162,7 @@ func (p *EBPFLessProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.
 
 // NewModel returns a new Model
 func (p *EBPFLessProbe) NewModel() *model.Model {
-	return NewEBPFLessModel(p)
+	return NewEBPFLessModel()
 }
 
 // SendStats send the stats
@@ -178,12 +181,12 @@ func (p *EBPFLessProbe) FlushDiscarders() error {
 }
 
 // ApplyRuleSet applies the new ruleset
-func (p *EBPFLessProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
+func (p *EBPFLessProbe) ApplyRuleSet(_ *rules.RuleSet) (*kfilters.ApplyRuleSetReport, error) {
 	return &kfilters.ApplyRuleSetReport{}, nil
 }
 
 // HandleActions handles the rule actions
-func (p *EBPFLessProbe) HandleActions(rule *rules.Rule, event eval.Event) {}
+func (p *EBPFLessProbe) HandleActions(_ *rules.Rule, _ eval.Event) {}
 
 // NewEvent returns a new event
 func (p *EBPFLessProbe) NewEvent() *model.Event {
@@ -200,6 +203,7 @@ func (p *EBPFLessProbe) DumpProcessCache(withArgs bool) (string, error) {
 	return p.Resolvers.ProcessResolver.Dump(withArgs)
 }
 
+// NewEBPFLessProbe returns a new eBPF less probe
 func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()
 

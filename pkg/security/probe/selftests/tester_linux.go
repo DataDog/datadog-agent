@@ -186,7 +186,7 @@ type selfTestEvent struct {
 }
 
 // IsExpectedEvent sends an event to the tester
-func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, p *probe.Probe) bool {
+func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, _ *probe.Probe) bool {
 	if t.waitingForEvent.Load() && rule.Definition.Policy.Source == policySource {
 		ev, ok := event.(*model.Event)
 		if !ok {

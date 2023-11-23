@@ -41,7 +41,7 @@ type EBPFLessResolver struct {
 }
 
 // NewEBPFLessResolver returns a new process resolver
-func NewEBPFLessResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts *ResolverOpts) (*EBPFLessResolver, error) {
+func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, opts *ResolverOpts) (*EBPFLessResolver, error) {
 	p := &EBPFLessResolver{
 		entryCache:   make(map[uint32]*model.ProcessCacheEntry),
 		opts:         *opts,
@@ -180,7 +180,7 @@ func (p *EBPFLessResolver) SendStats() error {
 }
 
 // Start starts the resolver
-func (p *EBPFLessResolver) Start(ctx context.Context) error {
+func (p *EBPFLessResolver) Start(_ context.Context) error {
 	return nil
 }
 
@@ -188,7 +188,7 @@ func (p *EBPFLessResolver) Start(ctx context.Context) error {
 func (p *EBPFLessResolver) Snapshot() {}
 
 // Dump create a temp file and dump the cache
-func (p *EBPFLessResolver) Dump(withArgs bool) (string, error) {
+func (p *EBPFLessResolver) Dump(_ bool) (string, error) {
 	return "", errors.New("not supported")
 }
 

@@ -1429,7 +1429,7 @@ func (p *EBPFProbe) DumpProcessCache(withArgs bool) (string, error) {
 	return p.Resolvers.ProcessResolver.Dump(withArgs)
 }
 
-// NewProbe instantiates a new runtime security agent probe
+// NewEBPFProbe instantiates a new runtime security agent probe
 func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, error) {
 	nerpc, err := erpc.NewERPC()
 	if err != nil {

@@ -1179,7 +1179,7 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 
 	p.setAncestor(entry)
 
-	p.insertEntry(entry, p.entryCache[pid], model.ProcessCacheEntryFromSnapshot)
+	p.insertEntry(entry, p.entryCache[pid], source)
 
 	bootTime := p.timeResolver.GetBootTime()
 

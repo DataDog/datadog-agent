@@ -26,7 +26,7 @@ func (o *ResolverOpts) WithTTYFallbackEnabled() *ResolverOpts {
 	return o
 }
 
-// NewEBPFResolverOpts returns a new set of process resolver options
+// NewResolverOpts returns a new set of process resolver options
 func NewResolverOpts() *ResolverOpts {
 	return &ResolverOpts{
 		envsWithValue: make(map[string]bool),

@@ -58,7 +58,7 @@ func (fh *EBPFFieldHandlers) ResolveFilePath(ev *model.Event, f *model.FileEvent
 }
 
 // ResolveFileBasename resolves the inode to a full path
-func (fh *EBPFFieldHandlers) ResolveFileBasename(ev *model.Event, f *model.FileEvent) string {
+func (fh *EBPFFieldHandlers) ResolveFileBasename(_ *model.Event, f *model.FileEvent) string {
 	if !f.IsBasenameStrResolved && len(f.BasenameStr) == 0 {
 		if f.PathnameStr != "" {
 			f.SetBasenameStr(path.Base(f.PathnameStr))
@@ -96,12 +96,12 @@ func (fh *EBPFFieldHandlers) ResolveProcessArgsOptions(ev *model.Event, process 
 }
 
 // ResolveFileFieldsInUpperLayer resolves whether the file is in an upper layer
-func (fh *EBPFFieldHandlers) ResolveFileFieldsInUpperLayer(ev *model.Event, f *model.FileFields) bool {
+func (fh *EBPFFieldHandlers) ResolveFileFieldsInUpperLayer(_ *model.Event, f *model.FileFields) bool {
 	return f.GetInUpperLayer()
 }
 
 // ResolveXAttrName returns the string representation of the extended attribute name
-func (fh *EBPFFieldHandlers) ResolveXAttrName(ev *model.Event, e *model.SetXAttrEvent) string {
+func (fh *EBPFFieldHandlers) ResolveXAttrName(_ *model.Event, e *model.SetXAttrEvent) string {
 	if len(e.Name) == 0 {
 		e.Name, _ = model.UnmarshalString(e.NameRaw[:], 200)
 	}
@@ -175,7 +175,7 @@ func (fh *EBPFFieldHandlers) ResolveContainerContext(ev *model.Event) (*model.Co
 }
 
 // ResolveRights resolves the rights of a file
-func (fh *EBPFFieldHandlers) ResolveRights(ev *model.Event, e *model.FileFields) int {
+func (fh *EBPFFieldHandlers) ResolveRights(_ *model.Event, e *model.FileFields) int {
 	return int(e.Mode) & (syscall.S_ISUID | syscall.S_ISGID | syscall.S_ISVTX | syscall.S_IRWXU | syscall.S_IRWXG | syscall.S_IRWXO)
 }
 
@@ -196,7 +196,7 @@ func (fh *EBPFFieldHandlers) ResolveChownGID(ev *model.Event, e *model.ChownEven
 }
 
 // ResolveProcessArgv0 resolves the first arg of the event
-func (fh *EBPFFieldHandlers) ResolveProcessArgv0(ev *model.Event, process *model.Process) string {
+func (fh *EBPFFieldHandlers) ResolveProcessArgv0(_ *model.Event, process *model.Process) string {
 	arg0, _ := sprocess.GetProcessArgv0(process)
 	return arg0
 }
@@ -212,7 +212,7 @@ func (fh *EBPFFieldHandlers) ResolveProcessArgsScrubbed(ev *model.Event, process
 }
 
 // ResolveProcessArgv resolves the unscrubbed args of the process as an array. Use with caution.
-func (fh *EBPFFieldHandlers) ResolveProcessArgv(ev *model.Event, process *model.Process) []string {
+func (fh *EBPFFieldHandlers) ResolveProcessArgv(_ *model.Event, process *model.Process) []string {
 	argv, _ := sprocess.GetProcessArgv(process)
 	return argv
 }
@@ -224,25 +224,25 @@ func (fh *EBPFFieldHandlers) ResolveProcessArgvScrubbed(_ *model.Event, process 
 }
 
 // ResolveProcessEnvp resolves the envp of the event as an array
-func (fh *EBPFFieldHandlers) ResolveProcessEnvp(ev *model.Event, process *model.Process) []string {
+func (fh *EBPFFieldHandlers) ResolveProcessEnvp(_ *model.Event, process *model.Process) []string {
 	envp, _ := fh.resolvers.ProcessResolver.GetProcessEnvp(process)
 	return envp
 }
 
 // ResolveProcessArgsTruncated returns whether the args are truncated
-func (fh *EBPFFieldHandlers) ResolveProcessArgsTruncated(ev *model.Event, process *model.Process) bool {
+func (fh *EBPFFieldHandlers) ResolveProcessArgsTruncated(_ *model.Event, process *model.Process) bool {
 	_, truncated := sprocess.GetProcessArgv(process)
 	return truncated
 }
 
 // ResolveProcessEnvsTruncated returns whether the envs are truncated
-func (fh *EBPFFieldHandlers) ResolveProcessEnvsTruncated(ev *model.Event, process *model.Process) bool {
+func (fh *EBPFFieldHandlers) ResolveProcessEnvsTruncated(_ *model.Event, process *model.Process) bool {
 	_, truncated := fh.resolvers.ProcessResolver.GetProcessEnvs(process)
 	return truncated
 }
 
 // ResolveProcessEnvs resolves the unscrubbed envs of the event. Use with caution.
-func (fh *EBPFFieldHandlers) ResolveProcessEnvs(ev *model.Event, process *model.Process) []string {
+func (fh *EBPFFieldHandlers) ResolveProcessEnvs(_ *model.Event, process *model.Process) []string {
 	envs, _ := fh.resolvers.ProcessResolver.GetProcessEnvs(process)
 	return envs
 }
@@ -296,7 +296,7 @@ func (fh *EBPFFieldHandlers) ResolveSetgidFSGroup(ev *model.Event, e *model.Setg
 }
 
 // ResolveSELinuxBoolName resolves the boolean name of the SELinux event
-func (fh *EBPFFieldHandlers) ResolveSELinuxBoolName(ev *model.Event, e *model.SELinuxEvent) string {
+func (fh *EBPFFieldHandlers) ResolveSELinuxBoolName(_ *model.Event, e *model.SELinuxEvent) string {
 	if e.EventKind != model.SELinuxBoolChangeEventKind {
 		return ""
 	}
@@ -326,7 +326,7 @@ func (fh *EBPFFieldHandlers) ResolveFileFieldsGroup(ev *model.Event, e *model.Fi
 }
 
 // ResolveNetworkDeviceIfName returns the network iterface name from the network context
-func (fh *EBPFFieldHandlers) ResolveNetworkDeviceIfName(ev *model.Event, device *model.NetworkDeviceContext) string {
+func (fh *EBPFFieldHandlers) ResolveNetworkDeviceIfName(_ *model.Event, device *model.NetworkDeviceContext) string {
 	if len(device.IfName) == 0 && fh.resolvers.TCResolver != nil {
 		ifName, ok := fh.resolvers.TCResolver.ResolveNetworkDeviceIfName(device.IfIndex, device.NetNS)
 		if ok {
@@ -360,7 +360,7 @@ func (fh *EBPFFieldHandlers) GetProcessService(ev *model.Event) string {
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
-func (fh *EBPFFieldHandlers) ResolveEventTime(ev *model.Event, e *model.BaseEvent) time.Time {
+func (fh *EBPFFieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
 	if ev.Timestamp.IsZero() {
 		fh := ev.FieldHandlers.(*EBPFFieldHandlers)
 
@@ -436,7 +436,7 @@ func (fh *EBPFFieldHandlers) ResolvePackageSourceVersion(ev *model.Event, f *mod
 }
 
 // ResolveModuleArgv resolves the unscrubbed args of the module as an array. Use with caution.
-func (fh *EBPFFieldHandlers) ResolveModuleArgv(ev *model.Event, module *model.LoadModuleEvent) []string {
+func (fh *EBPFFieldHandlers) ResolveModuleArgv(_ *model.Event, module *model.LoadModuleEvent) []string {
 	// strings.Split return [""] if args is empty, so we do a manual check before
 	if len(module.Args) == 0 {
 		module.Argv = nil
@@ -451,7 +451,7 @@ func (fh *EBPFFieldHandlers) ResolveModuleArgv(ev *model.Event, module *model.Lo
 }
 
 // ResolveModuleArgs resolves the correct args if the arguments were truncated, if not return module.Args
-func (fh *EBPFFieldHandlers) ResolveModuleArgs(ev *model.Event, module *model.LoadModuleEvent) string {
+func (fh *EBPFFieldHandlers) ResolveModuleArgs(_ *model.Event, module *model.LoadModuleEvent) string {
 	if module.ArgsTruncated {
 		argsTmp := strings.Split(module.Args, " ")
 		argsTmp = argsTmp[:len(argsTmp)-1]
