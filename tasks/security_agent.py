@@ -822,42 +822,6 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
 
 
-# TODO: this task does the same thing as system-probe.print-failed-tests.
-# They could be refactored to have the logic in only one place.
-@task
-def print_failed_tests(_, output_dir):
-    """
-    print_failed_tests is run at the end of the platform functional test Gitlab job to print failed tests
-    """
-    fail_count = 0
-    for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
-        test_platform = os.path.basename(os.path.dirname(testjson_tgz))
-
-        if os.path.isdir(testjson_tgz):
-            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
-            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
-
-        with tempfile.TemporaryDirectory() as unpack_dir:
-            with tarfile.open(testjson_tgz) as tgz:
-                tgz.extractall(path=unpack_dir)
-
-            for test_json in glob.glob(f"{unpack_dir}/*.json"):
-                bundle, _ = os.path.splitext(os.path.basename(test_json))
-                with open(test_json) as tf:
-                    for line in tf:
-                        json_test = json.loads(line.strip())
-                        if 'Test' in json_test:
-                            name = json_test['Test']
-                            action = json_test["Action"]
-
-                            if action == "fail":
-                                print(f"FAIL: [{test_platform}] [{bundle}] {name}")
-                                fail_count += 1
-
-    if fail_count > 0:
-        raise Exit(code=1)
-
-
 @task
 def print_fentry_stats(ctx):
     fentry_o_path = "pkg/ebpf/bytecode/build/runtime-security-fentry.o"
