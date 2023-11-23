@@ -387,8 +387,8 @@ kernel_matrix_testing_setup_env_x64:
     expire_in: 2 weeks
     when: always
     paths:
-      - $DD_AGENT_TESTING_DIR/junit-$ARCH-$TAG.tar.gz
-      - $DD_AGENT_TESTING_DIR/testjson-$ARCH-$TAG.tar.gz
+      - $DD_AGENT_TESTING_DIR/junit-$ARCH-$TAG-$TEST_SET.tar.gz
+      - $DD_AGENT_TESTING_DIR/testjson-$ARCH-$TAG-$TEST_SET.tar.gz
 
 .kmt_run_tests_x64:
   extends:
