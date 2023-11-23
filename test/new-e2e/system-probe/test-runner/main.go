@@ -249,6 +249,8 @@ func buildTestConfiguration() (*testConfig, error) {
 
 	breakdown := make(map[string]packageRunConfiguration)
 	if *packageRunConfigPtr != "" {
+		fmt.Printf("Runner under configuration: %v\n", data)
+
 		configData, err := os.ReadFile(*packageRunConfigPtr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
