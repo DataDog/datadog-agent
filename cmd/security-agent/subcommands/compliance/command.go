@@ -79,7 +79,7 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 	return eventCmd
 }
 
-func eventRun(log log.Component, config config.Component, _ secrets.Component, eventArgs *cliParams) error {
+func eventRun(_ log.Component, config config.Component, _ secrets.Component, eventArgs *cliParams) error {
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 

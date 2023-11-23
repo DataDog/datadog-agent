@@ -61,7 +61,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{statusCmd}
 }
 
-func runStatus(log log.Component, config config.Component, _ secrets.Component, params *cliParams) error {
+func runStatus(_ log.Component, config config.Component, _ secrets.Component, params *cliParams) error {
 	fmt.Printf("Getting the status from the agent.\n")
 	var e error
 	var s string

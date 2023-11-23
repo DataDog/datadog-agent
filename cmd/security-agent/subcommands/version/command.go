@@ -42,7 +42,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{versionCmd}
 }
 
-func displayVersion(log log.Component, config config.Component, _ secrets.Component) {
+func displayVersion(_ log.Component, _ config.Component, _ secrets.Component) {
 	av, _ := pkgversion.Agent()
 	meta := ""
 	if av.Meta != "" {

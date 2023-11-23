@@ -243,7 +243,7 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	return nil
 }
 
-func reportComplianceEvents(log log.Component, config config.Component, events []*compliance.CheckEvent) error {
+func reportComplianceEvents(_ log.Component, config config.Component, events []*compliance.CheckEvent) error {
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 	runPath := config.GetString("compliance_config.run_path")

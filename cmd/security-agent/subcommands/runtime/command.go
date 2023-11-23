@@ -152,6 +152,7 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 	return []*cobra.Command{commonReloadPoliciesCmd}
 }
 
+// nolint: deadcode, unused
 func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	selfTestCmd := &cobra.Command{
 		Use:   "self-test",
@@ -300,7 +301,8 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{discardersCmd}
 }
 
-func dumpProcessCache(log log.Component, config config.Component, _ secrets.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
+// nolint: deadcode, unused
+func dumpProcessCache(_ log.Component, _ config.Component, _ secrets.Component, processCacheDumpArgs *processCacheDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -317,7 +319,8 @@ func dumpProcessCache(log log.Component, config config.Component, _ secrets.Comp
 	return nil
 }
 
-func dumpNetworkNamespace(log log.Component, config config.Component, _ secrets.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
+// nolint: deadcode, unused
+func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Component, dumpNetworkNamespaceArgs *dumpNetworkNamespaceCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -354,7 +357,7 @@ func newAgentVersionFilter() (*rules.AgentVersionFilter, error) {
 	return rules.NewAgentVersionFilter(agentVersion)
 }
 
-func checkPolicies(log log.Component, config config.Component, args *checkPoliciesCliParams) error {
+func checkPolicies(_ log.Component, _ config.Component, args *checkPoliciesCliParams) error {
 	if args.evaluateAllPolicySources {
 		client, err := secagent.NewRuntimeSecurityClient()
 		if err != nil {
@@ -508,7 +511,7 @@ func eventDataFromJSON(file string) (eval.Event, error) {
 	return event, nil
 }
 
-func evalRule(log log.Component, config config.Component, _ secrets.Component, evalArgs *evalCliParams) error {
+func evalRule(_ log.Component, _ config.Component, _ secrets.Component, evalArgs *evalCliParams) error {
 	policiesDir := evalArgs.dir
 
 	// enabled all the rules
@@ -580,7 +583,8 @@ func evalRule(log log.Component, config config.Component, _ secrets.Component, e
 	return nil
 }
 
-func runRuntimeSelfTest(log log.Component, config config.Component, _ secrets.Component) error {
+// nolint: deadcode, unused
+func runRuntimeSelfTest(_ log.Component, _ config.Component, _ secrets.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -600,7 +604,7 @@ func runRuntimeSelfTest(log log.Component, config config.Component, _ secrets.Co
 	return nil
 }
 
-func reloadRuntimePolicies(log log.Component, config config.Component, _ secrets.Component) error {
+func reloadRuntimePolicies(_ log.Component, _ config.Component, _ secrets.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -735,7 +739,8 @@ func downloadPolicy(log log.Component, config config.Component, _ secrets.Compon
 	return err
 }
 
-func dumpDiscarders(log log.Component, config config.Component, _ secrets.Component) error {
+// nolint: deadcode, unused
+func dumpDiscarders(_ log.Component, _ config.Component, _ secrets.Component) error {
 	runtimeSecurityClient, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)

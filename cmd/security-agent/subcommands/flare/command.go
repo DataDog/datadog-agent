@@ -67,7 +67,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{flareCmd}
 }
 
-func requestFlare(log log.Component, config config.Component, _ secrets.Component, params *cliParams) error {
+func requestFlare(_ log.Component, config config.Component, _ secrets.Component, params *cliParams) error {
 	warnings := config.Warnings()
 	if warnings != nil && warnings.Err != nil {
 		fmt.Fprintln(color.Error, color.YellowString("Config parsing warning: %v", warnings.Err))

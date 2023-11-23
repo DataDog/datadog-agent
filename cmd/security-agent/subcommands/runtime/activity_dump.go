@@ -407,7 +407,7 @@ func computeActivityDumpDiff(p1, p2 *dump.ActivityDump, states map[string]bool) 
 	}
 }
 
-func diffActivityDump(log log.Component, config config.Component, _ secrets.Component, args *activityDumpCliParams) error {
+func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, args *activityDumpCliParams) error {
 	ad := dump.NewEmptyActivityDump(nil)
 	if err := ad.Decode(args.file); err != nil {
 		return err
@@ -458,7 +458,7 @@ func diffActivityDump(log log.Component, config config.Component, _ secrets.Comp
 	return nil
 }
 
-func generateActivityDump(log log.Component, config config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
+func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -488,7 +488,7 @@ func generateActivityDump(log log.Component, config config.Component, _ secrets.
 	return nil
 }
 
-func generateEncodingFromActivityDump(log log.Component, config config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
+func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
 	var output *api.TranscodingRequestMessage
 
 	if activityDumpArgs.remoteRequest {
@@ -566,7 +566,7 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 	return nil
 }
 
-func listActivityDumps(log log.Component, config config.Component, _ secrets.Component) error {
+func listActivityDumps(_ log.Component, _ config.Component, _ secrets.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -614,7 +614,7 @@ func parseStorageRequest(activityDumpArgs *activityDumpCliParams) (*api.StorageR
 	}, nil
 }
 
-func stopActivityDump(log log.Component, config config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
+func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
