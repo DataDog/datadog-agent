@@ -355,7 +355,7 @@ build do
 
   installed_list = Array.new
   cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
-  block "Install cached wheels" do
+  block "Install integrations" do
     tasks_dir_in = windows_safe_path(Dir.pwd)
     cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
     # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
@@ -397,10 +397,7 @@ build do
         raise "Failed to list pip installed packages"
       end
     end
-  end
 
-  block "Install integrations" do
-    # This needs to be done in a block because `checks_to_install` can only be known at build-time
     checks_to_install.each do |check|
       check_dir = File.join(project_dir, check)
       check_conf_dir = "#{conf_dir}/#{check}.d"
