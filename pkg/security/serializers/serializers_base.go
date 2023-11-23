@@ -166,6 +166,7 @@ func newMatchedRulesSerializer(r *model.MatchedRule) MatchedRuleSerializer {
 	for tagName, tagValue := range r.RuleTags {
 		mrs.Tags = append(mrs.Tags, tagName+":"+tagValue)
 	}
+
 	return mrs
 }
 

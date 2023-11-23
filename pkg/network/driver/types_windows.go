@@ -186,8 +186,8 @@ type HttpConfigurationSettings struct {
 	EnableAutoETWExclusion uint16
 }
 type ConnTupleType struct {
-	LocalAddr  [16]uint8
-	RemoteAddr [16]uint8
+	LocalAddr  [16]byte
+	RemoteAddr [16]byte
 	LocalPort  uint16
 	RemotePort uint16
 	Family     uint16

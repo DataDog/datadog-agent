@@ -22,13 +22,13 @@ import (
 	"k8s.io/client-go/dynamic"
 	k8s "k8s.io/client-go/kubernetes"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (

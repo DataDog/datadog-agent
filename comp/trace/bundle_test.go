@@ -13,7 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
@@ -25,9 +27,13 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle,
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
-		fx.Supply(coreconfig.Params{}),
-		coreconfig.Module,
+		fx.Supply(core.BundleParams{}),
+		core.Bundle,
+
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.Module,
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
+		secretsimpl.MockModule,
 		fx.Supply(&agent.Params{}),
 	)
 }
@@ -41,8 +47,10 @@ func TestMockBundleDependencies(t *testing.T) {
 
 	cfg := fxutil.Test[config.Component](t, fx.Options(
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
-		fx.Supply(coreconfig.Params{}),
-		coreconfig.MockModule,
+		fx.Supply(core.BundleParams{}),
+		core.MockBundle,
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.Module,
 		fx.Invoke(func(_ config.Component) {}),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		fx.Supply(&agent.Params{}),

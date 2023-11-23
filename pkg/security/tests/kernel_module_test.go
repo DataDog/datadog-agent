@@ -111,7 +111,7 @@ func TestKworker(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestLoadModule(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -347,7 +347,7 @@ func TestUnloadModule(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}

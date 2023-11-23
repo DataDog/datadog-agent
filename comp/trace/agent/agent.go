@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	pkgagent "github.com/DataDog/datadog-agent/pkg/trace/agent"
@@ -44,6 +45,7 @@ type dependencies struct {
 	Context            context.Context
 	Params             *Params
 	TelemetryCollector telemetry.TelemetryCollector
+	Workloadmeta       workloadmeta.Component
 }
 
 type component struct{}
@@ -56,6 +58,7 @@ type agent struct {
 	ctx                context.Context
 	params             *Params
 	shutdowner         fx.Shutdowner
+	workloadmeta       workloadmeta.Component
 	telemetryCollector telemetry.TelemetryCollector
 	wg                 sync.WaitGroup
 }
@@ -82,6 +85,7 @@ func newAgent(deps dependencies) Component {
 		ctx:                ctx,
 		params:             deps.Params,
 		shutdowner:         deps.Shutdowner,
+		workloadmeta:       deps.Workloadmeta,
 		telemetryCollector: deps.TelemetryCollector,
 		wg:                 sync.WaitGroup{},
 	}
@@ -113,7 +117,7 @@ func start(ag *agent) error {
 
 		log.Infof("PID '%d' written to PID file '%s'", os.Getpid(), ag.params.PIDFilePath)
 	}
-	if err := runAgentSidekicks(ag.ctx, ag.config, ag.telemetryCollector); err != nil {
+	if err := runAgentSidekicks(ag.ctx, ag.config, ag.workloadmeta, ag.telemetryCollector); err != nil {
 		return err
 	}
 	ag.wg.Add(1)
