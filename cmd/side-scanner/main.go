@@ -707,20 +707,6 @@ func getARNResource(arn arn.ARN) (resourceType ec2types.ResourceType, resourceID
 	return
 }
 
-type lambdaScan struct {
-	ARN         string `json:"arn"`
-	AssumedRole string `json:"assumedRole,omitempty"`
-}
-
-func (s lambdaScan) Region() string {
-	arn, _ := arn.Parse(s.ARN)
-	return arn.Region
-}
-
-func (s lambdaScan) String() string {
-	return fmt.Sprintf("lambda_scan=%s", s.ARN)
-}
-
 type sideScanner struct {
 	hostname         string
 	rcClient         *remote.Client
