@@ -5,6 +5,7 @@ NOTE: Changes made to this template should be reflected on the following templat
 =============
 Process Agent
 =============
+{{- with .processAgentStatus }}
 {{- if .error }}
 
   Status: Not running or unreachable
@@ -70,4 +71,5 @@ Process Agent
       Cache size: {{.expvars.workloadmeta_extractor_cache_size}}
       Stale diffs discarded: {{.expvars.workloadmeta_extractor_stale_diffs}}
       Diffs dropped: {{.expvars.workloadmeta_extractor_diffs_dropped}}
+{{- end }}
 {{- end }}

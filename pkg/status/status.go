@@ -19,6 +19,7 @@ import (
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -63,7 +64,9 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 
 	stats["logsStats"] = logsStatus.Get(verbose)
 
-	stats["otlp"] = GetOTLPStatus()
+	if otlp.IsDisplayed() {
+		stats["otlp"] = GetOTLPStatus()
+	}
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
@@ -72,7 +75,7 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 		stats["endpointsInfos"] = nil
 	}
 
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
 
@@ -132,7 +135,9 @@ func GetDCAStatus(verbose bool) (map[string]interface{}, error) {
 	stats["config"] = getDCAPartialConfig()
 	stats["leaderelection"] = getLeaderElectionDetails()
 
-	stats["logsStats"] = logsStatus.Get(verbose)
+	if config.Datadog.GetBool("compliance_config.enabled") {
+		stats["logsStats"] = logsStatus.Get(verbose)
+	}
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
@@ -246,10 +251,6 @@ func getPartialConfig() map[string]string {
 	conf["fips_local_address"] = config.Datadog.GetString("fips.local_address")
 	conf["fips_port_range_start"] = config.Datadog.GetString("fips.port_range_start")
 
-	forwarderStorageMaxSizeInBytes := config.Datadog.GetInt("forwarder_storage_max_size_in_bytes")
-	if forwarderStorageMaxSizeInBytes > 0 {
-		conf["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)
-	}
 	return conf
 }
 
@@ -322,6 +323,10 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
+	forwarderStorageMaxSizeInBytes := config.Datadog.GetInt("forwarder_storage_max_size_in_bytes")
+	if forwarderStorageMaxSizeInBytes > 0 {
+		forwarderStats["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)
+	}
 	stats["forwarderStats"] = forwarderStats
 
 	collector.PopulateStatus(stats)
@@ -376,9 +381,13 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 		stats["agent_metadata"] = map[string]string{}
 	}
 
-	stats["snmpTrapsStats"] = traps.GetStatus()
+	if traps.IsEnabled(config.Datadog) {
+		stats["snmpTrapsStats"] = traps.GetStatus()
+	}
 
-	stats["netflowStats"] = netflowServer.GetStatus()
+	if netflowServer.IsEnabled() {
+		stats["netflowStats"] = netflowServer.GetStatus()
+	}
 
 	complianceVar := expvar.Get("compliance")
 	if complianceVar != nil {

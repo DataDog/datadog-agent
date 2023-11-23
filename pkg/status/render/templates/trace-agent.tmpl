@@ -5,7 +5,7 @@ NOTE: Changes made to this template should be reflected on the following templat
 =========
 APM Agent
 =========
-
+{{- with .apmStats }}
 {{- if .error }}
 
   Status: Not running or unreachable on localhost:{{.port}}.
@@ -49,4 +49,5 @@ APM Agent
     {{- if gt .trace_writer.Errors 0.0}}WARNING: Traces API errors (1 min): {{.trace_writer.Errors}}{{end}}
     Stats: {{.stats_writer.Payloads}} payloads, {{.stats_writer.StatsBuckets}} stats buckets, {{humanize .stats_writer.Bytes}} bytes
     {{- if gt .stats_writer.Errors 0.0}}WARNING: Stats API errors (1 min): {{.stats_writer.Errors}}{{end}}
+{{- end}}
 {{- end}}
