@@ -51,7 +51,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(topContexts,
 				fx.Supply(&topFlags),
 				fx.Supply(core.BundleParams{
-					ConfigParams: cconfig.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
 			)
@@ -69,7 +69,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(dumpContexts,
 				fx.Supply(core.BundleParams{
-					ConfigParams: cconfig.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true)}),
 
 				core.Bundle,
