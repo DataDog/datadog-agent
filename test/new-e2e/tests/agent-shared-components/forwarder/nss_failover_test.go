@@ -31,6 +31,7 @@ import (
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 )
 
 type multiFakeIntakeEnv struct {
@@ -109,7 +110,7 @@ type multiFakeIntakeSuite struct {
 }
 
 func TestMultiFakeintakeSuite(t *testing.T) {
-	e2e.Run(t, &multiFakeIntakeSuite{}, multiFakeintakeStackDef())
+	e2e.Run(t, &multiFakeIntakeSuite{}, multiFakeintakeStackDef(), params.WithStackName("mystack000"))
 }
 
 // TestNSSFailover tests that the agent correctly picks-up an NSS change of the intake.
@@ -151,7 +152,6 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 	v.UpdateEnv(multiFakeintakeStackDef(agentOptions...))
 
 	// check that fakeintake1 is used as intake and not fakeintake2
-	v.T().Logf("checking that the agent contacts main intake at %s", fakeintake1IP)
 	v.requireIntakeIsUsed(v.Env().Fakeintake1, intakeMaxWaitTime, intakeTick)
 	v.requireIntakeNotUsed(v.Env().Fakeintake2, intakeMaxWaitTime, intakeTick)
 
@@ -190,6 +190,7 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *client.Fakeintake, in
 		assert.NoError(t, err)
 	}
 
+	v.T().Logf("checking that the agent contacts main intake at %s", intake.URL())
 	require.EventuallyWithT(v.T(), checkFn, intakeMaxWaitTime, intakeTick)
 }
 
@@ -214,7 +215,7 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *client.Fakeintake, i
 		assert.Empty(t, stats)
 	}
 
-	require.EventuallyWithT(v.T(), checkFn, intakeMaxWaitTime, intakeTick+intakeUnusedWaitTime)
+	require.EventuallyWithT(v.T(), checkFn, intakeMaxWaitTime, intakeTick)
 }
 
 // setHostEntry adds an entry in /etc/hosts for the given hostname and hostIP
