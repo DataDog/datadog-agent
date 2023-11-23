@@ -10,6 +10,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -26,15 +27,21 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+const matchAllPackages = "*"
+
 func init() {
 	color.NoColor = false
 }
 
+type packageRunConfiguration struct {
+	Run     string
+	Skip    string
+	Exclude bool
+}
+
 type testConfig struct {
-	retryCount      int
-	includePackages []string
-	excludePackages []string
-	runTests        string
+	retryCount        int
+	packagesRunConfig map[string]packageRunConfiguration
 }
 
 const (
@@ -115,8 +122,12 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 		"/go/bin/test2json", "-t", "-p", pkg, file, "-test.v", "-test.count=1", "-test.timeout=" + getTimeout(pkg).String(),
 	}
 
-	if testConfig.runTests != "" {
-		args = append(args, "-test.run", testConfig.runTests)
+	packagesRunConfig := testConfig.packagesRunConfig
+	if config, ok := packagesRunConfig[pkg]; ok && config.Run != "" {
+		args = append(args, "-test.run", config.Run)
+	}
+	if config, ok := packagesRunConfig[pkg]; ok && config.Skip != "" {
+		args = append(args, "-test.skip", config.Skip)
 	}
 
 	return args
@@ -161,19 +172,21 @@ func createDir(d string) error {
 func testPass(testConfig *testConfig, props map[string]string) error {
 	testsuites, err := glob(testDirRoot, "testsuite", func(path string) bool {
 		dir := pathToPackage(path)
-		for _, p := range testConfig.excludePackages {
-			if dir == p {
+
+		if config, ok := testConfig.packagesRunConfig[dir]; ok {
+			if config.Exclude {
+				return false
+			}
+
+			return true
+		}
+
+		if config, ok := testConfig.packagesRunConfig[matchAllPackages]; ok {
+			if config.Exclude {
 				return false
 			}
 		}
-		if len(testConfig.includePackages) != 0 {
-			for _, p := range testConfig.includePackages {
-				if dir == p {
-					return true
-				}
-			}
-			return false
-		}
+
 		return true
 	})
 	if err != nil {
@@ -234,30 +247,26 @@ func fixAssetPermissions() error {
 	return nil
 }
 
-func buildTestConfiguration() *testConfig {
+func buildTestConfiguration() (*testConfig, error) {
 	retryPtr := flag.Int("retry", 2, "number of times to retry testing pass")
-	packagesPtr := flag.String("include-packages", "", "Comma separated list of packages to test")
-	excludePackagesPtr := flag.String("exclude-packages", "", "Comma separated list of packages to exclude")
-	runTestsPtr := flag.String("run-tests", "", "Regex for running specific tests")
+	packageRunConfigPtr := flag.String("packages-run-config", "", "Configuration for controlling which tests run in a package")
 
 	flag.Parse()
 
-	var packagesLs []string
-	var excludeLs []string
-
-	if *packagesPtr != "" {
-		packagesLs = strings.Split(*packagesPtr, ",")
+	breakdown := make(map[string]packageRunConfiguration)
+	if *packageRunConfigPtr != "" {
+		dec := json.NewDecoder(strings.NewReader(*packageRunConfigPtr))
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&breakdown); err != nil {
+			return nil, err
+		}
 	}
-	if *excludePackagesPtr != "" {
-		excludeLs = strings.Split(*excludePackagesPtr, ",")
-	}
 
+	fmt.Println(breakdown)
 	return &testConfig{
-		retryCount:      *retryPtr,
-		includePackages: packagesLs,
-		excludePackages: excludeLs,
-		runTests:        *runTestsPtr,
-	}
+		retryCount:        *retryPtr,
+		packagesRunConfig: breakdown,
+	}, nil
 }
 
 func readOSRelease() (map[string]string, error) {
@@ -309,7 +318,11 @@ func run() error {
 		return fmt.Errorf("props: %s", err)
 	}
 
-	testConfig := buildTestConfiguration()
+	testConfig, err := buildTestConfiguration()
+	if err != nil {
+		return fmt.Errorf("failed to build test configuration: %w", err)
+	}
+
 	if err := fixAssetPermissions(); err != nil {
 		return fmt.Errorf("asset perms: %s", err)
 	}
