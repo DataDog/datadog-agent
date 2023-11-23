@@ -94,6 +94,7 @@ func getDeviceScanValues(sess session.Session, config *checkconfig.CheckConfig) 
 		}
 		config.DeviceScanCurScanOidsCount += len(fetchedResults)
 
+		// TODO: ADD TELEMETRY for each check run
 		if len(fetchedResults) == maxOidsToFetch {
 			log.Warnf("[FetchAllOIDsUsingGetNext] Partial Device Scan (Total Count: %d, Fetch Duration Ms: %d)",
 				config.DeviceScanCurScanOidsCount,
@@ -106,6 +107,7 @@ func getDeviceScanValues(sess session.Session, config *checkconfig.CheckConfig) 
 				config.DeviceScanCurScanOidsCount,
 				time.Since(config.DeviceScanCurScanStart).Seconds(),
 			)
+			// TODO: ADD TELEMETRY for complete device scan
 			// Full Device Scan completed
 			config.DeviceScanLastOid = ""
 		}
