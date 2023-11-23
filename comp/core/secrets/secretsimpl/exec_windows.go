@@ -93,11 +93,8 @@ func getServicePid(serviceName string) (uint32, error) {
 	m := &mgr.Mgr{Handle: h}
 	defer m.Disconnect()
 
-	utf16ServiceName, err := syscall.UTF16PtrFromString(serviceName)
-	if err != nil {
-		return 0, fmt.Errorf("invalid service name %s: %v", serviceName, err)
-	}
-	hSvc, err := windows.OpenService(m.Handle, utf16ServiceName, windows.SERVICE_QUERY_STATUS)
+	hSvc, err := windows.OpenService(m.Handle, syscall.StringToUTF16Ptr(serviceName),
+		windows.SERVICE_QUERY_STATUS)
 	if err != nil {
 		return 0, fmt.Errorf("could not access service %s: %v", serviceName, err)
 	}
