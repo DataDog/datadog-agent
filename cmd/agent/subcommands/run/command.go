@@ -528,6 +528,7 @@ func startAgent(
 		demultiplexer,
 		hostMetadata,
 		invAgent,
+		demultiplexer,
 		invHost,
 		secretResolver,
 	); err != nil {

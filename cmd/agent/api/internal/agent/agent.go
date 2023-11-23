@@ -9,21 +9,26 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"path"
 	"sort"
 	"time"
 
+	"github.com/DataDog/zstd"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -65,6 +70,7 @@ func SetupHandlers(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	demux demultiplexer.Component,
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
 ) *mux.Router {
@@ -94,6 +100,7 @@ func SetupHandlers(
 	r.HandleFunc("/metadata/{payload}", func(w http.ResponseWriter, r *http.Request) { metadataPayload(w, r, hostMetadata, invAgent, invHost) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager) }).Methods("POST")
 
+	r.HandleFunc("/dogstatsd-contexts-dump", func(w http.ResponseWriter, r *http.Request) { dumpDogstatsdContexts(w, r, demux) }).Methods("POST")
 	// Some agent subcommands do not provide these dependencies (such as JMX)
 	if server != nil && serverDebug != nil {
 		r.HandleFunc("/dogstatsd-stats", func(w http.ResponseWriter, r *http.Request) { getDogstatsdStats(w, r, server, serverDebug) }).Methods("GET")
@@ -545,4 +552,47 @@ func max(a, b int) int {
 // GetConnection returns the connection for the request
 func GetConnection(r *http.Request) net.Conn {
 	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
+}
+
+func dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request, demux demultiplexer.Component) {
+	if demux == nil {
+		setJSONError(w, log.Errorf("Unable to stream dogstatsd contexts, demultiplexer is not initialized"), 404)
+		return
+	}
+
+	path, err := dumpDogstatsdContextsImpl(demux)
+	if err != nil {
+		setJSONError(w, log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
+		return
+	}
+
+	resp, err := json.Marshal(path)
+	if err != nil {
+		setJSONError(w, log.Errorf("Failed to serialize response: %v", err), 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(resp)
+}
+
+func dumpDogstatsdContextsImpl(demux demultiplexer.Component) (string, error) {
+	path := path.Join(config.Datadog.GetString("run_path"), "dogstatsd_contexts.json.zstd")
+
+	f, err := os.Create(path)
+	if err != nil {
+		return "", err
+	}
+
+	c := zstd.NewWriter(f)
+
+	w := bufio.NewWriter(c)
+
+	for _, err := range []error{demux.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return path, nil
 }
