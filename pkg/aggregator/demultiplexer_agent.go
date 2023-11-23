@@ -13,7 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"

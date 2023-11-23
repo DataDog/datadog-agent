@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/diagnosesendermanager"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder"
+	orchestratorforwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"

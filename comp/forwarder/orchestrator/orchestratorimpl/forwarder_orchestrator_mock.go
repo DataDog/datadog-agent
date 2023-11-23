@@ -5,13 +5,13 @@
 
 //go:build test
 
-package forwarderimpl
+package orchestratorimpl
 
 import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/orchestrator/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -22,7 +22,7 @@ var MockModule = fxutil.Component(
 )
 
 // NewMockOrchestratorForwarder returns an orchestratorForwarder
-func NewMockOrchestratorForwarder() forwarder.Component {
+func NewMockOrchestratorForwarder() orchestrator.Component {
 	forwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	return &forwarder
 

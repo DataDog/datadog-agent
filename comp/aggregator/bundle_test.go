@@ -11,7 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder/forwarderimpl"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )

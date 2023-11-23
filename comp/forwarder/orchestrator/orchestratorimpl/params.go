@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package forwarderimpl
+package orchestratorimpl
 
 // Params defines the parameters for the orchestrator forwarder.
 type Params struct {

@@ -16,7 +16,7 @@ import (
 
 	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
-	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/orchestrator/forwarder"
+	orchestratorForwarder "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"

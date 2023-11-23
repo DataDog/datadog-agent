@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package forwarder implements the orchestrator forwarder component.
-package forwarder
+// Package orchestrator implements the orchestrator forwarder component.
+package orchestrator
 
 import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 

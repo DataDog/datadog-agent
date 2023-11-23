@@ -5,8 +5,8 @@
 
 //go:build orchestrator
 
-// Package forwarderimpl implements the orchestrator forwarder component.
-package forwarderimpl
+// Package orchestratorimpl implements the orchestrator forwarder component.
+package orchestratorimpl
 
 import (
 	"go.uber.org/fx"
@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/orchestrator/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/config/resolver"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
@@ -29,7 +29,7 @@ var Module = fxutil.Component(
 
 // newOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func newOrchestratorForwarder(log log.Component, config config.Component, params Params) forwarder.Component {
+func newOrchestratorForwarder(log log.Component, config config.Component, params Params) orchestrator.Component {
 	if params.UseNoopOrchestratorForwarder {
 		return createComponent(defaultforwarder.NoopForwarder{})
 	}
@@ -54,7 +54,7 @@ func newOrchestratorForwarder(log log.Component, config config.Component, params
 	return &forwarder
 }
 
-func createComponent(forwarder defaultforwarder.Forwarder) forwarder.Component {
+func createComponent(forwarder defaultforwarder.Forwarder) orchestrator.Component {
 	o := optional.NewOption(forwarder)
 	return &o
 }

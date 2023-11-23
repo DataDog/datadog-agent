@@ -5,8 +5,8 @@
 
 //go:build !orchestrator
 
-// Package forwarderimpl implements the orchestrator forwarder component.
-package forwarderimpl
+// Package orchestratorimpl implements the orchestrator forwarder component.
+package orchestratorimpl
 
 import (
 	"go.uber.org/fx"
@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
-	"github.com/DataDog/datadog-agent/comp/orchestrator/forwarder"
+	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
@@ -27,7 +27,7 @@ var Module = fxutil.Component(
 // newOrchestratorForwarder builds the orchestrator forwarder.
 // This func has been extracted in this file to not include all the orchestrator
 // dependencies (k8s, several MBs) while building binaries not needing these.
-func newOrchestratorForwarder(_ log.Component, _ config.Component, params Params) forwarder.Component {
+func newOrchestratorForwarder(_ log.Component, _ config.Component, params Params) orchestrator.Component {
 	if params.UseNoopOrchestratorForwarder {
 		forwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 		return &forwarder
