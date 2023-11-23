@@ -12,7 +12,6 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/DataDog/appsec-internal-go/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
@@ -79,13 +78,10 @@ func newAppSec() (*AppSec, error) {
 	}
 
 	var rules map[string]any
-	ruleset, err := appsec.DefaultRuleset()
-	if err != nil {
+	if err := json.Unmarshal(cfg.Rules, &rules); err != nil {
 		return nil, err
 	}
-	if err := json.Unmarshal(ruleset, &rules); err != nil {
-		return nil, err
-	}
+
 	handle, err := waf.NewHandle(rules, cfg.Obfuscator.KeyRegex, cfg.Obfuscator.ValueRegex)
 	if err != nil {
 		return nil, err

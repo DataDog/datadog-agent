@@ -13,8 +13,10 @@ import (
 )
 
 func TestConfig(t *testing.T) {
+	defaultRules, err := appsec.RulesFromEnv()
+	require.NoError(t, err)
 	expectedDefaultConfig := &Config{
-		Rules:          []byte(appsec.StaticRecommendedRules),
+		Rules:          defaultRules,
 		WafTimeout:     appsec.WAFTimeoutFromEnv(),
 		TraceRateLimit: appsec.RateLimitFromEnv(),
 		Obfuscator:     appsec.NewObfuscatorConfig(),
