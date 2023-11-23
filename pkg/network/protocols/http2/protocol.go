@@ -370,21 +370,7 @@ func (p *protocol) updateKernelTelemetry(mgr *manager.Manager) {
 			return
 		}
 
-		p.http2Telemetry.http2requests.Add(int64(http2Telemetry.Request_seen))
-		p.http2Telemetry.http2responses.Add(int64(http2Telemetry.Response_seen))
-		p.http2Telemetry.endOfStream.Add(int64(http2Telemetry.End_of_stream))
-		p.http2Telemetry.endOfStreamRST.Add(int64(http2Telemetry.End_of_stream_rst))
-		p.http2Telemetry.pathExceedsFrame.Add(int64(http2Telemetry.Path_exceeds_frame))
-		p.http2Telemetry.pathSizeBucket0.Add(int64(http2Telemetry.Path_size_bucket[0]))
-		p.http2Telemetry.pathSizeBucket1.Add(int64(http2Telemetry.Path_size_bucket[1]))
-		p.http2Telemetry.pathSizeBucket2.Add(int64(http2Telemetry.Path_size_bucket[2]))
-		p.http2Telemetry.pathSizeBucket3.Add(int64(http2Telemetry.Path_size_bucket[3]))
-		p.http2Telemetry.pathSizeBucket4.Add(int64(http2Telemetry.Path_size_bucket[4]))
-		p.http2Telemetry.pathSizeBucket5.Add(int64(http2Telemetry.Path_size_bucket[5]))
-		p.http2Telemetry.pathSizeBucket6.Add(int64(http2Telemetry.Path_size_bucket[6]))
-		p.http2Telemetry.exceedingMaxInterestingFrames.Add(int64(http2Telemetry.Exceeding_max_interesting_frames))
-		p.http2Telemetry.exceedingMaxFramesToFilter.Add(int64(http2Telemetry.Exceeding_max_frames_to_filter))
-
+		p.http2Telemetry.update(http2Telemetry)
 		p.http2Telemetry.Log()
 		time.Sleep(10 * time.Second)
 	}

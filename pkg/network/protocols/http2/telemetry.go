@@ -68,6 +68,24 @@ func newHTTP2KernelTelemetry() *kernelTelemetry {
 		exceedingMaxFramesToFilter:    metricGroup.NewCounter("exceeding_max_frames_to_filter")}
 }
 
+// update updates the kernel metrics with the given telemetry.
+func (t *kernelTelemetry) update(tel *HTTP2Telemetry) {
+	t.http2requests.Add(int64(tel.Request_seen))
+	t.http2responses.Add(int64(tel.Response_seen))
+	t.endOfStream.Add(int64(tel.End_of_stream))
+	t.endOfStreamRST.Add(int64(tel.End_of_stream_rst))
+	t.pathExceedsFrame.Add(int64(tel.Path_exceeds_frame))
+	t.pathSizeBucket0.Add(int64(tel.Path_size_bucket[0]))
+	t.pathSizeBucket1.Add(int64(tel.Path_size_bucket[1]))
+	t.pathSizeBucket2.Add(int64(tel.Path_size_bucket[2]))
+	t.pathSizeBucket3.Add(int64(tel.Path_size_bucket[3]))
+	t.pathSizeBucket4.Add(int64(tel.Path_size_bucket[4]))
+	t.pathSizeBucket5.Add(int64(tel.Path_size_bucket[5]))
+	t.pathSizeBucket6.Add(int64(tel.Path_size_bucket[6]))
+	t.exceedingMaxInterestingFrames.Add(int64(tel.Exceeding_max_interesting_frames))
+	t.exceedingMaxFramesToFilter.Add(int64(tel.Exceeding_max_frames_to_filter))
+}
+
 func (t *kernelTelemetry) Log() {
 	log.Debugf("http2 kernel telemetry summary: %s", t.metricGroup.Summary())
 }
