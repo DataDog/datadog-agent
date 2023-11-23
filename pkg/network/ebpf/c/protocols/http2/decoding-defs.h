@@ -20,7 +20,7 @@
 #define HTTP2_MAX_HEADERS_COUNT_FOR_PROCESSING 2
 
 // Maximum size for the path buffer.
-#define HTTP2_MAX_PATH_LEN 120
+#define HTTP2_MAX_PATH_LEN 160
 
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
@@ -138,15 +138,19 @@ typedef struct {
     char buf[HTTP2_FRAME_HEADER_SIZE];
 } frame_header_remainder_t;
 
+typedef struct {
+    __u64 bucket[7];
+} path_size_bucket_map;
+
 // http2_telemetry_t is used to hold the HTTP/2 kernel telemetry.
 // request_seen                 Count of HTTP/2 requests seen
 // response_seen                Count of HTTP/2 responses seen
-// end_of_stream_eos            Count of END_OF_STREAM flags seen
+// end_of_stream                Count of END STREAM flag seen
 // end_of_stream_rst            Count of RST flags seen
 
-// str_len_exceeds_frame        Count of times we couldn't retrieve the path due to reaching the end of the frame.
-// max_interesting_frames		Count of times we reached the max number of frames per iteration.
-// max_frames_to_filter		    Count of times we have left with more frames to filter than the max number of frames to filter.
+// path_exceeds_frame                   Count of times we couldn't retrieve the path due to reaching the end of the frame.
+// exceeding_max_interesting_frames		Count of times we reached the max number of frames per iteration.
+// exceeding_max_frames_to_filter		Count of times we have left with more frames to filter than the max number of frames to filter.
 
 // path_size_bucket0            Count of path sizes is less or equal than 120
 // path_size_bucket1            Count of path sizes between 121-130 bytes
@@ -158,18 +162,12 @@ typedef struct {
 typedef struct {
     __u64 request_seen;
     __u64 response_seen;
-    __u64 end_of_stream_eos;
+    __u64 end_of_stream;
     __u64 end_of_stream_rst;
-    __u64 str_len_exceeds_frame;
-    __u64 max_interesting_frames;
-    __u64 max_frames_to_filter;
-    __u64 path_size_bucket0;
-    __u64 path_size_bucket1;
-    __u64 path_size_bucket2;
-    __u64 path_size_bucket3;
-    __u64 path_size_bucket4;
-    __u64 path_size_bucket5;
-    __u64 path_size_bucket6;
+    __u64 path_exceeds_frame;
+    __u64 exceeding_max_interesting_frames;
+    __u64 exceeding_max_frames_to_filter;
+    __u64 path_size_bucket[7];
 } http2_telemetry_t;
 
 #endif

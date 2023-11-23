@@ -15,7 +15,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/davecgh/go-spew/spew"
 
@@ -62,6 +61,7 @@ const (
 	parserTailCall                   = "socket__http2_frames_parser"
 	eventStream                      = "http2"
 	terminatedConnectionsEventStream = "terminated_http2"
+	telemetryMap                     = "http2_telemetry"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -130,7 +130,7 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 	}
 
 	telemetry := http.NewTelemetry("http2")
-	http2KernelTelemetry := newHTTP2KernelTelemetry("http2")
+	http2KernelTelemetry := newHTTP2KernelTelemetry()
 
 	return &protocol{
 		cfg:            cfg,
@@ -211,7 +211,7 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
 	go func() {
-		p.UpdateKernelTelemetry(mgr)
+		p.updateKernelTelemetry(mgr)
 	}()
 	p.setupHTTP2InFlightMapCleaner(mgr)
 	p.setupDynamicTableMapCleaner(mgr)
@@ -353,41 +353,37 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 	}
 }
 
-// UpdateKernelTelemetry should be moved to the HTTP/2 part as well
-func (p *protocol) UpdateKernelTelemetry(mgr *manager.Manager) {
+// updateKernelTelemetry updates the HTTP/2 kernel telemetry.
+func (p *protocol) updateKernelTelemetry(mgr *manager.Manager) {
 	var zero uint32
+	http2Telemetry := &HTTP2Telemetry{}
+
+	mp, _, err := mgr.GetMap(telemetryMap)
+	if err != nil {
+		log.Warnf("error retrieving http2 telemetry map: %s", err)
+		return
+	}
 
 	for {
-		mp, _, err := mgr.GetMap(probes.HTTP2TelemetryMap)
-		if err != nil {
-			log.Warnf("error retrieving http2 telemetry map: %s", err)
-			return
-		}
-
-		http2Telemetry := &HTTP2Telemetry{}
 		if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-			// This can happen if we haven't initialized the telemetry object yet
-			// so let's just use a trace log
-			if log.ShouldLog(seelog.TraceLvl) {
-				log.Tracef("error retrieving the http2 telemetry struct: %s", err)
-			}
+			log.Warnf("unable to lookup http2 telemetry map: %s", err)
 			return
 		}
 
 		p.http2Telemetry.http2requests.Add(int64(http2Telemetry.Request_seen))
 		p.http2Telemetry.http2responses.Add(int64(http2Telemetry.Response_seen))
-		p.http2Telemetry.endOfStreamEOS.Add(int64(http2Telemetry.End_of_stream_eos))
+		p.http2Telemetry.endOfStream.Add(int64(http2Telemetry.End_of_stream))
 		p.http2Telemetry.endOfStreamRST.Add(int64(http2Telemetry.End_of_stream_rst))
-		p.http2Telemetry.strLenExceedsFrame.Add(int64(http2Telemetry.Str_len_exceeds_frame))
-		p.http2Telemetry.pathSizeBucket0.Add(int64(http2Telemetry.Path_size_bucket0))
-		p.http2Telemetry.pathSizeBucket1.Add(int64(http2Telemetry.Path_size_bucket1))
-		p.http2Telemetry.pathSizeBucket2.Add(int64(http2Telemetry.Path_size_bucket2))
-		p.http2Telemetry.pathSizeBucket3.Add(int64(http2Telemetry.Path_size_bucket3))
-		p.http2Telemetry.pathSizeBucket4.Add(int64(http2Telemetry.Path_size_bucket4))
-		p.http2Telemetry.pathSizeBucket5.Add(int64(http2Telemetry.Path_size_bucket5))
-		p.http2Telemetry.pathSizeBucket6.Add(int64(http2Telemetry.Path_size_bucket6))
-		p.http2Telemetry.maxInterestingFrames.Add(int64(http2Telemetry.Max_interesting_frames))
-		p.http2Telemetry.maxFramesToFilter.Add(int64(http2Telemetry.Max_frames_to_filter))
+		p.http2Telemetry.pathExceedsFrame.Add(int64(http2Telemetry.Path_exceeds_frame))
+		p.http2Telemetry.pathSizeBucket0.Add(int64(http2Telemetry.Path_size_bucket[0]))
+		p.http2Telemetry.pathSizeBucket1.Add(int64(http2Telemetry.Path_size_bucket[1]))
+		p.http2Telemetry.pathSizeBucket2.Add(int64(http2Telemetry.Path_size_bucket[2]))
+		p.http2Telemetry.pathSizeBucket3.Add(int64(http2Telemetry.Path_size_bucket[3]))
+		p.http2Telemetry.pathSizeBucket4.Add(int64(http2Telemetry.Path_size_bucket[4]))
+		p.http2Telemetry.pathSizeBucket5.Add(int64(http2Telemetry.Path_size_bucket[5]))
+		p.http2Telemetry.pathSizeBucket6.Add(int64(http2Telemetry.Path_size_bucket[6]))
+		p.http2Telemetry.exceedingMaxInterestingFrames.Add(int64(http2Telemetry.Exceeding_max_interesting_frames))
+		p.http2Telemetry.exceedingMaxFramesToFilter.Add(int64(http2Telemetry.Exceeding_max_frames_to_filter))
 
 		p.http2Telemetry.Log()
 		time.Sleep(10 * time.Second)

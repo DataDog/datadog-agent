@@ -117,42 +117,13 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
 
 READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
-// get_bucket_index returns the bucket index for the given path size.
-static __always_inline __u32 get_bucket_index(__u32 size) {
-    if (size < HTTP2_MAX_PATH_LEN) {
-        return 0;
-    }
+// update_path_size_telemetry updates the path size telemetry.
+static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_tel, __u32 size) {
     __s32 bucket_idx = (size - HTTP2_MAX_PATH_LEN) / 10;
     bucket_idx = bucket_idx > 6 ? 6 : bucket_idx;
     bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
-    return bucket_idx;
-}
 
-// update_path_size_telemetry updates the path size telemetry.
-static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_tel, __u32 bucket_idx) {
-    switch (bucket_idx) {
-        case 0:
-            __sync_fetch_and_add(&http2_tel->path_size_bucket0, 1);
-            break;
-        case 1:
-            __sync_fetch_and_add(&http2_tel->path_size_bucket1, 1);
-            break;
-        case 2:
-            __sync_fetch_and_add(&http2_tel->path_size_bucket2, 1);
-            break;
-        case 3:
-            __sync_fetch_and_add(&http2_tel->path_size_bucket3, 1);
-            break;
-        case 4:
-            __sync_fetch_and_add(&http2_tel->path_size_bucket4, 1);
-            break;
-        case 5:
-            __sync_fetch_and_add(&http2_tel->path_size_bucket5, 1);
-            break;
-        case 6:
-            __sync_fetch_and_add(&http2_tel->path_size_bucket6, 1);
-            break;
-        }
+    __sync_fetch_and_add(&http2_tel->path_size_bucket[bucket_idx], 1);
 }
 
 // parse_field_literal handling the case when the key is part of the static table and the value is a dynamic string
@@ -174,8 +145,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     }
 
     if (index == kIndexPath) {
-        __u32 bucket_idx = get_bucket_index(str_len);
-        update_path_size_telemetry(http2_tel, bucket_idx);
+        update_path_size_telemetry(http2_tel, str_len);
     }
 
     if ((str_len > HTTP2_MAX_PATH_LEN) || index != kIndexPath || headers_to_process == NULL) {
@@ -184,7 +154,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
 
     __u32 final_size = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
     if (skb_info->data_off + final_size > skb_info->data_end) {
-        __sync_fetch_and_add(&http2_tel->str_len_exceeds_frame, 1);
+        __sync_fetch_and_add(&http2_tel->path_exceeds_frame, 1);
         goto end;
     }
 
@@ -374,13 +344,19 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
         return;
     }
 
-    if (current_frame->type == kRSTStreamFrame) {
+    bool should_handle_end_of_stream = false;
+    if (is_rst) {
         __sync_fetch_and_add(&http2_tel->end_of_stream_rst, 1);
-        handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
+        should_handle_end_of_stream = true;
     } else if ((current_frame->flags & HTTP2_END_OF_STREAM) == HTTP2_END_OF_STREAM) {
-        __sync_fetch_and_add(&http2_tel->end_of_stream_eos, 1);
+        __sync_fetch_and_add(&http2_tel->end_of_stream, 1);
+        should_handle_end_of_stream = true;
+    }
+
+    if (should_handle_end_of_stream) {
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
     }
+
 
     return;
 }
@@ -564,11 +540,11 @@ static __always_inline __u8 find_relevant_headers(struct __sk_buff *skb, skb_inf
 
     // Checking we can read HTTP2_FRAME_HEADER_SIZE from the skb - if we can, update telemetry to indicate we have
     if ((iteration == HTTP2_MAX_FRAMES_TO_FILTER) && (skb_info->data_off + HTTP2_FRAME_HEADER_SIZE <= skb_info->data_end)) {
-        __sync_fetch_and_add(&http2_tel->max_frames_to_filter, 1);
+        __sync_fetch_and_add(&http2_tel->exceeding_max_frames_to_filter, 1);
     }
 
     if (passed_max_interesting_frames) {
-        __sync_fetch_and_add(&http2_tel->max_interesting_frames, 1);
+        __sync_fetch_and_add(&http2_tel->exceeding_max_interesting_frames, 1);
     }
 
     return interesting_frame_index;

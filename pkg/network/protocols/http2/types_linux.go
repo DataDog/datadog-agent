@@ -4,7 +4,7 @@
 package http2
 
 const (
-	maxHTTP2Path = 0x78
+	maxHTTP2Path = 0xa0
 
 	HTTP2TerminatedBatchSize = 0x50
 )
@@ -25,7 +25,7 @@ type http2DynamicTableIndex struct {
 	Tup   connTuple
 }
 type http2DynamicTableEntry struct {
-	Buffer    [120]int8
+	Buffer    [160]int8
 	Len       uint8
 	Pad_cgo_0 [7]byte
 }
@@ -42,27 +42,21 @@ type http2Stream struct {
 	Path_size             uint8
 	Request_end_of_stream bool
 	Pad_cgo_0             [3]byte
-	Request_path          [120]uint8
+	Request_path          [160]uint8
 }
 type EbpfTx struct {
 	Tuple  connTuple
 	Stream http2Stream
 }
 type HTTP2Telemetry struct {
-	Request_seen           uint64
-	Response_seen          uint64
-	End_of_stream_eos      uint64
-	End_of_stream_rst      uint64
-	Str_len_exceeds_frame  uint64
-	Max_interesting_frames uint64
-	Max_frames_to_filter   uint64
-	Path_size_bucket0      uint64
-	Path_size_bucket1      uint64
-	Path_size_bucket2      uint64
-	Path_size_bucket3      uint64
-	Path_size_bucket4      uint64
-	Path_size_bucket5      uint64
-	Path_size_bucket6      uint64
+	Request_seen                     uint64
+	Response_seen                    uint64
+	End_of_stream                    uint64
+	End_of_stream_rst                uint64
+	Path_exceeds_frame               uint64
+	Exceeding_max_interesting_frames uint64
+	Exceeding_max_frames_to_filter   uint64
+	Path_size_bucket                 [7]uint64
 }
 
 type StaticTableEnumValue = uint8
