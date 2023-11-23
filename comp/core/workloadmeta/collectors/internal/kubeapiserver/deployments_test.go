@@ -63,8 +63,8 @@ func TestDeploymentParser_Parse(t *testing.T) {
 						"tags.datadoghq.com/version": "version",
 					},
 					Annotations: map[string]string{
-						"internal.dd.datadog.com/nginx-cont.detected_langs":      "go,java,  python  ",
-						"internal.dd.datadog.com/init.nginx-cont.detected_langs": "go,java,  python  ",
+						"internal.dd.datadoghq.com/nginx-cont.detected_langs":      "go,java,  python  ",
+						"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
 					},
 				},
 			},
@@ -125,8 +125,8 @@ func TestDeploymentParser_Parse(t *testing.T) {
 						"test-label": "test-value",
 					},
 					Annotations: map[string]string{
-						"internal.dd.datadog.com/nginx-cont.detected_langs":      "go,java,  python  ",
-						"internal.dd.datadog.com/init.nginx-cont.detected_langs": "go,java,  python  ",
+						"internal.dd.datadoghq.com/nginx-cont.detected_langs":      "go,java,  python  ",
+						"internal.dd.datadoghq.com/init.nginx-cont.detected_langs": "go,java,  python  ",
 					},
 				},
 			},
@@ -191,8 +191,8 @@ func Test_DeploymentsFakeKubernetesClient(t *testing.T) {
 						Name:      "test-deployment",
 						Namespace: "test-namespace",
 						Annotations: map[string]string{"test-label": "test-value",
-							"internal.dd.datadog.com/nginx.detected_langs":      "go,java",
-							"internal.dd.datadog.com/init.redis.detected_langs": "go,python"},
+							"internal.dd.datadoghq.com/nginx.detected_langs":      "go,java",
+							"internal.dd.datadoghq.com/init.redis.detected_langs": "go,python"},
 					}},
 					metav1.CreateOptions{},
 				)

@@ -6,11 +6,15 @@
 // Package util provides util type definitions and helper methods for the language detection client and handler
 package util
 
+import "regexp"
+
 const (
 
 	// AnnotationPrefix represents a prefix of the language detection annotations
-	AnnotationPrefix string = "internal.dd.datadog.com/"
+	AnnotationPrefix string = "internal.dd.datadoghq.com/"
 )
+
+var AnnotationRegex = regexp.MustCompile(`internal\.dd\.datadoghq\.com\/(init)?\.?(.+?)\.detected_langs`)
 
 // GetLanguageAnnotationKey returns the language annotation key for the specified container
 func GetLanguageAnnotationKey(containerName string) string {

@@ -13,7 +13,7 @@ import (
 
 func TestGetLanguageAnnotationKey(t *testing.T) {
 	mockContainerName := "some-container-name"
-	expectedAnnotationKey := "internal.dd.datadog.com/some-container-name.detected_langs"
+	expectedAnnotationKey := "internal.dd.datadoghq.com/some-container-name.detected_langs"
 	actualAnnotationKey := GetLanguageAnnotationKey(mockContainerName)
 	assert.Equal(t, expectedAnnotationKey, actualAnnotationKey)
 }

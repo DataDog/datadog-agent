@@ -10,7 +10,6 @@ package kubeapiserver
 
 import (
 	"context"
-	"regexp"
 	"strings"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -22,10 +21,10 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
+	languagedetectionUtil "github.com/DataDog/datadog-agent/pkg/languagedetection/util"
+
 	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
-
-var re = regexp.MustCompile(`internal\.dd\.datadog\.com\/(init)?\.?(.+?)\.detected_langs`)
 
 // deploymentFilter filters out deployments that can't be used for unified service tagging or process language detection
 type deploymentFilter struct{}
@@ -93,7 +92,7 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 
 	for annotation, languages := range deployment.Annotations {
 		// find a match
-		matches := re.FindStringSubmatch(annotation)
+		matches := languagedetectionUtil.AnnotationRegex.FindStringSubmatch(annotation)
 		if len(matches) != 3 {
 			continue
 		}

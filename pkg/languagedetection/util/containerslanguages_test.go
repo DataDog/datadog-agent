@@ -35,9 +35,9 @@ func TestTotalLanguages(t *testing.T) {
 
 func TestParseAnnotations(t *testing.T) {
 	mockAnnotations := map[string]string{
-		"internal.dd.datadog.com/cont-1.detected_langs":      "java,cpp,python",
-		"internal.dd.datadog.com/cont-2.detected_langs":      "javascript,cpp,golang",
-		"internal.dd.datadog.com/init.cont-3.detected_langs": "python,java",
+		"internal.dd.datadoghq.com/cont-1.detected_langs":      "java,cpp,python",
+		"internal.dd.datadoghq.com/cont-2.detected_langs":      "javascript,cpp,golang",
+		"internal.dd.datadoghq.com/init.cont-3.detected_langs": "python,java",
 		"annotationkey1": "annotationvalue1",
 		"annotationkey2": "annotationvalue2",
 	}
@@ -95,9 +95,9 @@ func TestToAnnotations(t *testing.T) {
 
 	actualAnnotations := containerslanguages.ToAnnotations()
 	expectedAnnotations := map[string]string{
-		"internal.dd.datadog.com/wordpress.detected_langs":     "javascript,php",
-		"internal.dd.datadog.com/server.detected_langs":        "cpp,javascript,python",
-		"internal.dd.datadog.com/init.launcher.detected_langs": "bash,cpp",
+		"internal.dd.datadoghq.com/wordpress.detected_langs":     "javascript,php",
+		"internal.dd.datadoghq.com/server.detected_langs":        "cpp,javascript,python",
+		"internal.dd.datadoghq.com/init.launcher.detected_langs": "bash,cpp",
 	}
 
 	assert.Equal(t, expectedAnnotations, actualAnnotations)
