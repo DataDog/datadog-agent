@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -97,8 +96,8 @@ func InitSystemProbeConfig(cfg Config) {
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
 	cfg.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSizeDefault)
-	cfg.BindEnvAndSetDefault("secret_backend_timeout", secrets.SecretBackendTimeoutDefault)
+	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", 0)
 	cfg.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	cfg.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 
@@ -112,6 +111,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "debug_port"), 0)
 	cfg.BindEnvAndSetDefault(join(spNS, "telemetry_enabled"), true, "DD_TELEMETRY_ENABLED")
+	cfg.BindEnvAndSetDefault(join(spNS, "health_port"), int64(0), "DD_SYSTEM_PROBE_HEALTH_PORT")
 
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.enabled"), false, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_ENABLED")
 	cfg.BindEnvAndSetDefault(join(spNS, "internal_profiling.site"), DefaultSite, "DD_SYSTEM_PROBE_INTERNAL_PROFILING_SITE", "DD_SITE")
@@ -278,6 +278,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "enabled"), false, "DD_SYSTEM_PROBE_SERVICE_MONITORING_ENABLED")
 	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "enabled"), false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
 	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "use_windows_service_name"), true, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
+
+	cfg.BindEnvAndSetDefault(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"), 30)
 
 	// Default value (300) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(spNS, "http_map_cleaner_interval_in_s"))

@@ -11,8 +11,8 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/util"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // eventsToRetry wraps all the events without pods and an expiration time for cleanup

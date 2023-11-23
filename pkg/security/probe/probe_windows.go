@@ -199,8 +199,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		},
 	}
 
-	p.scrubber = procutil.NewDefaultDataScrubber()
-	p.scrubber.AddCustomSensitiveWords(config.Probe.CustomSensitiveWords)
+	p.scrubber = newProcScrubber(config.Probe.CustomSensitiveWords)
 
 	resolvers, err := resolvers.NewResolvers(config, p.StatsdClient, p.scrubber)
 	if err != nil {

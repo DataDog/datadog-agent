@@ -239,7 +239,6 @@ const (
 )
 
 type testOpts struct {
-	testDir                                    string
 	disableFilters                             bool
 	disableApprovers                           bool
 	enableActivityDump                         bool
@@ -265,12 +264,16 @@ type testOpts struct {
 	disableERPCDentryResolution                bool
 	disableMapDentryResolution                 bool
 	envsWithValue                              []string
-	disableAbnormalPathCheck                   bool
 	disableRuntimeSecurity                     bool
 	enableSBOM                                 bool
 	preStartCallback                           func(test *testModule)
 	tagsResolver                               tags.Resolver
 	snapshotRuleMatchHandler                   func(*testModule, *model.Event, *rules.Rule)
+}
+
+type dynamicTestOpts struct {
+	testDir                  string
+	disableAbnormalPathCheck bool
 }
 
 func (s *stringSlice) String() string {
@@ -283,8 +286,7 @@ func (s *stringSlice) Set(value string) error {
 }
 
 func (to testOpts) Equal(opts testOpts) bool {
-	return to.testDir == opts.testDir &&
-		to.disableApprovers == opts.disableApprovers &&
+	return to.disableApprovers == opts.disableApprovers &&
 		to.enableActivityDump == opts.enableActivityDump &&
 		to.activityDumpRateLimiter == opts.activityDumpRateLimiter &&
 		to.activityDumpTagRules == opts.activityDumpTagRules &&
@@ -308,7 +310,6 @@ func (to testOpts) Equal(opts testOpts) bool {
 		to.disableERPCDentryResolution == opts.disableERPCDentryResolution &&
 		to.disableMapDentryResolution == opts.disableMapDentryResolution &&
 		reflect.DeepEqual(to.envsWithValue, opts.envsWithValue) &&
-		to.disableAbnormalPathCheck == opts.disableAbnormalPathCheck &&
 		to.disableRuntimeSecurity == opts.disableRuntimeSecurity &&
 		to.enableSBOM == opts.enableSBOM &&
 		to.snapshotRuleMatchHandler == nil && opts.snapshotRuleMatchHandler == nil &&
@@ -318,7 +319,7 @@ func (to testOpts) Equal(opts testOpts) bool {
 type testModule struct {
 	sync.RWMutex
 	secconfig     *secconfig.Config
-	opts          testOpts
+	opts          tmOpts
 	st            *simpleTest
 	t             testing.TB
 	eventMonitor  *eventmonitor.EventMonitor
@@ -333,6 +334,7 @@ type testModule struct {
 }
 
 var testMod *testModule
+var commonCfgDir string
 
 type onRuleHandler func(*model.Event, *rules.Rule)
 type onProbeEventHandler func(*model.Event)
@@ -729,7 +731,7 @@ func setTestPolicy(dir string, macros []*rules.MacroDefinition, rules []*rules.R
 	return testPolicyFile.Name(), nil
 }
 
-func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config, *secconfig.Config, error) {
+func genTestConfigs(cfgDir string, opts testOpts) (*emconfig.Config, *secconfig.Config, error) {
 	tmpl, err := template.New("test-config").Parse(testConfig)
 	if err != nil {
 		return nil, nil, err
@@ -776,7 +778,7 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 
 	buffer := new(bytes.Buffer)
 	if err := tmpl.Execute(buffer, map[string]interface{}{
-		"TestPoliciesDir":                            dir,
+		"TestPoliciesDir":                            cfgDir,
 		"DisableApprovers":                           opts.disableApprovers,
 		"DisableDiscarders":                          opts.disableDiscarders,
 		"EnableActivityDump":                         opts.enableActivityDump,
@@ -810,13 +812,13 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 	}
 
 	ddConfigName, sysprobeConfigName, err := func() (string, string, error) {
-		ddConfig, err := os.OpenFile(path.Join(testDir, "datadog.yaml"), os.O_CREATE|os.O_RDWR, 0o644)
+		ddConfig, err := os.OpenFile(path.Join(cfgDir, "datadog.yaml"), os.O_CREATE|os.O_RDWR, 0o644)
 		if err != nil {
 			return "", "", err
 		}
 		defer ddConfig.Close()
 
-		sysprobeConfig, err := os.Create(path.Join(testDir, "system-probe.yaml"))
+		sysprobeConfig, err := os.Create(path.Join(cfgDir, "system-probe.yaml"))
 		if err != nil {
 			return "", "", err
 		}
@@ -832,7 +834,7 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 		return nil, nil, err
 	}
 
-	err = spconfig.SetupOptionalDatadogConfigWithDir(testDir, ddConfigName)
+	err = spconfig.SetupOptionalDatadogConfigWithDir(cfgDir, ddConfigName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to set up datadog.yaml configuration: %s", err)
 	}
@@ -855,7 +857,39 @@ func genTestConfigs(dir string, opts testOpts, testDir string) (*emconfig.Config
 	return emconfig, secconfig, nil
 }
 
-func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, opts testOpts) (*testModule, error) {
+type tmOpts struct {
+	staticOpts  testOpts
+	dynamicOpts dynamicTestOpts
+}
+
+type optFunc = func(opts *tmOpts)
+
+func withStaticOpts(opts testOpts) optFunc {
+	return func(tmo *tmOpts) {
+		tmo.staticOpts = opts
+	}
+}
+
+func withDynamicOpts(opts dynamicTestOpts) optFunc {
+	return func(tmo *tmOpts) {
+		tmo.dynamicOpts = opts
+	}
+}
+
+func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []*rules.RuleDefinition, fopts ...optFunc) (*testModule, error) {
+	var opts tmOpts
+	for _, opt := range fopts {
+		opt(&opts)
+	}
+
+	if commonCfgDir == "" {
+		cd, err := os.MkdirTemp("", "test-cfgdir")
+		if err != nil {
+			fmt.Println(err)
+		}
+		commonCfgDir = cd
+	}
+
 	var proFile *os.File
 	if withProfile {
 		var err error
@@ -879,12 +913,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.testDir)
+	st, err := newSimpleTest(t, macroDefs, ruleDefs, opts.dynamicOpts.testDir)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err = setTestPolicy(st.root, macroDefs, ruleDefs); err != nil {
+	if _, err = setTestPolicy(commonCfgDir, macroDefs, ruleDefs); err != nil {
 		return nil, err
 	}
 
@@ -901,19 +935,20 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 	}
 
-	if testMod != nil && opts.Equal(testMod.opts) {
+	if testMod != nil && opts.staticOpts.Equal(testMod.opts.staticOpts) {
 		testMod.st = st
 		testMod.cmdWrapper = cmdWrapper
 		testMod.t = t
+		testMod.opts.dynamicOpts = opts.dynamicOpts
 		if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 			return testMod, err
 		}
 
-		if opts.preStartCallback != nil {
-			opts.preStartCallback(testMod)
+		if opts.staticOpts.preStartCallback != nil {
+			opts.staticOpts.preStartCallback(testMod)
 		}
 
-		if !opts.disableRuntimeSecurity {
+		if !opts.staticOpts.disableRuntimeSecurity {
 			if err = testMod.reloadPolicies(); err != nil {
 				return testMod, err
 			}
@@ -927,7 +962,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		testMod.cleanup()
 	}
 
-	emconfig, secconfig, err := genTestConfigs(st.root, opts, st.root)
+	emconfig, secconfig, err := genTestConfigs(commonCfgDir, opts.staticOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -957,8 +992,8 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 			TTYFallbackEnabled:     true,
 		},
 	}
-	if opts.tagsResolver != nil {
-		emopts.ProbeOpts.TagsResolver = opts.tagsResolver
+	if opts.staticOpts.tagsResolver != nil {
+		emopts.ProbeOpts.TagsResolver = opts.staticOpts.tagsResolver
 	} else {
 		emopts.ProbeOpts.TagsResolver = NewFakeResolver()
 	}
@@ -969,7 +1004,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	testMod.probe = testMod.eventMonitor.Probe
 
 	var ruleSetloadedErr *multierror.Error
-	if !opts.disableRuntimeSecurity {
+	if !opts.staticOpts.disableRuntimeSecurity {
 		cws, err := module.NewCWSConsumer(testMod.eventMonitor, secconfig.RuntimeSecurity, module.Opts{EventSender: testMod})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create module: %w", err)
@@ -1005,17 +1040,17 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, errors.New("failed to runtime compile module")
 	}
 
-	if opts.preStartCallback != nil {
-		opts.preStartCallback(testMod)
+	if opts.staticOpts.preStartCallback != nil {
+		opts.staticOpts.preStartCallback(testMod)
 	}
 
 	if testMod.tracePipe, err = testMod.startTracing(); err != nil {
 		return nil, err
 	}
 
-	if opts.snapshotRuleMatchHandler != nil {
+	if opts.staticOpts.snapshotRuleMatchHandler != nil {
 		testMod.RegisterRuleEventHandler(func(e *model.Event, r *rules.Rule) {
-			opts.snapshotRuleMatchHandler(testMod, e, r)
+			opts.staticOpts.snapshotRuleMatchHandler(testMod, e, r)
 		})
 		defer testMod.RegisterRuleEventHandler(nil)
 	}
@@ -1063,11 +1098,10 @@ func (tm *testModule) Run(t *testing.T, name string, fnc func(t *testing.T, kind
 }
 
 func (tm *testModule) reloadPolicies() error {
-	log.Debugf("reload policies with testDir: %s", tm.Root())
-	policiesDir := tm.Root()
+	log.Debugf("reload policies with cfgDir: %s", commonCfgDir)
 
 	bundledPolicyProvider := &rulesmodule.BundledPolicyProvider{}
-	policyDirProvider, err := rules.NewPoliciesDirProvider(policiesDir, false)
+	policyDirProvider, err := rules.NewPoliciesDirProvider(commonCfgDir, false)
 	if err != nil {
 		return err
 	}
@@ -1619,11 +1653,11 @@ func (tm *testModule) validateSyscallsInFlight() {
 }
 
 func (tm *testModule) Close() {
-	if !tm.opts.disableRuntimeSecurity {
+	if !tm.opts.staticOpts.disableRuntimeSecurity {
 		tm.eventMonitor.SendStats()
 	}
 
-	if !tm.opts.disableAbnormalPathCheck {
+	if !tm.opts.dynamicOpts.disableAbnormalPathCheck {
 		tm.validateAbnormalPaths()
 	}
 
@@ -1736,23 +1770,32 @@ func (t *simpleTest) load(macros []*rules.MacroDefinition, rules []*rules.RuleDe
 	return nil
 }
 
+func createTempDir(tb testing.TB) (string, error) {
+	dir := tb.TempDir()
+	targetFileMode := fs.FileMode(0o711)
+
+	// chmod the root and its parent since TempDir returns a 2-layers directory `/tmp/TestNameXXXX/NNN/`
+	if err := os.Chmod(dir, targetFileMode); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(filepath.Dir(dir), targetFileMode); err != nil {
+		return "", err
+	}
+
+	return dir, nil
+}
+
 func newSimpleTest(tb testing.TB, macros []*rules.MacroDefinition, rules []*rules.RuleDefinition, testDir string) (*simpleTest, error) {
 	t := &simpleTest{
 		root: testDir,
 	}
 
 	if testDir == "" {
-		t.root = tb.TempDir()
-
-		targetFileMode := fs.FileMode(0o711)
-
-		// chmod the root and its parent since TempDir returns a 2-layers directory `/tmp/TestNameXXXX/NNN/`
-		if err := os.Chmod(t.root, targetFileMode); err != nil {
+		dir, err := createTempDir(tb)
+		if err != nil {
 			return nil, err
 		}
-		if err := os.Chmod(filepath.Dir(t.root), targetFileMode); err != nil {
-			return nil, err
-		}
+		t.root = dir
 	}
 
 	if err := t.load(macros, rules); err != nil {
@@ -1815,6 +1858,10 @@ func TestMain(m *testing.M) {
 	retCode := m.Run()
 	if testMod != nil {
 		testMod.cleanup()
+	}
+
+	if commonCfgDir != "" {
+		_ = os.RemoveAll(commonCfgDir)
 	}
 	os.Exit(retCode)
 }

@@ -22,7 +22,7 @@ import (
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
-	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -58,7 +58,7 @@ func TestStatus(t *testing.T) {
 	// Build what the expected status should be
 	j, err := json.Marshal(expectedStatus)
 	require.NoError(t, err)
-	expectedOutput, err := ddstatus.FormatProcessAgentStatus(j)
+	expectedOutput, err := render.FormatProcessAgentStatus(j)
 	require.NoError(t, err)
 
 	// Build the actual status

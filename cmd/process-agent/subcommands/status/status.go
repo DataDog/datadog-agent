@@ -23,7 +23,7 @@ import (
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
-	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -93,7 +93,7 @@ func writeNotRunning(log log.Component, w io.Writer) {
 }
 
 func writeError(log log.Component, w io.Writer, e error) {
-	tpl, err := template.New("").Funcs(ddstatus.Textfmap()).Parse(errorMessage)
+	tpl, err := template.New("").Funcs(render.Textfmap()).Parse(errorMessage)
 	if err != nil {
 		_ = log.Error(err)
 	}
@@ -146,7 +146,7 @@ func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options
 		}
 	}
 
-	stats, err := ddstatus.FormatProcessAgentStatus(body)
+	stats, err := render.FormatProcessAgentStatus(body)
 	if err != nil {
 		writeError(log, w, err)
 		return

@@ -2,7 +2,7 @@
 
 This guide will help you to develop and contribute code to the project.
 
-## TOC
+## Table of Content
 
 * [Custom checks developer guide](checks/README.md)
   * [Python builtin modules](checks/builtins)

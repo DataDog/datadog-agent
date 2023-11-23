@@ -89,7 +89,7 @@ type ResolverOptions struct {
 
 	// StatsdClient is the statsd client used internally by the compliance
 	// resolver (optional)
-	StatsdClient *statsd.Client
+	StatsdClient statsd.ClientInterface
 
 	DockerProvider
 	KubernetesProvider

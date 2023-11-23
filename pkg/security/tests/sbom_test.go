@@ -27,7 +27,7 @@ func TestSBOM(t *testing.T) {
 				`&& open.file.package.name == "base-files" && process.file.path != "" && process.file.package.name == "coreutils"`,
 		},
 	}
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{enableSBOM: true})
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(testOpts{enableSBOM: true}))
 	if err != nil {
 		t.Fatal(err)
 	}

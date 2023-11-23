@@ -28,7 +28,16 @@ func Configure(host string, port int, lookInEnv bool) error {
 		statsdAddr = net.JoinHostPort(host, strconv.Itoa(port))
 	}
 
-	client, err := statsd.New(statsdAddr)
+	options := []statsd.Option{
+		// Create a separate client for the telemetry to be sure we don't loose it.
+		statsd.WithTelemetryAddr(statsdAddr),
+		// Enable recommended settings to reduce the number of packets sent and reduce
+		// potential lock contention on the critical path.
+		statsd.WithChannelMode(),
+		statsd.WithClientSideAggregation(),
+		statsd.WithExtendedClientSideAggregation(),
+	}
+	client, err := statsd.New(statsdAddr, options...)
 	if err != nil {
 		return err
 	}
