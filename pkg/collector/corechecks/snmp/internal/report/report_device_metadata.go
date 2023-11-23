@@ -118,10 +118,10 @@ func buildDeviceScanMetadata(deviceId string, oidsValues *valuestore.ResultValue
 		}
 
 		deviceScanOids = append(deviceScanOids, devicemetadata.DeviceScanOid{
-			DeviceID: deviceId,
-			Oid:      variablePdu.Name,
-			Type:     variablePdu.Type.String(), // TODO: Map to internal types?
-			Value:    strValue,
+			DeviceID:    deviceId,
+			Oid:         variablePdu.Name,
+			Type:        variablePdu.Type.String(), // TODO: Map to internal types?
+			ValueString: strValue,
 		})
 	}
 	return deviceScanOids
