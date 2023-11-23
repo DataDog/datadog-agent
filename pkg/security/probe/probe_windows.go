@@ -8,6 +8,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -168,9 +169,6 @@ func (p *WindowsProbe) Close() error {
 
 // SendStats sends statistics about the probe to Datadog
 func (p *WindowsProbe) SendStats() error {
-	//p.resolvers.TCResolver.SendTCProgramsStats(p.StatsdClient)
-	//
-	//return p.monitor.SendStats()
 	return nil
 }
 
@@ -218,5 +216,63 @@ func (p *WindowsProbe) FlushDiscarders() error {
 	return nil
 }
 
+// OnNewDiscarder handles discarders
+func (p *WindowsProbe) OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType) {
+}
+
+// NewModel returns a new Model
+func (p *WindowsProbe) NewModel() *model.Model {
+	return NewEBPFLessModel(p)
+}
+
+// SendStats send the stats
+func (p *WindowsProbe) SendStats() error {
+	return nil
+}
+
+// DumpDiscarders dump the discarders
+func (p *WindowsProbe) DumpDiscarders() (string, error) {
+	return "", errors.New("not supported")
+}
+
+// GetFieldHandlers returns the field handlers
+func (p *WindowsProbe) GetFieldHandlers() model.FieldHandlers {
+	return p.fieldHandlers
+}
+
+// DumpProcessCache dumps the process cache
+func (p *WindowsProbe) DumpProcessCache(withArgs bool) (string, error) {
+	return "", errors.New("not supported")
+}
+
+// NewEvent returns a new event
+func (p *WindowsProbe) NewEvent() *model.Event {
+	return NewEBPFLessEvent(p.fieldHandlers)
+}
+
 // HandleActions executes the actions of a triggered rule
 func (p *WindowsProbe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+
+// NewProbe instantiates a new runtime security agent probe
+func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
+	opts.normalize()
+
+	p := &Probe{
+		Opts:         opts,
+		Config:       config,
+		StatsdClient: opts.StatsdClient,
+	}
+
+	pp, err := NewWindowsProbe(p, config, opts)
+	if err != nil {
+		return nil, err
+	}
+	p.PlatformProbe = pp
+
+	p.event = p.PlatformProbe.NewEvent()
+
+	// be sure to zero the probe event before everything else
+	p.zeroEvent()
+
+	return p, nil
+}
