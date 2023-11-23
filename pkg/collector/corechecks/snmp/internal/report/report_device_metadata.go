@@ -103,10 +103,25 @@ func buildDeviceScanMetadata(deviceId string, oidsValues *valuestore.ResultValue
 	if oidsValues == nil {
 		return deviceScanOids
 	}
-	for _, oidValue := range oidsValues.DeviceScanValues {
+	for _, variablePdu := range oidsValues.DeviceScanValues {
+		_, value, err := valuestore.GetResultValueFromPDU(variablePdu)
+		if err != nil {
+			log.Debugf("GetValueFromPDU error: %s", err)
+			continue
+		}
+
+		// TODO: How to store different types? Use Base64?
+		strValue, err := value.ToString()
+		if err != nil {
+			log.Debugf("ToString error: %s", err)
+			continue
+		}
+
 		deviceScanOids = append(deviceScanOids, devicemetadata.DeviceScanOid{
 			DeviceID: deviceId,
-			Oid:      oidValue.Name,
+			Oid:      variablePdu.Name,
+			Type:     variablePdu.Type.String(), // TODO: Map to internal types?
+			Value:    strValue,
 		})
 	}
 	return deviceScanOids

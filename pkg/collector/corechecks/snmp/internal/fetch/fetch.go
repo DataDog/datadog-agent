@@ -60,6 +60,7 @@ func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.R
 		}
 	}
 
+	// TODO: Use a internal type instead of gosnmp.SnmpPDU to avoid leaking gosnmp types ?
 	var results []gosnmp.SnmpPDU
 	if config.DeviceScanEnabled {
 		fetchedResults, err := session.FetchAllOIDsUsingGetNext(sess)
