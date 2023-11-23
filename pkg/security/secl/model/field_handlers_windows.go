@@ -26,11 +26,19 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 	}
 	_ = ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)
+	_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
+	_ = ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
 	_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 	_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
+	if ev.BaseEvent.ProcessContext.HasParent() {
+		_ = ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.BaseEvent.ProcessContext.Parent)
+	}
 	if ev.BaseEvent.ProcessContext.HasParent() {
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.BaseEvent.ProcessContext.Parent)
 	}
@@ -53,12 +61,16 @@ func (ev *Event) resolveFields(forADs bool) {
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
+		_ = ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 	case "exit":
 		_ = ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
 		_ = ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
+		_ = ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 		_ = ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 	}
@@ -71,6 +83,8 @@ type FieldHandlers interface {
 	ResolveEventTimestamp(ev *Event, e *BaseEvent) int
 	ResolveFileBasename(ev *Event, e *FileEvent) string
 	ResolveFilePath(ev *Event, e *FileEvent) string
+	ResolveProcessCmdLine(ev *Event, e *Process) string
+	ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string
 	ResolveProcessCreatedAt(ev *Event, e *Process) int
 	ResolveProcessEnvp(ev *Event, e *Process) []string
 	ResolveProcessEnvs(ev *Event, e *Process) []string
@@ -96,6 +110,12 @@ func (dfh *DefaultFieldHandlers) ResolveFileBasename(ev *Event, e *FileEvent) st
 }
 func (dfh *DefaultFieldHandlers) ResolveFilePath(ev *Event, e *FileEvent) string {
 	return e.PathnameStr
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessCmdLine(ev *Event, e *Process) string {
+	return e.CmdLine
+}
+func (dfh *DefaultFieldHandlers) ResolveProcessCmdLineScrubbed(ev *Event, e *Process) string {
+	return e.CmdLineScrubbed
 }
 func (dfh *DefaultFieldHandlers) ResolveProcessCreatedAt(ev *Event, e *Process) int {
 	return int(e.CreatedAt)

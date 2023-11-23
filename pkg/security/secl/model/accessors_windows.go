@@ -74,10 +74,19 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.Exec.Process.CmdLine
+				return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: 200 * eval.HandlerWeight,
+		}, nil
+	case "exec.cmdline_scrubbed":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exec.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "exec.container.id":
 		return &eval.StringEvaluator{
@@ -182,10 +191,19 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.Exit.Process.CmdLine
+				return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: 200 * eval.HandlerWeight,
+		}, nil
+	case "exit.cmdline_scrubbed":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exit.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "exit.code":
 		return &eval.IntEvaluator{
@@ -352,6 +370,7 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 	case "process.ancestors.cmdline":
 		return &eval.StringArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
 				if result, ok := ctx.StringCache[field]; ok {
 					return result
 				}
@@ -360,7 +379,28 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				value := iterator.Front(ctx)
 				for value != nil {
 					element := (*ProcessCacheEntry)(value)
-					result := element.ProcessContext.Process.CmdLine
+					result := ev.FieldHandlers.ResolveProcessCmdLine(ev, &element.ProcessContext.Process)
+					results = append(results, result)
+					value = iterator.Next()
+				}
+				ctx.StringCache[field] = results
+				return results
+			}, Field: field,
+			Weight: 200 * eval.IteratorWeight,
+		}, nil
+	case "process.ancestors.cmdline_scrubbed":
+		return &eval.StringArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []string {
+				ev := ctx.Event.(*Event)
+				if result, ok := ctx.StringCache[field]; ok {
+					return result
+				}
+				var results []string
+				iterator := &ProcessAncestorsIterator{}
+				value := iterator.Front(ctx)
+				for value != nil {
+					element := (*ProcessCacheEntry)(value)
+					result := ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, &element.ProcessContext.Process)
 					results = append(results, result)
 					value = iterator.Next()
 				}
@@ -580,10 +620,19 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 		return &eval.StringEvaluator{
 			EvalFnc: func(ctx *eval.Context) string {
 				ev := ctx.Event.(*Event)
-				return ev.BaseEvent.ProcessContext.Process.CmdLine
+				return ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: 200 * eval.HandlerWeight,
+		}, nil
+	case "process.cmdline_scrubbed":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, &ev.BaseEvent.ProcessContext.Process)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.container.id":
 		return &eval.StringEvaluator{
@@ -664,10 +713,22 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 				if !ev.BaseEvent.ProcessContext.HasParent() {
 					return ""
 				}
-				return ev.BaseEvent.ProcessContext.Parent.CmdLine
+				return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent)
 			},
 			Field:  field,
-			Weight: eval.FunctionWeight,
+			Weight: 200 * eval.HandlerWeight,
+		}, nil
+	case "process.parent.cmdline_scrubbed":
+		return &eval.StringEvaluator{
+			EvalFnc: func(ctx *eval.Context) string {
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return ""
+				}
+				return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.BaseEvent.ProcessContext.Parent)
+			},
+			Field:  field,
+			Weight: eval.HandlerWeight,
 		}, nil
 	case "process.parent.container.id":
 		return &eval.StringEvaluator{
@@ -811,6 +872,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"container.tags",
 		"event.timestamp",
 		"exec.cmdline",
+		"exec.cmdline_scrubbed",
 		"exec.container.id",
 		"exec.created_at",
 		"exec.envp",
@@ -823,6 +885,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.ppid",
 		"exit.cause",
 		"exit.cmdline",
+		"exit.cmdline_scrubbed",
 		"exit.code",
 		"exit.container.id",
 		"exit.created_at",
@@ -842,6 +905,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"network.source.ip",
 		"network.source.port",
 		"process.ancestors.cmdline",
+		"process.ancestors.cmdline_scrubbed",
 		"process.ancestors.container.id",
 		"process.ancestors.created_at",
 		"process.ancestors.envp",
@@ -853,6 +917,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.pid",
 		"process.ancestors.ppid",
 		"process.cmdline",
+		"process.cmdline_scrubbed",
 		"process.container.id",
 		"process.created_at",
 		"process.envp",
@@ -862,6 +927,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.file.path",
 		"process.file.path.length",
 		"process.parent.cmdline",
+		"process.parent.cmdline_scrubbed",
 		"process.parent.container.id",
 		"process.parent.created_at",
 		"process.parent.envp",
@@ -887,7 +953,9 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "event.timestamp":
 		return int(ev.FieldHandlers.ResolveEventTimestamp(ev, &ev.BaseEvent)), nil
 	case "exec.cmdline":
-		return ev.Exec.Process.CmdLine, nil
+		return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process), nil
+	case "exec.cmdline_scrubbed":
+		return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exec.Process), nil
 	case "exec.container.id":
 		return ev.Exec.Process.ContainerID, nil
 	case "exec.created_at":
@@ -911,7 +979,9 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 	case "exit.cause":
 		return int(ev.Exit.Cause), nil
 	case "exit.cmdline":
-		return ev.Exit.Process.CmdLine, nil
+		return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process), nil
+	case "exit.cmdline_scrubbed":
+		return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exit.Process), nil
 	case "exit.code":
 		return int(ev.Exit.Code), nil
 	case "exit.container.id":
@@ -955,7 +1025,19 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		ptr := iterator.Front(ctx)
 		for ptr != nil {
 			element := (*ProcessCacheEntry)(ptr)
-			result := element.ProcessContext.Process.CmdLine
+			result := ev.FieldHandlers.ResolveProcessCmdLine(ev, &element.ProcessContext.Process)
+			values = append(values, result)
+			ptr = iterator.Next()
+		}
+		return values, nil
+	case "process.ancestors.cmdline_scrubbed":
+		var values []string
+		ctx := eval.NewContext(ev)
+		iterator := &ProcessAncestorsIterator{}
+		ptr := iterator.Front(ctx)
+		for ptr != nil {
+			element := (*ProcessCacheEntry)(ptr)
+			result := ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, &element.ProcessContext.Process)
 			values = append(values, result)
 			ptr = iterator.Next()
 		}
@@ -1081,7 +1163,9 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		}
 		return values, nil
 	case "process.cmdline":
-		return ev.BaseEvent.ProcessContext.Process.CmdLine, nil
+		return ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process), nil
+	case "process.cmdline_scrubbed":
+		return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, &ev.BaseEvent.ProcessContext.Process), nil
 	case "process.container.id":
 		return ev.BaseEvent.ProcessContext.Process.ContainerID, nil
 	case "process.created_at":
@@ -1102,7 +1186,12 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
 		}
-		return ev.BaseEvent.ProcessContext.Parent.CmdLine, nil
+		return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent), nil
+	case "process.parent.cmdline_scrubbed":
+		if !ev.BaseEvent.ProcessContext.HasParent() {
+			return "", &eval.ErrNotSupported{Field: field}
+		}
+		return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.BaseEvent.ProcessContext.Parent), nil
 	case "process.parent.container.id":
 		if !ev.BaseEvent.ProcessContext.HasParent() {
 			return "", &eval.ErrNotSupported{Field: field}
@@ -1166,6 +1255,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "exec.cmdline":
 		return "exec", nil
+	case "exec.cmdline_scrubbed":
+		return "exec", nil
 	case "exec.container.id":
 		return "exec", nil
 	case "exec.created_at":
@@ -1189,6 +1280,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "exit.cause":
 		return "exit", nil
 	case "exit.cmdline":
+		return "exit", nil
+	case "exit.cmdline_scrubbed":
 		return "exit", nil
 	case "exit.code":
 		return "exit", nil
@@ -1228,6 +1321,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "dns", nil
 	case "process.ancestors.cmdline":
 		return "*", nil
+	case "process.ancestors.cmdline_scrubbed":
+		return "*", nil
 	case "process.ancestors.container.id":
 		return "*", nil
 	case "process.ancestors.created_at":
@@ -1250,6 +1345,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "*", nil
 	case "process.cmdline":
 		return "*", nil
+	case "process.cmdline_scrubbed":
+		return "*", nil
 	case "process.container.id":
 		return "*", nil
 	case "process.created_at":
@@ -1267,6 +1364,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 	case "process.file.path.length":
 		return "*", nil
 	case "process.parent.cmdline":
+		return "*", nil
+	case "process.parent.cmdline_scrubbed":
 		return "*", nil
 	case "process.parent.container.id":
 		return "*", nil
@@ -1307,6 +1406,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "exec.cmdline":
 		return reflect.String, nil
+	case "exec.cmdline_scrubbed":
+		return reflect.String, nil
 	case "exec.container.id":
 		return reflect.String, nil
 	case "exec.created_at":
@@ -1330,6 +1431,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "exit.cause":
 		return reflect.Int, nil
 	case "exit.cmdline":
+		return reflect.String, nil
+	case "exit.cmdline_scrubbed":
 		return reflect.String, nil
 	case "exit.code":
 		return reflect.Int, nil
@@ -1369,6 +1472,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.ancestors.cmdline":
 		return reflect.String, nil
+	case "process.ancestors.cmdline_scrubbed":
+		return reflect.String, nil
 	case "process.ancestors.container.id":
 		return reflect.String, nil
 	case "process.ancestors.created_at":
@@ -1391,6 +1496,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "process.cmdline":
 		return reflect.String, nil
+	case "process.cmdline_scrubbed":
+		return reflect.String, nil
 	case "process.container.id":
 		return reflect.String, nil
 	case "process.created_at":
@@ -1408,6 +1515,8 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 	case "process.file.path.length":
 		return reflect.Int, nil
 	case "process.parent.cmdline":
+		return reflect.String, nil
+	case "process.parent.cmdline_scrubbed":
 		return reflect.String, nil
 	case "process.parent.container.id":
 		return reflect.String, nil
@@ -1487,6 +1596,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CmdLine"}
 		}
 		ev.Exec.Process.CmdLine = rv
+		return nil
+	case "exec.cmdline_scrubbed":
+		if ev.Exec.Process == nil {
+			ev.Exec.Process = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exec.Process.CmdLineScrubbed"}
+		}
+		ev.Exec.Process.CmdLineScrubbed = rv
 		return nil
 	case "exec.container.id":
 		if ev.Exec.Process == nil {
@@ -1600,6 +1719,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.CmdLine"}
 		}
 		ev.Exit.Process.CmdLine = rv
+		return nil
+	case "exit.cmdline_scrubbed":
+		if ev.Exit.Process == nil {
+			ev.Exit.Process = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "Exit.Process.CmdLineScrubbed"}
+		}
+		ev.Exit.Process.CmdLineScrubbed = rv
 		return nil
 	case "exit.code":
 		rv, ok := value.(int)
@@ -1766,6 +1895,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CmdLine = rv
 		return nil
+	case "process.ancestors.cmdline_scrubbed":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Ancestor == nil {
+			ev.BaseEvent.ProcessContext.Ancestor = &ProcessCacheEntry{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CmdLineScrubbed"}
+		}
+		ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.CmdLineScrubbed = rv
+		return nil
 	case "process.ancestors.container.id":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -1902,6 +2044,16 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.BaseEvent.ProcessContext.Process.CmdLine = rv
 		return nil
+	case "process.cmdline_scrubbed":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Process.CmdLineScrubbed"}
+		}
+		ev.BaseEvent.ProcessContext.Process.CmdLineScrubbed = rv
+		return nil
 	case "process.container.id":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}
@@ -1990,6 +2142,19 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.CmdLine"}
 		}
 		ev.BaseEvent.ProcessContext.Parent.CmdLine = rv
+		return nil
+	case "process.parent.cmdline_scrubbed":
+		if ev.BaseEvent.ProcessContext == nil {
+			ev.BaseEvent.ProcessContext = &ProcessContext{}
+		}
+		if ev.BaseEvent.ProcessContext.Parent == nil {
+			ev.BaseEvent.ProcessContext.Parent = &Process{}
+		}
+		rv, ok := value.(string)
+		if !ok {
+			return &eval.ErrValueTypeMismatch{Field: "BaseEvent.ProcessContext.Parent.CmdLineScrubbed"}
+		}
+		ev.BaseEvent.ProcessContext.Parent.CmdLineScrubbed = rv
 		return nil
 	case "process.parent.container.id":
 		if ev.BaseEvent.ProcessContext == nil {

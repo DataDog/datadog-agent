@@ -62,7 +62,7 @@ func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64
 	}
 }
 
-func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolvers.Resolvers) *ProcessSerializer { //nolint:revive // TODO fix revive unused-parameter
+func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer { //nolint:revive // TODO fix revive unused-parameter
 	psSerializer := &ProcessSerializer{
 		ExecTime: getTimeIfNotZero(ps.ExecTime),
 		ExitTime: getTimeIfNotZero(ps.ExitTime),
@@ -81,13 +81,13 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 	return psSerializer
 }
 
-func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resolvers *resolvers.Resolvers) *ProcessContextSerializer {
+func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *ProcessContextSerializer {
 	if pc == nil || pc.Pid == 0 || e == nil {
 		return nil
 	}
 
 	ps := ProcessContextSerializer{
-		ProcessSerializer: newProcessSerializer(&pc.Process, e, resolvers),
+		ProcessSerializer: newProcessSerializer(&pc.Process, e),
 	}
 
 	ctx := eval.NewContext(e)
@@ -100,7 +100,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, resol
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
 
-		s := newProcessSerializer(&pce.Process, e, resolvers)
+		s := newProcessSerializer(&pce.Process, e)
 		ps.Ancestors = append(ps.Ancestors, s)
 
 		if first {
@@ -124,8 +124,8 @@ func (e *EventSerializer) ToJSON() ([]byte, error) {
 }
 
 // MarshalEvent marshal the event
-func MarshalEvent(event *model.Event, probe *resolvers.Resolvers) ([]byte, error) {
-	s := NewEventSerializer(event, probe)
+func MarshalEvent(event *model.Event) ([]byte, error) {
+	s := NewEventSerializer(event)
 	return json.Marshal(s)
 }
 
@@ -135,8 +135,8 @@ func MarshalCustomEvent(event *events.CustomEvent) ([]byte, error) {
 }
 
 // NewEventSerializer creates a new event serializer based on the event type
-func NewEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *EventSerializer {
+func NewEventSerializer(event *model.Event) *EventSerializer {
 	return &EventSerializer{
-		BaseEventSerializer: NewBaseEventSerializer(event, resolvers),
+		BaseEventSerializer: NewBaseEventSerializer(event),
 	}
 }

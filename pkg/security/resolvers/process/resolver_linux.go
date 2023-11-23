@@ -949,6 +949,8 @@ func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool
 		argv, _ = p.scrubber.ScrubCommand(argv)
 		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
 		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
+
+		pr.ScrubbedArgvResolved = true
 	}
 
 	return argv, truncated
