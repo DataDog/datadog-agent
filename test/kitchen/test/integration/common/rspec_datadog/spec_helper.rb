@@ -288,7 +288,6 @@ def windows_service_status(service)
   raise "windows_service_status is only for windows" unless os == :windows
   # Language-independent way of getting the service status
   res =  `powershell -command \"try { (get-service #{service} -ErrorAction Stop).Status } catch { write-host NOTINSTALLED }\"`
-  puts res
   return (res).upcase.strip
 end
 
