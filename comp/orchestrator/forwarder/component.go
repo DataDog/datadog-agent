@@ -8,7 +8,7 @@ package forwarder
 
 import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 
-// team: agent-shared-components
+// team: agent-metrics-logs
 
 // Component is the component type.
 type Component interface {

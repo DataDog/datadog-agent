@@ -172,6 +172,16 @@ When running, it listens for network traffic according to configured
 listeners and aggregates traffic data to send to the backend.
 It does not expose any public methods.
 
+## [comp/orchestrator](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/orchestrator) (Component Bundle)
+
+*Datadog Team*: agent-metrics-logs
+
+
+
+### [comp/orchestrator/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/orchestrator/forwarder)
+
+Package forwarder implements the orchestrator forwarder component.
+
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/otelcol) (Component Bundle)
 
 *Datadog Team*: opentelemetry
