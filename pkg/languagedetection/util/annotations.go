@@ -9,10 +9,10 @@ package util
 const (
 
 	// AnnotationPrefix represents a prefix of the language detection annotations
-	AnnotationPrefix string = "apm.datadoghq.com/"
+	AnnotationPrefix string = "internal.dd.datadog.com/"
 )
 
 // GetLanguageAnnotationKey returns the language annotation key for the specified container
 func GetLanguageAnnotationKey(containerName string) string {
-	return AnnotationPrefix + containerName + ".languages"
+	return AnnotationPrefix + containerName + ".detected_langs"
 }

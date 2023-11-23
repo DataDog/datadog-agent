@@ -25,7 +25,7 @@ import (
 	ddkube "github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 )
 
-var re = regexp.MustCompile(`apm\.datadoghq\.com\/(init)?\.?(.+?)\.languages`)
+var re = regexp.MustCompile(`internal\.dd\.datadog\.com\/(init)?\.?(.+?)\.detected_langs`)
 
 // deploymentFilter filters out deployments that can't be used for unified service tagging or process language detection
 type deploymentFilter struct{}

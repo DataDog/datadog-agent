@@ -12,7 +12,7 @@ import (
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
 
-var re = regexp.MustCompile(`apm\.datadoghq\.com\/(init)?\.?(.+?)\.languages`)
+var re = regexp.MustCompile(`internal\.dd\.datadog\.com\/(init)?\.?(.+?)\detected_langs`)
 
 // ContainersLanguages maps container name to language set
 type ContainersLanguages map[string]LanguageSet
