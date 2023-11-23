@@ -80,9 +80,8 @@ func getDeviceScanValues(sess session.Session, config *checkconfig.CheckConfig) 
 			config.DeviceScanCurScanOidsCount = 0
 		}
 
-		maxOidsToFetch := 100 // TODO: Update to 1000 (?)
 		fetchStart := time.Now()
-		fetchedResults, lastOid, err := session.FetchAllOIDsUsingGetNext(sess, rootOid, maxOidsToFetch)
+		fetchedResults, lastOid, err := session.FetchAllOIDsUsingGetNext(sess, rootOid, config.DeviceScanMaxOidsPerRun)
 		if err != nil {
 			log.Warnf("[FetchAllOIDsUsingGetNext] error: %s", err)
 			return nil
@@ -95,7 +94,7 @@ func getDeviceScanValues(sess session.Session, config *checkconfig.CheckConfig) 
 		config.DeviceScanCurScanOidsCount += len(fetchedResults)
 
 		// TODO: ADD TELEMETRY for each check run
-		if len(fetchedResults) == maxOidsToFetch {
+		if len(fetchedResults) == config.DeviceScanMaxOidsPerRun {
 			log.Warnf("[FetchAllOIDsUsingGetNext] Partial Device Scan (Total Count: %d, Fetch Duration Ms: %d)",
 				config.DeviceScanCurScanOidsCount,
 				fetchDuration.Milliseconds(),

@@ -48,6 +48,7 @@ const defaultDiscoveryWorkers = 5
 const defaultDiscoveryAllowedFailures = 3
 const defaultDiscoveryInterval = 3600
 const defaultDetectMetricsRefreshInterval = 3600
+const defaultDeviceScanMaxOidsPerRun = 1000
 
 // subnetTagKey is the prefix used for subnet tag
 const subnetTagKey = "autodiscovery_subnet"
@@ -79,6 +80,7 @@ type InitConfig struct {
 	DetectMetricsEnabled         Boolean                           `yaml:"experimental_detect_metrics_enabled"`
 	DetectMetricsRefreshInterval int                               `yaml:"experimental_detect_metrics_refresh_interval"`
 	DeviceScanEnabled            Boolean                           `yaml:"device_scan_enabled"`
+	DeviceScanMaxOidsPerRun      int                               `yaml:"device_scan_max_oids_per_run"`
 }
 
 // InstanceConfig is used to deserialize integration instance config
@@ -138,7 +140,8 @@ type InstanceConfig struct {
 	DetectMetricsEnabled         *Boolean `yaml:"experimental_detect_metrics_enabled"`
 	DetectMetricsRefreshInterval int      `yaml:"experimental_detect_metrics_refresh_interval"`
 
-	DeviceScanEnabled *Boolean `yaml:"device_scan_enabled"`
+	DeviceScanEnabled       *Boolean `yaml:"device_scan_enabled"`
+	DeviceScanMaxOidsPerRun int      `yaml:"device_scan_max_oids_per_run"`
 
 	// `interface_configs` option is not supported by SNMP corecheck autodiscovery (`network_address`)
 	// it's only supported for single device instance (`ip_address`)
@@ -192,6 +195,7 @@ type CheckConfig struct {
 	DetectMetricsRefreshInterval int
 
 	DeviceScanEnabled          bool
+	DeviceScanMaxOidsPerRun    int
 	DeviceScanLastOid          string
 	DeviceScanCurScanStart     time.Time
 	DeviceScanCurScanOidsCount int
@@ -389,6 +393,15 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 		c.DeviceScanEnabled = bool(*instance.DeviceScanEnabled)
 	} else {
 		c.DeviceScanEnabled = bool(initConfig.DeviceScanEnabled)
+	}
+
+	// TODO: TEST ME
+	if instance.DeviceScanMaxOidsPerRun != 0 {
+		c.DeviceScanMaxOidsPerRun = int(instance.DeviceScanMaxOidsPerRun)
+	} else if initConfig.DeviceScanMaxOidsPerRun != 0 {
+		c.DeviceScanMaxOidsPerRun = int(initConfig.DeviceScanMaxOidsPerRun)
+	} else {
+		c.DeviceScanMaxOidsPerRun = defaultDeviceScanMaxOidsPerRun
 	}
 
 	if instance.DetectMetricsRefreshInterval != 0 {
@@ -660,6 +673,7 @@ func (c *CheckConfig) Copy() *CheckConfig {
 	newConfig.DetectMetricsEnabled = c.DetectMetricsEnabled
 	newConfig.DetectMetricsRefreshInterval = c.DetectMetricsRefreshInterval
 	newConfig.DeviceScanEnabled = c.DeviceScanEnabled
+	newConfig.DeviceScanMaxOidsPerRun = c.DeviceScanMaxOidsPerRun
 	newConfig.MinCollectionInterval = c.MinCollectionInterval
 	newConfig.InterfaceConfigs = c.InterfaceConfigs
 
