@@ -247,225 +247,225 @@ build do
 
     # Adding pympler for memory debug purposes
     requirements.push("pympler==0.7")
+  end
 
-    # Render the filtered requirements file
+  # Render the filtered requirements file
+  erb source: "static_requirements.txt.erb",
+      dest: "#{static_reqs_out_file}",
+      mode: 0640,
+      vars: { requirements: requirements }
+
+  # Render the filtered libraries that are to be built with different env var
+  requirements_custom.each do |lib, lib_req|
     erb source: "static_requirements.txt.erb",
-        dest: "#{static_reqs_out_file}",
+        dest: "#{lib_req["req_file_path"]}",
         mode: 0640,
-        vars: { requirements: requirements }
+        vars: { requirements: lib_req["req_lines"] }
+  end
 
-    # Render the filtered libraries that are to be built with different env var
-    requirements_custom.each do |lib, lib_req|
-      erb source: "static_requirements.txt.erb",
-          dest: "#{lib_req["req_file_path"]}",
-          mode: 0640,
-          vars: { requirements: lib_req["req_lines"] }
-    end
+  # Increasing pip max retries (default: 5 times) and pip timeout (default 15 seconds) to avoid blocking network errors
+  pip_max_retries = 20
+  pip_timeout = 20
 
-    # Increasing pip max retries (default: 5 times) and pip timeout (default 15 seconds) to avoid blocking network errors
-    pip_max_retries = 20
-    pip_timeout = 20
+  # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
+  # there's no need to refer to `pip`, the interpreter will pick the right script.
+  command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd_base
+  command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
+  command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd_downloader
+  command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
+  command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_reqs_file_path} #{static_reqs_out_file} " \
+          "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => build_env
+  # Pip-compiling seperately each lib that needs a custom build installation
+  specific_build_env.each do |lib, env|
+    command "#{python} -m piptools compile --generate-hashes --output-file #{requirements_custom[lib]["compiled_req_file_path"]} #{requirements_custom[lib]["req_file_path"]} " \
+            "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
+  end
 
-    # Use pip-compile to create the final requirements file. Notice when we invoke `pip` through `python -m pip <...>`,
-    # there's no need to refer to `pip`, the interpreter will pick the right script.
-    command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd_base
-    command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
-    command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd_downloader
-    command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
-    command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_reqs_file_path} #{static_reqs_out_file} " \
-            "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => build_env
-    # Pip-compiling seperately each lib that needs a custom build installation
-    specific_build_env.each do |lib, env|
-      command "#{python} -m piptools compile --generate-hashes --output-file #{requirements_custom[lib]["compiled_req_file_path"]} #{requirements_custom[lib]["req_file_path"]} " \
-              "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
-    end
+  #
+  # Install static-environment requirements that the Agent and all checks will use
+  #
 
-    #
-    # Install static-environment requirements that the Agent and all checks will use
-    #
-
-    # First we install the dependencies that need specific flags
-    specific_build_env.each do |lib, env|
-      command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
-      # Remove the file after use so it is not shipped
-      delete "#{requirements_custom[lib]["compiled_req_file_path"]}"
-    end
-    # Then we install the rest (already installed libraries will be ignored) with the main flags
-    command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_reqs_file_path}", :env => build_env
+  # First we install the dependencies that need specific flags
+  specific_build_env.each do |lib, env|
+    command "#{python} -m pip install --no-deps --require-hashes -r #{requirements_custom[lib]["compiled_req_file_path"]}", :env => env
     # Remove the file after use so it is not shipped
-    delete "#{compiled_reqs_file_path}"
+    delete "#{requirements_custom[lib]["compiled_req_file_path"]}"
+  end
+  # Then we install the rest (already installed libraries will be ignored) with the main flags
+  command "#{python} -m pip install --no-deps --require-hashes -r #{compiled_reqs_file_path}", :env => build_env
+  # Remove the file after use so it is not shipped
+  delete "#{compiled_reqs_file_path}"
 
-    #
-    # Install Core integrations
-    #
+  #
+  # Install Core integrations
+  #
 
-    # Create a constraint file after installing all the core dependencies and before any integration
-    # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
-    command "#{python} -m pip freeze > #{install_dir}/#{final_constraints_file}"
+  # Create a constraint file after installing all the core dependencies and before any integration
+  # This is then used as a constraint file by the integration command to avoid messing with the agent's python environment
+  command "#{python} -m pip freeze > #{install_dir}/#{final_constraints_file}"
 
-    if windows_target?
-      cached_wheels_dir = "#{windows_safe_path(wheel_build_dir)}\\.cached"
-    else
-      cached_wheels_dir = "#{wheel_build_dir}/.cached"
-    end
+  if windows_target?
+    cached_wheels_dir = "#{windows_safe_path(wheel_build_dir)}\\.cached"
+  else
+    cached_wheels_dir = "#{wheel_build_dir}/.cached"
+  end
 
-    checks_to_install = Array.new
+  checks_to_install = Array.new
 
-    block "Collect integrations to install" do
-      # Go through every integration package in `integrations-core`, build and install
-      Dir.glob("#{project_dir}/*").each do |check_dir|
-        check = check_dir.split('/').last
+  block "Collect integrations to install" do
+    # Go through every integration package in `integrations-core`, build and install
+    Dir.glob("#{project_dir}/*").each do |check_dir|
+      check = check_dir.split('/').last
 
-        # do not install excluded integrations
-        next if !File.directory?("#{check_dir}") || excluded_folders.include?(check)
+      # do not install excluded integrations
+      next if !File.directory?("#{check_dir}") || excluded_folders.include?(check)
 
-        # If there is no manifest file, then we should assume the folder does not
-        # contain a working check and move onto the next
-        manifest_file_path = "#{check_dir}/manifest.json"
+      # If there is no manifest file, then we should assume the folder does not
+      # contain a working check and move onto the next
+      manifest_file_path = "#{check_dir}/manifest.json"
 
-        # If there is no manifest file, then we should assume the folder does not
-        # contain a working check and move onto the next
-        File.exist?(manifest_file_path) || next
+      # If there is no manifest file, then we should assume the folder does not
+      # contain a working check and move onto the next
+      File.exist?(manifest_file_path) || next
 
-        manifest = JSON.parse(File.read(manifest_file_path))
-        if manifest.key?("supported_os")
-          manifest["supported_os"].include?(os) || next
+      manifest = JSON.parse(File.read(manifest_file_path))
+      if manifest.key?("supported_os")
+        manifest["supported_os"].include?(os) || next
+      else
+        if os == "mac_os"
+          tag = "Supported OS::macOS"
         else
-          if os == "mac_os"
-            tag = "Supported OS::macOS"
-          else
-            tag = "Supported OS::#{os.capitalize}"
-          end
-
-          manifest["tile"]["classifier_tags"].include?(tag) || next
+          tag = "Supported OS::#{os.capitalize}"
         end
 
-        File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
-        # Check if it supports Python 3.
-        support = `inv agent.check-supports-python-version #{check_dir} 3`
-        if support == "False"
-          log.info(log_key) { "Skipping '#{check}' since it does not support Python 3." }
-          next
-        end
+        manifest["tile"]["classifier_tags"].include?(tag) || next
+      end
 
-        checks_to_install.push(check)
+      File.file?("#{check_dir}/setup.py") || File.file?("#{check_dir}/pyproject.toml") || next
+      # Check if it supports Python 3.
+      support = `inv agent.check-supports-python-version #{check_dir} 3`
+      if support == "False"
+        log.info(log_key) { "Skipping '#{check}' since it does not support Python 3." }
+        next
+      end
+
+      checks_to_install.push(check)
+    end
+  end
+
+  installed_list = Array.new
+  cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
+  block "Install cached wheels" do
+    tasks_dir_in = windows_safe_path(Dir.pwd)
+    cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
+    # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
+    awscli = if windows_target? then '"c:\Program files\python39\scripts\aws"' else 'aws' end
+    if cache_bucket != ''
+      mkdir cached_wheels_dir
+      shellout! "inv -e agent.get-integrations-from-cache " \
+                "--python 3 --bucket #{cache_bucket} " \
+                "--branch #{cache_branch || 'main'} " \
+                "--integrations-dir #{windows_safe_path(project_dir)} " \
+                "--target-dir #{cached_wheels_dir} " \
+                "--integrations #{checks_to_install.join(',')} " \
+                "--awscli #{awscli}",
+                :cwd => tasks_dir_in
+
+      # install all wheels from cache in one pip invocation to speed things up
+      if windows_target?
+        shellout! "#{python} -m pip install --no-deps --no-index " \
+                  " --find-links #{windows_safe_path(cached_wheels_dir)} -r #{windows_safe_path(cached_wheels_dir)}\\found.txt"
+      else
+        shellout! "#{python} -m pip install --no-deps --no-index " \
+                  "--find-links #{cached_wheels_dir} -r #{cached_wheels_dir}/found.txt"
       end
     end
 
-    installed_list = Array.new
-    cache_bucket = ENV.fetch('INTEGRATION_WHEELS_CACHE_BUCKET', '')
-    block "Install cached wheels" do
-      tasks_dir_in = windows_safe_path(Dir.pwd)
-      cache_branch = (shellout! "inv release.get-release-json-value base_branch", cwd: File.expand_path('..', tasks_dir_in)).stdout.strip
-      # On windows, `aws` actually executes Ruby's AWS SDK, but we want the Python one
-      awscli = if windows_target? then '"c:\Program files\python39\scripts\aws"' else 'aws' end
-      if cache_bucket != ''
-        mkdir cached_wheels_dir
-        shellout! "inv -e agent.get-integrations-from-cache " \
-                  "--python 3 --bucket #{cache_bucket} " \
-                  "--branch #{cache_branch || 'main'} " \
-                  "--integrations-dir #{windows_safe_path(project_dir)} " \
-                  "--target-dir #{cached_wheels_dir} " \
-                  "--integrations #{checks_to_install.join(',')} " \
-                  "--awscli #{awscli}",
-                  :cwd => tasks_dir_in
-
-        # install all wheels from cache in one pip invocation to speed things up
-        if windows_target?
-          shellout! "#{python} -m pip install --no-deps --no-index " \
-                    " --find-links #{windows_safe_path(cached_wheels_dir)} -r #{windows_safe_path(cached_wheels_dir)}\\found.txt"
-        else
-          shellout! "#{python} -m pip install --no-deps --no-index " \
-                    "--find-links #{cached_wheels_dir} -r #{cached_wheels_dir}/found.txt"
-        end
-      end
-
-      # get list of integration wheels already installed from cache
-      if cache_bucket != ''
-        installed_out = (shellout! "#{python} -m pip list --format json").stdout
-        if $?.exitstatus == 0
-          installed = JSON.parse(installed_out)
-          installed.each do |package|
-            package.each do |key, value|
-              if key == "name" && value.start_with?("datadog-")
-                installed_list.push(value["datadog-".length..-1])
-              end
+    # get list of integration wheels already installed from cache
+    if cache_bucket != ''
+      installed_out = (shellout! "#{python} -m pip list --format json").stdout
+      if $?.exitstatus == 0
+        installed = JSON.parse(installed_out)
+        installed.each do |package|
+          package.each do |key, value|
+            if key == "name" && value.start_with?("datadog-")
+              installed_list.push(value["datadog-".length..-1])
             end
           end
-        else
-          raise "Failed to list pip installed packages"
         end
+      else
+        raise "Failed to list pip installed packages"
       end
     end
-
-    block "Install integrations" do
-      # This needs to be done in a block because `checks_to_install` can only be known at build-time
-      checks_to_install.each do |check|
-        check_dir = File.join(project_dir, check)
-        check_conf_dir = "#{conf_dir}/#{check}.d"
-
-        # For each conf file, if it already exists, that means the `datadog-agent` software def
-        # wrote it first. In that case, since the agent's confs take precedence, skip the conf
-        conf_files = ["conf.yaml.example", "conf.yaml.default", "metrics.yaml", "auto_conf.yaml"]
-        conf_files.each do |filename|
-          src = windows_safe_path(check_dir,"datadog_checks", check, "data", filename)
-          dest = check_conf_dir
-          if File.exist?(src) and !File.exist?(windows_safe_path(dest, filename))
-            FileUtils.mkdir_p(dest)
-            FileUtils.cp_r(src, dest)
-          end
-        end
-
-        # Copy SNMP profiles
-        profile_folders = ['profiles', 'default_profiles']
-        profile_folders.each do |profile_folder|
-          folder_path = "#{check_dir}/datadog_checks/#{check}/data/#{profile_folder}"
-          if File.exist? folder_path
-            FileUtils.cp_r folder_path, "#{check_conf_dir}/"
-          end
-        end
-
-        # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
-        # whether or not this might switch back in the future is not guaranteed, so we check for both name
-        # with dashes and underscores
-        if installed_list.include?(check) || installed_list.include?(check.gsub('_', '-'))
-          next
-        end
-
-        if windows_target?
-          shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
-        else
-          shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
-        end
-        shellout! "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
-        if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
-          shellout! "inv -e agent.upload-integration-to-cache " \
-                    "--python 3 --bucket #{cache_bucket} " \
-                    "--branch #{cache_branch} " \
-                    "--integrations-dir #{windows_safe_path(project_dir)} " \
-                    "--build-dir #{wheel_build_dir} " \
-                    "--integration #{check} " \
-                    "--awscli #{awscli}",
-                    :cwd => tasks_dir_in
-        end
-      end
-    end
-
-    # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
-    uninstall_buildtime_deps.each do |dep|
-      command "#{python} -m pip uninstall -y #{dep}"
-    end
-
-    # Patch applies to only one file: set it explicitly as a target, no need for -p
-    if windows_target?
-      patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_3_embedded}/Lib/site-packages/psutil/__init__.py"
-    else
-      patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.11/site-packages/psutil/__init__.py"
-    end
-
-    # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
-    command "#{python} -m pip check"
   end
+
+  block "Install integrations" do
+    # This needs to be done in a block because `checks_to_install` can only be known at build-time
+    checks_to_install.each do |check|
+      check_dir = File.join(project_dir, check)
+      check_conf_dir = "#{conf_dir}/#{check}.d"
+
+      # For each conf file, if it already exists, that means the `datadog-agent` software def
+      # wrote it first. In that case, since the agent's confs take precedence, skip the conf
+      conf_files = ["conf.yaml.example", "conf.yaml.default", "metrics.yaml", "auto_conf.yaml"]
+      conf_files.each do |filename|
+        src = windows_safe_path(check_dir,"datadog_checks", check, "data", filename)
+        dest = check_conf_dir
+        if File.exist?(src) and !File.exist?(windows_safe_path(dest, filename))
+          FileUtils.mkdir_p(dest)
+          FileUtils.cp_r(src, dest)
+        end
+      end
+
+      # Copy SNMP profiles
+      profile_folders = ['profiles', 'default_profiles']
+      profile_folders.each do |profile_folder|
+        folder_path = "#{check_dir}/datadog_checks/#{check}/data/#{profile_folder}"
+        if File.exist? folder_path
+          FileUtils.cp_r folder_path, "#{check_conf_dir}/"
+        end
+      end
+
+      # pip < 21.2 replace underscores by dashes in package names per https://pip.pypa.io/en/stable/news/#v21-2
+      # whether or not this might switch back in the future is not guaranteed, so we check for both name
+      # with dashes and underscores
+      if installed_list.include?(check) || installed_list.include?(check.gsub('_', '-'))
+        next
+      end
+
+      if windows_target?
+        shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => win_build_env, :cwd => "#{windows_safe_path(project_dir)}\\#{check}"
+      else
+        shellout! "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => nix_build_env, :cwd => "#{project_dir}/#{check}"
+      end
+      shellout! "#{python} -m pip install datadog-#{check} --no-deps --no-index --find-links=#{wheel_build_dir}"
+      if cache_bucket != '' && ENV.fetch('INTEGRATION_WHEELS_SKIP_CACHE_UPLOAD', '') == '' && cache_branch != nil
+        shellout! "inv -e agent.upload-integration-to-cache " \
+                  "--python 3 --bucket #{cache_bucket} " \
+                  "--branch #{cache_branch} " \
+                  "--integrations-dir #{windows_safe_path(project_dir)} " \
+                  "--build-dir #{wheel_build_dir} " \
+                  "--integration #{check} " \
+                  "--awscli #{awscli}",
+                  :cwd => tasks_dir_in
+      end
+    end
+  end
+
+  # From now on we don't need piptools anymore, uninstall its deps so we don't include them in the final artifact
+  uninstall_buildtime_deps.each do |dep|
+    command "#{python} -m pip uninstall -y #{dep}"
+  end
+
+  # Patch applies to only one file: set it explicitly as a target, no need for -p
+  if windows_target?
+    patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{python_3_embedded}/Lib/site-packages/psutil/__init__.py"
+  else
+    patch :source => "remove-maxfile-maxpath-psutil.patch", :target => "#{install_dir}/embedded/lib/python3.11/site-packages/psutil/__init__.py"
+  end
+
+  # Run pip check to make sure the agent's python environment is clean, all the dependencies are compatible
+  command "#{python} -m pip check"
 
   # Removing tests that don't need to be shipped in the embedded folder
   if windows_target?
