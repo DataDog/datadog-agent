@@ -133,6 +133,11 @@ func (mc *MapCleaner[K, V]) cleanWithBatches(nowTS int64, shouldClean func(nowTS
 			}
 			keysToDelete = append(keysToDelete, mc.keyBatch[i])
 		}
+
+		// Just a safety check to avoid an infinite loop.
+		if totalCount >= int(mc.emap.MaxEntries()) {
+			break
+		}
 	}
 	if len(keysToDelete) > 0 {
 		count, err := mc.emap.BatchDelete(keysToDelete, nil)
