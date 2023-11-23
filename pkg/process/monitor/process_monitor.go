@@ -198,7 +198,18 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 		go func() {
 			defer pm.callbackRunnersWG.Done()
 			for {
-				// The callbackRunnerStopChannel is employed to indicate the stopping point, ensuring that we avoid writing to a closed channel
+				// We utilize the callbackRunnerStopChannel to signal the stopping point,
+				// as closing the callbackRunner channel could lead to a panic when attempting to write to it.
+
+				// Trying to exit the goroutine as early as possible.
+				// This is essential because of how the Go select statement functions. if both cases evaluate to true, it will randomly choose between the two.
+				select {
+				case <-pm.callbackRunnerStopChannel:
+					log.Debugf("callback runner %d has completed its execution", callbackRunnerIndex)
+					return
+				default:
+				}
+
 				select {
 				case <-pm.callbackRunnerStopChannel:
 					log.Debugf("callback runner %d has completed its execution", callbackRunnerIndex)
