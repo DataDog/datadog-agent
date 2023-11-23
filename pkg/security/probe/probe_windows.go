@@ -219,4 +219,4 @@ func (p *WindowsProbe) FlushDiscarders() error {
 }
 
 // HandleActions executes the actions of a triggered rule
-func (p *WindowsProbe) andleActions(_ *rules.Rule, _ eval.Event) {}
+func (p *WindowsProbe) HandleActions(_ *rules.Rule, _ eval.Event) {}
