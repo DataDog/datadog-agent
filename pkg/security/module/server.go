@@ -482,7 +482,9 @@ func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 		log.Info(status)
 	}
 
-	reporter, err := reporter.NewCWSReporter(runPath, stopper, endpoints, destinationsCtx)
+	// we set the hostname to the empty string to take advantage of the out of the box message hostname
+	// resolution
+	reporter, err := reporter.NewCWSReporter("", runPath, stopper, endpoints, destinationsCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}
