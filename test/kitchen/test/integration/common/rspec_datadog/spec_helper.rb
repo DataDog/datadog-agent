@@ -371,6 +371,11 @@ def dogstatsd_processes_running?
   false
 end
 
+def expect_windows_cws?
+  os == :windows && get_agent_flavor == 'datadog-agent' &&
+  parse_dna().fetch('dd-agent-rspec').fetch('cws_included') == true
+end
+
 def deploy_cws?
   os != :windows &&
   get_agent_flavor == 'datadog-agent' &&
@@ -856,6 +861,20 @@ shared_examples_for 'an Agent that is removed' do
   end
 
   if os == :windows
+    windows_service_names = [
+      'datadogagent',
+      'datadog-process-agent',
+      'datadog-trace-agent',
+      'datadog-system-probe',
+      'datadog-security-agent'
+    ]
+    it 'should not have services installed' do
+      windows_service_names.each do |ws|
+        expect(is_windows_service_installed(ws)).to be_falsey
+      end
+    end
+  end 
+if os == :windows
     it 'should not make changes to system files' do
       exclude = [
             'C:/Windows/Assembly/Temp/',
