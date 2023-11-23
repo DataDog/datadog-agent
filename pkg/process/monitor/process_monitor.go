@@ -97,13 +97,19 @@ type ProcessMonitor struct {
 	netlinkErrorsChannel chan error
 
 	// callback registration and parallel execution management
+
 	hasExecCallbacks          atomic.Bool
 	processExecCallbacksMutex sync.RWMutex
 	processExecCallbacks      map[*ProcessCallback]struct{}
+
 	hasExitCallbacks          atomic.Bool
 	processExitCallbacksMutex sync.RWMutex
 	processExitCallbacks      map[*ProcessCallback]struct{}
-	callbackRunner            chan func()
+
+	// The callbackRunnerStopChannel is used to signal the callback runners to stop
+	callbackRunnerStopChannel chan struct{}
+	// The callbackRunner is used to send tasks to the callback runners
+	callbackRunner chan func()
 
 	tel processMonitorTelemetry
 }
@@ -184,14 +190,24 @@ func (pm *ProcessMonitor) initNetlinkProcessEventMonitor() error {
 func (pm *ProcessMonitor) initCallbackRunner() {
 	cpuNum := runtime.NumVCPU()
 	pm.callbackRunner = make(chan func(), pendingCallbacksQueueSize)
+	pm.callbackRunnerStopChannel = make(chan struct{})
 	pm.callbackRunnersWG.Add(cpuNum)
 	for i := 0; i < cpuNum; i++ {
+		// Copy i to avoid unexpected behaviors
+		callbackRunnerIndex := i
 		go func() {
 			defer pm.callbackRunnersWG.Done()
-			for call := range pm.callbackRunner {
-				if call != nil {
-					pm.tel.callbackExecuted.Add(1)
-					call()
+			for {
+				// The callbackRunnerStopChannel is employed to indicate the stopping point, ensuring that we avoid writing to a closed channel
+				select {
+				case <-pm.callbackRunnerStopChannel:
+					log.Debugf("callback runner %d has completed its execution", callbackRunnerIndex)
+					return
+				case call := <-pm.callbackRunner:
+					if call != nil {
+						pm.tel.callbackExecuted.Add(1)
+						call()
+					}
 				}
 			}
 		}()
@@ -206,10 +222,14 @@ func (pm *ProcessMonitor) mainEventLoop() {
 		logTicker.Stop()
 		// Marking netlink to stop, so we won't get any new events.
 		close(pm.netlinkDoneChannel)
+
 		// waiting for the callbacks runners to finish
-		close(pm.callbackRunner)
-		// Waiting for all runners to halt.
+		close(pm.callbackRunnerStopChannel)
 		pm.callbackRunnersWG.Wait()
+
+		// We intentionally don't close the callbackRunner channel,
+		// as we don't want to panic if we're trying to send to it in another goroutine.
+
 		// Before shutting down, making sure we're cleaning all resources.
 		pm.processMonitorWG.Done()
 	}()
