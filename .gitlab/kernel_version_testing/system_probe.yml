@@ -440,14 +440,12 @@ kmt_run_tests_no_tracer_arm64:
   extends:
     - .kmt_run_tests_arm64
   variables:
-    RUNNER_CMD: "-exclude-packages pkg/network/tracer"
     TEST_SET: "no_tracer"
 
 kmt_run_tests_only_tracer_arm64:
   extends:
     - .kmt_run_tests_arm64
   variables:
-    RUNNER_CMD: "-include-packages pkg/network/tracer"
     TEST_SET: "only_tracer"
 
 .kernel_matrix_testing_cleanup:
