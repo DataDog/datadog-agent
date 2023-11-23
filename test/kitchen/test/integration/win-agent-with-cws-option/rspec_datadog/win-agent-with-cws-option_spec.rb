@@ -57,42 +57,15 @@ shared_examples_for 'a Windows Agent with CWS running' do
             expect(is_service_running?("datadog-security-agent")).to be_falsey
         end
 
+        it 'has default config files' do
+            expect(File).to exist(get_conf_file("system-probe.yaml"))
+            expect(File).to exist(get_conf_file("security-agent.yaml"))
+        end
         it 'can start security agent' do
 
-            sa_conf_path = ""
-            sp_conf_path = ""
-            if os != :windows
-                sa_conf_path = "/etc/datadog-agent/security-agent.yaml"
-                sp_conf_path = "/etc/datadog-agent/system-probe.yaml"
-            else
-                sa_conf_path = "#{ENV['ProgramData']}\\Datadog\\security-agent.yaml"
-                sp_conf_path = "#{ENV['ProgramData']}\\Datadog\\system-probe.yaml"
-            end
-            expect(File).to exist(sa_conf_path)
-            expect(File).to exist(sp_conf_path)
-            
-            f = File.read(sa_conf_path)
-            confYaml = YAML.load(f)
-            if !confYaml
-                confYaml = {}
-            end
-            if !confYaml.key("runtime_security_config")
-                confYaml["runtime_security_config"] = {}
-            end
-            confYaml["runtime_security_config"]["enabled"] = true
-            File.write(sa_conf_path, confYaml.to_yaml)
-        
-            spf = File.read(sp_conf_path)
-            spconfYaml = YAML.load(spf)
-            if !spconfYaml
-                spconfYaml = {}
-            end
-            if !spconfYaml.key("runtime_security_config")
-                spconfYaml["runtime_security_config"] = {}
-            end
-            spconfYaml["runtime_security_config"]["enabled"] = true
-            File.write(sp_conf_path, spconfYaml.to_yaml)
-        
+            enable_cws(get_conf_file("system-probe.yaml"), true)
+            enable_cws(get_conf_file("security-agent.yaml"), true)
+
             stop "datadog-agent"
             
             start "datadog-agent"
