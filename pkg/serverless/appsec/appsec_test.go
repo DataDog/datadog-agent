@@ -11,7 +11,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	waf "github.com/DataDog/go-libddwaf/v2"
 
 	"github.com/stretchr/testify/require"
@@ -49,13 +48,13 @@ func TestMonitor(t *testing.T) {
 		t.Skip("host not supported by appsec", err)
 	}
 
-	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
-	t.Setenv("DD_APPSEC_WAF_TIMEOUT", "2s")
-	asm, err := newAppSec()
-	require.NoError(t, err)
-	require.Nil(t, err)
-
 	t.Run("events-detection", func(t *testing.T) {
+		t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
+		t.Setenv("DD_APPSEC_WAF_TIMEOUT", "2s")
+		asm, err := newAppSec()
+		require.NoError(t, err)
+		defer asm.Close()
+
 		uri := "/path/to/resource/../../../../../database.yml.sqlite3"
 		addresses := map[string]interface{}{
 			"server.request.uri.raw": uri,
@@ -77,7 +76,11 @@ func TestMonitor(t *testing.T) {
 	t.Run("api-security", func(t *testing.T) {
 		t.Setenv("DD_API_SECURITY_REQUEST_SAMPLE_RATE", "1.0")
 		t.Setenv("DD_EXPERIMENTAL_API_SECURITY_ENABLED", "true")
-		config.Refresh()
+		t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
+		t.Setenv("DD_APPSEC_WAF_TIMEOUT", "2s")
+		asm, err := newAppSec()
+		require.NoError(t, err)
+		defer asm.Close()
 		for _, tc := range []struct {
 			name       string
 			pathParams map[string]any

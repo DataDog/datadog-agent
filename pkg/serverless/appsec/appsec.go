@@ -120,7 +120,7 @@ func (a *AppSec) Monitor(addresses map[string]any) (res waf.Result) {
 	timeout := a.cfg.WafTimeout
 
 	// Ask the WAF for schema reporting if API security is enabled
-	if config.APISecurityEnabled() && config.APISecuritySampleRate() >= rand.Float64() {
+	if a.canExtractSchemas() {
 		addresses["waf.context.processor"] = map[string]any{"extract-schema": true}
 	}
 
@@ -140,7 +140,7 @@ func (a *AppSec) Monitor(addresses map[string]any) (res waf.Result) {
 	}
 	if !a.eventsRateLimiter.Allow() {
 		log.Debugf("appsec: security events discarded: the rate limit of %d events/s is reached", a.cfg.TraceRateLimit)
-		return waf.Result{}
+		res = waf.Result{}
 	}
 	return res
 }
@@ -156,4 +156,10 @@ func wafHealth() error {
 		return err
 	}
 	return nil
+}
+
+// canExtractSchemas checks that API Security is enabled
+// and that sampling rate allows schema extraction for a specific monitoring instance
+func (a *AppSec) canExtractSchemas() bool {
+	return a.cfg.APISec.Enabled && a.cfg.APISec.SampleRate >= rand.Float64()
 }
