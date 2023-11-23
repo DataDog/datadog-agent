@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build secrets && !windows
+//go:build !windows
 
-package secrets
+package secretsimpl
 
 import (
 	"context"

@@ -27,6 +27,11 @@
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/jammy-server-cloudimg-amd64.qcow2.xz"
                 },
                 {
+                    "dir": "mantic-server-cloudimg-amd64.qcow2",
+                    "tag": "ubuntu_23.10",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/mantic-server-cloudimg-amd64.qcow2.xz"
+                },
+                {
                     "dir": "amzn2-kvm-2.0-amd64-4.14.qcow2",
                     "tag": "amzn_4.14",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/amzn2-kvm-2.0-amd64-4.14.qcow2.xz"
