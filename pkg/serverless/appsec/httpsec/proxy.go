@@ -65,7 +65,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeStart(startDetails *invocationlifecyc
 	var event interface{}
 	switch eventType {
 	default:
-		log.Debug("appsec: proxy-lifecycle: ignoring unsupported lambda event type %s", eventType)
+		log.Debugf("appsec: proxy-lifecycle: ignoring unsupported lambda event type %v", eventType)
 		return
 	case trigger.APIGatewayEvent:
 		event = &events.APIGatewayProxyRequest{}

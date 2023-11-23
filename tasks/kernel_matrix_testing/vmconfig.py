@@ -73,6 +73,8 @@ distributions = {
     "fedora_36": "fedora_36",
     "fedora_37": "fedora_37",
     "fedora_38": "fedora_38",
+    "debian_10": "debian_10",
+    "debian_11": "debian_11",
 }
 distro_arch_mapping = {"x86_64": "amd64", "arm64": "arm64"}
 images_path_local = {
@@ -85,10 +87,12 @@ images_path_local = {
     "amzn_5.4": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.4.qcow2",
     "amzn_5.10": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.10.qcow2",
     "amzn_5.15": "file:///home/kernel-version-testing/rootfs/amzn2-kvm-2.0-{arch}-5.15.qcow2",
-    "fedora_35": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-35.amd64.qcow2",
-    "fedora_36": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-36.amd64.qcow2",
-    "fedora_37": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-37.amd64.qcow2",
-    "fedora_38": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-38.amd64.qcow2",
+    "fedora_35": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-35.{arch}.qcow2",
+    "fedora_36": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-36.{arch}.qcow2",
+    "fedora_37": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-37.{arch}.qcow2",
+    "fedora_38": "file:///home/kernel-version-testing/rootfs/Fedora-Cloud-Base-38.{arch}.qcow2",
+    "debian_10": "file:///home/kernel-version-testing/rootfs/debian-10-generic-{arch}.qcow2",
+    "debian_11": "file:///home/kernel-version-testing/rootfs/debian-11-generic-{arch}.qcow2",
 }
 
 images_path_s3 = {
@@ -105,6 +109,8 @@ images_path_s3 = {
     "fedora_36": "{url_base}Fedora-Cloud-Base-36.{arch}.qcow2",
     "fedora_37": "{url_base}Fedora-Cloud-Base-37.{arch}.qcow2",
     "fedora_38": "{url_base}Fedora-Cloud-Base-38.{arch}.qcow2",
+    "debian_10": "{url_base}debian-10-generic-{arch}.qcow2",
+    "debian_11": "{url_base}debian-11-generic-{arch}.qcow2",
 }
 
 images_name = {
@@ -121,6 +127,8 @@ images_name = {
     "fedora_36": "Fedora-Cloud-Base-36.{arch}.qcow2",
     "fedora_37": "Fedora-Cloud-Base-37.{arch}.qcow2",
     "fedora_38": "Fedora-Cloud-Base-38.{arch}.qcow2",
+    "debian_10": "debian-10-generic-{arch}.qcow2",
+    "debian_11": "debian-11-generic-{arch}.qcow2",
 }
 
 TICK = "\u2713"
@@ -138,6 +146,8 @@ table = [
     ["fedora 36 - v5.17.5", TICK, TICK],
     ["fedora 37 - v6.0.7", TICK, TICK],
     ["fedora 38 - v6.2.9", TICK, TICK],
+    ["debian 10 - v4.19.0", TICK, TICK],
+    ["debian 11 - v5.10.0", TICK, TICK],
 ]
 
 consoles = {"x86_64": "ttyS0", "arm64": "ttyAMA0"}

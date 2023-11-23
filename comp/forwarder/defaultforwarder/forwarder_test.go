@@ -95,16 +95,16 @@ func TestStart(t *testing.T) {
 
 func TestStopWithoutPurgingTransaction(t *testing.T) {
 	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
-	defer func() { config.Datadog.Set("forwarder_stop_timeout", forwarderTimeout) }()
-	config.Datadog.Set("forwarder_stop_timeout", 0)
+	defer func() { config.Datadog.SetWithoutSource("forwarder_stop_timeout", forwarderTimeout) }()
+	config.Datadog.SetWithoutSource("forwarder_stop_timeout", 0)
 
 	testStop(t)
 }
 
 func TestStopWithPurgingTransaction(t *testing.T) {
 	forwarderTimeout := config.Datadog.GetDuration("forwarder_stop_timeout")
-	defer func() { config.Datadog.Set("forwarder_stop_timeout", forwarderTimeout) }()
-	config.Datadog.Set("forwarder_stop_timeout", 1)
+	defer func() { config.Datadog.SetWithoutSource("forwarder_stop_timeout", forwarderTimeout) }()
+	config.Datadog.SetWithoutSource("forwarder_stop_timeout", 1)
 
 	testStop(t)
 }
@@ -287,7 +287,7 @@ func TestCreateHTTPTransactionsWithOverrides(t *testing.T) {
 
 func TestArbitraryTagsHTTPHeader(t *testing.T) {
 	mockConfig := config.Mock(t)
-	mockConfig.Set("allow_arbitrary_tags", true)
+	mockConfig.SetWithoutSource("allow_arbitrary_tags", true)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	forwarder := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(keysPerDomains)))
@@ -363,7 +363,7 @@ func TestForwarderEndtoEnd(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 	mockConfig := config.Mock(t)
-	mockConfig.Set("dd_url", ts.URL)
+	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{ts.URL: {"api_key1", "api_key2"}, "invalid": {}, "invalid2": nil})))
@@ -419,7 +419,7 @@ func TestTransactionEventHandlers(t *testing.T) {
 	}))
 	defer ts.Close()
 	mockConfig := config.Mock(t)
-	mockConfig.Set("dd_url", ts.URL)
+	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{ts.URL: {"api_key1"}})))
@@ -474,7 +474,7 @@ func TestTransactionEventHandlersOnRetry(t *testing.T) {
 	defer ts.Close()
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("dd_url", ts.URL)
+	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{ts.URL: {"api_key1"}})))
@@ -525,7 +525,7 @@ func TestTransactionEventHandlersNotRetryable(t *testing.T) {
 	defer ts.Close()
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("dd_url", ts.URL)
+	mockConfig.SetWithoutSource("dd_url", ts.URL)
 
 	log := fxutil.Test[log.Component](t, log.MockModule)
 	f := NewDefaultForwarder(mockConfig, log, NewOptionsWithResolvers(mockConfig, log, resolver.NewSingleDomainResolvers(map[string][]string{ts.URL: {"api_key1"}})))
@@ -575,8 +575,8 @@ func TestProcessLikePayloadResponseTimeout(t *testing.T) {
 	responseTimeout := defaultResponseTimeout
 
 	defaultResponseTimeout = 5 * time.Second
-	mockConfig.Set("dd_url", ts.URL)
-	mockConfig.Set("forwarder_num_workers", 0) // Set the number of workers to 0 so the txn goes nowhere
+	mockConfig.SetWithoutSource("dd_url", ts.URL)
+	mockConfig.SetWithoutSource("forwarder_num_workers", 0) // Set the number of workers to 0 so the txn goes nowhere
 	defer func() {
 		defaultResponseTimeout = responseTimeout
 	}()
@@ -625,8 +625,8 @@ func TestHighPriorityTransaction(t *testing.T) {
 		}
 	}))
 
-	config.Datadog.Set("forwarder_backoff_max", 0.5)
-	defer config.Datadog.Set("forwarder_backoff_max", nil)
+	config.Datadog.SetWithoutSource("forwarder_backoff_max", 0.5)
+	defer config.Datadog.SetWithoutSource("forwarder_backoff_max", nil)
 
 	oldFlushInterval := flushInterval
 	flushInterval = 500 * time.Millisecond
@@ -670,7 +670,7 @@ func TestCustomCompletionHandler(t *testing.T) {
 
 	// Point agent configuration to it
 	cfg := config.Mock(t)
-	cfg.Set("dd_url", srv.URL)
+	cfg.SetWithoutSource("dd_url", srv.URL)
 
 	// Now let's create a Forwarder with a custom HTTPCompletionHandler set to it
 	done := make(chan struct{})

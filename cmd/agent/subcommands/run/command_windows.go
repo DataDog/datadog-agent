@@ -13,6 +13,9 @@ import (
 	_ "expvar"         // Blank import used because this isn't directly used in this file
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
+	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
+	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
+
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
@@ -30,9 +33,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
@@ -40,13 +45,14 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	// runtime init routines
 )
 
@@ -72,15 +78,18 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			server dogstatsdServer.Component,
 			serverDebug dogstatsddebug.Component,
 			capture replay.Component,
+			wmeta workloadmeta.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
-			logsAgent util.Optional[logsAgent.Component],
+			logsAgent optional.Option[logsAgent.Component],
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
 			demultiplexer demultiplexer.Component,
 			hostMetadata host.Component,
 			invAgent inventoryagent.Component,
+			invHost inventoryhost.Component,
+			secretResolver secrets.Component,
 			_ netflowServer.Component,
 		) error {
 
@@ -95,6 +104,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				server,
 				capture,
 				serverDebug,
+				wmeta,
 				rcclient,
 				logsAgent,
 				forwarder,
@@ -102,7 +112,10 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				otelcollector,
 				demultiplexer,
 				hostMetadata,
-				invAgent)
+				invAgent,
+				invHost,
+				secretResolver,
+			)
 			if err != nil {
 				return err
 			}
@@ -126,7 +139,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 		},
 			// no config file path specification in this situation
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParamsWithSecrets(""),
+				ConfigParams:         config.NewAgentParams(""),
+				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
@@ -151,10 +165,13 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectimpl.Module,
+		winregistryimpl.Module,
 		comptraceconfig.Module,
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),
-		fx.Invoke(func(_ agentcrashdetect.Component) {}), // Force the instanciation of the component
+		// Force the instantiation of the components
+		fx.Invoke(func(_ agentcrashdetect.Component) {}),
+		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }

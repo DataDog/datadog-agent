@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/logs"
@@ -30,8 +31,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 
 	"go.uber.org/fx"
 )
@@ -45,7 +46,7 @@ var cfgPath = flag.String("config", "/opt/datadog-agent/etc/datadog.yaml", "agen
 func run(
 	c collector.Component,
 	demux *aggregator.AgentDemultiplexer,
-	logsAgent util.Optional[logsAgent.Component], //nolint:revive // TODO fix unused-parameter
+	logsAgent optional.Option[logsAgent.Component], //nolint:revive // TODO fix unused-parameter
 ) error {
 	// Setup stats telemetry handler
 	if sender, err := demux.GetDefaultSender(); err == nil {
@@ -64,7 +65,8 @@ func main() {
 		logs.Bundle,
 		fx.Supply(
 			core.BundleParams{
-				ConfigParams: config.NewAgentParamsWithSecrets(*cfgPath),
+				ConfigParams: config.NewAgentParams(*cfgPath),
+				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    corelog.ForOneShot(loggerName, "debug", true),
 			},
 		),

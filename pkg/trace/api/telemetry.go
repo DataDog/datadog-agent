@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -80,7 +81,7 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		log.Error("None of the configured apm_config.telemetry endpoints are valid. Telemetry proxy is off")
 		return http.NotFoundHandler()
 	}
-
+	installSignature := r.conf.InstallSignature
 	underlyingTransport := r.conf.NewHTTPTransport()
 	// Fix and documentation taken from pkg/trace/api/profiles.go
 	// The intake's connection timeout is 60 seconds, which is similar to the default heartbeat periodicity of
@@ -118,6 +119,11 @@ func (r *HTTPReceiver) telemetryProxyHandler() http.Handler {
 		}
 		if containerTags != "" {
 			req.Header.Set("x-datadog-container-tags", containerTags)
+		}
+		if installSignature.Found {
+			req.Header.Set("DD-Agent-Install-Id", installSignature.InstallID)
+			req.Header.Set("DD-Agent-Install-Type", installSignature.InstallType)
+			req.Header.Set("DD-Agent-Install-Time", strconv.FormatInt(installSignature.InstallTime, 10))
 		}
 		if arn, ok := r.conf.GlobalTags[functionARNKeyTag]; ok {
 			req.Header.Set(cloudProviderHeader, string(aws))

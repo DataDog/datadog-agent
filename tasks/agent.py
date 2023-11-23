@@ -68,6 +68,7 @@ AGENT_CORECHECKS = [
     "uptime",
     "winproc",
     "jetson",
+    "orchestrator_pod",
 ]
 
 WINDOWS_CORECHECKS = [
@@ -500,6 +501,11 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
             'prefix': './pkg/logs/tailers/windowsevent/...',
             'extra_args': '-evtapi Windows',
         },
+        {
+            # Run eventlog check tests with the Windows API, which depend on the EventLog service
+            'prefix': './pkg/collector/corechecks/windows_event_log/...',
+            'extra_args': '-evtapi Windows',
+        },
     ]
 
     for test in tests:
@@ -558,10 +564,12 @@ def get_omnibus_env(
     if int(major_version) > 6:
         env['OMNIBUS_OPENSSL_SOFTWARE'] = 'openssl3'
 
-    integrations_core_version = os.environ.get('INTEGRATIONS_CORE_VERSION')
-    # Only overrides the env var if the value is a non-empty string.
-    if integrations_core_version:
-        env['INTEGRATIONS_CORE_VERSION'] = integrations_core_version
+    env_override = ['INTEGRATIONS_CORE_VERSION', 'OMNIBUS_SOFTWARE_VERSION']
+    for key in env_override:
+        value = os.environ.get(key)
+        # Only overrides the env var if the value is a non-empty string.
+        if value:
+            env[key] = value
 
     if sys.platform == 'win32' and os.environ.get('SIGN_WINDOWS'):
         # get certificate and password from ssm
@@ -601,11 +609,15 @@ def get_omnibus_env(
     return env
 
 
-def omnibus_run_task(ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info"):
+def omnibus_run_task(
+    ctx, task, target_project, base_dir, env, omnibus_s3_cache=False, log_level="info", host_distribution=None
+):
     with ctx.cd("omnibus"):
         overrides_cmd = ""
         if base_dir:
             overrides_cmd = f"--override=base_dir:{base_dir}"
+        if host_distribution:
+            overrides_cmd += f" --override=host_distribution:{host_distribution}"
 
         omnibus = "bundle exec omnibus"
         if sys.platform == 'win32':
@@ -672,6 +684,7 @@ def omnibus_build(
     go_mod_cache=None,
     python_mirror=None,
     pip_config_file="pip.conf",
+    host_distribution=None,
 ):
     """
     Build the Agent packages with Omnibus Installer.
@@ -730,6 +743,7 @@ def omnibus_build(
             env=env,
             omnibus_s3_cache=omnibus_s3_cache,
             log_level=log_level,
+            host_distribution=host_distribution,
         )
 
     # Delete the temporary pip.conf file once the build is done

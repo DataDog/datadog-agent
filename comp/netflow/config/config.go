@@ -8,6 +8,7 @@ package config
 
 import (
 	"fmt"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 
@@ -41,17 +42,26 @@ type ListenerConfig struct {
 	BindHost  string          `mapstructure:"bind_host"`
 	Workers   int             `mapstructure:"workers"`
 	Namespace string          `mapstructure:"namespace"`
+	Mapping   []Mapping       `mapstructure:"mapping"`
+}
+
+// Mapping contains configuration for a Netflow/IPFIX field mapping
+type Mapping struct {
+	Field       uint16            `mapstructure:"field"`
+	Destination string            `mapstructure:"destination"`
+	Endian      common.EndianType `mapstructure:"endianness"`
+	Type        common.FieldType  `mapstructure:"type"`
 }
 
 // ReadConfig builds and returns configuration from Agent configuration.
-func ReadConfig(conf config.Component) (*NetflowConfig, error) {
+func ReadConfig(conf config.Component, logger log.Component) (*NetflowConfig, error) {
 	var mainConfig NetflowConfig
 
 	err := conf.UnmarshalKey("network_devices.netflow", &mainConfig)
 	if err != nil {
 		return nil, err
 	}
-	if err = mainConfig.SetDefaults(conf.GetString("network_devices.namespace")); err != nil {
+	if err = mainConfig.SetDefaults(conf.GetString("network_devices.namespace"), logger); err != nil {
 		return nil, err
 	}
 	return &mainConfig, nil
@@ -59,7 +69,7 @@ func ReadConfig(conf config.Component) (*NetflowConfig, error) {
 
 // SetDefaults sets default values wherever possible, returning an error if
 // any values are malformed.
-func (mainConfig *NetflowConfig) SetDefaults(namespace string) error {
+func (mainConfig *NetflowConfig) SetDefaults(namespace string, logger log.Component) error {
 	for i := range mainConfig.Listeners {
 		listenerConfig := &mainConfig.Listeners[i]
 
@@ -88,6 +98,16 @@ func (mainConfig *NetflowConfig) SetDefaults(namespace string) error {
 			return fmt.Errorf("invalid namespace `%s` error: %s", listenerConfig.Namespace, err)
 		}
 		listenerConfig.Namespace = normalizedNamespace
+
+		for i := range listenerConfig.Mapping {
+			mapping := &listenerConfig.Mapping[i]
+			fieldType, ok := common.DefaultFieldTypes[mapping.Destination]
+
+			if ok && mapping.Type != fieldType {
+				logger.Warnf("ignoring invalid mapping type %s for netflow field %s, type %s must be used for %s", mapping.Type, mapping.Destination, fieldType, mapping.Destination)
+				mapping.Type = fieldType
+			}
+		}
 	}
 
 	if mainConfig.StopTimeout == 0 {

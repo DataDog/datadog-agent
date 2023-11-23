@@ -16,13 +16,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/process-agent/command"
+	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/process"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
-	ddstatus "github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -75,7 +76,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runStatus,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-
+				core.Bundle,
 				process.Bundle,
 			)
 		},
@@ -92,7 +93,7 @@ func writeNotRunning(log log.Component, w io.Writer) {
 }
 
 func writeError(log log.Component, w io.Writer, e error) {
-	tpl, err := template.New("").Funcs(ddstatus.Textfmap()).Parse(errorMessage)
+	tpl, err := template.New("").Funcs(render.Textfmap()).Parse(errorMessage)
 	if err != nil {
 		_ = log.Error(err)
 	}
@@ -145,7 +146,7 @@ func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options
 		}
 	}
 
-	stats, err := ddstatus.FormatProcessAgentStatus(body)
+	stats, err := render.FormatProcessAgentStatus(body)
 	if err != nil {
 		writeError(log, w, err)
 		return

@@ -31,6 +31,6 @@ func getSpliceProbes(fentry bool) []*manager.Probe {
 			UID: SecurityAgentUID,
 		},
 		SyscallFuncName: "splice",
-	}, fentry, EntryAndExit|SupportFentry|SupportFexit)...)
+	}, fentry, EntryAndExit)...)
 	return spliceProbes
 }

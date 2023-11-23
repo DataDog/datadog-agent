@@ -25,7 +25,7 @@ namespace CustomActions.Tests.InstallState
                     "DDAGENTUSER_NAME",
                     "PROJECTLOCATION",
                     "APPLICATIONDATADIRECTORY",
-                    "WindowsBuild");
+                    "DDAGENT_WINDOWSBUILD");
         }
 
         [Theory]
@@ -52,7 +52,7 @@ namespace CustomActions.Tests.InstallState
                 .Contain("DDAGENTUSER_NAME", @"testDomain\testUser").And
                 .Contain("PROJECTLOCATION", @"C:\datadog").And
                 .Contain("APPLICATIONDATADIRECTORY", @"D:\data").And
-                .Contain("WindowsBuild", "z_1234567890");
+                .Contain("DDAGENT_WINDOWSBUILD", "z_1234567890");
         }
 
     }

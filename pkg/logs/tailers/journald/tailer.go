@@ -55,10 +55,9 @@ type Tailer struct {
 // NewTailer returns a new tailer.
 func NewTailer(source *sources.LogSource, outputChan chan *message.Message, journal Journal, processRawMessage bool) *Tailer {
 	if len(source.Config.ProcessingRules) > 0 && processRawMessage {
-		log.Warn("Log processing rules with the journald collection will change in a future version of the Agent:")
-		log.Warn("The processing will soon apply on the message content only instead of on the structured log (e.g. on the collected JSON).")
-		log.Warn("In order to immediately switch to this new behaviour, set 'process_raw_message' to 'false' in your logs integration config.")
-		log.Warn("Please reach Datadog support if you have more questions.")
+		log.Warn("The logs processing rules currently apply to the raw journald JSON-structured log. These rules can now be applied to the message content only, and we plan to make this the default behavior in the future.")
+		log.Warn("In order to immediately switch to this new behavior, set 'process_raw_message' to 'false' in your logs integration config and adapt your processing rules accordingly.")
+		log.Warn("Please contact Datadog support for more information.")
 		telemetry.GetStatsTelemetryProvider().Gauge(processor.UnstructuredProcessingMetricName, 1, []string{"tailer:journald"})
 	}
 
@@ -199,11 +198,26 @@ func (t *Tailer) forwardMessages() {
 func (t *Tailer) seek(cursor string) error {
 	mode, _ := config.TailingModeFromString(t.source.Config.TailingMode)
 
+	seekHead := func() error {
+		if err := t.journal.SeekHead(); err != nil {
+			return err
+		}
+		_, err := t.journal.Next() // SeekHead must be followed by Next
+		return err
+	}
+	seekTail := func() error {
+		if err := t.journal.SeekTail(); err != nil {
+			return err
+		}
+		_, err := t.journal.Previous() // SeekTail must be followed by Previous
+		return err
+	}
+
 	if mode == config.ForceBeginning {
-		return t.journal.SeekHead()
+		return seekHead()
 	}
 	if mode == config.ForceEnd {
-		return t.journal.SeekTail()
+		return seekTail()
 	}
 
 	// If a position is not forced from the config, try the cursor
@@ -219,9 +233,9 @@ func (t *Tailer) seek(cursor string) error {
 
 	// If there is no cursor and an option is not forced, use the config setting
 	if mode == config.Beginning {
-		return t.journal.SeekHead()
+		return seekHead()
 	}
-	return t.journal.SeekTail()
+	return seekTail()
 }
 
 // tail tails the journal until a message stop is received.

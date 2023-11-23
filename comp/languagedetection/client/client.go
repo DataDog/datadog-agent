@@ -14,12 +14,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
 	"go.uber.org/fx"
 )
 
@@ -27,20 +28,25 @@ const (
 	// subscriber is the workloadmeta subscriber name
 	subscriber = "language_detection_client"
 
-	// runningMetricPeriod emits the `running` metric every 15 minutes
-	runningMetricPeriod = 15 * time.Minute
-
 	// periodicalFlushPeriod parametrizes when the current batch needs to be entirely sent
 	periodicalFlushPeriod = 100 * time.Minute
+
+	// defaultProcessWithoutPodTTL defines the TTL before a process event is expired in the ProcessWithoutPod map
+	// if the associated pod is not found
+	defaultProcessWithoutPodTTL = 5 * time.Minute
+
+	// defaultprocessesWithoutPodCleanupPeriod defines the period to clean up process events from the map
+	defaultprocessesWithoutPodCleanupPeriod = time.Hour
 )
 
 type dependencies struct {
 	fx.In
 
-	Lc        fx.Lifecycle
-	Config    config.Component
-	Log       logComponent.Component
-	Telemetry telemetry.Component
+	Lc           fx.Lifecycle
+	Config       config.Component
+	Log          logComponent.Component
+	Telemetry    telemetry.Component
+	Workloadmeta workloadmeta.Component
 
 	// workloadmeta is still not a component but should be provided as one in the future
 	// TODO(components): Workloadmeta workloadmeta.Component
@@ -56,7 +62,7 @@ type client struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	logger logComponent.Component
-	store  workloadmeta.Store
+	store  workloadmeta.Component
 
 	// mutex protecting UpdatedPodDetails and currentBatch
 	mutex sync.Mutex
@@ -71,16 +77,17 @@ type client struct {
 	currentBatch batch
 
 	// The client must send freshly updated PodDetails as soon as possible however,
-	// waiting `newUpdatePeriod` allows to wait until every process of a pod is scanned,
-	// limiting the number of messages that need to be sent
-	newUpdatePeriod    time.Duration
+	// streaming every update to the cluster-agent could be costly. Thus we wait for
+	// `freshDataPeriod` before sending fresh updates.
+	freshDataPeriod    time.Duration
 	freshlyUpdatedPods map[string]struct{}
 
 	// There is a race between the process check and the kubelet. If the process check detects a language
 	// before the kubelet pulls pods, the client should retry after waiting that workloadmeta pulled metadata
 	// from the kubelet
-	processesWithoutPod          []workloadmeta.Event
-	retryProcessWithoutPodPeriod time.Duration
+	processesWithoutPod              map[string]*eventsToRetry
+	processesWithoutPodTTL           time.Duration
+	processesWithoutPodCleanupPeriod time.Duration
 
 	// periodicalFlushPeriod sets the interval between two periodical flushes
 	periodicalFlushPeriod time.Duration
@@ -91,36 +98,38 @@ func newClient(
 	deps dependencies,
 ) Component {
 	if !deps.Config.GetBool("language_detection.enabled") || !deps.Config.GetBool("cluster_agent.enabled") {
-		return util.NewNoneOptional[Component]()
+		return optional.NewNoneOption[Component]()
 	}
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
 
 	cl := &client{
-		ctx:                          ctx,
-		cancel:                       cancel,
-		logger:                       deps.Log,
-		newUpdatePeriod:              deps.Config.GetDuration("language_detection.client_period"),
-		mutex:                        sync.Mutex{},
-		telemetry:                    newComponentTelemetry(deps.Telemetry),
-		currentBatch:                 make(batch),
-		processesWithoutPod:          make([]workloadmeta.Event, 0),
-		retryProcessWithoutPodPeriod: deps.Config.GetDuration("kubelet_cache_pods_duration") * time.Second,
-		freshlyUpdatedPods:           make(map[string]struct{}),
-		periodicalFlushPeriod:        periodicalFlushPeriod,
+		ctx:                              ctx,
+		cancel:                           cancel,
+		logger:                           deps.Log,
+		store:                            deps.Workloadmeta,
+		freshDataPeriod:                  deps.Config.GetDuration("language_detection.client_period"),
+		mutex:                            sync.Mutex{},
+		telemetry:                        newComponentTelemetry(deps.Telemetry),
+		currentBatch:                     make(batch),
+		processesWithoutPod:              make(map[string]*eventsToRetry),
+		processesWithoutPodTTL:           defaultProcessWithoutPodTTL,
+		processesWithoutPodCleanupPeriod: defaultprocessesWithoutPodCleanupPeriod,
+		freshlyUpdatedPods:               make(map[string]struct{}),
+		periodicalFlushPeriod:            periodicalFlushPeriod,
 	}
 	deps.Lc.Append(fx.Hook{
 		OnStart: cl.start,
 		OnStop:  cl.stop,
 	})
 
-	return util.NewOptional[Component](cl)
+	return optional.NewOption[Component](cl)
 }
 
 // start starts streaming languages to the Cluster-Agent
 func (c *client) start(_ context.Context) error {
-	c.logger.Infof("Starting language detection client")
+	c.logger.Info("Starting language detection client")
 	go c.run()
 	return nil
 }
@@ -133,48 +142,53 @@ func (c *client) stop(_ context.Context) error {
 
 // run starts processing events and starts streaming
 func (c *client) run() {
-	defer c.logger.Infof("Shutting down language detection client")
-	// workloadmeta can't be initialized in the constructor or provided as a dependency until workloadmeta is refactored as a component
-	if c.store == nil {
-		c.store = workloadmeta.GetGlobalStore() // TODO(components): should be replaced by components
+	defer c.logger.Info("Shutting down language detection client")
+
+	filterParams := workloadmeta.FilterParams{
+		Kinds: []workloadmeta.Kind{
+			workloadmeta.KindKubernetesPod, // Subscribe to pod events to clean up the current batch when a pod is deleted
+			workloadmeta.KindProcess,       // Subscribe to process events to populate the current batch
+		},
+		Source:    workloadmeta.SourceAll,
+		EventType: workloadmeta.EventTypeAll,
 	}
 
 	eventCh := c.store.Subscribe(
 		subscriber,
 		workloadmeta.NormalPriority,
-		workloadmeta.NewFilter(
-			[]workloadmeta.Kind{
-				workloadmeta.KindKubernetesPod, // Subscribe to pod events to clean up the current batch when a pod is deleted
-				workloadmeta.KindProcess,       // Subscribe to process events to populate the current batch
-			},
-			workloadmeta.SourceAll,
-			workloadmeta.EventTypeAll,
-		),
+		workloadmeta.NewFilter(&filterParams),
 	)
 	defer c.store.Unsubscribe(eventCh)
 
-	metricTicker := time.NewTicker(runningMetricPeriod)
-	defer metricTicker.Stop()
-
-	retryProcessWithoutPodTicker := time.NewTicker(c.retryProcessWithoutPodPeriod)
-	defer retryProcessWithoutPodTicker.Stop()
+	cleanupProcessesWithoutPodCleanupTicker := time.NewTicker(c.processesWithoutPodCleanupPeriod)
+	defer cleanupProcessesWithoutPodCleanupTicker.Stop()
 
 	go c.startStreaming()
 
 	for {
 		select {
 		case eventBundle := <-eventCh:
-			c.processEvent(eventBundle)
-		case <-retryProcessWithoutPodTicker.C:
-			c.retryProcessEventsWithoutPod()
+			c.handleEvent(eventBundle)
+		case <-cleanupProcessesWithoutPodCleanupTicker.C:
+			c.cleanUpProcesssesWithoutPod(time.Now())
 		case <-c.ctx.Done():
 			return
 		}
 	}
 }
 
-// processEvent processes events from workloadmeta
-func (c *client) processEvent(evBundle workloadmeta.EventBundle) {
+func (c *client) cleanUpProcesssesWithoutPod(now time.Time) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	for k, v := range c.processesWithoutPod {
+		if v.expirationTime.Before(now) {
+			delete(c.processesWithoutPod, k)
+		}
+	}
+}
+
+// handleEvent handles events from workloadmeta
+func (c *client) handleEvent(evBundle workloadmeta.EventBundle) {
 	close(evBundle.Ch)
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -192,7 +206,7 @@ func (c *client) processEvent(evBundle workloadmeta.EventBundle) {
 
 // startStreaming retrieves the language detection client (= the DCA Client) and periodically sends data to the Cluster-Agent
 func (c *client) startStreaming() {
-	freshUpdateTimer := time.NewTicker(c.newUpdatePeriod)
+	freshUpdateTimer := time.NewTicker(c.freshDataPeriod)
 	defer freshUpdateTimer.Stop()
 
 	periodicFlushTimer := time.NewTicker(c.periodicalFlushPeriod)
@@ -216,52 +230,64 @@ func (c *client) startStreaming() {
 		// frequently send only fresh updates
 		case <-freshUpdateTimer.C:
 			data := c.getFreshBatchProto()
-			c.send(ctx, data)
+			err := c.send(ctx, data)
+			if err != nil {
+				c.logger.Errorf("failed to send fresh update %v", err)
+			}
 		// less frequently, send the entire batch
 		case <-periodicFlushTimer.C:
 			data := c.getCurrentBatchProto()
-			c.send(ctx, data)
+			err := c.send(ctx, data)
+			if err != nil {
+				c.logger.Errorf("failed to send entire batch %v", err)
+			}
 		}
 	}
 }
 
 // send sends the data to the cluster-agent. It doesn't implement a retry mechanism because if the dca is available
 // then the data will eventually be transmitted by the periodic flush mechanism.
-func (c *client) send(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) {
+func (c *client) send(ctx context.Context, data *pbgo.ParentLanguageAnnotationRequest) error {
 	if data == nil {
-		return
+		return nil
 	}
 	if c.langDetectionCl == nil {
 		// TODO: modify GetClusterAgentClient to accept a context with a deadline. If this
 		// functions hangs forever, the component will be unhealthy and crash.
 		dcaClient, err := clusteragent.GetClusterAgentClient()
 		if err != nil {
-			c.logger.Debugf("failed to get dca client %s, not sending batch", err)
-			return
+			return err
 		}
 		c.langDetectionCl = dcaClient
 	}
 	t := time.Now()
 	err := c.langDetectionCl.PostLanguageMetadata(ctx, data)
 	if err != nil {
-		c.logger.Errorf("failed to post language metadata %v", err)
 		c.telemetry.Requests.Inc(statusError)
-		return
+		return err
 	}
 	c.telemetry.Latency.Observe(time.Since(t).Seconds())
 	c.telemetry.Requests.Inc(statusSuccess)
+	c.mutex.Lock()
+	c.freshlyUpdatedPods = make(map[string]struct{})
+	c.mutex.Unlock()
+	return nil
 }
 
 // retryProcessEventsWithoutPod processes a second time process events for which the associated
 // pod was not found because it is possible that the pod will be added to workloadmeta after the
 // kubelet collector pulls data
-func (c *client) retryProcessEventsWithoutPod() {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	for _, event := range c.processesWithoutPod {
-		c.handleProcessEvent(event, true)
+func (c *client) retryProcessEventsWithoutPod(containerIDs []string) {
+	for _, containerID := range containerIDs {
+		eventsForContainer, ok := c.processesWithoutPod[containerID]
+		if !ok {
+			continue
+		}
+		for _, procEvent := range eventsForContainer.events {
+			c.handleProcessEvent(procEvent, true)
+		}
 	}
-	c.processesWithoutPod = make([]workloadmeta.Event, 0)
+	c.processesWithoutPod = make(map[string]*eventsToRetry)
 }
 
 // handleProcessEvent updates the current batch and the freshlyUpdatedPods
@@ -271,28 +297,45 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	}
 
 	process := processEvent.Entity.(*workloadmeta.Process)
-	if process.Language == nil {
+	if process.Language == nil || process.Language.Name == "" {
+		c.logger.Debugf("no language detected for process %s", process.ID)
+		return
+	}
+
+	if process.ContainerID == "" {
+		c.logger.Debugf("no container id detected for process %s", process.ID)
 		return
 	}
 
 	pod, err := c.store.GetKubernetesPodForContainer(process.ContainerID)
 	if err != nil {
-		c.logger.Debug("skipping language detection for process %s, will retry in %v", process.ID, periodicalFlushPeriod)
+		c.logger.Debugf("no pod found for process %s and containerID %s", process.ID, process.ContainerID)
 		if !isRetry {
 			c.telemetry.ProcessWithoutPod.Inc()
-			c.processesWithoutPod = append(c.processesWithoutPod, processEvent)
+			evs, found := c.processesWithoutPod[process.ContainerID]
+			if found {
+				evs.events = append(evs.events, processEvent)
+				return
+			}
+			c.processesWithoutPod[process.ContainerID] = &eventsToRetry{
+				expirationTime: time.Now().Add(c.processesWithoutPodTTL),
+				events:         []workloadmeta.Event{processEvent},
+			}
 		}
 		return
 	}
+
 	if !podHasOwner(pod) {
-		c.logger.Debug("pod %s has no owner, skipping %s", pod.Name, process.ID)
+		c.logger.Debugf("pod %s has no owner, skipping %s", pod.Name, process.ID)
 		return
 	}
+
 	containerName, isInitcontainer, ok := getContainerInfoFromPod(process.ContainerID, pod)
 	if !ok {
-		c.logger.Debug("container name not found for %s", process.ContainerID)
+		c.logger.Debugf("container name not found for %s", process.ContainerID)
 		return
 	}
+
 	podInfo := c.currentBatch.getOrAddPodInfo(pod.Name, pod.Namespace, &pod.Owners[0])
 	containerInfo := podInfo.getOrAddContainerInfo(containerName, isInitcontainer)
 	added := containerInfo.Add(string(process.Language.Name))
@@ -304,11 +347,20 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 
 // handlePodEvent removes delete pods from the current batch
 func (c *client) handlePodEvent(podEvent workloadmeta.Event) {
-	if podEvent.Type == workloadmeta.EventTypeUnset {
-		pod := podEvent.Entity.(*workloadmeta.KubernetesPod)
-		delete(c.currentBatch, pod.Name)
-		delete(c.freshlyUpdatedPods, pod.Name)
+	pod := podEvent.Entity.(*workloadmeta.KubernetesPod)
+	containerIDs := make([]string, 0, len(pod.InitContainers)+len(pod.Containers))
+	for _, c := range append(pod.InitContainers, pod.Containers...) {
+		containerIDs = append(containerIDs, c.ID)
 	}
+	if podEvent.Type == workloadmeta.EventTypeSet {
+		c.retryProcessEventsWithoutPod(containerIDs)
+	}
+
+	for _, cid := range containerIDs {
+		delete(c.processesWithoutPod, cid)
+	}
+	delete(c.currentBatch, pod.Name)
+	delete(c.freshlyUpdatedPods, pod.Name)
 }
 
 func (c *client) getCurrentBatchProto() *pbgo.ParentLanguageAnnotationRequest {
@@ -331,8 +383,6 @@ func (c *client) getFreshBatchProto() *pbgo.ParentLanguageAnnotationRequest {
 			batch[podName] = containerInfo
 		}
 	}
-
-	c.freshlyUpdatedPods = make(map[string]struct{}, 0)
 
 	if len(batch) > 0 {
 		return batch.toProto()

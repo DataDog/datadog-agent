@@ -335,7 +335,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 
 	t.Run("requesting application/json serialization (no query types)", func(t *testing.T) {
 		newConfig(t)
-		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 		blobWriter := getBlobWriter(t, assert, in, "application/json")
@@ -357,8 +357,8 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 
 	t.Run("requesting application/json serialization (with query types)", func(t *testing.T) {
 		newConfig(t)
-		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
-		config.SystemProbe.Set("network_config.enable_dns_by_querytype", true)
+		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 		assert := assert.New(t)
 
@@ -381,7 +381,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 
 	t.Run("requesting empty serialization", func(t *testing.T) {
 		newConfig(t)
-		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 		assert := assert.New(t)
 
@@ -412,7 +412,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 
 	t.Run("requesting unsupported serialization format", func(t *testing.T) {
 		newConfig(t)
-		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -468,7 +468,7 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 
 	t.Run("requesting application/protobuf serialization (no query types)", func(t *testing.T) {
 		newConfig(t)
-		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
 		out := getExpectedConnections(false, httpOutBlob)
 
 		assert := assert.New(t)
@@ -484,8 +484,8 @@ func testSerialization(t *testing.T, aggregateByStatusCode bool) {
 	})
 	t.Run("requesting application/protobuf serialization (with query types)", func(t *testing.T) {
 		newConfig(t)
-		config.SystemProbe.Set("system_probe_config.collect_dns_domains", false)
-		config.SystemProbe.Set("network_config.enable_dns_by_querytype", true)
+		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", false)
+		config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", true)
 		out := getExpectedConnections(true, httpOutBlob)
 
 		assert := assert.New(t)

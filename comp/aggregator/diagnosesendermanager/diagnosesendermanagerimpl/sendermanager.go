@@ -15,9 +15,9 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
@@ -33,7 +33,7 @@ type dependencies struct {
 }
 
 type diagnoseSenderManager struct {
-	senderManager util.Optional[sender.SenderManager]
+	senderManager optional.Option[sender.SenderManager]
 	deps          dependencies
 }
 

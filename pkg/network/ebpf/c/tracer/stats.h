@@ -84,6 +84,23 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 }
 
+static __always_inline void determine_connection_direction(conn_tuple_t *t, conn_stats_ts_t *conn_stats) {
+    if (conn_stats->direction != CONN_DIRECTION_UNKNOWN) {
+        return;
+    }
+
+    u32 *port_count = NULL;
+    port_binding_t pb = {};
+    pb.port = t->sport;
+    pb.netns = t->netns;
+    if (t->metadata & CONN_TYPE_TCP) {
+        port_count = bpf_map_lookup_elem(&port_bindings, &pb);
+    } else {
+        port_count = bpf_map_lookup_elem(&udp_port_bindings, &pb);
+    }
+    conn_stats->direction = (port_count != NULL && *port_count > 0) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
+}
+
 // update_conn_stats update the connection metadata : protocol, tags, timestamp, direction, packets, bytes sent and received
 static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, u64 ts, conn_direction_t dir,
     __u32 packets_out, __u32 packets_in, packet_count_increment_t segs_type, struct sock *sk) {
@@ -121,17 +138,8 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
 
     if (dir != CONN_DIRECTION_UNKNOWN) {
         val->direction = dir;
-    } else if (val->direction == CONN_DIRECTION_UNKNOWN) {
-        u32 *port_count = NULL;
-        port_binding_t pb = {};
-        pb.port = t->sport;
-        pb.netns = t->netns;
-        if (t->metadata & CONN_TYPE_TCP) {
-            port_count = bpf_map_lookup_elem(&port_bindings, &pb);
-        } else {
-            port_count = bpf_map_lookup_elem(&udp_port_bindings, &pb);
-        }
-        val->direction = (port_count != NULL && *port_count > 0) ? CONN_DIRECTION_INCOMING : CONN_DIRECTION_OUTGOING;
+    } else {
+        determine_connection_direction(t, val);
     }
 }
 

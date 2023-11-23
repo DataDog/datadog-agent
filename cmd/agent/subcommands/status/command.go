@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 
@@ -67,7 +67,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(statusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            log.ForOneShot(command.LoggerName, "off", true)}),
 				core.Bundle,
@@ -179,7 +179,7 @@ func requestStatus(config config.Component, cliParams *cliParams) error {
 	} else if cliParams.jsonStatus {
 		s = string(r)
 	} else {
-		formattedStatus, err := status.FormatStatus(r)
+		formattedStatus, err := render.FormatStatus(r)
 		if err != nil {
 			return err
 		}

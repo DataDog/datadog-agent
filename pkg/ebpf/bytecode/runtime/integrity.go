@@ -82,9 +82,17 @@ func genIntegrity(inputFile, outputFile, pkg string) error {
 		return fmt.Errorf("unable to get current file path")
 	}
 
-	runtimeDir := filepath.Dir(curFile)
+	resolvedRuntimeDir, err := filepath.EvalSymlinks(filepath.Dir(curFile))
+	if err != nil {
+		return err
+	}
 
-	if filepath.Dir(outputFile) != runtimeDir {
+	resolvedOutputDir, err := filepath.EvalSymlinks(filepath.Dir(outputFile))
+	if err != nil {
+		return err
+	}
+
+	if resolvedOutputDir != resolvedRuntimeDir {
 		packagePrefix = "runtime."
 		imports = "import \"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime\"\n"
 	}

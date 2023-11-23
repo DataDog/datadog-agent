@@ -59,10 +59,3 @@ func TestGetContainerStats(t *testing.T) {
 	assert.Equal(t, pointer.Ptr(2048.0), stats.Memory.UsageTotal)
 	assert.Equal(t, pointer.Ptr(512.0), stats.Memory.RSS)
 }
-
-func TestGetContainerNetworkStats(t *testing.T) {
-	collector := criCollector{}
-	stats, err := collector.GetContainerNetworkStats("", "123", time.Second)
-	assert.NoError(t, err)
-	assert.Nil(t, stats) // The CRI collector does not return any network data
-}

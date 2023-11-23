@@ -31,11 +31,11 @@ func TestGetNamespacedBaseOwnerReferen(t *testing.T) {
 				InitContainerDetails: []*pbgo.ContainerLanguageDetails{},
 				Ownerref: &pbgo.KubeOwnerInfo{
 					Id:   "dummyId-1",
-					Kind: "replicaset",
+					Kind: "ReplicaSet",
 					Name: "dummyrs-1-2342347",
 				},
 			},
-			expected: NewNamespacedOwnerReference("apps/v1", "deployment", "dummyrs-1", "dummyId-1", "default"),
+			expected: NewNamespacedOwnerReference("apps/v1", "Deployment", "dummyrs-1", "dummyId-1", "default"),
 		},
 		{
 			name: "Case of statefulset in custom namespace",
@@ -46,11 +46,11 @@ func TestGetNamespacedBaseOwnerReferen(t *testing.T) {
 				InitContainerDetails: []*pbgo.ContainerLanguageDetails{},
 				Ownerref: &pbgo.KubeOwnerInfo{
 					Id:   "dummyId-2",
-					Kind: "statefulset",
+					Kind: "StatefulSet",
 					Name: "dummy-statefulset-name",
 				},
 			},
-			expected: NewNamespacedOwnerReference("apps/v1", "statefulset", "dummy-statefulset-name", "dummyId-2", "custom"),
+			expected: NewNamespacedOwnerReference("apps/v1", "StatefulSet", "dummy-statefulset-name", "dummyId-2", "custom"),
 		},
 	}
 

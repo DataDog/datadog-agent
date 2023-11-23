@@ -134,7 +134,7 @@ func (p *Resolver) GetEntry(pid Pid) *model.ProcessCacheEntry {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *model.ProcessCacheEntry { //nolint:revive // TODO fix revive unused-parameter
+func (p *Resolver) Resolve(pid uint32) *model.ProcessCacheEntry { //nolint:revive // TODO fix revive unused-parameter
 	return p.GetEntry(pid)
 }
 

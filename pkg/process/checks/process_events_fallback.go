@@ -26,7 +26,7 @@ type ProcessEventsCheck struct {
 }
 
 // Init initializes the ProcessEventsCheck.
-func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, _ *HostInfo) error {
+func (e *ProcessEventsCheck) Init(_ *SysProbeConfig, _ *HostInfo, _ bool) error {
 	return nil
 }
 

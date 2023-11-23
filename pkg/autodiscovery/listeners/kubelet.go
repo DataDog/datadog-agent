@@ -11,12 +11,12 @@ import (
 	"sort"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 func init() {
@@ -34,11 +34,12 @@ func NewKubeletListener(Config) (ServiceListener, error) {
 	const name = "ad-kubeletlistener"
 
 	l := &KubeletListener{}
-	f := workloadmeta.NewFilter(
-		[]workloadmeta.Kind{workloadmeta.KindKubernetesPod},
-		workloadmeta.SourceNodeOrchestrator,
-		workloadmeta.EventTypeAll,
-	)
+	filterParams := workloadmeta.FilterParams{
+		Kinds:     []workloadmeta.Kind{workloadmeta.KindKubernetesPod},
+		Source:    workloadmeta.SourceNodeOrchestrator,
+		EventType: workloadmeta.EventTypeAll,
+	}
+	f := workloadmeta.NewFilter(&filterParams)
 
 	var err error
 	l.workloadmetaListener, err = newWorkloadmetaListener(name, f, l.processPod)

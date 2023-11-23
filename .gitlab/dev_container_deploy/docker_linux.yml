@@ -178,6 +178,19 @@ dca_dev_master:
     IMG_SOURCES: ${SRC_DCA}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64
     IMG_DESTINATIONS: cluster-agent-dev:master
 
+cws_instrumentation_dev_branch_multiarch:
+  extends: .docker_publish_job_definition
+  stage: dev_container_deploy
+  rules:
+    !reference [.on_all_builds_a7_manual]
+  needs:
+    - docker_build_cws_instrumentation_amd64
+    - docker_build_cws_instrumentation_arm64
+  variables:
+    IMG_REGISTRIES: dev
+    IMG_SOURCES: ${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-amd64,${SRC_CWS_INSTRUMENTATION}:v${CI_PIPELINE_ID}-${CI_COMMIT_SHORT_SHA}-arm64
+    IMG_DESTINATIONS: cws-instrumentation-dev:${CI_COMMIT_REF_SLUG}
+
 # deploys nightlies to agent-dev
 dev_nightly_docker_hub-a6:
   extends: .docker_publish_job_definition

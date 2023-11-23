@@ -10,9 +10,10 @@ package driver
 import (
 	"encoding/binary"
 	"fmt"
+	"unsafe"
+
 	nettelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"unsafe"
 
 	"golang.org/x/sys/windows"
 
@@ -56,10 +57,19 @@ var HandleTelemetry = struct {
 	classifyMultipleResponse  telemetry.Gauge
 	classifyResponseNoRequest telemetry.Gauge
 
+	noStateAtAleAuthConnect     telemetry.Gauge
+	noStateAtAleAuthRecv        telemetry.Gauge
+	noStateAtAleflowEstablished telemetry.Gauge
+	noStateAtAleEndpointClosure telemetry.Gauge
+	noStateAtInboundTransport   telemetry.Gauge
+	noStateAtOutboundTransport  telemetry.Gauge
+
 	httpTxnsCaptured      telemetry.Gauge
 	httpTxnsSkippedMax    telemetry.Gauge
 	httpNdisNonContiguous telemetry.Gauge
 	flowsIgnoredAsEtw     telemetry.Gauge
+	httpTxnNoLatency      telemetry.Gauge
+	httpTxnBatchedOnRead  telemetry.Gauge
 
 	ReadPacketsSkipped *nettelemetry.StatGaugeWrapper
 	readsRequested     telemetry.Gauge
@@ -90,10 +100,19 @@ var HandleTelemetry = struct {
 	telemetry.NewGauge(handleModuleName, "classify_multiple_response", []string{}, "Gauge measuring the number of multiple response flows"),
 	telemetry.NewGauge(handleModuleName, "classify_response_no_request", []string{}, "Gauge measuring the number of no request flows"),
 
+	telemetry.NewGauge(handleModuleName, "no_state_at_ale_auth_connect", []string{}, "Gauge measuring the number of no request flows"),
+	telemetry.NewGauge(handleModuleName, "no_state_at_ale_auth_recv", []string{}, "Gauge measuring the number of no request flows"),
+	telemetry.NewGauge(handleModuleName, "no_state_at_ale_flow_established", []string{}, "Gauge measuring the number of no request flows"),
+	telemetry.NewGauge(handleModuleName, "no_state_at_ale_endpoint_closure", []string{}, "Gauge measuring the number of no request flows"),
+	telemetry.NewGauge(handleModuleName, "no_state_at_inbound_transport", []string{}, "Gauge measuring the number of no request flows"),
+	telemetry.NewGauge(handleModuleName, "no_state_at_outbound_transport", []string{}, "Gauge measuring the number of no request flows"),
+
 	telemetry.NewGauge(handleModuleName, "http_txns_captured", []string{}, "Gauge measuring the number of http transactions captured"),
 	telemetry.NewGauge(handleModuleName, "http_txns_skipped_max", []string{}, "Gauge measuring the max number of http transactions skipped"),
 	telemetry.NewGauge(handleModuleName, "http_ndis_non_contiguous", []string{}, "Gauge measuring the number of non contiguous http ndis"),
 	telemetry.NewGauge(handleModuleName, "flows_ignored_as_etw", []string{}, "Gauge measuring the number of flows ignored as etw"),
+	telemetry.NewGauge(handleModuleName, "txn_zero_latency", []string{}, "Gauge measuring number of http transactions computed zero latency"),
+	telemetry.NewGauge(handleModuleName, "txn_batched_on_read", []string{}, "Gauge measuring number of http transactions computed zero latency"),
 
 	nettelemetry.NewStatGaugeWrapper(handleModuleName, "read_packets_skipped", []string{}, "Gauge measuring the number of read packets skipped"),
 	telemetry.NewGauge(handleModuleName, "reads_requested", []string{}, "Gauge measuring the number of reads requested"),
@@ -246,10 +265,19 @@ func (dh *RealDriverHandle) RefreshStats() {
 		HandleTelemetry.classifyMultipleResponse.Set(float64(stats.Flow_stats.Classify_multiple_response))
 		HandleTelemetry.classifyResponseNoRequest.Set(float64(stats.Flow_stats.Classify_response_no_request))
 
+		HandleTelemetry.noStateAtAleAuthConnect.Set(float64(stats.Flow_stats.No_state_at_ale_auth_connect))
+		HandleTelemetry.noStateAtAleAuthRecv.Set(float64(stats.Flow_stats.No_state_at_ale_auth_recv))
+		HandleTelemetry.noStateAtAleflowEstablished.Set(float64(stats.Flow_stats.No_state_at_ale_flow_established))
+		HandleTelemetry.noStateAtAleEndpointClosure.Set(float64(stats.Flow_stats.No_state_at_ale_endpoint_closure))
+		HandleTelemetry.noStateAtInboundTransport.Set(float64(stats.Flow_stats.No_state_at_inbound_transport))
+		HandleTelemetry.noStateAtOutboundTransport.Set(float64(stats.Flow_stats.No_state_at_outbound_transport))
+
 		HandleTelemetry.httpTxnsCaptured.Set(float64(stats.Http_stats.Txns_captured))
 		HandleTelemetry.httpTxnsSkippedMax.Set(float64(stats.Http_stats.Txns_skipped_max_exceeded))
 		HandleTelemetry.httpNdisNonContiguous.Set(float64(stats.Http_stats.Ndis_buffer_non_contiguous))
 		HandleTelemetry.flowsIgnoredAsEtw.Set(float64(stats.Http_stats.Flows_ignored_as_etw))
+		HandleTelemetry.httpTxnNoLatency.Set(float64(stats.Http_stats.Txn_zero_latency))
+		HandleTelemetry.httpTxnBatchedOnRead.Set(float64(stats.Http_stats.Txn_batched_on_read))
 
 	// A DataHandle handle returns transfer stats specific to this handle
 	case DataHandle:

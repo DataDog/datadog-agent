@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -25,19 +27,18 @@ import (
 type mockLogLevelRuntimeSettings struct {
 	expectedError error
 	logLevel      string
-	source        settings.Source
 }
 
 func (m *mockLogLevelRuntimeSettings) Get() (interface{}, error) {
 	return m.logLevel, nil
 }
 
-func (m *mockLogLevelRuntimeSettings) Set(v interface{}, source settings.Source) error {
+func (m *mockLogLevelRuntimeSettings) Set(v interface{}, source model.Source) error {
 	if m.expectedError != nil {
 		return m.expectedError
 	}
 	m.logLevel = v.(string)
-	m.source = source
+	config.Datadog.Set(m.Name(), m.logLevel, source)
 	return nil
 }
 
@@ -53,16 +54,13 @@ func (m *mockLogLevelRuntimeSettings) Hidden() bool {
 	return true
 }
 
-func (m *mockLogLevelRuntimeSettings) GetSource() settings.Source {
-	return m.source
-}
-
 // nolint: revive
 func applyEmpty(s string, as state.ApplyStatus) {}
 
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(seelog.Default, "info")
-	mockSettings := &mockLogLevelRuntimeSettings{logLevel: "info", source: settings.SourceDefault}
+	_ = config.Mock(t)
+	mockSettings := &mockLogLevelRuntimeSettings{logLevel: "info"}
 	err := settings.RegisterRuntimeSetting(mockSettings)
 	assert.NoError(t, err)
 
@@ -83,15 +81,15 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	// -----------------
 	// Test scenario #1: Agent Flare request by RC and the log level hadn't been changed by the user before
-	assert.Equal(t, settings.SourceDefault, mockSettings.source)
+	assert.Equal(t, model.SourceDefault, config.Datadog.GetSource("log_level"))
 
 	// Set log level to debug
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
-	assert.Equal(t, "debug", mockSettings.logLevel)
-	assert.Equal(t, settings.SourceRC, mockSettings.source)
+	assert.Equal(t, "debug", config.Datadog.Get("log_level"))
+	assert.Equal(t, model.SourceRC, config.Datadog.GetSource("log_level"))
 
 	// Send an empty log level request, as RC would at the end of the Agent Flare request
 	// Should fallback to the default level
@@ -99,36 +97,36 @@ func TestAgentConfigCallback(t *testing.T) {
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
-	assert.Equal(t, "info", mockSettings.logLevel)
-	assert.Equal(t, settings.SourceConfig, mockSettings.source)
+	assert.Equal(t, "info", config.Datadog.Get("log_level"))
+	assert.Equal(t, model.SourceDefault, config.Datadog.GetSource("log_level"))
 
 	// -----------------
 	// Test scenario #2: log level was changed by the user BEFORE Agent Flare request
-	mockSettings.source = settings.SourceCLI
+	config.Datadog.Set("log_level", "info", model.SourceCLI)
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
 	// Log level should still be "info" because it was enforced by the user
-	assert.Equal(t, "info", mockSettings.logLevel)
+	assert.Equal(t, "info", config.Datadog.Get("log_level"))
 	// Source should still be CLI as it has priority over RC
-	assert.Equal(t, settings.SourceCLI, mockSettings.source)
+	assert.Equal(t, model.SourceCLI, config.Datadog.GetSource("log_level"))
 
 	// -----------------
 	// Test scenario #3: log level is changed by the user DURING the Agent Flare request
-	mockSettings.source = settings.SourceDefault
+	config.Datadog.UnsetForSource("log_level", model.SourceCLI)
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerStartFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
-	assert.Equal(t, "debug", mockSettings.logLevel)
-	assert.Equal(t, settings.SourceRC, mockSettings.source)
+	assert.Equal(t, "debug", config.Datadog.Get("log_level"))
+	assert.Equal(t, model.SourceRC, config.Datadog.GetSource("log_level"))
 
-	mockSettings.source = settings.SourceCLI
+	config.Datadog.Set("log_level", "debug", model.SourceCLI)
 	structRC.agentConfigUpdateCallback(map[string]state.RawConfig{
 		"datadog/2/AGENT_CONFIG/layer1/configname":              layerEndFlare,
 		"datadog/2/AGENT_CONFIG/configuration_order/configname": configOrder,
 	}, applyEmpty)
-	assert.Equal(t, "debug", mockSettings.logLevel)
-	assert.Equal(t, settings.SourceCLI, mockSettings.source)
+	assert.Equal(t, "debug", config.Datadog.Get("log_level"))
+	assert.Equal(t, model.SourceCLI, config.Datadog.GetSource("log_level"))
 }

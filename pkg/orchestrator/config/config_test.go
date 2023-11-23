@@ -27,8 +27,8 @@ func (suite *YamlConfigTestSuite) SetupTest() {
 }
 
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorDDOrchestratorUrl() {
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("orchestrator_explorer.orchestrator_dd_url", "https://orchestrator-link.com")
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("orchestrator_explorer.orchestrator_dd_url", "https://orchestrator-link.com")
 	actual, err := extractOrchestratorDDUrl()
 	suite.NoError(err)
 	expected, err := url.Parse("https://orchestrator-link.com")
@@ -37,8 +37,8 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorDDOrchestratorUrl() {
 }
 
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorDDProcessUrl() {
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("process_config.orchestrator_dd_url", "https://process-link.com")
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("process_config.orchestrator_dd_url", "https://process-link.com")
 	actual, err := extractOrchestratorDDUrl()
 	suite.NoError(err)
 	expected, err := url.Parse("https://process-link.com")
@@ -55,9 +55,9 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorDDNonSet() {
 }
 
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorPrecedence() {
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("process_config.orchestrator_dd_url", "https://process-link.com")
-	suite.config.Set("orchestrator_explorer.orchestrator_dd_url", "https://orchestrator-link.com")
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("process_config.orchestrator_dd_url", "https://process-link.com")
+	suite.config.SetWithoutSource("orchestrator_explorer.orchestrator_dd_url", "https://orchestrator-link.com")
 	actual, err := extractOrchestratorDDUrl()
 	suite.NoError(err)
 	expected, err := url.Parse("https://orchestrator-link.com")
@@ -73,8 +73,8 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorProcessEndpoints() {
 	expected["apikey_20"] = "orchestrator.datadoghq.com"
 	var actualEndpoints []apicfg.Endpoint
 
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)
 	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
@@ -90,8 +90,8 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorOrchestratorEndpoints()
 	expected["apikey_20"] = "orchestrator.datadoghq.com"
 	var actualEndpoints []apicfg.Endpoint
 
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
 	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
@@ -111,9 +111,9 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
 	u, _ := url.Parse("https://test.com")
 	actualEndpoints := []apicfg.Endpoint{{APIKey: "test", Endpoint: u}}
 
-	suite.config.Set("api_key", "wassupkey")
-	suite.config.Set("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)
-	suite.config.Set("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
+	suite.config.SetWithoutSource("api_key", "wassupkey")
+	suite.config.SetWithoutSource("process_config.orchestrator_additional_endpoints", `{"https://process1.com": ["key1"], "https://process2.com": ["key2", "key3"]}`)
+	suite.config.SetWithoutSource("orchestrator_explorer.orchestrator_additional_endpoints", `{"https://orchestrator1.com": ["key1"], "https://orchestrator2.com": ["key2", "key3"]}`)
 	err := extractOrchestratorAdditionalEndpoints(&url.URL{}, &actualEndpoints)
 	suite.NoError(err)
 	for _, actual := range actualEndpoints {
@@ -242,7 +242,7 @@ func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 
-	suite.config.Set("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
+	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()
@@ -266,7 +266,7 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
 
-	suite.config.Set("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
+	suite.config.SetWithoutSource("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
 
 	orchestratorCfg := NewDefaultOrchestratorConfig()
 	err := orchestratorCfg.Load()

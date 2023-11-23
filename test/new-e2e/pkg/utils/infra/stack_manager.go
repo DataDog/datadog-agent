@@ -260,7 +260,13 @@ func buildWorkspace(ctx context.Context, profile runner.Profile, stackName strin
 		},
 	}
 
-	return auto.NewLocalWorkspace(ctx, auto.Project(project), auto.Program(runFunc), auto.WorkDir(profile.RootWorkspacePath()))
+	// create workspace directory
+	workspaceStackDir := profile.GetWorkspacePath(stackName)
+	if err := os.MkdirAll(workspaceStackDir, 0o700); err != nil {
+		return nil, fmt.Errorf("unable to create temporary folder at: %s, err: %w", workspaceStackDir, err)
+	}
+
+	return auto.NewLocalWorkspace(ctx, auto.Project(project), auto.Program(runFunc), auto.WorkDir(workspaceStackDir))
 }
 
 func buildStackName(namePrefix, stackName string) string {

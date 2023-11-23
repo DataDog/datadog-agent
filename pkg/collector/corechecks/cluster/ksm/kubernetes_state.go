@@ -113,6 +113,7 @@ type KSMConfig struct {
 	LabelsMapper map[string]string `yaml:"labels_mapper"`
 
 	// Tags contains the list of tags to attach to every metric, event and service check emitted by this integration.
+	// It is also enriched in `initTags` with `kube_cluster_name` and global tags.
 	// Example:
 	// tags:
 	//   - env:prod
@@ -202,6 +203,12 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 	k.BuildID(integrationConfigDigest, config, initConfig)
 	k.agentConfig = ddconfig.Datadog
 
+	// Retrieve cluster name
+	k.getClusterName()
+
+	// Initialize global tags and check tags
+	k.initTags()
+
 	err := k.CommonConfigure(senderManager, integrationConfigDigest, initConfig, config, source)
 	if err != nil {
 		return err
@@ -227,11 +234,6 @@ func (k *KSMCheck) Configure(senderManager sender.SenderManager, integrationConf
 
 	// Prepare labels mapper
 	k.mergeLabelsMapper(defaultLabelsMapper())
-
-	// Retrieve cluster name
-	k.getClusterName()
-
-	k.initTags()
 
 	builder := kubestatemetrics.New()
 
@@ -626,7 +628,7 @@ func (k *KSMCheck) hostnameAndTags(labels map[string]string, labelJoiner *labelJ
 		tags = append(tags, owners...)
 	}
 
-	return hostname, append(tags, k.instance.Tags...)
+	return hostname, tags
 }
 
 // familyFilter is a metric families filter for label joins
@@ -824,10 +826,10 @@ func (k *KSMCheck) sendTelemetry(s sender.Sender) {
 	// reset the cache for the next check run
 	defer k.telemetry.reset()
 
-	s.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", k.instance.Tags)
-	s.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", k.instance.Tags) // useful to track metrics that aren't mapped to DD metrics
+	s.Gauge(ksmMetricPrefix+"telemetry.metrics.count.total", float64(k.telemetry.getTotal()), "", nil)
+	s.Gauge(ksmMetricPrefix+"telemetry.unknown_metrics.count", float64(k.telemetry.getUnknown()), "", nil) // useful to track metrics that aren't mapped to DD metrics
 	for resource, count := range k.telemetry.getResourcesCount() {
-		s.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", append(k.instance.Tags, "resource_name:"+resource))
+		s.Gauge(ksmMetricPrefix+"telemetry.metrics.count", float64(count), "", []string{"resource_name:" + resource})
 	}
 }
 

@@ -21,7 +21,7 @@ type PodCheck struct {
 }
 
 // Init initializes a PodCheck instance.
-func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
+func (c *PodCheck) Init(_ *SysProbeConfig, _ *HostInfo, _ bool) error {
 	return nil
 }
 

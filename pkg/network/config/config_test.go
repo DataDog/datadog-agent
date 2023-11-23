@@ -22,6 +22,18 @@ import (
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 )
 
+// variables for testing config options
+const (
+	driverDefaultNotificationThreshold = 512
+	driverMaxFragmentLimit             = 512
+	validNotificationThreshold         = 100
+	invalidNotificationThreshold       = 1200
+	invalidHTTPRequestFragment         = 600
+)
+
+func makeYamlConfigString(section, entry string, val int) string {
+	return fmt.Sprintf("\n%s:\n  %s: %d", section, entry, val)
+}
 func TestDisablingDNSInspection(t *testing.T) {
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
@@ -602,6 +614,34 @@ func TestMaxTrackedHTTPConnections(t *testing.T) {
 	})
 }
 
+func TestHTTP2DynamicTableMapCleanerInterval(t *testing.T) {
+	t.Run("via YAML", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := configurationFromYAML(t, `
+service_monitoring_config:
+  http2_dynamic_table_map_cleaner_interval_seconds: 1025
+`)
+
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("via ENV variable", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP2_DYNAMIC_TABLE_MAP_CLEANER_INTERVAL_SECONDS", "1025")
+
+		cfg := New()
+
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 1025*time.Second)
+	})
+
+	t.Run("Not enabled", func(t *testing.T) {
+		aconfig.ResetSystemProbeConfig(t)
+		cfg := New()
+		// Default value.
+		require.Equal(t, cfg.HTTP2DynamicTableMapCleanerInterval, 30*time.Second)
+	})
+}
+
 func TestHTTPMapCleanerInterval(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
@@ -756,74 +796,68 @@ service_monitoring_config:
 func TestHTTPNotificationThreshold(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		cfg := configurationFromYAML(t, `
-network_config:
-  http_notification_threshold: 100
-`)
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+		cfg := configurationFromYAML(t, makeYamlConfigString("network_config", "http_notification_threshold", validNotificationThreshold))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(validNotificationThreshold))
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "100")
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(validNotificationThreshold))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(validNotificationThreshold))
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		cfg := configurationFromYAML(t, `
-service_monitoring_config:
-  http_notification_threshold: 100
-`)
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+		cfg := configurationFromYAML(t, makeYamlConfigString("service_monitoring_config", "http_notification_threshold", validNotificationThreshold))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(validNotificationThreshold))
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "100")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(validNotificationThreshold))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(validNotificationThreshold))
 	})
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "100")
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(validNotificationThreshold))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(validNotificationThreshold))
 	})
 
 	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "100")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(validNotificationThreshold))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(validNotificationThreshold))
 	})
 
 	t.Run("Both enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		// Setting a different value
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "101")
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "100")
+		// Setting a different value.
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(validNotificationThreshold+1))
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(validNotificationThreshold))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(100))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(validNotificationThreshold))
 	})
 
 	t.Run("Not enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 }
 
@@ -831,74 +865,70 @@ service_monitoring_config:
 func TestHTTPNotificationThresholdOverLimit(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		cfg := configurationFromYAML(t, `
-network_config:
-  http_notification_threshold: 1025
-`)
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		cfg := configurationFromYAML(t, makeYamlConfigString("network_config", "http_notification_threshold", invalidNotificationThreshold))
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1025")
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(invalidNotificationThreshold))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		cfg := configurationFromYAML(t, `
-service_monitoring_config:
-  http_notification_threshold: 1025
-`)
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		cfg := configurationFromYAML(t, makeYamlConfigString("service_monitoring_config", "http_notification_threshold", invalidNotificationThreshold))
+
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1025")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(invalidNotificationThreshold))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1025")
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(invalidNotificationThreshold))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1025")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(invalidNotificationThreshold))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("Both enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		// Setting a different value
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1026")
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", "1025")
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(invalidNotificationThreshold+1))
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_NOTIFICATION_THRESHOLD", strconv.Itoa(invalidNotificationThreshold))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 
 	t.Run("Not enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPNotificationThreshold, int64(512))
+		require.Equal(t, cfg.HTTPNotificationThreshold, int64(driverDefaultNotificationThreshold))
 	})
 }
 
@@ -972,7 +1002,7 @@ service_monitoring_config:
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 }
 
@@ -980,74 +1010,70 @@ service_monitoring_config:
 func TestHTTPMaxRequestFragmentLimit(t *testing.T) {
 	t.Run("via deprecated YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		cfg := configurationFromYAML(t, `
-network_config:
-  http_max_request_fragment: 175
-`)
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		cfg := configurationFromYAML(t, makeYamlConfigString("network_config", "http_max_request_fragment", invalidHTTPRequestFragment))
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("via deprecated ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		cfg := configurationFromYAML(t, `
-service_monitoring_config:
-  http_max_request_fragment: 175
-`)
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		cfg := configurationFromYAML(t, makeYamlConfigString("service_monitoring_config", "http_max_request_fragment", invalidHTTPRequestFragment))
+
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("Deprecated is enabled, new is disabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(512))
 	})
 
 	t.Run("Deprecated is disabled, new is enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("Both enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		// Setting a different value
-		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "176")
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", "175")
+		t.Setenv("DD_NETWORK_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment))
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_MAX_REQUEST_FRAGMENT", strconv.Itoa(invalidHTTPRequestFragment+1))
 
 		cfg := New()
 
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 
 	t.Run("Not enabled", func(t *testing.T) {
 		aconfig.ResetSystemProbeConfig(t)
 		cfg := New()
 		// Default value.
-		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(160))
+		require.Equal(t, cfg.HTTPMaxRequestFragment, int64(driverMaxFragmentLimit))
 	})
 }
 

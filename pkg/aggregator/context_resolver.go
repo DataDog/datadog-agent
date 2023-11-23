@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -69,7 +70,7 @@ func newContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tag
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context
 func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSampleContext) (ckey.ContextKey, bool) {
-	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer) // tags here are not sorted and can contain duplicates
+	metricSampleContext.GetTags(cr.taggerBuffer, cr.metricBuffer, tagger.EnrichTags) // tags here are not sorted and can contain duplicates
 	defer cr.taggerBuffer.Reset()
 	defer cr.metricBuffer.Reset()
 

@@ -13,15 +13,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// nodeMajor is the major version of nodejs that will be installed
+const nodeMajor = 20
+
 //go:embed etc/node_server.js
 var nodeProg string
 
 func (s *languageDetectionSuite) installNode() {
-	s.Env().VM.Execute(
-		"curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && " +
-			"sudo apt-get install -y nodejs")
+	// Installation instructions taken from https://github.com/nodesource/distributions
+	s.Env().VM.Execute("sudo apt-get update")
+	s.Env().VM.Execute("sudo apt-get install -y ca-certificates curl gnupg")
+	s.Env().VM.Execute("sudo mkdir -p /etc/apt/keyrings")
+	s.Env().VM.Execute("curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg")
+	s.Env().VM.Execute(fmt.Sprintf("echo \"deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_%d.x nodistro main\" | sudo tee /etc/apt/sources.list.d/nodesource.list", nodeMajor))
+	s.Env().VM.Execute("sudo apt-get update")
+	s.Env().VM.Execute("sudo apt-get install nodejs -y")
+
+	// Verify that node was installed correctly
 	nodeVersion := s.Env().VM.Execute("node --version")
-	require.True(s.T(), strings.HasPrefix(nodeVersion, "v20."))
+	require.True(s.T(), strings.HasPrefix(nodeVersion, fmt.Sprintf("v%d.", nodeMajor)))
 }
 
 func (s *languageDetectionSuite) TestNodeDetection() {

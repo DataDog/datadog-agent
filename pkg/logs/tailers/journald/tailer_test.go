@@ -26,6 +26,8 @@ type MockJournal struct {
 	m        *sync.Mutex
 	seekTail int
 	seekHead int
+	next     int
+	previous int
 	cursor   string
 	entries  []*sdjournal.JournalEntry
 }
@@ -61,6 +63,13 @@ func (m *MockJournal) Close() error {
 func (m *MockJournal) Next() (uint64, error) {
 	m.m.Lock()
 	defer m.m.Unlock()
+	m.next++
+	return uint64(len(m.entries)), nil
+}
+func (m *MockJournal) Previous() (uint64, error) {
+	m.m.Lock()
+	defer m.m.Unlock()
+	m.previous++
 	return uint64(len(m.entries)), nil
 }
 func (m *MockJournal) GetEntry() (*sdjournal.JournalEntry, error) {
@@ -434,16 +443,16 @@ func TestTailingMode(t *testing.T) {
 		cursor               string
 		expectedJournalState *MockJournal
 	}{
-		{"default no cursor", &config.LogsConfig{}, "", &MockJournal{m: m, seekTail: 1}},
+		{"default no cursor", &config.LogsConfig{}, "", &MockJournal{m: m, seekTail: 1, previous: 1}},
 		{"default has cursor", &config.LogsConfig{}, "123", &MockJournal{m: m, cursor: "123"}},
 		{"has cursor - seek head", &config.LogsConfig{TailingMode: "beginning"}, "123", &MockJournal{m: m, cursor: "123"}},
 		{"has cursor - seek tail", &config.LogsConfig{TailingMode: "end"}, "123", &MockJournal{m: m, cursor: "123"}},
-		{"has cursor - force head", &config.LogsConfig{TailingMode: "forceBeginning"}, "123", &MockJournal{m: m, seekHead: 1}},
-		{"has cursor - force tail", &config.LogsConfig{TailingMode: "forceEnd"}, "123", &MockJournal{m: m, seekTail: 1}},
-		{"no cursor - force head", &config.LogsConfig{TailingMode: "forceBeginning"}, "", &MockJournal{m: m, seekHead: 1}},
-		{"no cursor - force tail", &config.LogsConfig{TailingMode: "forceEnd"}, "", &MockJournal{m: m, seekTail: 1}},
-		{"no cursor - seek head", &config.LogsConfig{TailingMode: "beginning"}, "", &MockJournal{m: m, seekHead: 1}},
-		{"no cursor - seek tail", &config.LogsConfig{TailingMode: "end"}, "", &MockJournal{m: m, seekTail: 1}},
+		{"has cursor - force head", &config.LogsConfig{TailingMode: "forceBeginning"}, "123", &MockJournal{m: m, seekHead: 1, next: 1}},
+		{"has cursor - force tail", &config.LogsConfig{TailingMode: "forceEnd"}, "123", &MockJournal{m: m, seekTail: 1, previous: 1}},
+		{"no cursor - force head", &config.LogsConfig{TailingMode: "forceBeginning"}, "", &MockJournal{m: m, seekHead: 1, next: 1}},
+		{"no cursor - force tail", &config.LogsConfig{TailingMode: "forceEnd"}, "", &MockJournal{m: m, seekTail: 1, previous: 1}},
+		{"no cursor - seek head", &config.LogsConfig{TailingMode: "beginning"}, "", &MockJournal{m: m, seekHead: 1, next: 1}},
+		{"no cursor - seek tail", &config.LogsConfig{TailingMode: "end"}, "", &MockJournal{m: m, seekTail: 1, previous: 1}},
 	}
 
 	for _, tt := range tests {
@@ -453,7 +462,18 @@ func TestTailingMode(t *testing.T) {
 			tailer := NewTailer(source, nil, mockJournal, true)
 			tailer.Start(tt.cursor)
 
-			assert.Equal(t, *tt.expectedJournalState, *mockJournal)
+			mockJournal.m.Lock()
+			assert.Equal(t, tt.expectedJournalState.cursor, mockJournal.cursor)
+
+			// .Next() is called again by the tail goroutine, so expect it to be equal or greater than expected.
+			assert.True(t, tt.expectedJournalState.next <= mockJournal.next)
+			assert.Equal(t, tt.expectedJournalState.previous, mockJournal.previous)
+			assert.Equal(t, tt.expectedJournalState.seekHead, mockJournal.seekHead)
+			assert.Equal(t, tt.expectedJournalState.seekTail, mockJournal.seekTail)
+			assert.Equal(t, tt.expectedJournalState.entries, mockJournal.entries)
+
+			mockJournal.m.Unlock()
+
 			tailer.Stop()
 		})
 	}

@@ -1,0 +1,3 @@
+fixes:
+  - |
+    Resolved an issue in the containerd collector where the SBOM collection did not correctly attach RepoTags and RepoDigests to the SBOM payload.

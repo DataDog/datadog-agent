@@ -58,7 +58,7 @@ func TestOctogonConstants(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, secconfig, err := genTestConfigs(dir, testOpts{}, "")
+	_, secconfig, err := genTestConfigs(dir, testOpts{})
 	if err != nil {
 		t.Fatal(err)
 	}

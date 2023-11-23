@@ -5,7 +5,11 @@
 
 package config
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+)
 
 // LegacyConfigConverter is used in the legacy package
 // to convert A5 config to A6
@@ -15,7 +19,7 @@ type LegacyConfigConverter struct {
 
 // Set is used for setting configuration from A5 config
 func (c *LegacyConfigConverter) Set(key string, value interface{}) {
-	c.Config.Set(key, value)
+	c.Config.Set(key, value, model.SourceAgentRuntime)
 }
 
 // NewConfigConverter is creating and returning a config converter

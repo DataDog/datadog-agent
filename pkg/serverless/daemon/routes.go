@@ -58,15 +58,10 @@ func (s *StartInvocation) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Could not read StartInvocation request body", 400)
 		return
 	}
-	lambdaInvokeContext := invocationlifecycle.LambdaInvokeEventHeaders{
-		TraceID:          r.Header.Get(invocationlifecycle.TraceIDHeader),
-		ParentID:         r.Header.Get(invocationlifecycle.ParentIDHeader),
-		SamplingPriority: r.Header.Get(invocationlifecycle.SamplingPriorityHeader),
-	}
 	startDetails := &invocationlifecycle.InvocationStartDetails{
 		StartTime:             startTime,
 		InvokeEventRawPayload: reqBody,
-		InvokeEventHeaders:    lambdaInvokeContext,
+		InvokeEventHeaders:    r.Header,
 		InvokedFunctionARN:    s.daemon.ExecutionContext.GetCurrentState().ARN,
 	}
 
