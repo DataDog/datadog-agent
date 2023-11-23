@@ -48,7 +48,7 @@ func setupConfig(deps configDependencies) (*config.Warnings, error) {
 	var err error
 	var warnings *config.Warnings
 	resolver := deps.getSecretResolver()
-	if resolver == nil {
+	if resolver == nil || !resolver.IsEnabled() {
 		warnings, err = config.LoadWithoutSecret()
 	} else {
 		warnings, err = config.LoadWithSecret(resolver)

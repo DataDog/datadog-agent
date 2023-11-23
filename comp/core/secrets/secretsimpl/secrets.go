@@ -80,7 +80,7 @@ type secretContext struct {
 	yamlPath string
 }
 
-// TODO: (components) Hack to maintain a singleton reference to the secrets Component
+// TODO: Hack to maintain a singleton reference to the secrets Component
 //
 // Only needed temporarily, since the secrets.Component is needed for the diagnose functionality.
 // It is very difficult right now to modify diagnose because it would require modifying many
@@ -103,10 +103,12 @@ func newSecretResolverProvider(deps dependencies) provides {
 	resolver := newEnabledSecretResolver()
 	resolver.enabled = deps.Params.Enabled
 
-	mu.Lock()
-	defer mu.Unlock()
-	if instance == nil {
-		instance = resolver
+	{
+		mu.Lock()
+		defer mu.Unlock()
+		if instance == nil {
+			instance = resolver
+		}
 	}
 
 	return provides{
@@ -115,12 +117,16 @@ func newSecretResolverProvider(deps dependencies) provides {
 	}
 }
 
+func (r *secretResolver) IsEnabled() bool {
+	return r.enabled
+}
+
 // GetInstance returns the singleton instance of the secret.Component
 func GetInstance() secrets.Component {
 	mu.Lock()
 	defer mu.Unlock()
 	if instance == nil {
-		deps := dependencies{Params: secrets.Params{Enabled: false}}
+		deps := dependencies{Params: secrets.Params{Enabled: true}}
 		p := newSecretResolverProvider(deps)
 		instance = p.Comp.(*secretResolver)
 	}
@@ -149,7 +155,6 @@ func (r *secretResolver) registerSecretOrigin(handle string, origin string, yaml
 	if len(yamlPath) != 0 {
 		lastElem := yamlPath[len(yamlPath)-1:]
 		if r.scrubHookFunc != nil {
-			// hook used only for tests
 			r.scrubHookFunc(lastElem)
 		} else {
 			scrubber.AddStrippedKeys(lastElem)
@@ -173,12 +178,8 @@ func (r *secretResolver) Configure(command string, arguments []string, timeout, 
 	r.backendCommand = command
 	r.backendArguments = arguments
 	r.backendTimeout = timeout
-	if r.backendTimeout == 0 {
-		r.backendTimeout = SecretBackendTimeoutDefault
-	}
-	r.responseMaxSize = maxSize
-	if r.responseMaxSize == 0 {
-		r.responseMaxSize = SecretBackendOutputMaxSizeDefault
+	if maxSize != 0 {
+		r.responseMaxSize = maxSize
 	}
 	r.commandAllowGroupExec = groupExecPerm
 	r.removeTrailingLinebreak = removeLinebreak
@@ -269,8 +270,9 @@ func isEnc(str string) (bool, string) {
 // "secret_backend_command" once if all secrets aren't present in the cache.
 func (r *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
 	if !r.enabled {
-		log.Infof("Agent secrets is disabled by caller")
-		return nil, nil
+		e := fmt.Errorf("Agent secrets is disabled by caller")
+		log.Error(e)
+		return nil, e
 	}
 	if data == nil || r.backendCommand == "" {
 		return data, nil
@@ -316,7 +318,6 @@ func (r *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
 		var secrets map[string]string
 		var err error
 		if r.fetchHookFunc != nil {
-			// hook used only for tests
 			secrets, err = r.fetchHookFunc(newHandles)
 		} else {
 			secrets, err = r.fetchSecret(newHandles)
@@ -366,7 +367,7 @@ type secretInfo struct {
 // GetDebugInfo exposes debug informations about secrets to be included in a flare
 func (r *secretResolver) GetDebugInfo(w io.Writer) {
 	if !r.enabled {
-		fmt.Fprintf(w, "Agent secrets is disabled by caller")
+		log.Errorf("Agent secrets is disabled by caller")
 		return
 	}
 	if r.backendCommand == "" {
@@ -394,7 +395,7 @@ func (r *secretResolver) GetDebugInfo(w io.Writer) {
 		permissions = fmt.Sprintf("error: %s", err)
 	}
 
-	details, err := r.getExecutablePermissions()
+	details, err := getExecutablePermissions(r)
 	info := secretInfo{
 		Executable:                   r.backendCommand,
 		ExecutablePermissions:        permissions,

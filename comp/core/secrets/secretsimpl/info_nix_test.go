@@ -30,7 +30,7 @@ func TestGetExecutablePermissionsError(t *testing.T) {
 	resolver := newEnabledSecretResolver()
 	resolver.backendCommand = "some_command"
 
-	_, err := resolver.getExecutablePermissions()
+	_, err := getExecutablePermissions(resolver)
 	assert.Error(t, err, "getExecutablePermissions should fail when secretBackendCommand file does not exists")
 }
 
@@ -57,7 +57,7 @@ func TestGetExecutablePermissionsSuccess(t *testing.T) {
 	resolver := newEnabledSecretResolver()
 	currentUser, currentGroup := setupSecretCommand(t, resolver)
 
-	res, err := resolver.getExecutablePermissions()
+	res, err := getExecutablePermissions(resolver)
 	require.NoError(t, err)
 	require.IsType(t, permissionsDetails{}, res)
 	details := res.(permissionsDetails)
