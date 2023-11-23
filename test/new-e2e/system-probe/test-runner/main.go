@@ -113,7 +113,7 @@ func pathToPackage(path string) string {
 
 func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, testConfig *testConfig) []string {
 	args := []string{
-		"--format", "dots",
+		"--format", "testname",
 		"--junitfile", xmlpath,
 		"--jsonfile", jsonpath,
 		fmt.Sprintf("--rerun-fails=%d", testConfig.retryCount),
