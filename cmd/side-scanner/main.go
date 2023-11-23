@@ -385,6 +385,16 @@ func offlineCmd(poolSize int, regions []string, maxScans int, assumedRole *arn.A
 			if ctx.Err() != nil {
 				return
 			}
+			if regionName == "auto" {
+				// Retrieve instance’s region.
+				imdsclient := imds.NewFromConfig(cfg)
+				resp, err := imdsclient.GetRegion(ctx, &imds.GetRegionInput{})
+				if err != nil {
+					log.Errorf("could not retrieve region from ec2 instance: %v", err)
+					continue
+				}
+				regionName = resp.Region
+			}
 			scansForRegion, err := listEBSScansForRegion(ctx, regionName, assumedRole)
 			if err != nil {
 				log.Errorf("could not scan region %q: %v", regionName, err)
