@@ -212,7 +212,7 @@ func FetchAllFirstRowOIDsVariables(session Session) []gosnmp.SnmpPDU {
 		} else {
 			nextColumn, err := GetNextColumnOidNaive(oid)
 			if err != nil {
-				log.Debugf("Invalid column oid: %s", oid)
+				log.Debugf("Invalid column oid %s: %s", oid, err)
 				curRequestOid = oid // fallback on continuing by using the response oid as next oid to request
 			} else {
 				curRequestOid = nextColumn

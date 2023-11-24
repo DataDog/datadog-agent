@@ -24,9 +24,13 @@ func GetNextColumnOidNaive(oid string) (string, error) {
 	tableOid := oid[0:idx]
 	rowFullIndex := oid[idx+3:] // +3 to skip `.1.`
 	if !strings.Contains(rowFullIndex, ".") {
-		// TODO: test me
-		// entry `.1.` must be followed by a column + index, hence the index is expected to contain at least one `.`
-		return "", fmt.Errorf("the last `.1.` is not an table entry: %s", oid)
+		idx = strings.LastIndex(tableOid+".", ".1.") // Try to find the table Entry OID
+		if idx == -1 {
+			// not found
+			return "", fmt.Errorf("the oid is not a column oid: %s", oid)
+		}
+		tableOid = oid[0:idx]
+		rowFullIndex = oid[idx+3:] // +3 to skip `.1.`
 	}
 	rowFirstIndex := strings.Split(rowFullIndex, ".")[0]
 	rowFirstIndexNum, err := strconv.Atoi(rowFirstIndex)

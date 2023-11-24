@@ -35,11 +35,11 @@ func TestGetNextColumnOid(t *testing.T) {
 		},
 		{
 			oid:         "1.3.6.1.2.1.2.2.1.1.1",
-			expectedErr: "the last `.1.` is not an table entry: 1.3.6.1.2.1.2.2.1.1.1",
+			expectedOid: "1.3.6.1.2.1.2.2.1.2",
 		},
 		{
 			oid:         "1.3.6.2.2.2.2.2.1.9",
-			expectedErr: "the last `.1.` is not an table entry: 1.3.6.2.2.2.2.2.1.9",
+			expectedErr: "the oid is not a column oid: 1.3.6.2.2.2.2.2.1.9",
 		},
 	}
 	for _, tt := range tests {
