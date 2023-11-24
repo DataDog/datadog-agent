@@ -1306,6 +1306,7 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     That includes:
     - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
     - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
+    - updates entries in .gitlab-ci.yml which depend on local branch name
 
     Notes:
     base_directory - path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
