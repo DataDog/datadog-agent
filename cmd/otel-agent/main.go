@@ -74,7 +74,7 @@ func main() {
 		fx.Provide(newForwarderParams),
 		demultiplexer.Module,
 		orchestratorForwarderImpl.Module,
-		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
+		fx.Supply(orchestratorForwarderImpl.Params{UseOrchestratorForwarder: false}),
 		fx.Provide(newSerializer),
 		fx.Provide(func(cfg config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
