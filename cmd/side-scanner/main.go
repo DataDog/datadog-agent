@@ -119,9 +119,9 @@ const (
 )
 
 type scanConfig struct {
-	Type  configType        `json:"type"`
-	Tasks []*scanTask       `json:"tasks"`
-	Roles map[string]string `json:"roles"`
+	Type  configType  `json:"type"`
+	Tasks []*scanTask `json:"tasks"`
+	Roles []string    `json:"roles"`
 }
 
 type scanTask struct {
@@ -343,8 +343,7 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 	return nil
 }
 
-func getDefaultRolesMapping() rolesMapping {
-	roles := pkgconfig.Datadog.GetStringSlice("side_scanner.default_roles")
+func parseRolesMapping(roles []string) rolesMapping {
 	if len(roles) == 0 {
 		return nil
 	}
@@ -358,6 +357,11 @@ func getDefaultRolesMapping() rolesMapping {
 		rolesMapping[roleARN.AccountID] = &roleARN
 	}
 	return rolesMapping
+}
+
+func getDefaultRolesMapping() rolesMapping {
+	roles := pkgconfig.Datadog.GetStringSlice("side_scanner.default_roles")
+	return parseRolesMapping(roles)
 }
 
 func scanCmd(rawScan []byte) error {
@@ -713,17 +717,7 @@ func unmarshalConfig(b []byte) (*scanConfig, error) {
 	}
 	roles := getDefaultRolesMapping()
 	if len(config.Roles) > 0 {
-		roles = make(rolesMapping, len(config.Roles))
-		for accountID, role := range config.Roles {
-			roleARN, err := arn.Parse(role)
-			if err != nil {
-				return nil, fmt.Errorf("bad or empty arn %q: %w", role, err)
-			}
-			if roleARN.AccountID != accountID {
-				return nil, fmt.Errorf("bad role mapping: %q associated with acccount %q", roleARN, accountID)
-			}
-			roles[accountID] = &roleARN
-		}
+		roles = parseRolesMapping(config.Roles)
 	}
 	for _, scan := range config.Tasks {
 		var err error
