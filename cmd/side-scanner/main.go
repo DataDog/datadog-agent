@@ -1819,7 +1819,7 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 		if err != nil {
 			continue
 		}
-		log.Debugf("lsblk %q: %s", device, string(lsblkJSON))
+		log.Debugf("lsblk %q %q: %s", *volume.VolumeId, device, string(lsblkJSON))
 		var blockDevices struct {
 			BlockDevices []struct {
 				Name     string `json:"name"`
@@ -1843,16 +1843,14 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 		}
 		blockDevice := blockDevices.BlockDevices[0]
 		for _, child := range blockDevice.Children {
-			if child.Type == "part" && (child.FsType == "ext4" || child.FsType == "xfs") {
+			if child.Type == "part" && (child.FsType == "ext2" || child.FsType == "ext3" || child.FsType == "ext4" || child.FsType == "xfs") {
 				partitions = append(partitions, devicePartition{
 					devicePath: child.Path,
 					fsType:     child.FsType,
 				})
 			}
 		}
-		if len(partitions) > 0 {
-			break
-		}
+		break
 	}
 
 	if len(partitions) == 0 {
