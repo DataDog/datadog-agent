@@ -19,6 +19,9 @@ import (
 )
 
 var ipcConfigListener net.Listener
+var allowedConfigPaths = map[string]struct{}{
+	"api_key": {},
+}
 
 func startIPCServer(ipcConfigHostPort string, tlsConfig *tls.Config) (err error) {
 	ipcConfigListener, err = getListener(ipcConfigHostPort)
@@ -65,19 +68,14 @@ func getConfigMarshalled(path string) ([]byte, error) {
 		path = ""
 	}
 
-	var data interface{}
-	if path == "" {
-		data = config.Datadog.AllSettings()
-	} else {
-		data = config.Datadog.Get(path)
+	if _, ok := allowedConfigPaths[path]; !ok {
+		return nil, fmt.Errorf("querying config %s is not allowed", path)
 	}
 
+	data := config.Datadog.Get(path)
 	if data == nil {
 		return nil, fmt.Errorf("no runtime setting found for %s", path)
 	}
 
-	return json.Marshal(map[string]interface{}{
-		"request": path,
-		"value":   data,
-	})
+	return json.Marshal(data)
 }
