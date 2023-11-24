@@ -129,6 +129,14 @@ namespace WixSetup.Datadog
                 }
             );
 
+            // Ensures that the "change" dialog also reinstall the product.
+            project.AddAction(new SetPropertyAction("REINSTALL", "ALL")
+            {
+                Condition = Conditions.Maintenance,
+                When = When.After,
+                Step = Step.FindRelatedProducts
+            });
+
             // Conditionally include the PROCMON MSM while it is in active development to make it easier
             // to build/ship without it.
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WINDOWS_DDPROCMON_DRIVER")))
@@ -402,7 +410,7 @@ namespace WixSetup.Datadog
                 StopOn = null,
                 Start = SvcStartType.auto,
                 DelayedAutoStart = true,
-                RemoveOn = SvcEvent.Uninstall_Wait,
+                RemoveOn = SvcEvent.InstallUninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
                 SecondFailureActionType = FailureActionType.restart,
@@ -437,7 +445,7 @@ namespace WixSetup.Datadog
                 // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                 StopOn = null,
                 Start = SvcStartType.demand,
-                RemoveOn = SvcEvent.Uninstall_Wait,
+                RemoveOn = SvcEvent.InstallUninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
                 SecondFailureActionType = FailureActionType.restart,
