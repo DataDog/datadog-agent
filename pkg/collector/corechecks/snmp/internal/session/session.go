@@ -210,13 +210,14 @@ func FetchAllFirstRowOIDsVariables(session Session) []gosnmp.SnmpPDU {
 		if strings.HasSuffix(oid, ".0") { // check if it's a scalar OID
 			curRequestOid = oid
 		} else {
-			nextColumn, err := GetNextColumnOidNaive(oid)
-			if err != nil {
-				log.Debugf("Invalid column oid %s: %s", oid, err)
-				curRequestOid = oid // fallback on continuing by using the response oid as next oid to request
-			} else {
-				curRequestOid = nextColumn
-			}
+			nextColumn := GetNextColumnOidNaive(oid)
+			curRequestOid = nextColumn
+			//if err != nil {
+			//	log.Debugf("Invalid column oid %s: %s", oid, err)
+			//	curRequestOid = oid // fallback on continuing by using the response oid as next oid to request
+			//} else {
+			//	curRequestOid = nextColumn
+			//}
 		}
 
 		if alreadySeenOIDs[curRequestOid] {
