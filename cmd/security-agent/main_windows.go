@@ -108,7 +108,6 @@ func (s *service) Run(svcctx context.Context) error {
 		fx.Provide(func() demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.UseEventPlatformForwarder = false
-			opts.UseOrchestratorForwarder = false
 			return demultiplexer.Params{Options: opts}
 		}),
 
