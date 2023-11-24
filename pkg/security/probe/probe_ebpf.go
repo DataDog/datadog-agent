@@ -35,7 +35,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -1664,9 +1663,6 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 
 		p.managerOptions.AdditionalExcludedFunctionCollector = afBasedExcluder
 	}
-
-	probe.scrubber = procutil.NewDefaultDataScrubber()
-	probe.scrubber.AddCustomSensitiveWords(config.Probe.CustomSensitiveWords)
 
 	resolversOpts := resolvers.Opts{
 		PathResolutionEnabled: probe.Opts.PathResolutionEnabled,

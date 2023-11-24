@@ -18,6 +18,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		Opts:         opts,
 		Config:       config,
 		StatsdClient: opts.StatsdClient,
+		scrubber:     newProcScrubber(config.Probe.CustomSensitiveWords),
 	}
 
 	if opts.EBPFLessEnabled {
