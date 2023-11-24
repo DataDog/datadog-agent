@@ -5,15 +5,13 @@
 
 //go:build !otlp
 
-package status
+// Package otlp fetch information from otlp collector
+package otlp
 
 import "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 
-// GetOTLPStatus parses the otlp pipeline and its collector info to be sent to the frontend
-func GetOTLPStatus() map[string]interface{} {
-	status := make(map[string]interface{})
-	return status
-}
-
 // SetOtelCollector sets the active OTEL Collector.
 func SetOtelCollector(_ collector.Component) {}
+
+// PopulateStatus populates stats with otlp information.
+func PopulateStatus(_ map[string]interface{}) {}
