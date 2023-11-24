@@ -413,6 +413,12 @@ func offlineCmd(poolSize int, regions []string, maxScans int, assumedRole *arn.A
 	}
 	defer awsstats.SendStats()
 
+	stsclient := sts.NewFromConfig(cfg)
+	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return err
+	}
+
 	ec2client := ec2.NewFromConfig(cfg)
 	if err != nil {
 		return err
@@ -455,7 +461,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int, assumedRole *arn.A
 				}
 				regionName = resp.Region
 			}
-			scansForRegion, err := listEBSScansForRegion(ctx, regionName, assumedRole)
+			scansForRegion, err := listEBSScansForRegion(ctx, *identity.Account, regionName, assumedRole)
 			if err != nil {
 				log.Errorf("could not scan region %q: %v", regionName, err)
 			}
@@ -499,7 +505,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int, assumedRole *arn.A
 	return nil
 }
 
-func listEBSScansForRegion(ctx context.Context, regionName string, assumedRole *arn.ARN) (scans []*scanTask, err error) {
+func listEBSScansForRegion(ctx context.Context, accountID, regionName string, assumedRole *arn.ARN) (scans []*scanTask, err error) {
 	cfg, awsstats, err := newAWSConfig(ctx, regionName, assumedRole)
 	if err != nil {
 		return nil, err
@@ -547,10 +553,11 @@ func listEBSScansForRegion(ctx context.Context, regionName string, assumedRole *
 						// Exclude Windows.
 						continue
 					}
-					accountID := "" // TODO
+					volumeARN := ec2ARN(regionName, accountID, ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
+					log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeARN, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
 					scan := scanTask{
 						Type:     ebsScanType,
-						ARN:      ec2ARN(regionName, accountID, ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId),
+						ARN:      volumeARN,
 						Hostname: *instance.InstanceId,
 					}
 					scans = append(scans, &scan)
@@ -1761,15 +1768,15 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 			VolumeId: volume.VolumeId,
 		})
 		var errd error
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 50; i++ {
+			if !sleepCtx(ctx, 1*time.Second) {
+				break
+			}
 			_, errd = locaEC2Client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
 				VolumeId: volume.VolumeId,
 			})
 			if errd == nil {
 				log.Debugf("volume deleted %q", *volume.VolumeId)
-				break
-			}
-			if !sleepCtx(ctx, 1*time.Second) {
 				break
 			}
 		}
