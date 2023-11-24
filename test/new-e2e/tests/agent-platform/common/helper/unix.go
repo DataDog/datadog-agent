@@ -6,8 +6,12 @@
 // Package helper implement interfaces to get some information that can be OS specific
 package helper
 
+import "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+
 // Unix implement helper function for Unix distributions
 type Unix struct{}
+
+var _ common.Helper = (*Unix)(nil)
 
 // NewUnixHelper create a new instance of Unix helper
 func NewUnixHelper() *Unix { return &Unix{} }
@@ -30,7 +34,7 @@ func (u *Unix) GetServiceName() string { return "datadog-agent" }
 // UnixDogstatsd implement helper function for Dogstatsd on Unix distributions
 type UnixDogstatsd struct{}
 
-var _ Helper = (*UnixDogstatsd)(nil)
+var _ common.Helper = (*UnixDogstatsd)(nil)
 
 // NewUnixDogstatsdHelper create a new instance of Unix helper for dogstatsd
 func NewUnixDogstatsdHelper() *UnixDogstatsd { return &UnixDogstatsd{} }
