@@ -396,7 +396,9 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		if event.IsKernelSpaceAnomalyDetectionEvent() {
 			p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
 		}
-		p.sendAnomalyDetection(event)
+		if p.Config.RuntimeSecurity.AnomalyDetectionEnabled {
+			p.sendAnomalyDetection(event)
+		}
 	} else if event.Error == nil {
 		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 		if p.profileManagers.activityDumpManager != nil {
