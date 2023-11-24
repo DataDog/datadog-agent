@@ -8,7 +8,6 @@ package listeners
 import (
 	"encoding/binary"
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"net"
@@ -25,20 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	udsExpvars               = expvar.NewMap("dogstatsd-uds")
-	udsOriginDetectionErrors = expvar.Int{}
-	udsPacketReadingErrors   = expvar.Int{}
-	udsPackets               = expvar.Int{}
-	udsBytes                 = expvar.Int{}
-)
-
-func init() {
-	udsExpvars.Set("OriginDetectionErrors", &udsOriginDetectionErrors)
-	udsExpvars.Set("PacketReadingErrors", &udsPacketReadingErrors)
-	udsExpvars.Set("Packets", &udsPackets)
-	udsExpvars.Set("Bytes", &udsBytes)
-}
+var udsTelemetryInstance = newUDSTelemetry()
 
 // UDSListener implements the StatsdListener interface for Unix Domain
 // Socket datagram protocol. It listens to a given socket path and sends
@@ -159,12 +145,12 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 		l.packetOut,
 		tlmListenerID,
 	)
-	tlmUDSConnections.Inc(tlmListenerID, l.transport)
+	udsTelemetryInstance.incrementConnection(tlmListenerID, l.transport)
 	defer func() {
 		_ = closeFunc(conn)
 		packetsBuffer.Close()
 		l.clearTelemetry(tlmListenerID)
-		tlmUDSConnections.Dec(tlmListenerID, l.transport)
+		udsTelemetryInstance.decrementConnection(tlmListenerID, l.transport)
 	}()
 
 	var err error
@@ -199,7 +185,6 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 		// retrieve an available packet from the packet pool,
 		// which will be pushed back by the server when processed.
 		packet := l.sharedPacketPoolManager.Get().(*packets.Packet)
-		udsPackets.Add(1)
 
 		var capBuff *replay.CaptureBuffer
 		if l.trafficCapture != nil && l.trafficCapture.IsOngoing() {
@@ -280,8 +265,8 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 			pid, container, taggingErr := processUDSOrigin(oobS[:oobn])
 			if taggingErr != nil {
 				log.Warnf("dogstatsd-uds: error processing origin, data will not be tagged : %v", taggingErr)
-				udsOriginDetectionErrors.Add(1)
-				tlmUDSOriginDetectionError.Inc(tlmListenerID, l.transport)
+				udsTelemetryInstance.onDetectionError(tlmListenerID, l.transport)
+
 			} else {
 				packet.Origin = container
 				if capBuff != nil {
@@ -315,14 +300,11 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 			}
 
 			log.Errorf("dogstatsd-uds: error reading packet: %v", err)
-			udsPacketReadingErrors.Add(1)
-			tlmUDSPackets.Inc(tlmListenerID, l.transport, "error")
+			udsTelemetryInstance.onReadError(tlmListenerID, l.transport)
 			continue
 		}
-		tlmUDSPackets.Inc(tlmListenerID, l.transport, "ok")
 
-		udsBytes.Add(int64(n))
-		tlmUDSPacketsBytes.Add(float64(n), tlmListenerID, l.transport)
+		udsTelemetryInstance.onReadSuccess(tlmListenerID, l.transport, n)
 		packet.Contents = packet.Buffer[:n]
 		packet.Source = packets.UDS
 		packet.ListenerID = listenerID
@@ -366,8 +348,5 @@ func (l *UDSListener) clearTelemetry(id string) {
 	}
 	// Since the listener id is volatile we need to make sure we clear the telemetry.
 	tlmListener.Delete(id, l.transport)
-	tlmUDSConnections.Delete(id, l.transport)
-	tlmUDSPackets.Delete(id, l.transport, "error")
-	tlmUDSPackets.Delete(id, l.transport, "ok")
-	tlmUDSPacketsBytes.Delete(id, l.transport)
+	udsTelemetryInstance.clearTelemetry(id, l.transport)
 }
