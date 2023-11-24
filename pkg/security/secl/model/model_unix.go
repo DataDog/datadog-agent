@@ -922,7 +922,7 @@ type ExtraFieldHandlers interface {
 }
 
 // ResolveHashes resolves the hash of the provided file
-func (dfh *DefaultFieldHandlers) ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string {
+func (dfh *DefaultFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileEvent) []string {
 	return nil
 }
 
