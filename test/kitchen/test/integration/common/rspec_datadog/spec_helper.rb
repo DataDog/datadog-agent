@@ -371,8 +371,14 @@ def dogstatsd_processes_running?
 end
 
 def expect_windows_cws?
-  os == :windows && get_agent_flavor == 'datadog-agent' &&
-  parse_dna().fetch('dd-agent-rspec').fetch('cws_included') == true
+  if os == :windows && get_agent_flavor == 'datadog-agent'
+    cws = parse_dna().fetch('dd-agent-rspec').fetch('cws_included')
+    if cws == "testsigned" || cws == "release-signed" || cws == "attestation-signed"
+      return true
+    end
+  end
+  return false
+  
 end
 
 def deploy_cws?
