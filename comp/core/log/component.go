@@ -89,3 +89,8 @@ var TraceModule fx.Option = fxutil.Component(
 var MockModule fx.Option = fxutil.Component(
 	fx.Provide(newMockLogger),
 )
+
+// TraceMockModule defines the fx options for the mock component in its Trace variant.
+var TraceMockModule fx.Option = fxutil.Component(
+	fx.Provide(newTraceMockLogger),
+)

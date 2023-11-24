@@ -196,6 +196,15 @@ func (suite *ecsSuite) TestNginx() {
 			},
 		},
 	})
+
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "apps-nginx-server",
+		},
+		Expect: testLogExpectArgs{
+			Message: `GET / HTTP/1\.1`,
+		},
+	})
 }
 
 func (suite *ecsSuite) TestRedis() {
@@ -225,6 +234,15 @@ func (suite *ecsSuite) TestRedis() {
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+		},
+	})
+
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "redis",
+		},
+		Expect: testLogExpectArgs{
+			Message: `oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo`,
 		},
 	})
 }

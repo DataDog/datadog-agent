@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -61,6 +62,7 @@ func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command 
 	return commandsWrapped(func() core.BundleParams {
 		return core.BundleParams{
 			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 			LogParams:            log.ForOneShot(command.LoggerName, "info", true),
 		}
@@ -109,7 +111,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 }
 
 // RunCheck runs a check
-func RunCheck(log log.Component, config config.Component, statsd statsd.Component, checkArgs *CliParams) error {
+func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, checkArgs *CliParams) error {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
@@ -241,7 +243,7 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	return nil
 }
 
-func reportComplianceEvents(log log.Component, config config.Component, events []*compliance.CheckEvent) error {
+func reportComplianceEvents(_ log.Component, config config.Component, events []*compliance.CheckEvent) error {
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 	runPath := config.GetString("compliance_config.run_path")

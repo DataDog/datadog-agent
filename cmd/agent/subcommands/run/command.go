@@ -84,8 +84,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
@@ -333,17 +333,6 @@ func getSharedFxOption() fx.Option {
 					common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
-				OnStop: func(ctx context.Context) error {
-					if common.AC != nil {
-						common.AC.Stop()
-					}
-
-					// gracefully shut down any component
-					_, cancel := pkgcommon.GetMainCtxCancel()
-					cancel()
-
-					return nil
-				},
 			})
 		}),
 		logs.Bundle,
@@ -542,6 +531,7 @@ func startAgent(
 		demultiplexer,
 		hostMetadata,
 		invAgent,
+		demultiplexer,
 		invHost,
 		secretResolver,
 	); err != nil {
@@ -628,7 +618,7 @@ func startAgent(
 		return err
 	}
 	// TODO: (components) remove this once migrating the status package to components
-	status.SetOtelCollector(otelcollector)
+	otlpStatus.SetOtelCollector(otelcollector)
 
 	return nil
 }
@@ -655,6 +645,9 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 		}
 	}
 	server.Stop()
+	if common.AC != nil {
+		common.AC.Stop()
+	}
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}
@@ -671,6 +664,10 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 	profiler.Stop()
 
 	os.Remove(cliParams.pidfilePath)
+
+	// gracefully shut down any component
+	_, cancel := pkgcommon.GetMainCtxCancel()
+	cancel()
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()
