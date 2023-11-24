@@ -115,6 +115,12 @@ Package forwarder implements the "forwarder" bundle
 
 Package defaultForwarder implements a component to send payloads to the backend
 
+### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/forwarder/orchestrator)
+
+*Datadog Team*: agent-metrics-logs
+
+Package orchestrator implements the orchestrator forwarder component.
+
 ## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/languagedetection) (Component Bundle)
 
 *Datadog Team*: container-integrations
@@ -191,16 +197,6 @@ Package server implements a component that runs the netflow server.
 When running, it listens for network traffic according to configured
 listeners and aggregates traffic data to send to the backend.
 It does not expose any public methods.
-
-## [comp/orchestrator](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/orchestrator) (Component Bundle)
-
-*Datadog Team*: agent-metrics-logs
-
-Package orchestrator defines the orchestrator components.
-
-### [comp/orchestrator/forwarder](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/orchestrator/forwarder)
-
-Package forwarder implements the orchestrator forwarder component.
 
 ## [comp/otelcol](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/otelcol) (Component Bundle)
 
