@@ -45,7 +45,7 @@ func TestProxyLoadedFromEnvVars(t *testing.T) {
 	t.Setenv("DD_PROXY_HTTP", proxyHTTP)
 	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
 
-	config.Load()
+	config.LoadWithoutSecret()
 	proxyHTTPConfig := config.Datadog.GetString("proxy.http")
 	proxyHTTPSConfig := config.Datadog.GetString("proxy.https")
 
@@ -61,7 +61,7 @@ func TestProxyLoadedFromConfigFile(t *testing.T) {
 	os.WriteFile(configTest, []byte("proxy:\n  http: \"c:1\"\n  https: \"c:2\""), 0644)
 
 	config.Datadog.AddConfigPath(tempDir)
-	config.Load()
+	config.LoadWithoutSecret()
 	proxyHTTPConfig := config.Datadog.GetString("proxy.http")
 	proxyHTTPSConfig := config.Datadog.GetString("proxy.https")
 
@@ -82,7 +82,7 @@ func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 	os.WriteFile(configTest, []byte("proxy:\n  http: \"e:1\"\n  https: \"e:2\""), 0644)
 
 	config.Datadog.AddConfigPath(tempDir)
-	config.Load()
+	config.LoadWithoutSecret()
 	proxyHTTPConfig := config.Datadog.GetString("proxy.http")
 	proxyHTTPSConfig := config.Datadog.GetString("proxy.https")
 

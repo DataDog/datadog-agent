@@ -15,7 +15,7 @@ import (
 
 func TestListenersGetScheduleCalls(t *testing.T) {
 	adsched := scheduler.NewMetaScheduler()
-	ac := autodiscovery.NewAutoConfigNoStart(adsched)
+	ac := autodiscovery.NewAutoConfigNoStart(adsched, nil)
 
 	got1 := make(chan struct{}, 1)
 	l1 := NewADListener("l1", ac, func(configs []integration.Config) {

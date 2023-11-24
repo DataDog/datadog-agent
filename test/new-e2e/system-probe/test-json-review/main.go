@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows
+//go:build linux
 
 package main
 
@@ -19,14 +19,12 @@ import (
 	"github.com/fatih/color"
 )
 
-const TestJSONOut = "/ci-visibility/testjson/out.json"
-
 func init() {
 	color.NoColor = false
 }
 
 func main() {
-	failedTests, err := reviewTests(TestJSONOut)
+	failedTests, err := reviewTests("/ci-visibility/testjson/out.json")
 	if err != nil {
 		log.Fatal(err)
 	}
