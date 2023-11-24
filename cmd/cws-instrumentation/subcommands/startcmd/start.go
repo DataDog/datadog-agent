@@ -83,7 +83,7 @@ func getFullPathFromFd(process *Process, filename string, fd int32) (string, err
 			if path, exists := process.Fd[fd]; exists {
 				filename = filepath.Join(path, filename)
 			} else {
-				return "", errors.New("Process FD cache imcomplete during path resolution")
+				return "", errors.New("Process FD cache incomplete during path resolution")
 			}
 		}
 	}
@@ -218,7 +218,7 @@ func handleExecve(tracer *ptracer.Tracer, process *Process, msg *proto.SyscallMs
 	return nil
 }
 
-func handleDup(tracer *ptracer.Tracer, process *Process, msg *proto.SyscallMsg, regs syscall.PtraceRegs) error {
+func handleDup(tracer *ptracer.Tracer, _ *Process, msg *proto.SyscallMsg, regs syscall.PtraceRegs) error {
 	// using msg to temporary store arg0, as it will be erased by the return value on ARM64
 	msg.Dup = &proto.DupSyscallFakeMsg{
 		OldFd: tracer.ReadArgInt32(regs, 0),
