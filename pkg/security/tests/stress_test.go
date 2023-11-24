@@ -44,7 +44,7 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
-		b.Skip("not supported")
+		t.Skip("not supported")
 	}
 
 	testFolder, _, err := test.Path(path.Dir(pathname))
@@ -192,7 +192,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
-		b.Skip("not supported")
+		t.Skip("not supported")
 	}
 
 	testFolder, _, err := test.Path(path.Dir(pathname))

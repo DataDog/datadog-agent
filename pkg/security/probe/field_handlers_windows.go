@@ -23,7 +23,7 @@ type FieldHandlers struct {
 }
 
 // ResolveEventTime resolves the monolitic kernel event timestamp to an absolute time
-func (fh *FieldHandlers) ResolveEventTime(ev *model.Event, e *model.BaseEvent) time.Time {
+func (fh *FieldHandlers) ResolveEventTime(ev *model.Event, _ *model.BaseEvent) time.Time {
 	if ev.Timestamp.IsZero() {
 		ev.Timestamp = time.Now()
 	}

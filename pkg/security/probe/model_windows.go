@@ -15,7 +15,7 @@ import (
 )
 
 // NewWindowsModel returns a new model with some extra field validation
-func NewWindowsModel(probe *WindowsProbe) *model.Model {
+func NewWindowsModel(_ *WindowsProbe) *model.Model {
 	return &model.Model{
 		ExtraValidateFieldFnc: func(field eval.Field, fieldValue eval.FieldValue) error {
 			// TODO(safchain) remove this check when multiple model per platform will be supported in the SECL package
