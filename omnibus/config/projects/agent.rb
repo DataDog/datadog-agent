@@ -15,19 +15,19 @@ end
 license "Apache-2.0"
 license_file "../LICENSE"
 
-third_party_licenses "../LICENSE-3rdparty.csv"
+# third_party_licenses "../LICENSE-3rdparty.csv"
 
 homepage 'http://www.datadoghq.com'
+
+INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
 
 if windows_target?
   # Note: this is the path used by Omnibus to build the agent, the final install
   # dir will be determined by the Windows installer. This path must not contain
   # spaces because Omnibus doesn't quote the Git commands it launches.
-  INSTALL_DIR = 'C:/opt/datadog-agent/'
+  INSTALL_DIR = 'C:'+INSTALL_DIR
   PYTHON_2_EMBEDDED_DIR = format('%s/embedded2', INSTALL_DIR)
   PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
-else
-  INSTALL_DIR = '/opt/datadog-agent'
 end
 
 install_dir INSTALL_DIR
