@@ -78,9 +78,26 @@ func (suite *k8sSuite) TearDownSuite() {
 // and to have the following tests with a smaller timeout.
 //
 // Inside a testify test suite, tests are executed in alphabetical order.
-// The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready
+// The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready,
 // is run first.
 func (suite *k8sSuite) Test00UpAndRunning() {
+	suite.testUpAndRunning(5 * time.Minute)
+}
+
+// An agent restart (because of a health probe failure or because of a OOM kill for ex.)
+// can cause a completely random failure on a completely random test.
+// A metric can be fully missing if the agent is restarted when the metric is checked.
+// Only a subset of tags can be missing if the agent has just restarted, but not all the
+// collectors have finished to feed workload meta and the tagger.
+// So, checking if any agent has restarted during the tests can be valuable for investigations.
+//
+// Inside a testify test suite, tests are executed in alphabetical order.
+// The ZZ in TestZZUpAndRunning is here to guarantee that this test, is run last.
+func (suite *k8sSuite) TestZZUpAndRunning() {
+	suite.testUpAndRunning(1 * time.Minute)
+}
+
+func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	ctx := context.Background()
 
 	suite.Run("agent pods are ready and not restarting", func() {
@@ -156,9 +173,12 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 					}
 				}
 			}
-		}, 5*time.Minute, 10*time.Second, "Not all agents eventually became ready in time.")
+		}, waitFor, 10*time.Second, "Not all agents eventually became ready in time.")
 	})
+}
 
+func (suite *k8sSuite) TestVersion() {
+	ctx := context.Background()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
 
 	for _, tt := range []struct {
