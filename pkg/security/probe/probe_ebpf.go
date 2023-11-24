@@ -114,15 +114,15 @@ type EBPFProbe struct {
 	activityDumpHandler dump.ActivityDumpHandler
 
 	// Approvers / discarders section
-	Erpc                           *erpc.ERPC
-	erpcRequest                    *erpc.Request
-	inodeDiscarders                *inodeDiscarders
-	notifyDiscarderPushedCallbacks []NotifyDiscarderPushedCallback
-	approvers                      map[eval.EventType]kfilters.ActiveApprovers
+	Erpc                     *erpc.ERPC
+	erpcRequest              *erpc.Request
+	inodeDiscarders          *inodeDiscarders
+	discarderPushedCallbacks []DiscarderPushedCallback
+	approvers                map[eval.EventType]kfilters.ActiveApprovers
 
 	// Approvers / discarders section
-	notifyDiscarderPushedCallbacksLock sync.Mutex
-	discarderRateLimiter               *rate.Limiter
+	discarderPushedCallbacksLock sync.RWMutex
+	discarderRateLimiter         *rate.Limiter
 
 	killListMap           *lib.Map
 	supportsBPFSendSignal bool
@@ -922,12 +922,12 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	}
 }
 
-// AddNewNotifyDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
-func (p *EBPFProbe) AddNewNotifyDiscarderPushedCallback(cb NotifyDiscarderPushedCallback) {
-	p.notifyDiscarderPushedCallbacksLock.Lock()
-	defer p.notifyDiscarderPushedCallbacksLock.Unlock()
+// AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
+func (p *EBPFProbe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
+	p.discarderPushedCallbacksLock.Lock()
+	defer p.discarderPushedCallbacksLock.Unlock()
 
-	p.notifyDiscarderPushedCallbacks = append(p.notifyDiscarderPushedCallbacks, cb)
+	p.discarderPushedCallbacks = append(p.discarderPushedCallbacks, cb)
 }
 
 // OnNewDiscarder handles new discarders
@@ -951,9 +951,9 @@ func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eva
 			discarderPushed, _ := handler(rs, ev, p, Discarder{Field: field})
 
 			if discarderPushed {
-				p.notifyDiscarderPushedCallbacksLock.Lock()
-				defer p.notifyDiscarderPushedCallbacksLock.Unlock()
-				for _, cb := range p.notifyDiscarderPushedCallbacks {
+				p.discarderPushedCallbacksLock.RLock()
+				defer p.discarderPushedCallbacksLock.RUnlock()
+				for _, cb := range p.discarderPushedCallbacks {
 					cb(eventType, ev, field)
 				}
 			}

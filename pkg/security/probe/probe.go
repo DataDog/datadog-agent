@@ -43,6 +43,7 @@ type PlatformProbe interface {
 	NewEvent() *model.Event
 	GetFieldHandlers() model.FieldHandlers
 	DumpProcessCache(_ bool) (string, error)
+	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
 }
 
 // FullAccessEventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
@@ -61,8 +62,8 @@ type CustomEventHandler interface {
 	HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 }
 
-// NotifyDiscarderPushedCallback describe the callback used to retrieve pushed discarders information
-type NotifyDiscarderPushedCallback func(eventType string, event *model.Event, field string)
+// DiscarderPushedCallback describe the callback used to retrieve pushed discarders information
+type DiscarderPushedCallback func(eventType string, event *model.Event, field string)
 
 // Probe represents the runtime security eBPF probe in charge of
 // setting up the required kProbes and decoding events sent from the kernel
@@ -216,6 +217,11 @@ func traceEvent(fmt string, marshaller func() ([]byte, model.EventType, error)) 
 	}
 
 	seclog.DefaultLogger.TraceTagf(eventType, fmt, string(eventJSON))
+}
+
+// AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
+func (p *Probe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
+	p.PlatformProbe.AddDiscarderPushedCallback(cb)
 }
 
 // DispatchCustomEvent sends a custom event to the probe event handler

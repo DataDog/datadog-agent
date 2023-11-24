@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+// WindowsProbe defines a Windows probe
 type WindowsProbe struct {
 	Resolvers *resolvers.Resolvers
 
@@ -232,7 +233,7 @@ func (p *WindowsProbe) GetFieldHandlers() model.FieldHandlers {
 }
 
 // DumpProcessCache dumps the process cache
-func (p *WindowsProbe) DumpProcessCache(withArgs bool) (string, error) {
+func (p *WindowsProbe) DumpProcessCache(_ bool) (string, error) {
 	return "", errors.New("not supported")
 }
 
@@ -243,6 +244,9 @@ func (p *WindowsProbe) NewEvent() *model.Event {
 
 // HandleActions executes the actions of a triggered rule
 func (p *WindowsProbe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+
+// AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
+func (p *EBPFLessProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}
 
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
