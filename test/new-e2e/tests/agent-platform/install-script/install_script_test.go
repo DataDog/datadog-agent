@@ -84,69 +84,83 @@ func TestInstallScript(t *testing.T) {
 }
 
 func (is *installScriptSuite) TestInstallAgent() {
+	switch *flavor {
+	case "datadog-agent":
+		is.AgentTest()
+	case "datadog-heroku-agent":
+		is.AgentTest()
+	case "datadog-iot-agent":
+		is.IotAgentTest()
+	case "datadog-dogstatsd":
+		is.DogstatsdAgentTest()
+	}
+}
+
+func (is *installScriptSuite) AgentTest() {
 	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
 
 	vm := is.Env().VM.(*client.PulumiStackVM)
 	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
 	require.NoError(is.T(), err)
 
-	// Tests for datadog-agent flavor
-	if *flavor == "datadog-agent" || *flavor == "datadog-heroku-agent" {
-		unixHelper := helpers.NewUnixHelper()
-		client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
+	unixHelper := helpers.NewUnixHelper()
+	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
 
-		install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
+	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
 
-		common.CheckInstallation(is.T(), client)
-		common.CheckAgentBehaviour(is.T(), client)
-		common.CheckAgentStops(is.T(), client)
-		common.CheckAgentRestarts(is.T(), client)
-		common.CheckIntegrationInstall(is.T(), client)
-		common.CheckAgentPython(is.T(), client, "3")
-		common.CheckApmEnabled(is.T(), client)
-		common.CheckApmDisabled(is.T(), client)
-		if is.cwsSupported {
-			common.CheckCWSBehaviour(is.T(), client)
-		}
-		common.CheckInstallationInstallScript(is.T(), client)
-		common.CheckUninstallation(is.T(), client, "datadog-agent")
-		return
+	common.CheckInstallation(is.T(), client)
+	common.CheckAgentBehaviour(is.T(), client)
+	common.CheckAgentStops(is.T(), client)
+	common.CheckAgentRestarts(is.T(), client)
+	common.CheckIntegrationInstall(is.T(), client)
+	common.CheckAgentPython(is.T(), client, "3")
+	common.CheckApmEnabled(is.T(), client)
+	common.CheckApmDisabled(is.T(), client)
+	if is.cwsSupported {
+		common.CheckCWSBehaviour(is.T(), client)
 	}
+	common.CheckInstallationInstallScript(is.T(), client)
+	common.CheckUninstallation(is.T(), client, "datadog-agent")
 
-	// Tests for datadog-iot-agent flavor
-	if *flavor == "datadog-iot-agent" {
+}
 
-		unixHelper := helpers.NewUnixHelper()
-		client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
+func (is *installScriptSuite) IotAgentTest() {
+	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
 
-		install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
+	vm := is.Env().VM.(*client.PulumiStackVM)
+	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
+	require.NoError(is.T(), err)
 
-		common.CheckInstallation(is.T(), client)
-		common.CheckAgentBehaviour(is.T(), client)
-		common.CheckAgentStops(is.T(), client)
-		common.CheckAgentRestarts(is.T(), client)
+	unixHelper := helpers.NewUnixHelper()
+	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
 
-		common.CheckInstallationInstallScript(is.T(), client)
-		common.CheckUninstallation(is.T(), client, "datadog-iot-agent")
-		return
-	}
+	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
 
-	if *flavor == "datadog-dogstatsd" {
+	common.CheckInstallation(is.T(), client)
+	common.CheckAgentBehaviour(is.T(), client)
+	common.CheckAgentStops(is.T(), client)
+	common.CheckAgentRestarts(is.T(), client)
 
-		unixHelper := helpers.NewUnixDogstatsdHelper()
-		client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
+	common.CheckInstallationInstallScript(is.T(), client)
+	common.CheckUninstallation(is.T(), client, "datadog-iot-agent")
+}
 
-		install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
+func (is *installScriptSuite) DogstatsdAgentTest() {
+	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
 
-		common.CheckInstallation(is.T(), client)
-		common.CheckDogstatdAgentBehaviour(is.T(), client)
-		common.CheckDogstatsdAgentStops(is.T(), client)
-		common.CheckDogstatsdAgentRestarts(is.T(), client)
-		common.CheckInstallationInstallScript(is.T(), client)
-		common.CheckUninstallation(is.T(), client, "datadog-dogstatsd")
+	vm := is.Env().VM.(*client.PulumiStackVM)
+	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
+	require.NoError(is.T(), err)
 
-		return
+	unixHelper := helpers.NewUnixDogstatsdHelper()
+	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
 
-	}
+	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
 
+	common.CheckInstallation(is.T(), client)
+	common.CheckDogstatdAgentBehaviour(is.T(), client)
+	common.CheckDogstatsdAgentStops(is.T(), client)
+	common.CheckDogstatsdAgentRestarts(is.T(), client)
+	common.CheckInstallationInstallScript(is.T(), client)
+	common.CheckUninstallation(is.T(), client, "datadog-dogstatsd")
 }
