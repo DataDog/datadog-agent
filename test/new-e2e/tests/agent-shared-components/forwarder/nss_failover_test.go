@@ -161,7 +161,6 @@ func (v *multiFakeIntakeSuite) TestNSSFailover() {
 	setHostEntry(v.T(), v.Env().VM, intakeName, fakeintake2IP)
 
 	// check that fakeintake2 is used as intake and not fakeintake1
-	v.T().Logf("checking that the agent contacts fallback intake at %s", fakeintake2IP)
 	intakeMaxWaitTime := connectionResetInterval*time.Second + intakeMaxWaitTime
 	v.requireIntakeIsUsed(v.Env().Fakeintake2, intakeMaxWaitTime, intakeTick)
 	v.requireIntakeNotUsed(v.Env().Fakeintake1, intakeMaxWaitTime, intakeTick)
@@ -190,7 +189,7 @@ func (v *multiFakeIntakeSuite) requireIntakeIsUsed(intake *client.Fakeintake, in
 		assert.NoError(t, err)
 	}
 
-	v.T().Logf("checking that the agent contacts main intake at %s", intake.URL())
+	v.T().Logf("checking that the agent contacts intake at %s", intake.URL())
 	require.EventuallyWithT(v.T(), checkFn, intakeMaxWaitTime, intakeTick)
 }
 
@@ -215,6 +214,7 @@ func (v *multiFakeIntakeSuite) requireIntakeNotUsed(intake *client.Fakeintake, i
 		assert.Empty(t, stats)
 	}
 
+	v.T().Logf("checking that the agent doesn't contact intake at %s", intake.URL())
 	require.EventuallyWithT(v.T(), checkFn, intakeMaxWaitTime, intakeTick)
 }
 
