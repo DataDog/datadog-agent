@@ -12,7 +12,7 @@ import (
 )
 
 // GetNextColumnOidNaive will return the next column OID for a given OID
-// This is a naive algorithm based on detecting `.1.` (the table Entry oid that contains), increase the next digit and returns it.
+// This is a naive algorithm based on detecting last `.1.` (expected to be table entry), increase the next digit and returns it.
 // Caveat: if the input OID index contain `.1.` the function won't return the next column OID but all the OID elements until `.1.`.
 func GetNextColumnOidNaive(oid string) (string, error) {
 	oid = strings.TrimRight(strings.TrimLeft(oid, "."), ".")

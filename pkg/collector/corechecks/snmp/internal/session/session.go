@@ -175,10 +175,19 @@ func FetchSysObjectID(session Session) (string, error) {
 	return strValue, err
 }
 
-// FetchAllFirstRowOIDsUsingGetNext fetches all available OIDs
+// FetchAllFirstRowOIDs fetches all available OIDs
 // Fetch all scalar OIDs and first row of table OIDs.
-func FetchAllFirstRowOIDsUsingGetNext(session Session) []string {
-	var savedOIDs []string
+func FetchAllFirstRowOIDs(session Session) []string {
+	var oids []string
+	variables := FetchAllFirstRowOIDsVariables(session)
+	for _, variable := range variables {
+		oids = append(oids, strings.TrimLeft(variable.Name, "."))
+	}
+	return oids
+}
+
+func FetchAllFirstRowOIDsVariables(session Session) []gosnmp.SnmpPDU {
+	var savedPDUs []gosnmp.SnmpPDU
 	curRequestOid := "1.0"
 	alreadySeenOIDs := make(map[string]bool)
 
@@ -217,60 +226,60 @@ func FetchAllFirstRowOIDsUsingGetNext(session Session) []string {
 		}
 		alreadySeenOIDs[curRequestOid] = true
 
-		savedOIDs = append(savedOIDs, oid)
+		savedPDUs = append(savedPDUs, variable)
 	}
-	return savedOIDs
+	return savedPDUs
 }
 
-// FetchAllOIDsUsingGetNext fetches all available OIDs
-func FetchAllOIDsUsingGetNext(session Session, rootOid string, maxOidsToFetch int) ([]gosnmp.SnmpPDU, string, error) {
-	var results []gosnmp.SnmpPDU
-	alreadySeenOIDs := make(map[string]bool)
-
-	curOid := rootOid
-	// TODO: WHY gosnmp Walk does not work?
-
-	//err := session.Walk(rootOid, func(dataUnit gosnmp.SnmpPDU) error {
-	//	results = append(results, dataUnit)
-	//	return nil
-	//})
-	//if err != nil {
-	//	log.Debugf("GetNext error: %s", err)
-	//	return nil, err
-	//}
-
-	oidsFetched := 0
-	for {
-		curResults, err := session.GetNext([]string{curOid})
-		if err != nil {
-			log.Debugf("GetNext error: %s", err)
-			break
-		}
-
-		if len(curResults.Variables) != 1 {
-			log.Debugf("Expect 1 variable, but got %d: %+v", len(curResults.Variables), curResults.Variables)
-			break
-		}
-		variable := curResults.Variables[0]
-		if variable.Type == gosnmp.EndOfContents || variable.Type == gosnmp.EndOfMibView {
-			log.Debug("No more OIDs to fetch")
-			break
-		}
-		if alreadySeenOIDs[curOid] {
-			// breaking on already seen OIDs prevent infinite loop if the device mis behave by responding with non-sequential OIDs when called with GETNEXT
-			log.Debug("error: received non sequential OIDs")
-			break
-		}
-		alreadySeenOIDs[curOid] = true
-
-		oid := strings.TrimLeft(variable.Name, ".")
-		curOid = oid
-
-		results = append(results, variable)
-		oidsFetched += 1
-		if oidsFetched >= maxOidsToFetch {
-			break
-		}
-	}
-	return results, curOid, nil
-}
+//// FetchAllOIDsUsingGetNext fetches all available OIDs
+//func FetchAllOIDsUsingGetNext(session Session, rootOid string, maxOidsToFetch int) ([]gosnmp.SnmpPDU, string, error) {
+//	var results []gosnmp.SnmpPDU
+//	alreadySeenOIDs := make(map[string]bool)
+//
+//	curOid := rootOid
+//	// TODO: WHY gosnmp Walk does not work?
+//
+//	//err := session.Walk(rootOid, func(dataUnit gosnmp.SnmpPDU) error {
+//	//	results = append(results, dataUnit)
+//	//	return nil
+//	//})
+//	//if err != nil {
+//	//	log.Debugf("GetNext error: %s", err)
+//	//	return nil, err
+//	//}
+//
+//	oidsFetched := 0
+//	for {
+//		curResults, err := session.GetNext([]string{curOid})
+//		if err != nil {
+//			log.Debugf("GetNext error: %s", err)
+//			break
+//		}
+//
+//		if len(curResults.Variables) != 1 {
+//			log.Debugf("Expect 1 variable, but got %d: %+v", len(curResults.Variables), curResults.Variables)
+//			break
+//		}
+//		variable := curResults.Variables[0]
+//		if variable.Type == gosnmp.EndOfContents || variable.Type == gosnmp.EndOfMibView {
+//			log.Debug("No more OIDs to fetch")
+//			break
+//		}
+//		if alreadySeenOIDs[curOid] {
+//			// breaking on already seen OIDs prevent infinite loop if the device mis behave by responding with non-sequential OIDs when called with GETNEXT
+//			log.Debug("error: received non sequential OIDs")
+//			break
+//		}
+//		alreadySeenOIDs[curOid] = true
+//
+//		oid := strings.TrimLeft(variable.Name, ".")
+//		curOid = oid
+//
+//		results = append(results, variable)
+//		oidsFetched += 1
+//		if oidsFetched >= maxOidsToFetch {
+//			break
+//		}
+//	}
+//	return results, curOid, nil
+//}

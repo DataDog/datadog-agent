@@ -74,44 +74,46 @@ func getDeviceScanValues(sess session.Session, config *checkconfig.CheckConfig) 
 	if config.DeviceScanEnabled {
 		// TODO: ONLY RUN once every X time
 
-		rootOid := config.DeviceScanLastOid // default root Oid
-		if rootOid == "" {
-			// NEW DEVICE SCAN
-			rootOid = defaultDeviceScanRootOid
-			config.DeviceScanCurScanStart = time.Now()
-			config.DeviceScanCurScanOidsCount = 0
-		}
+		//rootOid := config.DeviceScanLastOid // default root Oid
+		//if rootOid == "" {
+		//	// NEW DEVICE SCAN
+		//	rootOid = defaultDeviceScanRootOid
+		//	config.DeviceScanCurScanStart = time.Now()
+		//	config.DeviceScanCurScanOidsCount = 0
+		//}
 
 		fetchStart := time.Now()
-		fetchedResults, lastOid, err := session.FetchAllOIDsUsingGetNext(sess, rootOid, config.DeviceScanMaxOidsPerRun)
-		if err != nil {
-			log.Warnf("[FetchAllOIDsUsingGetNext] error: %s", err)
-			return nil
-		}
-		fetchDuration := time.Since(fetchStart)
-		log.Warnf("[FetchAllOIDsUsingGetNext] PRINT PDUs (len: %d)", len(results))
-		for _, resultPdu := range fetchedResults {
-			log.Warnf("[FetchAllOIDsUsingGetNext] PDU: %+v", resultPdu)
-		}
-		config.DeviceScanCurScanOidsCount += len(fetchedResults)
+		fetchedResults := session.FetchAllFirstRowOIDsVariables(sess)
 
-		// TODO: ADD TELEMETRY for each check run
-		if len(fetchedResults) == config.DeviceScanMaxOidsPerRun {
-			log.Warnf("[FetchAllOIDsUsingGetNext] Partial Device Scan (Total Count: %d, Fetch Duration Ms: %d)",
-				config.DeviceScanCurScanOidsCount,
-				fetchDuration.Milliseconds(),
-			)
-			// Partial Device Scan
-			config.DeviceScanLastOid = lastOid
-		} else {
-			log.Warnf("[FetchAllOIDsUsingGetNext] Full Device Scan (Total Count: %d, Duration: %.2f Sec)",
-				config.DeviceScanCurScanOidsCount,
-				time.Since(config.DeviceScanCurScanStart).Seconds(),
-			)
-			// TODO: ADD TELEMETRY for complete device scan
-			// Full Device Scan completed
-			config.DeviceScanLastOid = ""
+		fetchDuration := time.Since(fetchStart)
+		log.Warnf("[FetchAllFirstRowOIDsVariables] PRINT PDUs (len: %d)", len(results))
+		for _, resultPdu := range fetchedResults {
+			log.Warnf("[FetchAllFirstRowOIDsVariables] PDU: %+v", resultPdu)
 		}
+		//config.DeviceScanCurScanOidsCount += len(fetchedResults)
+
+		log.Warnf("[FetchAllFirstRowOIDsVariables] Device Scan (Total Count: %d, Duration: %.2f Sec)",
+			len(fetchedResults),
+			fetchDuration.Seconds(),
+		)
+
+		//// TODO: ADD TELEMETRY for each check run
+		//if len(fetchedResults) == config.DeviceScanMaxOidsPerRun {
+		//	log.Warnf("[FetchAllOIDsUsingGetNext] Partial Device Scan (Total Count: %d, Fetch Duration Ms: %d)",
+		//		config.DeviceScanCurScanOidsCount,
+		//		fetchDuration.Milliseconds(),
+		//	)
+		//	// Partial Device Scan
+		//	//config.DeviceScanLastOid = lastOid
+		//} else {
+		//	log.Warnf("[FetchAllOIDsUsingGetNext] Full Device Scan (Total Count: %d, Duration: %.2f Sec)",
+		//		config.DeviceScanCurScanOidsCount,
+		//		time.Since(config.DeviceScanCurScanStart).Seconds(),
+		//	)
+		//	// TODO: ADD TELEMETRY for complete device scan
+		//	// Full Device Scan completed
+		//	//config.DeviceScanLastOid = ""
+		//}
 		results = fetchedResults
 	}
 	return results

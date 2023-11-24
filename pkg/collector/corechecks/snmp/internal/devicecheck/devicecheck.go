@@ -263,7 +263,7 @@ func (d *DeviceCheck) detectMetricsToMonitor(sess session.Session) error {
 }
 
 func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfig, []profiledefinition.MetricTagConfig) {
-	fetchedOIDs := session.FetchAllFirstRowOIDsUsingGetNext(d.session)
+	fetchedOIDs := session.FetchAllFirstRowOIDs(d.session)
 	log.Debugf("fetched OIDs: %v", fetchedOIDs)
 
 	root := common.BuildOidTrie(fetchedOIDs)
