@@ -30,6 +30,8 @@ func (u *Unix) GetServiceName() string { return "datadog-agent" }
 // UnixDogstatsd implement helper function for Dogstatsd on Unix distributions
 type UnixDogstatsd struct{}
 
+var _ Helper = (*UnixDogstatsd)(nil)
+
 // NewUnixDogstatsdHelper create a new instance of Unix helper for dogstatsd
 func NewUnixDogstatsdHelper() *UnixDogstatsd { return &UnixDogstatsd{} }
 
