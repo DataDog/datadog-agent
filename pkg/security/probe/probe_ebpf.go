@@ -930,6 +930,11 @@ func (p *EBPFProbe) AddDiscarderPushedCallback(cb DiscarderPushedCallback) {
 	p.discarderPushedCallbacks = append(p.discarderPushedCallbacks, cb)
 }
 
+// GetEventTags returns the event tags
+func (p *EBPFProbe) GetEventTags(containerID string) []string {
+	return p.Resolvers.TagsResolver.Resolve(containerID)
+}
+
 // OnNewDiscarder handles new discarders
 func (p *EBPFProbe) OnNewDiscarder(rs *rules.RuleSet, ev *model.Event, field eval.Field, eventType eval.EventType) {
 	// discarders disabled

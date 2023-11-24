@@ -248,6 +248,11 @@ func (p *WindowsProbe) HandleActions(_ *rules.Rule, _ eval.Event) {}
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
 func (p *EBPFLessProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}
 
+// GetEventTags returns the event tags
+func (p *EBPFLessProbe) GetEventTags(_ string) []string {
+	return nil
+}
+
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	opts.normalize()

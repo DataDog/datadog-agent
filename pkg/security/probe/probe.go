@@ -44,6 +44,7 @@ type PlatformProbe interface {
 	GetFieldHandlers() model.FieldHandlers
 	DumpProcessCache(_ bool) (string, error)
 	AddDiscarderPushedCallback(_ DiscarderPushedCallback)
+	GetEventTags(_ string) []string
 }
 
 // FullAccessEventHandler represents a handler for events sent by the probe that needs access to all the fields in the SECL model
@@ -255,9 +256,7 @@ func (p *Probe) StatsPollingInterval() time.Duration {
 
 // GetEventTags returns the event tags
 func (p *Probe) GetEventTags(containerID string) []string {
-	// TODO(safchain) restore this
-	return nil
-	//	return p.GetResolvers().TagsResolver.Resolve(containerID)
+	return p.PlatformProbe.GetEventTags(containerID)
 }
 
 // GetService returns the service name from the process tree

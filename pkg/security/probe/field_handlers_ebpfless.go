@@ -44,8 +44,7 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessCacheEntry(ev *model.Event) (*mod
 	}
 
 	if ev.ProcessCacheEntry == nil {
-		// TODO safchain re-add
-		//	ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid)
+		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Pid, false)
 		return ev.ProcessCacheEntry, false
 	}
 
@@ -133,9 +132,7 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessEnvs(_ *model.Event, process *mod
 func (fh *EBPFLessFieldHandlers) GetProcessCacheEntry(ev *model.Event) (*model.ProcessCacheEntry, bool) {
 	ev.ProcessCacheEntry = fh.resolvers.ProcessResolver.Resolve(ev.PIDContext.Pid)
 	if ev.ProcessCacheEntry == nil {
-		// TODO safchain re-add
-
-		//ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid)
+		ev.ProcessCacheEntry = model.GetPlaceholderProcessCacheEntry(ev.PIDContext.Pid, ev.PIDContext.Pid, false)
 		return ev.ProcessCacheEntry, false
 	}
 	return ev.ProcessCacheEntry, true

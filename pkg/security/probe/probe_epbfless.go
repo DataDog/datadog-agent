@@ -206,6 +206,11 @@ func (p *EBPFLessProbe) DumpProcessCache(withArgs bool) (string, error) {
 // AddDiscarderPushedCallback add a callback to the list of func that have to be called when a discarder is pushed to kernel
 func (p *EBPFLessProbe) AddDiscarderPushedCallback(_ DiscarderPushedCallback) {}
 
+// GetEventTags returns the event tags
+func (p *EBPFLessProbe) GetEventTags(containerID string) []string {
+	return p.Resolvers.TagsResolver.Resolve(containerID)
+}
+
 // NewEBPFLessProbe returns a new eBPF less probe
 func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLessProbe, error) {
 	opts.normalize()

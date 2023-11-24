@@ -26,7 +26,7 @@ func DisableRuntimeSecurity(config *config.Config) {
 	config.RuntimeSecurity.SecurityProfileEnabled = false
 }
 
-// platform specifPathResolutionEnabledic init function
+// platform specific init function
 func (c *CWSConsumer) init(evm *eventmonitor.EventMonitor, config *config.RuntimeSecurityConfig, opts Opts) error { //nolint:revive // TODO fix revive unused-parameter
 	// Activity dumps related
 	if p, ok := evm.Probe.PlatformProbe.(*probe.EBPFProbe); ok {

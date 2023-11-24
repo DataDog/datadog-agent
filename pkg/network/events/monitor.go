@@ -110,7 +110,6 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 			processStartTime = ev.GetProcessForkTime()
 		}
 
-		// TODO(safchain) FilterEnvs
 		envs := ev.GetProcessEnvp()
 
 		return &Process{
