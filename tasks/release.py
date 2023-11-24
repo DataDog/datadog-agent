@@ -1261,16 +1261,6 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
                     rj[nightly][field] = f"{release_branch}"
 
             _save_release_json(rj)
-            ctx.run("git add release.json")
-            ok = try_git_command(ctx, f"git commit -m 'Set base_branch to {release_branch}'")
-            if not ok:
-                raise Exit(
-                    color_message(
-                        f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
-                        "red",
-                    ),
-                    code=1,
-                )
 
             # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml jobs
             with open(".gitlab-ci.yml", "r") as gl:
@@ -1282,6 +1272,18 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
                         gl.write(line.replace("main", f"{release_branch}"))
                     else:
                         gl.write(line)
+
+            # Step 1.3 - Commit new changes
+            ctx.run("git add release.json .gitlab-ci.yml")
+            ok = try_git_command(ctx, f"git commit -m 'Update release.json and .gitlab-ci.yml with {release_branch}'")
+            if not ok:
+                raise Exit(
+                    color_message(
+                        f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
+                        "red",
+                    ),
+                    code=1,
+                )
 
         # Step 2 - Push newly created release branch to the remote repository
 
