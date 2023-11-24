@@ -245,7 +245,7 @@ static __always_inline __u8 filter_relevant_headers(struct __sk_buff *skb, skb_i
 }
 
 // process_headers processes the headers that were filtered in filter_relevant_headers,
-// looking for requests path, status code, and methods.
+// looking for requests path, status code, and method.
 static __always_inline void process_headers(struct __sk_buff *skb, dynamic_table_index_t *dynamic_index, http2_stream_t *current_stream, http2_header_t *headers_to_process, __u8 interesting_headers) {
     http2_header_t *current_header;
     dynamic_table_entry_t dynamic_value = {};
