@@ -23,6 +23,11 @@ var allowedConfigPaths = map[string]struct{}{
 	"api_key": {},
 }
 
+type configPayload struct {
+	Value interface{} `json:"value,omitempty"`
+	Error string      `json:"error,omitempty"`
+}
+
 func startIPCServer(ipcConfigHostPort string, tlsConfig *tls.Config) (err error) {
 	ipcConfigListener, err = getListener(ipcConfigHostPort)
 	if err != nil {
@@ -34,7 +39,7 @@ func startIPCServer(ipcConfigHostPort string, tlsConfig *tls.Config) (err error)
 
 		body, err := getConfigMarshalled(vars["path"])
 		if err != nil {
-			body, _ := json.Marshal(map[string]string{"error": err.Error()})
+			body, _ := json.Marshal(configPayload{Error: err.Error()})
 			http.Error(w, string(body), http.StatusBadRequest)
 			return
 		}
@@ -72,10 +77,10 @@ func getConfigMarshalled(path string) ([]byte, error) {
 		return nil, fmt.Errorf("querying config %s is not allowed", path)
 	}
 
-	data := config.Datadog.Get(path)
-	if data == nil {
+	value := config.Datadog.Get(path)
+	if value == nil {
 		return nil, fmt.Errorf("no runtime setting found for %s", path)
 	}
 
-	return json.Marshal(data)
+	return json.Marshal(configPayload{Value: value})
 }
