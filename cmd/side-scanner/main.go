@@ -135,7 +135,7 @@ type scanTask struct {
 }
 
 func (s scanTask) String() string {
-	return fmt.Sprintf("ebs_scan=%s hostname=%q", s.ARN, s.Hostname)
+	return fmt.Sprintf("%s=%q hostname=%q", s.Type, s.ARN, s.Hostname)
 }
 
 func main() {
@@ -203,15 +203,38 @@ func runCommand() *cobra.Command {
 
 func scanCommand() *cobra.Command {
 	var cliArgs struct {
-		RawScan string
+		ScanType string
+		ARN      string
+		Hostname string
+		RawScan  string
 	}
 	cmd := &cobra.Command{
 		Use:   "scan",
 		Short: "execute a scan",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println(args[1])
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return scanCmd([]byte(cliArgs.RawScan))
+					var config *scanConfig
+					var err error
+					if len(cliArgs.RawScan) > 0 {
+						config, err = unmarshalConfig([]byte(cliArgs.RawScan))
+					} else {
+						resourceARN, err := arn.Parse(cliArgs.ARN)
+						if err != nil {
+							return err
+						}
+						config = &scanConfig{
+							Type: awsScan,
+							Tasks: []*scanTask{
+								{Type: scanType(cliArgs.ScanType), ARN: resourceARN, Hostname: cliArgs.Hostname},
+							},
+						}
+					}
+					if err != nil {
+						return err
+					}
+					return scanCmd(*config)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -221,10 +244,10 @@ func scanCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&cliArgs.RawScan, "raw-scan-data", "", "", "scan data in JSON")
-
-	cmd.MarkFlagRequired("scan-type")
-	cmd.MarkFlagRequired("raw-scan-data")
+	cmd.Flags().StringVarP(&cliArgs.RawScan, "raw-config-data", "", "", "scan config data in JSON")
+	cmd.Flags().StringVarP(&cliArgs.ScanType, "scan-type", "", "", "scan type")
+	cmd.Flags().StringVarP(&cliArgs.ARN, "arn", "", "", "arn to scan")
+	cmd.Flags().StringVarP(&cliArgs.Hostname, "hostname", "", "", "scan hostname")
 	return cmd
 }
 
@@ -364,14 +387,9 @@ func getDefaultRolesMapping() rolesMapping {
 	return parseRolesMapping(roles)
 }
 
-func scanCmd(rawScan []byte) error {
+func scanCmd(config scanConfig) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-
-	config, err := unmarshalConfig(rawScan)
-	if err != nil {
-		return err
-	}
 
 	for _, scan := range config.Tasks {
 		entity, err := launchScan(ctx, scan)
@@ -529,7 +547,6 @@ func listEBSScansForRegion(ctx context.Context, regionName string, assumedRole *
 						// Exclude Windows.
 						continue
 					}
-					log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, *blockDeviceMapping.DeviceName, *blockDeviceMapping.Ebs.VolumeId, *instance.PlatformDetails)
 					accountID := "" // TODO
 					scan := scanTask{
 						Type:     ebsScanType,
