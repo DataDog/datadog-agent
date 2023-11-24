@@ -70,10 +70,8 @@ func StartServer(
 	}
 
 	extraHosts := []string{apiAddr}
-	ipcHost, err := config.GetIPCAddress()
-	if err != nil {
-		return err
-	}
+
+	ipcHost := config.Datadog.GetString("exposed_ipc_host")
 	apiConfigPort := config.Datadog.GetInt("api_config_port")
 	apiConfigEnabled := apiConfigPort > 0
 	apiConfigHostPort := net.JoinHostPort(ipcHost, strconv.Itoa(apiConfigPort))
@@ -97,7 +95,7 @@ func StartServer(
 		return err
 	}
 
-	if err := startAPIServer(
+	if err := startCMDServer(
 		apiAddr, tlsConfig, tlsCertPool,
 		configService, flare, dogstatsdServer,
 		capture, serverDebug, wmeta, logsAgent,
@@ -108,7 +106,7 @@ func StartServer(
 	}
 
 	if apiConfigEnabled {
-		if err := startConfigServer(apiConfigHostPort, tlsConfig); err != nil {
+		if err := startIPCServer(apiConfigHostPort, tlsConfig); err != nil {
 			StopServer()
 			return err
 		}
@@ -120,10 +118,10 @@ func StartServer(
 // StopServer closes the connection and the server
 // stops listening to new commands.
 func StopServer() {
-	if apiListener != nil {
-		apiListener.Close()
+	if cmdListener != nil {
+		cmdListener.Close()
 	}
-	if apiConfigListener != nil {
-		apiConfigListener.Close()
+	if ipcConfigListener != nil {
+		ipcConfigListener.Close()
 	}
 }

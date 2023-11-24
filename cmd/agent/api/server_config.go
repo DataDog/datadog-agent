@@ -18,10 +18,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-var apiConfigListener net.Listener
+var ipcConfigListener net.Listener
 
-func startConfigServer(apiConfigHostPort string, tlsConfig *tls.Config) (err error) {
-	apiConfigListener, err = getListener(apiConfigHostPort)
+func startIPCServer(ipcConfigHostPort string, tlsConfig *tls.Config) (err error) {
+	ipcConfigListener, err = getListener(ipcConfigHostPort)
 	if err != nil {
 		return err
 	}
@@ -44,18 +44,18 @@ func startConfigServer(apiConfigHostPort string, tlsConfig *tls.Config) (err err
 	configEndpointMux.HandleFunc("/{path}", configEndpointHandler).Methods("GET")
 	configEndpointMux.Use(validateToken)
 
-	apiConfigMux := http.NewServeMux()
-	apiConfigMux.Handle(
+	ipcMux := http.NewServeMux()
+	ipcMux.Handle(
 		"/config/",
 		http.StripPrefix("/config", configEndpointMux))
 
-	apiConfigServer := &http.Server{
-		Addr:      apiConfigHostPort,
-		Handler:   http.TimeoutHandler(apiConfigMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second, "timeout"),
+	ipcConfigServer := &http.Server{
+		Addr:      ipcConfigHostPort,
+		Handler:   http.TimeoutHandler(ipcMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second, "timeout"),
 		TLSConfig: tlsConfig,
 	}
 
-	startServer(apiConfigListener, apiConfigServer, "Config API server")
+	startServer(ipcConfigListener, ipcConfigServer, "Config API server")
 
 	return nil
 }

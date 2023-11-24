@@ -42,10 +42,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-var apiListener net.Listener
+var cmdListener net.Listener
 
-func startAPIServer(
-	apiAddr string,
+func startCMDServer(
+	cmdAddr string,
 	tlsConfig *tls.Config,
 	tlsCertPool *x509.CertPool,
 	configService *remoteconfig.Service,
@@ -61,7 +61,7 @@ func startAPIServer(
 	invHost inventoryhost.Component,
 ) (err error) {
 	// get the transport we're going to use under HTTP
-	apiListener, err = getListener(apiAddr)
+	cmdListener, err = getListener(cmdAddr)
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
@@ -71,7 +71,7 @@ func startAPIServer(
 	// gRPC server
 	authInterceptor := grpcutil.AuthInterceptor(parseToken)
 	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, apiAddr)),
+		grpc.Creds(credentials.NewClientTLSFromCert(tlsCertPool, cmdAddr)),
 		grpc.StreamInterceptor(grpc_auth.StreamServerInterceptor(authInterceptor)),
 		grpc.UnaryInterceptor(grpc_auth.UnaryServerInterceptor(authInterceptor)),
 	}
@@ -88,7 +88,7 @@ func startAPIServer(
 	})
 
 	dcreds := credentials.NewTLS(&tls.Config{
-		ServerName: apiAddr,
+		ServerName: cmdAddr,
 		RootCAs:    tlsCertPool,
 	})
 	dopts := []grpc.DialOption{grpc.WithTransportCredentials(dcreds)}
@@ -97,15 +97,15 @@ func startAPIServer(
 	ctx := context.Background()
 	gwmux := runtime.NewServeMux()
 	err = pb.RegisterAgentHandlerFromEndpoint(
-		ctx, gwmux, apiAddr, dopts)
+		ctx, gwmux, cmdAddr, dopts)
 	if err != nil {
-		return fmt.Errorf("error registering agent handler from endpoint %s: %v", apiAddr, err)
+		return fmt.Errorf("error registering agent handler from endpoint %s: %v", cmdAddr, err)
 	}
 
 	err = pb.RegisterAgentSecureHandlerFromEndpoint(
-		ctx, gwmux, apiAddr, dopts)
+		ctx, gwmux, cmdAddr, dopts)
 	if err != nil {
-		return fmt.Errorf("error registering agent secure handler from endpoint %s: %v", apiAddr, err)
+		return fmt.Errorf("error registering agent secure handler from endpoint %s: %v", cmdAddr, err)
 	}
 
 	// Setup multiplexer
@@ -116,8 +116,8 @@ func startAPIServer(
 	agentMux.Use(validateToken)
 	checkMux.Use(validateToken)
 
-	apiMux := http.NewServeMux()
-	apiMux.Handle(
+	cmdMux := http.NewServeMux()
+	cmdMux.Handle(
 		"/agent/",
 		http.StripPrefix("/agent",
 			agent.SetupHandlers(
@@ -132,22 +132,22 @@ func startAPIServer(
 				invAgent,
 				invHost,
 			)))
-	apiMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
-	apiMux.Handle("/", gwmux)
+	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
+	cmdMux.Handle("/", gwmux)
 
 	srv := grpcutil.NewMuxedGRPCServer(
-		apiAddr,
+		cmdAddr,
 		tlsConfig,
 		s,
-		grpcutil.TimeoutHandlerFunc(apiMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
+		grpcutil.TimeoutHandlerFunc(cmdMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
 	)
 
-	startServer(apiListener, srv, "API server")
+	startServer(cmdListener, srv, "API server")
 
 	return nil
 }
 
 // ServerAddress returns the server address.
 func ServerAddress() *net.TCPAddr {
-	return apiListener.Addr().(*net.TCPAddr)
+	return cmdListener.Addr().(*net.TCPAddr)
 }
