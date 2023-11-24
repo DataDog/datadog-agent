@@ -223,7 +223,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^container_name:nginx$`,
 				`^display_container_name:nginx`,
 				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:main$`,
@@ -288,6 +288,29 @@ func (suite *k8sSuite) TestNginx() {
 			Service: "apps-nginx-server",
 		},
 		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^dirname:/var/log/pods/workload-nginx_nginx-`,
+				`^display_container_name:nginx`,
+				`^filename:[[:digit:]]+.log$`,
+				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+				`^image_id:ghcr.io/datadog/apps-nginx-server@sha256:`,
+				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
+				`^image_tag:main$`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx$`,
+				`^kube_namespace:workload-nginx$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:nginx-[[:alnum:]]+$`,
+				`^kube_service:nginx$`,
+				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:apps-nginx-server$`,
+			},
 			Message: `GET / HTTP/1\.1`,
 		},
 	})
@@ -358,6 +381,27 @@ func (suite *k8sSuite) TestRedis() {
 			Service: "redis",
 		},
 		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:redis$`,
+				`^dirname:/var/log/pods/workload-redis_redis-`,
+				`^display_container_name:redis`,
+				`^filename:[[:digit:]]+.log$`,
+				`^image_id:docker.io/library/redis@sha256:`,
+				`^image_name:redis$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:redis$`,
+				`^kube_deployment:redis$`,
+				`^kube_namespace:workload-redis$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:redis-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:redis-[[:alnum:]]+$`,
+				`^kube_service:redis$`,
+				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:redis$`,
+			},
 			Message: `oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo`,
 		},
 	})
