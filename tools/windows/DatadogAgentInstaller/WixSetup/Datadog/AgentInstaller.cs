@@ -318,6 +318,15 @@ namespace WixSetup.Datadog
                         .First(x => x.HasAttribute("Id", value => value == "MainApplication"))
                         .AddElement("MergeRef", "Id=ddprocmoninstall");
                 }
+
+                // Configure the service when the parent Component is reinstalled
+                // This doesn't concerns the service permissions but the DelayedAutoStart, PreShutdownDelay etc...
+                document.FindAll("ServiceConfig")
+                    .Where(sc => sc.HasAttribute("OnReinstall"))
+                    .ForEach(sc => sc.SetAttributeValue("OnReinstall", "yes"));
+
+                // Always remove service, this will reset the service permissions.
+                document.FindSingle("DeleteServices").SetValue(Condition.Always);
             };
             project.WixSourceFormated += (ref string content) => WixSourceFormated?.Invoke(content);
             project.WixSourceSaved += name => WixSourceSaved?.Invoke(name);
@@ -410,6 +419,8 @@ namespace WixSetup.Datadog
                 StopOn = null,
                 Start = SvcStartType.auto,
                 DelayedAutoStart = true,
+                // Specifies that the service should be removed by the DeleteServices action on both install and uninstall.
+                // This ensures that if there is a (perhaps orphaned) service with the same name we remove it first.
                 RemoveOn = SvcEvent.InstallUninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
@@ -445,6 +456,8 @@ namespace WixSetup.Datadog
                 // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                 StopOn = null,
                 Start = SvcStartType.demand,
+                // Specifies that the service should be removed by the DeleteServices action on both install and uninstall.
+                // This ensures that if there is a (perhaps orphaned) service with the same name we remove it first.
                 RemoveOn = SvcEvent.InstallUninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
