@@ -14,6 +14,7 @@ type Client interface {
 	Set(key string, value string) (bool, error)
 	List() (map[string]RuntimeSettingResponse, error)
 	FullConfig() (string, error)
+	SubsectionConfig(key string) (string, error)
 }
 
 // ClientBuilder represents a function returning a runtime settings API client

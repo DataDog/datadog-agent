@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
+	cfgcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
@@ -63,6 +64,7 @@ import (
 // SetupHandlers adds the specific handlers for /agent endpoints
 func SetupHandlers(
 	r *mux.Router,
+	confComp cfgcomp.Component,
 	flareComp flare.Component,
 	server dogstatsdServer.Component,
 	serverDebug dogstatsddebug.Component,
@@ -92,6 +94,7 @@ func SetupHandlers(
 	r.HandleFunc("/gui/csrf-token", getCSRFToken).Methods("GET")
 	r.HandleFunc("/config-check", getConfigCheck).Methods("GET")
 	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")
+	r.HandleFunc("/config/section/{subsection}", func(w http.ResponseWriter, r *http.Request) { configRequestHandler(w, r, confComp) }).Methods("GET")
 	r.HandleFunc("/config/list-runtime", settingshttp.Server.ListConfigurable).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
@@ -143,6 +146,38 @@ func getHostname(w http.ResponseWriter, r *http.Request) {
 	}
 	j, _ := json.Marshal(hname)
 	w.Write(j)
+}
+
+func configRequestHandler(w http.ResponseWriter, r *http.Request, cfg cfgcomp.Component) {
+	vars := mux.Vars(r)
+	subsection := vars["subsection"]
+
+	var body []byte
+	var err error
+
+	switch subsection {
+	case "ha":
+		settings := make(map[string]interface{})
+		settings["ha"] = cfg.Object().GetStringMap(subsection)
+		settings["site"] = cfg.GetString("site")
+		settings["api_key"] = cfg.GetString("api_key")
+		body, err = json.Marshal(settings)
+	default:
+		settings := cfg.Object().GetStringMap(subsection)
+		body, err = json.Marshal(settings)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		w.WriteHeader(400)
+		body, _ = json.Marshal(map[string]string{
+			"error":      err.Error(),
+			"error_type": "Bad section specified",
+		})
+	}
+
+	log.Infof("Requested config: %v\n", string(body[:]))
+	w.Write(body)
 }
 
 func makeFlare(w http.ResponseWriter, r *http.Request, flareComp flare.Component) {

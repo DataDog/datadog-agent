@@ -72,6 +72,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 		RunE:  oneShotRunE(showRuntimeConfiguration),
 	}
 
+	showSubsectionCmd := &cobra.Command{
+		Use:   "subsection [value]",
+		Short: "Get runtime configuration subsection",
+		Long:  ``,
+		RunE:  oneShotRunE(showSubsectionConfiguration),
+	}
+	cmd.AddCommand(showSubsectionCmd)
+
 	listRuntimeCmd := &cobra.Command{
 		Use:   "list-runtime",
 		Short: "List settings that can be changed at runtime",
@@ -98,6 +106,27 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	getCmd.Flags().BoolVarP(&cliParams.source, "source", "s", false, "print every source and its value")
 
 	return cmd
+}
+
+func showSubsectionConfiguration(_ log.Component, _ config.Component, cliParams *cliParams) error {
+	err := util.SetAuthToken()
+	if err != nil {
+		return err
+	}
+
+	c, err := cliParams.GlobalParams.SettingsClient()
+	if err != nil {
+		return err
+	}
+
+	runtimeConfig, err := c.SubsectionConfig(cliParams.args[0])
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(runtimeConfig)
+
+	return nil
 }
 
 func showRuntimeConfiguration(_ log.Component, _ config.Component, cliParams *cliParams) error {

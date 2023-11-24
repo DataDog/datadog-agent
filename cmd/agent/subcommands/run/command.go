@@ -232,6 +232,7 @@ func run(log log.Component,
 	}()
 
 	if err := startAgent(cliParams,
+		config,
 		log,
 		flare,
 		telemetry,
@@ -335,6 +336,7 @@ func getSharedFxOption() fx.Option {
 // startAgent Initializes the agent process
 func startAgent(
 	cliParams *cliParams,
+	cfg config.Component,
 	log log.Component,
 	flare flare.Component,
 	telemetry telemetry.Component,
