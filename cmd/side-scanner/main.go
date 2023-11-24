@@ -92,7 +92,6 @@ var statsd *ddgostatsd.Client
 var (
 	globalParams struct {
 		configFilePath string
-		assumedRoleStr string
 		attachVolumes  bool
 	}
 
@@ -163,7 +162,6 @@ func rootCommand() *cobra.Command {
 
 	sideScannerCmd.PersistentFlags().StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to side-scanner configuration yaml file")
 	sideScannerCmd.PersistentFlags().BoolVarP(&globalParams.attachVolumes, "attach-volumes", "", false, "scan EBS snapshots by creating a dedicated volume")
-	sideScannerCmd.PersistentFlags().StringVarP(&globalParams.assumedRoleStr, "assumed-role", "", "", "force an AWS role to perform the scan")
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 	sideScannerCmd.AddCommand(offlineCommand())
@@ -212,7 +210,6 @@ func scanCommand() *cobra.Command {
 		Use:   "scan",
 		Short: "execute a scan",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println(args[1])
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
 					var config *scanConfig
@@ -263,7 +260,7 @@ func offlineCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans, optionalARN(globalParams.assumedRoleStr))
+					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -287,7 +284,7 @@ func mountCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return mountCmd(optionalARN(globalParams.assumedRoleStr))
+					return mountCmd()
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -311,7 +308,7 @@ func cleanupCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return cleanupCmd(cliArgs.region, optionalARN(globalParams.assumedRoleStr), cliArgs.dryRun)
+					return cleanupCmd(cliArgs.region, cliArgs.dryRun)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -402,22 +399,38 @@ func scanCmd(config scanConfig) error {
 	return nil
 }
 
-func offlineCmd(poolSize int, regions []string, maxScans int, assumedRole *arn.ARN) error {
+func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	defer statsd.Flush()
 
-	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", assumedRole)
+	defaultCfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return err
 	}
-	defer awsstats.SendStats()
-
-	stsclient := sts.NewFromConfig(cfg)
+	stsclient := sts.NewFromConfig(defaultCfg)
 	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
 		return err
 	}
+
+	// Retrieve instance’s region.
+	imdsclient := imds.NewFromConfig(defaultCfg)
+	regionOutput, err := imdsclient.GetRegion(ctx, &imds.GetRegionInput{})
+	selfRegion := "us-east-1"
+	if err != nil {
+		log.Errorf("could not retrieve region from ec2 instance - using default %q: %v", selfRegion, err)
+	} else {
+		selfRegion = regionOutput.Region
+	}
+
+	roles := getDefaultRolesMapping()
+
+	cfg, awsstats, err := newAWSConfig(ctx, selfRegion, roles[*identity.Account])
+	if err != nil {
+		return err
+	}
+	defer awsstats.SendStats()
 
 	ec2client := ec2.NewFromConfig(cfg)
 	if err != nil {
@@ -452,16 +465,9 @@ func offlineCmd(poolSize int, regions []string, maxScans int, assumedRole *arn.A
 				return
 			}
 			if regionName == "auto" {
-				// Retrieve instance’s region.
-				imdsclient := imds.NewFromConfig(cfg)
-				resp, err := imdsclient.GetRegion(ctx, &imds.GetRegionInput{})
-				if err != nil {
-					log.Errorf("could not retrieve region from ec2 instance: %v", err)
-					continue
-				}
-				regionName = resp.Region
+				regionName = selfRegion
 			}
-			scansForRegion, err := listEBSScansForRegion(ctx, *identity.Account, regionName, assumedRole)
+			scansForRegion, err := listEBSScansForRegion(ctx, *identity.Account, regionName, roles[*identity.Account])
 			if err != nil {
 				log.Errorf("could not scan region %q: %v", regionName, err)
 			}
@@ -575,11 +581,22 @@ func listEBSScansForRegion(ctx context.Context, accountID, regionName string, as
 	return
 }
 
-func cleanupCmd(region string, assumedRole *arn.ARN, dryRun bool) error {
+func cleanupCmd(region string, dryRun bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	cfg, _, err := newAWSConfig(ctx, region, assumedRole)
+	defaultCfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return err
+	}
+	stsclient := sts.NewFromConfig(defaultCfg)
+	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return err
+	}
+
+	roles := getDefaultRolesMapping()
+	cfg, _, err := newAWSConfig(ctx, region, roles[*identity.Account])
 	if err != nil {
 		return err
 	}
@@ -605,8 +622,29 @@ func cleanupCmd(region string, assumedRole *arn.ARN, dryRun bool) error {
 	return nil
 }
 
-func downloadSnapshot(ctx context.Context, w io.Writer, snapshotID string, assumedRole *arn.ARN) error {
-	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", assumedRole)
+func downloadSnapshot(ctx context.Context, w io.Writer, snapshotID string) error {
+	defaultCfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return err
+	}
+	stsclient := sts.NewFromConfig(defaultCfg)
+	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return err
+	}
+
+	// Retrieve instance’s region.
+	imdsclient := imds.NewFromConfig(defaultCfg)
+	regionOutput, err := imdsclient.GetRegion(ctx, &imds.GetRegionInput{})
+	selfRegion := "us-east-1"
+	if err != nil {
+		log.Errorf("could not retrieve region from ec2 instance - using default %q: %v", selfRegion, err)
+	} else {
+		selfRegion = regionOutput.Region
+	}
+
+	roles := getDefaultRolesMapping()
+	cfg, awsstats, err := newAWSConfig(ctx, selfRegion, roles[*identity.Account])
 	if err != nil {
 		return err
 	}
@@ -650,11 +688,13 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotID string, assum
 	}
 }
 
-func mountCmd(assumedRole *arn.ARN) error {
+func mountCmd() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
 	stdin := os.Stdin
+
+	roles := getDefaultRolesMapping()
 
 	var arns []arn.ARN
 	lineNumber := 0
@@ -687,7 +727,7 @@ func mountCmd(assumedRole *arn.ARN) error {
 	}()
 
 	for _, resourceARN := range arns {
-		cfg, awsstats, err := newAWSConfig(ctx, resourceARN.Region, assumedRole)
+		cfg, awsstats, err := newAWSConfig(ctx, resourceARN.Region, roles[resourceARN.AccountID])
 		if err != nil {
 			return err
 		}
@@ -714,7 +754,7 @@ func mountCmd(assumedRole *arn.ARN) error {
 			return fmt.Errorf("unsupport resource type %q", resourceType)
 		}
 
-		var rolesMapping rolesMapping // TODO
+		rolesMapping := getDefaultRolesMapping()
 		mountTargets, cleanupVolume, err := shareAndAttachSnapshot(ctx, nil, rolesMapping, snapshotARN)
 		cleanups = append(cleanups, cleanupVolume)
 		if err != nil {
@@ -1921,15 +1961,4 @@ func ec2ARN(region, accountID string, resourceType ec2types.ResourceType, resour
 		AccountID: accountID,
 		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceID),
 	}
-}
-
-func optionalARN(arnStr string) *arn.ARN {
-	if arnStr == "" {
-		return nil
-	}
-	arn, err := arn.Parse(arnStr)
-	if err != nil {
-		return nil
-	}
-	return &arn
 }
