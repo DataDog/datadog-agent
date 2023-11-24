@@ -23,6 +23,11 @@ func GetNextColumnOidNaive(oid string) (string, error) {
 	}
 	tableOid := oid[0:idx]
 	rowFullIndex := oid[idx+3:] // +3 to skip `.1.`
+	if !strings.Contains(rowFullIndex, ".") {
+		// TODO: test me
+		// entry `.1.` must be followed by a column + index, hence the index is expected to contain at least one `.`
+		return "", fmt.Errorf("the last `.1.` is not an table entry: %s", oid)
+	}
 	rowFirstIndex := strings.Split(rowFullIndex, ".")[0]
 	rowFirstIndexNum, err := strconv.Atoi(rowFirstIndex)
 	if err != nil {
