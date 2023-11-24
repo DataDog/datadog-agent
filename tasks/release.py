@@ -9,7 +9,6 @@ from collections import OrderedDict
 from datetime import date
 from time import sleep
 
-import yaml
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
@@ -328,16 +327,6 @@ def _save_release_json(release_json):
     with open("release.json", "w") as release_json_stream:
         # Note, no space after the comma
         json.dump(release_json, release_json_stream, indent=4, sort_keys=False, separators=(',', ': '))
-
-
-def _load_gitlab_ci_yaml():
-    with open(".gitlab-ci.yml", "r") as gitlab_ci_stream:
-        return yaml.safe_load(gitlab_ci_stream)
-
-
-def _save_gitlab_ci_yaml(gitlab_ci):
-    with open(".gitlab-ci.yml", "w") as gitlab_ci_stream:
-        return yaml.dump(gitlab_ci, gitlab_ci_stream)
 
 
 ##
@@ -1259,7 +1248,7 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
         ctx.run(f"git checkout {main_branch}")
         ctx.run("git pull")
         print(color_message(f"Branching out to {release_branch}", "bold"))
-        # ctx.run(f"git checkout -b {release_branch}")
+        ctx.run(f"git checkout -b {release_branch}")
 
         if repo == UNFREEZE_REPO_AGENT:
             # Step 1.1 - In datadog-agent repo update base_branch and nightly builds entries
@@ -1272,37 +1261,40 @@ def create_and_update_release_branch(ctx, repo, release_branch, base_directory="
                     rj[nightly][field] = f"{release_branch}"
 
             _save_release_json(rj)
-            # ctx.run("git add release.json")
-            # ok = try_git_command(ctx, f"git commit -m 'Set base_branch to {release_branch}'")
-            # if not ok:
-            #     raise Exit(
-            #         color_message(
-            #             f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
-            #             "red",
-            #         ),
-            #         code=1,
-            #     )
+            ctx.run("git add release.json")
+            ok = try_git_command(ctx, f"git commit -m 'Set base_branch to {release_branch}'")
+            if not ok:
+                raise Exit(
+                    color_message(
+                        f"Could not create commit. Please commit manually and push the commit to the {release_branch} branch.",
+                        "red",
+                    ),
+                    code=1,
+                )
 
-            # Step 1.2 - In datadog-agent repo update gitlab_ci.yaml jobs
-            gl = _load_gitlab_ci_yaml()
+            # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml jobs
+            with open(".gitlab-ci.yml", "r") as gl:
+                file_content = gl.readlines()
 
-            gl[".on_security_agent_changes_or_manual"]["changes"]["compare_to"] = f"{release_branch}"
-            gl[".on_system_probe_changes_or_manual"]["changes"]["compare_to"] = f"{release_branch}"
-
-            _save_gitlab_ci_yaml(gl)
+            with open(".gitlab-ci.yml", "w") as gl:
+                for line in file_content:
+                    if re.search(r"compare_to: main", line):
+                        gl.write(line.replace("main", f"{release_branch}"))
+                    else:
+                        gl.write(line)
 
         # Step 2 - Push newly created release branch to the remote repository
 
-        # print(color_message("Pushing new branch to the upstream repository", "bold"))
-        # res = ctx.run(f"git push --set-upstream {upstream} {release_branch}", warn=True)
-        # if res.exited is None or res.exited > 0:
-        #     raise Exit(
-        #         color_message(
-        #             f"Could not push branch {release_branch} to the upstream '{upstream}'. Please push it manually.",
-        #             "red",
-        #         ),
-        #         code=1,
-        #     )
+        print(color_message("Pushing new branch to the upstream repository", "bold"))
+        res = ctx.run(f"git push --set-upstream {upstream} {release_branch}", warn=True)
+        if res.exited is None or res.exited > 0:
+            raise Exit(
+                color_message(
+                    f"Could not push branch {release_branch} to the upstream '{upstream}'. Please push it manually.",
+                    "red",
+                ),
+                code=1,
+            )
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
@@ -1337,8 +1329,8 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     print(color_message("Checking repository state", "bold"))
     ctx.run("git fetch")
 
-    # github = GithubAPI(repository=GITHUB_REPO_NAME)
-    # check_clean_branch_state(ctx, github, release_branch)
+    github = GithubAPI(repository=GITHUB_REPO_NAME)
+    check_clean_branch_state(ctx, github, release_branch)
 
     if not yes_no_question(
         f"This task will create new branches with the name '{release_branch}' in repositories: {', '.join(UNFREEZE_REPOS)}. Is this OK?",
