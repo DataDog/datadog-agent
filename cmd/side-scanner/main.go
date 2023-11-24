@@ -1855,38 +1855,22 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 		if !sleepCtx(ctx, 500*time.Millisecond) {
 			break
 		}
-		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", device, "--paths", "--json", "--bytes", "--fs", "--output", "NAME,PATH,TYPE,FSTYPE").Output()
+		devicePath, err := filepath.EvalSymlinks(device)
 		if err != nil {
 			continue
 		}
-		log.Debugf("lsblk %q %q: %s", *volume.VolumeId, device, string(lsblkJSON))
-		var blockDevices struct {
-			BlockDevices []struct {
-				Name     string `json:"name"`
-				Path     string `json:"path"`
-				Type     string `json:"type"`
-				FsType   string `json:"fstype"`
-				Children []struct {
-					Name   string `json:"name"`
-					Path   string `json:"path"`
-					Type   string `json:"type"`
-					FsType string `json:"fstype"`
-				} `json:"children"`
-			} `json:"blockdevices"`
-		}
-		if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
-			log.Warnf("lsblk parsing error: %v", err)
-			continue
-		}
-		if len(blockDevices.BlockDevices) == 0 {
-			continue
-		}
-		blockDevice := blockDevices.BlockDevices[0]
-		for _, child := range blockDevice.Children {
-			if child.Type == "part" && (child.FsType == "ext2" || child.FsType == "ext3" || child.FsType == "ext4" || child.FsType == "xfs") {
+		devs, _ := filepath.Glob(devicePath + "p*")
+		for _, partitionDevPath := range devs {
+			cmd := exec.CommandContext(ctx, "blkid", "-p", partitionDevPath, "-s", "TYPE", "-o", "value")
+			fsTypeBuf, err := cmd.CombinedOutput()
+			if err != nil {
+				continue
+			}
+			fsType := string(bytes.TrimSpace(fsTypeBuf))
+			if fsType == "ext2" || fsType == "ext3" || fsType == "ext4" || fsType == "xfs" {
 				partitions = append(partitions, devicePartition{
-					devicePath: child.Path,
-					fsType:     child.FsType,
+					devicePath: partitionDevPath,
+					fsType:     fsType,
 				})
 			}
 		}
@@ -1899,13 +1883,13 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 	}
 
 	pushCleanup(func(_ context.Context) {
-		baseMountTarget := fmt.Sprintf("/data/%s", localSnapshotID)
+		baseMountTarget := fmt.Sprintf("/snapshots/%s", localSnapshotID)
 		log.Debugf("unlink directory %q", baseMountTarget)
 		os.Remove(baseMountTarget)
 	})
 
 	for _, mp := range partitions {
-		mountTarget := fmt.Sprintf("/data/%s/%s", localSnapshotID, path.Base(mp.devicePath))
+		mountTarget := fmt.Sprintf("/snapshots/%s/%s", localSnapshotID, path.Base(mp.devicePath))
 		err = os.MkdirAll(mountTarget, 0700)
 		if err != nil {
 			err = fmt.Errorf("could not create mountTarget directory %q: %w", mountTarget, err)
@@ -1918,12 +1902,13 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 
 		var mountOutput []byte
 		for i := 0; i < 50; i++ {
-			log.Debugf("execing mount %q %q", mp.devicePath, mountTarget)
+			log.Debugf("execing mount %#v %q", mp.devicePath, mountTarget)
 			mountOutput, err = exec.CommandContext(ctx, "mount", "-o", "ro", "-t", mp.fsType, "--source", mp.devicePath, "--target", mountTarget).CombinedOutput()
 			if err == nil {
 				break
 			}
 			if !sleepCtx(ctx, 200*time.Millisecond) {
+				log.Debugf("mount error %#v: %v", mp, err)
 				break
 			}
 		}
