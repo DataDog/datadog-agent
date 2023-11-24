@@ -24,7 +24,6 @@ import (
 	"golang.org/x/exp/slices"
 
 	// DataDog agent: config stuffs
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	complog "github.com/DataDog/datadog-agent/comp/core/log"
@@ -104,12 +103,40 @@ var (
 	cleanupMaxDuration = 1 * time.Minute
 )
 
+type configType string
+
+const (
+	awsScan configType = "aws-scan"
+)
+
 type scanType string
+
+type rolesMapping map[string]*arn.ARN
 
 const (
 	ebsScanType    scanType = "ebs-volume"
 	lambdaScanType          = "lambda"
 )
+
+type scanConfig struct {
+	Type  configType        `json:"type"`
+	Tasks []*scanTask       `json:"tasks"`
+	Roles map[string]string `json:"roles"`
+}
+
+type scanTask struct {
+	Type         scanType
+	ARNString    string  `json:"arn"`
+	ARN          arn.ARN `json:"-"`
+	Hostname     string  `json:"hostname"`
+	AttachVolume bool    `json:"attachVolume,omitempty"`
+
+	roles rolesMapping
+}
+
+func (s scanTask) String() string {
+	return fmt.Sprintf("ebs_scan=%s hostname=%q", s.ARN, s.Hostname)
+}
 
 func main() {
 	flavor.SetFlavor(flavor.SideScannerAgent)
@@ -290,8 +317,6 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	common.SetupInternalProfiling(pkgconfig.Datadog, "")
-
 	if pidfilePath != "" {
 		err := pidfile.WritePID(pidfilePath)
 		if err != nil {
@@ -318,18 +343,33 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 	return nil
 }
 
+func getDefaultRolesMapping() rolesMapping {
+	roles := pkgconfig.Datadog.GetStringSlice("side_scanner.default_roles")
+	if len(roles) == 0 {
+		return nil
+	}
+	rolesMapping := make(rolesMapping, len(roles))
+	for _, role := range roles {
+		roleARN, err := arn.Parse(role)
+		if err != nil {
+			log.Warnf("side_scanner.default_roles: bad role %q", role)
+			continue
+		}
+		rolesMapping[roleARN.AccountID] = &roleARN
+	}
+	return rolesMapping
+}
+
 func scanCmd(rawScan []byte) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	common.SetupInternalProfiling(pkgconfig.Datadog, "")
-
-	scans, err := unmarshalScanTasks(rawScan)
+	config, err := unmarshalConfig(rawScan)
 	if err != nil {
 		return err
 	}
 
-	for _, scan := range scans {
+	for _, scan := range config.Tasks {
 		entity, err := launchScan(ctx, scan)
 		if err != nil {
 			log.Errorf("error scanning task %s: %s", scan, err)
@@ -344,8 +384,6 @@ func offlineCmd(poolSize int, regions []string, maxScans int, assumedRole *arn.A
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	defer statsd.Flush()
-
-	common.SetupInternalProfiling(pkgconfig.Datadog, "")
 
 	cfg, awsstats, err := newAWSConfig(ctx, "us-east-1", assumedRole)
 	if err != nil {
@@ -648,8 +686,8 @@ func mountCmd(assumedRole *arn.ARN) error {
 			return fmt.Errorf("unsupport resource type %q", resourceType)
 		}
 
-		var localAssumedRole *arn.ARN // TODO
-		mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, localAssumedRole, nil, snapshotARN)
+		var rolesMapping rolesMapping // TODO
+		mountTargets, cleanupVolume, err := shareAndAttachSnapshot(ctx, nil, rolesMapping, snapshotARN)
 		cleanups = append(cleanups, cleanupVolume)
 		if err != nil {
 			return err
@@ -665,45 +703,37 @@ func mountCmd(assumedRole *arn.ARN) error {
 	return nil
 }
 
-type scansTask struct {
-	Type  scanType    `json:"type"`
-	Scans []*scanTask `json:"scans"`
-}
-
-type scanTask struct {
-	Type              scanType
-	ARNString         string   `json:"arn"`
-	ARN               arn.ARN  `json:"-"`
-	Hostname          string   `json:"hostname"`
-	AttachVolume      bool     `json:"attachVolume,omitempty"`
-	AssumedRole       *arn.ARN `json:"-"`
-	AssumedRoleString string   `json:"assumedRole,omitempty"`
-}
-
-func (s scanTask) String() string {
-	return fmt.Sprintf("ebs_scan=%s hostname=%q", s.ARN, s.Hostname)
-}
-
-func unmarshalScanTasks(b []byte) ([]*scanTask, error) {
-	var tasks scansTask
-	if err := json.Unmarshal(b, &tasks); err != nil {
+func unmarshalConfig(b []byte) (*scanConfig, error) {
+	var config scanConfig
+	if err := json.Unmarshal(b, &config); err != nil {
 		return nil, err
 	}
-	for _, scan := range tasks.Scans {
+	if config.Type != awsScan {
+		return nil, fmt.Errorf("unexpected config type %q", config.Type)
+	}
+	roles := getDefaultRolesMapping()
+	if len(config.Roles) > 0 {
+		roles = make(rolesMapping, len(config.Roles))
+		for accountID, role := range config.Roles {
+			roleARN, err := arn.Parse(role)
+			if err != nil {
+				return nil, fmt.Errorf("bad or empty arn %q: %w", role, err)
+			}
+			if roleARN.AccountID != accountID {
+				return nil, fmt.Errorf("bad role mapping: %q associated with acccount %q", roleARN, accountID)
+			}
+			roles[accountID] = &roleARN
+		}
+	}
+	for _, scan := range config.Tasks {
 		var err error
 		scan.ARN, err = arn.Parse(scan.ARNString)
 		if err != nil {
 			return nil, fmt.Errorf("bad or empty arn %q: %w", scan.ARNString, err)
 		}
-		if scan.AssumedRoleString != "" {
-			assumedRole, err := arn.Parse(scan.AssumedRoleString)
-			if err != nil {
-				return nil, fmt.Errorf("bad or empty arn %q: %w", scan.ARNString, err)
-			}
-			scan.AssumedRole = &assumedRole
-		}
+		scan.roles = roles
 	}
-	return tasks.Scans, nil
+	return &config, nil
 }
 
 func getARNResource(arn arn.ARN) (resourceType ec2types.ResourceType, resourceID string, ok bool) {
@@ -784,12 +814,12 @@ func (s *sideScanner) start(ctx context.Context) {
 
 func (s *sideScanner) pushOrSkipScan(ctx context.Context, rawConfig state.RawConfig) {
 	log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
-	scans, err := unmarshalScanTasks(rawConfig.Config)
+	config, err := unmarshalConfig(rawConfig.Config)
 	if err != nil {
 		log.Errorf("could not parse side-scanner task: %w", err)
 		return
 	}
-	for _, scan := range scans {
+	for _, scan := range config.Tasks {
 		if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
 			continue
 		}
@@ -1214,7 +1244,8 @@ func scanEBS(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEntity,
 		return nil, err
 	}
 
-	cfg, awsstats, err := newAWSConfig(ctx, scan.ARN.Region, scan.AssumedRole)
+	assumedRole := scan.roles[scan.ARN.AccountID]
+	cfg, awsstats, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
 	if err != nil {
 		return nil, err
 	}
@@ -1269,8 +1300,7 @@ func scanEBS(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEntity,
 	var trivyArtifact artifact.Artifact
 
 	if scan.AttachVolume || globalParams.attachVolumes {
-		var localAssumedRole *arn.ARN // TODO
-		mountTargets, cleanupVolume, err := attachAndMountVolume(ctx, localAssumedRole, tags, snapshotARN)
+		mountTargets, cleanupVolume, err := shareAndAttachSnapshot(ctx, tags, scan.roles, snapshotARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
@@ -1506,7 +1536,8 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string, tags []
 
 	functionStartedAt := time.Now()
 
-	cfg, awsstats, err := newAWSConfig(ctx, scan.ARN.Region, scan.AssumedRole)
+	assumedRole := scan.roles[scan.ARN.AccountID]
+	cfg, awsstats, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
 	if err != nil {
 		return "", err
 	}
@@ -1613,7 +1644,7 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 	return nil
 }
 
-func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metrictags []string, snapshotARN arn.ARN) (mountTargets []string, cleanupVolume func(context.Context), err error) {
+func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMapping rolesMapping, snapshotARN arn.ARN) (mountTargets []string, cleanupVolume func(context.Context), err error) {
 	var cleanups []func(context.Context)
 	pushCleanup := func(cleanup func(context.Context)) {
 		cleanups = append(cleanups, cleanup)
@@ -1624,7 +1655,7 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metric
 		}
 	}
 
-	resourceType, _, ok := getARNResource(snapshotARN)
+	resourceType, snapshotID, ok := getARNResource(snapshotARN)
 	if !ok || resourceType != ec2types.ResourceTypeSnapshot {
 		err = fmt.Errorf("expected ARN for a snapshot: %s", snapshotARN.String())
 		return
@@ -1636,19 +1667,21 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metric
 		return
 	}
 
-	localAWSCfg, _, err := newAWSConfig(ctx, self.Region, localAssumedRole)
+	remoteAssumedRole := rolesMapping[snapshotARN.AccountID]
+	remoteAWSCfg, _, err := newAWSConfig(ctx, self.Region, remoteAssumedRole)
 	if err != nil {
 		err = fmt.Errorf("could not create local aws config: %w", err)
 		return
 	}
-	ec2client := ec2.NewFromConfig(localAWSCfg)
+	remoteEC2Client := ec2.NewFromConfig(remoteAWSCfg)
 
 	if snapshotARN.Region != self.Region {
 		log.Debugf("copying snapshot %q into %q", snapshotARN, self.Region)
 		_, snapshotID, _ := getARNResource(snapshotARN)
 		var copySnapshot *ec2.CopySnapshotOutput
-		copySnapshot, err = ec2client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
-			SourceRegion:      aws.String(snapshotARN.Region),
+		copySnapshot, err = remoteEC2Client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
+			SourceRegion: aws.String(snapshotARN.Region),
+			// DestinationRegion: aws.String(self.Region): automatically filled by SDK
 			SourceSnapshotId:  aws.String(snapshotID),
 			TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeSnapshot),
 		})
@@ -1659,12 +1692,12 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metric
 		pushCleanup(func(ctx context.Context) {
 			log.Debugf("deleting snapshot %q", *copySnapshot.SnapshotId)
 			// do not use context here: we want to force snapshot deletion
-			ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+			remoteEC2Client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
 				SnapshotId: copySnapshot.SnapshotId,
 			})
 		})
 		log.Debugf("waiting for copy of snapshot %q into %q as %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
-		waiter := ec2.NewSnapshotCompletedWaiter(ec2client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
+		waiter := ec2.NewSnapshotCompletedWaiter(remoteEC2Client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
 			scwo.MinDelay = 1 * time.Second
 		})
 		err = waiter.Wait(ctx, &ec2.DescribeSnapshotsInput{SnapshotIds: []string{*copySnapshot.SnapshotId}}, 10*time.Minute)
@@ -1673,12 +1706,33 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metric
 			return
 		}
 		log.Debugf("successfully copied snapshot %q into %q: %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
-		snapshotARN = ec2ARN(self.Region, self.AccountID, ec2types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
+		snapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, ec2types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
 	}
+
+	if snapshotARN.AccountID != self.AccountID {
+		_, err = remoteEC2Client.ModifySnapshotAttribute(ctx, &ec2.ModifySnapshotAttributeInput{
+			SnapshotId:    aws.String(snapshotID),
+			Attribute:     ec2types.SnapshotAttributeNameCreateVolumePermission,
+			OperationType: ec2types.OperationTypeAdd,
+			UserIds:       []string{self.AccountID},
+		})
+		if err != nil {
+			err = fmt.Errorf("could not modify snapshot attribytes %q for sharing with account ID %q: %w", snapshotARN, self.AccountID, err)
+			return
+		}
+	}
+
+	localAssumedRole := rolesMapping[self.AccountID]
+	localAWSCfg, _, err := newAWSConfig(ctx, self.Region, localAssumedRole)
+	if err != nil {
+		err = fmt.Errorf("could not create local aws config: %w", err)
+		return
+	}
+	locaEC2Client := ec2.NewFromConfig(localAWSCfg)
 
 	log.Debugf("creating new volume for snapshot %q in az %q", snapshotARN, self.AvailabilityZone)
 	_, localSnapshotID, _ := getARNResource(snapshotARN)
-	volume, err := ec2client.CreateVolume(ctx, &ec2.CreateVolumeInput{
+	volume, err := locaEC2Client.CreateVolume(ctx, &ec2.CreateVolumeInput{
 		VolumeType:        ec2types.VolumeTypeGp2,
 		AvailabilityZone:  aws.String(self.AvailabilityZone),
 		SnapshotId:        aws.String(localSnapshotID),
@@ -1691,13 +1745,13 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metric
 	pushCleanup(func(ctx context.Context) {
 		// do not use context here: we want to force deletion
 		log.Debugf("detaching volume %q", *volume.VolumeId)
-		ec2client.DetachVolume(ctx, &ec2.DetachVolumeInput{
+		locaEC2Client.DetachVolume(ctx, &ec2.DetachVolumeInput{
 			Force:    aws.Bool(true),
 			VolumeId: volume.VolumeId,
 		})
 		var errd error
 		for i := 0; i < 10; i++ {
-			_, errd = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
+			_, errd = locaEC2Client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
 				VolumeId: volume.VolumeId,
 			})
 			if errd == nil {
@@ -1716,7 +1770,7 @@ func attachAndMountVolume(ctx context.Context, localAssumedRole *arn.ARN, metric
 	device := nextDeviceName()
 	log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
 	for i := 0; i < 10; i++ {
-		_, err = ec2client.AttachVolume(ctx, &ec2.AttachVolumeInput{
+		_, err = locaEC2Client.AttachVolume(ctx, &ec2.AttachVolumeInput{
 			InstanceId: aws.String(self.InstanceID),
 			VolumeId:   volume.VolumeId,
 			Device:     aws.String(device),
