@@ -1,5 +1,5 @@
 ---
 fixes:
   - |
-    CWS/CSPM: fixes the hostname value attached to CWS and CSPM events, in some rare edge cases
-    where the security agent was not able to compute this value correctly.
+    CWS/CSPM: Fixes the hostname value attached to CWS and CSPM events, which in rare cases
+    the security agent computed incorrectly.
