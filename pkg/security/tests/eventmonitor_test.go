@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type FakeEventConsumer struct {
@@ -68,13 +67,7 @@ func (fc *FakeEventConsumer) GetExecCount() int {
 	return fc.exec
 }
 
-func (fc *FakeEventConsumer) HandleEvent(incomingEvent any) {
-	event, ok := incomingEvent.(*model.Event)
-	if !ok {
-		log.Error("Event is not a security model event")
-		return
-	}
-
+func (fc *FakeEventConsumer) HandleEvent(event *model.Event) {
 	fc.Lock()
 	defer fc.Unlock()
 
@@ -89,7 +82,7 @@ func (fc *FakeEventConsumer) HandleEvent(incomingEvent any) {
 }
 
 // Copy is no-op function used to satisfy the EventHandler interface
-func (fc *FakeEventConsumer) Copy(incomingEvent *model.Event) any {
+func (fc *FakeEventConsumer) Copy(incomingEvent *model.Event) *model.Event {
 	return incomingEvent
 }
 

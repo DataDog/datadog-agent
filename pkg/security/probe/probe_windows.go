@@ -128,7 +128,7 @@ func (p *Probe) Start() error {
 }
 
 // DispatchEvent sends an event to the probe event handler
-func (p *Probe) DispatchEvent(event *model.Event) {
+func (p *Probe[T]) DispatchEvent(event *model.Event) {
 
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.sendEventToWildcardHandlers(event)
@@ -138,13 +138,13 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 
 }
 
-func (p *Probe) sendEventToWildcardHandlers(event *model.Event) {
+func (p *Probe[T]) sendEventToWildcardHandlers(event *model.Event) {
 	for _, handler := range p.fullAccessEventHandlers[model.UnknownEventType] {
 		handler.HandleEvent(event)
 	}
 }
 
-func (p *Probe) sendEventToSpecificEventTypeHandlers(event *model.Event) {
+func (p *Probe[T]) sendEventToSpecificEventTypeHandlers(event *model.Event) {
 	for _, handler := range p.eventHandlers[event.GetEventType()] {
 		handler.HandleEvent(handler.Copy(event))
 	}

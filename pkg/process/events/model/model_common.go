@@ -68,6 +68,10 @@ type ProcessEvent struct {
 	ExitCode       uint32    `json:"exit_code,omitempty" msg:"exit_code,omitempty"`
 }
 
+func (pe *ProcessEvent) GetType() string {
+	return pe.EventType.String()
+}
+
 // NewMockedForkEvent creates a mocked Fork event for tests
 func NewMockedForkEvent(ts time.Time, pid uint32, exe string, args []string) *ProcessEvent {
 	return &ProcessEvent{

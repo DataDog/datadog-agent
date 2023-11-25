@@ -20,7 +20,6 @@ import (
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var theMonitor atomic.Value
@@ -34,6 +33,10 @@ type Process struct {
 	ContainerID *intern.Value
 	StartTime   int64
 	Expiry      int64
+}
+
+func (p *Process) GetType() string {
+	return "NPM"
 }
 
 // Env returns the value of a environment variable
@@ -79,26 +82,15 @@ func UnregisterHandler(handler ProcessEventHandler) {
 
 type eventHandlerWrapper struct{}
 
-func (h *eventHandlerWrapper) HandleEvent(ev any) {
-	if ev == nil {
-		log.Errorf("Received nil event")
-		return
-	}
-
-	evProcess, ok := ev.(*Process)
-	if !ok {
-		log.Errorf("Event is not a process")
-		return
-	}
-
+func (h *eventHandlerWrapper) HandleEvent(ev *Process) {
 	m := theMonitor.Load()
 	if m != nil {
-		m.(*eventMonitor).HandleEvent(evProcess)
+		m.(*eventMonitor).HandleEvent(ev)
 	}
 }
 
 // Copy copies the necessary fields from the event received from the event monitor
-func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
+func (h *eventHandlerWrapper) Copy(ev *model.Event) *Process {
 	m := theMonitor.Load()
 	if m != nil {
 		// If this consumer subscribes to more event types, this block will have to account for those additional event types
@@ -135,7 +127,7 @@ func (h *eventHandlerWrapper) HandleCustomEvent(rule *rules.Rule, event *events.
 var _eventHandlerWrapper = &eventHandlerWrapper{}
 
 // Handler returns an event handler to handle events from the runtime security module
-func Handler() sprobe.EventHandler {
+func Handler[T *Process]() sprobe.EventHandler[T] {
 	return _eventHandlerWrapper
 }
 
