@@ -432,8 +432,10 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	}
 
 	// send specific event
-	for _, handler := range p.customEventHandlers[event.GetEventType()] {
-		handler.HandleCustomEvent(rule, event)
+	if eventType := event.GetEventType(); eventType != model.UnknownEventType {
+		for _, handler := range p.customEventHandlers[eventType] {
+			handler.HandleCustomEvent(rule, event)
+		}
 	}
 }
 
@@ -1928,7 +1930,7 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 	ev := event.(*model.Event)
 	for _, action := range rule.Definition.Actions {
 		switch {
-		case action.InternalCallbackDefinition != nil && rule.ID == events.RefreshUserCacheRuleID:
+		case action.InternalCallback != nil && rule.ID == events.RefreshUserCacheRuleID:
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
 
 		case action.Kill != nil:
@@ -1945,6 +1947,14 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 				if err != nil {
 					seclog.Warnf("failed to kill process %d: %s", pid, err)
 				}
+			}
+		case action.CoreDump != nil:
+			if p.Config.RuntimeSecurity.InternalMonitoringEnabled {
+				dump := NewCoreDump(action.CoreDump, p.resolvers, serializers.NewEventSerializer(ev, p.resolvers))
+				rule := events.NewCustomRule(events.InternalCoreDumpRuleID, events.InternalCoreDumpRuleDesc)
+				event := events.NewCustomEvent(model.UnknownEventType, dump)
+
+				p.DispatchCustomEvent(rule, event)
 			}
 		}
 	}

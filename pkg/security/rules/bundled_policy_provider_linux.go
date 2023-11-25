@@ -15,7 +15,7 @@ var bundledPolicyRules = []*rules.RuleDefinition{{
 	ID:         events.RefreshUserCacheRuleID,
 	Expression: `rename.file.destination.path in [ "/etc/passwd", "/etc/group" ]`,
 	Actions: []rules.ActionDefinition{{
-		InternalCallbackDefinition: &rules.InternalCallbackDefinition{},
+		InternalCallback: &rules.InternalCallbackDefinition{},
 	}},
 	Silent: true,
 }}
