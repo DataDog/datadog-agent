@@ -66,6 +66,6 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 // their API key in plaintext through environment variables.
 func SetSecretsFromEnv(envVars []string) {
 	for envKey, envVal := range getSecretEnvVars(envVars, readAPIKeyFromKMS, readAPIKeyFromSecretsManager) {
-		os.Setenv(envKey, envVal)
+		os.Setenv(envKey, strings.TrimSpace(envVal))
 	}
 }

@@ -160,6 +160,24 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		serverlessDaemon.ExecutionContext.SetArnFromExtensionResponse(string(functionArn))
 	}
 
+	// adaptive flush configuration
+	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
+		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
+			log.Debugf("Invalid flush strategy %s, will use adaptive flush instead. Err: %s", v, err)
+		} else {
+			serverlessDaemon.UseAdaptiveFlush(false) // we're forcing the flush strategy, we won't be using the adaptive flush
+			serverlessDaemon.SetFlushStrategy(flushStrategy)
+		}
+	} else {
+		serverlessDaemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
+	}
+
+	config.Datadog.SetConfigFile(datadogConfigPath)
+	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
+	if _, err := config.LoadWithoutSecret(); err != nil {
+		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
+	}
+
 	// api key reading
 	// ---------------
 
@@ -173,18 +191,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	// KMS_ENCRYPTED or SECRET_ARN
 	apikey.SetSecretsFromEnv(os.Environ())
 
-	// adaptive flush configuration
-	if v, exists := os.LookupEnv(flushStrategyEnvVar); exists {
-		if flushStrategy, err := flush.StrategyFromString(v); err != nil {
-			log.Debugf("Invalid flush strategy %s, will use adaptive flush instead. Err: %s", v, err)
-		} else {
-			serverlessDaemon.UseAdaptiveFlush(false) // we're forcing the flush strategy, we won't be using the adaptive flush
-			serverlessDaemon.SetFlushStrategy(flushStrategy)
-		}
-	} else {
-		serverlessDaemon.UseAdaptiveFlush(true) // already initialized to true, but let's be explicit just in case
-	}
-
 	// validate that an apikey has been set, either by the env var, read from KMS or Secrets Manager.
 	// ---------------------------
 	if !config.Datadog.IsSet("api_key") {
@@ -193,11 +199,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		// of reporting non-critical init errors.
 		log.Error("No API key configured")
 	}
-	config.Datadog.SetConfigFile(datadogConfigPath)
-	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
-	if _, err := config.LoadWithoutSecret(); err != nil {
-		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
-	}
+
 	logChannel := make(chan *logConfig.ChannelMessage)
 	// Channels for ColdStartCreator
 	lambdaSpanChan := make(chan *pb.Span)
