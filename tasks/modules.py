@@ -4,6 +4,11 @@ import subprocess
 import sys
 from contextlib import contextmanager
 
+from invoke import Context, task
+from semver import Version
+
+from tasks.libs.common.color import color_message
+
 FORBIDDEN_CODECOV_FLAG_CHARS = re.compile(r'[^\w\.\-]')
 
 
@@ -235,3 +240,38 @@ def generate_dummy_package(ctx, folder):
     finally:
         # delete test_folder to avoid FileExistsError while running this task again
         ctx.run(f"rm -rf ./{folder}")
+
+
+@task
+def go_work(_: Context):
+    """
+    Create a go.work file using the module list contained in DEFAULT_MODULES
+    and the go version contained in the file .go-version.
+    If there is already a go.work file, it is renamed go.work.backup and a warning is printed.
+    """
+    print(
+        color_message(
+            "WARNING: Using a go.work file is not supported and can cause weird errors "
+            "when compiling the agent or running tests.\n"
+            "Remember to export GOWORK=off to avoid these issues.\n",
+            "orange",
+        ),
+        file=sys.stderr,
+    )
+
+    # read go version from the .go-version file, removing the bugfix part of the version
+
+    with open(".go-version") as f:
+        go_version = Version.parse(f.read().strip())
+        go_version = f"{go_version.major}.{go_version.minor}"
+
+    if os.path.exists("go.work"):
+        print("go.work already exists. Renaming to go.work.backup")
+        os.rename("go.work", "go.work.backup")
+
+    with open("go.work", "w") as f:
+        f.write(f"go {go_version}\n\nuse (\n")
+        for mod in DEFAULT_MODULES.values():
+            prefix = "" if mod.condition() else "//"
+            f.write(f"\t{prefix}{mod.path}\n")
+        f.write(")\n")
