@@ -34,10 +34,8 @@ type kernelTelemetry struct {
 	pathSizeBucket3 *libtelemetry.Counter
 	// pathSizeBucket4 Count of path sizes between 151-160 bytes
 	pathSizeBucket4 *libtelemetry.Counter
-	// pathSizeBucket5 Count of path sizes between 161-179 bytes
+	// pathSizeBucket5 Count of path sizes greater then 160
 	pathSizeBucket5 *libtelemetry.Counter
-	// pathSizeBucket6 Count of path is larger or equal to 180
-	pathSizeBucket6 *libtelemetry.Counter
 	// pathExceedsFrame Count of times we couldn't retrieve the path due to reaching the end of the frame.
 	pathExceedsFrame *libtelemetry.Counter
 	// exceedingMaxInterestingFrames Count of times we reached the max number of frames per iteration.
@@ -63,7 +61,6 @@ func newHTTP2KernelTelemetry() *kernelTelemetry {
 		pathSizeBucket3:               metricGroup.NewCounter("path_size_bucket_3"),
 		pathSizeBucket4:               metricGroup.NewCounter("path_size_bucket_4"),
 		pathSizeBucket5:               metricGroup.NewCounter("path_size_bucket_5"),
-		pathSizeBucket6:               metricGroup.NewCounter("path_size_bucket_6"),
 		exceedingMaxInterestingFrames: metricGroup.NewCounter("exceeding_max_interesting_frames"),
 		exceedingMaxFramesToFilter:    metricGroup.NewCounter("exceeding_max_frames_to_filter")}
 }
@@ -81,7 +78,6 @@ func (t *kernelTelemetry) update(tel *HTTP2Telemetry) {
 	t.pathSizeBucket3.Add(int64(tel.Path_size_bucket[3]))
 	t.pathSizeBucket4.Add(int64(tel.Path_size_bucket[4]))
 	t.pathSizeBucket5.Add(int64(tel.Path_size_bucket[5]))
-	t.pathSizeBucket6.Add(int64(tel.Path_size_bucket[6]))
 	t.exceedingMaxInterestingFrames.Add(int64(tel.Exceeding_max_interesting_frames))
 	t.exceedingMaxFramesToFilter.Add(int64(tel.Exceeding_max_frames_to_filter))
 }

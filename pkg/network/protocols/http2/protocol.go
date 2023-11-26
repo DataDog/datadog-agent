@@ -214,6 +214,7 @@ func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
 	ticker := time.NewTicker(10 * time.Second)
 	http2Telemetry := &HTTP2Telemetry{}
+	var zero uint32
 
 	mp, _, err := mgr.GetMap(telemetryMap)
 	if err != nil {
@@ -225,7 +226,7 @@ func (p *protocol) PostStart(mgr *manager.Manager) error {
 		for {
 			select {
 			case <-ticker.C:
-				p.updateKernelTelemetry(http2Telemetry, mp)
+				p.updateKernelTelemetry(http2Telemetry, mp, zero)
 			case <-p.done:
 				return
 			}
@@ -379,9 +380,7 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 }
 
 // updateKernelTelemetry updates the HTTP/2 kernel telemetry.
-func (p *protocol) updateKernelTelemetry(http2Telemetry *HTTP2Telemetry, mp *ebpf.Map) {
-	var zero uint32
-
+func (p *protocol) updateKernelTelemetry(http2Telemetry *HTTP2Telemetry, mp *ebpf.Map, zero uint32) {
 	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
 		log.Warnf("unable to lookup http2 telemetry map: %s", err)
 		return
