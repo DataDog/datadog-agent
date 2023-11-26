@@ -214,6 +214,7 @@ func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
 	ticker := time.NewTicker(10 * time.Second)
 	http2Telemetry := &HTTP2Telemetry{}
+	p.done = make(chan struct{})
 	var zero uint32
 
 	mp, _, err := mgr.GetMap(telemetryMap)

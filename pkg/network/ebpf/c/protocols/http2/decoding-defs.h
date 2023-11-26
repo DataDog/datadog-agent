@@ -155,7 +155,7 @@ typedef struct {
     __u64 path_exceeds_frame;
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
-    __u64 path_size_bucket[7];
+    __u64 path_size_bucket[6];
 } http2_telemetry_t;
 
 #endif
