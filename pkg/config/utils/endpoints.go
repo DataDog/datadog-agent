@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -78,7 +79,7 @@ func GetMainEndpointBackwardCompatible(c config.Reader, prefix string, ddURLKey 
 	} else if c.GetString("site") != "" {
 		return prefix + strings.TrimSpace(c.GetString("site"))
 	}
-	return prefix + config.DefaultSite
+	return prefix + pkgconfigsetup.DefaultSite
 }
 
 // GetMultipleEndpoints returns the api keys per domain specified in the main agent config
@@ -107,7 +108,7 @@ func GetMainEndpoint(c config.Reader, prefix string, ddURLKey string) string {
 	} else if c.GetString("site") != "" {
 		return prefix + strings.TrimSpace(c.GetString("site"))
 	}
-	return prefix + config.DefaultSite
+	return prefix + pkgconfigsetup.DefaultSite
 }
 
 // GetInfraEndpoint returns the main DD Infra URL defined in config, based on the value of `site` and `dd_url`

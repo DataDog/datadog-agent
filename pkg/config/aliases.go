@@ -6,11 +6,14 @@
 package config
 
 import (
+	"context"
+
 	slog "github.com/cihub/seelog"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // Aliases to conf package
@@ -112,4 +115,76 @@ func GetSyslogURI() string {
 // SetupDogstatsdLogger Alias using Datadog config
 func SetupDogstatsdLogger(logFile string) (slog.LoggerInterface, error) {
 	return logs.SetupDogstatsdLogger(logFile, Datadog)
+}
+
+// IsCloudProviderEnabled Alias using Datadog config
+func IsCloudProviderEnabled(cloudProvider string) bool {
+	return pkgconfigsetup.IsCloudProviderEnabled(cloudProvider, Datadog)
+}
+
+// GetIPCAddress Alias using Datadog config
+func GetIPCAddress() (string, error) {
+	return pkgconfigsetup.GetIPCAddress(Datadog)
+}
+
+type Endpoint = pkgconfigsetup.Endpoint
+
+const (
+	Metrics = pkgconfigsetup.Metrics
+	Traces  = pkgconfigsetup.Traces
+	Logs    = pkgconfigsetup.Logs
+)
+
+const (
+	DefaultForwarderRecoveryInterval         = pkgconfigsetup.DefaultForwarderRecoveryInterval
+	DefaultAPIKeyValidationInterval          = pkgconfigsetup.DefaultAPIKeyValidationInterval
+	DefaultBatchWait                         = pkgconfigsetup.DefaultBatchWait
+	DefaultInputChanSize                     = pkgconfigsetup.DefaultInputChanSize
+	DefaultBatchMaxConcurrentSend            = pkgconfigsetup.DefaultBatchMaxConcurrentSend
+	DefaultBatchMaxContentSize               = pkgconfigsetup.DefaultBatchMaxContentSize
+	DefaultLogsSenderBackoffRecoveryInterval = pkgconfigsetup.DefaultLogsSenderBackoffRecoveryInterval
+	DefaultLogsSenderBackoffMax              = pkgconfigsetup.DefaultLogsSenderBackoffMax
+	DefaultLogsSenderBackoffFactor           = pkgconfigsetup.DefaultLogsSenderBackoffFactor
+	DefaultLogsSenderBackoffBase             = pkgconfigsetup.DefaultLogsSenderBackoffBase
+	DefaultBatchMaxSize                      = pkgconfigsetup.DefaultBatchMaxSize
+	DefaultNumWorkers                        = pkgconfigsetup.DefaultNumWorkers
+	MaxNumWorkers                            = pkgconfigsetup.MaxNumWorkers
+)
+
+func GetObsPipelineURL(datatype pkgconfigsetup.DataType) (string, error) {
+	return pkgconfigsetup.GetObsPipelineURL(datatype, Datadog)
+}
+
+type (
+	ConfigurationProviders = pkgconfigsetup.ConfigurationProviders
+	Listeners              = pkgconfigsetup.Listeners
+	MappingProfile         = pkgconfigsetup.MappingProfile
+)
+
+func LoadCustom(config model.Config, origin string, loadsecrets bool, additionalKnownEnvVars []string) (*model.Warnings, error) {
+	return pkgconfigsetup.LoadCustom(config, origin, loadsecrets, additionalKnownEnvVars)
+}
+
+func LoadDatadogCustom(config model.Config, origin string, loadsecrets bool, additionalKnownEnvVars []string) (*model.Warnings, error) {
+	return pkgconfigsetup.LoadDatadogCustom(config, origin, loadsecrets, additionalKnownEnvVars)
+}
+
+func GetValidHostAliases(ctx context.Context) ([]string, error) {
+	return pkgconfigsetup.GetValidHostAliases(ctx, Datadog)
+}
+
+func IsCLCRunner() bool {
+	return pkgconfigsetup.IsCLCRunner(Datadog)
+}
+
+func GetBindHostFromConfig(config model.Reader) string {
+	return pkgconfigsetup.GetBindHostFromConfig(config)
+}
+
+func GetBindHost() string {
+	return pkgconfigsetup.GetBindHost(Datadog)
+}
+
+func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
+	return pkgconfigsetup.GetDogstatsdMappingProfiles(Datadog)
 }

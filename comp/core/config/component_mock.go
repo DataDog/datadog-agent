@@ -3,10 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package config implements a component to handle agent configuration.  This
-// component temporarily wraps pkg/config.
-//
-// This component initializes pkg/config based on the bundle params, and
+// This component initializes pkg/config/model based on the bundle params, and
 // will return the same results as that package.  This is to support migration
 // to a component architecture.  When no code still uses pkg/config, that
 // package will be removed.
@@ -20,16 +17,15 @@
 package config
 
 import (
-	"go.uber.org/fx"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
 // Mock implements mock-specific methods.
 type Mock interface {
 	Component
-	config.Writer
+	pkgconfigmodel.Writer
 }
 
 // MockModule defines the fx options for the mock component.

@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -95,7 +96,7 @@ func (rc *RemoteConfigProvider) IntegrationScheduleCallback(updates map[string]s
 	defer rc.mu.Unlock()
 	var err error
 
-	allowedIntegration := config.GetRemoteConfigurationAllowedIntegrations(config.Datadog)
+	allowedIntegration := pkgconfigsetup.GetRemoteConfigurationAllowedIntegrations(config.Datadog)
 
 	newCache := make(map[string]integration.Config, 0)
 	// Now schedule everything

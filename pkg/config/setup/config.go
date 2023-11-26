@@ -67,9 +67,6 @@ const (
 	// DefaultAuditorTTL is the default logs auditor TTL in hours
 	DefaultAuditorTTL = 23
 
-	// ClusterIDCacheKey is the key name for the orchestrator cluster id in the agent in-mem cache
-	ClusterIDCacheKey = "orchestratorClusterID"
-
 	// DefaultRuntimePoliciesDir is the default policies directory used by the runtime security module
 	DefaultRuntimePoliciesDir = "/etc/datadog-agent/runtime-security.d"
 
@@ -1268,7 +1265,6 @@ func InitConfig(config pkgconfigmodel.Config) {
 
 // LoadProxyFromEnv overrides the proxy settings with environment variables
 func LoadProxyFromEnv(config pkgconfigmodel.Config) {
-
 	// Viper doesn't handle mixing nested variables from files and set
 	// manually.  If we manually set one of the sub value for "proxy" all
 	// other values from the conf file will be shadowed when using
@@ -1362,7 +1358,6 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 
 // Load reads configs files and initializes the config module
 func Load(config pkgconfigmodel.Config, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-
 	return LoadDatadogCustom(config, "datadog.yaml", true, additionalEnvVars)
 }
 
@@ -1519,7 +1514,6 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 
 // LoadDatadogCustom loads the datadog config in the given config
 func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {

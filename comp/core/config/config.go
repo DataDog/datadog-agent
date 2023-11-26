@@ -11,20 +11,21 @@ import (
 
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // Reader is a subset of Config that only allows reading of configuration
-type Reader = config.Reader //nolint:revive
+type Reader = pkgconfigmodel.Reader //nolint:revive
 
 // cfg implements the Component.
 type cfg struct {
 	// this component is currently implementing a thin wrapper around pkg/config,
 	// and uses globals in that package.
-	config.Config
+	pkgconfigmodel.Config
 
 	// warnings are the warnings generated during setup
-	warnings *config.Warnings
+	warnings *pkgconfigmodel.Warnings
 }
 
 type configDependencies interface {
@@ -59,16 +60,16 @@ func NewServerlessConfig(path string) (Component, error) {
 }
 
 func newConfig(deps dependencies) (Component, error) {
-	warnings, err := setupConfig(deps)
+	config, warnings, err := setupConfig(deps)
 	returnErrFct := func(e error) (Component, error) {
 		if e != nil && deps.Params.ignoreErrors {
 			if warnings == nil {
-				warnings = &config.Warnings{}
+				warnings = &pkgconfigmodel.Warnings{}
 			}
 			warnings.Err = e
 			e = nil
 		}
-		return &cfg{Config: config.Datadog, warnings: warnings}, e
+		return &cfg{Config: config, warnings: warnings}, e
 	}
 
 	if err != nil {
@@ -76,18 +77,18 @@ func newConfig(deps dependencies) (Component, error) {
 	}
 
 	if deps.Params.configLoadSecurityAgent {
-		if err := config.Merge(deps.Params.securityAgentConfigFilePaths); err != nil {
+		if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
 			return returnErrFct(err)
 		}
 	}
 
-	return &cfg{Config: config.Datadog, warnings: warnings}, nil
+	return &cfg{Config: config, warnings: warnings}, nil
 }
 
-func (c *cfg) Warnings() *config.Warnings {
+func (c *cfg) Warnings() *pkgconfigmodel.Warnings {
 	return c.warnings
 }
 
-func (c *cfg) Object() config.Reader {
+func (c *cfg) Object() pkgconfigmodel.Reader {
 	return c.Config
 }

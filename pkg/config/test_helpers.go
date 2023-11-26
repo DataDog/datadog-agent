@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 var (
@@ -26,7 +27,7 @@ var (
 // SetupConf generates and returns a new configuration
 func SetupConf() Config {
 	conf := NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	InitConfig(conf)
+	pkgconfigsetup.InitConfig(conf)
 	return conf
 }
 
@@ -48,5 +49,5 @@ func ResetSystemProbeConfig(t *testing.T) {
 		SystemProbe = originalConfig
 	})
 	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
-	InitSystemProbeConfig(SystemProbe)
+	pkgconfigsetup.InitSystemProbeConfig(SystemProbe)
 }

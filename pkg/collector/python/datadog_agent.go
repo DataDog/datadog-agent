@@ -16,6 +16,7 @@ import (
 	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
 	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
@@ -514,5 +515,5 @@ var defaultSQLPlanObfuscateSettings = obfuscate.JSONConfig{
 
 //export getProcessStartTime
 func getProcessStartTime() float64 {
-	return float64(config.StartTime.Unix())
+	return float64(pkgconfigsetup.StartTime.Unix())
 }

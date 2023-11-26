@@ -8,9 +8,11 @@ package utils
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
@@ -21,7 +23,7 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := config.SetupConf()
 	conf.SetConfigFile("./tests/datadog_secrets.yaml")
 	// load the configuration
-	_, err := config.LoadDatadogCustom(conf, "datadog_secrets.yaml", true, nil)
+	_, err := pkgconfigsetup.LoadDatadogCustom(conf, "datadog_secrets.yaml", true, nil)
 	assert.NoError(t, err)
 
 	expectedKeysPerDomain := map[string][]string{

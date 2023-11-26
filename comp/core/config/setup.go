@@ -14,11 +14,12 @@ import (
 
 	"github.com/DataDog/viper"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
-func setupConfig(deps configDependencies) (*config.Warnings, error) {
+func setupConfig(deps configDependencies) (pkgconfigmodel.Config, *pkgconfigmodel.Warnings, error) {
 	p := deps.getParams()
 
 	confFilePath := p.ConfFilePath
@@ -27,32 +28,38 @@ func setupConfig(deps configDependencies) (*config.Warnings, error) {
 	failOnMissingFile := !p.configMissingOK
 	defaultConfPath := p.defaultConfPath
 
+	config := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.InitConfig(config)
+
+	systemProbe := pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
+	pkgconfigsetup.InitSystemProbeConfig(systemProbe)
+
 	if configName != "" {
-		config.Datadog.SetConfigName(configName)
+		config.SetConfigName(configName)
 	}
 
 	// set the paths where a config file is expected
 	if len(confFilePath) != 0 {
 		// if the configuration file path was supplied on the command line,
 		// add that first so it's first in line
-		config.Datadog.AddConfigPath(confFilePath)
+		config.AddConfigPath(confFilePath)
 		// If they set a config file directly, let's try to honor that
 		if strings.HasSuffix(confFilePath, ".yaml") || strings.HasSuffix(confFilePath, ".yml") {
-			config.Datadog.SetConfigFile(confFilePath)
+			config.SetConfigFile(confFilePath)
 		}
 	}
 	if defaultConfPath != "" {
-		config.Datadog.AddConfigPath(defaultConfPath)
+		config.AddConfigPath(defaultConfPath)
 	}
 
 	// load the configuration
 	var err error
-	var warnings *config.Warnings
+	var warnings *pkgconfigmodel.Warnings
 
 	if withoutSecrets {
-		warnings, err = config.LoadWithoutSecret()
+		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, systemProbe.GetEnvVars())
 	} else {
-		warnings, err = config.Load()
+		warnings, err = pkgconfigsetup.Load(config, systemProbe.GetEnvVars())
 	}
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
@@ -67,7 +74,7 @@ func setupConfig(deps configDependencies) (*config.Warnings, error) {
 		} else {
 			err = fmt.Errorf("unable to load Datadog config file: %w", err)
 		}
-		return warnings, err
+		return config, warnings, err
 	}
-	return warnings, nil
+	return config, warnings, nil
 }

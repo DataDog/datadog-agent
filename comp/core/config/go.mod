@@ -1,44 +1,43 @@
-module github.com/DataDog/datadog-agent/pkg/config/setup
+module github.com/DataDog/datadog-agent/comp/core/config
+
+replace (
+	github.com/DataDog/datadog-agent/cmd/agent/common/path => ../../../cmd/agent/common/path
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../../pkg/collector/check/defaults
+	github.com/DataDog/datadog-agent/pkg/config/env => ../../../pkg/config/env
+	github.com/DataDog/datadog-agent/pkg/config/setup => ../../../pkg/config/setup
+	github.com/DataDog/datadog-agent/pkg/secrets => ../../../pkg/secrets
+	github.com/DataDog/datadog-agent/pkg/telemetry => ../../../pkg/telemetry
+	github.com/DataDog/datadog-agent/pkg/util/executable => ../../../pkg/util/executable
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../../pkg/util/hostname/validate
+	github.com/DataDog/datadog-agent/pkg/util/log => ../../../pkg/util/log
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../../pkg/util/winutil
+)
 
 go 1.20
 
-replace (
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
-	github.com/DataDog/datadog-agent/pkg/config/env => ../env
-	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
-	github.com/DataDog/datadog-agent/pkg/secrets => ../../secrets
-	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
-	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
-	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log
-	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
-)
-
-// Internal deps fix version
-replace github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711-1ee8c8bd14a3
-
 require (
-	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/cmd/agent/common/path v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/env v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/model v0.50.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/secrets v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/config/setup v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.2
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
-	github.com/spf13/cast v1.5.1 // indirect
+	github.com/DataDog/viper v1.12.0
 	github.com/stretchr/testify v1.8.4
-	gopkg.in/yaml.v2 v2.4.0
+	go.uber.org/fx v1.20.1
 )
 
 require (
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/secrets v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/executable v0.0.0-00010101000000-000000000000 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.50.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.2 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.2 // indirect
-	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
@@ -65,6 +64,7 @@ require (
 	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/shirou/gopsutil/v3 v3.23.9 // indirect
 	github.com/spf13/afero v1.1.2 // indirect
+	github.com/spf13/cast v1.5.1 // indirect
 	github.com/spf13/cobra v1.7.0 // indirect
 	github.com/spf13/jwalterweatherman v1.0.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
@@ -77,7 +77,6 @@ require (
 	go.opentelemetry.io/otel/trace v1.20.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.17.0 // indirect
-	go.uber.org/fx v1.18.2 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
 	golang.org/x/mod v0.8.0 // indirect
@@ -85,5 +84,6 @@ require (
 	golang.org/x/text v0.9.0 // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
+	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
