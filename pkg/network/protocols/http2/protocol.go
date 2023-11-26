@@ -48,6 +48,8 @@ type protocol struct {
 
 	// kernelTelemetry is used to retrieve metrics from the kernel
 	http2Telemetry *kernelTelemetry
+	stopOnce       sync.Once
+	done           chan struct{}
 }
 
 const (
@@ -224,6 +226,8 @@ func (p *protocol) PostStart(mgr *manager.Manager) error {
 			select {
 			case <-ticker.C:
 				p.updateKernelTelemetry(http2Telemetry, mp)
+			case <-p.done:
+				return
 			}
 		}
 	}()
@@ -249,6 +253,13 @@ func (p *protocol) Stop(_ *manager.Manager) {
 
 	if p.statkeeper != nil {
 		p.statkeeper.Close()
+	}
+
+	if p.telemetry != nil {
+		p.stopOnce.Do(func() {
+			p.done <- struct{}{}
+			close(p.done)
+		})
 	}
 }
 
