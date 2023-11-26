@@ -21,6 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -98,10 +100,10 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		fx.Supply(config.NewParams(
 			defaultConfPath,
 			config.WithConfFilePath(cliParams.confPath),
-			config.WithConfigLoadSecrets(true),
 			config.WithConfigMissingOK(true),
 			config.WithConfigName("dogstatsd")),
 		),
+		fx.Supply(secrets.NewEnabledParams()),
 		fx.Supply(logComponent.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module,
 		logComponent.Module,
@@ -125,6 +127,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		}),
 		workloadmeta.OptionalModule,
 		demultiplexer.Module,
+		secretsimpl.Module,
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {

@@ -10,10 +10,11 @@ package run
 
 import (
 	"context"
-	_ "expvar" // Blank import used because this isn't directly used in this file
+	_ "expvar"         // Blank import used because this isn't directly used in this file
+	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
+
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
 	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
-	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"go.uber.org/fx"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -87,6 +89,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			hostMetadata host.Component,
 			invAgent inventoryagent.Component,
 			invHost inventoryhost.Component,
+			secretResolver secrets.Component,
 			_ netflowServer.Component,
 		) error {
 
@@ -111,6 +114,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				hostMetadata,
 				invAgent,
 				invHost,
+				secretResolver,
 			)
 			if err != nil {
 				return err
@@ -135,7 +139,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 		},
 			// no config file path specification in this situation
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParamsWithSecrets(""),
+				ConfigParams:         config.NewAgentParams(""),
+				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),

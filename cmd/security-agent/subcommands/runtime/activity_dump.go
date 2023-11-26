@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	secagent "github.com/DataDog/datadog-agent/pkg/security/agent"
 	secconfig "github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/api"
@@ -70,6 +71,7 @@ func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(listActivityDumps,
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
@@ -92,6 +94,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
@@ -145,6 +148,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
@@ -222,6 +226,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
@@ -288,6 +293,7 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
 				core.Bundle,
 			)
@@ -401,7 +407,7 @@ func computeActivityDumpDiff(p1, p2 *dump.ActivityDump, states map[string]bool) 
 	}
 }
 
-func diffActivityDump(log log.Component, config config.Component, args *activityDumpCliParams) error {
+func diffActivityDump(_ log.Component, _ config.Component, _ secrets.Component, args *activityDumpCliParams) error {
 	ad := dump.NewEmptyActivityDump(nil)
 	if err := ad.Decode(args.file); err != nil {
 		return err
@@ -452,7 +458,7 @@ func diffActivityDump(log log.Component, config config.Component, args *activity
 	return nil
 }
 
-func generateActivityDump(log log.Component, config config.Component, activityDumpArgs *activityDumpCliParams) error {
+func generateActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -482,7 +488,7 @@ func generateActivityDump(log log.Component, config config.Component, activityDu
 	return nil
 }
 
-func generateEncodingFromActivityDump(log log.Component, config config.Component, activityDumpArgs *activityDumpCliParams) error {
+func generateEncodingFromActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
 	var output *api.TranscodingRequestMessage
 
 	if activityDumpArgs.remoteRequest {
@@ -560,7 +566,7 @@ func generateEncodingFromActivityDump(log log.Component, config config.Component
 	return nil
 }
 
-func listActivityDumps(log log.Component, config config.Component) error {
+func listActivityDumps(_ log.Component, _ config.Component, _ secrets.Component) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
@@ -608,7 +614,7 @@ func parseStorageRequest(activityDumpArgs *activityDumpCliParams) (*api.StorageR
 	}, nil
 }
 
-func stopActivityDump(log log.Component, config config.Component, activityDumpArgs *activityDumpCliParams) error {
+func stopActivityDump(_ log.Component, _ config.Component, _ secrets.Component, activityDumpArgs *activityDumpCliParams) error {
 	client, err := secagent.NewRuntimeSecurityClient()
 	if err != nil {
 		return fmt.Errorf("unable to create a runtime security client instance: %w", err)
