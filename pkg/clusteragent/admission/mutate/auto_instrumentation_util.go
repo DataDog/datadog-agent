@@ -11,8 +11,8 @@ package mutate
 import (
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -39,7 +39,7 @@ func getOwnerNameAndKind(pod *corev1.Pod) (string, string, bool) {
 	return ownerName, ownerKind, true
 }
 
-func getLibListFromDeploymentAnnotations(store workloadmeta.Store, deploymentName, ns, registry string) []libInfo {
+func getLibListFromDeploymentAnnotations(store workloadmeta.Component, deploymentName, ns, registry string) []libInfo {
 	libList := []libInfo{}
 
 	// populate libInfoList using the languages found in workloadmeta

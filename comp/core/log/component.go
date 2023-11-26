@@ -76,6 +76,15 @@ var Module fx.Option = fxutil.Component(
 	fx.Provide(newAgentLogger),
 )
 
+// TraceModule defines the fx options for this component in its Trace variant.
+//
+// TODO(components): move this comp/trace; that component shall implement the
+//
+//	log.Component interface.
+var TraceModule fx.Option = fxutil.Component(
+	fx.Provide(newTraceLogger),
+)
+
 // MockModule defines the fx options for the mock component.
 var MockModule fx.Option = fxutil.Component(
 	fx.Provide(newMockLogger),

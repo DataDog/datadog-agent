@@ -628,11 +628,11 @@ func newProcessSerializer(ps *model.Process, e *model.Event, resolvers *resolver
 func newUserSessionContextSerializer(ctx *model.UserSessionContext, e *model.Event, _ *resolvers.Resolvers) *UserSessionContextSerializer {
 	return &UserSessionContextSerializer{
 		ID:          fmt.Sprintf("%x", ctx.ID),
-		SessionType: ctx.SessionType.String(),
 		K8SUsername: e.FieldHandlers.ResolveK8SUsername(e, ctx),
 		K8SUID:      e.FieldHandlers.ResolveK8SUID(e, ctx),
 		K8SGroups:   e.FieldHandlers.ResolveK8SGroups(e, ctx),
 		K8SExtra:    e.FieldHandlers.ResolveK8SExtra(e, ctx),
+		SessionType: ctx.SessionType.String(),
 	}
 }
 

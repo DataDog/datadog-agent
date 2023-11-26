@@ -38,7 +38,7 @@ type PodCheck struct {
 }
 
 // Init initializes a PodCheck instance.
-func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
+func (c *PodCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	c.hostInfo = hostInfo
 	c.containerFailedLogLimit = util.NewLogLimit(10, time.Minute*10)
 	c.processor = processors.NewProcessor(new(k8sProcessors.PodHandlers))

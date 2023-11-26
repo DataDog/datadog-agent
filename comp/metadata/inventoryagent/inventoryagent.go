@@ -266,3 +266,12 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 		Metadata:  data,
 	}
 }
+
+// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
+func (ia *inventoryagent) Get() map[string]interface{} {
+	data := map[string]interface{}{}
+	for k, v := range ia.data {
+		data[k] = v
+	}
+	return data
+}

@@ -46,11 +46,6 @@ func NewProcessCheck(config ddconfig.Reader) *ProcessCheck {
 		lookupIdProbe: NewLookupIDProbe(config),
 	}
 
-	if workloadmeta.Enabled(config) {
-		check.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
-		check.workloadMetaServer = workloadmeta.NewGRPCServer(config, check.workloadMetaExtractor)
-	}
-
 	return check
 }
 
@@ -112,7 +107,7 @@ type ProcessCheck struct {
 }
 
 // Init initializes the singleton ProcessCheck.
-func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
+func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error {
 	p.hostInfo = info
 	p.sysProbeConfig = syscfg
 	p.probe = newProcessProbe(p.config, procutil.WithPermission(syscfg.ProcessModuleEnabled))
@@ -142,7 +137,9 @@ func (p *ProcessCheck) Init(syscfg *SysProbeConfig, info *HostInfo) error {
 
 	p.initConnRates()
 
-	if workloadmeta.Enabled(p.config) {
+	if !oneShot && workloadmeta.Enabled(p.config) {
+		p.workloadMetaExtractor = workloadmeta.NewWorkloadMetaExtractor(ddconfig.SystemProbe)
+		p.workloadMetaServer = workloadmeta.NewGRPCServer(p.config, p.workloadMetaExtractor)
 		err = p.workloadMetaServer.Start()
 		if err != nil {
 			return log.Error("Failed to start the workloadmeta process entity gRPC server:", err)

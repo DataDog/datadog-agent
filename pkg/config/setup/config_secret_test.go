@@ -3,16 +3,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+<<<<<<< HEAD:pkg/config/setup/config_secret_test.go
 //go:build secrets
 
 package setup
+=======
+package config
+>>>>>>> dinesh.gurumurthy/OTEL-1260-secrets:pkg/config/config_secret_test.go
 
 import (
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,18 +26,18 @@ import (
 func TestProxyWithSecret(t *testing.T) {
 	type testCase struct {
 		name  string
-		setup func(t *testing.T, config Config)
+		setup func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver)
 		tests func(t *testing.T, config Config)
 	}
 
 	cases := []testCase{
 		{
-			name: "secrets fron configuration for proxy",
-			setup: func(t *testing.T, config Config) {
-				secrets.InjectSecrets(t, "http_handle", "http_url")
-				secrets.InjectSecrets(t, "https_handle", "https_url")
-				secrets.InjectSecrets(t, "no_proxy_1_handle", "no_proxy_1")
-				secrets.InjectSecrets(t, "no_proxy_2_handle", "no_proxy_2")
+			name: "secrets from configuration for proxy",
+			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
+				resolver.Inject("http_handle", "http_url")
+				resolver.Inject("https_handle", "https_url")
+				resolver.Inject("no_proxy_1_handle", "no_proxy_1")
+				resolver.Inject("no_proxy_2_handle", "no_proxy_2")
 
 				config.SetWithoutSource("secret_backend_command", "some_command")
 				config.SetWithoutSource("proxy.http", "ENC[http_handle]")
@@ -50,11 +56,11 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron DD env vars for proxy",
-			setup: func(t *testing.T, config Config) {
-				secrets.InjectSecrets(t, "http_handle", "http_url")
-				secrets.InjectSecrets(t, "https_handle", "https_url")
-				secrets.InjectSecrets(t, "no_proxy_1_handle", "no_proxy_1")
-				secrets.InjectSecrets(t, "no_proxy_2_handle", "no_proxy_2")
+			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
+				resolver.Inject("http_handle", "http_url")
+				resolver.Inject("https_handle", "https_url")
+				resolver.Inject("no_proxy_1_handle", "no_proxy_1")
+				resolver.Inject("no_proxy_2_handle", "no_proxy_2")
 
 				config.SetWithoutSource("secret_backend_command", "some_command")
 				t.Setenv("DD_PROXY_HTTP", "ENC[http_handle]")
@@ -73,11 +79,11 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron UNIX env vars for proxy",
-			setup: func(t *testing.T, config Config) {
-				secrets.InjectSecrets(t, "http_handle", "http_url")
-				secrets.InjectSecrets(t, "https_handle", "https_url")
-				secrets.InjectSecrets(t, "no_proxy_1_handle", "no_proxy_1")
-				secrets.InjectSecrets(t, "no_proxy_2_handle", "no_proxy_2")
+			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
+				resolver.Inject("http_handle", "http_url")
+				resolver.Inject("https_handle", "https_url")
+				resolver.Inject("no_proxy_1_handle", "no_proxy_1")
+				resolver.Inject("no_proxy_2_handle", "no_proxy_2")
 
 				config.SetWithoutSource("secret_backend_command", "some_command")
 				t.Setenv("HTTP_PROXY", "ENC[http_handle]")
@@ -112,11 +118,12 @@ func TestProxyWithSecret(t *testing.T) {
 			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
+			resolver := secretsimpl.NewMockSecretResolver()
 			if c.setup != nil {
-				c.setup(t, config)
+				c.setup(t, config, resolver)
 			}
 
-			_, err := LoadCustom(config, "unit_test", true, nil)
+			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)

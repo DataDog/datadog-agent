@@ -126,6 +126,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -709,6 +710,15 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 
 		// copy rest of arguments
 		copy(httpConnLink.http.RequestFragment[1:], urlParsed.Path)
+
+		// the above `getPath` is expecting characters after the path (the user agent)
+		// string or whatever else is in the request headers.
+		// if it doesn't have anything, it assumes that we weren't able to acquire the
+		// entire URL path.  So, if there's room, append another char on the end so
+		// it knows we got the whole thing
+		if len(urlParsed.Path)+1 < int(maxRequestFragmentBytes) {
+			httpConnLink.http.RequestFragment[len(urlParsed.Path)+1] = 32 // also a space
+		}
 
 	}
 
@@ -1342,6 +1352,16 @@ func ipAndPortFromTup(tup driver.ConnTupleType, local bool) ([16]uint8, uint16) 
 		return tup.LocalAddr, tup.LocalPort
 	}
 	return tup.RemoteAddr, tup.RemotePort
+}
+
+func ip4format(ip [16]uint8) string {
+	ipObj := netip.AddrFrom4(*(*[4]byte)(ip[:4]))
+	return ipObj.String()
+}
+
+func ip6format(ip [16]uint8) string {
+	ipObj := netip.AddrFrom16(ip)
+	return ipObj.String()
 }
 
 // IPFormat takes a binary ip representation and returns a string type

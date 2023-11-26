@@ -12,10 +12,9 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/DataDog/viper"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/viper"
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
@@ -24,7 +23,6 @@ func setupConfig(deps configDependencies) (pkgconfigmodel.Config, *pkgconfigmode
 
 	confFilePath := p.ConfFilePath
 	configName := p.configName
-	withoutSecrets := !p.configLoadSecrets
 	failOnMissingFile := !p.configMissingOK
 	defaultConfPath := p.defaultConfPath
 
@@ -55,12 +53,13 @@ func setupConfig(deps configDependencies) (pkgconfigmodel.Config, *pkgconfigmode
 	// load the configuration
 	var err error
 	var warnings *pkgconfigmodel.Warnings
-
-	if withoutSecrets {
+	resolver := deps.getSecretResolver()
+	if resolver == nil {
 		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, systemProbe.GetEnvVars())
 	} else {
-		warnings, err = pkgconfigsetup.Load(config, systemProbe.GetEnvVars())
+		warnings, err = config.LoadWithSecret(resolver, config, systemProbe.GetEnvVars())
 	}
+
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && (failOnMissingFile || !errors.As(err, &e) || confFilePath != "") {
