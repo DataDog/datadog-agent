@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	pkgcfgutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -34,6 +35,8 @@ const (
 	Stopped uint32 = iota
 	// Started represent the internal state of an started Forwarder.
 	Started
+	// Disabled represent the internal state of a disabled Forwarder.
+	Disabled
 )
 
 const (
@@ -272,6 +275,16 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, resolver := range options.DomainResolvers {
+		isHA := false
+		if config.GetBool("ha.enabled") && config.GetString("ha.site") != "" {
+			log.Infof("HA is enabled, checking site: %v ", config.GetString("ha.site"))
+			siteURL := pkgcfgutils.BuildURLWithPrefix(pkgcfgutils.InfraURLPrefix, config.GetString("ha.site"))
+			if domain == siteURL {
+				log.Infof("HA domain '%s', configured ", domain)
+				isHA = true
+			}
+
+		}
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
 		resolver.SetBaseDomain(domain)
 		if resolver.GetAPIKeys() == nil || len(resolver.GetAPIKeys()) == 0 {
@@ -301,6 +314,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				config,
 				log,
 				domain,
+				isHA,
 				transactionContainer,
 				options.NumberOfWorkers,
 				options.ConnectionResetInterval,
@@ -484,6 +498,12 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	now := time.Now()
 	for _, t := range transactions {
 		forwarder := f.domainForwarders[t.Domain]
+
+		// // For now, active-active failover so default forwarder should never be disabled.
+		// if forwarder.State() == Disabled {
+		// 	f.log.Debugf("Forwarder for domain %v is disabled; dropping transaction for this domain.", t.Domain)
+		// 	continue
+		// }
 		forwarder.sendHTTPTransactions(t)
 
 		if f.queueDurationCapacity != nil {
