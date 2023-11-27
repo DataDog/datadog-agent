@@ -253,12 +253,7 @@ func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 }
 
 func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
-	mount := mr.mounts[mountID]
-	if mount != nil {
-		return mount
-	}
-
-	return mr.getFromRedemption(mountID)
+	return mr.mounts[mountID]
 }
 
 func (mr *Resolver) lookupByDevice(device uint32) *model.Mount {
@@ -277,25 +272,30 @@ func (mr *Resolver) lookupByDevice(device uint32) *model.Mount {
 	return result
 }
 
-func (mr *Resolver) lookupMount(mountID uint32, device uint32, allowDeviceFallback bool) *model.Mount {
-	mount := mr.lookupByMountID(mountID)
-	if mount != nil {
-		return mount
+func (mr *Resolver) lookupMount(mountID uint32, device uint32, allowFallbacks bool) *model.Mount {
+	if m := mr.lookupByMountID(mountID); m != nil {
+		return m
 	}
 
-	if allowDeviceFallback {
-		return mr.lookupByDevice(device)
+	if allowFallbacks {
+		if m := mr.lookupByDevice(device); m != nil {
+			return m
+		}
+
+		if m := mr.getFromRedemption(mountID); m != nil {
+			return m
+		}
 	}
 
 	return nil
 }
 
-func (mr *Resolver) _getMountPath(mountID uint32, device uint32, cache map[uint32]bool, allowDeviceFallback bool) (string, error) {
+func (mr *Resolver) _getMountPath(mountID uint32, device uint32, cache map[uint32]bool, allowFallbacks bool) (string, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", err
 	}
 
-	mount := mr.lookupMount(mountID, device, allowDeviceFallback)
+	mount := mr.lookupMount(mountID, device, allowFallbacks)
 	if mount == nil {
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
@@ -319,7 +319,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, cache map[uint3
 		return "", ErrMountUndefined
 	}
 
-	parentMountPath, err := mr._getMountPath(mount.ParentPathKey.MountID, mount.Device, cache, allowDeviceFallback)
+	parentMountPath, err := mr._getMountPath(mount.ParentPathKey.MountID, mount.Device, cache, allowFallbacks)
 	if err != nil {
 		return "", err
 	}
@@ -389,11 +389,11 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	// if UseProcFS is disabled, we can directly allow the device fallback since getMountPath will be called
+	// if UseProcFS is disabled, we can directly allow the device fallback and redemption since getMountPath will be called
 	// only once
-	allowDirectDeviceFallback := !mr.opts.UseProcFS
+	allowFallbacks := !mr.opts.UseProcFS
 
-	path, err := mr.getMountPath(mountID, device, allowDirectDeviceFallback)
+	path, err := mr.getMountPath(mountID, device, allowFallbacks)
 	if err == nil {
 		mr.cacheHitsStats.Inc()
 		return path, nil
@@ -434,11 +434,11 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	// if UseProcFS is disabled, we can directly allow the device fallback since getMountPath will be called
+	// if UseProcFS is disabled, we can directly allow the device fallback and redemption since getMountPath will be called
 	// only once
-	allowDirectDeviceFallback := !mr.opts.UseProcFS
+	allowFallbacks := !mr.opts.UseProcFS
 
-	mount := mr.lookupMount(mountID, device, allowDirectDeviceFallback)
+	mount := mr.lookupMount(mountID, device, allowFallbacks)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
 		return mount, nil
