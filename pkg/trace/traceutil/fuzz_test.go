@@ -20,12 +20,12 @@ var normalizationSeedCorpus = []string{
 	"A00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 000000000000",
 }
 
-func FuzzNormalizeOnlyTag(f *testing.F) {
+func FuzzNormalizeTag(f *testing.F) {
 	normalize := func(in, _ string) (string, error) { return NormalizeTag(in), nil }
 	fuzzNormalization(f, normalizationSeedCorpus, maxTagLength, normalize)
 }
 
-func FuzzNormalizeTagAndValue(f *testing.F) {
+func FuzzNormalizeTagValue(f *testing.F) {
 	normalize := func(in, _ string) (string, error) { return NormalizeTagValue(in), nil }
 	fuzzNormalization(f, normalizationSeedCorpus, maxTagLength, normalize)
 }
