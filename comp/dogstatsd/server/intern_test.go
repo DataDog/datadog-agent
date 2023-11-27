@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func BenchmarkloadOrStoreReset(b *testing.B) {
+func BenchmarkLoadOrStoreReset(b *testing.B) {
 	sInterner := newStringInterner(4, 1, false)
 
 	// benchmark with the internal telemetry enabled

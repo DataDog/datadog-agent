@@ -67,7 +67,7 @@ func (i *stringInterner) prepareTelemetry() {
 	i.telemetry.miss = cache.TlmSIRMiss.WithValues(i.id)
 }
 
-func (i *stringInterner) LoadOrStore(b []byte, origin string, retainer cache.InternRetainer) string {
+func (i *stringInterner) LoadOrStore(b []byte, _ string, _ cache.InternRetainer) string {
 	return i.loadOrStore(b)
 }
 
