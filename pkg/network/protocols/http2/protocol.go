@@ -212,17 +212,26 @@ func (p *protocol) PreStart(mgr *manager.Manager) (err error) {
 
 func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
-	ticker := time.NewTicker(10 * time.Second)
-	http2Telemetry := &HTTP2Telemetry{}
-	var zero uint32
 
 	p.setupHTTP2InFlightMapCleaner(mgr)
 	p.setupDynamicTableMapCleaner(mgr)
+	p.updateKernelTelemetry(mgr)
+	return nil
+}
 
+func (p *protocol) updateKernelTelemetry(mgr *manager.Manager) {
 	mp, _, err := mgr.GetMap(telemetryMap)
 	if err != nil {
-		return err
+		return
 	}
+
+	if mp == nil {
+		return
+	}
+	var zero uint32
+	http2Telemetry := &HTTP2Telemetry{}
+	ticker := time.NewTicker(10 * time.Second)
+
 	go func() {
 		defer ticker.Stop()
 
@@ -241,8 +250,6 @@ func (p *protocol) PostStart(mgr *manager.Manager) error {
 			}
 		}
 	}()
-
-	return nil
 }
 
 func (p *protocol) Stop(_ *manager.Manager) {
