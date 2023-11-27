@@ -3,13 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-<<<<<<< HEAD:pkg/config/setup/config_secret_test.go
 //go:build secrets
 
 package setup
-=======
-package config
->>>>>>> dinesh.gurumurthy/OTEL-1260-secrets:pkg/config/config_secret_test.go
 
 import (
 	"os"
@@ -104,7 +100,6 @@ func TestProxyWithSecret(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-
 			// CircleCI sets NO_PROXY, so unset it for this test
 			unsetEnvForTest(t, "NO_PROXY")
 

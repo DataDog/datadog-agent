@@ -21,19 +21,13 @@ import (
 	"strings"
 	"time"
 
-<<<<<<< HEAD:pkg/config/setup/config.go
-=======
-	"gopkg.in/yaml.v2"
-
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
->>>>>>> dinesh.gurumurthy/OTEL-1260-secrets:pkg/config/config.go
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/optional"
-
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"gopkg.in/yaml.v2"
 )
 
@@ -1363,18 +1357,14 @@ func LoadProxyFromEnv(config pkgconfigmodel.Config) {
 	}
 }
 
-
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret(config pkgconfigmodel.Config, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-	return LoadDatadogCustom(config, "datadog.yaml", false, additionalEnvVars)
-// LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
-func LoadWithoutSecret(config pkgconfigmodel.Config, additionalEnvVars []string) (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), additionalEnvVars)
+	return LoadDatadogCustom(config, "datadog.yaml", optional.NewNoneOption[secrets.Component](), additionalEnvVars)
 }
 
 // LoadWithSecret reads config files and initializes config with decrypted secrets
-func LoadWithSecret(config pkpkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewOption[secrets.Component](secretResolver), additionalEnvVars)
+func LoadWithSecret(config pkgconfigmodel.Config, secretResolver secrets.Component, additionalEnvVars []string) (*pkgconfigmodel.Warnings, error) {
+	return LoadDatadogCustom(config, "datadog.yaml", optional.NewOption[secrets.Component](secretResolver), additionalEnvVars)
 }
 
 // Merge will merge additional configuration into an existing configuration
@@ -1530,11 +1520,7 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadogCustom loads the datadog config in the given config
-<<<<<<< HEAD:pkg/config/setup/config.go
-func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
-=======
-func LoadDatadogCustom(config Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*Warnings, error) {
->>>>>>> dinesh.gurumurthy/OTEL-1260-secrets:pkg/config/config.go
+func LoadDatadogCustom(config pkgconfigmodel.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -1579,13 +1565,8 @@ func LoadDatadogCustom(config Config, origin string, secretResolver optional.Opt
 }
 
 // LoadCustom reads config into the provided config object
-<<<<<<< HEAD:pkg/config/setup/config.go
-func LoadCustom(config pkgconfigmodel.Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
+func LoadCustom(config pkgconfigmodel.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*pkgconfigmodel.Warnings, error) {
 	warnings := pkgconfigmodel.Warnings{}
-=======
-func LoadCustom(config Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*Warnings, error) {
-	warnings := Warnings{}
->>>>>>> dinesh.gurumurthy/OTEL-1260-secrets:pkg/config/config.go
 
 	if err := config.ReadInConfig(); err != nil {
 		if pkgconfigenv.IsServerless() {
@@ -1688,23 +1669,7 @@ func setupFipsEndpoints(config pkgconfigmodel.Config) error {
 	os.Unsetenv("HTTP_PROXY")
 	os.Unsetenv("HTTPS_PROXY")
 
-<<<<<<< HEAD:pkg/config/setup/config.go
-	// We're creating a temporary configuration which will be merged to the main config later.
-	// Internally, Viper uses multiple storages for the configuration values and values from datadog.yaml are stored
-	// in a different place from where overrides (created with config.Set(...)) are stored.
-	// Some products are using UnmarshalKey() which either uses overridden data or either configuration file data but not
-	// both at the same time (see https://github.com/spf13/viper/issues/1106)
-	//
-	// Because of that we cannot rely on Set() because it creates overridden data and then UnmarshalKey() will only use the
-	// option created with Set() instead of using option from Set() + option from configuration file.
-	// Instead we merge all the options we need into the main configuration (basically we dynamically add data to the place
-	// where configuration file data are stored)
-	fipsConfig := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-
-	fipsConfig.Set("fips.https", config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
-=======
 	config.Set("fips.https", config.GetBool("fips.https"), pkgconfigmodel.SourceAgentRuntime)
->>>>>>> dinesh.gurumurthy/OTEL-1260-secrets:pkg/config/config.go
 
 	// HTTP for now, will soon be updated to HTTPS
 	protocol := "http://"
@@ -1771,11 +1736,7 @@ func setupFipsLogsConfig(config pkgconfigmodel.Config, configPrefix string, url 
 // ResolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
-<<<<<<< HEAD:pkg/config/setup/config.go
-func ResolveSecrets(config pkgconfigmodel.Config, origin string) error {
-=======
-func ResolveSecrets(config Config, secretResolver secrets.Component, origin string) error {
->>>>>>> dinesh.gurumurthy/OTEL-1260-secrets:pkg/config/config.go
+func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
 	secretResolver.Configure(

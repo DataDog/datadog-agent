@@ -57,7 +57,7 @@ func setupConfig(deps configDependencies) (pkgconfigmodel.Config, *pkgconfigmode
 	if resolver == nil {
 		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, systemProbe.GetEnvVars())
 	} else {
-		warnings, err = config.LoadWithSecret(resolver, config, systemProbe.GetEnvVars())
+		warnings, err = pkgconfigsetup.LoadWithSecret(config, resolver, systemProbe.GetEnvVars())
 	}
 
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.

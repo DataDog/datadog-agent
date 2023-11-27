@@ -3,14 +3,16 @@ module github.com/DataDog/datadog-agent/pkg/config/setup
 go 1.20
 
 replace (
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ../../../comp/core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/secrets => ../../../comp/core/secrets
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ../../collector/check/defaults
 	github.com/DataDog/datadog-agent/pkg/config/env => ../env
 	github.com/DataDog/datadog-agent/pkg/config/model => ../model/
-	github.com/DataDog/datadog-agent/pkg/secrets => ../../secrets
 	github.com/DataDog/datadog-agent/pkg/telemetry => ../../telemetry
 	github.com/DataDog/datadog-agent/pkg/util/executable => ../../util/executable
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate => ../../util/hostname/validate
 	github.com/DataDog/datadog-agent/pkg/util/log => ../../util/log
+	github.com/DataDog/datadog-agent/pkg/util/optional => ../../util/optional
 	github.com/DataDog/datadog-agent/pkg/util/winutil => ../../util/winutil
 )
 
@@ -20,11 +22,10 @@ replace github.com/spf13/cast => github.com/DataDog/cast v1.3.1-0.20190301154711
 require (
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/env v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/config/model v0.50.0-rc.2
-	github.com/DataDog/datadog-agent/pkg/secrets v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/config/model v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/util/hostname/validate v0.0.0-00010101000000-000000000000
-	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.2
+	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/stretchr/testify v1.8.4
@@ -32,12 +33,18 @@ require (
 )
 
 require (
-	github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.0.0-00010101000000-000000000000
+)
+
+require (
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.0.0-00010101000000-000000000000 // indirect
+	github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.0.0-00010101000000-000000000000 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.50.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.2 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.2 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.50.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.4 // indirect
 	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -77,7 +84,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.20.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/dig v1.17.0 // indirect
-	go.uber.org/fx v1.18.2 // indirect
+	go.uber.org/fx v1.20.1 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.23.0 // indirect
 	golang.org/x/mod v0.8.0 // indirect

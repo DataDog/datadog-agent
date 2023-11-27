@@ -161,12 +161,12 @@ type (
 	MappingProfile         = pkgconfigsetup.MappingProfile
 )
 
-func LoadCustom(config model.Config, origin string, loadsecrets bool, additionalKnownEnvVars []string) (*model.Warnings, error) {
-	return pkgconfigsetup.LoadCustom(config, origin, loadsecrets, additionalKnownEnvVars)
+func LoadCustom(config model.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*model.Warnings, error) {
+	return pkgconfigsetup.LoadCustom(config, origin, secretResolver, additionalKnownEnvVars)
 }
 
-func LoadDatadogCustom(config model.Config, origin string, loadsecrets bool, additionalKnownEnvVars []string) (*model.Warnings, error) {
-	return pkgconfigsetup.LoadDatadogCustom(config, origin, loadsecrets, additionalKnownEnvVars)
+func LoadDatadogCustom(config model.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*model.Warnings, error) {
+	return pkgconfigsetup.LoadDatadogCustom(config, origin, secretResolver, additionalKnownEnvVars)
 }
 
 func GetValidHostAliases(ctx context.Context) ([]string, error) {
