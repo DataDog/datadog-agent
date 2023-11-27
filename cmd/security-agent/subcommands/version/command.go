@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkgversion "github.com/DataDog/datadog-agent/pkg/version"
@@ -41,7 +42,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{versionCmd}
 }
 
-func displayVersion(log log.Component, config config.Component) {
+func displayVersion(_ log.Component, _ config.Component, _ secrets.Component) {
 	av, _ := pkgversion.Agent()
 	meta := ""
 	if av.Meta != "" {

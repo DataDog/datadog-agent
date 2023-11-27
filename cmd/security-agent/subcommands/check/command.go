@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -35,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -61,6 +63,7 @@ func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command 
 	return commandsWrapped(func() core.BundleParams {
 		return core.BundleParams{
 			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
+			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 			LogParams:            log.ForOneShot(command.LoggerName, "info", true),
 		}
@@ -109,7 +112,7 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 }
 
 // RunCheck runs a check
-func RunCheck(log log.Component, config config.Component, statsd statsd.Component, checkArgs *CliParams) error {
+func RunCheck(log log.Component, config config.Component, _ secrets.Component, statsd statsd.Component, checkArgs *CliParams) error {
 	hname, err := hostname.Get(context.TODO())
 	if err != nil {
 		return err
@@ -242,6 +245,11 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 }
 
 func reportComplianceEvents(log log.Component, config config.Component, events []*compliance.CheckEvent) error {
+	hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.Background())
+	if err != nil {
+		return log.Errorf("Error while getting hostname, exiting: %v", err)
+	}
+
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 	runPath := config.GetString("compliance_config.run_path")
@@ -249,7 +257,7 @@ func reportComplianceEvents(log log.Component, config config.Component, events [
 	if err != nil {
 		return fmt.Errorf("reporter: could not reate log context for compliance: %w", err)
 	}
-	reporter, err := compliance.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, context)
+	reporter, err := compliance.NewLogReporter(hostnameDetected, stopper, "compliance-agent", "compliance", runPath, endpoints, context)
 	if err != nil {
 		return fmt.Errorf("reporter: could not create: %w", err)
 	}

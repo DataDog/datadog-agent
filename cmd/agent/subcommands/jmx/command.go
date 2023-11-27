@@ -29,6 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -92,7 +93,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.jmxLogLevel = "debug"
 		}
 		params := core.BundleParams{
-			ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+			SecretParams: secrets.NewEnabledParams(),
 			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false)}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
@@ -238,7 +240,7 @@ func disableCmdPort() {
 
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command
 // with the Console reporter
-func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta workloadmeta.Component, diagnoseSendermanager diagnosesendermanager.Component, agentAPI internalAPI.Component) error {
+func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta workloadmeta.Component, diagnoseSendermanager diagnosesendermanager.Component, secretResolver secrets.Component, agentAPI internalAPI.Component) error {
 	// This prevents log-spam from "comp/core/workloadmeta/collectors/internal/remote/process_collector/process_collector.go"
 	// It appears that this collector creates some contention in AD.
 	// Disabling it is both more efficient and gets rid of this log spam
@@ -255,7 +257,7 @@ func runJmxCommandConsole(config config.Component, cliParams *cliParams, wmeta w
 	}
 	// The Autoconfig instance setup happens in the workloadmeta start hook
 	// create and setup the Collector and others.
-	common.LoadComponents(context.Background(), senderManager, config.GetString("confd_path"))
+	common.LoadComponents(senderManager, secretResolver, config.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to

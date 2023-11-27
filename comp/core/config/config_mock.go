@@ -14,6 +14,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 )
@@ -27,6 +28,10 @@ type mockDependencies struct {
 func (m mockDependencies) getParams() *Params {
 	p := m.Params.Params
 	return &p
+}
+
+func (m mockDependencies) getSecretResolver() secrets.Component {
+	return nil
 }
 
 // newMock exported mock builder to allow modifying mocks that might be

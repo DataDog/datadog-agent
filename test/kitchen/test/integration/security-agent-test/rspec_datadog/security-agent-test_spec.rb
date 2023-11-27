@@ -59,11 +59,16 @@ shared_examples "passes" do |bundle, env|
       # The package name has to be the real path in order to use agent-platform's CODEOWNER parsing downstream
       # The junitfiles are uploaded to the Datadog CI Visibility product, and for downloading
       # The json files are used to print failed tests at the end of the Gitlab job
+      #
+      # The tests are retried if they fail, but only if less than 5 failed
+      # so that we do not retry the whole testsuite in case of a global failure
       gotestsum_test2json_cmd = ["sudo", "-E",
         "/go/bin/gotestsum",
         "--format", "testname",
         "--junitfile", xmlpath,
         "--jsonfile", jsonpath,
+        "--rerun-fails=2",
+        "--rerun-fails-max-failures=5",
         "--raw-command", "--",
         "/go/bin/test2json", "-t", "-p", "github.com/DataDog/datadog-agent/pkg/security/tests"
       ]
