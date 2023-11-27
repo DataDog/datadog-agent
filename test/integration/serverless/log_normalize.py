@@ -121,10 +121,9 @@ def normalize_traces(stage, aws_account_id):
         sort_by(trace_sort_key),
     ]
 
+
 def normalize_proxy():
-    return [
-        find(r'Using proxy .*? for URL .*?\'.*?\'')
-    ]
+    return [find(r'Using proxy .*? for URL .*?\'.*?\'')]
 
 
 def normalize_appsec(stage):
@@ -194,6 +193,7 @@ def require(pattern):
         return match.group(0)
 
     return _require
+
 
 def find(pattern):
     comp = re.compile(pattern, flags=re.DOTALL)
