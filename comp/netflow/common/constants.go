@@ -26,4 +26,7 @@ const (
 
 	// DefaultPrometheusListenerAddress is the default goflow prometheus listener address
 	DefaultPrometheusListenerAddress = "localhost:9090"
+
+	// MetricPrefix is the common metric prefix for Netflow telemetry
+	MetricPrefix = "datadog.netflow."
 )
