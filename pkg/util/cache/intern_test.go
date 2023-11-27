@@ -156,7 +156,7 @@ func TestInternLoadOrStoreReset(t *testing.T) {
 	assert.Equal(4, cacheLen())
 }
 
-func NoTestLoadSeveralGenerations(t *testing.T) {
+func NoTestLoadSeveralGenerations(_ *testing.T) {
 	interner := NewKeyedStringInternerMemOnly(8)
 	retainer := newRetainer()
 

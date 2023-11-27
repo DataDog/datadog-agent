@@ -8,7 +8,6 @@ package cache
 import (
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
@@ -69,13 +68,13 @@ type siTelemetry struct {
 	size, bytes       telemetry.SimpleGauge
 }
 
-func newLruStringCache(maxSize int, origin string) lruStringCache {
+func newLruStringCache(maxSize int, origin string, enableTelemetry bool) lruStringCache {
 	i := &lruStringCache{
 		strings: make(map[string]*stringCacheItem),
 		maxSize: maxSize,
 		origin:  origin,
 		telemetry: siTelemetry{
-			enabled: utils.IsTelemetryEnabled(),
+			enabled: enableTelemetry,
 		},
 	}
 

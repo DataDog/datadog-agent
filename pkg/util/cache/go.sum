@@ -38,6 +38,8 @@ cloud.google.com/go/storage v1.14.0/go.mod h1:GrKmX003DSIwi9o29oFT7YDnHYwZoctc3f
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
+github.com/DataDog/datadog-agent v0.0.0-20231127191722-a3b8e6d0b8e8 h1:vXTdW1FiZJcUmSOin6PqLsYj0rKnRGfVE/oNxKQr3U0=
+github.com/DataDog/datadog-agent v0.0.0-20231127191722-a3b8e6d0b8e8/go.mod h1:u+XPheegNNALeLoLOIAj4RBiiR8wP0vQsLQG0WgHln8=
 github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4 h1:otuQe2x+WAgN78POmUSlOq0MRJkoLRlyGR5Fn3H55fI=
 github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4/go.mod h1:fqxtze7NiJ+jQnLCT/F38ewDy8yVGraReiJNZRtQNVM=
 github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.50.0-rc.4 h1:1wm1HN7ybhije39/Ny32hnCiYvx6YSIp8Xd7mPwcznA=

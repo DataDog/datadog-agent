@@ -17,7 +17,7 @@ func heapAlloc(key []byte) string {
 }
 
 func Test_lruStringCache_deduplicate(t *testing.T) {
-	table := newLruStringCache(4, "test")
+	table := newLruStringCache(4, "test", false)
 	assert.Empty(t, table.strings)
 
 	foo := table.lookupOrInsert([]byte("foo"), heapAlloc)
@@ -33,7 +33,7 @@ func Test_lruStringCache_deduplicate(t *testing.T) {
 }
 
 func Test_lruStringCache_evicts(t *testing.T) {
-	table := newLruStringCache(1, "test")
+	table := newLruStringCache(1, "test", false)
 	assert.Empty(t, table.strings)
 
 	foo := table.lookupOrInsert([]byte("foo"), heapAlloc)

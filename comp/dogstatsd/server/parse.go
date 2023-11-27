@@ -60,6 +60,7 @@ func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int) *
 	var interner cache.Interner
 	if useKeyedInterner {
 		interner = cache.NewKeyedStringInternerMemOnly(stringInternerCacheSize)
+		interner.(*cache.KeyedInterner).SetTelemetry(utils.IsTelemetryEnabled())
 	} else {
 		interner = newStringInterner(stringInternerCacheSize, workerNum, utils.IsTelemetryEnabled())
 	}

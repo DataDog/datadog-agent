@@ -73,7 +73,7 @@ func bytesPerEntry(maxStringCount int) int64 {
 	return int64(maxStringCount * backingBytesPerInCoreEntry)
 }
 
-func newStringInterner(origin string, maxStringCount int, tmpPath string, closeOnRelease, enableDiagnostics bool, growthFactor float64) *stringInterner {
+func newStringInterner(origin string, maxStringCount int, tmpPath string, closeOnRelease, enableDiagnostics, enableTelemetry bool, growthFactor float64) *stringInterner {
 	// First version: a basic mmap'd file. Nothing fancy. Later: refcount system for
 	// each interner. When the mmap goes to zero, unmap it WHEN we have a newer
 	// version there.
@@ -91,7 +91,7 @@ func newStringInterner(origin string, maxStringCount int, tmpPath string, closeO
 		}
 	}
 	i := &stringInterner{
-		cache:          newLruStringCache(maxStringCount, origin),
+		cache:          newLruStringCache(maxStringCount, origin, enableTelemetry),
 		fileBacking:    backing,
 		growthFactor:   growthFactor,
 		maxStringCount: maxStringCount,
@@ -163,7 +163,7 @@ func (i *stringInterner) Release(n int32) {
 		log.Debugf("Finalizing backing, refcount=%d, n=%d", i.refcount, n)
 		i.fileBacking.finalize()
 		// a dead interner in case anyone comes looking for us again.
-		i.cache = newLruStringCache(0, i.cache.origin)
+		i.cache = newLruStringCache(0, i.cache.origin, false)
 		i.maxStringCount = 0
 	}
 	i.refcount -= n
@@ -195,6 +195,7 @@ type KeyedInterner struct {
 	lock              sync.Mutex
 	enableDiagnostics bool
 	growthFactor      float64
+	enableTelemetry   bool
 }
 
 // NewKeyedStringInterner creates a Keyed String Interner with a max per-origin quota of maxQuota
@@ -239,6 +240,7 @@ func NewKeyedStringInternerVals(stringInternerCacheSize int, closeOnRelease bool
 		closeOnRelease:    closeOnRelease,
 		enableDiagnostics: enableDiagnostics,
 		growthFactor:      growthFactor,
+		enableTelemetry:   false,
 	}
 }
 
@@ -260,6 +262,7 @@ func NewKeyedStringInternerMemOnly(stringInternerCacheSize int) Interner {
 		closeOnRelease:    false,
 		enableDiagnostics: false,
 		growthFactor:      defaultGrowthFactor,
+		enableTelemetry:   false,
 	}
 }
 
@@ -267,6 +270,10 @@ func NewKeyedStringInternerMemOnly(stringInternerCacheSize int) Interner {
 // most tests.
 func NewKeyedStringInternerForTest() Interner {
 	return NewKeyedStringInternerMemOnly(512)
+}
+
+func (i *KeyedInterner) SetTelemetry(enableTelemetry bool) {
+	i.enableTelemetry = enableTelemetry
 }
 
 // 'static' globals for query statistics.
@@ -298,10 +305,10 @@ func (i *KeyedInterner) LoadOrStore(key []byte, origin string, retainer InternRe
 
 func (i *KeyedInterner) makeInterner(origin string, stringMaxCount int) *stringInterner {
 	if bytesPerEntry(stringMaxCount) >= i.minFileSize {
-		return newStringInterner(origin, stringMaxCount, i.tmpPath, i.closeOnRelease, i.enableDiagnostics, i.growthFactor)
+		return newStringInterner(origin, stringMaxCount, i.tmpPath, i.closeOnRelease, i.enableDiagnostics, i.enableTelemetry, i.growthFactor)
 	}
 	// No file cache until we get bigger.
-	return newStringInterner(origin, stringMaxCount, noFileCache, i.closeOnRelease, i.enableDiagnostics, i.growthFactor)
+	return newStringInterner(origin, stringMaxCount, noFileCache, i.closeOnRelease, i.enableDiagnostics, i.enableTelemetry, i.growthFactor)
 }
 
 func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRetainer) string {
