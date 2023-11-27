@@ -261,6 +261,9 @@ type Config struct {
 
 	// EnableUSMQuantization enables endpoint quantization for USM programs
 	EnableUSMQuantization bool
+
+	// EnableUSMConnectionRollup enables the aggregation of connection data belonging to a same (client, server) pair
+	EnableUSMConnectionRollup bool
 }
 
 func join(pieces ...string) string {
@@ -357,6 +360,7 @@ func New() *Config {
 		EnableGoTLSSupport:          cfg.GetBool(join(smNS, "tls", "go", "enabled")),
 		EnableHTTPStatsByStatusCode: cfg.GetBool(join(smNS, "enable_http_stats_by_status_code")),
 		EnableUSMQuantization:       cfg.GetBool(join(smNS, "enable_quantization")),
+		EnableUSMConnectionRollup:   cfg.GetBool(join(smNS, "enable_connection_rollup")),
 	}
 
 	httpRRKey := join(smNS, "http_replace_rules")
