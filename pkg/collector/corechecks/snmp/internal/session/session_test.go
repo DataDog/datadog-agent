@@ -9,6 +9,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"io"
 	stdlog "log"
 	"testing"
@@ -453,4 +454,64 @@ func TestFetchAllOIDsUsingGetNext_invalidZeroVariable(t *testing.T) {
 
 	resultOIDs := FetchAllFirstRowOIDs(sess) // no packet created if variables != 1
 	assert.Equal(t, []string(nil), resultOIDs)
+}
+
+func Test_getNextOidUsingTrie(t *testing.T) {
+	type args struct {
+	}
+	tests := []struct {
+		name            string
+		oidTrie         *common.OIDTrie
+		oid             string
+		expectedNextOid string
+		expectedErr     string
+	}{
+		{
+			name: "found case",
+			oidTrie: &common.OIDTrie{
+				Children: map[int]*common.OIDTrie{
+					1: {
+						Children: map[int]*common.OIDTrie{
+							3: {
+								Children: map[int]*common.OIDTrie{
+									4: {},
+								},
+							},
+						},
+					},
+				},
+			},
+			oid:             "1.3.4",
+			expectedNextOid: "1.3.5",
+		},
+		{
+			name: "not found case",
+			oidTrie: &common.OIDTrie{
+				Children: map[int]*common.OIDTrie{
+					1: {
+						Children: map[int]*common.OIDTrie{
+							3: {
+								Children: map[int]*common.OIDTrie{
+									4: {},
+								},
+							},
+						},
+					},
+				},
+			},
+			oid:             "1.3.3",
+			expectedNextOid: "",
+			expectedErr:     "non-leaft node found",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			digits, _ := common.OidToNumbers(tt.oid)
+			actualNextOid, err := getNextOidUsingTrie(digits, tt.oidTrie)
+			assert.Equal(t, tt.expectedNextOid, actualNextOid)
+			if tt.expectedErr != "" {
+				assert.EqualError(t, err, tt.expectedErr)
+			}
+		})
+	}
 }

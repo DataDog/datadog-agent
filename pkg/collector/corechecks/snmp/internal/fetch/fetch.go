@@ -6,7 +6,10 @@
 package fetch
 
 import (
+	_ "embed"
+	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/common"
 	"github.com/gosnmp/gosnmp"
 	"strconv"
 	"time"
@@ -68,7 +71,57 @@ func Fetch(sess session.Session, config *checkconfig.CheckConfig) (*valuestore.R
 	return &valuestore.ResultValueStore{ScalarValues: scalarResults, ColumnValues: columnResults, DeviceScanValues: results}, nil
 }
 
+// BuildOidTrie2 builds the OIDTrie from a list of OIDs
+func BuildOidTrie2(rawOIDTrie map[string]rawOIDTrieNode) *common.OIDTrie {
+	newTrieRoot := common.NewOidTrie()
+	BuildOidTrie2Recursive(rawOIDTrie, newTrieRoot)
+	return newTrieRoot
+}
+
+// BuildOidTrie2Recursive builds the OIDTrie from a list of OIDs
+func BuildOidTrie2Recursive(rawOIDTrie map[string]rawOIDTrieNode, newTrieNode *common.OIDTrie) {
+	for key, node := range rawOIDTrie {
+		num, err := strconv.Atoi(key)
+		if err != nil {
+			log.Warnf("[BuildOidTrie2Recursive] Error %s", err)
+			return
+		}
+
+		if newTrieNode.Children == nil {
+			newTrieNode.Children = make(map[int]*common.OIDTrie)
+		}
+		if _, ok := newTrieNode.Children[num]; !ok {
+			newTrieNode.Children[num] = common.NewOidTrie()
+		}
+		BuildOidTrie2Recursive(node, newTrieNode.Children[num])
+	}
+}
+
+//go:embed oid_trie_full.json
+var oidTrie []byte
+
+type rawOIDTrieNode map[string]rawOIDTrieNode
+
 func getDeviceScanValues(sess session.Session, config *checkconfig.CheckConfig) []gosnmp.SnmpPDU {
+	// TODO: avoid unmarshalling every check run
+	rawTrie := rawOIDTrieNode{}
+	err := json.Unmarshal(oidTrie, &rawTrie)
+	if err != nil {
+		log.Warnf("[FetchAllFirstRowOIDsVariables] json.Unmarshal Error %s", err)
+		return nil
+	}
+
+	//log.Warnf("[FetchAllFirstRowOIDsVariables] RAW oidTrie json %s", string(oidTrie))
+	//log.Warnf("[FetchAllFirstRowOIDsVariables] RAW oidTrie struct %s", rawTrie)
+	//log.Warnf("[FetchAllFirstRowOIDsVariables] rawTrie %+v", rawTrie)
+	newTrie := BuildOidTrie2(rawTrie)
+
+	//newTrieAsJson, _ := json.Marshal(newTrie)
+	//log.Warnf("[FetchAllFirstRowOIDsVariables] NEW Trie %+v", string(newTrieAsJson))
+	//for _, child := range newTrie.Children {
+	//	log.Warnf("[FetchAllFirstRowOIDsVariables] NEW Trie child %+v", child)
+	//}
+
 	// TODO: Use a internal type instead of gosnmp.SnmpPDU to avoid leaking gosnmp types ?
 	var results []gosnmp.SnmpPDU
 	if config.DeviceScanEnabled {
@@ -83,7 +136,7 @@ func getDeviceScanValues(sess session.Session, config *checkconfig.CheckConfig) 
 		//}
 
 		fetchStart := time.Now()
-		fetchedResults := session.FetchAllFirstRowOIDsVariables(sess)
+		fetchedResults := session.FetchAllFirstRowOIDsVariables(sess, newTrie)
 
 		fetchDuration := time.Since(fetchStart)
 		log.Warnf("[FetchAllFirstRowOIDsVariables] PRINT PDUs (len: %d)", len(results))
