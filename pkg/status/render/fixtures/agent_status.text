@@ -65,15 +65,15 @@ Agent (vx.y.z)
   ========
     agent_version: x.y.z
     cloud_provider: GCP
-    config_apm_dd_url:
-    config_dd_url:
-    config_logs_dd_url:
-    config_logs_socks5_proxy_address:
+    config_apm_dd_url: 
+    config_dd_url: 
+    config_logs_dd_url: 
+    config_logs_socks5_proxy_address: 
     config_no_proxy: []
-    config_process_dd_url:
-    config_proxy_http:
-    config_proxy_https:
-    config_site:
+    config_process_dd_url: 
+    config_proxy_http: 
+    config_proxy_https: 
+    config_site: 
     feature_apm_enabled: false
     feature_cspm_enabled: false
     feature_cws_enabled: false
@@ -97,7 +97,7 @@ Collector
 
   Running Checks
   ==============
-
+    
     cilium (2.3.0)
     --------------
       Instance ID: cilium:bac99095d52d45c [ERROR]
@@ -118,9 +118,9 @@ Collector
         File "/opt/datadog-agent/embedded/lib/python3.8/site-packages/urllib3/util/connection.py", line 85, in create_connection
           sock.connect(sa)
       ConnectionRefusedError: [Errno 111] Connection refused
-
+      
       During handling of the above exception, another exception occurred:
-
+      
       Traceback (most recent call last):
         File "/opt/datadog-agent/embedded/lib/python3.8/site-packages/urllib3/connectionpool.py", line 703, in urlopen
           httplib_response = self._make_request(
@@ -143,9 +143,9 @@ Collector
         File "/opt/datadog-agent/embedded/lib/python3.8/site-packages/urllib3/connection.py", line 186, in _new_conn
           raise NewConnectionError(
       urllib3.exceptions.NewConnectionError: <urllib3.connection.HTTPConnection object at 0x7f20296ba430>: Failed to establish a new connection: [Errno 111] Connection refused
-
+      
       During handling of the above exception, another exception occurred:
-
+      
       Traceback (most recent call last):
         File "/opt/datadog-agent/embedded/lib/python3.8/site-packages/requests/adapters.py", line 489, in send
           resp = conn.urlopen(
@@ -154,9 +154,9 @@ Collector
         File "/opt/datadog-agent/embedded/lib/python3.8/site-packages/urllib3/util/retry.py", line 592, in increment
           raise MaxRetryError(_pool, url, error or ResponseError(cause))
       urllib3.exceptions.MaxRetryError: HTTPConnectionPool(host='10.146.15.207', port=9090): Max retries exceeded with url: /metrics (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f20296ba430>: Failed to establish a new connection: [Errno 111] Connection refused'))
-
+      
       During handling of the above exception, another exception occurred:
-
+      
       Traceback (most recent call last):
         File "/opt/datadog-agent/embedded/lib/python3.8/site-packages/datadog_checks/base/checks/base.py", line 1122, in run
           self.check(instance)
@@ -187,7 +187,7 @@ Collector
         File "/opt/datadog-agent/embedded/lib/python3.8/site-packages/requests/adapters.py", line 565, in send
           raise ConnectionError(e, request=request)
       requests.exceptions.ConnectionError: HTTPConnectionPool(host='10.146.15.207', port=9090): Max retries exceeded with url: /metrics (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7f20296ba430>: Failed to establish a new connection: [Errno 111] Connection refused'))
-
+    
     datadog_cluster_agent (2.4.0)
     -----------------------------
       Instance ID: datadog_cluster_agent:4b0f56c49d48c92e [OK]
@@ -199,7 +199,7 @@ Collector
       Average Execution Time : 29ms
       Last Execution Date : 2022-12-20 23:52:01 CET / 2022-12-20 22:52:01 UTC (1671576721000)
       Last Successful Execution Date : 2022-12-20 23:52:01 CET / 2022-12-20 22:52:01 UTC (1671576721000)
-
+      
       Instance ID: datadog_cluster_agent:79dc7329a0398f09 [OK]
       Configuration Source: file:/etc/datadog-agent/conf.d/datadog_cluster_agent.d/auto_conf.yaml
       Total Runs: 838
@@ -209,8 +209,8 @@ Collector
       Average Execution Time : 25ms
       Last Execution Date : 2022-12-20 23:51:59 CET / 2022-12-20 22:51:59 UTC (1671576719000)
       Last Successful Execution Date : 2022-12-20 23:51:59 CET / 2022-12-20 22:51:59 UTC (1671576719000)
-
-
+      
+    
     network (2.9.2)
     ---------------
       Instance ID: network:d884b5186b651429 [OK]
@@ -222,11 +222,11 @@ Collector
       Average Execution Time : 6ms
       Last Execution Date : 2022-12-20 23:51:48 CET / 2022-12-20 22:51:48 UTC (1671576708000)
       Last Successful Execution Date : 2022-12-20 23:51:48 CET / 2022-12-20 22:51:48 UTC (1671576708000)
-
+      
   Check Initialization Errors
   ===========================
 
-
+    
       postgres (13.1.0)
       -----------------
 
@@ -247,10 +247,10 @@ __init__() got an unexpected keyword argument 'agentConfig'
     --------
       Core Check Loader:
         Check postgres not found in Catalog
-
+        
       JMX Check Loader:
         check is not a jmx check, or unable to determine if it's so
-
+        
       Python Check Loader:
         could not configure check instance for python check postgres: could not invoke 'postgres' python check constructor. New constructor API returned:
 Traceback (most recent call last):
@@ -261,7 +261,7 @@ Traceback (most recent call last):
 datadog_checks.base.errors.ConfigurationError: Please specify a user to connect to Postgres.
 Deprecated constructor API returned:
 __init__() got an unexpected keyword argument 'agentConfig'
-
+        
 ========
 JMXFetch
 ========
@@ -271,11 +271,11 @@ JMXFetch
   Initialized checks
   ==================
     no checks
-
+    
   Failed checks
   =============
     no checks
-
+    
 =========
 Forwarder
 =========
@@ -399,7 +399,7 @@ Process Agent
   Collector
   =========
     Last collection time: 2022-12-20 22:51:56
-    Docker socket:
+    Docker socket: 
     Number of processes: 0
     Number of containers: 25
     Process Queue length: 0
@@ -439,7 +439,7 @@ APM Agent
   Receiver (previous minute)
   ==========================
     No traces received in the previous minute.
-
+    
 
   Writer (previous minute)
   ========================
@@ -480,7 +480,7 @@ Tip: For troubleshooting, enable 'dogstatsd_metrics_stats_enable' in the main da
 =====================
 Datadog Cluster Agent
 =====================
-
+  
     - Datadog Cluster Agent endpoint detected: https://10.122.58.252:5005
     Successfully connected to the Datadog Cluster Agent.
     - Running: x.y.z+commit.9b0b54b
@@ -502,9 +502,9 @@ Autodiscovery
 ====================
 Remote Configuration
 ====================
-
+    
     Remote Configuration is disabled
-
+    
 
 ====
 OTLP
@@ -512,3 +512,4 @@ OTLP
 
   Status: Not enabled
   Collector status: Not running
+  
