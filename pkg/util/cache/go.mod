@@ -3,7 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/cache
 go 1.20
 
 require (
-	github.com/DataDog/datadog-agent v0.0.0-20231121233128-f8de392596ba
+	github.com/DataDog/datadog-agent v0.0.0-20231127145558-e8cc667a72e4
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
 	github.com/hashicorp/golang-lru v1.0.2
@@ -22,6 +22,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/executable v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.4 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/optional v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4 // indirect

@@ -8,7 +8,6 @@ package server
 import (
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
@@ -43,13 +42,13 @@ type siTelemetry struct {
 	miss   telemetry.SimpleCounter
 }
 
-func newStringInterner(maxSize int, internerID int) *stringInterner {
+func newStringInterner(maxSize int, internerID int, enableTelemetry bool) *stringInterner {
 	i := &stringInterner{
 		strings: make(map[string]string),
 		id:      fmt.Sprintf("interner_%d", internerID),
 		maxSize: maxSize,
 		telemetry: siTelemetry{
-			enabled: utils.IsTelemetryEnabled(),
+			enabled: enableTelemetry,
 		},
 	}
 

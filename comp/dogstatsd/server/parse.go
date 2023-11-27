@@ -13,6 +13,7 @@ import (
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 )
 
@@ -60,7 +61,7 @@ func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int) *
 	if useKeyedInterner {
 		interner = cache.NewKeyedStringInternerMemOnly(stringInternerCacheSize)
 	} else {
-		interner = newStringInterner(stringInternerCacheSize, workerNum)
+		interner = newStringInterner(stringInternerCacheSize, workerNum, utils.IsTelemetryEnabled())
 	}
 
 	return &parser{

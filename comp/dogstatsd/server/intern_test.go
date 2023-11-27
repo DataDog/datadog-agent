@@ -13,7 +13,7 @@ import (
 )
 
 func BenchmarkloadOrStoreReset(b *testing.B) {
-	sInterner := newStringInterner(4, 1)
+	sInterner := newStringInterner(4, 1, false)
 
 	// benchmark with the internal telemetry enabled
 	sInterner.telemetry.enabled = true
@@ -32,7 +32,7 @@ func BenchmarkloadOrStoreReset(b *testing.B) {
 
 func TestInternloadOrStoreValue(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := newStringInterner(3, 1)
+	sInterner := newStringInterner(3, 1, false)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -53,7 +53,7 @@ func TestInternloadOrStoreValue(t *testing.T) {
 
 func TestInternloadOrStorePointer(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := newStringInterner(4, 1)
+	sInterner := newStringInterner(4, 1, false)
 
 	foo := []byte("foo")
 	bar := []byte("bar")
@@ -78,7 +78,7 @@ func TestInternloadOrStorePointer(t *testing.T) {
 
 func TestInternloadOrStoreReset(t *testing.T) {
 	assert := assert.New(t)
-	sInterner := newStringInterner(4, 1)
+	sInterner := newStringInterner(4, 1, false)
 
 	// first test that the good value is returned.
 	sInterner.loadOrStore([]byte("foo"))

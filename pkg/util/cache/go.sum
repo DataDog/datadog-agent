@@ -40,6 +40,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-agent v0.0.0-20231121233128-f8de392596ba h1:0Vl4kmlHqjoBBxxSHeatuG+tgB/r9Jo/w8rbd6+Sxxs=
 github.com/DataDog/datadog-agent v0.0.0-20231121233128-f8de392596ba/go.mod h1:zLmfBfGiLp4qO959MhMDQ13+NNmYMt1Cj4rIt0sm/BM=
+github.com/DataDog/datadog-agent v0.0.0-20231127145558-e8cc667a72e4 h1:UKh5+q6CuKipUXxXJ3mk0Orh7on8yV381RQV01bipDI=
+github.com/DataDog/datadog-agent v0.0.0-20231127145558-e8cc667a72e4/go.mod h1:u+XPheegNNALeLoLOIAj4RBiiR8wP0vQsLQG0WgHln8=
 github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4 h1:otuQe2x+WAgN78POmUSlOq0MRJkoLRlyGR5Fn3H55fI=
 github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4/go.mod h1:fqxtze7NiJ+jQnLCT/F38ewDy8yVGraReiJNZRtQNVM=
 github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.50.0-rc.4 h1:1wm1HN7ybhije39/Ny32hnCiYvx6YSIp8Xd7mPwcznA=
@@ -60,6 +62,8 @@ github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.4 h1:7oxAzmw45+sXA8h
 github.com/DataDog/datadog-agent/pkg/util/fxutil v0.50.0-rc.4/go.mod h1:7kOpiHGxTZda3s2qymMX1QKbyk1LuyisCVgIQ7DtntU=
 github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4 h1:+T3+RXIFvpoJuQsrDicZEC9anVSpEyieeT5LnfvSVFQ=
 github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4/go.mod h1:6NUjdvC6gpbgY6q12Rf94nk5QQePkysDCGsy7qYic4k=
+github.com/DataDog/datadog-agent/pkg/util/optional v0.50.0-rc.4 h1:i7tPYwjVZO4qO7mPzpwRR/Ro2+tj13ftCAEOipq4U70=
+github.com/DataDog/datadog-agent/pkg/util/optional v0.50.0-rc.4/go.mod h1:G991O09J5EeAdk6AjeCBc8mPooxIUT29Py8dh1ktW90=
 github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4 h1:CdM5V+VdDZURWoC7amybTe9hMGXDnmXpSi3KfcyBkL0=
 github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4/go.mod h1:EOGgNrSPskIxY3+KgCl+yEggMjrGqrA2oL5va+/p2jM=
 github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.4 h1:53Kl0f+NR5QQ9V0iii7p8A13X7ZNTdqggxK0cWJGhpE=
