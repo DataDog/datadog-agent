@@ -34,7 +34,6 @@ func newOrchestratorForwarder(log log.Component, config config.Component, params
 		return createComponent(defaultforwarder.NoopForwarder{})
 	}
 	if params.UseOrchestratorForwarder {
-
 		if !config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled")) {
 			forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
 			return &forwarder

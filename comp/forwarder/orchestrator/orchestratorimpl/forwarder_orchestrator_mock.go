@@ -25,5 +25,4 @@ var MockModule = fxutil.Component(
 func NewMockOrchestratorForwarder() orchestrator.Component {
 	forwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 	return &forwarder
-
 }
