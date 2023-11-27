@@ -1500,7 +1500,7 @@ func scanLambda(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEnti
 	}
 	defer os.RemoveAll(tempDir)
 
-	codePath, err := downloadLambda(ctx, scan, tempDir, tags)
+	codePath, lambdaVersion, err := downloadLambda(ctx, scan, tempDir, tags)
 	if err != nil {
 		return
 	}
@@ -1558,7 +1558,8 @@ func scanLambda(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEnti
 		Id:     scan.ARN.String(),
 		InUse:  true,
 		DdTags: []string{
-			"function:" + scan.ARN.String(),
+			"git.repository_url:" + scan.ARN.String(),
+			"git.branch:" + lambdaVersion,
 		},
 		GeneratedAt:        timestamppb.New(createdAt),
 		GenerationDuration: convertDuration(duration),
@@ -1570,7 +1571,7 @@ func scanLambda(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEnti
 	return
 }
 
-func downloadLambda(ctx context.Context, scan *scanTask, tempDir string, tags []string) (codePath string, err error) {
+func downloadLambda(ctx context.Context, scan *scanTask, tempDir string, tags []string) (codePath, lambdaVersion string, err error) {
 	statsd.Count("datadog.sidescanner.functions.started", 1.0, tags, 1.0)
 	defer func() {
 		if err != nil {
@@ -1593,69 +1594,73 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string, tags []
 	assumedRole := scan.roles[scan.ARN.AccountID]
 	cfg, awsstats, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
 	if err != nil {
-		return "", err
+		return
 	}
 	defer awsstats.SendStats()
 
 	lambdaclient := lambda.NewFromConfig(cfg)
 	if err != nil {
-		return "", err
+		return
 	}
 
 	lambdaFunc, err := lambdaclient.GetFunction(ctx, &lambda.GetFunctionInput{
 		FunctionName: aws.String(scan.ARN.String()),
 	})
 	if err != nil {
-		return "", err
+		return
 	}
 
+	lambdaVersion = *lambdaFunc.Configuration.Version
+
 	if lambdaFunc.Code.Location == nil {
-		return "", fmt.Errorf("lambdaFunc.Code.Location is nil")
+		err = fmt.Errorf("lambdaFunc.Code.Location is nil")
+		return
 	}
 
 	archivePath := filepath.Join(tempDir, "code.zip")
 	archiveFile, err := os.OpenFile(archivePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		return "", err
+		return
 	}
 	defer archiveFile.Close()
 
 	lambdaURL := *lambdaFunc.Code.Location
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, lambdaURL, nil)
 	if err != nil {
-		return "", err
+		return
 	}
 
 	resp, err := defaultHTTPClient.Do(req)
 	if err != nil {
-		return "", err
+		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("bad status: %s", resp.Status)
+		err = fmt.Errorf("bad status: %s", resp.Status)
+		return
 	}
 
 	_, err = io.Copy(archiveFile, resp.Body)
 	if err != nil {
-		return "", err
+		return
 	}
 
 	codePath = filepath.Join(tempDir, "code")
 	err = os.Mkdir(codePath, 0700)
 	if err != nil {
-		return "", err
+		return
 	}
 
 	err = extractZip(ctx, archivePath, codePath)
 	if err != nil {
-		return "", err
+		return
 	}
 
 	functionDuration := time.Since(functionStartedAt)
 	log.Debugf("function retrieved sucessfully %q (took %s)", scan.ARN, functionDuration)
 	statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagSuccess(tags), 1.0)
 	statsd.Histogram("datadog.sidescanner.functions.duration", float64(functionDuration.Milliseconds()), tags, 1.0)
-	return codePath, nil
+	return
 }
 
 func extractZip(ctx context.Context, zipPath, destinationPath string) error {
