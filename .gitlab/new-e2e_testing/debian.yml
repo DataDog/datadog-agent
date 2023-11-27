@@ -5,7 +5,7 @@
 
 .new-e2e_install_script:
   variables:
-    TARGET: ./tests/install-script
+    TARGETS: ./tests/install-script
     TEAM: agent-platform
     EXTRA_PARAMS: --osversion $E2E_OSVERS --platform $E2E_PLATFORM --cws-supported-osversion $E2E_CWS_SUPPORTED_OSVERS --major-version $AGENT_MAJOR_VERSION --arch $E2E_ARCH --flavor $FLAVOR
 
@@ -128,8 +128,3 @@ new-e2e-agent-platform-install-script-debian-heroku-agent-a7-x86_64:
     - .new-e2e_agent_a7
   variables:
     FLAVOR: datadog-heroku-agent
-
-
-
-
-
