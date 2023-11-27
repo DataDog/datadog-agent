@@ -110,11 +110,13 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 			processStartTime = ev.GetProcessForkTime()
 		}
 
+		envs := ev.GetProcessEnvp()
+
 		return &Process{
 			Pid:         ev.GetProcessPid(),
 			ContainerID: intern.GetByString(ev.GetContainerId()),
 			StartTime:   processStartTime.UnixNano(),
-			Envs: ev.GetProcessEnvp(map[string]bool{
+			Envs: model.FilterEnvs(envs, map[string]bool{
 				"DD_SERVICE": true,
 				"DD_VERSION": true,
 				"DD_ENV":     true,
