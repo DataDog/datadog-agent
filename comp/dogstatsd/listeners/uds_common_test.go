@@ -50,8 +50,9 @@ func testFileExistsNewUDSListener(t *testing.T, socketPath string, cfg map[strin
 	assert.Nil(t, err)
 	defer os.Remove(socketPath)
 	config := fulfillDepsWithConfig(t, cfg)
-	_, err = listenerFactory(nil, newPacketPoolManagerUDS(config), config)
+	s, err := listenerFactory(nil, newPacketPoolManagerUDS(config), config)
 	assert.Error(t, err)
+	s.Stop()
 }
 
 func testSocketExistsNewUSDListener(t *testing.T, socketPath string, cfg map[string]interface{}, listenerFactory udsListenerFactory) {
@@ -72,6 +73,7 @@ func testWorkingNewUDSListener(t *testing.T, socketPath string, cfg map[string]i
 	fi, err := os.Stat(socketPath)
 	require.Nil(t, err)
 	assert.Equal(t, "Srwx-w--w-", fi.Mode().String())
+	s.Stop()
 }
 
 func testNewUDSListener(t *testing.T, listenerFactory udsListenerFactory, transport string) {
@@ -166,4 +168,6 @@ func testUDSReceive(t *testing.T, listenerFactory udsListenerFactory, transport 
 		assert.FailNow(t, "Timeout on receive channel")
 	}
 
+	conn.Close()
+	s.Stop()
 }

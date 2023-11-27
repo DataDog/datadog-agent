@@ -153,9 +153,12 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 		tlmListenerID = ""
 	}
 
+	packetsBufferSize := l.config.GetInt("dogstatsd_packet_buffer_size")
+	flushTimeout := l.config.GetDuration("dogstatsd_packet_buffer_flush_timeout")
+
 	packetsBuffer := packets.NewBuffer(
-		uint(l.config.GetInt("dogstatsd_packet_buffer_size")),
-		l.config.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
+		uint(packetsBufferSize),
+		flushTimeout,
 		l.packetOut,
 		tlmListenerID,
 	)
