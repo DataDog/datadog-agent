@@ -43,6 +43,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
@@ -82,8 +83,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
@@ -152,7 +153,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(run,
 			fx.Supply(cliParams),
 			fx.Supply(core.BundleParams{
-				ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+				ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath),
+				SecretParams:         secrets.NewEnabledParams(),
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 				LogParams:            log.ForDaemon(command.LoggerName, "log_file", path.DefaultLogFile),
 			}),
@@ -202,6 +204,7 @@ func run(log log.Component,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
 	invHost inventoryhost.Component,
+	secretResolver secrets.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
 ) error {
@@ -263,6 +266,7 @@ func run(log log.Component,
 		hostMetadata,
 		invAgent,
 		invHost,
+		secretResolver,
 	); err != nil {
 		return err
 	}
@@ -320,25 +324,12 @@ func getSharedFxOption() fx.Option {
 		// Workloadmeta component needs to be initialized before this hook is executed, and thus is included
 		// in the function args to order the execution. This pattern might be worth revising because it is
 		// error prone.
-		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, _ workloadmeta.Component) {
+		fx.Invoke(func(lc fx.Lifecycle, demultiplexer demultiplexer.Component, _ workloadmeta.Component, secretResolver secrets.Component) {
 			lc.Append(fx.Hook{
 				OnStart: func(ctx context.Context) error {
-					// Main context passed to components
-					mainCtx, _ := pkgcommon.GetMainCtxCancel()
 
 					// create and setup the Autoconfig instance
-					common.LoadComponents(mainCtx, demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
-					return nil
-				},
-				OnStop: func(ctx context.Context) error {
-					if common.AC != nil {
-						common.AC.Stop()
-					}
-
-					// gracefully shut down any component
-					_, cancel := pkgcommon.GetMainCtxCancel()
-					cancel()
-
+					common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 					return nil
 				},
 			})
@@ -386,6 +377,7 @@ func startAgent(
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
 	invHost inventoryhost.Component,
+	secretResolver secrets.Component,
 ) error {
 
 	var err error
@@ -489,8 +481,8 @@ func startAgent(
 		configService, err = remoteconfig.NewService()
 		if err != nil {
 			log.Errorf("Failed to initialize config management service: %s", err)
-		} else if err := configService.Start(context.Background()); err != nil {
-			log.Errorf("Failed to start config management service: %s", err)
+		} else {
+			configService.Start(context.Background())
 		}
 
 		if err := rcclient.Start("core-agent"); err != nil {
@@ -536,7 +528,9 @@ func startAgent(
 		demultiplexer,
 		hostMetadata,
 		invAgent,
+		demultiplexer,
 		invHost,
+		secretResolver,
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
@@ -621,7 +615,7 @@ func startAgent(
 		return err
 	}
 	// TODO: (components) remove this once migrating the status package to components
-	status.SetOtelCollector(otelcollector)
+	otlpStatus.SetOtelCollector(otelcollector)
 
 	return nil
 }
@@ -648,6 +642,9 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 		}
 	}
 	server.Stop()
+	if common.AC != nil {
+		common.AC.Stop()
+	}
 	if common.MetadataScheduler != nil {
 		common.MetadataScheduler.Stop()
 	}
@@ -664,6 +661,10 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 	profiler.Stop()
 
 	os.Remove(cliParams.pidfilePath)
+
+	// gracefully shut down any component
+	_, cancel := pkgcommon.GetMainCtxCancel()
+	cancel()
 
 	pkglog.Info("See ya!")
 	pkglog.Flush()

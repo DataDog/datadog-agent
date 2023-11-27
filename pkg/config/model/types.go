@@ -42,6 +42,7 @@ type Reader interface {
 	GetProxies() *Proxy
 
 	GetSource(key string) Source
+	GetAllSources(key string) []ValueWithSource
 
 	ConfigFileUsed() string
 

@@ -83,16 +83,18 @@ func newWorkloadMeta(deps dependencies) Component {
 
 		var err error
 
+		// Main context passed to components
+		// TODO(components): this mainCtx should probably be replaced by the
+		//                   context provided to the OnStart hook.
+		mainCtx, _ := common.GetMainCtxCancel()
+
 		// create and setup the Autoconfig instance
 		if deps.Params.InitHelper != nil {
-			err = deps.Params.InitHelper(c, wm)
+			err = deps.Params.InitHelper(mainCtx, wm)
 			if err != nil {
 				return err
 			}
 		}
-
-		// Main context passed to components
-		mainCtx, _ := common.GetMainCtxCancel()
 		wm.Start(mainCtx)
 		return nil
 	}})

@@ -27,14 +27,22 @@ import (
 
 // team: agent-shared-components
 
+// MakeMockBundle returns a core bundle with a customized set of fx.Option including sane defaults.
+func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
+	return fxutil.Bundle(
+		fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
+		config.MockModule,
+		logParams,
+		logger,
+		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
+		sysprobeconfigimpl.MockModule,
+		telemetry.Module,
+		hostnameimpl.MockModule,
+	)
+}
+
 // MockBundle defines the mock fx options for this bundle.
-var MockBundle = fxutil.Bundle(
-	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
-	config.MockModule,
+var MockBundle = MakeMockBundle(
 	fx.Supply(log.Params{}),
 	log.MockModule,
-	fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
-	sysprobeconfigimpl.MockModule,
-	telemetry.Module,
-	hostnameimpl.MockModule,
 )

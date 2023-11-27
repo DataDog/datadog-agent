@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
@@ -45,6 +46,15 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 			t = local.NewTagger(wm)
 		}
 
+		// SBOM scanner needs to be called here as initialization is required prior to the
+		// catalog getting instantiated and initialized.
+		sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
+		if err != nil {
+			log.Errorf("failed to create SBOM scanner: %s", err)
+		} else if sbomScanner != nil {
+			sbomScanner.Start(ctx)
+		}
+
 		tagger.SetDefaultTagger(t)
 		if err := tagger.Init(ctx); err != nil {
 			e = fmt.Errorf("failed to start the tagger: %s", err)
@@ -56,7 +66,7 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(ctx context.Context, senderManager sender.SenderManager, confdPath string) {
+func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.Component, confdPath string) {
 
 	confSearchPaths := []string{
 		confdPath,
@@ -71,17 +81,9 @@ func LoadComponents(ctx context.Context, senderManager sender.SenderManager, con
 	// No big concern here, but be sure to understand there is an implicit
 	// assumption about the initializtion of the tagger prior to being here.
 	// because of subscription to metadata store.
-	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler())
-
-	sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
-	if err != nil {
-		log.Errorf("failed to create SBOM scanner: %s", err)
-	} else if sbomScanner != nil {
-		sbomScanner.Start(ctx)
-	}
+	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver)
 
 	// create the Collector instance and start all the components
 	// NOTICE: this will also setup the Python environment, if available
 	Coll = collector.NewCollector(senderManager, GetPythonPaths()...)
-
 }

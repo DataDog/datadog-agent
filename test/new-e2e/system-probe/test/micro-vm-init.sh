@@ -1,30 +1,24 @@
 #!/bin/bash
+set -eEuxo pipefail
 
-set -eo xtrace
-
-RETRY_COUNT=$1
-ARCH=$2
-RUNNER_CMD="$(shift 2; echo "$*")"
-
-KITCHEN_DOCKERS=/kitchen-docker
+retry_count=$1; shift
+docker_dir=/kmt-docker
 
 # Add provisioning steps here !
 ## Start docker
 systemctl start docker
 ## Load docker images
-[ -d $KITCHEN_DOCKERS ] && find $KITCHEN_DOCKERS -maxdepth 1 -type f -exec docker load -i {} \;
-
+if [[ -d "${docker_dir}" ]]; then
+  find "${docker_dir}" -maxdepth 1 -type f -exec docker load -i {} \;
+fi
 # VM provisioning end !
 
 # Start tests
-IP=$(ip route get 8.8.8.8 | grep -Po '(?<=(src ))(\S+)')
-rm -rf /ci-visibility
+code=0
+/test-runner -retry "${retry_count}" "${@}" || code=$?
 
-CODE=0
-/test-runner -retry $RETRY_COUNT $RUNNER_CMD || CODE=$?
+cp /job_env.txt /ci-visibility/junit/
+tar -C /ci-visibility/testjson -czvf /ci-visibility/testjson.tar.gz .
+tar -C /ci-visibility/junit -czvf /ci-visibility/junit.tar.gz .
 
-pushd /ci-visibility
-tar czvf testjson.tar.gz testjson
-tar czvf junit.tar.gz junit
-
-exit $CODE
+exit ${code}

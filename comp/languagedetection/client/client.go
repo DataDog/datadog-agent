@@ -287,7 +287,6 @@ func (c *client) retryProcessEventsWithoutPod(containerIDs []string) {
 			c.handleProcessEvent(procEvent, true)
 		}
 	}
-	c.processesWithoutPod = make(map[string]*eventsToRetry)
 }
 
 // handleProcessEvent updates the current batch and the freshlyUpdatedPods
@@ -341,6 +340,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	added := containerInfo.Add(string(process.Language.Name))
 	if added {
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
+		delete(c.processesWithoutPod, process.ContainerID)
 	}
 	c.telemetry.ProcessedEvents.Inc(pod.Name, containerName, string(process.Language.Name))
 }
@@ -352,15 +352,17 @@ func (c *client) handlePodEvent(podEvent workloadmeta.Event) {
 	for _, c := range append(pod.InitContainers, pod.Containers...) {
 		containerIDs = append(containerIDs, c.ID)
 	}
-	if podEvent.Type == workloadmeta.EventTypeSet {
-		c.retryProcessEventsWithoutPod(containerIDs)
-	}
 
-	for _, cid := range containerIDs {
-		delete(c.processesWithoutPod, cid)
+	switch podEvent.Type {
+	case workloadmeta.EventTypeSet:
+		c.retryProcessEventsWithoutPod(containerIDs)
+	case workloadmeta.EventTypeUnset:
+		delete(c.currentBatch, pod.Name)
+		delete(c.freshlyUpdatedPods, pod.Name)
+		for _, cid := range containerIDs {
+			delete(c.processesWithoutPod, cid)
+		}
 	}
-	delete(c.currentBatch, pod.Name)
-	delete(c.freshlyUpdatedPods, pod.Name)
 }
 
 func (c *client) getCurrentBatchProto() *pbgo.ParentLanguageAnnotationRequest {
