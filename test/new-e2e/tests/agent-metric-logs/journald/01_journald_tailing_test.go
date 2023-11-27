@@ -9,9 +9,7 @@ import (
 	_ "embed"
 	"os"
 	"testing"
-	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
@@ -27,6 +25,12 @@ type LinuxVMFakeintakeSuite struct {
 
 //go:embed log-config/log-config.yaml
 var logConfig []byte
+
+//go:embed log-config/log-config2.yaml
+var logConfig2 []byte
+
+//go:embed log-config/log-config3.yaml
+var logConfig3 []byte
 
 // logsExampleStackDef returns the stack definition required for the log agent test suite.
 func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
@@ -50,49 +54,28 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 
 func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
 	// Flush server and reset aggregators before the test is ran
-	if s.DevMode {
-		s.cleanUp()
-	}
-	err := s.Env().Fakeintake.FlushServerAndResetAggregators()
-	require.NoError(s.T(), err, "Unable to flush server and reset aggregators: %s", err)
+	s.cleanUp()
 }
 
 func (s *LinuxVMFakeintakeSuite) TearDownSuite() {
 	// Flush server and reset aggregators after the test is ran
-	if s.DevMode {
-		s.cleanUp()
-	}
-	err := s.Env().Fakeintake.FlushServerAndResetAggregators()
-	require.NoError(s.T(), err, "Unable to flush server and reset aggregators: %s", err)
+	s.cleanUp()
 }
 
-func (s *LinuxVMFakeintakeSuite) TestLinuxLogTailing() {
+func (s *LinuxVMFakeintakeSuite) TestJournald() {
 	// Run test cases
-	s.Run("journaldLogCollection", func() {
-		s.journaldLogCollection()
-	})
+	s.Run("journaldLogCollection", s.journaldLogCollection)
 
-	s.Run("journaldIncludeServiceLogCollection()", func() {
-		s.journaldIncludeServiceLogCollection()
-	})
+	s.Run("journaldIncludeServiceLogCollection()", s.journaldIncludeServiceLogCollection)
+
+	s.Run("journaldExcludeServiceCollection()", s.journaldExcludeServiceCollection)
 
 }
 
 func (s *LinuxVMFakeintakeSuite) journaldLogCollection() {
-	t := s.T()
-	fakeintake := s.Env().Fakeintake
-	// Part 1: Ensure no logs are present in fakeintake
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := fakeintake.FilterLogs("hello")
-		if !assert.NoError(c, err, "Unable to filter logs by the service 'hello'.") {
-			return
-		}
-		assert.Emptyf(c, logs, "Logs were found when none were expected: %v", logs)
-	}, 5*time.Minute, 10*time.Second)
-
-	// Part 2: Add dd-agent user to systemd-journal group
+	// Part 1: Add dd-agent user to systemd-journal group
 	_, err := s.Env().VM.ExecuteWithError("sudo usermod -a -G systemd-journal dd-agent")
-	require.NoError(t, err, "Unable to adjust permissions for dd-agent user.")
+	require.NoError(s.T(), err, "Unable to adjust permissions for dd-agent user.")
 
 	// Restart agent
 	s.Env().VM.Execute("sudo systemctl restart datadog-agent")
@@ -100,10 +83,80 @@ func (s *LinuxVMFakeintakeSuite) journaldLogCollection() {
 	// Generate log
 	generateLog(s, "hello-world", "journald")
 
-	// Part 3: Assert that logs are found in intake after generation
+	// Part 2: require.NoError t,are found in intake after generation
 	checkLogs(s, "hello", "hello-world")
 }
 
 func (s *LinuxVMFakeintakeSuite) journaldIncludeServiceLogCollection() {
+	s.UpdateEnv(e2e.FakeIntakeStackDef(
+		e2e.WithAgentParams(
+			agentparams.WithLogs(),
+			agentparams.WithIntegration("custom_logs.d", string(logConfig2)))))
 
+	vm := s.Env().VM
+	t := s.T()
+
+	python_script := `sudo bash -c 'cat > /usr/bin/random-logger.py << EOF
+#!/usr/bin/env python3
+
+import logging
+import random
+from time import sleep
+
+logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=logging.DEBUG)
+
+while True:
+    logging.info("This is less important than debug log and is often used to provide context in the current task.")
+    sleep(random.uniform(0, 5))
+EOF'
+`
+	_, err := vm.ExecuteWithError(python_script)
+	require.NoError(t, err, "Failed to generate journald log generation script ")
+	_, err = vm.ExecuteWithError("sudo chmod 777 /usr/bin/random-logger.py")
+	require.NoError(t, err, "Failed to change permission for journald script")
+
+	logger_service := `sudo bash -c 'cat > /etc/systemd/system/random-logger.service << EOF
+[Unit]
+Description=Random logger
+
+[Service]
+ExecStart=/usr/bin/random-logger.py
+
+[Install]
+WantedBy=multi-user.target
+EOF'
+`
+
+	_, err = vm.ExecuteWithError(logger_service)
+	require.NoError(t, err, "Failed to create journald log generation service ")
+
+	_, err = vm.ExecuteWithError("sudo chmod 777 /etc/systemd/system/random-logger.service")
+	require.NoError(t, err, "Failed to change permission for service")
+
+	_, err = vm.ExecuteWithError("sudo systemctl daemon-reload")
+	require.NoError(t, err, "Failed to load journald service")
+
+	_, err = vm.ExecuteWithError("sudo systemctl enable --now random-logger.service")
+	require.NoError(t, err, "Failed to enable journaald service")
+
+	_, err = vm.ExecuteWithError("sudo service datadog-agent restart")
+	require.NoError(t, err, "Failed to restart the agent")
+
+	checkLogs(s, "random-logger.py", "less important")
+
+	_, err = vm.ExecuteWithError("sudo systemctl disable --now random-logger.service")
+	require.NoError(t, err, "Failed to disable the logging service")
+}
+
+func (s *LinuxVMFakeintakeSuite) journaldExcludeServiceCollection() {
+	s.UpdateEnv(e2e.FakeIntakeStackDef(
+		e2e.WithAgentParams(
+			agentparams.WithLogs(),
+			agentparams.WithIntegration("custom_logs.d", string(logConfig3)))))
+
+	// Restart agent
+	s.Env().VM.Execute("sudo systemctl restart datadog-agent")
+
+	// Check that the agent service log is not collected
+	checkExcludeLog(s, "not-datadog", "running check")
 }

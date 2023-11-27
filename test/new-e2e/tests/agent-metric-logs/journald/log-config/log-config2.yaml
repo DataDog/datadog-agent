@@ -1,0 +1,7 @@
+logs:
+  - type: journald
+    path: /var/log/journal/
+    source: custom_log
+    service: random-logger.py
+    include_units:
+      random-logger.service
