@@ -10,7 +10,9 @@ package run
 
 import (
 	"context"
-	_ "expvar"         // Blank import used because this isn't directly used in this file
+	_ "expvar" // Blank import used because this isn't directly used in this file
+	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
+	winregistryimpl "github.com/DataDog/datadog-agent/comp/checks/winregistry/impl"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"go.uber.org/fx"
@@ -45,8 +47,8 @@ import (
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	// runtime init routines
 )
 
@@ -74,7 +76,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			capture replay.Component,
 			rcclient rcclient.Component,
 			forwarder defaultforwarder.Component,
-			logsAgent util.Optional[logsAgent.Component],
+			logsAgent optional.Option[logsAgent.Component],
 			metadataRunner runner.Component,
 			sharedSerializer serializer.MetricSerializer,
 			otelcollector otelcollector.Component,
@@ -151,10 +153,13 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectimpl.Module,
+		winregistryimpl.Module,
 		comptraceconfig.Module,
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),
-		fx.Invoke(func(_ agentcrashdetect.Component) {}), // Force the instanciation of the component
+		// Force the instantiation of the components
+		fx.Invoke(func(_ agentcrashdetect.Component) {}),
+		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }

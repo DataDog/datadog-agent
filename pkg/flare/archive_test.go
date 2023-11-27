@@ -88,7 +88,7 @@ func TestRegistryJSON(t *testing.T) {
 	srcDir := createTestFile(t, "registry.json")
 
 	confMock := config.Mock(t)
-	confMock.Set("logs_config.run_path", filepath.Dir(srcDir))
+	confMock.SetWithoutSource("logs_config.run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getRegistryJSON(mock.Fb)
@@ -103,9 +103,9 @@ func setupIPCAddress(t *testing.T, URL string) *config.MockConfig {
 	require.NoError(t, err)
 
 	confMock := config.Mock(t)
-	confMock.Set("ipc_address", host)
-	confMock.Set("cmd_port", port)
-	confMock.Set("process_config.cmd_port", port)
+	confMock.SetWithoutSource("ipc_address", host)
+	confMock.SetWithoutSource("cmd_port", port)
+	confMock.SetWithoutSource("process_config.cmd_port", port)
 
 	return confMock
 }
@@ -172,7 +172,7 @@ func TestVersionHistory(t *testing.T) {
 	srcDir := createTestFile(t, "version-history.json")
 
 	confMock := config.Mock(t)
-	confMock.Set("run_path", filepath.Dir(srcDir))
+	confMock.SetWithoutSource("run_path", filepath.Dir(srcDir))
 
 	mock := flarehelpers.NewFlareBuilderMock(t, false)
 	getVersionHistory(mock.Fb)
@@ -275,9 +275,9 @@ func TestProcessAgentChecks(t *testing.T) {
 	})
 	t.Run("with process-agent running", func(t *testing.T) {
 		cfg := config.Mock(t)
-		cfg.Set("process_config.process_collection.enabled", true)
-		cfg.Set("process_config.container_collection.enabled", true)
-		cfg.Set("process_config.process_discovery.enabled", true)
+		cfg.SetWithoutSource("process_config.process_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.container_collection.enabled", true)
+		cfg.SetWithoutSource("process_config.process_discovery.enabled", true)
 
 		handler := func(w http.ResponseWriter, r *http.Request) {
 			var err error

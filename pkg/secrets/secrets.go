@@ -34,12 +34,12 @@ var (
 
 	secretBackendCommand               string
 	secretBackendArguments             []string
-	secretBackendTimeout               = 5
+	secretBackendTimeout               = SecretBackendTimeoutDefault
 	secretBackendCommandAllowGroupExec bool
 	removeTrailingLinebreak            bool
 
 	// SecretBackendOutputMaxSize defines max size of the JSON output from a secrets reader backend
-	SecretBackendOutputMaxSize = 1024 * 1024
+	secretBackendOutputMaxSize = SecretBackendOutputMaxSizeDefault
 )
 
 //go:embed info.tmpl
@@ -87,7 +87,7 @@ func Init(command string, arguments []string, timeout int, maxSize int, groupExe
 	secretBackendCommand = command
 	secretBackendArguments = arguments
 	secretBackendTimeout = timeout
-	SecretBackendOutputMaxSize = maxSize
+	secretBackendOutputMaxSize = maxSize
 	secretBackendCommandAllowGroupExec = groupExecPerm
 	removeTrailingLinebreak = removeLinebreak
 	if secretBackendCommandAllowGroupExec {

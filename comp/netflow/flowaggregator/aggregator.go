@@ -137,7 +137,9 @@ func (agg *FlowAggregator) run() {
 func (agg *FlowAggregator) sendFlows(flows []*common.Flow, flushTime time.Time) {
 	for _, flow := range flows {
 		flowPayload := buildPayload(flow, agg.hostname, flushTime)
-		payloadBytes, err := json.Marshal(flowPayload)
+
+		// Calling MarshalJSON directly as it's faster than calling json.Marshall
+		payloadBytes, err := flowPayload.MarshalJSON()
 		if err != nil {
 			agg.logger.Errorf("Error marshalling device metadata: %s", err)
 			continue

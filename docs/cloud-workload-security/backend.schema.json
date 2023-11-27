@@ -828,6 +828,10 @@
           "$ref": "#/$defs/ProcessCredentials",
           "description": "Credentials associated with the process"
         },
+        "user_session": {
+          "$ref": "#/$defs/UserSessionContext",
+          "description": "Context of the user session for this event"
+        },
         "executable": {
           "$ref": "#/$defs/File",
           "description": "File information of the executable"
@@ -951,6 +955,10 @@
         "credentials": {
           "$ref": "#/$defs/ProcessCredentials",
           "description": "Credentials associated with the process"
+        },
+        "user_session": {
+          "$ref": "#/$defs/UserSessionContext",
+          "description": "Context of the user session for this event"
         },
         "executable": {
           "$ref": "#/$defs/File",
@@ -1252,6 +1260,46 @@
       "additionalProperties": false,
       "type": "object",
       "description": "UserContextSerializer serializes a user context to JSON"
+    },
+    "UserSessionContext": {
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the user session on the host"
+        },
+        "session_type": {
+          "type": "string",
+          "description": "Type of the user session"
+        },
+        "k8s_username": {
+          "type": "string",
+          "description": "Username of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_uid": {
+          "type": "string",
+          "description": "UID of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_groups": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Groups of the Kubernetes \"kubectl exec\" session"
+        },
+        "k8s_extra": {
+          "additionalProperties": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "type": "object",
+          "description": "Extra of the Kubernetes \"kubectl exec\" session"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "UserSessionContextSerializer serializes the user session context to JSON"
     }
   },
   "properties": {

@@ -248,56 +248,6 @@ func TestDetectedNewLanguages(t *testing.T) {
 	assert.True(t, lp.detectedNewLanguages(&namespacedOwnerReference, detectedContainersLanguages))
 }
 
-func TestGetUpdatedOwnerAnnotations(t *testing.T) {
-	lp := newMockLanguagePatcher(nil, nil)
-
-	mockContainersLanguages := langUtil.NewContainersLanguages()
-	mockContainersLanguages.GetOrInitializeLanguageset("container-1").Parse("cpp,java,python")
-	mockContainersLanguages.GetOrInitializeLanguageset("container-2").Parse("python,ruby")
-	mockContainersLanguages.GetOrInitializeLanguageset("container-3").Parse("cpp")
-	mockContainersLanguages.GetOrInitializeLanguageset("container-4").Parse("")
-
-	// Case of existing annotations
-	mockCurrentAnnotations := map[string]string{
-		"annotationkey1": "annotationvalue1",
-		"annotationkey2": "annotationvalue2",
-		"apm.datadoghq.com/container-1.languages": "java,python",
-		"apm.datadoghq.com/container-2.languages": "cpp",
-	}
-
-	expectedUpdatedAnnotations := map[string]string{
-		"annotationkey1": "annotationvalue1",
-		"annotationkey2": "annotationvalue2",
-		"apm.datadoghq.com/container-1.languages": "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages": "cpp,python,ruby",
-		"apm.datadoghq.com/container-3.languages": "cpp",
-	}
-
-	expectedAddedLanguages := 4
-
-	actualUpdatedAnnotations, actualAddedLanguages := lp.getUpdatedOwnerAnnotations(mockCurrentAnnotations, mockContainersLanguages)
-
-	assert.Equal(t, expectedAddedLanguages, actualAddedLanguages)
-	assert.Equal(t, expectedUpdatedAnnotations, actualUpdatedAnnotations)
-
-	// Case of non-existing annotations
-	mockCurrentAnnotations = nil
-
-	expectedUpdatedAnnotations = map[string]string{
-		"apm.datadoghq.com/container-1.languages": "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages": "python,ruby",
-		"apm.datadoghq.com/container-3.languages": "cpp",
-	}
-
-	expectedAddedLanguages = 6
-
-	actualUpdatedAnnotations, actualAddedLanguages = lp.getUpdatedOwnerAnnotations(mockCurrentAnnotations, mockContainersLanguages)
-
-	assert.Equal(t, expectedAddedLanguages, actualAddedLanguages)
-	assert.Equal(t, expectedUpdatedAnnotations, actualUpdatedAnnotations)
-
-}
-
 func TestPatchOwner(t *testing.T) {
 	mockK8sClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
 	lp := newMockLanguagePatcher(mockK8sClient, workloadmeta.NewMockStore())
@@ -348,7 +298,7 @@ func TestPatchOwner(t *testing.T) {
 
 	expectedAnnotations := map[string]string{
 		"apm.datadoghq.com/container-1.languages": "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages": "cpp,python,ruby",
+		"apm.datadoghq.com/container-2.languages": "python,ruby",
 		"apm.datadoghq.com/container-3.languages": "cpp",
 		"annotationkey1": "annotationvalue1",
 		"annotationkey2": "annotationvalue2",
@@ -459,7 +409,7 @@ func TestPatchAllOwners(t *testing.T) {
 					"annotationkey1": "annotationvalue1",
 					"annotationkey2": "annotationvalue2",
 					"apm.datadoghq.com/container-1.languages": "java,python",
-					"apm.datadoghq.com/container-2.languages": "cpp",
+					"apm.datadoghq.com/container-2.languages": "python",
 				},
 			},
 			"spec": map[string]interface{}{},
@@ -503,7 +453,7 @@ func TestPatchAllOwners(t *testing.T) {
 
 	expectedAnnotationsA := map[string]string{
 		"apm.datadoghq.com/container-1.languages":      "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages":      "cpp,python,ruby",
+		"apm.datadoghq.com/container-2.languages":      "python,ruby",
 		"apm.datadoghq.com/init.container-3.languages": "cpp",
 		"annotationkey1": "annotationvalue1",
 		"annotationkey2": "annotationvalue2",

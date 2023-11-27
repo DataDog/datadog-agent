@@ -169,7 +169,7 @@ func runCheckCmd(deps dependencies) error {
 			continue
 		}
 
-		if err = ch.Init(cfg, deps.Hostinfo.Object()); err != nil {
+		if err = ch.Init(cfg, deps.Hostinfo.Object(), true); err != nil {
 			return err
 		}
 		cleanups = append(cleanups, ch.Cleanup)

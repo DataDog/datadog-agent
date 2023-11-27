@@ -14,9 +14,6 @@ import (
 	"io"
 )
 
-// SecretBackendOutputMaxSize defines max size of the JSON output from a secrets reader backend
-var SecretBackendOutputMaxSize = 1024 * 1024
-
 // Init placeholder when compiled without the 'secrets' build tag
 func Init(command string, arguments []string, timeout int, maxSize int, groupExecPerm bool, removeTrailingLineBreak bool) {
 }

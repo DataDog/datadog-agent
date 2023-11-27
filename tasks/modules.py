@@ -164,10 +164,12 @@ DEFAULT_MODULES = {
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
+    "pkg/util/http": GoModule("pkg/util/http", independent=True),
     "pkg/util/log": GoModule("pkg/util/log", independent=True),
     "pkg/util/pointer": GoModule("pkg/util/pointer", independent=True),
     "pkg/util/scrubber": GoModule("pkg/util/scrubber", independent=True),
     "pkg/util/backoff": GoModule("pkg/util/backoff", independent=True),
+    "pkg/util/cache": GoModule("pkg/util/cache", independent=True),
     "pkg/util/common": GoModule("pkg/util/common", independent=True),
     "pkg/util/compression": GoModule("pkg/util/compression", independent=True),
     "pkg/util/executable": GoModule("pkg/util/executable", independent=True),
@@ -176,10 +178,15 @@ DEFAULT_MODULES = {
     "pkg/util/buf": GoModule("pkg/util/buf", independent=True),
     "pkg/util/json": GoModule("pkg/util/json", independent=True),
     "pkg/util/sort": GoModule("pkg/util/sort", independent=True),
+    "pkg/util/optional": GoModule("pkg/util/optional", independent=True),
+    "pkg/util/statstracker": GoModule("pkg/util/statstracker", independent=True),
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
     "pkg/version": GoModule("pkg/version", independent=True),
     "pkg/networkdevice/profile": GoModule("pkg/networkdevice/profile", independent=True),
+    "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True),
+    "pkg/orchestrator/model": GoModule("pkg/orchestrator/model", independent=True),
+    "pkg/process/util/api": GoModule("pkg/process/util/api", independent=True),
 }
 
 MAIN_TEMPLATE = """package main

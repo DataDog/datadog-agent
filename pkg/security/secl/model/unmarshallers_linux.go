@@ -13,11 +13,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
 
 func validateReadSize(size, read int) (int, error) {
 	if size != read {
-		return 0, ErrIncorrectDataSize
+		return 0, fmt.Errorf("expected %d, read %d: %w", size, read, ErrIncorrectDataSize)
 	}
 	return read, nil
 }
@@ -185,7 +186,7 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 
 // UnmarshalPidCacheBinary unmarshalls Unmarshal pid_cache_t
 func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
-	const size = 72
+	const size = 80
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -203,20 +204,21 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 	e.ForkTime = unmarshalTime(data[16:24])
 	e.ExitTime = unmarshalTime(data[24:32])
+	e.UserSession.ID = ByteOrder.Uint64(data[32:40])
 
 	// Unmarshal the credentials contained in pid_cache_t
-	read, err := UnmarshalBinary(data[32:], &e.Credentials)
+	read, err := UnmarshalBinary(data[40:], &e.Credentials)
 	if err != nil {
 		return 0, err
 	}
-	read += 32
+	read += 40
 
 	return validateReadSize(size, read)
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 264 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = 272 // size of struct exec_event_t starting from process_entry_t, inclusive
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -1088,4 +1090,15 @@ func (e *AnomalyDetectionSyscallEvent) UnmarshalBinary(data []byte) (int, error)
 
 	e.SyscallID = Syscall(ByteOrder.Uint64(data[0:8]))
 	return 8, nil
+}
+
+// UnmarshalBinary unmarshalls a binary representation of itself
+func (e *UserSessionContext) UnmarshalBinary(data []byte) error {
+	if len(data) < 256 {
+		return ErrNotEnoughSpace
+	}
+
+	e.SessionType = usersession.Type(data[0])
+	e.RawData += NullTerminatedString(data[1:])
+	return nil
 }

@@ -104,7 +104,7 @@ func getPidMapper(procPath, cgroupRoot, baseController string, filter ReaderFilt
 	return pidMapper
 }
 
-// Mapper used if we are running in host PID namespace, faster.
+// Mapper used if we are running in host PID namespace and with access to cgroup FS, faster.
 type cgroupProcsPidMapper struct {
 	fr fileReader
 	// args are: relative cgroup path
@@ -189,4 +189,30 @@ func (pm *procPidMapper) getPIDsForCgroup(identifier, relativeCgroupPath string,
 
 	pm.refreshMapping(cacheValidity)
 	return pm.cgroupPidsMapping[identifier]
+}
+
+// StandalonePIDMapper allows to get a PID Mapper that could work without cgroup objects.
+// This is required when PID namespace is shared but cgroup namespace is not (typically in serverless-like scenarios)
+type StandalonePIDMapper interface {
+	GetPIDs(cgroupIdentifier string, cacheValidity time.Duration) []int
+}
+
+type standalonePIDMapper struct {
+	procPidMapper
+}
+
+// NewStandalonePIDMapper returns a new instance
+func NewStandalonePIDMapper(procPath, cgroupController string, filter ReaderFilter) StandalonePIDMapper {
+	return &standalonePIDMapper{
+		procPidMapper: procPidMapper{
+			procPath:         procPath,
+			cgroupController: cgroupController,
+			readerFilter:     filter,
+		},
+	}
+}
+
+// GetPIDs returns list of PID for a cgroup identifier, thread safe.
+func (pm *standalonePIDMapper) GetPIDs(cgroupIdentifier string, cacheValidity time.Duration) []int {
+	return pm.getPIDsForCgroup(cgroupIdentifier, "", cacheValidity)
 }

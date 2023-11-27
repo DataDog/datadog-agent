@@ -170,6 +170,7 @@ enum erpc_op {
     EXPIRE_PID_DISCARDER_OP,
     BUMP_DISCARDERS_REVISION,
     GET_RINGBUF_USAGE,
+    USER_SESSION_CONTEXT_OP,
 };
 
 enum selinux_source_event_t {

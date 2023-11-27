@@ -36,7 +36,7 @@ func makeConfigWithGlobalNamespace(t *testing.T, trapConfig TrapsConfig, globalN
 	trapConfig.Enabled = true
 	conf := ddconf.SetupConf()
 	if globalNamespace != "" {
-		conf.Set("network_devices.namespace", globalNamespace)
+		conf.SetWithoutSource("network_devices.namespace", globalNamespace)
 	}
 	conf.SetConfigType("yaml")
 	yamlData := map[string]map[string]interface{}{

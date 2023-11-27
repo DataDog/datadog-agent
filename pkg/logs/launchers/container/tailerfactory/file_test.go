@@ -155,7 +155,7 @@ func TestDockerOverride(t *testing.T) {
 	tmp := t.TempDir()
 	mockConfig := coreConfig.Mock(t)
 	customPath := filepath.Join(tmp, "/custom/path")
-	mockConfig.Set("logs_config.docker_path_override", customPath)
+	mockConfig.SetWithoutSource("logs_config.docker_path_override", customPath)
 
 	p := filepath.Join(mockConfig.GetString("logs_config.docker_path_override"), filepath.FromSlash("containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))

@@ -70,7 +70,7 @@ type ConnectionsCheck struct {
 type ProcessConnRates map[int32]*model.ProcessNetworks
 
 // Init initializes a ConnectionsCheck instance.
-func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo) error {
+func (c *ConnectionsCheck) Init(syscfg *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	c.hostInfo = hostInfo
 	c.maxConnsPerMessage = syscfg.MaxConnsPerMessage
 	c.notInitializedLogLimit = putil.NewLogLimit(1, time.Minute*10)

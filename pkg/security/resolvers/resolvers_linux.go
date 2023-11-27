@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"runtime"
 	"sort"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -36,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/time"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -64,6 +64,7 @@ type Resolvers struct {
 	PathResolver      path.ResolverInterface
 	SBOMResolver      *sbom.Resolver
 	HashResolver      *hash.Resolver
+	UserSessions      *usersessions.Resolver
 }
 
 // NewResolvers creates a new instance of Resolvers
@@ -154,6 +155,11 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		return nil, err
 	}
 
+	userSessionsResolver, err := usersessions.NewResolver(config)
+	if err != nil {
+		return nil, err
+	}
+
 	resolvers := &Resolvers{
 		manager:           manager,
 		MountResolver:     mountResolver,
@@ -169,6 +175,7 @@ func NewResolvers(config *config.Config, manager *manager.Manager, statsdClient 
 		PathResolver:      pathResolver,
 		SBOMResolver:      sbomResolver,
 		HashResolver:      hashResolver,
+		UserSessions:      userSessionsResolver,
 	}
 
 	return resolvers, nil
@@ -192,6 +199,10 @@ func (r *Resolvers) Start(ctx context.Context) error {
 	if r.SBOMResolver != nil {
 		r.SBOMResolver.Start(ctx)
 	}
+
+	if err := r.UserSessions.Start(r.manager); err != nil {
+		return err
+	}
 	return r.NamespaceResolver.Start(ctx)
 }
 
@@ -213,7 +224,6 @@ func (r *Resolvers) Snapshot() error {
 		return err
 	}
 
-	runtime.GC()
 	return nil
 }
 

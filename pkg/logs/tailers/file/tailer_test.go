@@ -107,7 +107,7 @@ func (suite *TailerTestSuite) TestTialerTimeDurationConfig() {
 	// To satisfy the suite level tailer
 	suite.tailer.StartFromBeginning()
 
-	coreConfig.Datadog.Set("logs_config.close_timeout", 42)
+	coreConfig.Datadog.SetWithoutSource("logs_config.close_timeout", 42)
 	sleepDuration := 10 * time.Millisecond
 	info := status.NewInfoRegistry()
 

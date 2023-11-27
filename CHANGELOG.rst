@@ -34,8 +34,6 @@ New Features
   ``apm_config.peer_tags: ["aws.s3.bucket", "db.instance", ...]`` in datadog.yaml.
   Please note that ``DD_APM_PEER_SERVICE_AGGREGATION`` or ``apm_config.peer_service_aggregation`` must also be set to ``true``.
 
-- Add a check to collect Windows registry values.
-
 - Introduces new Windows crash detection check.  Upon initial check
   run, sends a DataDog event if it is determined that the machine has
   rebooted due to a system crash.

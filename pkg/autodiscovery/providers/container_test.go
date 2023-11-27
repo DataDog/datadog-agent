@@ -397,8 +397,8 @@ func TestGenerateConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Datadog.Set("logs_config.container_collect_all", tt.containerCollectAll)
-			defer config.Datadog.Set("logs_config.container_collect_all", false)
+			config.Datadog.SetWithoutSource("logs_config.container_collect_all", tt.containerCollectAll)
+			defer config.Datadog.SetWithoutSource("logs_config.container_collect_all", false)
 
 			store := workloadmetatesting.NewStore()
 

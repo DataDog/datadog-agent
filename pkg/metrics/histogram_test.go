@@ -44,8 +44,8 @@ func TestConfigure(t *testing.T) {
 	defaultAggregates = nil
 	defaultPercentiles = nil
 	aggregates := []string{"max", "min", "test"}
-	mockConfig.Set("histogram_aggregates", aggregates)
-	mockConfig.Set("histogram_percentiles", []string{"0.50", "0.30", "0.98"})
+	mockConfig.SetWithoutSource("histogram_aggregates", aggregates)
+	mockConfig.SetWithoutSource("histogram_percentiles", []string{"0.50", "0.30", "0.98"})
 
 	hist := NewHistogram(10, mockConfig)
 	assert.Equal(t, aggregates, hist.aggregates)

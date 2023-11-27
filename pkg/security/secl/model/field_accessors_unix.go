@@ -1725,6 +1725,45 @@ func (ev *Event) GetExecUser() string {
 	return ev.Exec.Process.Credentials.User
 }
 
+// GetExecUserSessionK8sGroups returns the value of the field, resolving if necessary
+func (ev *Event) GetExecUserSessionK8sGroups() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	resolvedField := ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exec.Process.UserSession)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
+	return fieldCopy
+}
+
+// GetExecUserSessionK8sUid returns the value of the field, resolving if necessary
+func (ev *Event) GetExecUserSessionK8sUid() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exec.Process.UserSession)
+}
+
+// GetExecUserSessionK8sUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetExecUserSessionK8sUsername() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exec.Process.UserSession)
+}
+
 // GetExitArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetExitArgs() string {
 	zeroValue := ""
@@ -2772,6 +2811,45 @@ func (ev *Event) GetExitUser() string {
 		return zeroValue
 	}
 	return ev.Exit.Process.Credentials.User
+}
+
+// GetExitUserSessionK8sGroups returns the value of the field, resolving if necessary
+func (ev *Event) GetExitUserSessionK8sGroups() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	resolvedField := ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Exit.Process.UserSession)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
+	return fieldCopy
+}
+
+// GetExitUserSessionK8sUid returns the value of the field, resolving if necessary
+func (ev *Event) GetExitUserSessionK8sUid() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Exit.Process.UserSession)
+}
+
+// GetExitUserSessionK8sUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetExitUserSessionK8sUsername() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Exit.Process.UserSession)
 }
 
 // GetLinkFileChangeTime returns the value of the field, resolving if necessary
@@ -5749,6 +5827,72 @@ func (ev *Event) GetProcessAncestorsUser() []string {
 	return values
 }
 
+// GetProcessAncestorsUserSessionK8sGroups returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsUserSessionK8sGroups() []string {
+	zeroValue := []string{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+		values = append(values, result...)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetProcessAncestorsUserSessionK8sUid returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsUserSessionK8sUid() []string {
+	zeroValue := []string{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetProcessAncestorsUserSessionK8sUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsUserSessionK8sUsername() []string {
+	zeroValue := []string{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetProcessArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessArgs() string {
 	zeroValue := ""
@@ -7700,6 +7844,54 @@ func (ev *Event) GetProcessParentUser() string {
 	return ev.BaseEvent.ProcessContext.Parent.Credentials.User
 }
 
+// GetProcessParentUserSessionK8sGroups returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentUserSessionK8sGroups() []string {
+	zeroValue := []string{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return zeroValue
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return []string{}
+	}
+	resolvedField := ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
+	return fieldCopy
+}
+
+// GetProcessParentUserSessionK8sUid returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentUserSessionK8sUid() string {
+	zeroValue := ""
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return zeroValue
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+}
+
+// GetProcessParentUserSessionK8sUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentUserSessionK8sUsername() string {
+	zeroValue := ""
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return zeroValue
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Parent.UserSession)
+}
+
 // GetProcessPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessPid() uint32 {
 	zeroValue := uint32(0)
@@ -7752,6 +7944,36 @@ func (ev *Event) GetProcessUser() string {
 		return zeroValue
 	}
 	return ev.BaseEvent.ProcessContext.Process.Credentials.User
+}
+
+// GetProcessUserSessionK8sGroups returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessUserSessionK8sGroups() []string {
+	zeroValue := []string{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	resolvedField := ev.FieldHandlers.ResolveK8SGroups(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
+	return fieldCopy
+}
+
+// GetProcessUserSessionK8sUid returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessUserSessionK8sUid() string {
+	zeroValue := ""
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveK8SUID(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
+}
+
+// GetProcessUserSessionK8sUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessUserSessionK8sUsername() string {
+	zeroValue := ""
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.BaseEvent.ProcessContext.Process.UserSession)
 }
 
 // GetPtraceRequest returns the value of the field, resolving if necessary
@@ -9568,6 +9790,81 @@ func (ev *Event) GetPtraceTraceeAncestorsUser() []string {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := element.ProcessContext.Process.Credentials.User
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetPtraceTraceeAncestorsUserSessionK8sGroups returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsUserSessionK8sGroups() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+		values = append(values, result...)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetPtraceTraceeAncestorsUserSessionK8sUid returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsUserSessionK8sUid() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetPtraceTraceeAncestorsUserSessionK8sUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeAncestorsUserSessionK8sUsername() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -11948,6 +12245,63 @@ func (ev *Event) GetPtraceTraceeParentUser() string {
 	return ev.PTrace.Tracee.Parent.Credentials.User
 }
 
+// GetPtraceTraceeParentUserSessionK8sGroups returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentUserSessionK8sGroups() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return zeroValue
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return []string{}
+	}
+	resolvedField := ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Parent.UserSession)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
+	return fieldCopy
+}
+
+// GetPtraceTraceeParentUserSessionK8sUid returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentUserSessionK8sUid() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return zeroValue
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Parent.UserSession)
+}
+
+// GetPtraceTraceeParentUserSessionK8sUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeParentUserSessionK8sUsername() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee.Parent == nil {
+		return zeroValue
+	}
+	if !ev.PTrace.Tracee.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Parent.UserSession)
+}
+
 // GetPtraceTraceePid returns the value of the field, resolving if necessary
 func (ev *Event) GetPtraceTraceePid() uint32 {
 	zeroValue := uint32(0)
@@ -12018,6 +12372,45 @@ func (ev *Event) GetPtraceTraceeUser() string {
 		return zeroValue
 	}
 	return ev.PTrace.Tracee.Process.Credentials.User
+}
+
+// GetPtraceTraceeUserSessionK8sGroups returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeUserSessionK8sGroups() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	resolvedField := ev.FieldHandlers.ResolveK8SGroups(ev, &ev.PTrace.Tracee.Process.UserSession)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
+	return fieldCopy
+}
+
+// GetPtraceTraceeUserSessionK8sUid returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeUserSessionK8sUid() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveK8SUID(ev, &ev.PTrace.Tracee.Process.UserSession)
+}
+
+// GetPtraceTraceeUserSessionK8sUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetPtraceTraceeUserSessionK8sUsername() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "ptrace" {
+		return zeroValue
+	}
+	if ev.PTrace.Tracee == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.PTrace.Tracee.Process.UserSession)
 }
 
 // GetRemovexattrFileChangeTime returns the value of the field, resolving if necessary
@@ -14971,6 +15364,81 @@ func (ev *Event) GetSignalTargetAncestorsUser() []string {
 	return values
 }
 
+// GetSignalTargetAncestorsUserSessionK8sGroups returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsUserSessionK8sGroups() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveK8SGroups(ev, &element.ProcessContext.Process.UserSession)
+		values = append(values, result...)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetSignalTargetAncestorsUserSessionK8sUid returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsUserSessionK8sUid() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveK8SUID(ev, &element.ProcessContext.Process.UserSession)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetSignalTargetAncestorsUserSessionK8sUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetAncestorsUserSessionK8sUsername() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	if ev.Signal.Target.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveK8SUsername(ev, &element.ProcessContext.Process.UserSession)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
 // GetSignalTargetArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetArgs() string {
 	zeroValue := ""
@@ -17345,6 +17813,63 @@ func (ev *Event) GetSignalTargetParentUser() string {
 	return ev.Signal.Target.Parent.Credentials.User
 }
 
+// GetSignalTargetParentUserSessionK8sGroups returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentUserSessionK8sGroups() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	if ev.Signal.Target.Parent == nil {
+		return zeroValue
+	}
+	if !ev.Signal.Target.HasParent() {
+		return []string{}
+	}
+	resolvedField := ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Parent.UserSession)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
+	return fieldCopy
+}
+
+// GetSignalTargetParentUserSessionK8sUid returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentUserSessionK8sUid() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	if ev.Signal.Target.Parent == nil {
+		return zeroValue
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Parent.UserSession)
+}
+
+// GetSignalTargetParentUserSessionK8sUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetParentUserSessionK8sUsername() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	if ev.Signal.Target.Parent == nil {
+		return zeroValue
+	}
+	if !ev.Signal.Target.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Parent.UserSession)
+}
+
 // GetSignalTargetPid returns the value of the field, resolving if necessary
 func (ev *Event) GetSignalTargetPid() uint32 {
 	zeroValue := uint32(0)
@@ -17415,6 +17940,45 @@ func (ev *Event) GetSignalTargetUser() string {
 		return zeroValue
 	}
 	return ev.Signal.Target.Process.Credentials.User
+}
+
+// GetSignalTargetUserSessionK8sGroups returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetUserSessionK8sGroups() []string {
+	zeroValue := []string{}
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	resolvedField := ev.FieldHandlers.ResolveK8SGroups(ev, &ev.Signal.Target.Process.UserSession)
+	fieldCopy := make([]string, len(resolvedField))
+	copy(fieldCopy, resolvedField)
+	return fieldCopy
+}
+
+// GetSignalTargetUserSessionK8sUid returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetUserSessionK8sUid() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveK8SUID(ev, &ev.Signal.Target.Process.UserSession)
+}
+
+// GetSignalTargetUserSessionK8sUsername returns the value of the field, resolving if necessary
+func (ev *Event) GetSignalTargetUserSessionK8sUsername() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "signal" {
+		return zeroValue
+	}
+	if ev.Signal.Target == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveK8SUsername(ev, &ev.Signal.Target.Process.UserSession)
 }
 
 // GetSignalType returns the value of the field, resolving if necessary

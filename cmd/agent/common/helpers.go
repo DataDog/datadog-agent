@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -86,19 +87,19 @@ func SelectedCheckMatcherBuilder(checkNames []string, minInstances uint) func(co
 // SetupInternalProfiling is a common helper to configure runtime settings for internal profiling.
 func SetupInternalProfiling(cfg config.Reader, configPrefix string) {
 	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, settings.SourceConfig); err != nil {
+		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, model.SourceAgentRuntime); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)
 		}
 	}
 
 	if v := cfg.GetInt(configPrefix + "internal_profiling.mutex_profile_fraction"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v, settings.SourceConfig); err != nil {
+		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v, model.SourceAgentRuntime); err != nil {
 			log.Errorf("Error mutex profile fraction: %v", err)
 		}
 	}
 
 	if cfg.GetBool(configPrefix + "internal_profiling.enabled") {
-		err := settings.SetRuntimeSetting("internal_profiling", true, settings.SourceConfig)
+		err := settings.SetRuntimeSetting("internal_profiling", true, model.SourceAgentRuntime)
 		if err != nil {
 			log.Errorf("Error starting profiler: %v", err)
 		}

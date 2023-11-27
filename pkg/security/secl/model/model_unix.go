@@ -318,6 +318,8 @@ type Process struct {
 	// credentials_t section of pid_cache_t
 	Credentials
 
+	UserSession UserSessionContext `field:"user_session"` // SECLDoc[user_session] Definition:`User Session context of this process`
+
 	ArgsID uint32 `field:"-" json:"-"`
 	EnvsID uint32 `field:"-" json:"-"`
 
@@ -346,6 +348,10 @@ type Process struct {
 	IsParentMissing bool `field:"-"`         // Indicates the direct parent is missing
 
 	Source uint64 `field:"-" json:"-"`
+
+	// lineage
+	hasValidLineage *bool `field:"-"`
+	lineageError    error `field:"-"`
 }
 
 // ExecEvent represents a exec event
@@ -413,7 +419,7 @@ type FileEvent struct {
 	PkgSrcVersion string `field:"package.source_version,handler:ResolvePackageSourceVersion"` // SECLDoc[package.source_version] Definition:`[Experimental] Full version of the source package of the package that provided this file`
 
 	HashState HashState `field:"-"`
-	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
+	Hashes    []string  `field:"hashes,handler:ResolveHashesFromEvent,opts:skip_ad,weight:999"` // SECLDoc[hashes] Definition:`[Experimental] List of cryptographic hashes computed for this file`
 
 	// used to mark as already resolved, can be used in case of empty path
 	IsPathnameStrResolved bool `field:"-" json:"-"`
@@ -574,7 +580,7 @@ func ProcessSourceToString(source uint64) string {
 	return ProcessSources[source]
 }
 
-// PIDContext holds the process context of an kernel event
+// PIDContext holds the process context of a kernel event
 type PIDContext struct {
 	Pid       uint32 `field:"pid"` // SECLDoc[pid] Definition:`Process ID of the process (also called thread group ID)`
 	Tid       uint32 `field:"tid"` // SECLDoc[tid] Definition:`Thread ID of the thread`
@@ -873,4 +879,10 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 	ByteOrder.PutUint16(buff[16+len(pl.Name):], pl.Len)
 
 	return buff, nil
+}
+
+// ExtraFieldHandlers handlers not hold by any field
+type ExtraFieldHandlers interface {
+	BaseExtraFieldHandlers
+	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
 }

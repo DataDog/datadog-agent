@@ -691,7 +691,7 @@ func downloadPolicy(log log.Component, config config.Component, downloadPolicyAr
 	}
 
 	ctx := context.Background()
-	res, err := httputils.Get(ctx, downloadURL, headers, 10*time.Second)
+	res, err := httputils.Get(ctx, downloadURL, headers, 10*time.Second, config)
 	if err != nil {
 		return err
 	}

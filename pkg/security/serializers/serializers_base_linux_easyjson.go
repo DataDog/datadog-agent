@@ -156,6 +156,16 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers(in
 				}
 				(*out.Credentials).UnmarshalEasyJSON(in)
 			}
+		case "user_session":
+			if in.IsNull() {
+				in.Skip()
+				out.UserSession = nil
+			} else {
+				if out.UserSession == nil {
+					out.UserSession = new(UserSessionContextSerializer)
+				}
+				(*out.UserSession).UnmarshalEasyJSON(in)
+			}
 		case "executable":
 			if in.IsNull() {
 				in.Skip()
@@ -378,6 +388,11 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers(ou
 		const prefix string = ",\"credentials\":"
 		out.RawString(prefix)
 		(*in.Credentials).MarshalEasyJSON(out)
+	}
+	if in.UserSession != nil {
+		const prefix string = ",\"user_session\":"
+		out.RawString(prefix)
+		(*in.UserSession).MarshalEasyJSON(out)
 	}
 	if in.Executable != nil {
 		const prefix string = ",\"executable\":"

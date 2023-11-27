@@ -56,9 +56,18 @@ var subservices = []Servicedef{
 			"network_config.enabled":          config.SystemProbe,
 			"system_probe_config.enabled":     config.SystemProbe,
 			"windows_crash_detection.enabled": config.SystemProbe,
+			"runtime_security_config.enabled": config.SystemProbe,
 		},
 		serviceName: "datadog-system-probe",
 		serviceInit: sysprobeInit,
+	},
+	{
+		name: "cws",
+		configKeys: map[string]config.Config{
+			"runtime_security_config.enabled": config.SystemProbe,
+		},
+		serviceName: "datadog-security-agent",
+		serviceInit: securityInit,
 	},
 }
 
@@ -71,6 +80,10 @@ func processInit() error {
 }
 
 func sysprobeInit() error {
+	return nil
+}
+
+func securityInit() error {
 	return nil
 }
 

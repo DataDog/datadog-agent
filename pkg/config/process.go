@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -217,14 +218,14 @@ func loadProcessTransforms(config Config) {
 			"see https://docs.datadoghq.com/infrastructure/process#installation for more information")
 		procConfigEnabled := strings.ToLower(config.GetString("process_config.enabled"))
 		if procConfigEnabled == "disabled" {
-			config.Set("process_config.process_collection.enabled", false)
-			config.Set("process_config.container_collection.enabled", false)
+			config.Set("process_config.process_collection.enabled", false, model.SourceAgentRuntime)
+			config.Set("process_config.container_collection.enabled", false, model.SourceAgentRuntime)
 		} else if enabled, _ := strconv.ParseBool(procConfigEnabled); enabled { // "true"
-			config.Set("process_config.process_collection.enabled", true)
-			config.Set("process_config.container_collection.enabled", false)
+			config.Set("process_config.process_collection.enabled", true, model.SourceAgentRuntime)
+			config.Set("process_config.container_collection.enabled", false, model.SourceAgentRuntime)
 		} else { // "false"
-			config.Set("process_config.process_collection.enabled", false)
-			config.Set("process_config.container_collection.enabled", true)
+			config.Set("process_config.process_collection.enabled", false, model.SourceAgentRuntime)
+			config.Set("process_config.container_collection.enabled", true, model.SourceAgentRuntime)
 		}
 	}
 }

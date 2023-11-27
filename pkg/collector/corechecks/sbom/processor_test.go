@@ -587,8 +587,8 @@ func TestProcessEvents(t *testing.T) {
 	cacheDir, err := os.MkdirTemp("", "sbom-cache")
 	assert.Nil(t, err)
 	defer os.RemoveAll(cacheDir)
-	cfg.Set("sbom.cache_directory", cacheDir)
-	cfg.Set("sbom.container_image.enabled", true)
+	cfg.SetWithoutSource("sbom.cache_directory", cacheDir)
+	cfg.SetWithoutSource("sbom.container_image.enabled", true)
 	_, err = sbomscanner.CreateGlobalScanner(cfg)
 	assert.Nil(t, err)
 

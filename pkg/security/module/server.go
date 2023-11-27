@@ -11,12 +11,14 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
@@ -261,6 +263,8 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		RuleID:      rule.Definition.ID,
 		RuleVersion: rule.Definition.Version,
 		Version:     version.AgentVersion,
+		OS:          runtime.GOOS,
+		Arch:        utils.RuntimeArch(),
 	}
 
 	ruleEvent := &events.Signal{

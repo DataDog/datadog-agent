@@ -38,6 +38,7 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 				TotalMemory: 0,
 			},
 		},
+		true,
 	)
 
 	// Test check runs without error

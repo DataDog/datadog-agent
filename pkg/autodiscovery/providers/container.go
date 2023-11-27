@@ -148,10 +148,11 @@ func (k *ContainerConfigProvider) processEvents(evBundle workloadmeta.EventBundl
 			delete(k.configErrors, entityName)
 
 		default:
-			telemetry.Errors.Inc(names.KubeContainer)
 			log.Errorf("cannot handle event of type %d", event.Type)
 		}
 	}
+
+	telemetry.Errors.Set(float64(len(k.configErrors)), names.KubeContainer)
 
 	return changes
 }
@@ -188,7 +189,6 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 		for _, podContainer := range entity.GetAllContainers() {
 			container, err := k.workloadmetaStore.GetContainer(podContainer.ID)
 			if err != nil {
-				telemetry.Errors.Inc(names.KubeContainer)
 				log.Debugf("Pod %q has reference to non-existing container %q", entity.Name, podContainer.ID)
 				continue
 			}
@@ -248,7 +248,6 @@ func (k *ContainerConfigProvider) generateConfig(e workloadmeta.Entity) ([]integ
 			containerNames)...)
 
 	default:
-		telemetry.Errors.Inc(names.KubeContainer)
 		log.Errorf("cannot handle entity of kind %s", e.GetID().Kind)
 	}
 

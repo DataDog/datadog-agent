@@ -6,7 +6,10 @@
 package compliance
 
 import (
+	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"time"
 
@@ -57,17 +60,28 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 		resolverOptions.StatsdClient = statsdClient
 	}
 
+	var sysProbeClient *http.Client
+	if config := sysprobeconfig.SysProbeObject(); config != nil && config.SocketAddress != "" {
+		sysProbeClient = newSysProbeClient(config.SocketAddress)
+	}
+
+	enabledConfigurationsExporters := []compliance.ConfigurationExporter{
+		compliance.AptExporter,
+		compliance.KubernetesExporter,
+	}
+	if config.GetBool("compliance_config.database_benchmarks.enabled") {
+		enabledConfigurationsExporters = append(enabledConfigurationsExporters, compliance.DBExporter)
+	}
+
 	runner := runner.NewRunner(senderManager)
 	stopper.Add(runner)
 	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
-		ResolverOptions: resolverOptions,
-		ConfigDir:       configDir,
-		Reporter:        reporter,
-		CheckInterval:   checkInterval,
-		EnabledConfigurationExporters: []compliance.ConfigurationExporter{
-			compliance.AptExporter,
-			compliance.KubernetesExporter,
-		},
+		ResolverOptions:               resolverOptions,
+		ConfigDir:                     configDir,
+		Reporter:                      reporter,
+		CheckInterval:                 checkInterval,
+		EnabledConfigurationExporters: enabledConfigurationsExporters,
+		SysProbeClient:                sysProbeClient,
 	})
 	err = agent.Start()
 	if err != nil {
@@ -97,4 +111,20 @@ func sendRunningMetrics(statsdClient *ddgostatsd.Client, moduleName string) *tim
 	}()
 
 	return heartbeat
+}
+
+func newSysProbeClient(address string) *http.Client {
+	return &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:    2,
+			IdleConnTimeout: 30 * time.Second,
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", address)
+			},
+			TLSHandshakeTimeout:   1 * time.Second,
+			ResponseHeaderTimeout: 5 * time.Second,
+			ExpectContinueTimeout: 50 * time.Millisecond,
+		},
+	}
 }

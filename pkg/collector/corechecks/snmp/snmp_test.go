@@ -2119,8 +2119,8 @@ func TestDeviceIDAsHostname(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	coreconfig.Datadog.Set("hostname", "test-hostname")
-	coreconfig.Datadog.Set("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
+	coreconfig.Datadog.SetWithoutSource("hostname", "test-hostname")
+	coreconfig.Datadog.SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
 	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml
@@ -2311,7 +2311,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	coreconfig.Datadog.Set("hostname", "my-hostname")
+	coreconfig.Datadog.SetWithoutSource("hostname", "my-hostname")
 	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
 
 	// language=yaml

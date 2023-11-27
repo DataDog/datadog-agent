@@ -282,6 +282,11 @@ func Test_Deployment_FilteredOut(t *testing.T) {
 			},
 			expected: true,
 		},
+		{
+			name:       "nil",
+			deployment: nil,
+			expected:   true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

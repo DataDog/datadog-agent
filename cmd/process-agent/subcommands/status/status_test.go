@@ -71,7 +71,7 @@ func TestStatus(t *testing.T) {
 func TestNotRunning(t *testing.T) {
 	// Use different ports in case the host is running a real agent
 	cfg := config.Mock(t)
-	cfg.Set("process_config.cmd_port", 8082)
+	cfg.SetWithoutSource("process_config.cmd_port", 8082)
 
 	addressPort, err := config.GetProcessAPIAddressPort()
 	require.NoError(t, err)
@@ -87,7 +87,7 @@ func TestNotRunning(t *testing.T) {
 // a connection error
 func TestError(t *testing.T) {
 	cfg := config.Mock(t)
-	cfg.Set("ipc_address", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
+	cfg.SetWithoutSource("ipc_address", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
 	_, ipcError := config.GetIPCAddress()
 
 	var errText, expectedErrText strings.Builder
