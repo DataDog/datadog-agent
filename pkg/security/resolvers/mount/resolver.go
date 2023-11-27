@@ -277,21 +277,25 @@ func (mr *Resolver) lookupByDevice(device uint32) *model.Mount {
 	return result
 }
 
-func (mr *Resolver) lookupMount(mountID uint32, device uint32) *model.Mount {
+func (mr *Resolver) lookupMount(mountID uint32, device uint32, allowDeviceFallback bool) *model.Mount {
 	mount := mr.lookupByMountID(mountID)
 	if mount != nil {
 		return mount
 	}
 
-	return mr.lookupByDevice(device)
+	if allowDeviceFallback {
+		return mr.lookupByDevice(device)
+	}
+
+	return nil
 }
 
-func (mr *Resolver) _getMountPath(mountID uint32, device uint32, cache map[uint32]bool) (string, error) {
+func (mr *Resolver) _getMountPath(mountID uint32, device uint32, cache map[uint32]bool, allowDeviceFallback bool) (string, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", err
 	}
 
-	mount := mr.lookupMount(mountID, device)
+	mount := mr.lookupMount(mountID, device, allowDeviceFallback)
 	if mount == nil {
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
@@ -315,7 +319,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, cache map[uint3
 		return "", ErrMountUndefined
 	}
 
-	parentMountPath, err := mr._getMountPath(mount.ParentPathKey.MountID, mount.Device, cache)
+	parentMountPath, err := mr._getMountPath(mount.ParentPathKey.MountID, mount.Device, cache, allowDeviceFallback)
 	if err != nil {
 		return "", err
 	}
@@ -330,8 +334,8 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, cache map[uint3
 	return mountPointStr, nil
 }
 
-func (mr *Resolver) getMountPath(mountID uint32, device uint32) (string, error) {
-	return mr._getMountPath(mountID, device, map[uint32]bool{})
+func (mr *Resolver) getMountPath(mountID uint32, device uint32, allowDeviceFallback bool) (string, error) {
+	return mr._getMountPath(mountID, device, map[uint32]bool{}, allowDeviceFallback)
 }
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
@@ -385,7 +389,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	path, err := mr.getMountPath(mountID, device)
+	path, err := mr.getMountPath(mountID, device, false)
 	if err == nil {
 		mr.cacheHitsStats.Inc()
 		return path, nil
@@ -400,7 +404,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 		return "", err
 	}
 
-	path, err = mr.getMountPath(mountID, device)
+	path, err = mr.getMountPath(mountID, device, true)
 	if err == nil {
 		mr.procHitsStats.Inc()
 		return path, nil
@@ -426,7 +430,7 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	mount := mr.lookupMount(mountID, device)
+	mount := mr.lookupMount(mountID, device, false)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
 		return mount, nil
@@ -441,7 +445,7 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 		return nil, err
 	}
 
-	mount = mr.mounts[mountID]
+	mount = mr.lookupMount(mountID, device, true)
 	if mount != nil {
 		mr.procHitsStats.Inc()
 		return mount, nil
