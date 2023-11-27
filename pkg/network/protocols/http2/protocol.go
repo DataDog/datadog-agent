@@ -47,9 +47,8 @@ type protocol struct {
 	terminatedConnectionMux             sync.Mutex
 
 	// kernelTelemetry is used to retrieve metrics from the kernel
-	http2Telemetry *kernelTelemetry
-	stopOnce       sync.Once
-	done           chan struct{}
+	http2Telemetry             *kernelTelemetry
+	kernelTelemetryStopChannel chan struct{}
 }
 
 const (
@@ -135,9 +134,10 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 	http2KernelTelemetry := newHTTP2KernelTelemetry()
 
 	return &protocol{
-		cfg:            cfg,
-		telemetry:      telemetry,
-		http2Telemetry: http2KernelTelemetry,
+		cfg:                        cfg,
+		telemetry:                  telemetry,
+		http2Telemetry:             http2KernelTelemetry,
+		kernelTelemetryStopChannel: make(chan struct{}),
 	}, nil
 }
 
@@ -214,12 +214,14 @@ func (p *protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
 	ticker := time.NewTicker(10 * time.Second)
 	http2Telemetry := &HTTP2Telemetry{}
-	p.done = make(chan struct{})
 	var zero uint32
+
+	p.setupHTTP2InFlightMapCleaner(mgr)
+	p.setupDynamicTableMapCleaner(mgr)
 
 	mp, _, err := mgr.GetMap(telemetryMap)
 	if err != nil {
-		log.Warnf("error retrieving http2 telemetry map: %s", err)
+		return err
 	}
 	go func() {
 		defer ticker.Stop()
@@ -227,14 +229,18 @@ func (p *protocol) PostStart(mgr *manager.Manager) error {
 		for {
 			select {
 			case <-ticker.C:
-				p.updateKernelTelemetry(http2Telemetry, mp, zero)
-			case <-p.done:
+				if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
+					log.Warnf("unable to lookup http2 telemetry map: %s", err)
+					return
+				}
+
+				p.http2Telemetry.update(http2Telemetry)
+				p.http2Telemetry.Log()
+			case <-p.kernelTelemetryStopChannel:
 				return
 			}
 		}
 	}()
-	p.setupHTTP2InFlightMapCleaner(mgr)
-	p.setupDynamicTableMapCleaner(mgr)
 
 	return nil
 }
@@ -258,10 +264,8 @@ func (p *protocol) Stop(_ *manager.Manager) {
 	}
 
 	if p.telemetry != nil {
-		p.stopOnce.Do(func() {
-			p.done <- struct{}{}
-			close(p.done)
-		})
+		p.kernelTelemetryStopChannel <- struct{}{}
+		close(p.kernelTelemetryStopChannel)
 	}
 }
 
@@ -378,17 +382,6 @@ func (p *protocol) GetStats() *protocols.ProtocolStats {
 		Type:  protocols.HTTP2,
 		Stats: p.statkeeper.GetAndResetAllStats(),
 	}
-}
-
-// updateKernelTelemetry updates the HTTP/2 kernel telemetry.
-func (p *protocol) updateKernelTelemetry(http2Telemetry *HTTP2Telemetry, mp *ebpf.Map, zero uint32) {
-	if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-		log.Warnf("unable to lookup http2 telemetry map: %s", err)
-		return
-	}
-
-	p.http2Telemetry.update(http2Telemetry)
-	p.http2Telemetry.Log()
 }
 
 // The staticTableEntry represents an entry in the static table that contains an index in the table and a value.

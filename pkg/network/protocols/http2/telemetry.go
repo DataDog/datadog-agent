@@ -34,7 +34,7 @@ type kernelTelemetry struct {
 	pathSizeBucket3 *libtelemetry.Counter
 	// pathSizeBucket4 Count of path sizes between 151-160 bytes
 	pathSizeBucket4 *libtelemetry.Counter
-	// pathSizeBucket5 Count of path sizes greater then 160
+	// pathSizeBucket5 Count of path sizes greater than 161 bytes
 	pathSizeBucket5 *libtelemetry.Counter
 	// pathExceedsFrame Count of times we couldn't retrieve the path due to reaching the end of the frame.
 	pathExceedsFrame *libtelemetry.Counter

@@ -119,8 +119,8 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 // update_path_size_telemetry updates the path size telemetry.
 static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_tel, __u64 size) {
-    __s64 bucket_idx = (size - 120) / 10;
-    bucket_idx = bucket_idx > 4 ? 4 : bucket_idx;
+    __s64 bucket_idx = (size - HTTP2_TELEMETRY_MAX_PATH_LEN) / HTTP2_TELEMETRY_PATH_BUCKETS_SIZE;
+    bucket_idx = bucket_idx > HTTP2_TELEMETRY_PATH_BUCKETS ? HTTP2_TELEMETRY_PATH_BUCKETS : bucket_idx;
     bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
 
     __sync_fetch_and_add(&http2_tel->path_size_bucket[bucket_idx], 1);

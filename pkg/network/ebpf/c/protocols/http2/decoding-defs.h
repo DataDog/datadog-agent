@@ -22,6 +22,15 @@
 // Maximum size for the path buffer.
 #define HTTP2_MAX_PATH_LEN 160
 
+// Maximum size for the path buffer for telemetry.
+#define HTTP2_TELEMETRY_MAX_PATH_LEN 120
+
+// The amount of buckets we have for the path size telemetry.
+#define HTTP2_TELEMETRY_PATH_BUCKETS 5
+
+// The size of each bucket we have for the path size telemetry.
+#define HTTP2_TELEMETRY_PATH_BUCKETS_SIZE 10
+
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
 
@@ -155,7 +164,7 @@ typedef struct {
     __u64 path_exceeds_frame;
     __u64 exceeding_max_interesting_frames;
     __u64 exceeding_max_frames_to_filter;
-    __u64 path_size_bucket[6];
+    __u64 path_size_bucket[7];
 } http2_telemetry_t;
 
 #endif
