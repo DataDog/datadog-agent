@@ -86,9 +86,9 @@ func TestInstallScript(t *testing.T) {
 func (is *installScriptSuite) TestInstallAgent() {
 	switch *flavor {
 	case "datadog-agent":
-		is.AgentTest()
+		is.AgentTest("datadog-agent")
 	case "datadog-heroku-agent":
-		is.AgentTest()
+		is.AgentTest("datadog-heroku-agent")
 	case "datadog-iot-agent":
 		is.IotAgentTest()
 	case "datadog-dogstatsd":
@@ -96,7 +96,7 @@ func (is *installScriptSuite) TestInstallAgent() {
 	}
 }
 
-func (is *installScriptSuite) AgentTest() {
+func (is *installScriptSuite) AgentTest(flavor string) {
 	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
 
 	vm := is.Env().VM.(*client.PulumiStackVM)
@@ -106,7 +106,7 @@ func (is *installScriptSuite) AgentTest() {
 	unixHelper := helpers.NewUnixHelper()
 	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
 
-	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
+	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(flavor))
 
 	common.CheckInstallation(is.T(), client)
 	common.CheckAgentBehaviour(is.T(), client)
@@ -120,7 +120,7 @@ func (is *installScriptSuite) AgentTest() {
 		common.CheckCWSBehaviour(is.T(), client)
 	}
 	common.CheckInstallationInstallScript(is.T(), client)
-	common.CheckUninstallation(is.T(), client, "datadog-agent")
+	common.CheckUninstallation(is.T(), client, flavor)
 
 }
 
