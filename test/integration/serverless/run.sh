@@ -245,11 +245,15 @@ serverless deploy --stage "${stage}"
 
 # deploy proxy functions with a different datadog.yaml
 if [ "$RUN_SUITE_PROXY" = true ]; then
+    echo "Updating datadog.yaml for proxy tests..."
+
     mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-temp.yaml
     mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml
 
     for function_name in "${proxy_functions[@]}"; do
-        serverless deploy function --stage "${stage}" --function $function_name
+        if [[ "$function_name" = *-yaml-* ]]; then
+            serverless deploy function --stage "${stage}" --function $function_name
+        fi
     done
 
     mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml
