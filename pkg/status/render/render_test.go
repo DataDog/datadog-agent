@@ -16,6 +16,8 @@ import (
 func TestFormatStatus(t *testing.T) {
 	agentJSON, err := os.ReadFile("fixtures/agent_status.json")
 	require.NoError(t, err)
+	agentText, err := os.ReadFile("fixtures/agent_status.text")
+	require.NoError(t, err)
 	const statusRenderErrors = "Status render errors"
 
 	t.Run("render errors", func(t *testing.T) {
@@ -26,18 +28,8 @@ func TestFormatStatus(t *testing.T) {
 
 	t.Run("no render errors", func(t *testing.T) {
 		actual, err := FormatStatus(agentJSON)
-		var agentText string
-		if _, err := os.Stat("fixtures/agent_status.text"); err == nil {
-			fileContent, err := os.ReadFile("fixtures/agent_status.json")
-			require.NoError(t, err)
-			agentText = string(fileContent)
-		} else {
-			os.WriteFile("fixtures/agent_status.text", []byte(actual), 0777)
-			agentText = actual
-		}
-
 		require.NoError(t, err)
-		assert.Equal(t, actual, agentText)
+		assert.Equal(t, actual, string(agentText))
 		assert.NotContains(t, actual, statusRenderErrors)
 	})
 }
