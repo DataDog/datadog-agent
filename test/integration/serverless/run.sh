@@ -243,9 +243,8 @@ cp $SERVERLESS_INTEGRATION_TESTS_DIR/src/otlpPython.py $SERVERLESS_INTEGRATION_T
 (cd ${SERVERLESS_INTEGRATION_TESTS_DIR}; npm install --no-save serverless-plugin-conditional-functions)
 serverless deploy --stage "${stage}"
 
-if [ "{$RUN_SUITE_PROXY}" = true ]; then
-
-    # deploy proxy functions with a different datadog.yaml
+# deploy proxy functions with a different datadog.yaml
+if [ "$RUN_SUITE_PROXY" = true ]; then
     mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-temp.yaml
     mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml
 
@@ -255,7 +254,6 @@ if [ "{$RUN_SUITE_PROXY}" = true ]; then
 
     mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml
     mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-temp.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml
-
 fi
 
 rm $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
