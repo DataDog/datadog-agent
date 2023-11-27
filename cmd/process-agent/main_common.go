@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -134,6 +135,9 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 		// Provide remote config client module
 		rcclient.Module,
 
+		// Provide statsd client module
+		compstatsd.Module,
+
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		collectors.GetCatalog(),
 		fx.Provide(func(c config.Component) workloadmeta.Params {
@@ -235,6 +239,7 @@ type miscDeps struct {
 	Lc fx.Lifecycle
 
 	Config       config.Component
+	Statsd       compstatsd.Component
 	Syscfg       sysprobeconfig.Component
 	HostInfo     hostinfo.Component
 	WorkloadMeta workloadmeta.Component
@@ -244,7 +249,7 @@ type miscDeps struct {
 // Todo: (Components) WorkloadMeta, remoteTagger, statsd
 // Todo: move metadata/workloadmeta/collector to workloadmeta
 func initMisc(deps miscDeps) error {
-	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), false); err != nil {
+	if err := statsd.Configure(ddconfig.GetBindHost(), deps.Config.GetInt("dogstatsd_port"), deps.Statsd.CreateForHostPort); err != nil {
 		log.Criticalf("Error configuring statsd: %s", err)
 		return err
 	}
