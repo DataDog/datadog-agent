@@ -505,7 +505,7 @@ func TestMountGetParentPath(t *testing.T) {
 		},
 	}
 
-	parentPath, err := mr.getMountPath(4, 44)
+	parentPath, err := mr.getMountPath(4, 44, false)
 	assert.NoError(t, err)
 	assert.Equal(t, "/a/b/c", parentPath)
 }
@@ -541,7 +541,7 @@ func TestMountLoop(t *testing.T) {
 		},
 	}
 
-	parentPath, err := mr.getMountPath(3, 44)
+	parentPath, err := mr.getMountPath(3, 44, false)
 	assert.Equal(t, ErrMountLoop, err)
 	assert.Equal(t, "", parentPath)
 }
@@ -568,6 +568,6 @@ func BenchmarkGetParentPath(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = mr.getMountPath(100, 44)
+		_, _ = mr.getMountPath(100, 44, false)
 	}
 }

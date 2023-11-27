@@ -389,7 +389,11 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	path, err := mr.getMountPath(mountID, device, false)
+	// if UseProcFS is disabled, we can directly allow the device fallback since getMountPath will be called
+	// only once
+	allowDirectDeviceFallback := !mr.opts.UseProcFS
+
+	path, err := mr.getMountPath(mountID, device, allowDirectDeviceFallback)
 	if err == nil {
 		mr.cacheHitsStats.Inc()
 		return path, nil
@@ -430,7 +434,11 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	mount := mr.lookupMount(mountID, device, false)
+	// if UseProcFS is disabled, we can directly allow the device fallback since getMountPath will be called
+	// only once
+	allowDirectDeviceFallback := !mr.opts.UseProcFS
+
+	mount := mr.lookupMount(mountID, device, allowDirectDeviceFallback)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
 		return mount, nil
