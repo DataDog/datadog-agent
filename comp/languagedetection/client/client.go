@@ -11,17 +11,17 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/fx"
-
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
+
+	"go.uber.org/fx"
 )
 
 const (
@@ -42,10 +42,11 @@ const (
 type dependencies struct {
 	fx.In
 
-	Lc        fx.Lifecycle
-	Config    config.Component
-	Log       logComponent.Component
-	Telemetry telemetry.Component
+	Lc           fx.Lifecycle
+	Config       config.Component
+	Log          logComponent.Component
+	Telemetry    telemetry.Component
+	Workloadmeta workloadmeta.Component
 
 	// workloadmeta is still not a component but should be provided as one in the future
 	// TODO(components): Workloadmeta workloadmeta.Component
@@ -61,7 +62,7 @@ type client struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	logger logComponent.Component
-	store  workloadmeta.Store
+	store  workloadmeta.Component
 
 	// mutex protecting UpdatedPodDetails and currentBatch
 	mutex sync.Mutex
@@ -107,6 +108,7 @@ func newClient(
 		ctx:                              ctx,
 		cancel:                           cancel,
 		logger:                           deps.Log,
+		store:                            deps.Workloadmeta,
 		freshDataPeriod:                  deps.Config.GetDuration("language_detection.client_period"),
 		mutex:                            sync.Mutex{},
 		telemetry:                        newComponentTelemetry(deps.Telemetry),
@@ -141,10 +143,6 @@ func (c *client) stop(_ context.Context) error {
 // run starts processing events and starts streaming
 func (c *client) run() {
 	defer c.logger.Info("Shutting down language detection client")
-	// workloadmeta can't be initialized in the constructor or provided as a dependency until workloadmeta is refactored as a component
-	if c.store == nil {
-		c.store = workloadmeta.GetGlobalStore() // TODO(components): should be replaced by components
-	}
 
 	filterParams := workloadmeta.FilterParams{
 		Kinds: []workloadmeta.Kind{
@@ -289,7 +287,6 @@ func (c *client) retryProcessEventsWithoutPod(containerIDs []string) {
 			c.handleProcessEvent(procEvent, true)
 		}
 	}
-	c.processesWithoutPod = make(map[string]*eventsToRetry)
 }
 
 // handleProcessEvent updates the current batch and the freshlyUpdatedPods
@@ -343,6 +340,7 @@ func (c *client) handleProcessEvent(processEvent workloadmeta.Event, isRetry boo
 	added := containerInfo.Add(string(process.Language.Name))
 	if added {
 		c.freshlyUpdatedPods[pod.Name] = struct{}{}
+		delete(c.processesWithoutPod, process.ContainerID)
 	}
 	c.telemetry.ProcessedEvents.Inc(pod.Name, containerName, string(process.Language.Name))
 }
@@ -354,15 +352,17 @@ func (c *client) handlePodEvent(podEvent workloadmeta.Event) {
 	for _, c := range append(pod.InitContainers, pod.Containers...) {
 		containerIDs = append(containerIDs, c.ID)
 	}
-	if podEvent.Type == workloadmeta.EventTypeSet {
-		c.retryProcessEventsWithoutPod(containerIDs)
-	}
 
-	for _, cid := range containerIDs {
-		delete(c.processesWithoutPod, cid)
+	switch podEvent.Type {
+	case workloadmeta.EventTypeSet:
+		c.retryProcessEventsWithoutPod(containerIDs)
+	case workloadmeta.EventTypeUnset:
+		delete(c.currentBatch, pod.Name)
+		delete(c.freshlyUpdatedPods, pod.Name)
+		for _, cid := range containerIDs {
+			delete(c.processesWithoutPod, cid)
+		}
 	}
-	delete(c.currentBatch, pod.Name)
-	delete(c.freshlyUpdatedPods, pod.Name)
 }
 
 func (c *client) getCurrentBatchProto() *pbgo.ParentLanguageAnnotationRequest {

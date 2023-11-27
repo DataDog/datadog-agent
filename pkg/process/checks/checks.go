@@ -49,7 +49,7 @@ type Check interface {
 	// Realtime indicates if this check only runs in real-time mode
 	Realtime() bool
 	// Init initializes the check
-	Init(syscfg *SysProbeConfig, info *HostInfo) error
+	Init(syscfg *SysProbeConfig, info *HostInfo, oneShot bool) error
 	// SupportsRunOptions returns true if the check supports RunOptions
 	SupportsRunOptions() bool
 	// Run runs the check

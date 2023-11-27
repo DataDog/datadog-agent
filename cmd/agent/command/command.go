@@ -46,7 +46,7 @@ type SubcommandFactory func(globalParams *GlobalParams) []*cobra.Command
 // without secrets and logger disabled).
 func GetDefaultCoreBundleParams(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
-		ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+		ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 		LogParams:    log.ForOneShot(LoggerName, "off", true)}
 }
 

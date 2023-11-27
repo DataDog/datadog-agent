@@ -8,13 +8,18 @@
 package summary
 
 import (
+	"context"
 	"errors"
 	"os"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -22,9 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-	workloadmetatesting "github.com/DataDog/datadog-agent/pkg/workloadmeta/testing"
 )
 
 var (
@@ -274,7 +278,7 @@ func TestProvider_Provide(t *testing.T) {
 				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
 			}
 			tagger.SetDefaultTagger(fakeTagger)
-			store := creatFakeStore()
+			store := creatFakeStore(t)
 			kubeletMock := mock.NewKubeletMock()
 			setFakeStatsSummary(t, kubeletMock, tt.response.code, tt.response.err)
 
@@ -317,8 +321,15 @@ func TestProvider_Provide(t *testing.T) {
 	}
 }
 
-func creatFakeStore() *workloadmetatesting.Store {
-	store := workloadmetatesting.NewStore()
+func creatFakeStore(t *testing.T) workloadmeta.Mock {
+	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		log.MockModule,
+		configcomp.MockModule,
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModuleV2,
+	))
+
 	podEntityID := workloadmeta.EntityID{
 		Kind: workloadmeta.KindKubernetesPod,
 		ID:   "foobar",

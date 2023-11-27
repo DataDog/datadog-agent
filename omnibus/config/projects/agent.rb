@@ -296,10 +296,6 @@ if windows_target?
   if ENV['SIGN_WINDOWS_DD_WCS']
     BINARIES_TO_SIGN = GO_BINARIES + [
       "#{install_dir}\\bin\\agent\\ddtray.exe",
-      "#{install_dir}\\embedded3\\python.exe",
-      "#{install_dir}\\embedded3\\\\python3.dll",
-      "#{install_dir}\\embedded3\\\\python39.dll",
-      "#{install_dir}\\embedded3\\\\pythonw.exe",
       "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
     ]
     if with_python_runtime? "2"

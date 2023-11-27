@@ -178,7 +178,7 @@ func NewSecurityProfileManager(config *config.Config, statsdClient statsd.Client
 	if len(config.RuntimeSecurity.SecurityProfileDir) != 0 {
 		// override the status if autosuppression is enabled
 		var status model.Status
-		if config.RuntimeSecurity.ActivityDumpAutoSuppressionEnabled {
+		if config.RuntimeSecurity.SecurityProfileAutoSuppressionEnabled {
 			status = model.AnomalyDetection | model.AutoSuppression
 		}
 

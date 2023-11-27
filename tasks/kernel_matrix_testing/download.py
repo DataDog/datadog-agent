@@ -26,6 +26,8 @@ rootfs_amd64 = {
     "Fedora-Cloud-Base-36.amd64.qcow2",
     "Fedora-Cloud-Base-37.amd64.qcow2",
     "Fedora-Cloud-Base-38.amd64.qcow2",
+    "debian-10-generic-amd64.qcow2",
+    "debian-11-generic-amd64.qcow2",
 }
 
 rootfs_arm64 = {
@@ -41,6 +43,8 @@ rootfs_arm64 = {
     "Fedora-Cloud-Base-36.arm64.qcow2",
     "Fedora-Cloud-Base-37.arm64.qcow2",
     "Fedora-Cloud-Base-38.arm64.qcow2",
+    "debian-10-generic-arm64.qcow2",
+    "debian-11-generic-arm64.qcow2",
 }
 
 archs_mapping = {

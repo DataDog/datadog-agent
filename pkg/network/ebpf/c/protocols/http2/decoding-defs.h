@@ -5,11 +5,11 @@
 
 #include "protocols/http2/defs.h"
 
-#define HTTP2_FRAMES_PER_TAIL_CALL 4
+#define HTTP2_FRAMES_PER_TAIL_CALL 7
 // Maximum number of frames to be processed in a single TCP packet. That's also the number of tail calls we'll have.
 // NOTE: we may need to revisit this const if we need to capture more connections.
-#define HTTP2_MAX_FRAMES_ITERATIONS 30
-#define HTTP2_MAX_FRAMES_TO_FILTER  100
+#define HTTP2_MAX_FRAMES_ITERATIONS 120
+#define HTTP2_MAX_FRAMES_TO_FILTER  120
 
 // A limit of max headers which we process in the request/response.
 #define HTTP2_MAX_HEADERS_COUNT_FOR_FILTERING 25
@@ -30,6 +30,10 @@
 
 // Http2 max batch size.
 #define HTTP2_BATCH_SIZE 17
+
+// The max number of events we can have in a single page in the batch_events array.
+// See more details in the comments of the USM_EVENTS_INIT.
+#define HTTP2_TERMINATED_BATCH_SIZE 80
 
 // MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
 // 1 << 6 - 1
@@ -83,7 +87,6 @@ typedef struct {
 } http2_stream_key_t;
 
 typedef struct {
-    conn_tuple_t tup;
     __u64 response_last_seen;
     __u64 request_started;
 
@@ -94,6 +97,11 @@ typedef struct {
 
     __u8 request_path[HTTP2_MAX_PATH_LEN] __attribute__((aligned(8)));
 } http2_stream_t;
+
+typedef struct {
+    conn_tuple_t tuple;
+    http2_stream_t stream;
+} http2_event_t;
 
 typedef struct {
     dynamic_table_index_t dynamic_index;
