@@ -17,6 +17,10 @@ import (
 )
 
 func TestUserGroup(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_user",
@@ -118,11 +122,6 @@ func TestUserGroup(t *testing.T) {
 	defer test.Close()
 
 	for _, distroTest := range distroTests {
-		dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), distroTest.name)
-		if err != nil {
-			t.Skipf("Skipping user group tests: Docker not available: %s", err)
-			return
-		}
 
 		if _, err := dockerWrapper.start(); err != nil {
 			t.Fatal(err)
