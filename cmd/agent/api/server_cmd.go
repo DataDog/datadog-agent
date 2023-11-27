@@ -22,7 +22,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/check"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
@@ -58,7 +60,9 @@ func startCMDServer(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	demux demultiplexer.Component,
 	invHost inventoryhost.Component,
+	secretResolver secrets.Component,
 ) (err error) {
 	// get the transport we're going to use under HTTP
 	cmdListener, err = getListener(cmdAddr)
@@ -130,7 +134,9 @@ func startCMDServer(
 				senderManager,
 				hostMetadata,
 				invAgent,
+				demux,
 				invHost,
+				secretResolver,
 			)))
 	cmdMux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	cmdMux.Handle("/", gwmux)
