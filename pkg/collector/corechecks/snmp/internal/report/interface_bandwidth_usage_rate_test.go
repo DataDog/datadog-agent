@@ -14,9 +14,45 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"testing"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
+
+func Test_interfaceBandwidthState_RemoveExpiredBandwidthUsageRates(t *testing.T) {
+	tests := []struct {
+		name            string
+		ibs             *InterfaceBandwidthState
+		timestampNano   int64
+		ttlNano         int64
+		expectedMapSize int
+	}{
+		{
+			// Map has entries from within the last hour
+			name:            "No bandwidth usage rates to remove",
+			ibs:             interfaceRateMapWithPrevious(),
+			timestampNano:   mockTimeNowNano,
+			ttlNano:         int64(time.Hour),
+			expectedMapSize: 2,
+		},
+		{
+			// Use map with entries from exactly 1 hour ago
+			name:            "Remove expired bandwidth usage rates (over 1 hour since update)",
+			ibs:             MockInterfaceRateMap("interfaceID", 10, 10, 1, 1, int64(946_681_200_000_000_000)),
+			timestampNano:   mockTimeNowNano,
+			ttlNano:         int64(time.Hour),
+			expectedMapSize: 0,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.ibs.RemoveExpiredBandwidthUsageRates(tt.timestampNano, tt.ttlNano)
+
+			// Check that the map was updated to remove expired
+			assert.Equal(t, tt.expectedMapSize, len(tt.ibs.state))
+		})
+	}
+}
 
 func Test_interfaceBandwidthState_calculateBandwidthUsageRate(t *testing.T) {
 	tests := []struct {

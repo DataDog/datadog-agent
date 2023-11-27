@@ -91,6 +91,10 @@ func (c *Check) Run() error {
 
 	// Commit
 	sender.Commit()
+
+	// Clean up expired devices/interfaces from the state keeping track of bandwidth usage for rate calculation
+	c.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(timeNow().UnixNano(), int64(time.Hour))
+
 	return checkErr
 }
 
