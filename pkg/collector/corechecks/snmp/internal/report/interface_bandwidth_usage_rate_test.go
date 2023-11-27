@@ -290,7 +290,6 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 			}
 			// conflicting ifSpeed from mocked saved state (80) in interfaceRateMap
 			//newIfSpeed := uint64(100) * (1e6)
-
 			for _, symbol := range tt.symbols {
 				usageName := bandwidthMetricNameToUsage[symbol.Name]
 				interfaceID := mockDeviceID + ":" + fullIndex + "." + usageName

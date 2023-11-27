@@ -38,7 +38,6 @@ type Check struct {
 	discovery                  *discovery.Discovery
 	sessionFactory             session.Factory
 	workerRunDeviceCheckErrors *atomic.Uint64
-	interfaceBandwidthState    *report.InterfaceBandwidthState
 }
 
 // Run executes the check
@@ -63,14 +62,13 @@ func (c *Check) Run() error {
 
 		for i := range discoveredDevices {
 			deviceCk := discoveredDevices[i]
-			deviceID := deviceCk.GetDeviceID()
 			hostname, err := deviceCk.GetDeviceHostname()
 			if err != nil {
 				log.Warnf("error getting hostname for device %s: %s", deviceCk.GetIPAddress(), err)
 				continue
 			}
 			// `interface_configs` option not supported by SNMP corecheck autodiscovery
-			deviceCk.SetSender(report.NewMetricSender(sender, hostname, deviceID, nil, c.interfaceBandwidthState))
+			deviceCk.SetSender(report.NewMetricSender(sender, hostname, deviceCk.GetDeviceID(), nil, deviceCk.GetInterfaceBandwidthState()))
 			jobs <- deviceCk
 		}
 		close(jobs)
@@ -81,19 +79,15 @@ func (c *Check) Run() error {
 		sender.Gauge("snmp.discovered_devices_count", float64(len(discoveredDevices)), "", tags)
 	} else {
 		hostname, err := c.singleDeviceCk.GetDeviceHostname()
-		deviceID := c.singleDeviceCk.GetDeviceID()
 		if err != nil {
 			return err
 		}
-		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, deviceID, c.config.InterfaceConfigs, c.interfaceBandwidthState))
+		c.singleDeviceCk.SetSender(report.NewMetricSender(sender, hostname, c.singleDeviceCk.GetDeviceID(), c.config.InterfaceConfigs, c.singleDeviceCk.GetInterfaceBandwidthState()))
 		checkErr = c.runCheckDevice(c.singleDeviceCk)
 	}
 
 	// Commit
 	sender.Commit()
-
-	// Clean up expired devices/interfaces from the state keeping track of bandwidth usage for rate calculation
-	c.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(timeNow().UnixNano(), int64(time.Hour))
 
 	return checkErr
 }
@@ -200,7 +194,6 @@ func snmpFactory() check.Check {
 		CheckBase:                  core.NewCheckBase(common.SnmpIntegrationName),
 		sessionFactory:             session.NewGosnmpSession,
 		workerRunDeviceCheckErrors: atomic.NewUint64(0),
-		interfaceBandwidthState:    report.NewInterfaceBandwidthState(),
 	}
 }
 
