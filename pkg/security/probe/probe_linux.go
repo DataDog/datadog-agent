@@ -34,7 +34,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/ebpfcheck"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	commonebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/process/procutil"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -396,7 +395,9 @@ func (p *Probe) DispatchEvent(event *model.Event) {
 		if event.IsKernelSpaceAnomalyDetectionEvent() {
 			p.profileManagers.securityProfileManager.FillProfileContextFromContainerID(event.FieldHandlers.ResolveContainerID(event, event.ContainerContext), &event.SecurityProfileContext)
 		}
-		p.sendAnomalyDetection(event)
+		if p.Config.RuntimeSecurity.AnomalyDetectionEnabled {
+			p.sendAnomalyDetection(event)
+		}
 	} else if event.Error == nil {
 		// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 		if p.profileManagers.activityDumpManager != nil {
@@ -1685,8 +1686,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		p.managerOptions.AdditionalExcludedFunctionCollector = afBasedExcluder
 	}
 
-	p.scrubber = procutil.NewDefaultDataScrubber()
-	p.scrubber.AddCustomSensitiveWords(config.Probe.CustomSensitiveWords)
+	p.scrubber = newProcScrubber(config.Probe.CustomSensitiveWords)
 
 	resolversOpts := resolvers.Opts{
 		PathResolutionEnabled: opts.PathResolutionEnabled,

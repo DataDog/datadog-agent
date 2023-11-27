@@ -477,45 +477,40 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	if f.internalState.Load() == Stopped {
 		return fmt.Errorf("the forwarder is not started")
 	}
-	if f.config.GetBool("telemetry.enabled") {
-		f.retryQueueDurationCapacityMutex.Lock()
-		defer f.retryQueueDurationCapacityMutex.Unlock()
 
-		now := time.Now()
-		for _, t := range transactions {
-			forwarder := f.domainForwarders[t.Domain]
-			forwarder.sendHTTPTransactions(t)
+	f.retryQueueDurationCapacityMutex.Lock()
+	defer f.retryQueueDurationCapacityMutex.Unlock()
 
-			if f.queueDurationCapacity != nil {
-				if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
-					f.log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
-				}
-			}
-		}
+	now := time.Now()
+	for _, t := range transactions {
+		forwarder := f.domainForwarders[t.Domain]
+		forwarder.sendHTTPTransactions(t)
 
 		if f.queueDurationCapacity != nil {
-			if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
-				f.log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
-			} else {
-				telemetry := telemetry.GetStatsTelemetryProvider()
-				metricPrefix := "datadog.agent.retry_queue_duration."
-				for domain, t := range capacities {
-					tags := []string{
-						"agent:" + f.agentName,
-						"domain:" + domain,
-					}
-					telemetry.Gauge(metricPrefix+"capacity_secs", t.Capacity.Seconds(), tags)
-					telemetry.Gauge(metricPrefix+"bytes_per_sec", t.BytesPerSec, tags)
-					telemetry.Gauge(metricPrefix+"capacity_bytes", float64(t.AvailableSpace), tags)
-				}
+			if err := f.queueDurationCapacity.OnTransaction(t, forwarder.domain, now); err != nil {
+				f.log.Errorf("Cannot add a transaction to queueDurationCapacity: %v", err)
 			}
 		}
-	} else {
-		for _, t := range transactions {
-			forwarder := f.domainForwarders[t.Domain]
-			forwarder.sendHTTPTransactions(t)
+	}
+
+	if f.queueDurationCapacity != nil {
+		if capacities, err := f.queueDurationCapacity.ComputeCapacity(now); err != nil {
+			f.log.Errorf("Cannot compute the capacity of the retry queues: %v", err)
+		} else {
+			telemetry := telemetry.GetStatsTelemetryProvider()
+			metricPrefix := "datadog.agent.retry_queue_duration."
+			for domain, t := range capacities {
+				tags := []string{
+					"agent:" + f.agentName,
+					"domain:" + domain,
+				}
+				telemetry.Gauge(metricPrefix+"capacity_secs", t.Capacity.Seconds(), tags)
+				telemetry.Gauge(metricPrefix+"bytes_per_sec", t.BytesPerSec, tags)
+				telemetry.Gauge(metricPrefix+"capacity_bytes", float64(t.AvailableSpace), tags)
+			}
 		}
 	}
+
 	return nil
 }
 

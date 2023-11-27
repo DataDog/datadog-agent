@@ -31,6 +31,10 @@
 // Http2 max batch size.
 #define HTTP2_BATCH_SIZE 17
 
+// The max number of events we can have in a single page in the batch_events array.
+// See more details in the comments of the USM_EVENTS_INIT.
+#define HTTP2_TERMINATED_BATCH_SIZE 80
+
 // MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
 // 1 << 6 - 1
 #define MAX_6_BITS 63

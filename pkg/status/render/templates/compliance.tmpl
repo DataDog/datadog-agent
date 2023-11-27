@@ -1,10 +1,10 @@
 ==========
 Compliance
 ==========
-{{ if not .ComplianceStatus}}
+{{ if not .complianceStatus}}
   Not enabled
 {{- else}}
-  {{- with .ComplianceStatus}}
+  {{- with .complianceStatus}}
   {{ if .endpoints }}
   {{- range $endpoint := .endpoints }}
   {{ $endpoint }}
@@ -14,8 +14,8 @@ Compliance
 
   Checks
   ======
-  {{ $runnerStats := .RunnerStats }}
-  {{- range $Check := .ComplianceChecks }}
+  {{ $runnerStats := .runnerStats }}
+  {{- range $Check := .complianceChecks }}
     {{ $Check.Name }}
     {{printDashes $Check.Name "-"}}
       Framework: {{ $Check.Framework }} ({{ $Check.Version }})
