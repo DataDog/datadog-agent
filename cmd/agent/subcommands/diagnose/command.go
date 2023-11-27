@@ -77,7 +77,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(cmdDiagnose,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParamsWithoutSecrets(globalParams.ConfFilePath),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 					LogParams:    log.ForOneShot("CORE", "off", true)}),
 				core.Bundle,
 				diagnosesendermanagerimpl.Module,
