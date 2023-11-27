@@ -14,6 +14,11 @@ import (
 )
 
 func TestFormatStatus(t *testing.T) {
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "America/New_York")
+	defer func() {
+		os.Setenv("TZ", originalTZ)
+	}()
 	agentJSON, err := os.ReadFile("fixtures/agent_status.json")
 	require.NoError(t, err)
 	agentText, err := os.ReadFile("fixtures/agent_status.text")
