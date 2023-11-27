@@ -5,7 +5,6 @@ import sys
 from contextlib import contextmanager
 
 from invoke import Context, task
-from semver import Version
 
 from tasks.libs.common.color import color_message
 
@@ -249,6 +248,8 @@ def go_work(_: Context):
     and the go version contained in the file .go-version.
     If there is already a go.work file, it is renamed go.work.backup and a warning is printed.
     """
+    from semver import Version
+
     print(
         color_message(
             "WARNING: Using a go.work file is not supported and can cause weird errors "
