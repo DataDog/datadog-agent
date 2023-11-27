@@ -491,7 +491,8 @@ SNMP Traps
   Packets Auth Errors: 0
 =============
 Autodiscovery
-=============Enabled Features
+=============
+  Enabled Features
   ================
     containerd
     cri
