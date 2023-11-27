@@ -18,12 +18,12 @@ const (
 // MockInterfaceRateMap makes it easy to mock the map used for calculating state for bandwidth usage for testing
 func MockInterfaceRateMap(interfaceID string, inIfSpeed uint64, outIfSpeed uint64, inSample float64, outSample float64, ts int64) *InterfaceBandwidthState {
 	irm := NewInterfaceBandwidthState()
-	irm.state[interfaceID+".ifBandwidthInUsage"] = BandwidthUsage{
+	irm.state[interfaceID+".ifBandwidthInUsage"] = &BandwidthUsage{
 		ifSpeed:        inIfSpeed,
 		previousSample: inSample,
 		previousTsNano: ts,
 	}
-	irm.state[interfaceID+".ifBandwidthOutUsage"] = BandwidthUsage{
+	irm.state[interfaceID+".ifBandwidthOutUsage"] = &BandwidthUsage{
 		ifSpeed:        outIfSpeed,
 		previousSample: outSample,
 		previousTsNano: ts,

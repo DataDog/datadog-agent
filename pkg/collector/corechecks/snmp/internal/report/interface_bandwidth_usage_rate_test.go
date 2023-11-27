@@ -233,7 +233,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 					},
 				},
 			},
-			expectedError: fmt.Errorf("Rate value for device/interface %s is negative, discarding it", "namespace:deviceIP:9.ifBandwidthInUsage"),
+			expectedError: fmt.Errorf("rate value for device/interface %s is negative, discarding it", "namespace:deviceIP:9.ifBandwidthInUsage"),
 			// ((500000 * 8) / (100 * 1000000)) * 100 = 4.0
 			usageValue: 4,
 			// keep it the same interface speed, testing if the rate is negative only
