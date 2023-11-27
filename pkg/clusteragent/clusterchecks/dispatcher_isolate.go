@@ -10,6 +10,8 @@ package clusterchecks
 import "github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 
 func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
+	// Update stats prior to starting isolate to ensure all checks are accounted for
+	d.updateRunnersStats()
 	currentDistribution := d.currentDistribution()
 	isolateNode := currentDistribution.runnerForCheck(isolateCheckID)
 	if isolateNode == "" {
