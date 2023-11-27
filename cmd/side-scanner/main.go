@@ -914,15 +914,11 @@ func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan *scanTas
 	if entity == nil {
 		return nil
 	}
-	sourceAgent := "agent"
-	if scan.Type == "lambda-scan" {
-		// FIXME: hack
-		sourceAgent = "CI"
-	}
-	return s.sendSBOM(sourceAgent, entity)
+	return s.sendSBOM(entity)
 }
 
-func (s *sideScanner) sendSBOM(sourceAgent string, entity *sbommodel.SBOMEntity) error {
+func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
+	sourceAgent := "side-scanning"
 	envVarEnv := pkgconfig.Datadog.GetString("env")
 
 	entity.DdTags = append(entity.DdTags, "sidescanner_host", s.hostname)
@@ -1558,8 +1554,8 @@ func scanLambda(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEnti
 
 	entity = &sbommodel.SBOMEntity{
 		Status: sbommodel.SBOMStatus_SUCCESS,
-		Type:   sbommodel.SBOMSourceType_HOST_FILE_SYSTEM, // TODO: SBOMSourceType_LAMBDA
-		Id:     "",
+		Type:   sbommodel.SBOMSourceType_CI_PIPELINE, // TODO: SBOMSourceType_LAMBDA
+		Id:     scan.ARN.String(),
 		InUse:  true,
 		DdTags: []string{
 			"function:" + scan.ARN.String(),
