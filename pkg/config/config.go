@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	yaml "gopkg.in/yaml.v2"
 
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
@@ -540,6 +540,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_per_origin_initial_size", 64)
 	// Use multi-level LRU interner, or use old map-based interner
 	config.BindEnvAndSetDefault("dogstatsd_string_interner_enable_lru", false)
+	// Growth exponent when resizing an mmap region
+	config.BindEnvAndSetDefault("dogstatsd_string_interner_growth_exp", 1.5)
 
 	// Enable check for Entity-ID presence when enriching Dogstatsd metrics with tags
 	config.BindEnvAndSetDefault("dogstatsd_entity_id_precedence", false)
