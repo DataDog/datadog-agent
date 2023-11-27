@@ -225,7 +225,7 @@
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/workloadmeta @DataDog/container-integrations
 /comp/dogstatsd/statsd @DataDog/agent-shared-components
-/comp/forwarder/orchestrator @DataDog/agent-metrics-logs
+/comp/forwarder/orchestrator @DataDog/agent-metrics-logs @DataDog/container-app
 # END COMPONENTS
 
 # pkg
