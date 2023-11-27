@@ -56,7 +56,7 @@ func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
 // SetMonitor set the monitor
 func (rb *RingBuffer) SetMonitor(counter eventstream.LostEventCounter) {}
 
-func (rb *RingBuffer) handleEvent(record *ringbuf.Record, ringBuffer *manager.RingBuffer, manager *manager.Manager) {
+func (rb *RingBuffer) handleEvent(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
 	rb.handler(0, record.RawSample)
 	rb.recordPool.Put(record)
 }
