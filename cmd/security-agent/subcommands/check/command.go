@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/compliance/k8sconfig"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -243,7 +244,12 @@ func dumpComplianceEvents(reportFile string, events []*compliance.CheckEvent) er
 	return nil
 }
 
-func reportComplianceEvents(_ log.Component, config config.Component, events []*compliance.CheckEvent) error {
+func reportComplianceEvents(log log.Component, config config.Component, events []*compliance.CheckEvent) error {
+	hostnameDetected, err := utils.GetHostnameWithContextAndFallback(context.Background())
+	if err != nil {
+		return log.Errorf("Error while getting hostname, exiting: %v", err)
+	}
+
 	stopper := startstop.NewSerialStopper()
 	defer stopper.Stop()
 	runPath := config.GetString("compliance_config.run_path")
@@ -251,7 +257,7 @@ func reportComplianceEvents(_ log.Component, config config.Component, events []*
 	if err != nil {
 		return fmt.Errorf("reporter: could not reate log context for compliance: %w", err)
 	}
-	reporter, err := compliance.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, context)
+	reporter, err := compliance.NewLogReporter(hostnameDetected, stopper, "compliance-agent", "compliance", runPath, endpoints, context)
 	if err != nil {
 		return fmt.Errorf("reporter: could not create: %w", err)
 	}
