@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build freebsd
+//go:build freebsd || darwin
 
 package filehandles
 
@@ -32,7 +32,7 @@ func (c *fhCheck) Run() error {
 	if err != nil {
 		return err
 	}
-	openFh, err := getInt64("kern.openfiles")
+	openFh, err := getInt64(openfilesOID)
 	if err != nil {
 		log.Warnf("Error getting kern.openfiles value %v", err)
 		return err

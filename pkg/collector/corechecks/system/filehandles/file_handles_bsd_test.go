@@ -2,7 +2,7 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build freebsd
+//go:build freebsd || darwin
 
 package filehandles
 
@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 )
 
-func GetInt64(name string) (value int64, err error) {
+func GetInt64(_ string) (value int64, err error) {
 	value = 65534
 	err = nil
 	return
