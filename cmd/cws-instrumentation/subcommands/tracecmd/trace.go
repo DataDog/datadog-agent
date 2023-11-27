@@ -3,8 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package startcmd holds the start command of CWS injector
-package startcmd
+// Package traceCmd holds the start command of CWS injector
+package tracecmd
 
 import (
 	"context"
@@ -19,7 +19,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/flags"
 	proto "github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -30,27 +29,34 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type startCliParams struct {
-	SystemProbeGRPCAddr string
-	LogLevel            string
+const (
+	// eBPFLessGRPCAddr defines the system-probe GRPC addr
+	eBPFLessGRPCAddr = "grpc-addr"
+	// logLevel defines the log level
+	logLevel = "log-level"
+)
+
+type traceCliParams struct {
+	EBPFLessGRPCAddr string
+	LogLevel         string
 }
 
-// Command returns the commands for the start subcommand
+// Command returns the commands for the trace subcommand
 func Command() []*cobra.Command {
-	var params startCliParams
+	var params traceCliParams
 
-	startCmd := &cobra.Command{
-		Use:   "start",
-		Short: "Starts the cws-instrumentation to ptrace a binary",
+	traceCmd := &cobra.Command{
+		Use:   "trace",
+		Short: "trace the syscalls and signals of the given binary",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return startCWSPtracer(&params, args)
 		},
 	}
 
-	startCmd.Flags().StringVar(&params.SystemProbeGRPCAddr, flags.SystemProbeGRPCAddr, "localhost:5678", "system-probe GRPC address")
-	startCmd.Flags().StringVar(&params.LogLevel, flags.LogLevel, "info", "log-level")
+	traceCmd.Flags().StringVar(&params.EBPFLessGRPCAddr, eBPFLessGRPCAddr, "localhost:5678", "system-probe eBPF less GRPC address")
+	traceCmd.Flags().StringVar(&params.LogLevel, logLevel, "info", "log-level")
 
-	return []*cobra.Command{startCmd}
+	return []*cobra.Command{traceCmd}
 }
 
 // Process represents a process context
@@ -358,7 +364,7 @@ func setLogLevel(logLevel string) {
 }
 
 // startCWSPtracer
-func startCWSPtracer(params *startCliParams, args []string) error {
+func startCWSPtracer(params *traceCliParams, args []string) error {
 	setLogLevel(params.LogLevel)
 
 	entry, err := checkEntryPoint(args[0])
@@ -373,8 +379,8 @@ func startCWSPtracer(params *startCliParams, args []string) error {
 	)
 
 	// GRPC
-	if params.SystemProbeGRPCAddr != "" {
-		conn, err := grpc.Dial(params.SystemProbeGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if params.EBPFLessGRPCAddr != "" {
+		conn, err := grpc.Dial(params.EBPFLessGRPCAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
 			log.Fatal(err)
 		}
