@@ -239,12 +239,6 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 					if ret := -t.ReadRet(regs); ret == int64(syscall.ENOSYS) {
 						cb(CallbackPostType, nr, pid, 0, regs)
 					}
-				case syscall.SYS_PAUSE:
-					// if we received a signal for the ptraced process, forward it
-					sig := int(waitStatus.StopSignal())
-					if err := syscall.PtraceCont(pid, sig); err != nil {
-						continue
-					}
 				default:
 					if ret := -t.ReadRet(regs); ret != int64(syscall.ENOSYS) {
 						cb(CallbackPostType, nr, pid, 0, regs)
