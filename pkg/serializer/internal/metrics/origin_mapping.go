@@ -60,6 +60,50 @@ func MetricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp:
 		return 11 // integration_metrics
+	case metrics.MetricSourceOTLP,
+		metrics.MetricSourceOTelActiveDirectoryDSReceiver,
+		metrics.MetricSourceOTelAerospikeReceiver,
+		metrics.MetricSourceOTelApacheReceiver,
+		metrics.MetricSourceOTelApacheSparkReceiver,
+		metrics.MetricSourceOTelAzureMonitorReceiver,
+		metrics.MetricSourceOTelBigIPReceiver,
+		metrics.MetricSourceOTelChronyReceiver,
+		metrics.MetricSourceOTelCouchDBReceiver,
+		metrics.MetricSourceOTelDockerStatsReceiver,
+		metrics.MetricSourceOTelElasticsearchReceiver,
+		metrics.MetricSourceOTelExpVarReceiver,
+		metrics.MetricSourceOTelFileStatsReceiver,
+		metrics.MetricSourceOTelFlinkMetricsReceiver,
+		metrics.MetricSourceOTelGitProviderReceiver,
+		metrics.MetricSourceOTelHAProxyReceiver,
+		metrics.MetricSourceOTelHostMetricsReceiver,
+		metrics.MetricSourceOTelHTTPCheckReceiver,
+		metrics.MetricSourceOTelIISReceiver,
+		metrics.MetricSourceOTelK8SClusterReceiver,
+		metrics.MetricSourceOTelKafkaMetricsReceiver,
+		metrics.MetricSourceOTelKubeletStatsReceiver,
+		metrics.MetricSourceOTelMemcachedReceiver,
+		metrics.MetricSourceOTelMongoDBAtlasReceiver,
+		metrics.MetricSourceOTelMongoDBReceiver,
+		metrics.MetricSourceOTelMySQLReceiver,
+		metrics.MetricSourceOTelNginxReceiver,
+		metrics.MetricSourceOTelNSXTReceiver,
+		metrics.MetricSourceOTelOracleDBReceiver,
+		metrics.MetricSourceOTelPostgreSQLReceiver,
+		metrics.MetricSourceOTelPrometheusReceiver,
+		metrics.MetricSourceOTelRabbitMQReceiver,
+		metrics.MetricSourceOTelRedisReceiver,
+		metrics.MetricSourceOTelRiakReceiver,
+		metrics.MetricSourceOTelSAPHANAReceiver,
+		metrics.MetricSourceOTelSNMPReceiver,
+		metrics.MetricSourceOTelSnowflakeReceiver,
+		metrics.MetricSourceOTelSplunkEnterpriseReceiver,
+		metrics.MetricSourceOTelSQLServerReceiver,
+		metrics.MetricSourceOTelSSHCheckReceiver,
+		metrics.MetricSourceOTelStatsDReceiver,
+		metrics.MetricSourceOTelVCenterReceiver,
+		metrics.MetricSourceOTelZookeeperReceiver:
+		return 0 // TODO: otlp
 	default:
 		return 0
 	}
@@ -158,6 +202,92 @@ func MetricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 202
 	case metrics.MetricSourceLoad:
 		return 203
+	case metrics.MetricSourceOTLP:
+		return 0 // Nonspecific OTLP metric
+	case metrics.MetricSourceOTelActiveDirectoryDSReceiver:
+		return 0
+	case metrics.MetricSourceOTelAerospikeReceiver:
+		return 0
+	case metrics.MetricSourceOTelApacheReceiver:
+		return 0
+	case metrics.MetricSourceOTelApacheSparkReceiver:
+		return 0
+	case metrics.MetricSourceOTelAzureMonitorReceiver:
+		return 0
+	case metrics.MetricSourceOTelBigIPReceiver:
+		return 0
+	case metrics.MetricSourceOTelChronyReceiver:
+		return 0
+	case metrics.MetricSourceOTelCouchDBReceiver:
+		return 0
+	case metrics.MetricSourceOTelDockerStatsReceiver:
+		return 0
+	case metrics.MetricSourceOTelElasticsearchReceiver:
+		return 0
+	case metrics.MetricSourceOTelExpVarReceiver:
+		return 0
+	case metrics.MetricSourceOTelFileStatsReceiver:
+		return 0
+	case metrics.MetricSourceOTelFlinkMetricsReceiver:
+		return 0
+	case metrics.MetricSourceOTelGitProviderReceiver:
+		return 0
+	case metrics.MetricSourceOTelHAProxyReceiver:
+		return 0
+	case metrics.MetricSourceOTelHostMetricsReceiver:
+		return 0
+	case metrics.MetricSourceOTelHTTPCheckReceiver:
+		return 0
+	case metrics.MetricSourceOTelIISReceiver:
+		return 0
+	case metrics.MetricSourceOTelK8SClusterReceiver:
+		return 0
+	case metrics.MetricSourceOTelKafkaMetricsReceiver:
+		return 0
+	case metrics.MetricSourceOTelKubeletStatsReceiver:
+		return 0
+	case metrics.MetricSourceOTelMemcachedReceiver:
+		return 0
+	case metrics.MetricSourceOTelMongoDBAtlasReceiver:
+		return 0
+	case metrics.MetricSourceOTelMongoDBReceiver:
+		return 0
+	case metrics.MetricSourceOTelMySQLReceiver:
+		return 0
+	case metrics.MetricSourceOTelNginxReceiver:
+		return 0
+	case metrics.MetricSourceOTelNSXTReceiver:
+		return 0
+	case metrics.MetricSourceOTelOracleDBReceiver:
+		return 0
+	case metrics.MetricSourceOTelPostgreSQLReceiver:
+		return 0
+	case metrics.MetricSourceOTelPrometheusReceiver:
+		return 0
+	case metrics.MetricSourceOTelRabbitMQReceiver:
+		return 0
+	case metrics.MetricSourceOTelRedisReceiver:
+		return 0
+	case metrics.MetricSourceOTelRiakReceiver:
+		return 0
+	case metrics.MetricSourceOTelSAPHANAReceiver:
+		return 0
+	case metrics.MetricSourceOTelSNMPReceiver:
+		return 0
+	case metrics.MetricSourceOTelSnowflakeReceiver:
+		return 0
+	case metrics.MetricSourceOTelSplunkEnterpriseReceiver:
+		return 0
+	case metrics.MetricSourceOTelSQLServerReceiver:
+		return 0
+	case metrics.MetricSourceOTelSSHCheckReceiver:
+		return 0
+	case metrics.MetricSourceOTelStatsDReceiver:
+		return 0
+	case metrics.MetricSourceOTelVCenterReceiver:
+		return 0
+	case metrics.MetricSourceOTelZookeeperReceiver:
+		return 0
 	default:
 		return 0
 	}

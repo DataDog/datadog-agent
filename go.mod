@@ -88,10 +88,10 @@ require (
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.8.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.8.0
-	github.com/DataDog/sketches-go v1.4.2
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.2
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.0.0-20231127205817-4ae793c27e35
+	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.8.2
+	github.com/DataDog/sketches-go v1.4.3
 	github.com/DataDog/viper v1.12.0
 	github.com/DataDog/watermarkpodautoscaler v0.6.1
 	github.com/DataDog/zstd v1.5.5
@@ -224,7 +224,7 @@ require (
 	go.opentelemetry.io/collector/exporter v0.87.0
 	go.opentelemetry.io/collector/exporter/loggingexporter v0.87.0
 	go.opentelemetry.io/collector/exporter/otlpexporter v0.87.0
-	go.opentelemetry.io/collector/pdata v1.0.0-rcv0017
+	go.opentelemetry.io/collector/pdata v1.0.0-rcv0018
 	go.opentelemetry.io/collector/processor/batchprocessor v0.87.0
 	go.opentelemetry.io/collector/receiver v0.87.0
 	go.opentelemetry.io/collector/receiver/otlpreceiver v0.87.0
@@ -613,7 +613,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4
 	github.com/DataDog/go-libddwaf/v2 v2.2.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.0.0-20231127205817-4ae793c27e35
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/aws/aws-sdk-go-v2/service/kms v1.22.2
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.21.6
