@@ -37,7 +37,7 @@ func makeCommands(globalParams *subcommands.GlobalParams) *cobra.Command {
 		return &subcommands.GlobalParams{
 			ConfPath:   globalParams.ConfPath,
 			ConfigName: globalParams.ConfigName,
-			LoggerName: "TRACE",
+			LoggerName: LoggerName,
 		}
 	}
 	commands := []*cobra.Command{
