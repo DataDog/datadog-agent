@@ -34,7 +34,7 @@ func (c *fhCheck) Run() error {
 	}
 	openFh, err := getInt64(openfilesOID)
 	if err != nil {
-		log.Warnf("Error getting kern.openfiles value %v", err)
+		log.Warnf("Error getting %s value %v", openfilesOID, err)
 		return err
 	}
 	maxFh, err := getInt64("kern.maxfiles")
@@ -42,7 +42,7 @@ func (c *fhCheck) Run() error {
 		log.Warnf("Error getting kern.maxfiles value %v", err)
 		return err
 	}
-	log.Debugf("Submitting kern.openfiles %v", openFh)
+	log.Debugf("Submitting %s %v", openfilesOID, openFh)
 	log.Debugf("Submitting kern.maxfiles %v", maxFh)
 	sender.Gauge("system.fs.file_handles.used", float64(openFh), "", nil)
 	sender.Gauge("system.fs.file_handles.max", float64(maxFh), "", nil)
