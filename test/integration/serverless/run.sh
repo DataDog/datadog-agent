@@ -244,15 +244,15 @@ cp $SERVERLESS_INTEGRATION_TESTS_DIR/src/otlpPython.py $SERVERLESS_INTEGRATION_T
 serverless deploy --stage "${stage}"
 
 # deploy proxy functions with a different datadog.yaml
-mv datadog.yaml datadog-temp.yaml
-mv datadog-proxy.yaml datadog.yaml
+mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-temp.yaml
+mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml
 
 for function_name in "${proxy_functions[@]}"; do
     serverless deploy function --stage "${stage}" --function $function_name
 done
 
-mv datadog.yaml datadog-proxy.yaml
-mv datadog-temp.yaml datadog.yaml
+mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-proxy.yaml
+mv $SERVERLESS_INTEGRATION_TESTS_DIR/datadog-temp.yaml $SERVERLESS_INTEGRATION_TESTS_DIR/datadog.yaml
 
 rm $SERVERLESS_INTEGRATION_TESTS_DIR/otlpPython.py
 
