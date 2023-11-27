@@ -102,21 +102,21 @@ func injectConfig(pod *corev1.Pod, _ string, _ dynamic.Interface) error {
 	mode := injectionMode(pod, config.Datadog.GetString("admission_controller.inject_config.mode"))
 	switch mode {
 	case hostIP:
-		injectedConfig = injectEnv(pod, agentHostIPEnvVar)
+		injectedConfig = injectEnvIntoPod(pod, agentHostIPEnvVar)
 	case service:
-		injectedConfig = injectEnv(pod, agentHostServiceEnvVar)
+		injectedConfig = injectEnvIntoPod(pod, agentHostServiceEnvVar)
 	case socket:
 		volume, volumeMount := buildVolume(datadogVolumeName, config.Datadog.GetString("admission_controller.inject_config.socket_path"), true)
 		injectedVol := injectVolume(pod, volume, volumeMount)
-		injectedEnv := injectEnv(pod, traceURLSocketEnvVar)
-		injectedEnv = injectEnv(pod, dogstatsdURLSocketEnvVar) || injectedEnv
+		injectedEnv := injectEnvIntoPod(pod, traceURLSocketEnvVar)
+		injectedEnv = injectEnvIntoPod(pod, dogstatsdURLSocketEnvVar) || injectedEnv
 		injectedConfig = injectedEnv || injectedVol
 	default:
 		metrics.MutationErrors.Inc(metrics.ConfigMutationType, "unknown mode", "", "")
 		return fmt.Errorf("invalid injection mode %q", mode)
 	}
 
-	injectedEntity = injectEnv(pod, ddEntityIDEnvVar)
+	injectedEntity = injectEnvIntoPod(pod, ddEntityIDEnvVar)
 
 	return nil
 }

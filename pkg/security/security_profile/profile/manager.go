@@ -672,7 +672,16 @@ func (m *SecurityProfileManager) LookupEventInProfiles(event *model.Event) {
 		return
 	}
 
-	selector, err := cgroupModel.NewWorkloadSelector(utils.GetTagValue("image_name", event.ContainerContext.Tags), utils.GetTagValue("image_tag", event.ContainerContext.Tags))
+	imageName := utils.GetTagValue("image_name", event.ContainerContext.Tags)
+	if imageName == "" {
+		return
+	}
+	imageTag := utils.GetTagValue("image_tag", event.ContainerContext.Tags)
+	if imageTag == "" {
+		imageTag = "latest"
+	}
+
+	selector, err := cgroupModel.NewWorkloadSelector(imageName, imageTag)
 	if err != nil {
 		return
 	}

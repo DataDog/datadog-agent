@@ -142,7 +142,7 @@ func Test_injectEnv(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := injectEnv(tt.args.pod, tt.args.env)
+			got := injectEnvIntoPod(tt.args.pod, tt.args.env)
 			if got != tt.injected {
 				t.Errorf("injectEnv() = %v, want %v", got, tt.injected)
 			}

@@ -15,7 +15,16 @@ import (
 const (
 	// ServiceEnvVar environment variable used to report service
 	ServiceEnvVar = "DD_SERVICE"
+	// WorkloadServiceEnvVar environment variable used to report service when DD_SERVICE is not defined
+	WorkloadServiceEnvVar = "DD_WORKLOAD_SERVICE"
 )
+
+var workloadLabelsAsEnvVars = map[string]string{
+	WorkloadServiceEnvVar:    "service",
+	"DD_WORKLOAD_IMAGE_NAME": "image_name",
+	"DD_WORKLOAD_IMAGE_TAG":  "image_tag",
+	"DD_WORKLOAD_VERSION":    "version",
+}
 
 // NewEvent returns a new event
 func NewEvent(fh *FieldHandlers) *model.Event {

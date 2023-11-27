@@ -43,9 +43,9 @@ const (
 	tagKeyKubeAppManagedBy = "kube_app_managed_by"
 
 	// Standard tag - Environment variables
-	envVarEnv     = "DD_ENV"
-	envVarVersion = "DD_VERSION"
-	envVarService = "DD_SERVICE"
+	envVarEnv     = kubernetes.EnvTagEnvVar
+	envVarVersion = kubernetes.VersionTagEnvVar
+	envVarService = kubernetes.ServiceTagEnvVar
 
 	// Docker label keys
 	dockerLabelEnv     = "com.datadoghq.tags.env"

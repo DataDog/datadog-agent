@@ -15,6 +15,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -883,6 +884,51 @@ func Test_initCWSInitContainerResources(t *testing.T) {
 					require.Nil(t, cpuLim, "initCWSInitContainerResources(), cpu limits should be nil")
 				}
 			}
+		})
+	}
+}
+
+func Test_injectCWSWorkloadTags(t *testing.T) {
+	mockConfig := config.Mock(t)
+	mockConfig.SetWithoutSource("admission_controller.cws_instrumentation.inject_workload_tags", true)
+	mockConfig.SetWithoutSource("admission_controller.mutate_unlabelled", true)
+
+	newPod := func() *corev1.Pod {
+		pod := fakePod("foo-pod")
+		pod.Namespace = "foo-ns"
+		pod.Spec.Containers[0].Image = "myworkload:8.3.2"
+		return pod
+	}
+	tests := []struct {
+		name        string
+		labels      map[string]string
+		pod         *corev1.Pod
+		wantPodFunc func() corev1.Pod
+		found       bool
+		injected    bool
+	}{
+		{
+			name:   "nominal case",
+			labels: map[string]string{"tags.datadoghq.com/service": "dd-agent", "tags.datadoghq.com/version": "7"},
+			pod:    newPod(),
+			wantPodFunc: func() corev1.Pod {
+				pod := fakePod("foo-pod")
+				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_WORKLOAD_IMAGE_NAME", "myworkload"))
+				pod.Spec.Containers[0].Env = append(pod.Spec.Containers[0].Env, fakeEnvWithValue("DD_WORKLOAD_IMAGE_TAG", "8.3.2"))
+				return *pod
+			},
+			found:    true,
+			injected: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			instrumentation := CWSInstrumentation{}
+			err := instrumentation.injectCWSWorkloadTags(tt.pod, "", nil)
+			assert.Equal(t, err, nil)
+			assert.Len(t, tt.pod.Spec.Containers, 1)
+			assert.Len(t, tt.wantPodFunc().Spec.Containers, 1)
+			assert.ElementsMatch(t, tt.wantPodFunc().Spec.Containers[0].Env, tt.pod.Spec.Containers[0].Env)
 		})
 	}
 }
