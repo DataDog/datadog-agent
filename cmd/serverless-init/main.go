@@ -51,7 +51,11 @@ func main() {
 			args: os.Args[1:],
 		}
 
-		fxutil.OneShot(run, fx.Supply(cliParams))
+		err := fxutil.OneShot(run, fx.Supply(cliParams))
+
+		if err != nil {
+			logger.Error(err)
+		}
 	}
 }
 
