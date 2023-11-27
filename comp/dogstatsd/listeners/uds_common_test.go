@@ -50,7 +50,7 @@ func testFileExistsNewUDSListener(t *testing.T, socketPath string, cfg map[strin
 	assert.Nil(t, err)
 	defer os.Remove(socketPath)
 	config := fulfillDepsWithConfig(t, cfg)
-	_, err := listenerFactory(nil, newPacketPoolManagerUDS(config), config)
+	_, err = listenerFactory(nil, newPacketPoolManagerUDS(config), config)
 	assert.Error(t, err)
 }
 
