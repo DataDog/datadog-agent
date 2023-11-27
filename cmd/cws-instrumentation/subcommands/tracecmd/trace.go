@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package traceCmd holds the start command of CWS injector
+//go:build linux
+
+// Package tracecmd holds the start command of CWS injector
 package tracecmd
 
 import (
