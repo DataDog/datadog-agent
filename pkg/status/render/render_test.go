@@ -7,6 +7,7 @@ package render
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +16,8 @@ import (
 
 func TestFormatStatus(t *testing.T) {
 	agentJSON, err := os.ReadFile("fixtures/agent_status.json")
+	require.NoError(t, err)
+	agentText, err := os.ReadFile("fixtures/agent_status.text")
 	require.NoError(t, err)
 	const statusRenderErrors = "Status render errors"
 
@@ -27,6 +30,7 @@ func TestFormatStatus(t *testing.T) {
 	t.Run("no render errors", func(t *testing.T) {
 		actual, err := FormatStatus(agentJSON)
 		require.NoError(t, err)
+		assert.Equal(t, strings.ReplaceAll(actual, " ", ""), strings.ReplaceAll(string(agentText), " ", ""))
 		assert.NotContains(t, actual, statusRenderErrors)
 	})
 }
