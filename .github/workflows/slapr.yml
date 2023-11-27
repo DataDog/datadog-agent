@@ -15,7 +15,7 @@ jobs:
           - SLACK_AGENT_PLATFORM_ID
           - SLACK_AGENT_PLATFORM_REVIEWS_ID
     steps:
-      - uses: DataDog/slapr@master
+      - uses: chouetz/slapr@nschweitzer/commented
         env:
           GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
           SLACK_CHANNEL_ID: "${{ secrets[matrix.channel_variables] }}"
