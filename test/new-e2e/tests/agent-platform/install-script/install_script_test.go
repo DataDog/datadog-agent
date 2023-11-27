@@ -32,8 +32,8 @@ import (
 var osVersion = flag.String("osversion", "", "os version to test")
 var platform = flag.String("platform", "", "platform to test")
 var cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
-var architecture = flag.String("arch", "", "architecture to test (x86_64, arm64))")
-var flavor = flag.String("flavor", "", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-proxy, datadog-heroku-agent)")
+var architecture = flag.String("arch", "x84_64", "architecture to test (x86_64, arm64))")
+var flavor = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-proxy, datadog-heroku-agent)")
 
 type installScriptSuite struct {
 	e2e.Suite[e2e.VMEnv]
