@@ -9,7 +9,9 @@ package api
 import (
 	"net"
 
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -38,7 +40,9 @@ type Component interface {
 		senderManager sender.DiagnoseSenderManager,
 		hostMetadata host.Component,
 		invAgent inventoryagent.Component,
+		demux demultiplexer.Component,
 		invHost inventoryhost.Component,
+		secretResolver secrets.Component,
 	) error
 	StopServer()
 	ServerAddress() *net.TCPAddr

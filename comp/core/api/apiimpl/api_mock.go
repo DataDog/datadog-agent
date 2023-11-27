@@ -54,7 +54,9 @@ func (mock *mockAPIServer) StartServer(
 	_ sender.DiagnoseSenderManager,
 	_ host.Component,
 	_ inventoryagent.Component,
+	_ demultiplexer.Component,
 	_ inventoryhost.Component,
+	_ secrets.Component,
 ) error {
 	return nil
 }

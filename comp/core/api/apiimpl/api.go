@@ -12,8 +12,10 @@ import (
 	"go.uber.org/fx"
 
 	apiPackage "github.com/DataDog/datadog-agent/cmd/agent/api"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/api"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -54,7 +56,9 @@ func (server *apiServer) StartServer(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	demux demultiplexer.Component,
 	invHost inventoryhost.Component,
+	secretResolver secrets.Component,
 ) error {
 	return apiPackage.StartServer(configService,
 		flare,
@@ -66,7 +70,9 @@ func (server *apiServer) StartServer(
 		senderManager,
 		hostMetadata,
 		invAgent,
+		demux,
 		invHost,
+		secretResolver,
 	)
 }
 
