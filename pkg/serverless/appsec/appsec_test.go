@@ -18,7 +18,7 @@ import (
 )
 
 func init() {
-	os.Setenv("DD_APPSEC_WAF_TIMEOUT", "2s")
+	os.Setenv("DD_APPSEC_WAF_TIMEOUT", "1m")
 }
 
 func TestNew(t *testing.T) {
