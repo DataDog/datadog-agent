@@ -7,9 +7,12 @@ package log
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/cihub/seelog"
 	"go.uber.org/fx"
 
@@ -48,4 +51,13 @@ func newMockLogger(t testing.TB, lc fx.Lifecycle) (Component, error) {
 	log.ChangeLogLevel(iface, "off")
 
 	return &logger{}, nil
+}
+
+func newTraceMockLogger(t testing.TB, lc fx.Lifecycle, params Params, cfg config.Component) (Component, error) {
+	// Make sure we are setting a default value on purpose.
+	logFilePath := params.logFileFn(cfg)
+	if logFilePath != os.Getenv("DDTEST_DEFAULT_LOG_FILE_PATH") {
+		return nil, fmt.Errorf("unexpected default log file path: %q", logFilePath)
+	}
+	return newMockLogger(t, lc)
 }

@@ -29,7 +29,7 @@ var (
 	AC *autodiscovery.AutoConfig
 
 	// Coll is the global collector instance
-	Coll *collector.Collector
+	Coll collector.Collector
 
 	// ExpvarServer is the global expvar server
 	ExpvarServer *http.Server

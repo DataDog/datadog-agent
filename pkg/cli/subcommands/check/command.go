@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
@@ -121,7 +122,8 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParamsWithSecrets(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
+					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
@@ -181,7 +183,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component) error {
+func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
@@ -203,7 +205,7 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 		return nil
 	}
 
-	common.LoadComponents(context.Background(), demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
+	common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
 
 	// Create the CheckScheduler, but do not attach it to
@@ -376,25 +378,20 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 	checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
+		check := make(map[checkid.ID]*stats.Stats)
+		check[c.ID()] = s
+		checkRuns[c.String()] = check
 
 		// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 		time.Sleep(time.Duration(cliParams.checkDelay) * time.Millisecond)
 
 		if cliParams.formatJSON {
 			aggregatorData := printer.GetMetricsDataForPrint()
-			checkRuns[c.String()] = make(map[checkid.ID]interface{})
-			checkRuns[c.String()].(map[checkid.ID]interface{})[c.ID()] = s
 
 			// There is only one checkID per run so we'll just access that
-			var runnerData map[checkid.ID]interface{}
-			for _, checkIDData := range checkRuns {
-				runnerData = checkIDData.(map[checkid.ID]interface{})
-				break
-			}
-
 			instanceData := map[string]interface{}{
 				"aggregator":  aggregatorData,
-				"runner":      runnerData,
+				"runner":      s,
 				"inventories": collectorData["inventories"],
 			}
 			instancesData = append(instancesData, instanceData)
@@ -459,8 +456,6 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 				checkFileOutput.WriteString(data + "\n")
 			}
 
-			checkRuns[c.String()] = make(map[checkid.ID]interface{})
-			checkRuns[c.String()].(map[checkid.ID]interface{})[c.ID()] = s
 			statusJSON, _ := json.Marshal(collectorData)
 			checkStatus, _ := render.FormatCheckStats(statusJSON)
 			p(checkStatus)

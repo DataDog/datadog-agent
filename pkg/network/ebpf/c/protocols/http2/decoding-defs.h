@@ -5,7 +5,7 @@
 
 #include "protocols/http2/defs.h"
 
-#define HTTP2_FRAMES_PER_TAIL_CALL 9
+#define HTTP2_FRAMES_PER_TAIL_CALL 7
 // Maximum number of frames to be processed in a single TCP packet. That's also the number of tail calls we'll have.
 // NOTE: we may need to revisit this const if we need to capture more connections.
 #define HTTP2_MAX_FRAMES_ITERATIONS 120
@@ -30,6 +30,10 @@
 
 // Http2 max batch size.
 #define HTTP2_BATCH_SIZE 17
+
+// The max number of events we can have in a single page in the batch_events array.
+// See more details in the comments of the USM_EVENTS_INIT.
+#define HTTP2_TERMINATED_BATCH_SIZE 80
 
 // MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
 // 1 << 6 - 1

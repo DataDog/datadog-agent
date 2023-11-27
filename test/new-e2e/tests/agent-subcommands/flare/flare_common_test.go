@@ -9,13 +9,12 @@ package flare
 import (
 	_ "embed"
 	"testing"
-	"time"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/client/flare"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type baseFlareSuite struct {
@@ -39,11 +38,6 @@ func (v *baseFlareSuite) TestFlareDefaultFiles() {
 }
 
 func requestAgentFlareAndFetchFromFakeIntake(t *testing.T, agent client.Agent, fakeintake *client.Fakeintake, flareArgs ...client.AgentArgsOption) flare.Flare {
-	// Wait for the fakeintake to be ready to avoid 503 when sending the flare
-	assert.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.NoError(c, fakeintake.Client.GetServerHealth())
-	}, 5*time.Minute, 20*time.Second)
-
 	_ = agent.Flare(flareArgs...)
 
 	flare, err := fakeintake.Client.GetLatestFlare()

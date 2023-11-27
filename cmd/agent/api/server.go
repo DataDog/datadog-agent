@@ -28,7 +28,9 @@ import (
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/agent"
 	"github.com/DataDog/datadog-agent/cmd/agent/api/internal/check"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
@@ -37,6 +39,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -62,11 +65,16 @@ func StartServer(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	demux demultiplexer.Component,
+	invHost inventoryhost.Component,
+	secretResolver secrets.Component,
 ) error {
-	initializeTLS()
+	err := initializeTLS()
+	if err != nil {
+		return fmt.Errorf("unable to initialize TLS: %v", err)
+	}
 
 	// get the transport we're going to use under HTTP
-	var err error
 	listener, err = getListener()
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
@@ -110,13 +118,13 @@ func StartServer(
 	err = pb.RegisterAgentHandlerFromEndpoint(
 		ctx, gwmux, tlsAddr, dopts)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error registering agent handler from endpoint %s: %v", tlsAddr, err)
 	}
 
 	err = pb.RegisterAgentSecureHandlerFromEndpoint(
 		ctx, gwmux, tlsAddr, dopts)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error registering agent secure handler from endpoint %s: %v", tlsAddr, err)
 	}
 
 	// Setup multiplexer
@@ -141,6 +149,9 @@ func StartServer(
 				senderManager,
 				hostMetadata,
 				invAgent,
+				demux,
+				invHost,
+				secretResolver,
 			)))
 	mux.Handle("/check/", http.StripPrefix("/check", check.SetupHandlers(checkMux)))
 	mux.Handle("/", gwmux)

@@ -14,7 +14,7 @@ from .release import _get_release_json_value
 from .utils import DEFAULT_BRANCH
 
 
-def _trigger_macos_workflow(release, destination, retry_download, retry_interval, **kwargs):
+def _trigger_macos_workflow(release, destination=None, retry_download=0, retry_interval=0, **kwargs):
     github_action_ref = _get_release_json_value(f'{release}::MACOS_BUILD_VERSION')
 
     run = trigger_macos_workflow(
@@ -29,7 +29,8 @@ def _trigger_macos_workflow(release, destination, retry_download, retry_interval
 
     print_workflow_conclusion(workflow_conclusion, workflow_url)
 
-    download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
+    if destination:
+        download_with_retry(download_artifacts, run, destination, retry_download, retry_interval)
 
     if workflow_conclusion != "success":
         raise Exit(code=1)
@@ -85,6 +86,23 @@ def trigger_macos_test(
         retry_download,
         retry_interval,
         workflow_name="test.yaml",
+        datadog_agent_ref=datadog_agent_ref,
+        python_runtimes=python_runtimes,
+        version_cache_file_content=version_cache,
+    )
+
+
+@task
+def trigger_macos_lint(
+    _,
+    datadog_agent_ref=DEFAULT_BRANCH,
+    release_version="nightly-a7",
+    python_runtimes="3",
+    version_cache=None,
+):
+    _trigger_macos_workflow(
+        release_version,
+        workflow_name="lint.yaml",
         datadog_agent_ref=datadog_agent_ref,
         python_runtimes=python_runtimes,
         version_cache_file_content=version_cache,

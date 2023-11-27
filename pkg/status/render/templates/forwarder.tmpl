@@ -4,6 +4,7 @@ NOTE: Changes made to this template should be reflected on the following templat
 */}}=========
 Forwarder
 =========
+{{with .forwarderStats -}}
 {{ if .Transactions }}
   Transactions
   ============
@@ -57,7 +58,7 @@ Forwarder
 
   On-disk storage
   ===============
-  {{- if .config.forwarder_storage_max_size_in_bytes }}
+  {{- if .forwarder_storage_max_size_in_bytes }}
     {{- if .FileStorage.CurrentSizeInBytes }}
     Disk usage in bytes: {{ .FileStorage.CurrentSizeInBytes }}
     Current number of files: {{ .FileStorage.FilesCount }}
@@ -87,5 +88,6 @@ Forwarder
   {{- range $key, $value := .APIKeyFailure }}
     {{yellowText $key}}{{yellowText ":"}} {{yellowText $value}}
   {{- end }}
+{{- end}}
 {{- end}}
 
