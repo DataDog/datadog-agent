@@ -142,8 +142,8 @@ func (s *LinuxVMFakeintakeSuite) LogRotation() {
 	// Check if agent is tailing new log file via agent status
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		newStatusOutput, err := s.Env().VM.ExecuteWithError("sudo datadog-agent status | grep -A 10 'custom_logs'")
-		assert.NoErrorf(t, err, "Issue running agent status. Is the agent running?\n %s", newStatusOutput)
-		assert.Containsf(t, newStatusOutput, "Path: /var/log/hello-world.log", "The agent is not tailing the expected log file,instead: \n %s", newStatusOutput)
+		assert.NoErrorf(c, err, "Issue running agent status. Is the agent running?\n %s", newStatusOutput)
+		assert.Containsf(c, newStatusOutput, "Path: /var/log/hello-world.log", "The agent is not tailing the expected log file,instead: \n %s", newStatusOutput)
 	}, 5*time.Minute, 10*time.Second)
 
 	// Generate new log
