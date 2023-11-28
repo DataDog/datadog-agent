@@ -9,7 +9,9 @@ import (
 	_ "embed"
 	"os"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
@@ -50,9 +52,7 @@ func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
 	s := &LinuxVMFakeintakeSuite{}
-	if _, devmode := os.LookupEnv("TESTS_E2E_DEVMODE"); devmode {
-		s.DevMode = true
-	}
+	_, s.DevMode = os.LookupEnv("TESTS_E2E_DEVMODE")
 
 	e2e.Run(t, &LinuxVMFakeintakeSuite{}, logsExampleStackDef())
 }
@@ -77,7 +77,18 @@ func (s *LinuxVMFakeintakeSuite) TestJournald() {
 }
 
 func (s *LinuxVMFakeintakeSuite) journaldLogCollection() {
-	// Part 1: Add dd-agent user to systemd-journal group
+
+	fakeintake := s.Env().Fakeintake
+	// Part 1: Ensure no logs are present in fakeintake
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		logs, err := fakeintake.FilterLogs("hello")
+		if !assert.NoError(c, err, "Unable to filter logs by the service 'hello'.") {
+			return
+		}
+		assert.Emptyf(c, logs, "Logs were found when none were expected: %v", logs)
+	}, 2*time.Minute, 1*time.Second)
+
+	// Part 2: Add dd-agent user to systemd-journal group
 	_, err := s.Env().VM.ExecuteWithError("sudo usermod -a -G systemd-journal dd-agent")
 	require.NoError(s.T(), err, "Unable to adjust permissions for dd-agent user.")
 
