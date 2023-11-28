@@ -67,6 +67,11 @@ func (distribution *checksDistribution) leastBusyRunner(preferredRunner string, 
 	numChecksLeastBusyRunner := 0
 
 	for runnerName, runnerStatus := range distribution.Runners {
+		// Allow exclusion of a runner from selection
+		if runnerName == excludeRunner {
+			continue
+		}
+
 		runnerUtilization := runnerStatus.utilization()
 		runnerNumChecks := runnerStatus.NumChecks
 
@@ -74,11 +79,6 @@ func (distribution *checksDistribution) leastBusyRunner(preferredRunner string, 
 			runnerUtilization < minUtilization ||
 			runnerUtilization == minUtilization && runnerName == preferredRunner ||
 			runnerUtilization == minUtilization && runnerNumChecks < numChecksLeastBusyRunner
-
-		// Allow exclusion of a runner from selection
-		if runnerName == excludeRunner {
-			selectRunner = false
-		}
 
 		if selectRunner {
 			leastBusyRunner = runnerName
