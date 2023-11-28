@@ -29,29 +29,25 @@ checks:
     description: "APM throughput"
     bounds:
       series: "rate(bytes_written['traces'])"
-      # Lading is configured to send 64 MB/s on each of two connections. The
-      # lower bound here is reflective of experimentally determined bounds.
-      lower_bound: 20Mb
-      upper_bound: 130Mb
+      # Lading is configured to send 32 MB/s on each of four connections.
+      lower_bound: 120Mb
+      upper_bound: 140Mb
 
   - name: dogstatsd_throughput
     description: "DogStatsD throughput"
     bounds:
       series: "rate(bytes_written['dogstatsd'])"
-      # Lading is configured to send 1 MB/s with one connection. This is a
-      # relatively high priority concern by bounding below close to the
-      # transmission rate.
-      lower_bound: 500Kb
-      upper_bound: 2Mb
+      lower_bound: 8Mb
+      upper_bound: 12Mb
 
   - name: tcp_listener_throughput
     description: "TCP listener throughput"
     bounds:
       series: "rate(bytes_written['tcp_logs'])"
-      # Lading is configured to send 5 MB/s. More throughput than this -- owing
+      # Lading is configured to send 15 MB/s. More throughput than this -- owing
       # to buffering etc -- is fine but less is not.
-      lower_bound: 4Mb
-      upper_bound: 7Mb
+      lower_bound: 12Mb
+      upper_bound: 18Mb
 
   - name: lost_bytes_uds_dogstatsd
     description: "Lost UDS DogStatsD bytes"

@@ -14,8 +14,8 @@ generator:
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
       headers: {}
       target_uri: "http://127.0.0.1:8126/"
-      bytes_per_second: "64 Mb" # per connection
-      parallel_connections: 2
+      bytes_per_second: "32 Mb" # per connection
+      parallel_connections: 4
       method:
         post:
           maximum_prebuild_cache_size_bytes: "512 Mb"
