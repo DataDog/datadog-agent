@@ -4,7 +4,7 @@
 // Copyright 2022-present Datadog, Inc.
 // Code generated - DO NOT EDIT.
 
-//go:build !linux && !windows
+//go:build !(linux || windows || darwin)
 
 package consumer
 
