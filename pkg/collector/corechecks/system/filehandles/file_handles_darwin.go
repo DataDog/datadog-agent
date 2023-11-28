@@ -5,4 +5,4 @@
 
 package filehandles
 
-const openfilesOID = "kern.openfiles"
+const openfilesOID = "kern.num_files"
