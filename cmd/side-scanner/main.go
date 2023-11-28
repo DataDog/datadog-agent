@@ -1860,7 +1860,7 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 		if err != nil {
 			continue
 		}
-		devs, _ := filepath.Glob(devicePath + "p*")
+		devs, _ := filepath.Glob(devicePath + "*")
 		for _, partitionDevPath := range devs {
 			cmd := exec.CommandContext(ctx, "blkid", "-p", partitionDevPath, "-s", "TYPE", "-o", "value")
 			fsTypeBuf, err := cmd.CombinedOutput()
