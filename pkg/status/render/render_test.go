@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2021-present Datadog, Inc.
 
-// go:build !windows
-
 package render
 
 import (
@@ -17,7 +15,7 @@ import (
 
 func TestFormatStatus(t *testing.T) {
 	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "America/New_York")
+	os.Setenv("TZ", "UTC")
 	defer func() {
 		os.Setenv("TZ", originalTZ)
 	}()
