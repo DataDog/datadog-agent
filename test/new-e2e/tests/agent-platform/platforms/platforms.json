@@ -14,6 +14,7 @@
     },
     "ubuntu": {
         "x86_64":{
+            "ubuntu-14-04": "ami-013d633d3b6cdb22c",
             "ubuntu-16-04": "ami-0b0ea68c435eb488d",
             "ubuntu-18-04": "ami-0ee23bfc74a881de5",
             "ubuntu-20-04": "ami-079ca844e323047c2",

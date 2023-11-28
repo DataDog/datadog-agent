@@ -135,10 +135,13 @@ func CheckDogstatsdAgentStops(t *testing.T, client *TestClient) {
 func CheckAgentRestarts(t *testing.T, client *TestClient) {
 
 	t.Run("restart when stopped", func(tt *testing.T) {
-		_, err := client.SvcManager.Stop("datadog-agent")
-		require.NoError(tt, err)
+		// If the agent is not stopped yet, stop it
+		if _, err := client.SvcManager.Status("datadog-agent"); err == nil {
+			_, err := client.SvcManager.Stop("datadog-agent")
+			require.NoError(tt, err)
+		}
 
-		_, err = client.SvcManager.Restart("datadog-agent")
+		_, err := client.SvcManager.Restart("datadog-agent")
 		require.NoError(tt, err)
 
 		_, err = client.SvcManager.Status("datadog-agent")
@@ -146,10 +149,13 @@ func CheckAgentRestarts(t *testing.T, client *TestClient) {
 	})
 
 	t.Run("restart when running", func(tt *testing.T) {
-		_, err := client.SvcManager.Start("datadog-agent")
-		require.NoError(tt, err)
+		// If the agent is not started yet, start it
+		if _, err := client.SvcManager.Status("datadog-agent"); err != nil {
+			_, err := client.SvcManager.Start("datadog-agent")
+			require.NoError(tt, err)
+		}
 
-		_, err = client.SvcManager.Restart("datadog-agent")
+		_, err := client.SvcManager.Restart("datadog-agent")
 		require.NoError(tt, err)
 
 		_, err = client.SvcManager.Status("datadog-agent")
