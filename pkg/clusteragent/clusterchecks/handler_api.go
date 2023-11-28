@@ -120,7 +120,9 @@ func (h *Handler) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse,
 	return response, nil
 }
 
-// IsolateCheck triggers an attempt to isolate a check in a runner
+// IsolateCheck triggers an attempt to isolate a check in a runner. Other checks
+// that were previously running in the same runner will be redistributed to the
+// other runner(s) using the existing rebalancing logic.
 func (h *Handler) IsolateCheck(isolateCheckID string) types.IsolateResponse {
 	response := h.dispatcher.isolateCheck(isolateCheckID)
 	return response
