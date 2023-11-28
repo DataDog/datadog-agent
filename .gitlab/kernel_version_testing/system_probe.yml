@@ -302,7 +302,8 @@ upload_minimized_btfs_arm64:
   script:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
-    - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_PATH $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$ARCH-$CI_PIPELINE_ID --run-agent
+    - inv -e kmt.gen-config --ci --arch=$ARCH
+    - inv -e system-probe.start-microvms --provision --vmconfig=vmconfig-$CI_PIPELINE_ID.json $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$ARCH-$CI_PIPELINE_ID --run-agent
     - cat $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
@@ -318,6 +319,7 @@ upload_minimized_btfs_arm64:
     paths:
       - $CI_PROJECT_DIR/stack.output
       - $CI_PROJECT_DIR/libvirt
+      - vmconfig-$CI_PIPELINE_ID.json
 
 kernel_matrix_testing_setup_env_arm64:
   extends:
@@ -328,7 +330,6 @@ kernel_matrix_testing_setup_env_arm64:
     ARCH: arm64
     AMI_ID_ARG: "--arm-ami-id=$KERNEL_MATRIX_TESTING_ARM_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-arm
-    VMCONFIG_PATH: $CI_PROJECT_DIR/test/new-e2e/system-probe/config/vmconfig-arm64.json
 
 kernel_matrix_testing_setup_env_x64:
   extends:
@@ -339,7 +340,6 @@ kernel_matrix_testing_setup_env_x64:
     ARCH: x86_64
     AMI_ID_ARG: "--x86-ami-id=$KERNEL_MATRIX_TESTING_X86_AMI_ID"
     LibvirtSSHKey: $CI_PROJECT_DIR/libvirt_rsa-x86
-    VMCONFIG_PATH: $CI_PROJECT_DIR/test/new-e2e/system-probe/config/vmconfig-x64.json
 
 .kernel_matrix_testing_run_tests:
   stage: kernel_matrix_testing

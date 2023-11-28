@@ -346,7 +346,7 @@ def add_docker_disk(vmset):
         "type": "default",
     }
 
-def add_console(vm_config):
+def add_console(vmset):
     vmset["console_type"] = "file"
 
 from urllib.parse import urlparse
@@ -451,6 +451,8 @@ def generate_vmconfig(vm_config, user_vm_ls, vcpu, memory, sets, ci):
         if ci:
             add_console(vmset)
 
+    return vm_config
+
 def ls_to_int(ls):
     int_ls = list()
     for elem in ls:
@@ -459,7 +461,7 @@ def ls_to_int(ls):
     return int_ls
 
 
-def gen_config(ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", memory="8192", new=False, ci=False):
+def gen_config_for_stack(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
@@ -475,12 +477,6 @@ def gen_config(ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", mem
     if len(vm_types) == 0:
         raise Exit("No VMs to boot provided")
 
-    vcpu_ls = vcpu.split(',')
-    memory_ls = memory.split(',')
-
-    check_memory_and_vcpus(memory_ls, vcpu_ls)
-    mem_to_pow_of_2(memory_ls)
-
     vmconfig_file = f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}"
     if new or not os.path.exists(vmconfig_file):
         empty_config(vmconfig_file)
@@ -489,10 +485,7 @@ def gen_config(ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", mem
         orig_vm_config = f.read()
     vm_config = json.loads(orig_vm_config)
 
-    set_ls = list()
-    if sets != "":
-        set_ls = sets.split(",")
-    generate_vmconfig(vm_config, vm_types, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci)
+    vm_config = generate_vmconfig(vm_config, vm_types, vcpu, memory, sets, ci)
     vm_config_str = json.dumps(vm_config, indent=4)
 
     tmpfile = "/tmp/vm.json"
@@ -513,3 +506,48 @@ def gen_config(ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", mem
         f.write(vm_config_str)
 
     info(f"[+] vmconfig @ {vmconfig_file}")
+
+def list_all_distro_vms(archs):
+    with open(get_vmconfig_file()) as f:
+        vmconfig = json.load(f)
+
+    vms = list()
+    for arch in archs:
+        distributions = list()
+        for vmset in vmconfig["vmsets"]:
+            if vmset["arch"] not in arch:
+                continue
+
+            for kernel in vmset["kernels"]:
+                distributions.append(kernel["tag"])
+
+        for distro in distributions:
+            vms.append(f"{distro}-{arch}-distro")
+
+    return vms
+
+
+def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch):
+    vcpu_ls = vcpu.split(',')
+    memory_ls = memory.split(',')
+
+    check_memory_and_vcpus(memory_ls, vcpu_ls)
+    mem_to_pow_of_2(memory_ls)
+    set_ls = list()
+    if sets != "":
+        set_ls = sets.split(",")
+
+    if not ci:
+        return gen_config_for_stack(ctx, stack, vms, set_ls, init_stack, ls_to_int(vcpu_ls), ls_to_int(memory_ls), new, ci)
+
+    arch_ls = ["x86_64", "arm64"]
+    if arch != "":
+        arch_ls = [arch_mapping[arch]]
+
+    vms_to_generate = list_all_distro_vms(arch_ls)
+
+    vm_config = generate_vmconfig({"vmsets":[]}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci)
+
+    pipeline_id = os.environ["CI_PIPELINE_ID"]
+    with open(f"vmconfig-{pipeline_id}.json", "rw") as f:
+        f.write(vm_config)
