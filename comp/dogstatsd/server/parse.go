@@ -12,9 +12,10 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 type messageType int
@@ -52,21 +53,41 @@ type parser struct {
 	readTimestamps bool
 }
 
-func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int) *parser {
-	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
-	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
+func makeInterner(cfg config.Reader, workerNum int) cache.Interner {
 	useKeyedInterner := cfg.GetBool("dogstatsd_string_interner_enable_lru")
+	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
+	enableMMap := cfg.GetBool("dogstatsd_string_interner_mmap_enable")
 
 	var interner cache.Interner
 	if useKeyedInterner {
-		interner = cache.NewKeyedStringInternerMemOnly(stringInternerCacheSize)
+		kiConfig := cache.DefaultKeyedInternerConfig()
+		if enableMMap {
+			kiConfig.CloseOnRelease = !cfg.GetBool("dogstatsd_string_interner_mmap_preserve")
+			kiConfig.TmpPath = cfg.GetString("dogstatsd_string_interner_tmpdir")
+			kiConfig.MinFileSize = int64(cfg.GetInt("dogstatsd_string_interner_mmap_minsizekb")) * 1024
+			kiConfig.MaxPerInterner = cfg.GetInt("dogstatsd_string_interner_per_origin_initial_size")
+			kiConfig.EnableDiagnostics = cfg.GetBool("dogstatsd_string_interner_diagnostics")
+			kiConfig.GrowthFactor = cfg.GetFloat64("dogstatsd_string_interner_growth_exp")
+			if kiConfig.GrowthFactor < 1.0 || kiConfig.GrowthFactor > 4 {
+				resetGrowthFactor := cache.DefaultKeyedInternerConfig().GrowthFactor
+				log.Warnf("Growth factor (dogstatsd_string_interner_growth_exp) %f out of bounds.  Resetting to %f", kiConfig.GrowthFactor, resetGrowthFactor)
+				kiConfig.GrowthFactor = resetGrowthFactor
+			}
+		}
+		interner = cache.NewKeyedStringInterner(stringInternerCacheSize, kiConfig)
 		interner.(*cache.KeyedInterner).SetTelemetry(utils.IsTelemetryEnabled())
 	} else {
 		interner = newStringInterner(stringInternerCacheSize, workerNum, utils.IsTelemetryEnabled())
 	}
 
+	return interner
+}
+
+func newParser(cfg config.Reader, float64List *float64ListPool, workerNum int) *parser {
+	readTimestamps := cfg.GetBool("dogstatsd_no_aggregation_pipeline")
+
 	return &parser{
-		interner:         interner,
+		interner:         makeInterner(cfg, workerNum),
 		readTimestamps:   readTimestamps,
 		float64List:      float64List,
 		dsdOriginEnabled: cfg.GetBool("dogstatsd_origin_detection_client"),

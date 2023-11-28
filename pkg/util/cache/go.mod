@@ -3,7 +3,6 @@ module github.com/DataDog/datadog-agent/pkg/util/cache
 go 1.20
 
 require (
-	github.com/DataDog/datadog-agent v0.0.0-20231128164633-20086f2d8ff0
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
 	github.com/hashicorp/golang-lru v1.0.2

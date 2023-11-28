@@ -105,7 +105,8 @@ func TestInternLoadOrStorePointer(t *testing.T) {
 
 func TestInternLoadOrStoreReset(t *testing.T) {
 	assert := assert.New(t)
-	pureInterner := NewKeyedStringInternerVals(1, true, "/", 512, 4, true, 1.5)
+	const expectedLruMaxSize = 4
+	pureInterner := NewKeyedStringInternerMemOnly(expectedLruMaxSize)
 	sInterner := pureInterner.(*KeyedInterner)
 	retainer := newRetainer()
 	cacheLen := func() int {
@@ -146,18 +147,18 @@ func TestInternLoadOrStoreReset(t *testing.T) {
 	sInterner.LoadOrStore([]byte("far"), "", retainer)
 	// Foo is the 4th-least recently used.
 	assertCacheContains("foo", "first element still in cache")
-	assert.Equal(4, cacheLen())
+	assert.Equal(expectedLruMaxSize, cacheLen())
 	sInterner.LoadOrStore([]byte("val"), "", retainer)
 	// Something got bumped
-	assert.Equal(4, cacheLen())
+	assert.Equal(expectedLruMaxSize, cacheLen())
 	// Foo was it.
 	assertCacheNotContains("foo", "oldest element evicted")
 	sInterner.LoadOrStore([]byte("val"), "", retainer)
-	assert.Equal(4, cacheLen())
+	assert.Equal(expectedLruMaxSize, cacheLen())
 }
 
 func NoTestLoadSeveralGenerations(_ *testing.T) {
-	interner := NewKeyedStringInternerMemOnly(8)
+	interner := NewKeyedStringInternerMemOnly(512)
 	retainer := newRetainer()
 
 	// Start generating random strings until we fill a few gigabytes of memory.

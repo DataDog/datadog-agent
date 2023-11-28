@@ -16,7 +16,6 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 	"go.uber.org/atomic"
 
-	cconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -25,9 +24,10 @@ import (
 const initialInternerSize = 64
 
 // backingBytesPerInCoreEntry is the number of bytes to allocate in the mmap file per
-// element in our LRU.  E.g., some value of initialInternerSize * POW(growthFactor, N).
+// element in our LRU.  E.g., some value of initialInternerSize * POW(GrowthFactor, N).
 const backingBytesPerInCoreEntry = 4096
 const defaultGrowthFactor = 1.5
+const defaultMinFileSizeKb = 512
 
 // noFileCache indicates that no mmap should be created.
 const noFileCache = ""
@@ -183,46 +183,43 @@ type Interner interface {
 	LoadOrStore([]byte, string, InternRetainer) string
 }
 
+// KeyedInternerConfig holds all the read-only configuration for
+type KeyedInternerConfig struct {
+	MaxQuota          int
+	CloseOnRelease    bool
+	TmpPath           string
+	MinFileSize       int64
+	MaxPerInterner    int
+	EnableDiagnostics bool
+	GrowthFactor      float64
+	EnableTelemetry   bool
+}
+
 // KeyedInterner has an origin-keyed set of interners.
 type KeyedInterner struct {
-	interners         *lru.Cache
-	maxQuota          int
-	closeOnRelease    bool
-	tmpPath           string
-	lastReport        time.Time
-	minFileSize       int64
-	maxPerInterner    int
-	lock              sync.Mutex
-	enableDiagnostics bool
-	growthFactor      float64
-	enableTelemetry   bool
+	interners  *lru.Cache
+	lastReport time.Time
+	config     KeyedInternerConfig
+	lock       sync.Mutex
 }
 
-// NewKeyedStringInterner creates a Keyed String Interner with a max per-origin quota of maxQuota
-func NewKeyedStringInterner(cfg cconfig.Component) Interner {
-	stringInternerCacheSize := cfg.GetInt("dogstatsd_string_interner_size")
-	enableMMap := cfg.GetBool("dogstatsd_string_interner_mmap_enable")
-
-	if enableMMap {
-		closeOnRelease := !cfg.GetBool("dogstatsd_string_interner_mmap_preserve")
-		tempPath := cfg.GetString("dogstatsd_string_interner_tmpdir")
-		minSizeKb := cfg.GetInt("dogstatsd_string_interner_mmap_minsizekb")
-		maxStringsPerInterner := cfg.GetInt("dogstatsd_string_interner_per_origin_initial_size")
-		enableDiagnostics := cfg.GetBool("dogstatsd_string_interner_diagnostics")
-		var growthFactor float64
-		growthFactor = cfg.GetFloat64("dogstatsd_string_interner_growth_exp")
-		if growthFactor < 1.0 || growthFactor > 4 {
-			log.Warnf("Growth factor (dogstatsd_string_interner_growth_exp) %f out of bounds.  Resetting to 1.5", growthFactor)
-			growthFactor = 1.5
-		}
-
-		return NewKeyedStringInternerVals(stringInternerCacheSize, closeOnRelease, tempPath, minSizeKb, maxStringsPerInterner, enableDiagnostics, growthFactor)
+// DefaultKeyedInternerConfig returns a reasonably-defaulted KeyedInternerConfig that can
+// be used for test cases or untuned production use.
+func DefaultKeyedInternerConfig() KeyedInternerConfig {
+	return KeyedInternerConfig{
+		MaxQuota:          -1,
+		CloseOnRelease:    true,
+		TmpPath:           "/",
+		MinFileSize:       defaultMinFileSizeKb * 1024,
+		MaxPerInterner:    initialInternerSize,
+		EnableDiagnostics: false,
+		GrowthFactor:      defaultGrowthFactor,
+		EnableTelemetry:   false,
 	}
-	return NewKeyedStringInternerMemOnly(stringInternerCacheSize)
 }
 
-// NewKeyedStringInternerVals takes args explicitly for initialization
-func NewKeyedStringInternerVals(stringInternerCacheSize int, closeOnRelease bool, tempPath string, minFileKb, maxStringsPerInterner int, enableDiagnostics bool, growthFactor float64) Interner {
+// NewKeyedStringInterner takes args explicitly for initialization
+func NewKeyedStringInterner(stringInternerCacheSize int, config KeyedInternerConfig) Interner {
 	cache, err := lru.NewWithEvict(stringInternerCacheSize, func(_, internerUntyped interface{}) {
 		interner := internerUntyped.(*stringInterner)
 		interner.Release(1)
@@ -231,16 +228,9 @@ func NewKeyedStringInternerVals(stringInternerCacheSize int, closeOnRelease bool
 		return nil
 	}
 	return &KeyedInterner{
-		interners:         cache,
-		maxQuota:          -1,
-		lastReport:        time.Now(),
-		tmpPath:           tempPath,
-		minFileSize:       int64(minFileKb * 1024),
-		maxPerInterner:    maxStringsPerInterner,
-		closeOnRelease:    closeOnRelease,
-		enableDiagnostics: enableDiagnostics,
-		growthFactor:      growthFactor,
-		enableTelemetry:   false,
+		config:     config,
+		interners:  cache,
+		lastReport: time.Now(),
 	}
 }
 
@@ -250,30 +240,21 @@ func NewKeyedStringInternerMemOnly(stringInternerCacheSize int) Interner {
 		interner := internerUntyped.(*stringInterner)
 		interner.Release(1)
 	})
+	config := DefaultKeyedInternerConfig()
+	config.MaxPerInterner = stringInternerCacheSize
 	if err != nil {
 		return nil
 	}
 	return &KeyedInterner{
-		interners:         cache,
-		maxQuota:          -1,
-		lastReport:        time.Now(),
-		tmpPath:           "",
-		maxPerInterner:    initialInternerSize,
-		closeOnRelease:    false,
-		enableDiagnostics: false,
-		growthFactor:      defaultGrowthFactor,
-		enableTelemetry:   false,
+		interners:  cache,
+		lastReport: time.Now(),
+		config:     config,
 	}
 }
 
-// NewKeyedStringInternerForTest is a memory-only cache with a small default size.  Useful for
-// most tests.
-func NewKeyedStringInternerForTest() Interner {
-	return NewKeyedStringInternerMemOnly(512)
-}
-
+// SetTelemetry sets the 'telemetry enabled' flag.
 func (i *KeyedInterner) SetTelemetry(enableTelemetry bool) {
-	i.enableTelemetry = enableTelemetry
+	i.config.EnableTelemetry = enableTelemetry
 }
 
 // 'static' globals for query statistics.
@@ -304,11 +285,11 @@ func (i *KeyedInterner) LoadOrStore(key []byte, origin string, retainer InternRe
 }
 
 func (i *KeyedInterner) makeInterner(origin string, stringMaxCount int) *stringInterner {
-	if bytesPerEntry(stringMaxCount) >= i.minFileSize {
-		return newStringInterner(origin, stringMaxCount, i.tmpPath, i.closeOnRelease, i.enableDiagnostics, i.enableTelemetry, i.growthFactor)
+	if bytesPerEntry(stringMaxCount) >= i.config.MinFileSize {
+		return newStringInterner(origin, stringMaxCount, i.config.TmpPath, i.config.CloseOnRelease, i.config.EnableDiagnostics, i.config.EnableTelemetry, i.config.GrowthFactor)
 	}
 	// No file cache until we get bigger.
-	return newStringInterner(origin, stringMaxCount, noFileCache, i.closeOnRelease, i.enableDiagnostics, i.enableTelemetry, i.growthFactor)
+	return newStringInterner(origin, stringMaxCount, noFileCache, i.config.CloseOnRelease, i.config.EnableDiagnostics, i.config.EnableTelemetry, i.config.GrowthFactor)
 }
 
 func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRetainer) string {
@@ -318,12 +299,12 @@ func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRe
 	defer i.lock.Unlock()
 
 	// When diagnostics are off, bucket all non-container origins into one.
-	if !i.enableDiagnostics && len(origin) > 0 && origin[0] == '!' {
+	if !i.config.EnableDiagnostics && len(origin) > 0 && origin[0] == '!' {
 		origin = OriginInternal
 	}
 
-	if i.enableDiagnostics && i.lastReport.Before(time.Now().Add(-1*time.Minute)) {
-		log.Debugf("*** INTERNER *** Keyed Interner has %d interners.  closeOnRelease=%v, Total Query Count: %v, Total Failures: %v", i.interners.Len(), i.closeOnRelease,
+	if i.config.EnableDiagnostics && i.lastReport.Before(time.Now().Add(-1*time.Minute)) {
+		log.Debugf("*** INTERNER *** Keyed Interner has %d interners.  CloseOnRelease=%v, Total Query Count: %v, Total Failures: %v", i.interners.Len(), i.config.CloseOnRelease,
 			sGlobalQueryCount.Load(), sFailedInternalCount.Load())
 		Report()
 		i.lastReport = time.Now()
@@ -335,13 +316,13 @@ func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRe
 		interner = internerUntyped.(*stringInterner)
 
 		// TODO: this is where you enforce container quota limits.
-		if i.maxQuota > 0 && interner.used() >= int64(i.maxQuota) {
-			_, _ = fmt.Fprintf(os.Stderr, "Over quota on (%d) origin %s\n", i.maxQuota, origin)
+		if i.config.MaxQuota > 0 && interner.used() >= int64(i.config.MaxQuota) {
+			_, _ = fmt.Fprintf(os.Stderr, "Over quota on (%d) origin %s\n", i.config.MaxQuota, origin)
 			return ""
 		}
 	} else {
-		interner = i.makeInterner(origin, i.maxPerInterner)
-		if i.enableDiagnostics {
+		interner = i.makeInterner(origin, i.config.MaxPerInterner)
+		if i.config.EnableDiagnostics {
 			log.Debugf("Creating string interner at %p for origin %v", interner, origin)
 		}
 		i.interners.Add(origin, interner)
@@ -351,10 +332,10 @@ func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRe
 	if ret == "" {
 		// The only way the interner won't return a string is if it's full.  Make a new bigger one and
 		// start using that. We'll eventually migrate all the in-use strings to this from this container.
-		if i.enableDiagnostics {
+		if i.config.EnableDiagnostics {
 			log.Debugf("Failed interning string.  Adding new interner for key %v, length %v", string(key), len(key))
 		}
-		replacementInterner := i.makeInterner(origin, int(math.Ceil(float64(interner.maxStringCount)*i.growthFactor)))
+		replacementInterner := i.makeInterner(origin, int(math.Ceil(float64(interner.maxStringCount)*i.config.GrowthFactor)))
 		if replacementInterner == nil {
 			// We couldn't intern the string nor create a new interner, so just heap allocate.  newStringInterner
 			// will log errors when it fails like this.
@@ -365,7 +346,7 @@ func (i *KeyedInterner) loadOrStore(key []byte, origin string, retainer InternRe
 		i.interners.Add(origin, replacementInterner)
 		retainer.Reference(replacementInterner)
 		replacementInterner.retain()
-		if i.enableDiagnostics {
+		if i.config.EnableDiagnostics {
 			log.Debugf("Releasing old interner.  Prior: %p -> New: %p", interner, replacementInterner)
 		}
 		interner.Release(1)

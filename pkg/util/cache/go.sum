@@ -40,6 +40,8 @@ github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/DataDog/datadog-agent v0.0.0-20231128164633-20086f2d8ff0 h1:LDk9ToJJrA7mE1HDBC4e6GA7L++kMA1rEvTu2EKVPC4=
 github.com/DataDog/datadog-agent v0.0.0-20231128164633-20086f2d8ff0/go.mod h1:qE8AgiCiIna6F5I8Wc/V9TKCuwBb2HkHY6htokn6R6M=
+github.com/DataDog/datadog-agent v0.0.0-20231128170237-eb2515161be9 h1:DK1KSIpCXhpocQS55XZpINaNkbPBabK3Vr01HKflyFA=
+github.com/DataDog/datadog-agent v0.0.0-20231128170237-eb2515161be9/go.mod h1:qE8AgiCiIna6F5I8Wc/V9TKCuwBb2HkHY6htokn6R6M=
 github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4 h1:otuQe2x+WAgN78POmUSlOq0MRJkoLRlyGR5Fn3H55fI=
 github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4/go.mod h1:fqxtze7NiJ+jQnLCT/F38ewDy8yVGraReiJNZRtQNVM=
 github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.50.0-rc.4 h1:1wm1HN7ybhije39/Ny32hnCiYvx6YSIp8Xd7mPwcznA=
