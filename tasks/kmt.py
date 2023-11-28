@@ -45,8 +45,8 @@ def create_stack(ctx, stack=None):
         "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
     }
 )
-def gen_config(ctx, stack=None, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
-    vmconfig.gen_config(ctx, stack, vms, init_stack, vcpu, memory, new)
+def gen_config(ctx, stack=None, vms="*", sets="", init_stack=False, vcpu="4", memory="8192", new=False, ci=False):
+    vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci)
 
 
 @task
