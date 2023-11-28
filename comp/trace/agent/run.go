@@ -8,6 +8,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	rc "github.com/DataDog/datadog-agent/pkg/remoteconfig"
 	"math/rand"
 	"net/http"
 	"os"
@@ -20,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	rc "github.com/DataDog/datadog-agent/pkg/config/remote"
 	agentrt "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"

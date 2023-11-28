@@ -17,8 +17,8 @@ import (
 	"github.com/pkg/errors"
 	"go.etcd.io/bbolt"
 
-	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	rdata "github.com/DataDog/datadog-agent/pkg/remoteconfig/data"
 )
 
 // Client is an uptane client

@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/meta"
 )
 
 func getTestDB(t *testing.T) *bbolt.DB {

@@ -6,6 +6,8 @@
 package rcclient
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/data"
 	"sync"
 	"time"
 
@@ -15,8 +17,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -39,7 +39,7 @@ type RCAgentTaskListener func(taskType TaskType, task AgentTaskConfig) (bool, er
 type RCListener map[data.Product]func(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))
 
 type rcClient struct {
-	client        *remote.Client
+	client        *remoteconfig.Client
 	m             *sync.Mutex
 	taskProcessed map[string]bool
 
@@ -59,7 +59,7 @@ type dependencies struct {
 
 func newRemoteConfigClient(deps dependencies) (Component, error) {
 	// We have to create the client in the constructor and set its name later
-	c, err := remote.NewUnverifiedGRPCClient(
+	c, err := remoteconfig.NewUnverifiedGRPCClient(
 		"unknown", version.AgentVersion, []data.Product{}, 5*time.Second,
 	)
 	if err != nil {

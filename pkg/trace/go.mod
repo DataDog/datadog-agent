@@ -12,7 +12,7 @@ replace github.com/docker/distribution => github.com/docker/distribution v2.8.1+
 require (
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/proto v0.50.0-rc.4
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.50.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/remoteconfig v0.0.0
 	github.com/DataDog/datadog-agent/pkg/util/cgroups v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.50.0-rc.4
@@ -22,7 +22,7 @@ require (
 	github.com/DataDog/sketches-go v1.4.2
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575
-	github.com/davecgh/go-spew v1.1.1
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.3
 	github.com/google/gofuzz v1.2.0
@@ -34,7 +34,7 @@ require (
 	go.opentelemetry.io/collector/pdata v1.0.0-rcv0017
 	go.opentelemetry.io/collector/semconv v0.88.0
 	go.uber.org/atomic v1.11.0
-	golang.org/x/sys v0.14.0
+	golang.org/x/sys v0.14.1-0.20231108175955-e4099bfacb8c
 	golang.org/x/time v0.3.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
@@ -62,7 +62,7 @@ require (
 	github.com/outcaste-io/ristretto v0.2.1 // indirect
 	github.com/philhofer/fwd v1.1.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.7.0 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect
@@ -85,7 +85,7 @@ replace (
 	github.com/DataDog/datadog-agent => ../../
 	github.com/DataDog/datadog-agent/pkg/obfuscate => ../obfuscate
 	github.com/DataDog/datadog-agent/pkg/proto => ../proto
-	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../remoteconfig/state
+	github.com/DataDog/datadog-agent/pkg/remoteconfig => ../remoteconfig
 	github.com/DataDog/datadog-agent/pkg/util/cgroups => ../util/cgroups
 	github.com/DataDog/datadog-agent/pkg/util/log => ../util/log
 	github.com/DataDog/datadog-agent/pkg/util/pointer => ../util/pointer

@@ -11,6 +11,9 @@ package start
 import (
 	"context"
 	"fmt"
+	remoteconfig2 "github.com/DataDog/datadog-agent/pkg/remoteconfig"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/data"
+	remoteconfig "github.com/DataDog/datadog-agent/pkg/remoteconfig/service"
 	"net/http"
 	"os"
 	"os/signal"
@@ -44,9 +47,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -168,7 +168,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	}
 
 	// Initialize remote configuration
-	var rcClient *remote.Client
+	var rcClient *remoteconfig2.Client
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
 		var err error
 		rcClient, err = initializeRemoteConfig(mainCtx)
@@ -438,7 +438,7 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	return handler, nil
 }
 
-func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
+func initializeRemoteConfig(ctx context.Context) (*remoteconfig2.Client, error) {
 	configService, err := remoteconfig.NewService()
 	if err != nil {
 		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
@@ -446,7 +446,7 @@ func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
 
 	configService.Start(ctx)
 
-	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductAPMTracing}, time.Second*5)
+	rcClient, err := remoteconfig2.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductAPMTracing}, time.Second*5)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
 	}

@@ -10,17 +10,17 @@ package patch
 import (
 	"encoding/json"
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // remoteConfigProvider consumes tracing configs from RC and delivers them to the patcher
 type remoteConfigProvider struct {
-	client             *remote.Client
+	client             *remoteconfig.Client
 	isLeaderNotif      <-chan struct{}
 	subscribers        map[TargetObjKind]chan Request
 	clusterName        string
@@ -29,7 +29,7 @@ type remoteConfigProvider struct {
 
 var _ patchProvider = &remoteConfigProvider{}
 
-func newRemoteConfigProvider(client *remote.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (*remoteConfigProvider, error) {
+func newRemoteConfigProvider(client *remoteconfig.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (*remoteConfigProvider, error) {
 	if client == nil {
 		return nil, errors.New("remote config client not initialized")
 	}
