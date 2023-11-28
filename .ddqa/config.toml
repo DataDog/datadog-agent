@@ -272,4 +272,4 @@ jira_statuses = [
   "Done",
 ]
 github_team = "agent-release-management"
-github_labels = ["team/agent-release-management "]
+github_labels = ["team/agent-release-management"]
