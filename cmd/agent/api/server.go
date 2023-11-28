@@ -75,8 +75,8 @@ func StartServer(
 
 	extraHosts := []string{apiAddr}
 
-	ipcHost := config.Datadog.GetString("exposed_ipc_host")
-	apiConfigPort := config.Datadog.GetInt("exposed_ipc_port")
+	ipcHost := config.Datadog.GetString("agent_ipc_host")
+	apiConfigPort := config.Datadog.GetInt("agent_ipc_port")
 	apiConfigEnabled := apiConfigPort > 0
 	apiConfigHostPort := net.JoinHostPort(ipcHost, strconv.Itoa(apiConfigPort))
 
