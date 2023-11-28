@@ -168,8 +168,6 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	apikey.CheckForSingleAPIKey()
 
-	config.LoadProxyFromEnv(config.Datadog)
-
 	// Set secrets from the environment that are suffixed with
 	// KMS_ENCRYPTED or SECRET_ARN
 	apikey.SetSecretsFromEnv(os.Environ())
@@ -240,7 +238,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if len(os.Getenv(daemon.LocalTestEnvVar)) > 0 {
+		if os.Getenv(daemon.LocalTestEnvVar) == "true" || os.Getenv(daemon.LocalTestEnvVar) == "1" {
 			log.Debug("Running in local test mode. Telemetry collection HTTP route won't be enabled")
 			return
 		}

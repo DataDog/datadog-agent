@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -38,19 +39,6 @@ func TestConvertStrToUnit64Success(t *testing.T) {
 	value, err := convertStrToUnit64("1234")
 	assert.Nil(t, err)
 	assert.Equal(t, uint64(1234), value)
-}
-
-func TestGetSamplingPriority(t *testing.T) {
-	assert.Equal(t, sampler.PriorityNone, getSamplingPriority("xxx", "yyy"))
-	assert.Equal(t, sampler.PriorityUserDrop, getSamplingPriority("-1", "yyy"))
-	assert.Equal(t, sampler.PriorityAutoKeep, getSamplingPriority("1", "yyy"))
-	assert.Equal(t, sampler.PriorityUserKeep, getSamplingPriority("2", "yyy"))
-	assert.Equal(t, sampler.PriorityUserDrop, getSamplingPriority("-1", "1"))
-	assert.Equal(t, sampler.PriorityAutoKeep, getSamplingPriority("1", "-1"))
-	assert.Equal(t, sampler.PriorityUserKeep, getSamplingPriority("2", "1"))
-	assert.Equal(t, sampler.PriorityUserDrop, getSamplingPriority("xxx", "-1"))
-	assert.Equal(t, sampler.PriorityAutoKeep, getSamplingPriority("xxx", "1"))
-	assert.Equal(t, sampler.PriorityUserKeep, getSamplingPriority("xxx", "2"))
 }
 
 func TestInjectContextNoContext(t *testing.T) {
@@ -87,151 +75,292 @@ func TestInjectSpanIDWithContext(t *testing.T) {
 	assert.Equal(t, uint64(1234), currentExecutionInfo.SpanID)
 }
 
-func TestStartExecutionSpanWithoutPayload(t *testing.T) {
-	currentExecutionInfo := &ExecutionStartInfo{}
-	lp := &LifecycleProcessor{
-		requestHandler: &RequestHandler{
-			executionInfo: currentExecutionInfo,
+func TestStartExecutionSpan(t *testing.T) {
+	eventWithoutCtx := events.APIGatewayV2HTTPRequest{}
+	eventWithCtx := events.APIGatewayV2HTTPRequest{
+		Headers: map[string]string{
+			"x-datadog-trace-id":          "1",
+			"x-datadog-parent-id":         "1",
+			"x-datadog-sampling-priority": "1",
+			"traceparent":                 "00-00000000000000000000000000000004-0000000000000004-01",
 		},
 	}
-	startDetails := &InvocationStartDetails{
-		StartTime:          timeNow(),
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
-	}
-	lp.startExecutionSpan([]byte(""), startDetails)
-	assert.Equal(t, currentExecutionInfo.startTime, currentExecutionInfo.startTime)
-	assert.Equal(t, uint64(0), currentExecutionInfo.TraceID)
-	assert.Equal(t, uint64(0), currentExecutionInfo.SpanID)
-	assert.Equal(t, sampler.PriorityNone, currentExecutionInfo.SamplingPriority)
-}
+	payloadWithoutCtx := []byte(`{"hello":"world"}`)
+	payloadWithCtx := []byte(`{
+		"hello": "world",
+		"headers": {
+			"x-datadog-trace-id": "2",
+			"x-datadog-parent-id": "2",
+			"x-datadog-sampling-priority": "2",
+			"traceparent": "00-00000000000000000000000000000005-0000000000000005-01"
+		}
+	}`)
+	reqHeadersWithoutCtx := http.Header{}
+	reqHeadersWithCtx := http.Header{}
+	reqHeadersWithCtx.Set("x-datadog-trace-id", "3")
+	reqHeadersWithCtx.Set("x-datadog-parent-id", "3")
+	reqHeadersWithCtx.Set("x-datadog-sampling-priority", "3")
+	reqHeadersWithCtx.Set("traceparent", "00-00000000000000000000000000000006-0000000000000006-01")
 
-func TestStartExecutionSpanWithPayload(t *testing.T) {
-	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"5736943178450432258"}}`
-	startTime := timeNow()
-	currentExecutionInfo := &ExecutionStartInfo{}
-	lp := &LifecycleProcessor{
-		requestHandler: &RequestHandler{
-			executionInfo: currentExecutionInfo,
+	testcases := []struct {
+		name           string
+		event          interface{}
+		payload        []byte
+		reqHeaders     http.Header
+		infSpanEnabled bool
+		propStyle      string
+		expectCtx      *ExecutionStartInfo
+	}{
+		{
+			name:       "eventWithoutCtx-payloadWithoutCtx-reqHeadersWithoutCtx-datadog",
+			event:      eventWithoutCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			propStyle:  "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          0,
+				parentID:         0,
+				SamplingPriority: sampler.PriorityNone,
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithoutCtx-reqHeadersWithoutCtx-datadog",
+			event:      eventWithCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			propStyle:  "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          1,
+				parentID:         1,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithoutCtx-payloadWithCtx-reqHeadersWithoutCtx-datadog",
+			event:      eventWithoutCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			propStyle:  "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          2,
+				parentID:         2,
+				SamplingPriority: sampler.SamplingPriority(2),
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithCtx-reqHeadersWithoutCtx-datadog",
+			event:      eventWithCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			propStyle:  "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          1,
+				parentID:         1,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithoutCtx-payloadWithoutCtx-reqHeadersWithCtx-datadog",
+			event:      eventWithoutCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithCtx,
+			propStyle:  "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          3,
+				parentID:         3,
+				SamplingPriority: sampler.SamplingPriority(3),
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithoutCtx-reqHeadersWithCtx-datadog",
+			event:      eventWithCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithCtx,
+			propStyle:  "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          1,
+				parentID:         1,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithoutCtx-payloadWithCtx-reqHeadersWithCtx-datadog",
+			event:      eventWithoutCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithCtx,
+			propStyle:  "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          2,
+				parentID:         2,
+				SamplingPriority: sampler.SamplingPriority(2),
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithCtx-reqHeadersWithCtx-datadog",
+			event:      eventWithCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithCtx,
+			propStyle:  "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          1,
+				parentID:         1,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithoutCtx-payloadWithoutCtx-reqHeadersWithoutCtx-tracecontext",
+			event:      eventWithoutCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			propStyle:  "tracecontext",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          0,
+				parentID:         0,
+				SamplingPriority: sampler.PriorityNone,
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithoutCtx-reqHeadersWithoutCtx-tracecontext",
+			event:      eventWithCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			propStyle:  "tracecontext",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          4,
+				parentID:         4,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithoutCtx-payloadWithCtx-reqHeadersWithoutCtx-tracecontext",
+			event:      eventWithoutCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			propStyle:  "tracecontext",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          5,
+				parentID:         5,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithCtx-reqHeadersWithoutCtx-tracecontext",
+			event:      eventWithCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithoutCtx,
+			propStyle:  "tracecontext",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          4,
+				parentID:         4,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithoutCtx-payloadWithoutCtx-reqHeadersWithCtx-tracecontext",
+			event:      eventWithoutCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithCtx,
+			propStyle:  "tracecontext",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          3,
+				parentID:         3,
+				SamplingPriority: sampler.SamplingPriority(3),
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithoutCtx-reqHeadersWithCtx-tracecontext",
+			event:      eventWithCtx,
+			payload:    payloadWithoutCtx,
+			reqHeaders: reqHeadersWithCtx,
+			propStyle:  "tracecontext",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          4,
+				parentID:         4,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithoutCtx-payloadWithCtx-reqHeadersWithCtx-tracecontext",
+			event:      eventWithoutCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithCtx,
+			propStyle:  "tracecontext",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          5,
+				parentID:         5,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:       "eventWithCtx-payloadWithCtx-reqHeadersWithCtx-tracecontext",
+			event:      eventWithCtx,
+			payload:    payloadWithCtx,
+			reqHeaders: reqHeadersWithCtx,
+			propStyle:  "tracecontext",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          4,
+				parentID:         4,
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
+		},
+		{
+			name:           "inferred-spans-enabled",
+			event:          eventWithCtx,
+			payload:        payloadWithCtx,
+			reqHeaders:     reqHeadersWithCtx,
+			infSpanEnabled: true,
+			propStyle:      "datadog",
+			expectCtx: &ExecutionStartInfo{
+				TraceID:          1,
+				parentID:         123, // parent is inferred span
+				SamplingPriority: sampler.SamplingPriority(1),
+			},
 		},
 	}
-	startDetails := &InvocationStartDetails{
-		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
-	}
-	lp.startExecutionSpan([]byte(testString), startDetails)
-	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
-	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.PriorityUserDrop, currentExecutionInfo.SamplingPriority)
-	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
-}
 
-func TestStartExecutionSpanWithPayloadAndLambdaContextHeaders(t *testing.T) {
-	currentExecutionInfo := &ExecutionStartInfo{}
-	lp := &LifecycleProcessor{
-		requestHandler: &RequestHandler{
-			executionInfo: currentExecutionInfo,
-		},
-	}
-	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
-	lambdaInvokeContext := LambdaInvokeEventHeaders{
-		TraceID:          "5736943178450432258",
-		ParentID:         "1480558859903409531",
-		SamplingPriority: "1",
-	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("DD_TRACE_PROPAGATION_STYLE", tc.propStyle)
+			startTime := time.Now()
+			actualCtx := &ExecutionStartInfo{}
+			inferredSpan := &inferredspan.InferredSpan{
+				Span: &pb.Span{
+					SpanID: 123,
+					Start:  startTime.UnixNano() - 10,
+				},
+			}
+			lp := &LifecycleProcessor{
+				InferredSpansEnabled: tc.infSpanEnabled,
+				requestHandler: &RequestHandler{
+					executionInfo: actualCtx,
+					inferredSpans: [2]*inferredspan.InferredSpan{inferredSpan},
+				},
+			}
+			startDetails := &InvocationStartDetails{
+				StartTime:          startTime,
+				InvokeEventHeaders: tc.reqHeaders,
+			}
 
-	startTime := timeNow()
-	startDetails := &InvocationStartDetails{
-		StartTime:          startTime,
-		InvokeEventHeaders: lambdaInvokeContext,
-	}
-	lp.startExecutionSpan([]byte(testString), startDetails)
-	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
-	assert.Equal(t, uint64(1480558859903409531), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.PriorityAutoKeep, currentExecutionInfo.SamplingPriority)
-	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
-}
+			lp.startExecutionSpan(tc.event, tc.payload, startDetails)
 
-func TestStartExecutionSpanWithPayloadAndInvalidIDs(t *testing.T) {
-	currentExecutionInfo := &ExecutionStartInfo{}
-	lp := &LifecycleProcessor{
-		requestHandler: &RequestHandler{
-			executionInfo: currentExecutionInfo,
-		},
-	}
-	invalidTestString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"INVALID","x-datadog-sampling-priority":"-1","x-datadog-trace-id":"INVALID"}}`
-	startTime := timeNow()
-	startDetails := &InvocationStartDetails{
-		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
-	}
-	lp.startExecutionSpan([]byte(invalidTestString), startDetails)
-	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.NotEqual(t, 9, currentExecutionInfo.TraceID)
-	assert.Equal(t, uint64(0), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.PriorityUserDrop, currentExecutionInfo.SamplingPriority)
-	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
-}
+			assert := assert.New(t)
+			assert.Equal(tc.payload, actualCtx.requestPayload)
+			assert.Equal(startTime, actualCtx.startTime)
 
-func TestStartExecutionSpanWithNoHeadersAndInferredSpan(t *testing.T) {
-	currentExecutionInfo := &ExecutionStartInfo{}
-	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
-	startTime := timeNow()
-	startDetails := &InvocationStartDetails{
-		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
-	}
-	inferredSpan := &inferredspan.InferredSpan{}
+			// default values allow for assert.Equal comparison on the context
+			actualCtx.requestPayload = nil
+			actualCtx.startTime = time.Time{}
+			assert.Equal(tc.expectCtx, actualCtx)
 
-	inferredSpan.Span = &pb.Span{
-		TraceID: 2350923428932752492,
-		SpanID:  1304592378509342580,
-		Start:   startTime.UnixNano(),
+			if tc.infSpanEnabled {
+				assert.Equal(tc.expectCtx.TraceID, inferredSpan.Span.TraceID)
+				assert.Equal(tc.expectCtx.TraceID, inferredSpan.Span.ParentID)
+			} else {
+				assert.Equal(uint64(0), inferredSpan.Span.TraceID)
+				assert.Equal(uint64(0), inferredSpan.Span.ParentID)
+			}
+		})
 	}
-	lp := &LifecycleProcessor{
-		requestHandler: &RequestHandler{
-			executionInfo: currentExecutionInfo,
-			inferredSpans: [2]*inferredspan.InferredSpan{inferredSpan},
-		},
-		InferredSpansEnabled: true,
-	}
-	lp.startExecutionSpan([]byte(testString), startDetails)
-	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.Equal(t, uint64(2350923428932752492), currentExecutionInfo.TraceID)
-	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
-	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
-}
-
-func TestStartExecutionSpanWithHeadersAndInferredSpan(t *testing.T) {
-	currentExecutionInfo := &ExecutionStartInfo{}
-	testString := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
-	startTime := timeNow()
-	startDetails := &InvocationStartDetails{
-		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
-	}
-	inferredSpan := &inferredspan.InferredSpan{}
-	inferredSpan.Span = &pb.Span{
-		SpanID: 1304592378509342580,
-		Start:  startTime.UnixNano(),
-	}
-	lp := &LifecycleProcessor{
-		requestHandler: &RequestHandler{
-			executionInfo: currentExecutionInfo,
-			inferredSpans: [2]*inferredspan.InferredSpan{inferredSpan},
-		},
-		InferredSpansEnabled: true,
-	}
-	lp.startExecutionSpan([]byte(testString), startDetails)
-	assert.Equal(t, startTime, currentExecutionInfo.startTime)
-	assert.Equal(t, uint64(5736943178450432258), currentExecutionInfo.TraceID)
-	assert.Equal(t, uint64(1304592378509342580), currentExecutionInfo.parentID)
-	assert.Equal(t, sampler.SamplingPriority(1), currentExecutionInfo.SamplingPriority)
-	assert.Equal(t, uint64(5736943178450432258), inferredSpan.Span.TraceID)
-	assert.Equal(t, uint64(1480558859903409531), inferredSpan.Span.ParentID)
-
-	assert.NotEqual(t, 0, currentExecutionInfo.SpanID)
 }
 
 func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
@@ -251,10 +380,10 @@ func TestEndExecutionSpanWithEmptyObjectRequestResponse(t *testing.T) {
 	}
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 
-	lp.startExecutionSpan([]byte("[]"), startDetails)
+	lp.startExecutionSpan(nil, []byte("[]"), startDetails)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -306,10 +435,10 @@ func TestEndExecutionSpanWithNullRequestResponse(t *testing.T) {
 	}
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
 
-	lp.startExecutionSpan(nil, startDetails)
+	lp.startExecutionSpan(nil, nil, startDetails)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -363,9 +492,9 @@ func TestEndExecutionSpanWithNoError(t *testing.T) {
 
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
-	lp.startExecutionSpan([]byte(testString), startDetails)
+	lp.startExecutionSpan(nil, []byte(testString), startDetails)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -426,9 +555,9 @@ func TestEndExecutionSpanProactInit(t *testing.T) {
 
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
-	lp.startExecutionSpan([]byte(testString), startDetails)
+	lp.startExecutionSpan(nil, []byte(testString), startDetails)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -487,9 +616,9 @@ func TestEndExecutionSpanWithInvalidCaptureLambdaPayloadValue(t *testing.T) {
 	}
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
-	lp.startExecutionSpan([]byte(testString), startDetails)
+	lp.startExecutionSpan(nil, []byte(testString), startDetails)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -533,9 +662,9 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 	startTime := time.Now()
 	startDetails := &InvocationStartDetails{
 		StartTime:          startTime,
-		InvokeEventHeaders: LambdaInvokeEventHeaders{},
+		InvokeEventHeaders: http.Header{},
 	}
-	lp.startExecutionSpan([]byte(testString), startDetails)
+	lp.startExecutionSpan(nil, []byte(testString), startDetails)
 
 	duration := 1 * time.Second
 	endTime := startTime.Add(duration)
@@ -549,29 +678,6 @@ func TestEndExecutionSpanWithError(t *testing.T) {
 	lp.endExecutionSpan(endDetails)
 	executionSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, executionSpan.Error, int32(1))
-}
-
-func TestConvertRawPayloadWithHeaders(t *testing.T) {
-
-	s := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}`
-
-	expectedPayload := invocationPayload{}
-	expectedPayload.Headers = map[string]string{"Accept": "*/*", "Accept-Encoding": "gzip", "x-datadog-parent-id": "1480558859903409531", "x-datadog-sampling-priority": "1", "x-datadog-trace-id": "5736943178450432258"}
-
-	p := convertRawPayload([]byte(s))
-
-	assert.Equal(t, p, expectedPayload)
-}
-
-func TestConvertRawPayloadWithOutHeaders(t *testing.T) {
-
-	s := `{"resource":"/users/create","path":"/users/create","httpMethod":"GET"}`
-
-	expectedPayload := invocationPayload{}
-
-	p := convertRawPayload([]byte(s))
-
-	assert.Equal(t, p, expectedPayload)
 }
 
 func TestParseLambdaPayload(t *testing.T) {
@@ -616,9 +722,9 @@ func TestLanguageTag(t *testing.T) {
 		startTime := time.Now()
 		startDetails := &InvocationStartDetails{
 			StartTime:          startTime,
-			InvokeEventHeaders: LambdaInvokeEventHeaders{},
+			InvokeEventHeaders: http.Header{},
 		}
-		lp.startExecutionSpan([]byte(testString), startDetails)
+		lp.startExecutionSpan(nil, []byte(testString), startDetails)
 
 		duration := 1 * time.Second
 		endTime := startTime.Add(duration)

@@ -65,7 +65,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
-	setupProxy()
+	config.LoadProxyFromEnv(config.Datadog)
 
 	cloudService := cloudservice.GetCloudServiceType()
 
@@ -137,8 +137,4 @@ func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
 	for range time.Tick(3 * time.Second) {
 		metricAgent.Flush()
 	}
-}
-
-func setupProxy() {
-	config.LoadProxyFromEnv(config.Datadog)
 }

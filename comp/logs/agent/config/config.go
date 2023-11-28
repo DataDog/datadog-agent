@@ -124,7 +124,7 @@ func BuildEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsConfi
 
 // BuildServerlessEndpoints returns the endpoints to send logs for the Serverless agent.
 func BuildServerlessEndpoints(coreConfig pkgConfig.Reader, intakeTrackType IntakeTrackType, intakeProtocol IntakeProtocol) (*Endpoints, error) {
-	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeys(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
+	return BuildHTTPEndpointsWithConfig(coreConfig, defaultLogsConfigKeysWithVectorOverride(coreConfig), serverlessHTTPEndpointPrefix, intakeTrackType, intakeProtocol, ServerlessIntakeOrigin)
 }
 
 // ExpectedTagsDuration returns a duration of the time expected tags will be submitted for.
