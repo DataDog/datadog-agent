@@ -79,9 +79,6 @@ blackhole:
       binding_addr: "127.0.0.1:9093"
 
 target_metrics:
-  - expvar:
-      uri: "http://127.0.0.1:5000/debug/vars"
-      vars:
-        - "/dogstatsd-uds/Bytes"
-        - "/dogstatsd-uds/Packets"
-        - "/dogstatsd-uds/PacketReadingErrors"
+  - prometheus:
+      uri: "http://127.0.0.1:5000/telemetry"
+    # metrics: intentionally left off to collect everything
