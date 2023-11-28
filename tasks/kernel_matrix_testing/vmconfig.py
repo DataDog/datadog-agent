@@ -337,14 +337,19 @@ def add_vcpu(vmset, vcpu):
 def add_memory(vmset, memory):
     vmset["memory"] = memory
 
-def add_docker_disk(vmset):
-    arch = vmset['arch']
-    vmset["disks"] = {
-        "mount_point": "/mnt/docker",
-        "source": f"https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/docker-{arch}.qcow2",
-        "target": f"/home/kernel-version-testing/docker-{arch}.qcow2",
-        "type": "default",
-    }
+def template_name(arch, recipe):
+    if arch == local_arch:
+        arch = arch_mapping[platform.machine()]
+
+    recipe_without_arch = recipe.split("-")[0]
+    return f"{recipe_without_arch}_{arch}"
+
+def add_disks(vmconfig_template, vmset):
+    tname = template_name(vmset["arch"], vmset["recipe"])
+
+    for template in vmconfig_template["vmsets"]:
+        if template["name"] == tname:
+            vmset["disks"] = copy.deepcopy(template["disks"])
 
 def add_console(vmset):
     vmset["console_type"] = "file"
@@ -365,6 +370,10 @@ def image_source_to_path(vmset):
 
     for kernel in vmset["kernels"]:
         kernel["image_source"] = url_to_fspath(kernel["image_source"])
+
+    if "disks" in vmset:
+        for disk in vmset["disks"]:
+            disk["source"] = url_to_fspath(disk["source"])
 
 class VM:
     def __init__(self, version):
@@ -436,10 +445,12 @@ def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
         add_vcpu(vmset, vcpu)
         add_memory(vmset, memory)
 
+        if vmset["recipe"] != "custom":
+            add_disks(vmconfig_template, vmset)
+
+        # For local VMs we want to read images from the filesystem
         if vmset["arch"] == local_arch:
             image_source_to_path(vmset)
-        else:
-            add_docker_disk(vmset)
 
         if ci:
             add_console(vmset)
