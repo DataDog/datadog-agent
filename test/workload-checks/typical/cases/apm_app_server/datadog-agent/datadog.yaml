@@ -11,6 +11,11 @@ confd_path: /etc/datadog-agent/conf.d
 cloud_provider_metadata: []
 
 dogstatsd_socket: '/tmp/dsd.socket'
+# Enable UDS-based origin detection and
+# add all available tags
+dogstatsd_origin_detection: true
+dogstatsd_tag_cardinality: "high"
+
 telemetry:
   enabled: true
 
