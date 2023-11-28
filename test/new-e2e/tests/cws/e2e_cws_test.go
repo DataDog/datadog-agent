@@ -27,7 +27,7 @@ import (
 
 type agentSuite struct {
 	e2e.Suite[e2e.AgentEnv]
-	apiClient     cws.MyAPIClient
+	apiClient     *cws.APIClient
 	signalRuleID  string
 	agentRuleID   string
 	dirname       string
@@ -48,7 +48,6 @@ var systemProbeConfig string
 var securityAgentConfig string
 
 func TestAgentSuite(t *testing.T) {
-
 	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(
 		e2e.WithVMParams(ec2params.WithName("cws-e2e-tests")),
 		e2e.WithAgentParams(
@@ -60,7 +59,6 @@ func TestAgentSuite(t *testing.T) {
 }
 
 func (a *agentSuite) SetupSuite() {
-
 	// Create temporary directory
 	tempDir := a.Env().VM.Execute("mktemp -d")
 	a.dirname = strings.TrimSuffix(tempDir, "\n")
@@ -69,10 +67,10 @@ func (a *agentSuite) SetupSuite() {
 	a.desc = fmt.Sprintf("e2e test rule %s", a.testID)
 	a.agentRuleName = fmt.Sprintf("e2e_agent_rule_%s", a.testID)
 	a.Suite.SetupSuite()
+	a.apiClient = cws.NewAPIClient()
 }
 
 func (a *agentSuite) TearDownSuite() {
-
 	if len(a.signalRuleID) != 0 {
 		a.apiClient.DeleteSignalRule(a.signalRuleID)
 	}
@@ -84,8 +82,6 @@ func (a *agentSuite) TearDownSuite() {
 }
 
 func (a *agentSuite) TestOpenSignal() {
-	a.apiClient = cws.NewAPIClient()
-
 	// Create CWS Agent rule
 	rule := fmt.Sprintf("open.file.path == \"%s\"", a.filename)
 	res, err := a.apiClient.CreateCWSAgentRule(a.agentRuleName, a.desc, rule)
