@@ -104,7 +104,7 @@ func (s *service) Run(svcctx context.Context) error {
 		fx.Provide(defaultforwarder.NewParamsWithResolvers),
 		demultiplexer.Module,
 		orchestratorForwarderImpl.Module,
-		fx.Supply(orchestratorForwarderImpl.NewParamsDisabled()),
+		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		fx.Provide(func() demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.UseEventPlatformForwarder = false
