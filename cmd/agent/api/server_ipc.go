@@ -23,11 +23,6 @@ var allowedConfigPaths = map[string]struct{}{
 	"api_key": {},
 }
 
-type configPayload struct {
-	Value interface{} `json:"value,omitempty"`
-	Error string      `json:"error,omitempty"`
-}
-
 func startIPCServer(ipcConfigHostPort string, tlsConfig *tls.Config) (err error) {
 	ipcConfigListener, err = getListener(ipcConfigHostPort)
 	if err != nil {
@@ -39,8 +34,7 @@ func startIPCServer(ipcConfigHostPort string, tlsConfig *tls.Config) (err error)
 
 		body, err := getConfigMarshalled(vars["path"])
 		if err != nil {
-			body, _ := json.Marshal(configPayload{Error: err.Error()})
-			http.Error(w, string(body), http.StatusBadRequest)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		_, _ = w.Write(body)
@@ -82,5 +76,5 @@ func getConfigMarshalled(path string) ([]byte, error) {
 		return nil, fmt.Errorf("no runtime setting found for %s", path)
 	}
 
-	return json.Marshal(configPayload{Value: value})
+	return json.Marshal(value)
 }
