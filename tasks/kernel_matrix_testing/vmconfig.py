@@ -402,18 +402,13 @@ class VMSet:
 def custom_version_prefix(version):
     return "lte_414" if lte_414(version) else "gt_414"
 
-def generate_vmconfig(vm_config, user_vm_ls, vcpu, memory, sets, ci):
-    # get all possible (recipe, version, arch) combinations we can support.
-    possible = list_possible()
-
+def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
     with open(get_vmconfig_file()) as f:
         vmconfig_template = json.load(f)
 
     # generate all vmsets
     vmsets = set()
-    for vm in user_vm_ls:
-        recipe, version, arch = normalize_vm_def(possible, vm)
-
+    for recipe, version, arch in normalized_vm_defs:
         if recipe == "custom":
             sets.append(custom_version_prefix(version))
 
@@ -425,8 +420,7 @@ def generate_vmconfig(vm_config, user_vm_ls, vcpu, memory, sets, ci):
             vmsets.add(VMSet(arch, recipe, vmset_name(arch, recipe, "")))
 
     # map vms to vmsets
-    for vm in user_vm_ls:
-        recipe, version, arch = normalize_vm_def(possible, vm)
+    for recipe, version, arch in normalized_vm_defs:
         for vmset in vmsets:
             vmset.add_vm_if_belongs(recipe, version, arch)
 
@@ -473,9 +467,16 @@ def gen_config_for_stack(ctx, stack, vms, sets, init_stack, vcpu, memory, new, c
 
     info(f"[+] Select stack {stack}")
 
+    # get normalized vm definitions
     vm_types = vms.split(',')
     if len(vm_types) == 0:
         raise Exit("No VMs to boot provided")
+
+    ## get all possible (recipe, version, arch) combinations we can support.
+    possible = list_possible()
+    normalized_vms = list()
+    for vm in vm_types:
+        normalized_vms.append(normalize_vm_def(possible, vm))
 
     vmconfig_file = f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}"
     if new or not os.path.exists(vmconfig_file):
@@ -485,7 +486,7 @@ def gen_config_for_stack(ctx, stack, vms, sets, init_stack, vcpu, memory, new, c
         orig_vm_config = f.read()
     vm_config = json.loads(orig_vm_config)
 
-    vm_config = generate_vmconfig(vm_config, vm_types, vcpu, memory, sets, ci)
+    vm_config = generate_vmconfig(vm_config, normalized_vms, vcpu, memory, sets, ci)
     vm_config_str = json.dumps(vm_config, indent=4)
 
     tmpfile = "/tmp/vm.json"
@@ -507,7 +508,7 @@ def gen_config_for_stack(ctx, stack, vms, sets, init_stack, vcpu, memory, new, c
 
     info(f"[+] vmconfig @ {vmconfig_file}")
 
-def list_all_distro_vms(archs):
+def list_all_distro_normalized_vms(archs):
     with open(get_vmconfig_file()) as f:
         vmconfig = json.load(f)
 
@@ -521,8 +522,8 @@ def list_all_distro_vms(archs):
             for kernel in vmset["kernels"]:
                 distributions.append(kernel["tag"])
 
-        for distro in distributions:
-            vms.append(f"{distro}-{arch}-distro")
+        for distro_version in distributions:
+            vms.append(("distro", distro_version, arch))
 
     return vms
 
@@ -544,7 +545,7 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch):
     if arch != "":
         arch_ls = [arch_mapping[arch]]
 
-    vms_to_generate = list_all_distro_vms(arch_ls)
+    vms_to_generate = list_all_distro_normalized_vms(arch_ls)
 
     vm_config = generate_vmconfig({"vmsets":[]}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci)
 
