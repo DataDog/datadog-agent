@@ -38,6 +38,8 @@ cloud.google.com/go/storage v1.14.0/go.mod h1:GrKmX003DSIwi9o29oFT7YDnHYwZoctc3f
 dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7gZCb22OMCxBHrMx7a5I7Hp++hsVxbQ4BYO7hU=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
+github.com/DataDog/datadog-agent v0.0.0-20231128164633-20086f2d8ff0 h1:LDk9ToJJrA7mE1HDBC4e6GA7L++kMA1rEvTu2EKVPC4=
+github.com/DataDog/datadog-agent v0.0.0-20231128164633-20086f2d8ff0/go.mod h1:qE8AgiCiIna6F5I8Wc/V9TKCuwBb2HkHY6htokn6R6M=
 github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4 h1:otuQe2x+WAgN78POmUSlOq0MRJkoLRlyGR5Fn3H55fI=
 github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4/go.mod h1:fqxtze7NiJ+jQnLCT/F38ewDy8yVGraReiJNZRtQNVM=
 github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.50.0-rc.4 h1:1wm1HN7ybhije39/Ny32hnCiYvx6YSIp8Xd7mPwcznA=
@@ -64,8 +66,6 @@ github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4 h1:CdM5V+VdDZURW
 github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4/go.mod h1:EOGgNrSPskIxY3+KgCl+yEggMjrGqrA2oL5va+/p2jM=
 github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.4 h1:53Kl0f+NR5QQ9V0iii7p8A13X7ZNTdqggxK0cWJGhpE=
 github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.4/go.mod h1:iL/4tq2keb2jIJhEwdZcHnIxJlZoEUuGjPQygpYtUH0=
-github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4 h1:dYHPxWIgI18+Z/3d2YCXRtsLb9QBiO0iXyYp8lxOzG8=
-github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4/go.mod h1:mahW6uT3c+PZA04AUKba8mHzIGjc/2YCpXe/4HY0uBc=
 github.com/DataDog/viper v1.12.0 h1:FufyZpZPxyszafSV5B8Q8it75IhhuJwH0T7QpT6HnD0=
 github.com/DataDog/viper v1.12.0/go.mod h1:wDdUVJ2SHaMaPrCZrlRCObwkubsX8j5sme3LaR/SGTc=
 github.com/Microsoft/go-winio v0.6.1 h1:9/kr64B9VUZrLm5YYwbGtUJnMgqWVOdUAXu6Migciow=
@@ -543,8 +543,8 @@ golang.org/x/sys v0.0.0-20220829200755-d48e67d00261/go.mod h1:oPkhp1MJrh7nUepCBc
 golang.org/x/sys v0.8.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.11.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.13.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.14.1-0.20231108175955-e4099bfacb8c h1:3kC/TjQ+xzIblQv39bCOyRk8fbEeJcDHwbyxPUU2BpA=
-golang.org/x/sys v0.14.1-0.20231108175955-e4099bfacb8c/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
+golang.org/x/sys v0.15.0 h1:h48lPFYpsTvQJZF4EKyI4aLHaev3CxivZmv7yZig9pc=
+golang.org/x/sys v0.15.0/go.mod h1:/VUhepiaJMQUp4+oa/7Zr1D23ma6VTLIYjOOTFZPUcA=
 golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1/go.mod h1:bj7SfCRtBDWHUb9snDiAeCFNEtKQo2Wmx5Cou7ajbmo=
 golang.org/x/text v0.0.0-20170915032832-14c0d48ead0c/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
@@ -611,8 +611,8 @@ golang.org/x/tools v0.0.0-20201208233053-a543418bbed2/go.mod h1:emZCQorbCU4vsT4f
 golang.org/x/tools v0.0.0-20210105154028-b0ab187a4818/go.mod h1:emZCQorbCU4vsT4fOWvOPXz4eW1wZW4PmDk9uLelYpA=
 golang.org/x/tools v0.0.0-20210108195828-e2f9c7f1fc8e/go.mod h1:emZCQorbCU4vsT4fOWvOPXz4eW1wZW4PmDk9uLelYpA=
 golang.org/x/tools v0.1.0/go.mod h1:xkSsbof2nBLbhDlRMhhhyNLN/zl3eTqcnHD5viDpcZ0=
-golang.org/x/tools v0.15.0 h1:zdAyfUGbYmuVokhzVmghFl2ZJh5QhcfebBgmVPFYA+8=
-golang.org/x/tools v0.15.0/go.mod h1:hpksKq4dtpQWS1uQ61JkdqWM3LscIS6Slf+VVkm+wQk=
+golang.org/x/tools v0.16.0 h1:GO788SKMRunPIBCXiQyo2AaexLstOrVhuAL5YwsckQM=
+golang.org/x/tools v0.16.0/go.mod h1:kYVVN6I1mBNoB1OX+noeBjbRk4IUEPa7JJ+TJMEooJ0=
 golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 golang.org/x/xerrors v0.0.0-20191011141410-1b5146add898/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=

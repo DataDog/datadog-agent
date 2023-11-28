@@ -3,6 +3,7 @@ module github.com/DataDog/datadog-agent/pkg/util/cache
 go 1.20
 
 require (
+	github.com/DataDog/datadog-agent v0.0.0-20231128164633-20086f2d8ff0
 	github.com/DataDog/datadog-agent/pkg/telemetry v0.51.0-devel
 	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
 	github.com/hashicorp/golang-lru v1.0.2
@@ -24,7 +25,6 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/optional v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system/socket v0.50.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4 // indirect
 	github.com/DataDog/viper v1.12.0 // indirect
 	github.com/Microsoft/go-winio v0.6.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
@@ -68,8 +68,8 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.26.0 // indirect
 	golang.org/x/mod v0.14.0 // indirect
-	golang.org/x/sys v0.14.1-0.20231108175955-e4099bfacb8c // indirect
-	golang.org/x/tools v0.15.0 // indirect
+	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/tools v0.16.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
