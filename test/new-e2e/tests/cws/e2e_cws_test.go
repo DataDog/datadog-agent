@@ -7,12 +7,14 @@ package cws
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -98,11 +100,11 @@ func (a *agentSuite) TestOpenSignal() {
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 
 	// Check if system-probe has started
-	err = a.Env().Agent.WaitAgentLogs("system-probe", cws.SystemProbeStartLog)
+	err = a.waitAgentLogs("system-probe", cws.SystemProbeStartLog)
 	require.NoError(a.T(), err, "system-probe could not start")
 
 	// Check if security-agent has started
-	err = a.Env().Agent.WaitAgentLogs("security-agent", cws.SecurityStartLog)
+	err = a.waitAgentLogs("security-agent", cws.SecurityStartLog)
 	require.NoError(a.T(), err, "security-agent could not start")
 
 	// Download policies
@@ -141,7 +143,7 @@ func (a *agentSuite) TestOpenSignal() {
 	a.Env().VM.Execute(fmt.Sprintf("touch %s", a.filename))
 
 	// Check agent event
-	err = a.Env().Agent.WaitAgentLogs("security-agent", "Successfully posted payload to")
+	err = a.waitAgentLogs("security-agent", "Successfully posted payload to")
 	require.NoError(a.T(), err, "could not send payload")
 
 	// Check app signal
@@ -151,4 +153,18 @@ func (a *agentSuite) TestOpenSignal() {
 	agentContext = signal.Attributes["agent"].(map[string]interface{})
 	assert.Contains(a.T(), agentContext["rule_id"], a.agentRuleName, "unable to find tag")
 
+}
+
+func (a *agentSuite) waitAgentLogs(agentName string, pattern string) error {
+	err := backoff.Retry(func() error {
+		output, err := a.Env().VM.ExecuteWithError(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
+		if err != nil {
+			return err
+		}
+		if strings.Contains(output, pattern) {
+			return nil
+		}
+		return errors.New("no log found")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
+	return err
 }
