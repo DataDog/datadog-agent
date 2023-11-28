@@ -89,7 +89,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.AddCommand(rebalanceCmd)
 
 	isolateCmd := &cobra.Command{
-		Use:   "isolate --checkID <checkID>",
+		Use:   "isolate",
 		Short: "Isolates a single check in the cluster runner",
 		Long:  ``,
 		RunE: func(cmd *cobra.Command, args []string) error {
