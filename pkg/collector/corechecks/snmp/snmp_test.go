@@ -390,7 +390,7 @@ metrics:
 
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
-	chk.singleDeviceCk.SetInterfaceBandwidthState(report.MockInterfaceRateMap("default:1.2.3.4:1", 50_000_000, 40_000_000, 20, 10, int64(946684785000000000)))
+	chk.singleDeviceCk.SetInterfaceBandwidthState(report.MockInterfaceRateMap("1", 50_000_000, 40_000_000, 20, 10, int64(946684785000000000)))
 
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.SetupAcceptAll()

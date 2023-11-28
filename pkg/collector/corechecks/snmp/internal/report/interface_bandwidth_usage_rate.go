@@ -40,8 +40,8 @@ func (ibs InterfaceBandwidthState) RemoveExpiredBandwidthUsageRates(timestampNan
 calculateBandwidthUsageRate is responsible for checking the state for previously seen metric sample to generate the rate from.
 If the ifSpeed has changed for the interface, the rate will not be submitted (drop the previous sample)
 */
-func (ibs InterfaceBandwidthState) calculateBandwidthUsageRate(deviceID string, fullIndex string, usageName string, ifSpeed uint64, usageValue float64) (float64, error) {
-	interfaceID := deviceID + ":" + fullIndex + "." + usageName
+func (ibs InterfaceBandwidthState) calculateBandwidthUsageRate(fullIndex string, usageName string, ifSpeed uint64, usageValue float64) (float64, error) {
+	interfaceID := fullIndex + "." + usageName
 	state, ok := ibs[interfaceID]
 	// current data point has the same interface speed as last data point
 	if ok && state.ifSpeed == ifSpeed {
@@ -60,7 +60,7 @@ func (ibs InterfaceBandwidthState) calculateBandwidthUsageRate(deviceID string, 
 		state.previousTsNano = currentTsNano
 
 		if delta < 0 {
-			return 0, fmt.Errorf("rate value for device/interface %s is negative, discarding it", interfaceID)
+			return 0, fmt.Errorf("rate value for interface ID %s is negative, discarding it", interfaceID)
 		}
 		return delta, nil
 	}
@@ -72,7 +72,7 @@ func (ibs InterfaceBandwidthState) calculateBandwidthUsageRate(deviceID string, 
 	}
 	// do not send a sample to metrics, send error for ifSpeed change (previous entry conflicted)
 	if ok {
-		return 0, fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", state.ifSpeed, ifSpeed, interfaceID)
+		return 0, fmt.Errorf("ifSpeed changed from %d to %d for interface ID %s, no rate emitted", state.ifSpeed, ifSpeed, interfaceID)
 	}
 	return 0, nil
 }

@@ -101,7 +101,7 @@ func (ms *MetricSender) sendBandwidthUsageMetric(symbol profiledefinition.Symbol
 	}
 	usageValue := ((octetsFloatValue * 8) / (float64(ifSpeed))) * 100.0
 
-	rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(ms.deviceID, fullIndex, usageName, ifSpeed, usageValue)
+	rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(fullIndex, usageName, ifSpeed, usageValue)
 	if err != nil {
 		return err
 	}

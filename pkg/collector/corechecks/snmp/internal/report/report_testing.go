@@ -6,9 +6,7 @@
 package report
 
 const (
-	mockDeviceID                string = "namespace:deviceIP"
 	fullIndex                   string = "9"
-	mockInterfaceIDPrefix              = mockDeviceID + ":" + fullIndex
 	ifSpeed                     uint64 = 80 * (1e6)
 	mockTimeNowNano                    = int64(946684800000000000)
 	mockTimeNowNano15SecEarlier        = int64(946684785000000000)
@@ -32,10 +30,10 @@ func MockInterfaceRateMap(interfaceID string, inIfSpeed uint64, outIfSpeed uint6
 
 // Mock interface rate map with previous metric samples for the interface with ifSpeed of 30
 func interfaceRateMapWithPrevious() InterfaceBandwidthState {
-	return MockInterfaceRateMap(mockInterfaceIDPrefix, ifSpeed, ifSpeed, 30, 5, mockTimeNowNano15SecEarlier)
+	return MockInterfaceRateMap(fullIndex, ifSpeed, ifSpeed, 30, 5, mockTimeNowNano15SecEarlier)
 }
 
 // Mock interface rate map with previous metric samples where the ifSpeed is taken from configuration files
 func interfaceRateMapWithConfig() InterfaceBandwidthState {
-	return MockInterfaceRateMap(mockInterfaceIDPrefix, 160_000_000, 40_000_000, 20, 10, mockTimeNowNano15SecEarlier)
+	return MockInterfaceRateMap(fullIndex, 160_000_000, 40_000_000, 20, 10, mockTimeNowNano15SecEarlier)
 }

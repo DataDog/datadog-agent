@@ -140,14 +140,13 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate(t *testing.T) {
 			TimeNow = common.MockTimeNow
 			ms := &MetricSender{
 				sender:                  sender,
-				deviceID:                mockDeviceID,
 				interfaceConfigs:        tt.interfaceConfigs,
 				interfaceBandwidthState: interfaceRateMapWithPrevious(),
 			}
 
 			usageName := bandwidthMetricNameToUsage[tt.symbols[0].Name]
-			rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(ms.deviceID, tt.fullIndex, usageName, ifSpeed, tt.usageValue)
-			interfaceID := mockInterfaceIDPrefix + "." + usageName
+			rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(tt.fullIndex, usageName, ifSpeed, tt.usageValue)
+			interfaceID := fullIndex + "." + usageName
 
 			// Expect no errors
 			assert.Nil(t, err)
@@ -201,7 +200,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 					},
 				},
 			},
-			expectedError: fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "namespace:deviceIP:9.ifBandwidthInUsage"),
+			expectedError: fmt.Errorf("ifSpeed changed from %d to %d for interface ID %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "9.ifBandwidthInUsage"),
 			// ((5000000 * 8) / (100 * 1000000)) * 100 = 40.0
 			usageValue: 40,
 			newIfSpeed: uint64(100) * (1e6),
@@ -232,7 +231,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 					},
 				},
 			},
-			expectedError: fmt.Errorf("ifSpeed changed from %d to %d for device and interface %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "namespace:deviceIP:9.ifBandwidthOutUsage"),
+			expectedError: fmt.Errorf("ifSpeed changed from %d to %d for interface ID %s, no rate emitted", ifSpeed, uint64(100)*(1e6), "9.ifBandwidthOutUsage"),
 			// ((1000000 * 8) / (100 * 1000000)) * 100 = 8.0
 			usageValue: 8,
 			newIfSpeed: uint64(100) * (1e6),
@@ -264,7 +263,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 					},
 				},
 			},
-			expectedError: fmt.Errorf("rate value for device/interface %s is negative, discarding it", "namespace:deviceIP:9.ifBandwidthInUsage"),
+			expectedError: fmt.Errorf("rate value for interface ID %s is negative, discarding it", "9.ifBandwidthInUsage"),
 			// ((500000 * 8) / (100 * 1000000)) * 100 = 4.0
 			usageValue: 4,
 			// keep it the same interface speed, testing if the rate is negative only
@@ -279,7 +278,6 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 			TimeNow = common.MockTimeNow
 			ms := &MetricSender{
 				sender:                  sender,
-				deviceID:                mockDeviceID,
 				interfaceConfigs:        tt.interfaceConfigs,
 				interfaceBandwidthState: interfaceRateMapWithPrevious(),
 			}
@@ -287,8 +285,8 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 			//newIfSpeed := uint64(100) * (1e6)
 			for _, symbol := range tt.symbols {
 				usageName := bandwidthMetricNameToUsage[symbol.Name]
-				interfaceID := mockDeviceID + ":" + fullIndex + "." + usageName
-				rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(ms.deviceID, tt.fullIndex, usageName, tt.newIfSpeed, tt.usageValue)
+				interfaceID := fullIndex + "." + usageName
+				rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(tt.fullIndex, usageName, tt.newIfSpeed, tt.usageValue)
 
 				assert.Equal(t, tt.expectedError, err)
 				assert.Equal(t, float64(0), rate)

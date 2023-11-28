@@ -428,7 +428,6 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 				sender:                  sender,
 				interfaceConfigs:        tt.interfaceConfigs,
 				interfaceBandwidthState: tt.rateMap,
-				deviceID:                mockDeviceID,
 			}
 			for _, symbol := range tt.symbols {
 				err := ms.sendBandwidthUsageMetric(symbol, tt.fullIndex, tt.values, tt.tags)
@@ -693,7 +692,6 @@ func Test_metricSender_sendInterfaceVolumeMetrics(t *testing.T) {
 			ms := &MetricSender{
 				sender:                  sender,
 				interfaceBandwidthState: interfaceRateMapWithPrevious(),
-				deviceID:                mockDeviceID,
 			}
 			tags := []string{"foo:bar"}
 			ms.sendInterfaceVolumeMetrics(tt.symbol, tt.fullIndex, tt.values, tags)

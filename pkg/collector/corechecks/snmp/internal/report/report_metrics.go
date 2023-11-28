@@ -23,7 +23,6 @@ import (
 type MetricSender struct {
 	sender                  sender.Sender
 	hostname                string
-	deviceID                string
 	submittedMetrics        int
 	interfaceConfigs        []snmpintegration.InterfaceConfig
 	interfaceBandwidthState InterfaceBandwidthState
@@ -39,11 +38,10 @@ type MetricSample struct {
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender sender.Sender, hostname string, deviceID string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceBandwidthState InterfaceBandwidthState) *MetricSender {
+func NewMetricSender(sender sender.Sender, hostname string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceBandwidthState InterfaceBandwidthState) *MetricSender {
 	return &MetricSender{
 		sender:                  sender,
 		hostname:                hostname,
-		deviceID:                deviceID,
 		interfaceConfigs:        interfaceConfigs,
 		interfaceBandwidthState: interfaceBandwidthState,
 	}
