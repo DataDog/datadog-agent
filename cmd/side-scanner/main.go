@@ -51,7 +51,6 @@ import (
 	sbommodel "github.com/DataDog/agent-payload/v5/sbom"
 	"google.golang.org/protobuf/encoding/prototext"
 	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	// DataDog agent: RC stuffs
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
@@ -64,21 +63,6 @@ import (
 
 	// DataDog agent: metrics Statsd
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
-
-	// Trivy stuffs
-	"github.com/aquasecurity/trivy-db/pkg/db"
-	"github.com/aquasecurity/trivy/pkg/detector/ospkg"
-	"github.com/aquasecurity/trivy/pkg/fanal/analyzer"
-	"github.com/aquasecurity/trivy/pkg/fanal/applier"
-	"github.com/aquasecurity/trivy/pkg/fanal/artifact"
-	trivyartifactlocal "github.com/aquasecurity/trivy/pkg/fanal/artifact/local"
-	"github.com/aquasecurity/trivy/pkg/fanal/artifact/vm"
-	ftypes "github.com/aquasecurity/trivy/pkg/fanal/types"
-	"github.com/aquasecurity/trivy/pkg/sbom/cyclonedx"
-	"github.com/aquasecurity/trivy/pkg/scanner"
-	"github.com/aquasecurity/trivy/pkg/scanner/local"
-	"github.com/aquasecurity/trivy/pkg/types"
-	"github.com/aquasecurity/trivy/pkg/vulnerability"
 
 	"github.com/spf13/cobra"
 )
@@ -110,28 +94,61 @@ const (
 
 type scanType string
 
-type rolesMapping map[string]*arn.ARN
-
 const (
 	ebsScanType    scanType = "ebs-volume"
 	lambdaScanType          = "lambda"
 )
 
-type scanConfig struct {
-	Type  configType  `json:"type"`
-	Tasks []*scanTask `json:"tasks"`
-	Roles []string    `json:"roles"`
+type scanAction string
+
+const (
+	malware scanAction = "malware"
+	vulns              = "vulns"
+)
+
+var defaultActions = []string{
+	string(vulns),
 }
 
-type scanTask struct {
-	Type         scanType
-	ARNString    string  `json:"arn"`
-	ARN          arn.ARN `json:"-"`
-	Hostname     string  `json:"hostname"`
-	AttachVolume bool    `json:"attachVolume,omitempty"`
+type (
+	rolesMapping map[string]*arn.ARN
 
-	roles rolesMapping
-}
+	findings struct{} // TODO
+
+	scanConfigRaw struct {
+		Type  string `json:"type"`
+		Tasks []struct {
+			Type         string   `json:"type"`
+			ARN          string   `json:"arn"`
+			Hostname     string   `json:"hostname"`
+			AttachVolume bool     `json:"attachVolume,omitempty"`
+			Actions      []string `json:"actions,omitempty"`
+		} `json:"tasks"`
+		Roles []string `json:"roles"`
+	}
+
+	scanConfig struct {
+		Type  configType
+		Tasks []*scanTask
+		Roles rolesMapping
+	}
+
+	scanTask struct {
+		Type         scanType
+		ARN          arn.ARN
+		Hostname     string
+		AttachVolume bool
+		Actions      []scanAction
+		Roles        rolesMapping
+	}
+
+	scanResult struct {
+		scan     *scanTask
+		err      error
+		sbom     *sbommodel.SBOMEntity
+		findings *findings
+	}
+)
 
 func (s scanTask) String() string {
 	return fmt.Sprintf("%s=%q hostname=%q", s.Type, s.ARN, s.Hostname)
@@ -199,72 +216,6 @@ func runCommand() *cobra.Command {
 	return runCmd
 }
 
-type YaraResult struct {
-	File string
-	Info string
-	Rule string
-}
-
-func runYara(ctx context.Context, rules, dir string) ([]YaraResult, error) {
-	args := []string{"-r", "-w", rules, dir}
-
-	cmd := exec.CommandContext(ctx, "/opt/datadog-agent/embedded/bin/yara", args...)
-	cmd.Dir = dir
-
-	log.Debugf("running %s\n", cmd.String())
-
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	stderr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-	defer cmd.Wait()
-
-	results := make([]YaraResult, 0)
-
-	scannerErr := bufio.NewScanner(stderr)
-
-	go func() {
-		for scannerErr.Scan() {
-			log.Warnf("yara: %s", scannerErr.Text())
-		}
-	}()
-
-	scannerOut := bufio.NewScanner(stdout)
-
-	for scannerOut.Scan() {
-		log.Debugf("yara: %s", scannerOut.Text())
-		s := strings.Split(scannerOut.Text(), " ")
-		switch len(s) {
-		case 2:
-			result := YaraResult{
-				Rule: s[0],
-				File: s[1],
-			}
-			results = append(results, result)
-		case 3:
-			result := YaraResult{
-				Rule: s[0],
-				Info: s[1],
-				File: s[2],
-			}
-			results = append(results, result)
-		default:
-			log.Warnf("invalid yara output: %s", scannerOut.Text())
-		}
-	}
-
-	return results, nil
-}
-
 func scanCommand() *cobra.Command {
 	var cliArgs struct {
 		ScanType string
@@ -283,15 +234,20 @@ func scanCommand() *cobra.Command {
 					if len(cliArgs.RawScan) > 0 {
 						config, err = unmarshalConfig([]byte(cliArgs.RawScan))
 					} else {
-						resourceARN, err := arn.Parse(cliArgs.ARN)
+						roles := getDefaultRolesMapping()
+						task, err := newScanTask(
+							cliArgs.ScanType,
+							cliArgs.ARN,
+							cliArgs.Hostname,
+							nil,
+							roles,
+							globalParams.attachVolumes)
 						if err != nil {
 							return err
 						}
 						config = &scanConfig{
-							Type: awsScan,
-							Tasks: []*scanTask{
-								{Type: scanType(cliArgs.ScanType), ARN: resourceARN, Hostname: cliArgs.Hostname},
-							},
+							Type:  awsScan,
+							Tasks: []*scanTask{task},
 						}
 					}
 					if err != nil {
@@ -454,24 +410,28 @@ func scanCmd(config scanConfig) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	// f, err := os.OpenFile("vm.img", os.O_WRONLY|os.O_SYNC|os.O_CREATE, 0600)
-	// if err != nil {
-	// 	return err
-	// }
-	// defer f.Close()
-	// fmt.Println("start downloading in", f.Name())
-	// if err = downloadSnapshot(ctx, f, config.Tasks[0].ARN); err != nil {
-	// 	return err
-	// }
+	resultsCh := make(chan scanResult)
+	go func() {
+		for result := range resultsCh {
+			if result.err != nil {
+				log.Errorf("error scanning task %s: %s", result.scan, result.err)
+			} else {
+				if result.sbom != nil {
+					fmt.Printf("scanning result %s: %s\n", result.scan, prototext.Format(result.sbom))
+				}
+				if result.findings != nil {
+					panic("unimplemented")
+				}
+			}
+		}
+	}()
 
 	for _, scan := range config.Tasks {
-		entity, err := launchScan(ctx, scan)
-		if err != nil {
-			log.Errorf("error scanning task %s: %s", scan, err)
-		} else {
-			fmt.Printf("scanning result %s: %s\n", scan, prototext.Format(entity))
+		if err := launchScan(ctx, scan, resultsCh); err != nil {
+			log.Errorf("error setting up the scan of %s: %v", scan, err)
 		}
 	}
+	close(resultsCh)
 	return nil
 }
 
@@ -480,17 +440,11 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	defer stop()
 	defer statsd.Flush()
 
+	// Retrieve instance’s region.
 	defaultCfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
 		return err
 	}
-	stsclient := sts.NewFromConfig(defaultCfg)
-	identity, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-	if err != nil {
-		return err
-	}
-
-	// Retrieve instance’s region.
 	imdsclient := imds.NewFromConfig(defaultCfg)
 	regionOutput, err := imdsclient.GetRegion(ctx, &imds.GetRegionInput{})
 	selfRegion := "us-east-1"
@@ -498,6 +452,19 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 		log.Errorf("could not retrieve region from ec2 instance - using default %q: %v", selfRegion, err)
 	} else {
 		selfRegion = regionOutput.Region
+	}
+
+	var identity *sts.GetCallerIdentityOutput
+	{
+		cfg, _, err := newAWSConfig(ctx, selfRegion, nil)
+		if err != nil {
+			return err
+		}
+		stsclient := sts.NewFromConfig(cfg)
+		identity, err = stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+		if err != nil {
+			return err
+		}
 	}
 
 	roles := getDefaultRolesMapping()
@@ -560,6 +527,17 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	}()
 
 	done := make(chan struct{})
+	resultsCh := make(chan scanResult)
+
+	go func() {
+		for {
+			_, ok := <-resultsCh // drop the results
+			if !ok {
+				return
+			}
+		}
+	}()
+
 	for i := 0; i < poolSize; i++ {
 		go func() {
 			defer func() {
@@ -573,9 +551,9 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 					if !ok {
 						return
 					}
-					_, err := launchScan(ctx, scan)
+					err := launchScan(ctx, scan, resultsCh)
 					if err != nil {
-						log.Errorf("error scanning task %s: %s", scan, err)
+						log.Errorf("error setting up scan for task %s: %s", scan, err)
 					}
 				}
 			}
@@ -584,6 +562,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	for i := 0; i < poolSize; i++ {
 		<-done
 	}
+	close(resultsCh)
 	return nil
 }
 
@@ -791,8 +770,6 @@ func mountCmd() error {
 
 	stdin := os.Stdin
 
-	roles := getDefaultRolesMapping()
-
 	var arns []arn.ARN
 	lineNumber := 0
 	scanner := bufio.NewScanner(stdin)
@@ -823,6 +800,7 @@ func mountCmd() error {
 		}
 	}()
 
+	roles := getDefaultRolesMapping()
 	for _, resourceARN := range arns {
 		cfg, awsstats, err := newAWSConfig(ctx, resourceARN.Region, roles[resourceARN.AccountID])
 		if err != nil {
@@ -831,6 +809,18 @@ func mountCmd() error {
 		defer awsstats.SendStats()
 
 		ec2client := ec2.NewFromConfig(cfg)
+		hostname := ""
+		scan, err := newScanTask(
+			string(ebsScanType),
+			resourceARN.String(),
+			hostname,
+			nil,
+			roles,
+			true,
+		)
+		if err != nil {
+			return err
+		}
 
 		resourceType, resourceID, ok := getARNResource(resourceARN)
 		if !ok {
@@ -840,7 +830,7 @@ func mountCmd() error {
 		switch resourceType {
 		case ec2types.ResourceTypeVolume:
 			var cleanupSnapshot func(context.Context)
-			snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, ec2client, nil, resourceARN)
+			snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, scan, ec2client, resourceARN)
 			cleanups = append(cleanups, cleanupSnapshot)
 			if err != nil {
 				return err
@@ -851,15 +841,14 @@ func mountCmd() error {
 			return fmt.Errorf("unsupport resource type %q", resourceType)
 		}
 
-		rolesMapping := getDefaultRolesMapping()
-		mountTargets, cleanupVolume, err := shareAndAttachSnapshot(ctx, nil, rolesMapping, snapshotARN)
+		mountPoints, cleanupVolume, err := shareAndAttachSnapshot(ctx, scan, snapshotARN)
 		cleanups = append(cleanups, cleanupVolume)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("%s mount directories:\n", resourceID)
-		for _, mountTarget := range mountTargets {
-			fmt.Printf("  - %s\n", mountTarget)
+		for _, mountPoint := range mountPoints {
+			fmt.Printf("  - %s\n", mountPoint)
 		}
 	}
 
@@ -868,25 +857,71 @@ func mountCmd() error {
 	return nil
 }
 
+func newScanTask(t string, resourceARN, hostname string, actions []string, roles rolesMapping, attachVolume bool) (*scanTask, error) {
+	// TODO(jinroh): proper input sanitization here where we validate more
+	// precisly the ARN resource type/id
+	var scan scanTask
+	var err error
+	scan.ARN, err = arn.Parse(resourceARN)
+	if err != nil {
+		return nil, fmt.Errorf("bad or empty arn %q: %w", resourceARN, err)
+	}
+	switch t {
+	case string(ebsScanType):
+		scan.Type = ebsScanType
+	case string(lambdaScanType):
+		scan.Type = lambdaScanType
+	default:
+		return nil, fmt.Errorf("unknown scan type %q", t)
+	}
+	scan.Hostname = hostname
+	scan.AttachVolume = attachVolume
+	scan.Roles = roles
+
+	if actions == nil {
+		actions = defaultActions
+	}
+	for _, actionRaw := range actions {
+		switch actionRaw {
+		case string(vulns):
+			scan.Actions = append(scan.Actions, vulns)
+		case string(malware):
+			scan.Actions = append(scan.Actions, malware)
+		default:
+			log.Warnf("unknown action type %q", actionRaw)
+		}
+	}
+	return &scan, nil
+}
+
 func unmarshalConfig(b []byte) (*scanConfig, error) {
-	var config scanConfig
-	if err := json.Unmarshal(b, &config); err != nil {
+	var configRaw scanConfigRaw
+	if err := json.Unmarshal(b, &configRaw); err != nil {
 		return nil, err
 	}
-	if config.Type != awsScan {
+	var config scanConfig
+
+	switch configRaw.Type {
+	case string(awsScan):
+		config.Type = awsScan
+	default:
 		return nil, fmt.Errorf("unexpected config type %q", config.Type)
 	}
-	roles := getDefaultRolesMapping()
+
 	if len(config.Roles) > 0 {
-		roles = parseRolesMapping(config.Roles)
+		config.Roles = parseRolesMapping(configRaw.Roles)
+	} else {
+		config.Roles = getDefaultRolesMapping()
 	}
-	for _, scan := range config.Tasks {
-		var err error
-		scan.ARN, err = arn.Parse(scan.ARNString)
+
+	config.Tasks = make([]*scanTask, 0, len(configRaw.Tasks))
+	for _, scan := range configRaw.Tasks {
+		task, err := newScanTask(scan.Type, scan.ARN, scan.Hostname, scan.Actions, config.Roles, scan.AttachVolume)
 		if err != nil {
-			return nil, fmt.Errorf("bad or empty arn %q: %w", scan.ARNString, err)
+			log.Warnf("dropping malformed task: %v", err)
+			continue
 		}
-		scan.roles = roles
+		config.Tasks = append(config.Tasks, task)
 	}
 	return &config, nil
 }
@@ -912,17 +947,20 @@ type sideScanner struct {
 	scansCh           chan *scanTask
 	scansInProgress   map[interface{}]struct{}
 	scansInProgressMu sync.RWMutex
+	resultsCh         chan scanResult
 }
 
 func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epforwarder.EventPlatformForwarder, poolSize int, allowedScanTypes []string) *sideScanner {
 	return &sideScanner{
 		hostname:         hostname,
 		rcClient:         rcClient,
-		eventForwarder:   eventForwarder,
 		poolSize:         poolSize,
-		scansCh:          make(chan *scanTask),
-		scansInProgress:  make(map[interface{}]struct{}),
+		eventForwarder:   eventForwarder,
 		allowedScanTypes: allowedScanTypes,
+
+		scansCh:         make(chan *scanTask),
+		scansInProgress: make(map[interface{}]struct{}),
+		resultsCh:       make(chan scanResult),
 	}
 }
 
@@ -944,6 +982,28 @@ func (s *sideScanner) start(ctx context.Context) {
 		}
 	})
 
+	go func() {
+		for result := range s.resultsCh {
+			if result.err != nil {
+				statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(result.scan), 1.0)
+			} else {
+				if result.sbom != nil {
+					if hasResults(result.sbom) {
+						statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0)
+					} else {
+						statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagNoResult(result.scan), 1.0)
+					}
+					log.Debugf("sending SBOM for scan %s", result.scan)
+					s.sendSBOM(result.sbom)
+				}
+				if result.findings != nil {
+					log.Debugf("sending findings for scan %s", result.scan)
+					s.sendFindings(result.findings)
+				}
+			}
+		}
+	}()
+
 	done := make(chan struct{})
 	for i := 0; i < s.poolSize; i++ {
 		go func() {
@@ -963,6 +1023,7 @@ func (s *sideScanner) start(ctx context.Context) {
 	for i := 0; i < s.poolSize; i++ {
 		<-done
 	}
+	close(s.resultsCh)
 	<-ctx.Done()
 }
 
@@ -1003,14 +1064,25 @@ func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan *scanTas
 		s.scansInProgressMu.Unlock()
 	}()
 
-	entity, err := launchScan(ctx, scan)
-	if err != nil {
-		return err
+	return launchScan(ctx, scan, s.resultsCh)
+}
+
+func launchScan(ctx context.Context, scan *scanTask, resultsCh chan scanResult) (err error) {
+	statsd.Count("datadog.sidescanner.scans.started", 1.0, tagScan(scan), 1.0)
+	defer func() {
+		if err != nil {
+			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(scan), 1.0)
+		}
+	}()
+
+	switch scan.Type {
+	case ebsScanType:
+		return scanEBS(ctx, scan, resultsCh)
+	case lambdaScanType:
+		return scanLambda(ctx, scan, resultsCh)
+	default:
+		return fmt.Errorf("unknown scan type: %s", scan.Type)
 	}
-	if entity == nil {
-		return nil
-	}
-	return s.sendSBOM(entity)
 }
 
 func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
@@ -1033,15 +1105,8 @@ func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
 	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
 }
 
-func launchScan(ctx context.Context, scan *scanTask) (*sbommodel.SBOMEntity, error) {
-	switch scan.Type {
-	case ebsScanType:
-		return scanEBS(ctx, scan)
-	case lambdaScanType:
-		return scanLambda(ctx, scan)
-	default:
-		return nil, fmt.Errorf("unknown scan type: %s", scan.Type)
-	}
+func (s *sideScanner) sendFindings(findings *findings) error {
+	panic("not implemented")
 }
 
 func cloudResourceTagSpec(resourceType ec2types.ResourceType) []ec2types.TagSpecification {
@@ -1135,7 +1200,7 @@ func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDelet
 	}
 }
 
-func createSnapshot(ctx context.Context, ec2client *ec2.Client, metrictags []string, volumeARN arn.ARN) (snapshotARN arn.ARN, cleanupSnapshot func(context.Context), err error) {
+func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, volumeARN arn.ARN) (snapshotARN arn.ARN, cleanupSnapshot func(context.Context), err error) {
 	cleanupSnapshot = func(ctx context.Context) {
 		if snapshotARN.Resource != "" {
 			log.Debugf("deleting snapshot %q for volume %q", snapshotARN, volumeARN)
@@ -1147,7 +1212,7 @@ func createSnapshot(ctx context.Context, ec2client *ec2.Client, metrictags []str
 	}
 
 	snapshotStartedAt := time.Now()
-	statsd.Count("datadog.sidescanner.snapshots.started", 1.0, metrictags, 1.0)
+	statsd.Count("datadog.sidescanner.snapshots.started", 1.0, tagScan(scan), 1.0)
 	log.Debugf("starting volume snapshotting %q", volumeARN)
 
 	retries := 0
@@ -1184,12 +1249,13 @@ retry:
 		if errors.As(err, &aerr) && aerr.ErrorCode() == "InvalidVolume.NotFound" {
 			isVolumeNotFoundError = true
 		}
+		var tags []string
 		if isVolumeNotFoundError {
-			metrictags = tagNotFound(metrictags)
+			tags = tagNotFound(scan)
 		} else {
-			metrictags = tagFailure(metrictags)
+			tags = tagFailure(scan)
 		}
-		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, metrictags, 1.0)
+		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tags, 1.0)
 		return
 	}
 
@@ -1204,29 +1270,41 @@ retry:
 	if err == nil {
 		snapshotDuration := time.Since(snapshotStartedAt)
 		log.Debugf("volume snapshotting of %q finished sucessfully %q (took %s)", volumeARN, snapshotID, snapshotDuration)
-		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), metrictags, 1.0)
-		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(metrictags), 1.0)
+		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tagScan(scan), 1.0)
+		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(scan), 1.0)
 	} else {
-		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(metrictags), 1.0)
+		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(scan), 1.0)
 	}
 
 	return
 }
 
-func tagNoResult(s []string) []string {
-	return append(s, fmt.Sprint("status:noresult"))
+func tagScan(scan *scanTask) []string {
+	tags := []string{
+		fmt.Sprintf("agent_version:%s", version.AgentVersion),
+		fmt.Sprintf("region:%s", scan.ARN.Region),
+		fmt.Sprintf("type:%s", scan.Type),
+	}
+	if scan.Hostname != "" {
+		tags = append(tags, fmt.Sprintf("scan_host:%s", scan.Hostname))
+	}
+	return tags
 }
 
-func tagNotFound(s []string) []string {
-	return append(s, fmt.Sprint("status:notfound"))
+func tagNoResult(scan *scanTask) []string {
+	return append(tagScan(scan), fmt.Sprint("status:noresult"))
 }
 
-func tagFailure(s []string) []string {
-	return append(s, fmt.Sprint("status:failure"))
+func tagNotFound(scan *scanTask) []string {
+	return append(tagScan(scan), fmt.Sprint("status:notfound"))
 }
 
-func tagSuccess(s []string) []string {
-	return append(s, fmt.Sprint("status:success"))
+func tagFailure(scan *scanTask) []string {
+	return append(tagScan(scan), fmt.Sprint("status:failure"))
+}
+
+func tagSuccess(scan *scanTask) []string {
+	return append(tagScan(scan), fmt.Sprint("status:success"))
 }
 
 type awsClientStats struct {
@@ -1372,203 +1450,98 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
 }
 
-func scanEBS(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEntity, err error) {
+func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) error {
 	resourceType, _, ok := getARNResource(scan.ARN)
 	if !ok {
-		return nil, fmt.Errorf("ebs-scan: bad or missing ARN: %w", err)
+		return fmt.Errorf("ebs-scan: bad or missing ARN: %s", scan.ARN)
 	}
 	if scan.Hostname == "" {
-		return nil, fmt.Errorf("ebs-scan: missing hostname")
+		return fmt.Errorf("ebs-scan: missing hostname")
 	}
 
 	defer statsd.Flush()
 
-	tags := []string{
-		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("region:%s", scan.ARN.Region),
-		fmt.Sprintf("type:%s", ebsScanType),
-		fmt.Sprintf("scan_host:%s", scan.Hostname),
-	}
-
-	if err != nil {
-		return nil, err
-	}
-
-	assumedRole := scan.roles[scan.ARN.AccountID]
+	assumedRole := scan.Roles[scan.ARN.AccountID]
 	cfg, awsstats, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer awsstats.SendStats()
 
 	ec2client := ec2.NewFromConfig(cfg)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var snapshotARN arn.ARN
 	switch resourceType {
 	case ec2types.ResourceTypeVolume:
 		var cleanupSnapshot func(context.Context)
-		snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, ec2client, tags, scan.ARN)
+		snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, scan, ec2client, scan.ARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
 			cleanupSnapshot(cleanupctx)
 		}()
 		if err != nil {
-			return nil, err
+			return err
 		}
 	case ec2types.ResourceTypeSnapshot:
 		snapshotARN = scan.ARN
 	default:
-		return nil, fmt.Errorf("ebs-scan: bad arn %q", scan.ARN)
+		return fmt.Errorf("ebs-scan: bad arn %q", scan.ARN)
 	}
 
 	if snapshotARN.Resource == "" {
-		return nil, fmt.Errorf("ebs-scan: missing snapshot ID")
+		return fmt.Errorf("ebs-scan: missing snapshot ID")
 	}
 
 	log.Infof("start EBS scanning %s", scan)
 
-	noResult := false
-	statsd.Count("datadog.sidescanner.scans.started", 1.0, tags, 1.0)
-	defer func() {
-		if err != nil {
-			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
-		} else if noResult {
-			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagNoResult(tags), 1.0)
-		} else {
-			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
+	var scanStartedAt time.Time
+	if !scan.AttachVolume {
+		// Only vulns scanning works without a proper mount point (for now)
+		for _, action := range scan.Actions {
+			if action != vulns {
+				return fmt.Errorf("we can only perform vulns scanning of %q without volume attach", scan)
+			}
 		}
-	}()
-
-	trivyCache := newMemoryCache()
-	trivyDisabledAnalyzers := []analyzer.Type{analyzer.TypeSecret, analyzer.TypeLicenseFile}
-	trivyDisabledAnalyzers = append(trivyDisabledAnalyzers, analyzer.TypeConfigFiles...)
-	trivyDisabledAnalyzers = append(trivyDisabledAnalyzers, analyzer.TypeLanguages...)
-	var trivyArtifact artifact.Artifact
-
-	if scan.AttachVolume || globalParams.attachVolumes {
-		mountTargets, cleanupVolume, err := shareAndAttachSnapshot(ctx, tags, scan.roles, snapshotARN)
+		ebsclient := ebs.NewFromConfig(cfg)
+		if err != nil {
+			return fmt.Errorf("could not create EBS client: %w", err)
+		}
+		scanStartedAt = time.Now()
+		sbom, err := launchScannerTrivyVM(ctx, scan, ebsclient, snapshotARN)
+		resultsCh <- scanResult{err: err, scan: scan, sbom: sbom}
+	} else {
+		mountPoints, cleanupVolume, err := shareAndAttachSnapshot(ctx, scan, snapshotARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
 			cleanupVolume(cleanupctx)
 		}()
 		if err != nil {
-			return nil, err
+			return err
 		}
-		// TODO(jinroh): support multiple partition scanning
-		mountTarget := mountTargets[0]
-		trivyArtifact, err = trivyartifactlocal.NewArtifact(mountTarget, trivyCache, artifact.Option{
-			Offline:           true,
-			NoProgress:        true,
-			DisabledAnalyzers: trivyDisabledAnalyzers,
-			Slow:              false,
-			SBOMSources:       []string{},
-			DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
-			OnlyDirs: []string{
-				filepath.Join(mountTarget, "etc"),
-				filepath.Join(mountTarget, "var/lib/dpkg"),
-				filepath.Join(mountTarget, "var/lib/rpm"),
-				filepath.Join(mountTarget, "lib/apk"),
-			},
-			AWSRegion: scan.ARN.Region,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
+		scanStartedAt = time.Now()
+		for _, mountPoint := range mountPoints {
+			for _, action := range scan.Actions {
+				switch action {
+				case vulns:
+					sbom, err := launchScannerTrivyLocal(ctx, scan, mountPoint)
+					resultsCh <- scanResult{err: err, scan: scan, sbom: sbom}
+				case malware:
+					findings, err := launchScannerMalwareLocal(ctx, scan, mountPoint)
+					resultsCh <- scanResult{err: err, scan: scan, findings: findings}
+				}
+			}
 		}
-		results, err := runYara(ctx, "/tmp/rules.yar", fmt.Sprintf("%s/home", mountTarget))
-		if err != nil {
-			return nil, err
-		}
-		for _, result := range results {
-			log.Debugf("found %s in %s\n", result.Rule, result.File)
-		}
-	} else {
-		_, snapshotID, _ := getARNResource(snapshotARN)
-		target := "ebs:" + snapshotID
-		trivyArtifact, err = vm.NewArtifact(target, trivyCache, artifact.Option{
-			Offline:           true,
-			NoProgress:        true,
-			DisabledAnalyzers: trivyDisabledAnalyzers,
-			Slow:              false,
-			SBOMSources:       []string{},
-			DisabledHandlers:  []ftypes.HandlerType{ftypes.UnpackagedPostHandler},
-			OnlyDirs:          []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"},
-			AWSRegion:         scan.ARN.Region,
-		})
-		ebsclient := ebs.NewFromConfig(cfg)
-		if err != nil {
-			return nil, fmt.Errorf("could not create EBS client: %w", err)
-		}
-		trivyArtifactEBS := trivyArtifact.(*vm.EBS)
-		trivyArtifactEBS.SetEBS(EBSClientWithWalk{ebsclient})
-	}
-
-	scanStartedAt := time.Now()
-
-	trivyDetector := ospkg.Detector{}
-	trivyVulnClient := vulnerability.NewClient(db.Config{})
-	trivyApplier := applier.NewApplier(trivyCache)
-	trivyLocalScanner := local.NewScanner(trivyApplier, trivyDetector, trivyVulnClient)
-	trivyScanner := scanner.NewScanner(trivyLocalScanner, trivyArtifact)
-
-	log.Debugf("starting scan of artifact")
-	trivyReport, err := trivyScanner.ScanArtifact(ctx, types.ScanOptions{
-		VulnType:            []string{},
-		SecurityChecks:      []string{},
-		ScanRemovedPackages: false,
-		ListAllPackages:     true,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("trivy scan failed: %w", err)
-	}
-
-	// This is different from "!trivyReport.Results.Failed()".
-	noResult = !hasPackages(trivyReport.Results)
-
-	if noResult {
-		log.Debugf("scan on %s %s reported no result", scan.Hostname, scan.ARN)
-	} else {
-		log.Debugf("scan on %s %s reported results", scan.Hostname, scan.ARN)
 	}
 
 	scanDuration := time.Since(scanStartedAt)
-	log.Debugf("ebs-scan: finished (took %s)", scanDuration)
-	statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tags, 1.0)
+	statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0)
 
-	createdAt := time.Now()
-	duration := time.Since(scanStartedAt)
-	marshaler := cyclonedx.NewMarshaler("")
-	bom, err := marshaler.Marshal(trivyReport)
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal report to sbom format: %w", err)
-	}
-
-	entity = &sbommodel.SBOMEntity{
-		Status:             sbommodel.SBOMStatus_SUCCESS,
-		Type:               sbommodel.SBOMSourceType_HOST_FILE_SYSTEM, // TODO: SBOMSourceType_EBS
-		Id:                 scan.Hostname,
-		InUse:              true,
-		GeneratedAt:        timestamppb.New(createdAt),
-		GenerationDuration: convertDuration(duration),
-		Hash:               "",
-		Sbom: &sbommodel.SBOMEntity_Cyclonedx{
-			Cyclonedx: convertBOM(bom),
-		},
-	}
-	return
-}
-
-func hasPackages(results types.Results) bool {
-	for _, r := range results {
-		if len(r.Packages) > 0 {
-			return true
-		}
-	}
-	return false
+	return nil
 }
 
 // reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
@@ -1588,94 +1561,32 @@ func nextDeviceName() string {
 	return fmt.Sprintf("/dev/sd%c", deviceName.letter)
 }
 
-func scanLambda(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEntity, err error) {
+func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) error {
 	defer statsd.Flush()
-
-	tags := []string{
-		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("region:%s", scan.ARN.Region),
-		fmt.Sprintf("type:%s", "lambda-scan"),
-	}
 
 	tempDir, err := os.MkdirTemp("", "aws-lambda")
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer os.RemoveAll(tempDir)
 
-	codePath, lambdaVersion, err := downloadLambda(ctx, scan, tempDir, tags)
+	codePath, err := downloadLambda(ctx, scan, tempDir)
 	if err != nil {
-		return
+		return err
 	}
-
-	statsd.Count("datadog.sidescanner.scans.started", 1.0, tags, 1.0)
-	defer func() {
-		if err != nil {
-			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(tags), 1.0)
-		} else {
-			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(tags), 1.0)
-		}
-	}()
 
 	scanStartedAt := time.Now()
-	trivyCache := newMemoryCache()
-	trivyFSArtifact, err := trivyartifactlocal.NewArtifact(codePath, trivyCache, artifact.Option{
-		Offline:           true,
-		NoProgress:        true,
-		DisabledAnalyzers: []analyzer.Type{},
-		Slow:              true,
-		SBOMSources:       []string{},
-		AWSRegion:         scan.ARN.Region,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("unable to create artifact from fs: %w", err)
-	}
 
-	trivyDetector := ospkg.Detector{}
-	trivyVulnClient := vulnerability.NewClient(db.Config{})
-	trivyApplier := applier.NewApplier(trivyCache)
-	trivyLocalScanner := local.NewScanner(trivyApplier, trivyDetector, trivyVulnClient)
-	trivyScanner := scanner.NewScanner(trivyLocalScanner, trivyFSArtifact)
-	trivyReport, err := trivyScanner.ScanArtifact(ctx, types.ScanOptions{
-		VulnType:            []string{},
-		SecurityChecks:      []string{},
-		ScanRemovedPackages: false,
-		ListAllPackages:     true,
-	})
-	statsd.Histogram("datadog.sidescanner.scans.duration", float64(time.Since(scanStartedAt).Milliseconds()), tags, 1.0)
-	if err != nil {
-		return nil, fmt.Errorf("trivy scan failed: %w", err)
-	}
+	sbom, err := launchScannerTrivyLocal(ctx, scan, codePath)
+	resultsCh <- scanResult{err: err, scan: scan, sbom: sbom}
 
-	createdAt := time.Now()
-	duration := time.Since(scanStartedAt)
-	marshaler := cyclonedx.NewMarshaler("")
-	bom, err := marshaler.Marshal(trivyReport)
-	if err != nil {
-		return nil, err
-	}
-
-	entity = &sbommodel.SBOMEntity{
-		Status: sbommodel.SBOMStatus_SUCCESS,
-		Type:   sbommodel.SBOMSourceType_CI_PIPELINE, // TODO: SBOMSourceType_LAMBDA
-		Id:     scan.ARN.String(),
-		InUse:  true,
-		DdTags: []string{
-			"git.repository_url:" + scan.ARN.String(),
-			"git.branch:" + lambdaVersion,
-		},
-		GeneratedAt:        timestamppb.New(createdAt),
-		GenerationDuration: convertDuration(duration),
-		Hash:               "",
-		Sbom: &sbommodel.SBOMEntity_Cyclonedx{
-			Cyclonedx: convertBOM(bom),
-		},
-	}
-	return
+	scanDuration := time.Since(scanStartedAt)
+	statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0)
+	return nil
 }
 
-func downloadLambda(ctx context.Context, scan *scanTask, tempDir string, tags []string) (codePath, lambdaVersion string, err error) {
-	statsd.Count("datadog.sidescanner.functions.started", 1.0, tags, 1.0)
+func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePath string, err error) {
+	statsd.Count("datadog.sidescanner.functions.started", 1.0, tagScan(scan), 1.0)
 	defer func() {
 		if err != nil {
 			var isResourceNotFoundError bool
@@ -1683,87 +1594,87 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string, tags []
 			if errors.As(err, &aerr) && aerr.ErrorCode() == "ResourceNotFoundException" {
 				isResourceNotFoundError = true
 			}
+			var tags []string
 			if isResourceNotFoundError {
-				tags = tagNotFound(tags)
+				tags = tagNotFound(scan)
 			} else {
-				tags = tagFailure(tags)
+				tags = tagFailure(scan)
 			}
-			statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagFailure(tags), 1.0)
+			statsd.Count("datadog.sidescanner.functions.finished", 1.0, tags, 1.0)
+		} else {
+			statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagSuccess(scan), 1.0)
 		}
 	}()
 
 	functionStartedAt := time.Now()
 
-	assumedRole := scan.roles[scan.ARN.AccountID]
+	assumedRole := scan.Roles[scan.ARN.AccountID]
 	cfg, awsstats, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
 	if err != nil {
-		return
+		return "", err
 	}
 	defer awsstats.SendStats()
 
 	lambdaclient := lambda.NewFromConfig(cfg)
 	if err != nil {
-		return
+		return "", err
 	}
 
 	lambdaFunc, err := lambdaclient.GetFunction(ctx, &lambda.GetFunctionInput{
 		FunctionName: aws.String(scan.ARN.String()),
 	})
 	if err != nil {
-		return
+		return "", err
 	}
-
-	lambdaVersion = *lambdaFunc.Configuration.Version
 
 	if lambdaFunc.Code.Location == nil {
 		err = fmt.Errorf("lambdaFunc.Code.Location is nil")
-		return
+		return "", err
 	}
 
 	archivePath := filepath.Join(tempDir, "code.zip")
 	archiveFile, err := os.OpenFile(archivePath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
-		return
+		return "", err
 	}
 	defer archiveFile.Close()
 
 	lambdaURL := *lambdaFunc.Code.Location
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, lambdaURL, nil)
 	if err != nil {
-		return
+		return "", err
 	}
 
 	resp, err := defaultHTTPClient.Do(req)
 	if err != nil {
-		return
+		return "", err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("bad status: %s", resp.Status)
-		return
+		return "", err
 	}
 
 	_, err = io.Copy(archiveFile, resp.Body)
 	if err != nil {
-		return
+		return "", err
 	}
 
 	codePath = filepath.Join(tempDir, "code")
 	err = os.Mkdir(codePath, 0700)
 	if err != nil {
-		return
+		return "", err
 	}
 
 	err = extractZip(ctx, archivePath, codePath)
 	if err != nil {
-		return
+		return "", err
 	}
 
 	functionDuration := time.Since(functionStartedAt)
 	log.Debugf("function retrieved sucessfully %q (took %s)", scan.ARN, functionDuration)
-	statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagSuccess(tags), 1.0)
-	statsd.Histogram("datadog.sidescanner.functions.duration", float64(functionDuration.Milliseconds()), tags, 1.0)
-	return
+	statsd.Histogram("datadog.sidescanner.functions.duration", float64(functionDuration.Milliseconds()), tagScan(scan), 1.0)
+	return codePath, nil
 }
 
 func extractZip(ctx context.Context, zipPath, destinationPath string) error {
@@ -1806,7 +1717,7 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 	return nil
 }
 
-func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMapping rolesMapping, snapshotARN arn.ARN) (mountTargets []string, cleanupVolume func(context.Context), err error) {
+func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (mountPoints []string, cleanupVolume func(context.Context), err error) {
 	var cleanups []func(context.Context)
 	pushCleanup := func(cleanup func(context.Context)) {
 		cleanups = append(cleanups, cleanup)
@@ -1829,7 +1740,7 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 		return
 	}
 
-	remoteAssumedRole := rolesMapping[snapshotARN.AccountID]
+	remoteAssumedRole := scan.Roles[snapshotARN.AccountID]
 	remoteAWSCfg, _, err := newAWSConfig(ctx, self.Region, remoteAssumedRole)
 	if err != nil {
 		err = fmt.Errorf("could not create local aws config: %w", err)
@@ -1884,7 +1795,7 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 		}
 	}
 
-	localAssumedRole := rolesMapping[self.AccountID]
+	localAssumedRole := scan.Roles[self.AccountID]
 	localAWSCfg, _, err := newAWSConfig(ctx, self.Region, localAssumedRole)
 	if err != nil {
 		err = fmt.Errorf("could not create local aws config: %w", err)
@@ -1993,17 +1904,16 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 	})
 
 	for _, mp := range partitions {
-		mountTarget := fmt.Sprintf("/snapshots/%s/%s", localSnapshotID, path.Base(mp.devicePath))
-		err = os.MkdirAll(mountTarget, 0700)
+		mountPoint := fmt.Sprintf("/snapshots/%s/%s", localSnapshotID, path.Base(mp.devicePath))
+		err = os.MkdirAll(mountPoint, 0700)
 		if err != nil {
-			err = fmt.Errorf("could not create mountTarget directory %q: %w", mountTarget, err)
+			err = fmt.Errorf("could not create mountPoint directory %q: %w", mountPoint, err)
 			return
 		}
 		pushCleanup(func(_ context.Context) {
-			log.Debugf("unlink directory %q", mountTarget)
-			os.Remove(mountTarget)
+			log.Debugf("unlink directory %q", mountPoint)
+			os.Remove(mountPoint)
 		})
-
 
 		fsOptions := ""
 		switch mp.fsType {
@@ -2015,8 +1925,8 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 
 		var mountOutput []byte
 		for i := 0; i < 50; i++ {
-			log.Debugf("execing mount %#v %q", mp.devicePath, mountTarget)
-			mountOutput, err = exec.CommandContext(ctx, "mount", "-o", fsOptions, "-t", mp.fsType, "--source", mp.devicePath, "--target", mountTarget).CombinedOutput()
+			log.Debugf("execing mount %#v %q", mp.devicePath, mountPoint)
+			mountOutput, err = exec.CommandContext(ctx, "mount", "-o", fsOptions, "-t", mp.fsType, "--source", mp.devicePath, "--target", mountPoint).CombinedOutput()
 			if err == nil {
 				break
 			}
@@ -2026,17 +1936,17 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 			}
 		}
 		if err != nil {
-			err = fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountTarget, mp.devicePath, string(mountOutput), err)
+			err = fmt.Errorf("could not mount into target=%q device=%q output=%q: %w", mountPoint, mp.devicePath, string(mountOutput), err)
 			return
 		}
 		pushCleanup(func(ctx context.Context) {
-			log.Debugf("un-mounting %s", mountTarget)
-			umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountTarget).CombinedOutput()
+			log.Debugf("un-mounting %s", mountPoint)
+			umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountPoint).CombinedOutput()
 			if err != nil {
-				log.Warnf("could not umount %s: %s:\n%s", mountTarget, err, string(umountOuput))
+				log.Warnf("could not umount %s: %s:\n%s", mountPoint, err, string(umountOuput))
 			}
 		})
-		mountTargets = append(mountTargets, mountTarget)
+		mountPoints = append(mountPoints, mountPoint)
 	}
 
 	return
@@ -2059,4 +1969,9 @@ func ec2ARN(region, accountID string, resourceType ec2types.ResourceType, resour
 		AccountID: accountID,
 		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceID),
 	}
+}
+
+func hasResults(results *sbommodel.SBOMEntity) bool {
+	bom := results.GetCyclonedx()
+	return len(bom.Components) > 0 || len(bom.Dependencies) > 0 || len(bom.Vulnerabilities) > 0
 }
