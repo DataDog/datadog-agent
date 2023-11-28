@@ -31,8 +31,8 @@ checks:
       series: "rate(bytes_written['traces'])"
       # Lading is configured to send 64 MB/s on each of two connections. The
       # lower bound here is reflective of experimentally determined bounds.
-      lower_bound: 2Mb
-      upper_bound: 66Mb
+      lower_bound: 20Mb
+      upper_bound: 130Mb
 
   - name: dogstatsd_throughput
     description: "DogStatsD throughput"
@@ -48,23 +48,36 @@ checks:
     description: "TCP listener throughput"
     bounds:
       series: "rate(bytes_written['tcp_logs'])"
-      # Lading is configured to send 1 MB/s. More throughput than this -- owing
+      # Lading is configured to send 5 MB/s. More throughput than this -- owing
       # to buffering etc -- is fine but less is not.
-      lower_bound: 500Kb
-      upper_bound: 1Mb
+      lower_bound: 4Mb
+      upper_bound: 7Mb
 
   - name: lost_bytes_uds_dogstatsd
     description: "Lost UDS DogStatsD bytes"
     percent_error:
       expected: "bytes_written['dogstatsd']"
-      actual: "target/dogstatsd-uds/Bytes"
-      threshold: 1.0
+      actual: "target/dogstatsd.uds_packets_bytes"
+      threshold: 0.5
 
 environment:
   DD_TELEMETRY_ENABLED: true
+  DD_API_KEY: 00000001
 
 profiling_environment:
   DD_INTERNAL_PROFILING_ENABLED: true
   DD_INTERNAL_PROFILING_UNIX_SOCKET: /var/run/datadog/apm.socket
   DD_INTERNAL_PROFILING_DELTA_PROFILES: true
   DD_INTERNAL_PROFILING_ENABLE_GOROUTINE_STACKTRACES: true
+
+  DD_INTERNAL_PROFILING_BLOCK_PROFILE_RATE: 10000
+  DD_INTERNAL_PROFILING_CPU_DURATION: 1m
+  DD_INTERNAL_PROFILING_DELTA_PROFILES: true
+  DD_INTERNAL_PROFILING_MUTEX_PROFILE_FRACTION: 10
+  DD_INTERNAL_PROFILING_PERIOD: 1m
+
+  DD_PROFILING_EXECUTION_TRACE_ENABLED: true
+  DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
+  DD_PROFILING_WAIT_PROFILE: true
+
+  DD_INTERNAL_PROFILING_EXTRA_TAGS: workload:apm-app-server

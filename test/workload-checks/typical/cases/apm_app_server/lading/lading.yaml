@@ -5,7 +5,7 @@ generator:
              59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131]
       addr: "127.0.0.1:10000"
       variant: "apache_common"
-      bytes_per_second: "1 Mb" # per connection, implicitly one for tcp generator
+      bytes_per_second: "5 Mb" # per connection, implicitly one for tcp generator
       block_sizes: ["0.125Mb", "128Kb", "64Kb", "8Kb", "1Kb"]
       maximum_prebuild_cache_size_bytes: "8 Mb"
   - id: traces
@@ -29,14 +29,29 @@ generator:
       throttle: stable
       variant:
         dogstatsd:
-          metric_names:
+          contexts:
+            constant: 2000
+          name_length:
             inclusive:
-              min: 32
-              max: 128
-          tag_keys:
+              min: 5
+              max: 80
+          tag_key_length:
             inclusive:
-              min: 0
-              max: 512
+              min: 3
+              max: 20
+          tag_value_length:
+            inclusive:
+              min: 3
+              max: 20
+          tags_per_msg:
+            inclusive:
+              min: 2
+              max: 20
+          multivalue_count:
+            inclusive:
+              min: 2
+              max: 32
+          multivalue_pack_probability: 0.08
           kind_weights:
             metric: 90
             event: 5
@@ -45,29 +60,24 @@ generator:
             count: 100
             gauge: 10
             timer: 0
-            distribution: 50
+            distribution: 10
             set: 0
-            histogram: 1
-      bytes_per_second: "1 Mb" # per connection
-      parallel_connections: 1
-      block_sizes: ["1Kb", "2Kb", "4Kb", "8Kb", "16Kb", "32Kb"]
-      maximum_prebuild_cache_size_bytes: "8 Mb"
+            histogram: 0
+      bytes_per_second: "10 MiB"
+      block_sizes: ["256b", "512b", "1Kb", "2Kb", "3Kb", "4Kb", "5Kb", "6Kb"]
+      maximum_prebuild_cache_size_bytes: "500 Mb"
 
 blackhole:
-  - id: api
+  - id: logs
     http:
       binding_addr: "127.0.0.1:9091"
-  - id: traces
+  - id: api
     http:
       binding_addr: "127.0.0.1:9092"
+  - id: traces
+    http:
+      binding_addr: "127.0.0.1:9093"
 
 target_metrics:
   - prometheus:
       uri: "http://127.0.0.1:5000/telemetry"
-    # metrics: intentionally left off to collect everything
-  - expvar:
-      uri: "http://127.0.0.1:5000/debug/vars"
-      vars:
-        - "/dogstatsd-uds/Bytes"
-        - "/dogstatsd-uds/Packets"
-        - "/dogstatsd-uds/PacketReadingErrors"
