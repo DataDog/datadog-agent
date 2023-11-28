@@ -1,6 +1,6 @@
 module github.com/DataDog/datadog-agent/pkg/remoteconfig
 
-go 1.21.3
+go 1.20
 
 require (
 	github.com/DataDog/datadog-agent v0.9.0
