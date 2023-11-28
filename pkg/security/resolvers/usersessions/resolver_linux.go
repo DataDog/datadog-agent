@@ -33,8 +33,8 @@ type UserSessionKey struct {
 
 // UserSessionData stores user session context data retrieved from the kernel
 type UserSessionData struct {
-	SessionType usersession.Type `field:"-" json:"-"`
-	RawData     string           `field:"-" json:"-"`
+	SessionType usersession.Type
+	RawData     string
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself
