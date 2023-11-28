@@ -333,9 +333,7 @@ func RandomSpanLink() *pb.SpanLink {
 
 // RandomSpanLinks generates a random number of random spanlinks
 func RandomSpanLinks() []*pb.SpanLink {
-	// choose some of the keys
-	// span links count upperbound ref: https://github.com/DataDog/dd-trace-java/pull/6009/files#diff-86fe38e98414b81244ea3448a8e99f47ed385deaa616fb147af2d8a1cb693894R66
-	spanLinksCount := rand.Intn(300)
+	spanLinksCount := rand.Intn(100)
 	res := make([]*pb.SpanLink, spanLinksCount)
 
 	for i := range res {
