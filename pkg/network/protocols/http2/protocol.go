@@ -222,10 +222,12 @@ func (p *protocol) PostStart(mgr *manager.Manager) error {
 func (p *protocol) updateKernelTelemetry(mgr *manager.Manager) {
 	mp, _, err := mgr.GetMap(telemetryMap)
 	if err != nil {
+		log.Warnf("unable to get http2 telemetry map: %s", err)
 		return
 	}
 
 	if mp == nil {
+		log.Warn("http2 telemetry map is nil")
 		return
 	}
 	var zero uint32
@@ -270,10 +272,7 @@ func (p *protocol) Stop(_ *manager.Manager) {
 		p.statkeeper.Close()
 	}
 
-	if p.telemetry != nil {
-		p.kernelTelemetryStopChannel <- struct{}{}
-		close(p.kernelTelemetryStopChannel)
-	}
+	close(p.kernelTelemetryStopChannel)
 }
 
 func (p *protocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {

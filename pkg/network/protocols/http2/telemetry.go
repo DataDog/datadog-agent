@@ -55,12 +55,12 @@ func newHTTP2KernelTelemetry() *kernelTelemetry {
 		endOfStream:                   metricGroup.NewCounter("eos"),
 		endOfStreamRST:                metricGroup.NewCounter("rst"),
 		pathExceedsFrame:              metricGroup.NewCounter("path_exceeds_frame"),
-		pathSizeBucket0:               metricGroup.NewCounter("path_size_bucket_0"),
-		pathSizeBucket1:               metricGroup.NewCounter("path_size_bucket_1"),
-		pathSizeBucket2:               metricGroup.NewCounter("path_size_bucket_2"),
-		pathSizeBucket3:               metricGroup.NewCounter("path_size_bucket_3"),
-		pathSizeBucket4:               metricGroup.NewCounter("path_size_bucket_4"),
-		pathSizeBucket5:               metricGroup.NewCounter("path_size_bucket_5"),
+		pathSizeBucket0:               metricGroup.NewCounter("path_size_bucket_1"),
+		pathSizeBucket1:               metricGroup.NewCounter("path_size_bucket_2"),
+		pathSizeBucket2:               metricGroup.NewCounter("path_size_bucket_3"),
+		pathSizeBucket3:               metricGroup.NewCounter("path_size_bucket_4"),
+		pathSizeBucket4:               metricGroup.NewCounter("path_size_bucket_5"),
+		pathSizeBucket5:               metricGroup.NewCounter("path_size_bucket_6"),
 		exceedingMaxInterestingFrames: metricGroup.NewCounter("exceeding_max_interesting_frames"),
 		exceedingMaxFramesToFilter:    metricGroup.NewCounter("exceeding_max_frames_to_filter")}
 }
