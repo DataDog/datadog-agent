@@ -20,7 +20,7 @@ process_collection:
 
 apm_config:
   enabled: true
-  apm_dd_url: http://127.0.0.1:9092
+  apm_dd_url: http://127.0.0.1:9093
   # set an arbitrarily high sample set
   max_traces_per_second: 1000000
   errors_per_second: 1000000

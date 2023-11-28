@@ -56,8 +56,8 @@ checks:
     description: "Lost UDS DogStatsD bytes"
     percent_error:
       expected: "bytes_written['dogstatsd']"
-      actual: "target/dogstatsd-uds/Bytes"
-      threshold: 5.0
+      actual: "target/dogstatsd.uds_packets_bytes"
+      threshold: 0.5
 
 environment:
   DD_TELEMETRY_ENABLED: true
