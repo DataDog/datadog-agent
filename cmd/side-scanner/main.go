@@ -1768,7 +1768,7 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 		snapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, ec2types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
 	}
 
-	if snapshotARN.AccountID != self.AccountID {
+	if snapshotARN.AccountID != "" && snapshotARN.AccountID != self.AccountID {
 		_, err = remoteEC2Client.ModifySnapshotAttribute(ctx, &ec2.ModifySnapshotAttributeInput{
 			SnapshotId:    aws.String(snapshotID),
 			Attribute:     ec2types.SnapshotAttributeNameCreateVolumePermission,
