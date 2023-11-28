@@ -28,29 +28,27 @@ checks:
     description: "APM throughput"
     bounds:
       series: "rate(bytes_written['traces'])"
-      # Lading is configured to send 8 MB/s on each of two connections. This is
-      # a relatively high priority concern by bounding below close to the
-      # transmission rate.
-      lower_bound: 4b
-      upper_bound: 10Mb
+      # Lading is configured to send 8 MB/s on each of two connections.
+      lower_bound: 10Mb
+      upper_bound: 20Mb
 
   - name: dogstatsd_throughput
     description: "DogStatsD throughput"
     bounds:
       series: "rate(bytes_written['dogstatsd'])"
-      # Lading is configured to send 64 MB/s on each of two connections. The
-      # lower bound here is reflective of experimentally determined bounds.
-      lower_bound: 0b
-      upper_bound: 66Mb
+      # Lading is configured to send 70 MB/s.
+      lower_bound: 60Mb
+      upper_bound: 80Mb
 
   - name: tcp_listener_throughput
     description: "TCP listener throughput"
     bounds:
       series: "rate(bytes_written['tcp_logs'])"
-      # Lading is configured to send 10 MB/s. More throughput than this -- owing
-      # to buffering etc -- is fine but less is not.
-      lower_bound: 5Mb
-      upper_bound: 12Mb
+      # Lading is configured to send 10 MB/s each on 4 connections.
+      # More throughput than this -- owing to buffering etc
+      # -- is fine but less is not.
+      lower_bound: 30Mb
+      upper_bound: 50Mb
 
   - name: lost_bytes_uds_dogstatsd
     description: "Lost UDS DogStatsD bytes"
@@ -62,7 +60,6 @@ checks:
 environment:
   DD_TELEMETRY_ENABLED: true
   DD_API_KEY: 00000001
-
 
 profiling_environment:
   DD_INTERNAL_PROFILING_ENABLED: true

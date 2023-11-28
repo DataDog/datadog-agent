@@ -68,12 +68,15 @@ generator:
       maximum_prebuild_cache_size_bytes: "500 Mb"
 
 blackhole:
-  - id: api
+  - id: logs
     http:
       binding_addr: "127.0.0.1:9091"
-  - id: traces
+  - id: api
     http:
       binding_addr: "127.0.0.1:9092"
+  - id: traces
+    http:
+      binding_addr: "127.0.0.1:9093"
 
 target_metrics:
   - expvar:

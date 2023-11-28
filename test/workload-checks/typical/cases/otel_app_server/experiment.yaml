@@ -38,11 +38,9 @@ checks:
     description: "DogStatsD throughput"
     bounds:
       series: "rate(bytes_written['dogstatsd'])"
-      # Lading is configured to send 1 MB/s on one connection. This is a
-      # relatively high priority concern by bounding below close to the
-      # transmission rate.
-      lower_bound: 500Kb
-      upper_bound: 2Mb
+      # Lading is configured to send 10 MB/s
+      lower_bound: 8Mb
+      upper_bound: 12Mb
 
   - name: tcp_listener_throughput
     description: "TCP listener throughput"
@@ -51,7 +49,7 @@ checks:
       # Lading is configured to send 1 MB/s. More throughput than this -- owing
       # to buffering etc -- is fine but less is not.
       lower_bound: 500Kb
-      upper_bound: 1Mb
+      upper_bound: 1.5Mb
 
   - name: lost_bytes_uds_dogstatsd
     description: "Lost UDS DogStatsD bytes"
