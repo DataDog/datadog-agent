@@ -20,7 +20,7 @@ import (
 func Test_interfaceBandwidthState_RemoveExpiredBandwidthUsageRates(t *testing.T) {
 	tests := []struct {
 		name               string
-		ibs                *InterfaceBandwidthState
+		ibs                InterfaceBandwidthState
 		checkStartTimeNano int64
 		expectedMapSize    int
 	}{
@@ -44,7 +44,7 @@ func Test_interfaceBandwidthState_RemoveExpiredBandwidthUsageRates(t *testing.T)
 			tt.ibs.RemoveExpiredBandwidthUsageRates(tt.checkStartTimeNano)
 
 			// Check that the map was updated to remove expired
-			assert.Equal(t, tt.expectedMapSize, len(tt.ibs.state))
+			assert.Equal(t, tt.expectedMapSize, len(tt.ibs))
 		})
 	}
 }
@@ -155,9 +155,9 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate(t *testing.T) {
 			assert.Equal(t, tt.expectedRate, rate)
 
 			// Check that the map was updated with current values for next check run
-			assert.Equal(t, ifSpeed, ms.interfaceBandwidthState.state[interfaceID].ifSpeed)
-			assert.Equal(t, tt.usageValue, ms.interfaceBandwidthState.state[interfaceID].previousSample)
-			assert.Equal(t, mockTimeNowNano, ms.interfaceBandwidthState.state[interfaceID].previousTsNano)
+			assert.Equal(t, ifSpeed, ms.interfaceBandwidthState[interfaceID].ifSpeed)
+			assert.Equal(t, tt.usageValue, ms.interfaceBandwidthState[interfaceID].previousSample)
+			assert.Equal(t, mockTimeNowNano, ms.interfaceBandwidthState[interfaceID].previousTsNano)
 		})
 	}
 }
@@ -294,9 +294,9 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 				assert.Equal(t, float64(0), rate)
 
 				// Check that the map was updated with current values for next check run
-				assert.Equal(t, tt.newIfSpeed, ms.interfaceBandwidthState.state[interfaceID].ifSpeed)
-				assert.Equal(t, tt.usageValue, ms.interfaceBandwidthState.state[interfaceID].previousSample)
-				assert.Equal(t, mockTimeNowNano, ms.interfaceBandwidthState.state[interfaceID].previousTsNano)
+				assert.Equal(t, tt.newIfSpeed, ms.interfaceBandwidthState[interfaceID].ifSpeed)
+				assert.Equal(t, tt.usageValue, ms.interfaceBandwidthState[interfaceID].previousSample)
+				assert.Equal(t, mockTimeNowNano, ms.interfaceBandwidthState[interfaceID].previousTsNano)
 			}
 		})
 	}

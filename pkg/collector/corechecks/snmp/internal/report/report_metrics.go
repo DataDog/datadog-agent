@@ -26,7 +26,7 @@ type MetricSender struct {
 	deviceID                string
 	submittedMetrics        int
 	interfaceConfigs        []snmpintegration.InterfaceConfig
-	interfaceBandwidthState *InterfaceBandwidthState
+	interfaceBandwidthState InterfaceBandwidthState
 }
 
 // MetricSample is a collected metric sample with its metadata, ready to be submitted through the metric sender
@@ -39,7 +39,7 @@ type MetricSample struct {
 }
 
 // NewMetricSender create a new MetricSender
-func NewMetricSender(sender sender.Sender, hostname string, deviceID string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceBandwidthState *InterfaceBandwidthState) *MetricSender {
+func NewMetricSender(sender sender.Sender, hostname string, deviceID string, interfaceConfigs []snmpintegration.InterfaceConfig, interfaceBandwidthState InterfaceBandwidthState) *MetricSender {
 	return &MetricSender{
 		sender:                  sender,
 		hostname:                hostname,

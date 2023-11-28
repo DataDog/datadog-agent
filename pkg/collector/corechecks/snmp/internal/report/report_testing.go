@@ -8,21 +8,21 @@ package report
 const (
 	mockDeviceID                string = "namespace:deviceIP"
 	fullIndex                   string = "9"
-	mockInterfaceIDPrefix       string = mockDeviceID + ":" + fullIndex
+	mockInterfaceIDPrefix              = mockDeviceID + ":" + fullIndex
 	ifSpeed                     uint64 = 80 * (1e6)
 	mockTimeNowNano                    = int64(946684800000000000)
 	mockTimeNowNano15SecEarlier        = int64(946684785000000000)
 )
 
 // MockInterfaceRateMap makes it easy to mock the map used for calculating state for bandwidth usage for testing
-func MockInterfaceRateMap(interfaceID string, inIfSpeed uint64, outIfSpeed uint64, inSample float64, outSample float64, ts int64) *InterfaceBandwidthState {
-	irm := NewInterfaceBandwidthState()
-	irm.state[interfaceID+".ifBandwidthInUsage"] = &BandwidthUsage{
+func MockInterfaceRateMap(interfaceID string, inIfSpeed uint64, outIfSpeed uint64, inSample float64, outSample float64, ts int64) InterfaceBandwidthState {
+	irm := MakeInterfaceBandwidthState()
+	irm[interfaceID+".ifBandwidthInUsage"] = &BandwidthUsage{
 		ifSpeed:        inIfSpeed,
 		previousSample: inSample,
 		previousTsNano: ts,
 	}
-	irm.state[interfaceID+".ifBandwidthOutUsage"] = &BandwidthUsage{
+	irm[interfaceID+".ifBandwidthOutUsage"] = &BandwidthUsage{
 		ifSpeed:        outIfSpeed,
 		previousSample: outSample,
 		previousTsNano: ts,
@@ -31,11 +31,11 @@ func MockInterfaceRateMap(interfaceID string, inIfSpeed uint64, outIfSpeed uint6
 }
 
 // Mock interface rate map with previous metric samples for the interface with ifSpeed of 30
-func interfaceRateMapWithPrevious() *InterfaceBandwidthState {
+func interfaceRateMapWithPrevious() InterfaceBandwidthState {
 	return MockInterfaceRateMap(mockInterfaceIDPrefix, ifSpeed, ifSpeed, 30, 5, mockTimeNowNano15SecEarlier)
 }
 
 // Mock interface rate map with previous metric samples where the ifSpeed is taken from configuration files
-func interfaceRateMapWithConfig() *InterfaceBandwidthState {
+func interfaceRateMapWithConfig() InterfaceBandwidthState {
 	return MockInterfaceRateMap(mockInterfaceIDPrefix, 160_000_000, 40_000_000, 20, 10, mockTimeNowNano15SecEarlier)
 }

@@ -35,7 +35,7 @@ func Test_metricSender_sendBandwidthUsageMetric(t *testing.T) {
 		interfaceConfigs []snmpintegration.InterfaceConfig
 		expectedMetric   []Metric
 		expectedError    error
-		rateMap          *InterfaceBandwidthState
+		rateMap          InterfaceBandwidthState
 	}{
 		{
 			name:      "snmp.ifBandwidthInUsage.Rate submitted",
@@ -597,7 +597,7 @@ func Test_metricSender_sendIfSpeedMetrics(t *testing.T) {
 			ms := &MetricSender{
 				sender:                  sender,
 				interfaceConfigs:        tt.interfaceConfigs,
-				interfaceBandwidthState: NewInterfaceBandwidthState(),
+				interfaceBandwidthState: MakeInterfaceBandwidthState(),
 			}
 			ms.sendIfSpeedMetrics(tt.symbol, tt.fullIndex, tt.values, tt.tags)
 
