@@ -91,7 +91,14 @@ distributions = {
     "centos_79": "centos_79",
 }
 
-arch_mapping = {"amd64": "x86_64", "x86": "x86_64", "x86_64": "x86_64", "arm64": "arm64", "arm": "arm64", "aarch64": "arm64"}
+arch_mapping = {
+    "amd64": "x86_64",
+    "x86": "x86_64",
+    "x86_64": "x86_64",
+    "arm64": "arm64",
+    "arm": "arm64",
+    "aarch64": "arm64"
+}
 
 TICK = "\u2713"
 CROSS = "\u2718"
@@ -111,6 +118,7 @@ table = [
     ["debian 10 - v4.19.0", TICK, TICK],
     ["debian 11 - v5.10.0", TICK, TICK],
 ]
+
 
 
 def lte_414(version):
@@ -195,6 +203,7 @@ def normalize_vm_def(possible, vm):
 
     return recipe, version, arch
 
+
 def get_custom_kernel_config(template, recipe, version, arch):
     if arch == local_arch:
         arch = arch_mapping[platform.machine()]
@@ -204,10 +213,7 @@ def get_custom_kernel_config(version, arch):
         arch = arch_mapping[platform.machine()]
 
     if lte_414(version):
-        extra_params = {
-            "console": console,
-            "systemd.unified_cgroup_hierarchy": "0"
-        }
+        extra_params = {"console": console, "systemd.unified_cgroup_hierarchy": "0"}
     else:
         extra_params = {
             "console": console,
@@ -218,6 +224,7 @@ def get_custom_kernel_config(version, arch):
         "tag": version,
         "extra_params": extra_params,
     }
+
 
 # This function derives the configuration for each
 # unique kernel or distribution from the normalized vm-def.
@@ -261,8 +268,10 @@ def kernel_in_vmset(vmset, kernel):
 
     return False
 
+
 def get_vmconfig_file():
     return "test/new-e2e/system-probe/config/vmconfig.json"
+
 
 def vmset_name(arch, recipe, setprefix):
     name = f"{recipe}_{arch}"
@@ -270,6 +279,7 @@ def vmset_name(arch, recipe, setprefix):
         return f"{setprefix}_{name}"
 
     return name
+
 
 def add_custom_vmset(vmset, vm_config):
     arch = vmset.arch
@@ -296,8 +306,8 @@ def add_custom_vmset(vmset, vm_config):
         "kernels": list(),
         "image": {
             "image_path": image_path,
-            "image_source": f"https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/{image_path}"
-        }
+            "image_source": f"https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/{image_path}",
+        },
     }
 
     vm_config["vmsets"].append(new_set)
@@ -331,11 +341,14 @@ def add_kernel(vm_config, kernel, setname):
 
     raise Exit(f"Unable to find vmset with name {setname}")
 
+
 def add_vcpu(vmset, vcpu):
     vmset["vcpu"] = vcpu
 
+
 def add_memory(vmset, memory):
     vmset["memory"] = memory
+
 
 def template_name(arch, recipe):
     if arch == local_arch:
@@ -344,6 +357,7 @@ def template_name(arch, recipe):
     recipe_without_arch = recipe.split("-")[0]
     return f"{recipe_without_arch}_{arch}"
 
+
 def add_disks(vmconfig_template, vmset):
     tname = template_name(vmset["arch"], vmset["recipe"])
 
@@ -351,8 +365,10 @@ def add_disks(vmconfig_template, vmset):
         if template["name"] == tname:
             vmset["disks"] = copy.deepcopy(template["disks"])
 
-def add_console(vm_config):
+
+def add_console(vmset):
     vmset["console_type"] = "file"
+
 
 def url_to_fspath(url):
     source = urlparse(url)
@@ -362,6 +378,7 @@ def url_to_fspath(url):
         filename = os.path.basename(source.path)
 
     return f"file://{os.path.join(KMT_ROOTFS_DIR,filename)}"
+
 
 def image_source_to_path(vmset):
     if vmset["recipe"] == f"custom-{vmset['arch']}":
@@ -375,9 +392,11 @@ def image_source_to_path(vmset):
         for disk in vmset["disks"]:
             disk["source"] = url_to_fspath(disk["source"])
 
+
 class VM:
     def __init__(self, version):
         self.version = version
+
 
 class VMSet:
     def __init__(self, arch, recipe, name):
@@ -407,8 +426,10 @@ class VMSet:
         if self.recipe == recipe and self.arch == arch:
             self.vms.append(VM(version))
 
+
 def custom_version_prefix(version):
     return "lte_414" if lte_414(version) else "gt_414"
+
 
 def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
     with open(get_vmconfig_file()) as f:
@@ -439,7 +460,9 @@ def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
     # add vm configurations to vmsets.
     for vmset in vmsets:
         for vm in vmset.vms:
-            add_kernel(vm_config, get_kernel_config(vmconfig_template, vmset.recipe, vm.version, vmset.arch), vmset.name)
+            add_kernel(
+                vm_config, get_kernel_config(vmconfig_template, vmset.recipe, vm.version, vmset.arch), vmset.name
+            )
 
     for vmset in vm_config["vmsets"]:
         add_vcpu(vmset, vcpu)
@@ -454,6 +477,9 @@ def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
 
         if ci:
             add_console(vmset)
+
+    return vm_config
+
 
 def ls_to_int(ls):
     int_ls = list()
@@ -515,6 +541,7 @@ def gen_config(ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", mem
         f.write(vm_config_str)
 
     info(f"[+] vmconfig @ {vmconfig_file}")
+
 
 def list_all_distro_normalized_vms(archs):
     with open(get_vmconfig_file()) as f:
