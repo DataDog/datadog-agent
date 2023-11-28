@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build linux
+
 // Package probe holds probe related files
 package probe
 
@@ -14,8 +16,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-// NewModel returns a new model with some extra field validation
-func NewModel(probe *Probe) *model.Model {
+// NewEBPFModel returns a new model with some extra field validation
+func NewEBPFModel(probe *EBPFProbe) *model.Model {
 	return &model.Model{
 		ExtraValidateFieldFnc: func(field eval.Field, fieldValue eval.FieldValue) error {
 			switch field {
@@ -33,4 +35,11 @@ func NewModel(probe *Probe) *model.Model {
 			return nil
 		},
 	}
+}
+
+// NewEBPFEvent returns a new event
+func NewEBPFEvent(fh *EBPFFieldHandlers) *model.Event {
+	event := model.NewDefaultEvent()
+	event.FieldHandlers = fh
+	return event
 }

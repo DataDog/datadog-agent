@@ -205,6 +205,11 @@ type RuntimeSecurityConfig struct {
 
 	// UserSessionsCacheSize defines the size of the User Sessions cache size
 	UserSessionsCacheSize int
+
+	// EBPFLessEnabled enables the ebpfless probe
+	EBPFLessEnabled bool
+	// EBPFLessSocket defines the socket used for the communication between system-probe and the ebpfless source
+	EBPFLessSocket string
 }
 
 // Config defines a security config
@@ -331,6 +336,10 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 
 		// User Sessions
 		UserSessionsCacheSize: coreconfig.SystemProbe.GetInt("runtime_security_config.user_sessions.cache_size"),
+
+		// ebpf less
+		EBPFLessEnabled: coreconfig.SystemProbe.GetBool("runtime_security_config.ebpfless.enabled"),
+		EBPFLessSocket:  coreconfig.SystemProbe.GetString("runtime_security_config.ebpfless.socket"),
 	}
 
 	if err := rsConfig.sanitize(); err != nil {

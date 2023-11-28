@@ -149,8 +149,10 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFunction) error {
 	listenerID := l.getListenerID(conn)
 	tlmListenerID := listenerID
-	if !l.config.GetBool("dogstatsd_telemetry_enabled_listener_id") {
-		tlmListenerID = ""
+	telemetryWithFullListenerID := l.config.GetBool("dogstatsd_telemetry_enabled_listener_id")
+	if !telemetryWithFullListenerID {
+		// In case we don't want the full listener id, we only keep the transport.
+		tlmListenerID = "uds-" + conn.LocalAddr().Network()
 	}
 
 	packetsBuffer := packets.NewBuffer(
@@ -163,7 +165,9 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 	defer func() {
 		_ = closeFunc(conn)
 		packetsBuffer.Close()
-		l.clearTelemetry(tlmListenerID)
+		if telemetryWithFullListenerID {
+			l.clearTelemetry(tlmListenerID)
+		}
 		tlmUDSConnections.Dec(tlmListenerID, l.transport)
 	}()
 

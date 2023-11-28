@@ -11,7 +11,6 @@ package model
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"net"
 	"time"
 )
 
@@ -39,10 +38,7 @@ func (ev *Event) GetContainerTags() []string {
 	if ev.BaseEvent.ContainerContext == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
-	fieldCopy := make([]string, len(resolvedField))
-	copy(fieldCopy, resolvedField)
-	return fieldCopy
+	return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 }
 
 // GetEventTimestamp returns the value of the field, resolving if necessary
@@ -59,7 +55,19 @@ func (ev *Event) GetExecCmdline() string {
 	if ev.Exec.Process == nil {
 		return zeroValue
 	}
-	return ev.Exec.Process.CmdLine
+	return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
+}
+
+// GetExecCmdlineScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetExecCmdlineScrubbed() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "exec" {
+		return zeroValue
+	}
+	if ev.Exec.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exec.Process)
 }
 
 // GetExecContainerId returns the value of the field, resolving if necessary
@@ -87,7 +95,7 @@ func (ev *Event) GetExecCreatedAt() int {
 }
 
 // GetExecEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetExecEnvp(desiredKeys map[string]bool) []string {
+func (ev *Event) GetExecEnvp() []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "exec" {
 		return zeroValue
@@ -95,15 +103,11 @@ func (ev *Event) GetExecEnvp(desiredKeys map[string]bool) []string {
 	if ev.Exec.Process == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
-	resolvedField = filterEnvs(resolvedField, desiredKeys)
-	fieldCopy := make([]string, len(resolvedField))
-	copy(fieldCopy, resolvedField)
-	return fieldCopy
+	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 }
 
 // GetExecEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetExecEnvs(desiredKeys map[string]bool) []string {
+func (ev *Event) GetExecEnvs() []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "exec" {
 		return zeroValue
@@ -111,11 +115,7 @@ func (ev *Event) GetExecEnvs(desiredKeys map[string]bool) []string {
 	if ev.Exec.Process == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
-	resolvedField = filterEnvs(resolvedField, desiredKeys)
-	fieldCopy := make([]string, len(resolvedField))
-	copy(fieldCopy, resolvedField)
-	return fieldCopy
+	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 }
 
 // GetExecExecTime returns the value of the field, resolving if necessary
@@ -232,7 +232,19 @@ func (ev *Event) GetExitCmdline() string {
 	if ev.Exit.Process == nil {
 		return zeroValue
 	}
-	return ev.Exit.Process.CmdLine
+	return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
+}
+
+// GetExitCmdlineScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetExitCmdlineScrubbed() string {
+	zeroValue := ""
+	if ev.GetEventType().String() != "exit" {
+		return zeroValue
+	}
+	if ev.Exit.Process == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exit.Process)
 }
 
 // GetExitCode returns the value of the field, resolving if necessary
@@ -269,7 +281,7 @@ func (ev *Event) GetExitCreatedAt() int {
 }
 
 // GetExitEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetExitEnvp(desiredKeys map[string]bool) []string {
+func (ev *Event) GetExitEnvp() []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "exit" {
 		return zeroValue
@@ -277,15 +289,11 @@ func (ev *Event) GetExitEnvp(desiredKeys map[string]bool) []string {
 	if ev.Exit.Process == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
-	resolvedField = filterEnvs(resolvedField, desiredKeys)
-	fieldCopy := make([]string, len(resolvedField))
-	copy(fieldCopy, resolvedField)
-	return fieldCopy
+	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 }
 
 // GetExitEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetExitEnvs(desiredKeys map[string]bool) []string {
+func (ev *Event) GetExitEnvs() []string {
 	zeroValue := []string{}
 	if ev.GetEventType().String() != "exit" {
 		return zeroValue
@@ -293,11 +301,7 @@ func (ev *Event) GetExitEnvs(desiredKeys map[string]bool) []string {
 	if ev.Exit.Process == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
-	resolvedField = filterEnvs(resolvedField, desiredKeys)
-	fieldCopy := make([]string, len(resolvedField))
-	copy(fieldCopy, resolvedField)
-	return fieldCopy
+	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 }
 
 // GetExitExecTime returns the value of the field, resolving if necessary
@@ -396,69 +400,6 @@ func (ev *Event) GetExitPpid() uint32 {
 	return ev.Exit.Process.PPid
 }
 
-// GetNetworkDestinationIp returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkDestinationIp() net.IPNet {
-	zeroValue := net.IPNet{}
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Destination.IPNet
-}
-
-// GetNetworkDestinationPort returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkDestinationPort() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Destination.Port
-}
-
-// GetNetworkL3Protocol returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkL3Protocol() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.L3Protocol
-}
-
-// GetNetworkL4Protocol returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkL4Protocol() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.L4Protocol
-}
-
-// GetNetworkSize returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkSize() uint32 {
-	zeroValue := uint32(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Size
-}
-
-// GetNetworkSourceIp returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkSourceIp() net.IPNet {
-	zeroValue := net.IPNet{}
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Source.IPNet
-}
-
-// GetNetworkSourcePort returns the value of the field, resolving if necessary
-func (ev *Event) GetNetworkSourcePort() uint16 {
-	zeroValue := uint16(0)
-	if ev.GetEventType().String() != "dns" {
-		return zeroValue
-	}
-	return ev.BaseEvent.NetworkContext.Source.Port
-}
-
 // GetProcessAncestorsCmdline returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCmdline() []string {
 	zeroValue := []string{}
@@ -474,7 +415,29 @@ func (ev *Event) GetProcessAncestorsCmdline() []string {
 	ptr := iterator.Front(ctx)
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
-		result := element.ProcessContext.Process.CmdLine
+		result := ev.FieldHandlers.ResolveProcessCmdLine(ev, &element.ProcessContext.Process)
+		values = append(values, result)
+		ptr = iterator.Next()
+	}
+	return values
+}
+
+// GetProcessAncestorsCmdlineScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessAncestorsCmdlineScrubbed() []string {
+	zeroValue := []string{}
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Ancestor == nil {
+		return zeroValue
+	}
+	var values []string
+	ctx := eval.NewContext(ev)
+	iterator := &ProcessAncestorsIterator{}
+	ptr := iterator.Front(ctx)
+	for ptr != nil {
+		element := (*ProcessCacheEntry)(ptr)
+		result := ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, &element.ProcessContext.Process)
 		values = append(values, result)
 		ptr = iterator.Next()
 	}
@@ -526,7 +489,7 @@ func (ev *Event) GetProcessAncestorsCreatedAt() []int {
 }
 
 // GetProcessAncestorsEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessAncestorsEnvp(desiredKeys map[string]bool) []string {
+func (ev *Event) GetProcessAncestorsEnvp() []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
@@ -541,7 +504,6 @@ func (ev *Event) GetProcessAncestorsEnvp(desiredKeys map[string]bool) []string {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessEnvp(ev, &element.ProcessContext.Process)
-		result = filterEnvs(result, desiredKeys)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -549,7 +511,7 @@ func (ev *Event) GetProcessAncestorsEnvp(desiredKeys map[string]bool) []string {
 }
 
 // GetProcessAncestorsEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessAncestorsEnvs(desiredKeys map[string]bool) []string {
+func (ev *Event) GetProcessAncestorsEnvs() []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
@@ -564,7 +526,6 @@ func (ev *Event) GetProcessAncestorsEnvs(desiredKeys map[string]bool) []string {
 	for ptr != nil {
 		element := (*ProcessCacheEntry)(ptr)
 		result := ev.FieldHandlers.ResolveProcessEnvs(ev, &element.ProcessContext.Process)
-		result = filterEnvs(result, desiredKeys)
 		values = append(values, result...)
 		ptr = iterator.Next()
 	}
@@ -709,7 +670,16 @@ func (ev *Event) GetProcessCmdline() string {
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
 	}
-	return ev.BaseEvent.ProcessContext.Process.CmdLine
+	return ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
+}
+
+// GetProcessCmdlineScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessCmdlineScrubbed() string {
+	zeroValue := ""
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessContainerId returns the value of the field, resolving if necessary
@@ -731,29 +701,21 @@ func (ev *Event) GetProcessCreatedAt() int {
 }
 
 // GetProcessEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessEnvp(desiredKeys map[string]bool) []string {
+func (ev *Event) GetProcessEnvp() []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
-	resolvedField = filterEnvs(resolvedField, desiredKeys)
-	fieldCopy := make([]string, len(resolvedField))
-	copy(fieldCopy, resolvedField)
-	return fieldCopy
+	return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessEnvs(desiredKeys map[string]bool) []string {
+func (ev *Event) GetProcessEnvs() []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
-	resolvedField = filterEnvs(resolvedField, desiredKeys)
-	fieldCopy := make([]string, len(resolvedField))
-	copy(fieldCopy, resolvedField)
-	return fieldCopy
+	return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessExecTime returns the value of the field, resolving if necessary
@@ -822,7 +784,22 @@ func (ev *Event) GetProcessParentCmdline() string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return ""
 	}
-	return ev.BaseEvent.ProcessContext.Parent.CmdLine
+	return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.BaseEvent.ProcessContext.Parent)
+}
+
+// GetProcessParentCmdlineScrubbed returns the value of the field, resolving if necessary
+func (ev *Event) GetProcessParentCmdlineScrubbed() string {
+	zeroValue := ""
+	if ev.BaseEvent.ProcessContext == nil {
+		return zeroValue
+	}
+	if ev.BaseEvent.ProcessContext.Parent == nil {
+		return zeroValue
+	}
+	if !ev.BaseEvent.ProcessContext.HasParent() {
+		return ""
+	}
+	return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentContainerId returns the value of the field, resolving if necessary
@@ -856,7 +833,7 @@ func (ev *Event) GetProcessParentCreatedAt() int {
 }
 
 // GetProcessParentEnvp returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessParentEnvp(desiredKeys map[string]bool) []string {
+func (ev *Event) GetProcessParentEnvp() []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
@@ -867,15 +844,11 @@ func (ev *Event) GetProcessParentEnvp(desiredKeys map[string]bool) []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
-	resolvedField = filterEnvs(resolvedField, desiredKeys)
-	fieldCopy := make([]string, len(resolvedField))
-	copy(fieldCopy, resolvedField)
-	return fieldCopy
+	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentEnvs returns the value of the field, resolving if necessary
-func (ev *Event) GetProcessParentEnvs(desiredKeys map[string]bool) []string {
+func (ev *Event) GetProcessParentEnvs() []string {
 	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
 		return zeroValue
@@ -886,11 +859,7 @@ func (ev *Event) GetProcessParentEnvs(desiredKeys map[string]bool) []string {
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
 	}
-	resolvedField := ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
-	resolvedField = filterEnvs(resolvedField, desiredKeys)
-	fieldCopy := make([]string, len(resolvedField))
-	copy(fieldCopy, resolvedField)
-	return fieldCopy
+	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.BaseEvent.ProcessContext.Parent)
 }
 
 // GetProcessParentFileName returns the value of the field, resolving if necessary
@@ -997,5 +966,5 @@ func (ev *Event) GetProcessPpid() uint32 {
 
 // GetTimestamp returns the value of the field, resolving if necessary
 func (ev *Event) GetTimestamp() time.Time {
-	return ev.FieldHandlers.ResolveEventTime(ev)
+	return ev.FieldHandlers.ResolveEventTime(ev, &ev.BaseEvent)
 }
