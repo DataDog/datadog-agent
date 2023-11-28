@@ -46,7 +46,7 @@ func (ad *ActivityDump) ToGraph() utils.Graph {
 	defer ad.Unlock()
 
 	title := fmt.Sprintf("%s: %s", ad.Metadata.Name, ad.getSelectorStr())
-	var resolver *process.Resolver
+	var resolver *process.EBPFResolver
 	if ad.adm != nil {
 		resolver = ad.adm.resolvers.ProcessResolver
 	}
