@@ -67,7 +67,7 @@ func (a *agentSuite) SetupSuite() {
 	a.filename = fmt.Sprintf("%s/secret", a.dirname)
 	a.testID = uuid.NewString()[:4]
 	a.desc = fmt.Sprintf("e2e test rule %s", a.testID)
-	a.agentRuleName = fmt.Sprintf("e2e_agent_rule_%s", a.testID)
+	a.agentRuleName = fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
 	a.Suite.SetupSuite()
 	a.apiClient = cws.NewAPIClient()
 }
