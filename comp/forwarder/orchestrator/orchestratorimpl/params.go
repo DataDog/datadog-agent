@@ -7,11 +7,21 @@ package orchestratorimpl
 
 // Params defines the parameters for the orchestrator forwarder.
 type Params struct {
-	UseNoopOrchestratorForwarder bool
-	UseOrchestratorForwarder     bool
+	useNoopOrchestratorForwarder bool
+	useOrchestratorForwarder     bool
 }
 
 // NewDefaultParams returns the default parameters for the orchestrator forwarder.
 func NewDefaultParams() Params {
-	return Params{UseOrchestratorForwarder: true, UseNoopOrchestratorForwarder: false}
+	return Params{useOrchestratorForwarder: true, useNoopOrchestratorForwarder: false}
+}
+
+// NewDisabledParams returns the parameters for the orchestrator forwarder when it is disabled.
+func NewDisabledParams() Params {
+	return Params{useOrchestratorForwarder: false, useNoopOrchestratorForwarder: false}
+}
+
+// NewNoopParams returns the parameters for the orchestrator forwarder when it is a noop.
+func NewNoopParams() Params {
+	return Params{useOrchestratorForwarder: false, useNoopOrchestratorForwarder: true}
 }

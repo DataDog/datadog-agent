@@ -117,8 +117,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// options no orchestrator forwarder
 
 	opts = demuxTestOptions()
-	params := orchestratorForwarderImpl.NewDefaultParams()
-	params.UseOrchestratorForwarder = false
+	params := orchestratorForwarderImpl.NewDisabledParams()
 	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params)
 	demux = deps.Demultiplexer
 	require.NotNil(demux)
@@ -131,8 +130,7 @@ func TestDemuxForwardersCreated(t *testing.T) {
 	// options noop orchestrator forwarder
 
 	opts = demuxTestOptions()
-	params = orchestratorForwarderImpl.NewDefaultParams()
-	params.UseNoopOrchestratorForwarder = true
+	params = orchestratorForwarderImpl.NewNoopParams()
 	deps = createDemuxDepsWithOrchestratorFwd(t, opts, params)
 	demux = deps.Demultiplexer
 	require.NotNil(demux)

@@ -30,10 +30,10 @@ var Module = fxutil.Component(
 // newOrchestratorForwarder returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
 func newOrchestratorForwarder(log log.Component, config config.Component, params Params) orchestrator.Component {
-	if params.UseNoopOrchestratorForwarder {
+	if params.useNoopOrchestratorForwarder {
 		return createComponent(defaultforwarder.NoopForwarder{})
 	}
-	if params.UseOrchestratorForwarder {
+	if params.useOrchestratorForwarder {
 		if !config.GetBool(orchestratorconfig.OrchestratorNSKey("enabled")) {
 			forwarder := optional.NewNoneOption[defaultforwarder.Forwarder]()
 			return &forwarder

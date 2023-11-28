@@ -69,7 +69,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(defaultforwarder.NewParamsWithResolvers),
 				demultiplexer.Module,
 				orchestratorForwarderImpl.Module,
-				fx.Supply(orchestratorForwarderImpl.Params{UseOrchestratorForwarder: false}),
+				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 				fx.Provide(func() demultiplexer.Params {
 					opts := aggregator.DefaultAgentDemultiplexerOptions()
 					opts.UseEventPlatformForwarder = false

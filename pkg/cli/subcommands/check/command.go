@@ -137,7 +137,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				demultiplexer.Module,
 				orchestratorForwarderImpl.Module,
-				fx.Supply(orchestratorForwarderImpl.Params{UseNoopOrchestratorForwarder: true}),
+				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
 				fx.Provide(func() demultiplexer.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 					opts := aggregator.DefaultAgentDemultiplexerOptions()

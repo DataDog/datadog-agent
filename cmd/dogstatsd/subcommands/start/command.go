@@ -130,7 +130,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		demultiplexer.Module,
 		secretsimpl.Module,
 		orchestratorForwarderImpl.Module,
-		fx.Supply(orchestratorForwarderImpl.Params{UseOrchestratorForwarder: false}),
+		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {

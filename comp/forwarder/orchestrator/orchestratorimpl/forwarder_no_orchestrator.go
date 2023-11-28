@@ -28,7 +28,7 @@ var Module = fxutil.Component(
 // This func has been extracted in this file to not include all the orchestrator
 // dependencies (k8s, several MBs) while building binaries not needing these.
 func newOrchestratorForwarder(_ log.Component, _ config.Component, params Params) orchestrator.Component {
-	if params.UseNoopOrchestratorForwarder {
+	if params.useNoopOrchestratorForwarder {
 		forwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
 		return &forwarder
 	}
