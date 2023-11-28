@@ -27,7 +27,10 @@ build do
   command "./bootstrap.sh "
 
   configure_options = [
-    " --disable-static"
+    " --disable-static",
+    " --enable-magic",
+    " --enable-macho",
+    " --enable-dex"
   ]
   configure(*configure_options, env: env)
 
