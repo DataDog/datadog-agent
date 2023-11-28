@@ -5,7 +5,7 @@ package http2
 
 const (
 	maxHTTP2Path     = 0xa0
-	HTTP2PathBuckets = 0x5
+	HTTP2PathBuckets = 0x7
 
 	HTTP2TerminatedBatchSize = 0x50
 )
@@ -57,7 +57,7 @@ type HTTP2Telemetry struct {
 	Path_exceeds_frame               uint64
 	Exceeding_max_interesting_frames uint64
 	Exceeding_max_frames_to_filter   uint64
-	Path_size_bucket                 [6]uint64
+	Path_size_bucket                 [8]uint64
 }
 
 type StaticTableEnumValue = uint8

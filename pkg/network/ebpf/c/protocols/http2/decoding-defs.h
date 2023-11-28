@@ -26,7 +26,7 @@
 #define HTTP2_TELEMETRY_MAX_PATH_LEN 120
 
 // The amount of buckets we have for the path size telemetry.
-#define HTTP2_TELEMETRY_PATH_BUCKETS 5
+#define HTTP2_TELEMETRY_PATH_BUCKETS 7
 
 // The size of each bucket we have for the path size telemetry.
 #define HTTP2_TELEMETRY_PATH_BUCKETS_SIZE 10
