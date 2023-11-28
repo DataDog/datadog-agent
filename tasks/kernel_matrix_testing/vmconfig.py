@@ -14,6 +14,7 @@ vm_recipe = "recipe"
 vm_architecture = "arch"
 vm_version = "version"
 local_arch = "local"
+vmconfig_file = "test/new-e2e/system-probe/config/vmconfig.json"
 
 try:
     from thefuzz import fuzz, process
@@ -270,10 +271,6 @@ def kernel_in_vmset(vmset, kernel):
     return False
 
 
-def get_vmconfig_file():
-    return "test/new-e2e/system-probe/config/vmconfig.json"
-
-
 def vmset_name(arch, recipe, setprefix):
     name = f"{recipe}_{arch}"
     if setprefix != "":
@@ -433,7 +430,7 @@ def custom_version_prefix(version):
 
 
 def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
-    with open(get_vmconfig_file()) as f:
+    with open(vmconfig_file) as f:
         vmconfig_template = json.load(f)
 
     # generate all vmsets
@@ -545,7 +542,7 @@ def gen_config_for_stack(ctx, stack, vms, sets, init_stack, vcpu, memory, new, c
 
 
 def list_all_distro_normalized_vms(archs):
-    with open(get_vmconfig_file()) as f:
+    with open(vmconfig_file) as f:
         vmconfig = json.load(f)
 
     vms = list()
