@@ -5,9 +5,9 @@ import math
 import os
 import platform
 
-from .download import url_base
 from .init_kmt import KMT_STACKS_DIR, VMCONFIG, KMT_ROOTFS_DIR, check_and_get_stack
-from .stacks import ARM_INSTANCE_TYPE, X86_INSTANCE_TYPE, create_stack, stack_exists
+from .stacks import create_stack, stack_exists
+from urllib.parse import urlparse
 from .tool import Exit, ask, info, warn
 
 vm_recipe = "recipe"
@@ -349,7 +349,6 @@ def add_docker_disk(vmset):
 def add_console(vmset):
     vmset["console_type"] = "file"
 
-from urllib.parse import urlparse
 def url_to_fspath(url):
     source = urlparse(url)
     if os.path.basename(source.path).endswith(".xz"):
@@ -550,5 +549,5 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch):
     vm_config = generate_vmconfig({"vmsets":[]}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci)
 
     pipeline_id = os.environ["CI_PIPELINE_ID"]
-    with open(f"vmconfig-{pipeline_id}.json", "rw") as f:
+    with open(f"vmconfig-{pipeline_id}.json", "w") as f:
         f.write(vm_config)
