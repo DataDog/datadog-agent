@@ -454,6 +454,16 @@ func scanCmd(config scanConfig) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
+	// f, err := os.OpenFile("vm.img", os.O_WRONLY|os.O_SYNC|os.O_CREATE, 0600)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer f.Close()
+	// fmt.Println("start downloading in", f.Name())
+	// if err = downloadSnapshot(ctx, f, config.Tasks[0].ARN); err != nil {
+	// 	return err
+	// }
+
 	for _, scan := range config.Tasks {
 		entity, err := launchScan(ctx, scan)
 		if err != nil {
@@ -688,8 +698,8 @@ func cleanupCmd(region string, dryRun bool) error {
 	return nil
 }
 
-func downloadSnapshot(ctx context.Context, w io.Writer, snapshotID string) error {
-	defaultCfg, err := config.LoadDefaultConfig(ctx)
+func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) error {
+	defaultCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(snapshotARN.Region))
 	if err != nil {
 		return err
 	}
@@ -716,20 +726,31 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotID string) error
 	}
 	defer awsstats.SendStats()
 
+	_, snapshotID, _ := getARNResource(snapshotARN)
+
 	ebsclient := ebs.NewFromConfig(cfg)
 	listSnapshotsInput := &ebs.ListSnapshotBlocksInput{
 		SnapshotId: &snapshotID,
 		NextToken:  nil,
 	}
 	var n int64
+	var size int64
+	var blockIndex int32
+
+	nullBuffer := make([]byte, 512*1024)
 	for {
 		fmt.Printf("listing blocks for %s\n", snapshotID)
 		blocks, err := ebsclient.ListSnapshotBlocks(ctx, listSnapshotsInput)
 		if err != nil {
 			return err
 		}
+		size = *blocks.VolumeSize << 30
 		for _, block := range blocks.Blocks {
 			fmt.Printf("getting block %d\n", *block.BlockIndex)
+			for i := blockIndex; i < *block.BlockIndex; i++ {
+				fmt.Printf("zero filling")
+				io.Copy(w, bytes.NewReader(nullBuffer))
+			}
 			blockOutput, err := ebsclient.GetSnapshotBlock(ctx, &ebs.GetSnapshotBlockInput{
 				BlockIndex: block.BlockIndex,
 				BlockToken: block.BlockToken,
@@ -746,12 +767,22 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotID string) error
 			blockOutput.BlockData.Close()
 			n += copied
 			fmt.Printf("copied %d\n", n)
+			blockIndex = *block.BlockIndex + 1
 		}
 		listSnapshotsInput.NextToken = blocks.NextToken
 		if listSnapshotsInput.NextToken == nil {
-			return nil
+			break
 		}
 	}
+	for n < size {
+		fmt.Printf("zero filling")
+		w, err := io.Copy(w, bytes.NewReader(nullBuffer))
+		if err != nil {
+			return err
+		}
+		n += w
+	}
+	return nil
 }
 
 func mountCmd() error {
@@ -933,7 +964,6 @@ func (s *sideScanner) start(ctx context.Context) {
 		<-done
 	}
 	<-ctx.Done()
-
 }
 
 func (s *sideScanner) pushOrSkipScan(ctx context.Context, rawConfig state.RawConfig) {
