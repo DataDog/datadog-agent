@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux && !windows
+//go:build !(linux || windows || darwin)
 
 // Package serializers defines functions aiming to serialize events
 package serializers
