@@ -2139,10 +2139,10 @@ func BenchmarkAddProcessInfo(b *testing.B) {
 	c.Pid = 1
 	tr.processCache.add(&events.Process{
 		Pid: 1,
-		Envs: []string{
-			"DD_ENV=env",
-			"DD_VERSION=version",
-			"DD_SERVICE=service",
+		Tags: []*intern.Value{
+			intern.GetByString("env:env"),
+			intern.GetByString("version:version"),
+			intern.GetByString("service:service"),
 		},
 		ContainerID: intern.GetByString("container"),
 		StartTime:   time.Now().Unix(),

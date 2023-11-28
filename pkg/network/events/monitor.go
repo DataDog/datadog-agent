@@ -23,9 +23,21 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var theMonitor atomic.Value
-var once sync.Once
-var initErr error
+var (
+	theMonitor atomic.Value
+	once       sync.Once
+	initErr    error
+	envFilter  = map[string]bool{
+		"DD_SERVICE": true,
+		"DD_VERSION": true,
+		"DD_ENV":     true,
+	}
+	envTagNames = map[string]string{
+		"DD_SERVICE": "service",
+		"DD_VERSION": "version",
+		"DD_ENV":     "env",
+	}
+)
 
 // Process is a process
 type Process struct {
@@ -102,19 +114,21 @@ func (h *eventHandlerWrapper) Copy(ev *model.Event) any {
 	}
 
 	p := &Process{
-		Pid:         ev.GetProcessPid(),
-		ContainerID: intern.GetByString(ev.GetContainerId()),
-		StartTime:   processStartTime.UnixNano(),
+		Pid:       ev.GetProcessPid(),
+		StartTime: processStartTime.UnixNano(),
 	}
 
-	envs := model.FilterEnvs(ev.GetProcessEnvp(), map[string]bool{
-		"DD_SERVICE": true,
-		"DD_VERSION": true,
-		"DD_ENV":     true,
-	})
-
-	for _, env := range envs {
-		p.Tags = append(p.Tags, intern.GetByString(strings.Replace(env, "=", ":", 1)))
+	envs := model.FilterEnvs(ev.GetProcessEnvp(), envFilter)
+	if len(envs) > 0 {
+		p.Tags = make([]*intern.Value, 0, len(envs))
+		for _, env := range envs {
+			k, v, _ := strings.Cut(env, "=")
+			if len(v) > 0 {
+				if t := envTagNames[k]; t != "" {
+					p.Tags = append(p.Tags, intern.GetByString(t+":"+v))
+				}
+			}
+		}
 	}
 
 	if cid := ev.GetContainerId(); cid != "" {

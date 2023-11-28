@@ -25,7 +25,7 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 		t.Cleanup(pc.Stop)
 
 		p := pc.processEvent(entry)
-		if entry.ContainerID == nil && len(entry.Envs) == 0 {
+		if entry.ContainerID == nil && len(entry.Tags) == 0 {
 			assert.Nil(t, p)
 		} else {
 			assert.Equal(t, entry, p)
@@ -47,17 +47,17 @@ func TestProcessCacheProcessEvent(t *testing.T) {
 		testFunc(t, t.Name(), &entry)
 	})
 
-	t.Run("without container id, with envs", func(t *testing.T) {
-		entry := events.Process{Pid: 1234, Envs: []string{"foo", "bar"}}
+	t.Run("without container id, with tags", func(t *testing.T) {
+		entry := events.Process{Pid: 1234, Tags: []*intern.Value{intern.GetByString("foo"), intern.GetByString("bar")}}
 
 		testFunc(t, t.Name(), &entry)
 	})
 
-	t.Run("with container id, with envs", func(t *testing.T) {
+	t.Run("with container id, with tags", func(t *testing.T) {
 		entry := events.Process{
 			Pid:         1234,
 			ContainerID: intern.GetByString("container"),
-			Envs:        []string{"foo", "bar"},
+			Tags:        []*intern.Value{intern.GetByString("foo"), intern.GetByString("bar")},
 		}
 
 		testFunc(t, t.Name(), &entry)
@@ -196,7 +196,7 @@ func TestProcessCacheAdd(t *testing.T) {
 		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 1,
-			Envs:      []string{"foo=bar"},
+			Tags:      []*intern.Value{intern.GetByString("foo:bar")},
 		})
 
 		p, ok := pc.Get(1234, 1)
@@ -204,12 +204,12 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1234), p.Pid)
 		assert.Equal(t, int64(1), p.StartTime)
-		assert.Equal(t, p.Env("foo"), "bar")
+		assert.Contains(t, p.Tags, intern.GetByString("foo:bar"))
 
 		pc.add(&events.Process{
 			Pid:       1234,
 			StartTime: 1,
-			Envs:      []string{"bar=foo"},
+			Tags:      []*intern.Value{intern.GetByString("bar:foo")},
 		})
 
 		p, ok = pc.Get(1234, 1)
@@ -217,8 +217,8 @@ func TestProcessCacheAdd(t *testing.T) {
 		require.NotNil(t, p)
 		assert.Equal(t, uint32(1234), p.Pid)
 		assert.Equal(t, int64(1), p.StartTime)
-		assert.Equal(t, p.Env("bar"), "foo")
-		assert.NotContains(t, p.Envs, "foo")
+		assert.Contains(t, p.Tags, intern.GetByString("bar:foo"))
+		assert.NotContains(t, p.Tags, intern.GetByString("foo:bar"))
 	})
 }
 
