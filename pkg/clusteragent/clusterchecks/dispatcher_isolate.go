@@ -16,10 +16,10 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 	isolateNode := currentDistribution.runnerForCheck(isolateCheckID)
 	if isolateNode == "" {
 		return types.IsolateResponse{
-			CheckID:   isolateCheckID,
-			CheckNode: "",
-			Result:    false,
-			Reason:    "Unable to find check",
+			CheckID:    isolateCheckID,
+			CheckNode:  "",
+			IsIsolated: false,
+			Reason:     "Unable to find check",
 		}
 	}
 
@@ -44,8 +44,8 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 
 	d.applyDistribution(proposedDistribution, currentDistribution)
 	return types.IsolateResponse{
-		CheckID:   isolateCheckID,
-		CheckNode: isolateNode,
-		Result:    true,
+		CheckID:    isolateCheckID,
+		CheckNode:  isolateNode,
+		IsIsolated: true,
 	}
 }

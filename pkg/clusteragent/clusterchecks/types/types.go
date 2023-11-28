@@ -41,10 +41,10 @@ type RebalanceResponse struct {
 
 // IsolateResponse holds the DCA response for an isolate request
 type IsolateResponse struct {
-	CheckID   string `json:"check_id"`
-	CheckNode string `json:"check_node"`
-	Result    bool   `json:"is_isolated"`
-	Reason    string `json:"reason"`
+	CheckID    string `json:"check_id"`
+	CheckNode  string `json:"check_node"`
+	IsIsolated bool   `json:"is_isolated"`
+	Reason     string `json:"reason"`
 }
 
 // ConfigResponse holds the DCA response for a config query

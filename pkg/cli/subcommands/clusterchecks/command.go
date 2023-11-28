@@ -209,7 +209,7 @@ func isolate(_ log.Component, _ config.Component, cliParams *cliParams) error {
 	var response types.IsolateResponse
 
 	json.Unmarshal(r, &response) //nolint:errcheck
-	if response.Result {
+	if response.IsIsolated {
 		fmt.Printf("Check %s isolated successfully on node %s\n", response.CheckID, response.CheckNode)
 	} else {
 		fmt.Printf("Check %s could not be isolated: %s\n", response.CheckID, response.Reason)
