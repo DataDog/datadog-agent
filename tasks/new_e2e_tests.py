@@ -93,13 +93,12 @@ def run(
         test_run_arg = f"-run {test_run_name}"
 
     cmd = f'gotestsum --format {gotestsum_format} '
-    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} {tags} {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {keep_stacks}'
+    cmd += '{junit_file_flag} --packages="{packages}" -- -ldflags="-X {REPO_PATH}/test/new-e2e/tests/containers.GitCommit={commit}" {verbose} -mod={go_mod} -vet=off -timeout {timeout} -tags "{go_build_tags}" {nocache} {run} {skip} {coverage_opt} {test_run_arg} -args {osversion} {platform} {major_version} {arch} {flavor} {cws_supported_osversion} {keep_stacks}'
 
     args = {
         "go_mod": "mod",
         "timeout": "4h",
         "verbose": '-v' if verbose else '',
-        "tags": f"-build.tags {','.join(tags)}" if tags else '',
         "nocache": '-count=1' if not cache else '',
         "REPO_PATH": REPO_PATH,
         "commit": get_git_commit(),
