@@ -394,11 +394,13 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
 
-	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
+	err := errtelemetry.ActivateBPFTelemetry(e.Manager.Manager, undefinedProbes)
+	if err != nil {
+		cleanup()
+		return err
 	}
 
-	err := e.InitWithOptions(buf, options)
+	err = e.InitWithOptions(buf, options)
 	if err != nil {
 		cleanup()
 	} else {

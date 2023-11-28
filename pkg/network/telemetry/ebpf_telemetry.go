@@ -9,6 +9,7 @@ package telemetry
 
 import (
 	"fmt"
+	"hash"
 	"hash/fnv"
 	"syscall"
 	"unsafe"
@@ -27,8 +28,8 @@ const (
 	maxErrno    = 64
 	maxErrnoStr = "other"
 
-	EBPFMapTelemetryNS    = "ebpf_maps"
-	EBPFHelperTelemetryNS = "ebpf_helpers"
+	ebpfMapTelemetryNS    = "ebpf_maps"
+	ebpfHelperTelemetryNS = "ebpf_helpers"
 )
 
 const (
@@ -39,10 +40,16 @@ const (
 	perfEventOutput
 )
 
-var ebpfMapOpsErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", EBPFMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil)
-var ebpfHelperErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", EBPFHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil)
+var ebpfMapOpsErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfMapTelemetryNS), "Failures of map operations for a specific ebpf map reported per error.", []string{"map_name", "error"}, nil)
+var ebpfHelperErrorsGauge = prometheus.NewDesc(fmt.Sprintf("%s__errors", ebpfHelperTelemetryNS), "Failures of bpf helper operations reported per helper per error for each probe.", []string{"helper", "probe_name", "error"}, nil)
 
-var helperNames = map[int]string{readIndx: "bpf_probe_read", readUserIndx: "bpf_probe_read_user", readKernelIndx: "bpf_probe_read_kernel", skbLoadBytes: "bpf_skb_load_bytes", perfEventOutput: "bpf_perf_event_output"}
+var helperNames = map[int]string{
+	readIndx:        "bpf_probe_read",
+	readUserIndx:    "bpf_probe_read_user",
+	readKernelIndx:  "bpf_probe_read_kernel",
+	skbLoadBytes:    "bpf_skb_load_bytes",
+	perfEventOutput: "bpf_perf_event_output",
+}
 
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
@@ -55,6 +62,9 @@ type EBPFTelemetry struct {
 
 // NewEBPFTelemetry initializes a new EBPFTelemetry object
 func NewEBPFTelemetry() *EBPFTelemetry {
+	if supported, _ := ebpfTelemetrySupported(); !supported {
+		return nil
+	}
 	return &EBPFTelemetry{
 		mapKeys:   make(map[string]uint64),
 		probeKeys: make(map[string]uint64),
@@ -73,7 +83,6 @@ func (b *EBPFTelemetry) RegisterEBPFTelemetry(m *manager.Manager) error {
 	if err := b.initializeHelperErrTelemetryMap(m.Probes); err != nil {
 		return err
 	}
-
 	return nil
 }
 
@@ -85,131 +94,53 @@ func (b *EBPFTelemetry) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the collector
 func (b *EBPFTelemetry) Collect(ch chan<- prometheus.Metric) {
-	b.getHelpersTelemetry(ch)
-	b.getMapsTelemetry(ch)
-}
-
-// GetMapsTelemetry returns a map of error telemetry for each ebpf map
-func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
-	return b.getMapsTelemetry(nil)
-}
-
-func (b *EBPFTelemetry) getMapsTelemetry(ch chan<- prometheus.Metric) map[string]interface{} {
-	if b == nil {
-		return nil
+	var hval HelperErrTelemetry
+	for probeName, k := range b.probeKeys {
+		err := b.HelperErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&hval))
+		if err != nil {
+			log.Debugf("failed to get telemetry for probe:key %s:%d\n", probeName, k)
+			continue
+		}
+		for indx, helperName := range helperNames {
+			base := maxErrno * indx
+			if count := getErrCount(hval.Count[base : base+maxErrno]); len(count) > 0 {
+				for errStr, errCount := range count {
+					ch <- prometheus.MustNewConstMetric(ebpfHelperErrorsGauge, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr)
+				}
+			}
+		}
 	}
 
 	var val MapErrTelemetry
-	t := make(map[string]interface{})
-
 	for m, k := range b.mapKeys {
 		err := b.MapErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
 		if err != nil {
 			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
 			continue
 		}
-		if count := getMapErrCount(&val); len(count) > 0 {
-			t[m] = count
+		if count := getErrCount(val.Count[:]); len(count) > 0 {
 			for errStr, errCount := range count {
-				select {
-				case ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr):
-				default:
-				}
+				ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr)
 			}
 		}
 	}
-
-	return t
 }
 
-// GetHelperTelemetry returns a map of error telemetry for each ebpf program
-func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
-	return b.getHelpersTelemetry(nil)
-}
-
-func (b *EBPFTelemetry) getHelpersTelemetry(ch chan<- prometheus.Metric) map[string]interface{} {
-	if b == nil {
-		return nil
-	}
-
-	var val HelperErrTelemetry
-	helperTelemMap := make(map[string]interface{})
-
-	for probeName, k := range b.probeKeys {
-		err := b.HelperErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
-		if err != nil {
-			log.Debugf("failed to get telemetry for map:key %s:%d\n", probeName, k)
-			continue
-		}
-
-		if t := getHelpersTelemetryForProbe(&val, probeName, ebpfHelperErrorsGauge, ch); len(t) > 0 {
-			helperTelemMap[probeName] = t
-		}
-	}
-
-	return helperTelemMap
-}
-
-func getHelpersTelemetryForProbe(v *HelperErrTelemetry, probeName string, desc *prometheus.Desc, ch chan<- prometheus.Metric) map[string]interface{} {
-	helper := make(map[string]interface{})
-
-	for indx, helperName := range helperNames {
-		if count := getErrCount(v, indx); len(count) > 0 {
-			helper[helperName] = count
-
-			for errStr, errCount := range count {
-				// Do not block when nil channel is provided
-				select {
-				case ch <- prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr):
-				default:
-				}
-			}
-		}
-	}
-
-	return helper
-}
-
-func getErrCount(v *HelperErrTelemetry, indx int) map[string]uint64 {
+func getErrCount(v []uint64) map[string]uint64 {
 	errCount := make(map[string]uint64)
-	for i := 0; i < maxErrno; i++ {
-		count := v.Count[(maxErrno*indx)+i]
-		if count != 0 {
-			if (i + 1) == maxErrno {
-				errCount[maxErrnoStr] = count
-				continue
-			}
-
-			if name := unix.ErrnoName(syscall.Errno(i)); name != "" {
-				errCount[name] = count
-			} else {
-				errCount[syscall.Errno(i).Error()] = count
-			}
-		}
-	}
-
-	return errCount
-}
-
-func getMapErrCount(v *MapErrTelemetry) map[string]uint64 {
-	errCount := make(map[string]uint64)
-
-	for i, count := range v.Count {
+	for i, count := range v {
 		if count == 0 {
 			continue
 		}
 
 		if (i + 1) == maxErrno {
 			errCount[maxErrnoStr] = count
-			continue
-		}
-		if name := unix.ErrnoName(syscall.Errno(i)); name != "" {
+		} else if name := unix.ErrnoName(syscall.Errno(i)); name != "" {
 			errCount[name] = count
 		} else {
 			errCount[syscall.Errno(i).Error()] = count
 		}
 	}
-
 	return errCount
 }
 
@@ -222,43 +153,50 @@ func BuildTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
 
 func buildMapErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
 	var keys []manager.ConstantEditor
-
-	h := fnv.New64a()
+	h := keyHash()
 	for _, m := range mgr.Maps {
-		h.Write([]byte(m.Name))
 		keys = append(keys, manager.ConstantEditor{
 			Name:  m.Name + "_telemetry_key",
-			Value: h.Sum64(),
+			Value: mapKey(h, m),
 		})
-		h.Reset()
 	}
-
 	return keys
 }
 
 func buildHelperErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
 	var keys []manager.ConstantEditor
-
-	h := fnv.New64a()
+	h := keyHash()
 	for _, p := range mgr.Probes {
-		h.Write([]byte(p.EBPFFuncName))
 		keys = append(keys, manager.ConstantEditor{
 			Name:  "telemetry_program_id_key",
-			Value: h.Sum64(),
+			Value: probeKey(h, p),
 			ProbeIdentificationPairs: []manager.ProbeIdentificationPair{
 				p.ProbeIdentificationPair,
 			},
 		})
-		h.Reset()
 	}
-
 	return keys
+}
+
+func keyHash() hash.Hash64 {
+	return fnv.New64a()
+}
+
+func mapKey(h hash.Hash64, m *manager.Map) uint64 {
+	h.Reset()
+	_, _ = h.Write([]byte(m.Name))
+	return h.Sum64()
+}
+
+func probeKey(h hash.Hash64, m *manager.Probe) uint64 {
+	h.Reset()
+	_, _ = h.Write([]byte(m.EBPFFuncName))
+	return h.Sum64()
 }
 
 func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error {
 	z := new(MapErrTelemetry)
-	h := fnv.New64a()
-
+	h := keyHash()
 	for _, m := range maps {
 		// Some maps, such as the telemetry maps, are
 		// redefined in multiple programs.
@@ -266,25 +204,19 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 			continue
 		}
 
-		h.Write([]byte(m.Name))
-		key := h.Sum64()
+		key := mapKey(h, m)
 		err := b.MapErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
 		if err != nil {
 			return fmt.Errorf("failed to initialize telemetry struct for map %s", m.Name)
 		}
-		h.Reset()
-
 		b.mapKeys[m.Name] = key
-
 	}
-
 	return nil
 }
 
 func (b *EBPFTelemetry) initializeHelperErrTelemetryMap(probes []*manager.Probe) error {
 	z := new(HelperErrTelemetry)
-	h := fnv.New64a()
-
+	h := keyHash()
 	for _, p := range probes {
 		// Some hook points, like tcp_sendmsg, are probed in
 		// multiple different programs.
@@ -292,36 +224,17 @@ func (b *EBPFTelemetry) initializeHelperErrTelemetryMap(probes []*manager.Probe)
 			continue
 		}
 
-		h.Write([]byte(p.EBPFFuncName))
-		key := h.Sum64()
+		key := probeKey(h, p)
 		err := b.HelperErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
 		if err != nil {
-			return fmt.Errorf("failed to initialize telemetry struct for map %s", p.EBPFFuncName)
+			return fmt.Errorf("failed to initialize telemetry struct for probe %s", p.EBPFFuncName)
 		}
-		h.Reset()
-
 		b.probeKeys[p.EBPFFuncName] = key
 	}
-
 	return nil
 }
 
-const EBPFTelemetryPatchCall = -1
-
-func PatchEBPFTelemetry(m *manager.Manager, enable bool, undefinedProbes []manager.ProbeIdentificationPair) error {
-	specs, err := getAllProgramSpecs(m, undefinedProbes)
-	if err != nil {
-		return err
-	}
-
-	if enable {
-		patchEBPFTelemetry(m, asm.StoreXAdd(asm.R1, asm.R2, asm.Word), specs)
-		return nil
-	}
-
-	patchEBPFTelemetry(m, asm.Mov.Reg(asm.R1, asm.R1), specs)
-	return nil
-}
+const ebpfTelemetryPatchCall = -1
 
 func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdentificationPair) ([]*ebpf.ProgramSpec, error) {
 	var specs []*ebpf.ProgramSpec
@@ -333,7 +246,6 @@ func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdent
 		if present {
 			specs = append(specs, s...)
 		}
-
 	}
 
 	for _, id := range undefinedProbes {
@@ -344,13 +256,20 @@ func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdent
 		if present {
 			specs = append(specs, s...)
 		}
-
 	}
-
 	return specs, nil
 }
 
-func patchEBPFTelemetry(m *manager.Manager, newIns asm.Instruction, specs []*ebpf.ProgramSpec) {
+func patchEBPFTelemetry(m *manager.Manager, enable bool, undefinedProbes []manager.ProbeIdentificationPair) error {
+	specs, err := getAllProgramSpecs(m, undefinedProbes)
+	if err != nil {
+		return err
+	}
+	newIns := asm.Mov.Reg(asm.R1, asm.R1)
+	if enable {
+		newIns = asm.StoreXAdd(asm.R1, asm.R2, asm.Word)
+	}
+
 	for _, spec := range specs {
 		if spec == nil {
 			continue
@@ -358,41 +277,32 @@ func patchEBPFTelemetry(m *manager.Manager, newIns asm.Instruction, specs []*ebp
 		iter := spec.Instructions.Iterate()
 		for iter.Next() {
 			ins := iter.Ins
-
-			if !ins.IsBuiltinCall() {
+			if !ins.IsBuiltinCall() || ins.Constant != ebpfTelemetryPatchCall {
 				continue
 			}
-
-			if ins.Constant != EBPFTelemetryPatchCall {
-				continue
-			}
-
 			*ins = newIns.WithMetadata(ins.Metadata)
 		}
 	}
-}
-
-func ActivateBPFTelemetry(m *manager.Manager, undefinedProbes []manager.ProbeIdentificationPair) error {
-	kv, err := kernel.HostVersion()
-	if err != nil {
-		return err
-	}
-	activateBPFTelemetry := kv >= kernel.VersionCode(4, 14, 0)
-	m.InstructionPatcher = func(m *manager.Manager) error {
-		return PatchEBPFTelemetry(m, activateBPFTelemetry, undefinedProbes)
-	}
-
 	return nil
 }
 
-// EBPFTelemetrySupported returns whether eBPF telemetry is supported.
-// eBPF telemetry depends on the verifier in 4.14+
-func EBPFTelemetrySupported() bool {
+// ActivateBPFTelemetry registers the instruction patcher with the provided manager if telemetry is supported.
+func ActivateBPFTelemetry(m *manager.Manager, undefinedProbes []manager.ProbeIdentificationPair) error {
+	activateBPFTelemetry, err := ebpfTelemetrySupported()
+	if err != nil {
+		return err
+	}
+	m.InstructionPatcher = func(m *manager.Manager) error {
+		return patchEBPFTelemetry(m, activateBPFTelemetry, undefinedProbes)
+	}
+	return nil
+}
+
+// ebpfTelemetrySupported returns whether eBPF telemetry is supported, which depends on the verifier in 4.14+
+func ebpfTelemetrySupported() (bool, error) {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
-		log.Warn("could not determine the current kernel version. EBPF telemetry disabled.")
-		return false
+		return false, err
 	}
-
-	return kversion >= kernel.VersionCode(4, 14, 0)
+	return kversion >= kernel.VersionCode(4, 14, 0), nil
 }

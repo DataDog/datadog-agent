@@ -164,8 +164,9 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 	}
 
 	Configure("test", m, &options)
-	m.InstructionPatcher = func(m *manager.Manager) error {
-		return bpftelemetry.PatchEBPFTelemetry(m, true, nil)
+	err = bpftelemetry.ActivateBPFTelemetry(m, nil)
+	if err != nil {
+		return nil, err
 	}
 	err = m.InitWithOptions(bc, options)
 	if err != nil {

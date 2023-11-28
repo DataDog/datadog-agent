@@ -433,13 +433,9 @@ func getManager(cfg *config.Config, buf io.ReaderAt, mapErrTelemetryMap, helperE
 		},
 	}
 
-	currKernelVersion, err := kernel.HostVersion()
+	err := nettelemetry.ActivateBPFTelemetry(mgr, nil)
 	if err != nil {
-		return nil, errors.New("failed to detect kernel version")
-	}
-	activateBPFTelemetry := currKernelVersion >= kernel.VersionCode(4, 14, 0)
-	mgr.InstructionPatcher = func(m *manager.Manager) error {
-		return nettelemetry.PatchEBPFTelemetry(m, activateBPFTelemetry, []manager.ProbeIdentificationPair{})
+		return nil, fmt.Errorf("failed to activate ebpf telemetry: %s", err)
 	}
 
 	telemetryMapKeys := nettelemetry.BuildTelemetryKeys(mgr)

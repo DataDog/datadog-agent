@@ -79,11 +79,11 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 }
 
 func (e *ebpfProgram) Init() error {
-	var err error
-
-	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, getAllUndefinedProbes())
+	err := errtelemetry.ActivateBPFTelemetry(e.Manager.Manager, getAllUndefinedProbes())
+	if err != nil {
+		return err
 	}
+
 	if e.cfg.EnableCORE {
 		err = e.initCORE()
 		if err == nil {
