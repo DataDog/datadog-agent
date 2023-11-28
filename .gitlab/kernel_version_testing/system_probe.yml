@@ -292,6 +292,7 @@ upload_minimized_btfs_arm64:
     RESOURCE_TAGS: "instance-type:${INSTANCE_TYPE},arch:${ARCH}"
     KUBERNETES_MEMORY_REQUEST: "12Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
+    VMCONFIG_FILE: "vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
   before_script:
     - set +x
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
@@ -303,7 +304,7 @@ upload_minimized_btfs_arm64:
     - echo "s3://dd-pulumi-state?region=us-east-1&awssdk=v2&profile=$AWS_PROFILE" > $STACK_DIR
     - pulumi login $(cat $STACK_DIR | tr -d '\n')
     - inv -e kmt.gen-config --ci --arch=$ARCH
-    - inv -e system-probe.start-microvms --provision --vmconfig=vmconfig-$CI_PIPELINE_ID.json $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$ARCH-$CI_PIPELINE_ID --run-agent
+    - inv -e system-probe.start-microvms --provision --vmconfig=$VMCONFIG_FILE $INSTANCE_TYPE_ARG $AMI_ID_ARG --ssh-key-name=$AWS_EC2_SSH_KEY_NAME --ssh-key-path=$AWS_EC2_SSH_KEY_FILE --infra-env=$INFRA_ENV --stack-name=kernel-matrix-testing-$ARCH-$CI_PIPELINE_ID --run-agent
     - cat $CI_PROJECT_DIR/stack.output
     - pulumi logout
   after_script:
@@ -319,7 +320,7 @@ upload_minimized_btfs_arm64:
     paths:
       - $CI_PROJECT_DIR/stack.output
       - $CI_PROJECT_DIR/libvirt
-      - vmconfig-$CI_PIPELINE_ID.json
+      - $VMCONFIG_FILE
 
 kernel_matrix_testing_setup_env_arm64:
   extends:
