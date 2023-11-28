@@ -201,3 +201,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
 )
+
+replace github.com/coreos/go-systemd => github.com/coreos/go-systemd v0.0.0-20180202092358-40e2722dffea
+replace github.com/aquasecurity/trivy => github.com/DataDog/trivy v0.0.0-20230526171704-5aaa4575395e
