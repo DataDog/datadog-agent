@@ -292,7 +292,7 @@ upload_minimized_btfs_arm64:
     RESOURCE_TAGS: "instance-type:${INSTANCE_TYPE},arch:${ARCH}"
     KUBERNETES_MEMORY_REQUEST: "12Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
-    VMCONFIG_FILE: "vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
+    VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
     TEST_SETS: "no_tracer,only_tracer"
   before_script:
     - set +x
