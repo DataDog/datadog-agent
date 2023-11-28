@@ -78,9 +78,26 @@ func (suite *k8sSuite) TearDownSuite() {
 // and to have the following tests with a smaller timeout.
 //
 // Inside a testify test suite, tests are executed in alphabetical order.
-// The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready
+// The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready,
 // is run first.
 func (suite *k8sSuite) Test00UpAndRunning() {
+	suite.testUpAndRunning(5 * time.Minute)
+}
+
+// An agent restart (because of a health probe failure or because of a OOM kill for ex.)
+// can cause a completely random failure on a completely random test.
+// A metric can be fully missing if the agent is restarted when the metric is checked.
+// Only a subset of tags can be missing if the agent has just restarted, but not all the
+// collectors have finished to feed workload meta and the tagger.
+// So, checking if any agent has restarted during the tests can be valuable for investigations.
+//
+// Inside a testify test suite, tests are executed in alphabetical order.
+// The ZZ in TestZZUpAndRunning is here to guarantee that this test, is run last.
+func (suite *k8sSuite) TestZZUpAndRunning() {
+	suite.testUpAndRunning(1 * time.Minute)
+}
+
+func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	ctx := context.Background()
 
 	suite.Run("agent pods are ready and not restarting", func() {
@@ -156,9 +173,12 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 					}
 				}
 			}
-		}, 5*time.Minute, 10*time.Second, "Not all agents eventually became ready in time.")
+		}, waitFor, 10*time.Second, "Not all agents eventually became ready in time.")
 	})
+}
 
+func (suite *k8sSuite) TestVersion() {
+	ctx := context.Background()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
 
 	for _, tt := range []struct {
@@ -223,7 +243,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^container_name:nginx$`,
 				`^display_container_name:nginx`,
 				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:main$`,
@@ -288,6 +308,29 @@ func (suite *k8sSuite) TestNginx() {
 			Service: "apps-nginx-server",
 		},
 		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^dirname:/var/log/pods/workload-nginx_nginx-`,
+				`^display_container_name:nginx`,
+				`^filename:[[:digit:]]+.log$`,
+				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+				`^image_id:ghcr.io/datadog/apps-nginx-server@sha256:`,
+				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
+				`^image_tag:main$`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx$`,
+				`^kube_namespace:workload-nginx$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:nginx-[[:alnum:]]+$`,
+				`^kube_service:nginx$`,
+				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:apps-nginx-server$`,
+			},
 			Message: `GET / HTTP/1\.1`,
 		},
 	})
@@ -358,6 +401,27 @@ func (suite *k8sSuite) TestRedis() {
 			Service: "redis",
 		},
 		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:redis$`,
+				`^dirname:/var/log/pods/workload-redis_redis-`,
+				`^display_container_name:redis`,
+				`^filename:[[:digit:]]+.log$`,
+				`^image_id:docker.io/library/redis@sha256:`,
+				`^image_name:redis$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:redis$`,
+				`^kube_deployment:redis$`,
+				`^kube_namespace:workload-redis$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:redis-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:redis-[[:alnum:]]+$`,
+				`^kube_service:redis$`,
+				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:redis$`,
+			},
 			Message: `oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo`,
 		},
 	})

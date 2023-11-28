@@ -19,56 +19,57 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func validateResolution(test *testModule, event *model.Event, testFile string, pathFnc func(model.PathKey, bool) (string, error), parentFnc func(model.PathKey) (model.PathKey, error), nameFnc func(model.PathKey) (string, error)) {
+func validateResolution(t testing.TB, probe *sprobe.EBPFProbe, event *model.Event, testFile string, pathFnc func(model.PathKey, bool) (string, error), parentFnc func(model.PathKey) (model.PathKey, error), nameFnc func(model.PathKey) (string, error)) {
 	basename := path.Base(testFile)
 
 	// Force an eRPC resolution to refresh the entry with the last generation as lost events may have invalidated the entry
 	res, err := pathFnc(event.Open.File.PathKey, true)
-	assert.Nil(test.t, err)
-	assert.Equal(test.t, basename, path.Base(res))
+	assert.Nil(t, err)
+	assert.Equal(t, basename, path.Base(res))
 
 	// there is a potential race here as a lost event can occur between the two resolutions
 
 	// check that the path is now available from the cache
-	res, err = test.probe.GetResolvers().DentryResolver.ResolveFromCache(event.Open.File.PathKey)
-	assert.Nil(test.t, err)
-	assert.Equal(test.t, basename, path.Base(res))
+	res, err = probe.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
+	assert.Nil(t, err)
+	assert.Equal(t, basename, path.Base(res))
 
 	kv, err := kernel.NewKernelVersion()
-	assert.Nil(test.t, err)
+	assert.Nil(t, err)
 
 	// Parent
-	expectedInode := getInode(test.t, path.Dir(testFile))
+	expectedInode := getInode(t, path.Dir(testFile))
 
 	// the previous path resolution should habe filled the cache
-	pathKey, err := test.probe.GetResolvers().DentryResolver.ResolveParentFromCache(event.Open.File.PathKey)
-	assert.Nil(test.t, err)
-	assert.NotZero(test.t, pathKey.Inode)
+	pathKey, err := probe.Resolvers.DentryResolver.ResolveParentFromCache(event.Open.File.PathKey)
+	assert.Nil(t, err)
+	assert.NotZero(t, pathKey.Inode)
 
 	// on kernel < 5.0 the cache is populated with internal inode of overlayfs. The stat syscall returns the proper inode, that is why the inodes don't match.
 	if event.Open.File.Filesystem != model.OverlayFS || kv.Code > kernel.Kernel5_0 {
-		assert.Equal(test.t, expectedInode, pathKey.Inode)
+		assert.Equal(t, expectedInode, pathKey.Inode)
 	}
 
 	parentKey, err := parentFnc(event.Open.File.PathKey)
-	assert.Nil(test.t, err)
-	assert.NotZero(test.t, parentKey.Inode)
-	assert.Equal(test.t, pathKey.Inode, parentKey.Inode)
+	assert.Nil(t, err)
+	assert.NotZero(t, parentKey.Inode)
+	assert.Equal(t, pathKey.Inode, parentKey.Inode)
 
 	// Basename
 	// the previous path resolution should have filled the cache
-	expectedName, err := test.probe.GetResolvers().DentryResolver.ResolveNameFromCache(event.Open.File.PathKey)
-	assert.Nil(test.t, err)
-	assert.Equal(test.t, expectedName, basename)
+	expectedName, err := probe.Resolvers.DentryResolver.ResolveNameFromCache(event.Open.File.PathKey)
+	assert.Nil(t, err)
+	assert.Equal(t, expectedName, basename)
 
 	expectedName, err = nameFnc(event.Open.File.PathKey)
-	assert.Nil(test.t, err)
-	assert.Equal(test.t, expectedName, basename)
+	assert.Nil(t, err)
+	assert.Equal(t, expectedName, basename)
 }
 
 func TestDentryResolutionERPC(t *testing.T) {
@@ -87,6 +88,11 @@ func TestDentryResolutionERPC(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
 
 	testFile, _, err := test.Path("parent/" + basename)
 	if err != nil {
@@ -113,10 +119,10 @@ func TestDentryResolutionERPC(t *testing.T) {
 		key = metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
 		assert.Empty(t, test.statsdClient.Get(key))
 
-		validateResolution(test, event, testFile,
-			test.probe.GetResolvers().DentryResolver.ResolveFromERPC,
-			test.probe.GetResolvers().DentryResolver.ResolveParentFromERPC,
-			test.probe.GetResolvers().DentryResolver.ResolveNameFromERPC,
+		validateResolution(test.t, p, event, testFile,
+			p.Resolvers.DentryResolver.ResolveFromERPC,
+			p.Resolvers.DentryResolver.ResolveParentFromERPC,
+			p.Resolvers.DentryResolver.ResolveNameFromERPC,
 		)
 	})
 }
@@ -137,6 +143,11 @@ func TestDentryResolutionMap(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
 
 	testFile, _, err := test.Path("parent/" + basename)
 	if err != nil {
@@ -167,10 +178,10 @@ func TestDentryResolutionMap(t *testing.T) {
 		key = metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
 		assert.Empty(t, test.statsdClient.Get(key))
 
-		validateResolution(test, event, testFile,
-			test.probe.GetResolvers().DentryResolver.ResolveFromMap,
-			test.probe.GetResolvers().DentryResolver.ResolveParentFromMap,
-			test.probe.GetResolvers().DentryResolver.ResolveNameFromMap,
+		validateResolution(test.t, p, event, testFile,
+			p.Resolvers.DentryResolver.ResolveFromMap,
+			p.Resolvers.DentryResolver.ResolveParentFromMap,
+			p.Resolvers.DentryResolver.ResolveNameFromMap,
 		)
 	})
 }
@@ -186,6 +197,11 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		b.Skip("not supported")
+	}
 
 	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
 	if err != nil {
@@ -211,12 +227,12 @@ func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(test.probe.Manager); err != nil {
+	if err := resolver.Start(p.Manager); err != nil {
 		b.Fatal(err)
 	}
 	name, err := resolver.ResolveNameFromERPC(pathKey)
@@ -251,6 +267,11 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	}
 	defer test.Close()
 
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		b.Skip("not supported")
+	}
+
 	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
 	if err != nil {
 		b.Fatal(err)
@@ -275,12 +296,12 @@ func BenchmarkERPCDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(test.probe.Manager); err != nil {
+	if err := resolver.Start(p.Manager); err != nil {
 		b.Fatal(err)
 	}
 	f, err := resolver.ResolveFromERPC(pathKey, true)
@@ -315,6 +336,11 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	}
 	defer test.Close()
 
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		b.Skip("not supported")
+	}
+
 	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
 	if err != nil {
 		b.Fatal(err)
@@ -339,12 +365,12 @@ func BenchmarkMapDentryResolutionSegment(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(test.probe.Manager); err != nil {
+	if err := resolver.Start(p.Manager); err != nil {
 		b.Fatal(err)
 	}
 	name, err := resolver.ResolveNameFromMap(pathKey)
@@ -379,6 +405,11 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	}
 	defer test.Close()
 
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		b.Skip("not supported")
+	}
+
 	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
 	if err != nil {
 		b.Fatal(err)
@@ -402,12 +433,12 @@ func BenchmarkMapDentryResolutionPath(b *testing.B) {
 	}
 
 	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, test.probe.Erpc)
+	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc)
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	if err := resolver.Start(test.probe.Manager); err != nil {
+	if err := resolver.Start(p.Manager); err != nil {
 		b.Fatal(err)
 	}
 	f, err := resolver.ResolveFromMap(pathKey, true)
