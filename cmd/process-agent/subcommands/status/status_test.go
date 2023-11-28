@@ -87,7 +87,7 @@ func TestNotRunning(t *testing.T) {
 // a connection error
 func TestError(t *testing.T) {
 	cfg := config.Mock(t)
-	cfg.SetWithoutSource("ipc_address", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
+	cfg.SetWithoutSource("cmd_host", "8.8.8.8") // Non-local ip address will cause error in `GetIPCAddress`
 	_, ipcError := config.GetIPCAddress()
 
 	var errText, expectedErrText strings.Builder
