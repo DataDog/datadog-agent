@@ -27,6 +27,11 @@ import (
 
 // team: agent-shared-components
 
+// This component is still in progress:
+// * Code from /cmd/agent/internal/api will be moved in the apiimpl folder
+// * StartServer args will be moved into the Component struct directly
+// * Lifecycle will be used instead of directly calling StartServer and StopServer
+
 // Component is the component type.
 type Component interface {
 	StartServer(
