@@ -7,6 +7,7 @@ package render
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,7 +35,12 @@ func TestFormatStatus(t *testing.T) {
 	t.Run("no render errors", func(t *testing.T) {
 		actual, err := FormatStatus(agentJSON)
 		require.NoError(t, err)
-		assert.Equal(t, actual, string(agentText))
+
+		// We replace windows line break by linux so the tests pass on every OS
+		result := strings.Replace(string(agentText), "\r\n", "\n", -1)
+		actual = strings.Replace(actual, "\r\n", "\n", -1)
+
+		assert.Equal(t, actual, result)
 		assert.NotContains(t, actual, statusRenderErrors)
 	})
 }
