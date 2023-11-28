@@ -9,10 +9,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // The below example shows a common use-case scenario for the runner.
@@ -25,7 +27,7 @@ func Example() {
 	defer log.Fatal(runner.Shutdown(time.Second))
 
 	// Run an agent with a given config.
-	conf, err := os.ReadFile("/opt/datadog-agent/etc/datadog.yaml")
+	conf, err := os.ReadFile(path.Join(version.AgentPath, "/opt/datadog-agent/etc/datadog.yaml"))
 	if err != nil {
 		log.Fatal(err)
 	}

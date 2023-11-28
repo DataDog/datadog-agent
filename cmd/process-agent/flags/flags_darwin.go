@@ -7,9 +7,15 @@
 
 package flags
 
-const (
+import (
+	"path"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
+var (
 	// DefaultConfPath points to the location of datadog.yaml
-	DefaultConfPath = "/opt/datadog-agent/etc/datadog.yaml"
+	DefaultConfPath = path.Join(version.AgentPath, "etc/datadog.yaml")
 	// DefaultSysProbeConfPath is set to empty since system-probe is not yet supported on darwin
 	DefaultSysProbeConfPath = ""
 )

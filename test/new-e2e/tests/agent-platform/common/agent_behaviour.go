@@ -260,8 +260,8 @@ func CheckCWSBehaviour(t *testing.T, client *TestClient) {
 		var statusOutputJSON map[string]any
 		var result bool
 		for try := 0; try < 10 && !result; try++ {
-			status, err := client.VMClient.ExecuteWithError("sudo /opt/datadog-agent/embedded/bin/security-agent status -j")
-			if err == nil {
+			status, err := client.VMClient.ExecuteWithError(fmt.Sprintf("sudo %s status -j", path.Join(agent.AgentPath, "embedded/bin/security-agent")))
+			if err == nil 
 				statusLines := strings.Split(status, "\n")
 				status = strings.Join(statusLines[1:], "\n")
 				err := json.Unmarshal([]byte(status), &statusOutputJSON)

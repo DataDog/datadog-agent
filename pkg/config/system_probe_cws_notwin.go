@@ -7,7 +7,13 @@
 
 package config
 
+import (
+	"path"
+
+	"github.com/DataDog/datadog-agent/pkg/version"
+)
+
 func platformCWSConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault("runtime_security_config.policies.dir", DefaultRuntimePoliciesDir)
-	cfg.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+	cfg.BindEnvAndSetDefault("runtime_security_config.socket", path.Join(version.AgentPath, "run/runtime-security.sock"))
 }

@@ -15,15 +15,17 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 var (
-	datadogAgentEmbeddedPath = "/opt/datadog-agent/embedded"
+	datadogAgentEmbeddedPath = path.Join(version.AgentPath, "embedded")
 	clangBinPath             = filepath.Join(datadogAgentEmbeddedPath, "bin/clang-bpf")
 	llcBinPath               = filepath.Join(datadogAgentEmbeddedPath, "bin/llc-bpf")
 

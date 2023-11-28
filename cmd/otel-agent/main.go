@@ -16,6 +16,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path"
 
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -33,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	"go.uber.org/fx"
 )
@@ -41,7 +43,7 @@ const (
 	loggerName = "OTELCOL"
 )
 
-var cfgPath = flag.String("config", "/opt/datadog-agent/etc/datadog.yaml", "agent config path")
+var cfgPath = flag.String("config", path.Join(version.AgentPath, "etc/datadog.yaml"), "agent config path")
 
 func run(
 	c collector.Component,

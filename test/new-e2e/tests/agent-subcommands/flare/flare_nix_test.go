@@ -8,9 +8,11 @@ package flare
 
 import (
 	_ "embed"
+	"path"
 	"strings"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
@@ -48,7 +50,7 @@ func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
 	systemProbeDummyFiles := []string{"/tmp/dummy_dir", "/tmp/dummy_system_probe_config_bpf_dir"}
 	v.Env().VM.Execute("sudo mkdir -p " + strings.Join(systemProbeDummyFiles, " "))
 
-	confdPath := "/opt/datadog-agent/bin/agent/dist/conf.d/"
+	confdPath := path.Join(version.AgentPath, "bin/agent/dist/conf.d/")
 	useSudo := true
 
 	withFiles := []agentparams.Option{
@@ -57,10 +59,7 @@ func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {
 		agentparams.WithFile(confdPath+"test.yaml", "dummy content", useSudo),
 		agentparams.WithFile(confdPath+"test.yml", "dummy content", useSudo),
 		agentparams.WithFile(confdPath+"test.yml.test", "dummy content", useSudo),
-		agentparams.WithFile("/opt/datadog-agent/checks.d/test.yml", "dummy content", useSudo),
-	}
-
-	agentOptions := append(withFiles, agentparams.WithAgentConfig(string(agentConfiguration)))
+		agentparams.WithFile(path.Join(version.AgentPath, "checks.d/test.yml", "dumm content", uappend(withFiles, agentparams.WithAgentConfig(string(agentConfiguration)))
 
 	v.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentOptions...)))
 

@@ -7,9 +7,12 @@
 package fixtures
 
 import (
+	"fmt"
+	"path"
 	"testing"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/stretchr/testify/require"
 )
 
@@ -143,10 +146,10 @@ func CollectorProcPayload(t *testing.T) []byte {
 				Pid:   2636,
 				NsPid: 2636,
 				Command: &agentmodel.Command{
-					Args: []string{"/opt/datadog-agent/embedded/bin/process-agent", "--cfgpath=/etc/datadog-agent/datadog.yaml", "--sysprobe-config=/etc/datadog-agent/system-probe.yaml", "--pid=/opt/datadog-agent/run/process-agent.pid"},
+					Args: []string{path.Join(version.AgentPath, "embedded/bin/process-agent"), "--cfgpath=/etc/datadog-agent/datadog.yaml", "--sysprobe-config=/etc/datadog-agent/system-probe.yaml", fmt.Sprintf("--pid=%s", path.Join(version.AgentPath, "run/process-agent.pid"))},
 					Cwd:  "/",
 					Ppid: 1,
-					Exe:  "/opt/datadog-agent/embedded/bin/process-agent",
+					Exe:  path.Join(version.AgentPath, "embedded/bin/process-agent"),
 				},
 				User: &agentmodel.ProcessUser{
 					Name: "dd-agent",
@@ -591,10 +594,10 @@ func CollectorProcDiscoveryPayload(t *testing.T) []byte {
 				Pid:   2636,
 				NsPid: 2636,
 				Command: &agentmodel.Command{
-					Args: []string{"/opt/datadog-agent/embedded/bin/process-agent", "--cfgpath=/etc/datadog-agent/datadog.yaml", "--sysprobe-config=/etc/datadog-agent/system-probe.yaml", "--pid=/opt/datadog-agent/run/process-agent.pid"},
+					Args: []string{path.Join(version.AgentPath, "embedded/bin/process-agent"), "--cfgpath=/etc/datadog-agent/datadog.yaml", "--sysprobe-config=/etc/datadog-agent/system-probe.yaml", fmt.Sprintf("--pid=%s", path.Join(version.AgentPath, "run/process-agent.pid"))},
 					Cwd:  "/",
 					Ppid: 1,
-					Exe:  "/opt/datadog-agent/embedded/bin/process-agent",
+					Exe:  path.Join(version.AgentPath, "embedded/bin/process-agent"),
 				},
 				User: &agentmodel.ProcessUser{
 					Name: "dd-agent",

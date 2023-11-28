@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -1208,7 +1210,7 @@ func InitConfig(config Config) {
 	if runtime.GOOS == "windows" {
 		config.BindEnvAndSetDefault("runtime_security_config.socket", "localhost:3334")
 	} else {
-		config.BindEnvAndSetDefault("runtime_security_config.socket", "/opt/datadog-agent/run/runtime-security.sock")
+		config.BindEnvAndSetDefault("runtime_security_config.socket", path.Join(version.AgentPath, "run/runtime-security.sock"))
 	}
 	config.BindEnvAndSetDefault("runtime_security_config.run_path", defaultRunPath)
 	config.BindEnvAndSetDefault("runtime_security_config.log_profiled_workloads", false)

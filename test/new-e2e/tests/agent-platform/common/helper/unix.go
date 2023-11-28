@@ -6,7 +6,10 @@
 // Package helper implement interfaces to get some information that can be OS specific
 package helper
 
-import "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+import (
+	"github.com/DataDog/datadog-agent/pkg/version"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+)
 
 // Unix implement helper function for Unix distributions
 type Unix struct{}
@@ -17,7 +20,7 @@ var _ common.Helper = (*Unix)(nil)
 func NewUnixHelper() *Unix { return &Unix{} }
 
 // GetInstallFolder return the install folder path
-func (u *Unix) GetInstallFolder() string { return "/opt/datadog-agent/" }
+func (u *Unix) GetInstallFolder() string { return version.AgentPath }
 
 // GetConfigFolder return the config folder path
 func (u *Unix) GetConfigFolder() string { return "/etc/datadog-agent/" }

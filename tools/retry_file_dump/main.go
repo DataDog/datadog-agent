@@ -17,6 +17,7 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
 	proto "github.com/golang/protobuf/proto"
 )
 
@@ -35,7 +36,7 @@ func parseArg() (string, error) {
 	var folder = flag.String("folder", "", "The folder containing `.retry` files.")
 	flag.Parse()
 	if *folder == "" {
-		return "", errors.New("Invalid folder: Usage `./retry_file_dump --folder=/opt/datadog-agent/run/transactions_to_retry/c47da40ac935c8fd5ca1441a5ee3d068/`")
+		return "", errors.New(fmt.Sprintf("Invalid folder: Usage `./retry_file_dump --folder=%s`", path.Join(version.AgentPath, "run/transactions_to_retry/c47da40ac935c8fd5ca1441a5ee3d068/")))
 	}
 	return *folder, nil
 }

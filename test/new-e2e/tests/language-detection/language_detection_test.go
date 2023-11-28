@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"testing"
@@ -20,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 )
 
@@ -80,7 +82,7 @@ func (s *languageDetectionSuite) getPidForCommand(command string) string {
 }
 
 func (s *languageDetectionSuite) getLanguageForPid(pid string) (string, error) {
-	wl := s.Env().VM.Execute("sudo /opt/datadog-agent/bin/agent/agent workload-list")
+	wl := s.Env().VM.Execute(fmt.Sprintf("sudo %s workload-list", path.Join(version.AgentPath, "bin/agent/agent")))
 	if len(strings.TrimSpace(wl)) == 0 {
 		return "", errors.New("agent workload-list was empty")
 	}

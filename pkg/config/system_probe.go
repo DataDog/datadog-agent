@@ -14,9 +14,19 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 type transformerFunction func(string) interface{}
+
+var (
+
+	// defaultSystemProbeBPFDir is the default path for eBPF programs
+	defaultSystemProbeBPFDir = path.Join(version.AgentPath, "embedded/share/system-probe/ebpf")
+
+	// defaultSystemProbeJavaDir is the default path for java agent program
+	defaultSystemProbeJavaDir = path.Join(version.AgentPath, "embedded/share/system-probe/java")
+)
 
 const (
 	spNS                         = "system_probe_config"
@@ -28,12 +38,6 @@ const (
 	diNS                         = "dynamic_instrumentation"
 	wcdNS                        = "windows_crash_detection"
 	defaultConnsMessageBatchSize = 600
-
-	// defaultSystemProbeBPFDir is the default path for eBPF programs
-	defaultSystemProbeBPFDir = "/opt/datadog-agent/embedded/share/system-probe/ebpf"
-
-	// defaultSystemProbeJavaDir is the default path for java agent program
-	defaultSystemProbeJavaDir = "/opt/datadog-agent/embedded/share/system-probe/java"
 
 	// defaultServiceMonitoringJavaAgentArgs is default arguments that are passing to the injected java USM agent
 	defaultServiceMonitoringJavaAgentArgs = "dd.appsec.enabled=false,dd.trace.enabled=false,dd.usm.enabled=true"
@@ -319,10 +323,10 @@ func InitSystemProbeConfig(cfg Config) {
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "network.enabled"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "events_stats.polling_interval"), 20)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "syscalls_monitor.enabled"), false)
-	cfg.BindEnvAndSetDefault(join(evNS, "socket"), "/opt/datadog-agent/run/event-monitor.sock")
+	cfg.BindEnvAndSetDefault(join(evNS, "socket"), path.Join(version.AgentPath, "run/event-monitor.sock"))
 	cfg.BindEnvAndSetDefault(join(evNS, "event_server.burst"), 40)
 
-	// process event monitoring data limits for network tracer
+	// process event monitoring ata limits for network tracer
 	eventMonitorBindEnv(cfg, join(evNS, "network_process", "max_processes_tracked"))
 
 	// enable/disable use of root net namespace
