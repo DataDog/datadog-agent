@@ -548,6 +548,5 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, o
 
     vm_config = generate_vmconfig({"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci)
 
-    pipeline_id = os.environ["CI_PIPELINE_ID"]
-    with open(f"vmconfig-{pipeline_id}.json", "w") as f:
-        f.write(vm_config)
+    with open(output_file, "w") as f:
+        f.write(json.dumps(vm_config, indent=4))
