@@ -8,6 +8,7 @@ package appsec
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"testing"
 
@@ -15,6 +16,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 )
+
+func init() {
+	os.Setenv("DD_APPSEC_WAF_TIMEOUT", "1m")
+}
 
 func TestNew(t *testing.T) {
 	for _, appsecEnabled := range []bool{true, false} {
@@ -50,7 +55,6 @@ func TestMonitor(t *testing.T) {
 
 	t.Run("events-detection", func(t *testing.T) {
 		t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
-		t.Setenv("DD_APPSEC_WAF_TIMEOUT", "2s")
 		asm, err := newAppSec()
 		require.NoError(t, err)
 		defer asm.Close()
@@ -78,7 +82,6 @@ func TestMonitor(t *testing.T) {
 		t.Setenv("DD_API_SECURITY_REQUEST_SAMPLE_RATE", "1.0")
 		t.Setenv("DD_EXPERIMENTAL_API_SECURITY_ENABLED", "true")
 		t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
-		t.Setenv("DD_APPSEC_WAF_TIMEOUT", "2s")
 		asm, err := newAppSec()
 		require.NoError(t, err)
 		defer asm.Close()
