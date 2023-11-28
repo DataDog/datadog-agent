@@ -43,7 +43,7 @@ var processCacheTelemetry = struct {
 type processList []*events.Process
 
 type processCache struct {
-	sync.Mutex
+	mu sync.Mutex
 
 	// cache of pid -> list of processes holds a list of processes
 	// with the same pid but differing start times up to a max of
@@ -52,10 +52,6 @@ type processCache struct {
 	cacheByPid map[uint32]processList
 	// lru cache; keyed by (pid, start time)
 	cache *lru.Cache[processCacheKey, *events.Process]
-	// filteredEnvs contains environment variable names
-	// that a process in the cache must have; empty filteredEnvs
-	// means no filter, and any process can be inserted the cache
-	filteredEnvs map[string]struct{}
 
 	in      chan *events.Process
 	stopped chan struct{}
@@ -138,8 +134,8 @@ func (pc *processCache) Trim() {
 		return
 	}
 
-	pc.Lock()
-	defer pc.Unlock()
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
 
 	now := time.Now().Unix()
 	trimmed := 0
@@ -170,8 +166,8 @@ func (pc *processCache) add(p *events.Process) {
 		return
 	}
 
-	pc.Lock()
-	defer pc.Unlock()
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
 
 	if log.ShouldLog(seelog.TraceLvl) {
 		log.Tracef("adding process %+v to process cache", p)
@@ -190,8 +186,8 @@ func (pc *processCache) Get(pid uint32, ts int64) (*events.Process, bool) {
 		return nil, false
 	}
 
-	pc.Lock()
-	defer pc.Unlock()
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
 
 	pl, _ := pc.cacheByPid[pid]
 	if closest := pl.closest(ts); closest != nil {
@@ -209,8 +205,8 @@ func (pc *processCache) Dump() (interface{}, error) {
 		return res, nil
 	}
 
-	pc.Lock()
-	defer pc.Unlock()
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
 
 	for pid, pl := range pc.cacheByPid {
 		res[pid] = pl

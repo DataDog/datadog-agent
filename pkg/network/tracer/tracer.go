@@ -324,21 +324,14 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		log.Tracef("got process cache entry for pid %d: %+v", c.Pid, p)
 	}
 
-	if len(p.Envs) > 0 {
+	if len(p.Tags) > 0 {
 		if c.Tags == nil {
-			c.Tags = make(map[string]struct{}, 3)
+			c.Tags = make(map[string]struct{}, len(p.Tags))
 		}
 
-		addTag := func(k, v string) {
-			if v == "" {
-				return
-			}
-			c.Tags[k+":"+v] = struct{}{}
+		for _, t := range p.Tags {
+			c.Tags[t.Get().(string)] = struct{}{}
 		}
-
-		addTag("env", p.Env("DD_ENV"))
-		addTag("version", p.Env("DD_VERSION"))
-		addTag("service", p.Env("DD_SERVICE"))
 	}
 
 	if p.ContainerID != nil {
