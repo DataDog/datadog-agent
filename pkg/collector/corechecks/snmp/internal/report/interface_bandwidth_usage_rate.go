@@ -32,11 +32,11 @@ func NewInterfaceBandwidthState() *InterfaceBandwidthState {
 
 // RemoveExpiredBandwidthUsageRates will go through the map of bandwidth usage rates and remove entries
 // if it hasn't been updated in a given deadline (presumed to be an interface or device taken down if no metrics have been seen in the given amount of time)
-func (ibs *InterfaceBandwidthState) RemoveExpiredBandwidthUsageRates(timestampNano int64, ttlNano int64) {
+func (ibs *InterfaceBandwidthState) RemoveExpiredBandwidthUsageRates(timestampNano int64) {
 	ibs.mu.Lock()
 	defer ibs.mu.Unlock()
 	for k, v := range ibs.state {
-		if v.previousTsNano+ttlNano <= timestampNano {
+		if v.previousTsNano <= timestampNano {
 			delete(ibs.state, k)
 		}
 	}

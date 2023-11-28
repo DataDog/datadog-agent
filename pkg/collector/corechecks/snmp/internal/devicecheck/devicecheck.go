@@ -176,7 +176,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 
 	d.submitTelemetryMetrics(startTime, tags)
 	d.setDeviceHostExternalTags()
-	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(timeNow().UnixNano(), int64(time.Hour))
+	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.UnixNano())
 
 	return checkErr
 }
