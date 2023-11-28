@@ -281,7 +281,6 @@ int __attribute__((always_inline)) dentry_resolver_erpc_mmap(void *ctx, int dr_t
             goto exit;
         }
     }
-
     if (state->iteration < DR_MAX_TAIL_CALL) {
         tail_call_dr_progs(ctx, dr_type, DR_ERPC_KEY);
         resolution_err = DR_ERPC_TAIL_CALL_ERROR;
@@ -297,24 +296,6 @@ int tail_call_target_dentry_resolver_erpc_mmap(ctx_t *ctx) {
     return dentry_resolver_erpc_mmap(ctx, DR_KPROBE_OR_FENTRY);
 }
 
-#endif // USE_FENTRY
-
-SEC("kprobe/dentry_resolver_ad_filter")
-int kprobe_dentry_resolver_ad_filter(struct pt_regs *ctx) {
-    struct syscall_cache_t *syscall = peek_syscall(EVENT_ANY);
-    if (!syscall) {
-        return 0;
-    }
-
-    if (is_activity_dump_running(ctx, bpf_get_current_pid_tgid() >> 32, bpf_ktime_get_ns(), syscall->type)) {
-        syscall->resolver.flags |= ACTIVITY_DUMP_RUNNING;
-    }
-
-    tail_call_dr_progs(ctx, DR_KPROBE, DR_DENTRY_RESOLVER_KERN_KEY);
-    return 0;
-}
-
-#ifdef USE_FENTRY
 
 TAIL_CALL_TARGET("dentry_resolver_ad_filter")
 int tail_call_target_dentry_resolver_ad_filter(ctx_t *ctx) {
