@@ -7,6 +7,7 @@ import os
 import shutil
 import textwrap
 from pathlib import Path
+from typing import Optional
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -41,6 +42,7 @@ def run_golangci_lint(
     verbose=False,
     golangci_lint_kwargs="",
     headless_mode: bool = False,
+    install_dir: Optional[str] = None,
 ):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
@@ -54,7 +56,7 @@ def run_golangci_lint(
     # Always add `test` tags while linting as test files are also linted
     tags.extend(UNIT_TEST_TAGS)
 
-    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode)
+    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode, install_dir=install_dir)
     verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []

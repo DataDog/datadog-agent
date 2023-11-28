@@ -3,6 +3,7 @@ import glob
 import os
 import platform
 import shutil
+from typing import Optional
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -37,11 +38,12 @@ def build(
     arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     static=False,
+    install_dir : Optional[str] = None,
 ):
     """
     Build cws-instrumentation
     """
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static, install_dir=install_dir)
 
     # TODO use pkg/version for this
     main = "main."

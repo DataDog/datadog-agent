@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Optional
 
 from invoke import Exit, task
 
@@ -24,13 +25,14 @@ def build(
     python_runtimes='3',
     arch="x64",
     go_mod="mod",
+    install_dir : Optional[str] =None,
 ):
     """
     Build the trace agent.
     """
 
     flavor = AgentFlavor[flavor]
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes, install_dir=install_dir)
 
     # generate windows resources
     if sys.platform == 'win32':

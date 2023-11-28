@@ -7,6 +7,7 @@ import os
 import shutil
 import sys
 from distutils.dir_util import copy_tree
+from typing import Optional
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -35,6 +36,7 @@ def build(
     major_version='7',
     arch="x64",
     go_mod="mod",
+    install_dir : Optional[str] =None,
 ):
     """
     Build Dogstatsd
@@ -46,7 +48,7 @@ def build(
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
-    ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version)
+    ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version, install_dir=install_dir)
     bin_path = DOGSTATSD_BIN_PATH
 
     # generate windows resources

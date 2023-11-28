@@ -29,13 +29,10 @@ SD_CONFIG_BACKENDS = ['etcd', 'consul', 'zk']  # noqa: used somewhere else
 AGENT_VERSION = "5.18.0"
 JMX_VERSION = "0.16.0"
 DATADOG_CONF = "datadog.conf"
-UNIX_CONFIG_PATH = '/etc/dd-agent'
-MAC_CONFIG_PATH = '/opt/datadog-agent/etc'
 DEFAULT_CHECK_FREQUENCY = 15  # seconds
 LOGGING_MAX_BYTES = 10 * 1024 * 1024
 SDK_INTEGRATIONS_DIR = 'integrations'
 SD_PIPE_NAME = "dd-service_discovery"
-SD_PIPE_UNIX_PATH = '/opt/datadog-agent/run'
 SD_PIPE_WIN_PATH = "\\\\.\\pipe\\{pipename}"
 SD_TEMPLATE_DIR = "/datadog/check_configs"
 

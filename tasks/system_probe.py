@@ -11,6 +11,7 @@ import tarfile
 import tempfile
 from pathlib import Path
 from subprocess import check_output
+from typing import Optional
 
 import requests
 from invoke import task
@@ -20,7 +21,7 @@ from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
-from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
+from .utils import REPO_PATH, DEFAULT_AGENT_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
 from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
@@ -495,12 +496,16 @@ def build(
     strip_object_files=False,
     strip_binary=False,
     with_unit_test=False,
+    install_dir : Optional[str] = None,
 ):
     """
     Build the system-probe
     """
+    install_dir = install_dir or DEFAULT_AGENT_PATH
+
     build_object_files(
         ctx,
+        install_dir=install_dir,
         windows=windows,
         major_version=major_version,
         arch=arch,
@@ -520,6 +525,7 @@ def build(
         race=race,
         incremental_build=incremental_build,
         strip_binary=strip_binary,
+        install_dir=install_dir,
     )
 
 
@@ -549,11 +555,14 @@ def build_sysprobe_binary(
     binary=BIN_PATH,
     bundle_ebpf=False,
     strip_binary=False,
+    install_dir : Optional[str] =None,
 ):
+    install_dir = install_dir or DEFAULT_AGENT_PATH
     ldflags, gcflags, env = get_build_flags(
         ctx,
         major_version=major_version,
         python_runtimes=python_runtimes,
+        install_dir=install_dir,
     )
 
     build_tags = get_default_build_tags(build="system-probe", arch=arch)
@@ -594,6 +603,7 @@ def test(
     failfast=False,
     kernel_release=None,
     timeout=None,
+    install_dir : Optional[str] = None,
 ):
     """
     Run tests on eBPF parts
@@ -601,6 +611,9 @@ def test(
     If output_path is set, we run `go test` with the flags `-c -o output_path`, which *compiles* the test suite
     into a single binary. This artifact is meant to be used in conjunction with kitchen tests.
     """
+
+    install_dir = install_dir or DEFAULT_AGENT_PATH
+
     if os.getenv("GOPATH") is None:
         raise Exit(
             code=1,
@@ -615,6 +628,7 @@ def test(
     if not skip_object_files:
         build_object_files(
             ctx,
+            install_dir,
             windows=windows,
             kernel_release=kernel_release,
         )
@@ -733,10 +747,13 @@ def full_pkg_path(name):
 
 
 @task
-def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, packages=""):
+def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, packages="", install_dir=None):
     """
     Compile test suite for kitchen
     """
+
+    install_dir = install_dir or DEFAULT_AGENT_PATH
+
     build_tags = [NPM_TAG]
     if not windows:
         build_tags.append(BPF_TAG)
@@ -786,6 +803,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
             bundle_ebpf=False,
             output_path=os.path.join(target_path, target_bin),
             kernel_release=kernel_release,
+            install_dir=install_dir,
         )
 
         # copy ancillary data, if applicable
@@ -806,8 +824,8 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
 
     gopath = os.getenv("GOPATH")
     copy_files = [
-        "/opt/datadog-agent/embedded/bin/clang-bpf",
-        "/opt/datadog-agent/embedded/bin/llc-bpf",
+        f"{install_dir}/embedded/bin/clang-bpf",
+        f"{install_dir}/embedded/bin/llc-bpf",
         f"{gopath}/bin/gotestsum",
     ]
 
@@ -817,7 +835,7 @@ def kitchen_prepare(ctx, windows=is_windows, kernel_release=None, ci=False, pack
             shutil.copy(cf, files_dir)
 
     if not ci:
-        kitchen_prepare_btfs(ctx, files_dir)
+        kitchen_prepare_btfs(ctx, files_dir, install_dir=install_dir)
 
     ctx.run(f"go build -o {files_dir}/test2json -ldflags=\"-s -w\" cmd/test2json", env={"CGO_ENABLED": "0"})
     ctx.run(f"echo $(git rev-parse HEAD) > {BUILD_COMMIT}")
@@ -1204,16 +1222,16 @@ def run_ninja(
         ctx.run(f"ninja {explain_opt} -f {nf_path} {target}")
 
 
-def setup_runtime_clang(ctx):
+def setup_runtime_clang(ctx, install_dir: str):
     # check if correct version is already present
     sudo = "sudo" if not is_root() else ""
-    clang_res = ctx.run(f"{sudo} /opt/datadog-agent/embedded/bin/clang-bpf --version", warn=True)
-    llc_res = ctx.run(f"{sudo} /opt/datadog-agent/embedded/bin/llc-bpf --version", warn=True)
+    clang_res = ctx.run(f"{sudo} {install_dir}/embedded/bin/clang-bpf --version", warn=True)
+    llc_res = ctx.run(f"{sudo} {install_dir}/embedded/bin/llc-bpf --version", warn=True)
     clang_version_str = clang_res.stdout.split("\n")[0].split(" ")[2].strip() if clang_res.ok else ""
     llc_version_str = llc_res.stdout.split("\n")[1].strip().split(" ")[2].strip() if llc_res.ok else ""
 
-    if not os.path.exists("/opt/datadog-agent/embedded/bin"):
-        ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
+    if not os.path.exists(f"{install_dir}/embedded/bin"):
+        ctx.run(f"{sudo} mkdir -p {install_dir}/embedded/bin")
 
     arch = arch_mapping.get(platform.machine())
     if arch == "x64":
@@ -1222,13 +1240,13 @@ def setup_runtime_clang(ctx):
     if clang_version_str != CLANG_VERSION_RUNTIME:
         # download correct version from dd-agent-omnibus S3 bucket
         clang_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/clang-{CLANG_VERSION_RUNTIME}.{arch}"
-        ctx.run(f"{sudo} wget -q {clang_url} -O /opt/datadog-agent/embedded/bin/clang-bpf")
-        ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/clang-bpf")
+        ctx.run(f"{sudo} wget -q {clang_url} -O {install_dir}/embedded/bin/clang-bpf")
+        ctx.run(f"{sudo} chmod 0755 {install_dir}/embedded/bin/clang-bpf")
 
     if llc_version_str != CLANG_VERSION_RUNTIME:
         llc_url = f"https://dd-agent-omnibus.s3.amazonaws.com/llvm/llc-{CLANG_VERSION_RUNTIME}.{arch}"
-        ctx.run(f"{sudo} wget -q {llc_url} -O /opt/datadog-agent/embedded/bin/llc-bpf")
-        ctx.run(f"{sudo} chmod 0755 /opt/datadog-agent/embedded/bin/llc-bpf")
+        ctx.run(f"{sudo} wget -q {llc_url} -O {install_dir}/embedded/bin/llc-bpf")
+        ctx.run(f"{sudo} chmod 0755 {install_dir}/embedded/bin/llc-bpf")
 
 
 def verify_system_clang_version(ctx):
@@ -1257,13 +1275,16 @@ def build_object_files(
     debug=False,
     strip_object_files=False,
     with_unit_test=False,
+    install_dir: Optional[str]=None,
 ):
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build")
+
+    install_dir = install_dir or DEFAULT_AGENT_PATH
 
     if not windows:
         verify_system_clang_version(ctx)
         # if clang is missing, subsequent calls to ctx.run("clang ...") will fail silently
-        setup_runtime_clang(ctx)
+        setup_runtime_clang(ctx, install_dir)
 
         if strip_object_files:
             print("checking for llvm-strip...")
@@ -1340,8 +1361,8 @@ def build_cws_object_files(
 
 
 @task
-def object_files(ctx, kernel_release=None, with_unit_test=False):
-    build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test)
+def object_files(ctx, install_dir: str, kernel_release=None, with_unit_test=False):
+    build_object_files(ctx, install_dir=install_dir, kernel_release=kernel_release, with_unit_test=with_unit_test)
 
 
 def clean_object_files(
@@ -1404,8 +1425,9 @@ def tempdir():
         shutil.rmtree(dirpath)
 
 
-def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
-    btf_dir = "/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/btf"
+def kitchen_prepare_btfs(ctx, files_dir, install_dir: Optional[str]=None, arch=CURRENT_ARCH):
+    install_dir = install_dir or DEFAULT_AGENT_PATH
+    btf_dir = f"{install_dir}/embedded/share/system-probe/ebpf/co-re/btf"
 
     if arch == "x64":
         arch = "x86_64"
@@ -1432,7 +1454,7 @@ def kitchen_prepare_btfs(ctx, files_dir, arch=CURRENT_ARCH):
         can_minimize = False
 
     if can_minimize:
-        co_re_programs = " ".join(glob.glob("/opt/datadog-agent/embedded/share/system-probe/ebpf/co-re/*.o"))
+        co_re_programs = " ".join(glob.glob(f"{install_dir}/embedded/share/system-probe/ebpf/co-re/*.o"))
         generate_minimized_btfs(
             ctx,
             source_dir=f"{btf_dir}/kitchen-btfs-{arch}",

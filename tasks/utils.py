@@ -11,6 +11,7 @@ import sys
 import time
 from subprocess import check_output
 from types import SimpleNamespace
+from typing import Optional
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -111,6 +112,9 @@ def get_win_py_runtime_var(python_runtimes):
     return "PY2_RUNTIME" if '2' in python_runtimes else "PY3_RUNTIME"
 
 
+DEFAULT_AGENT_PATH = "/opt/datadog-agent"
+
+
 def get_build_flags(
     ctx,
     static=False,
@@ -123,6 +127,7 @@ def get_build_flags(
     python_runtimes='3',
     headless_mode=False,
     race=False,
+    install_dir: Optional[str] = None,  # I have no idea how this would interact with embedded_path
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -135,6 +140,9 @@ def get_build_flags(
     # External linker flags; needs to be handled separately to avoid overrides
     extldflags = ""
     env = {"GO111MODULE": "on"}
+
+    # replace the install dir with the deafult path if it's empty or None
+    install_dir = install_dir or DEFAULT_AGENT_PATH
 
     if sys.platform == 'win32':
         env["CGO_LDFLAGS_ALLOW"] = "-Wl,--allow-multiple-definition"
@@ -169,6 +177,8 @@ def get_build_flags(
         ldflags += f"-X {REPO_PATH}/pkg/config.ForceDefaultPython=true "
 
     ldflags += f"-X {REPO_PATH}/pkg/config.DefaultPython={get_default_python(python_runtimes)} "
+
+    ldflags += f"-X {REPO_PATH}/pkg/version.AgentPath={install_dir} "
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
@@ -502,7 +512,7 @@ def generate_config(ctx, build_type, output_file, env=None):
 
 
 ##
-## release.json entry mapping functions
+# release.json entry mapping functions
 ##
 
 

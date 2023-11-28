@@ -8,6 +8,7 @@ import platform
 import shutil
 import sys
 import tempfile
+from typing import Optional
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -15,7 +16,7 @@ from invoke.exceptions import Exit
 from .build_tags import get_build_tags, get_default_build_tags
 from .cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from .go import deps
-from .utils import load_release_versions
+from .utils import DEFAULT_AGENT_PATH, load_release_versions
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "datadog-cluster-agent")
@@ -35,6 +36,7 @@ def build(
     skip_assets=False,
     policies_version=None,
     release_version="nightly-a7",
+    install_dir: Optional[str]=None,
 ):
     """
     Build Cluster Agent
@@ -42,6 +44,8 @@ def build(
      Example invokation:
         inv cluster-agent.build
     """
+    install_dir = install_dir or DEFAULT_AGENT_PATH
+
     build_common(
         ctx,
         BIN_PATH,
@@ -53,6 +57,7 @@ def build(
         race,
         development,
         skip_assets,
+        install_dir=install_dir,
     )
 
     if policies_version is None:
@@ -157,9 +162,11 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
 
 
 @task
-def hacky_dev_image_build(ctx, base_image=None, target_image="cluster-agent", push=False, signed_pull=False):
+def hacky_dev_image_build(ctx, base_image=None, target_image="cluster-agent", push=False, signed_pull=False, install_dir: Optional[str]=None ):
     os.environ["DELVE"] = "1"
-    build(ctx)
+    build(ctx, install_dir=install_dir)
+
+    install_dir = install_dir or DEFAULT_AGENT_PATH
 
     if base_image is None:
         import requests
@@ -202,7 +209,7 @@ ENV DELVE_PAGER=less
 
 COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
-COPY bin/datadog-cluster-agent/datadog-cluster-agent /opt/datadog-agent/bin/datadog-cluster-agent
+COPY bin/datadog-cluster-agent/datadog-cluster-agent {install_dir}/bin/datadog-cluster-agent
 RUN agent                 completion bash > /usr/share/bash-completion/completions/agent
 RUN datadog-cluster-agent completion bash > /usr/share/bash-completion/completions/datadog-cluster-agent
 

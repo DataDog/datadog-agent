@@ -7,6 +7,7 @@ import shutil
 import sys
 import tempfile
 from subprocess import check_output
+from typing import Optional
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -25,6 +26,7 @@ from .system_probe import (
 from .test import environ
 from .utils import (
     REPO_PATH,
+    DEFAULT_AGENT_PATH,
     bin_name,
     generate_config,
     get_build_flags,
@@ -57,11 +59,14 @@ def build(
     go_mod="mod",
     skip_assets=False,
     static=False,
+    install_dir : Optional[str] = None,
 ):
     """
     Build the security agent
     """
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static)
+    install_dir = install_dir or DEFAULT_AGENT_PATH
+
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes='3', static=static, install_dir=install_dir)
 
     # TODO use pkg/version for this
     main = "main."
@@ -120,7 +125,7 @@ def build(
 
 
 @task
-def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest", include_agent_binary=False):
+def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest", include_agent_binary=False, install_dir: Optional[str] = None):
     """
     Build a dev image of the security-agent based off an existing datadog-agent image
 
@@ -132,6 +137,8 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
     if image is None:
         raise Exit(message="image was not specified")
 
+    install_dir = install_dir or DEFAULT_AGENT_PATH
+
     with TempDir() as docker_context:
         ctx.run(f"cp tools/ebpf/Dockerfiles/Dockerfile-security-agent-dev {docker_context + '/Dockerfile'}")
 
@@ -139,7 +146,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run(f"cp bin/system-probe/system-probe {docker_context + '/system-probe'}")
         if include_agent_binary:
             ctx.run(f"cp bin/agent/agent {docker_context + '/agent'}")
-            core_agent_dest = "/opt/datadog-agent/bin/agent/agent"
+            core_agent_dest = f"{install_dir}/bin/agent/agent"
         else:
             # this is necessary so that the docker build doesn't fail while attempting to copy the agent binary
             ctx.run(f"touch {docker_context}/agent")
@@ -150,8 +157,8 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
         ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
         ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        ctx.run(f"cp {install_dir}/embedded/bin/clang-bpf {docker_context}")
+        ctx.run(f"cp {install_dir}/embedded/bin/llc-bpf {docker_context}")
 
         with ctx.cd(docker_context):
             # --pull in the build will force docker to grab the latest base image
@@ -336,6 +343,7 @@ def build_functional_tests(
     race=False,
     kernel_release=None,
     debug=False,
+    install_dir : Optional[str] = None,
 ):
     build_cws_object_files(
         ctx,
@@ -347,7 +355,7 @@ def build_functional_tests(
 
     build_embed_syscall_tester(ctx)
 
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, static=static, install_dir=install_dir)
 
     env["CGO_ENABLED"] = "1"
     if arch == "x86":
@@ -401,7 +409,9 @@ def build_stress_tests(
     bundle_ebpf=True,
     skip_linters=False,
     kernel_release=None,
+    install_dir : Optional[str] = None,
 ):
+    install_dir = install_dir or DEFAULT_AGENT_PATH
     build_embed_latency_tools(ctx)
     build_functional_tests(
         ctx,
@@ -412,6 +422,7 @@ def build_stress_tests(
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
         kernel_release=kernel_release,
+        install_dir=install_dir,
     )
 
 
@@ -426,6 +437,7 @@ def stress_tests(
     testflags='',
     skip_linters=False,
     kernel_release=None,
+    install_dir : Optional[str] = None,
 ):
     build_stress_tests(
         ctx,
@@ -435,6 +447,7 @@ def stress_tests(
         bundle_ebpf=bundle_ebpf,
         skip_linters=skip_linters,
         kernel_release=kernel_release,
+        install_dir=install_dir,
     )
 
     run_functional_tests(
@@ -458,7 +471,10 @@ def functional_tests(
     skip_linters=False,
     kernel_release=None,
     fentry=False,
+    install_dir : Optional[str] = None,
 ):
+    install_dir = install_dir or DEFAULT_AGENT_PATH
+
     build_functional_tests(
         ctx,
         arch=arch,
@@ -468,6 +484,7 @@ def functional_tests(
         skip_linters=skip_linters,
         race=race,
         kernel_release=kernel_release,
+        install_dir=install_dir,
     )
 
     run_functional_tests(
@@ -487,6 +504,7 @@ def kitchen_functional_tests(
     major_version='7',
     build_tests=False,
     testflags='',
+    install_dir: Optional[str]=None,
 ):
     if build_tests:
         functional_tests(
@@ -496,6 +514,7 @@ def kitchen_functional_tests(
             major_version=major_version,
             output="test/kitchen/site-cookbooks/dd-security-agent-check/files/testsuite",
             testflags=testflags,
+            install_dir=install_dir,
         )
 
     kitchen_dir = os.path.join("test", "kitchen")
@@ -518,7 +537,10 @@ def docker_functional_tests(
     bundle_ebpf=True,
     skip_linters=False,
     kernel_release=None,
+    install_dir: Optional[str]=None
 ):
+    install_dir = install_dir or DEFAULT_AGENT_PATH
+
     build_functional_tests(
         ctx,
         arch=arch,
@@ -529,6 +551,7 @@ def docker_functional_tests(
         skip_linters=skip_linters,
         race=race,
         kernel_release=kernel_release,
+        install_dir=install_dir,
     )
 
     add_arch_line = ""
@@ -546,9 +569,9 @@ RUN apt-get update -y \
     && apt-get install -y --no-install-recommends xfsprogs ca-certificates iproute2 clang-14 llvm-14 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /opt/datadog-agent/embedded/bin
-RUN ln -s $(which clang-14) /opt/datadog-agent/embedded/bin/clang-bpf
-RUN ln -s $(which llc-14) /opt/datadog-agent/embedded/bin/llc-bpf
+RUN mkdir -p {install_dir}/embedded/bin
+RUN ln -s $(which clang-14) {install_dir}/embedded/bin/clang-bpf
+RUN ln -s $(which llc-14) {install_dir}/embedded/bin/llc-bpf
     """
 
     docker_image_tag_name = "docker-functional-tests"
@@ -763,7 +786,7 @@ def go_generate_check(ctx):
 
 
 @task
-def kitchen_prepare(ctx, skip_linters=False):
+def kitchen_prepare(ctx, skip_linters=False, install_dir:Optional[str]=None):
     """
     Compile test suite for kitchen
     """
@@ -771,6 +794,8 @@ def kitchen_prepare(ctx, skip_linters=False):
     # Clean up previous build
     if os.path.exists(KITCHEN_ARTIFACT_DIR):
         shutil.rmtree(KITCHEN_ARTIFACT_DIR)
+
+    install_dir = install_dir or DEFAULT_AGENT_PATH
 
     testsuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", "testsuite")
     build_functional_tests(
@@ -780,13 +805,14 @@ def kitchen_prepare(ctx, skip_linters=False):
         debug=True,
         output=testsuite_out_path,
         skip_linters=skip_linters,
+        install_dir=install_dir,
     )
     stresssuite_out_path = os.path.join(KITCHEN_ARTIFACT_DIR, "tests", STRESS_TEST_SUITE)
-    build_stress_tests(ctx, output=stresssuite_out_path, skip_linters=skip_linters)
+    build_stress_tests(ctx, output=stresssuite_out_path, skip_linters=skip_linters, install_dir=install_dir)
 
     # Copy clang binaries
     for bin in ["clang-bpf", "llc-bpf"]:
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/{bin} {KITCHEN_ARTIFACT_DIR}/{bin}")
+        ctx.run(f"cp {install_dir}/embedded/bin/{bin} {KITCHEN_ARTIFACT_DIR}/{bin}")
 
     # Copy gotestsum binary
     gopath = get_gopath(ctx)

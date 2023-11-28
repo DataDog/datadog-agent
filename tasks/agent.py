@@ -12,6 +12,7 @@ import shutil
 import sys
 import tempfile
 from distutils.dir_util import copy_tree
+from typing import Optional
 
 from invoke import task
 from invoke.exceptions import Exit, ParseError
@@ -28,6 +29,7 @@ from .ssm import get_pfx_pass, get_signing_cert
 from .trace_agent import build as trace_agent_build
 from .utils import (
     REPO_PATH,
+    DEFAULT_AGENT_PATH,
     bin_name,
     cache_version,
     generate_config,
@@ -117,6 +119,7 @@ def build(
     go_mod="mod",
     windows_sysprobe=False,
     cmake_options='',
+    install_dir: Optional[str] = None,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -126,6 +129,8 @@ def build(
         inv agent.build --build-exclude=systemd
     """
     flavor = AgentFlavor[flavor]
+
+    install_dir = install_dir or DEFAULT_AGENT_PATH
 
     if not exclude_rtloader and not flavor.is_iot():
         # If embedded_path is set, we should give it to rtloader as it should install the headers/libs
@@ -141,6 +146,7 @@ def build(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
+        install_dir=install_dir,
     )
 
     if sys.platform == 'win32':
@@ -360,7 +366,10 @@ def hacky_dev_image_build(
     trace_agent=False,
     push=False,
     signed_pull=False,
+    install_dir :Optional[str]=None,
 ):
+    install_dir = install_dir or DEFAULT_AGENT_PATH
+
     if base_image is None:
         import requests
         import semver
@@ -381,19 +390,19 @@ def hacky_dev_image_build(
     # Extract the python library of the docker image
     with tempfile.TemporaryDirectory() as extracted_python_dir:
         ctx.run(
-            f"docker run --rm '{base_image}' bash -c 'tar --create /opt/datadog-agent/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
+            f"docker run --rm '{base_image}' bash -c 'tar --create {install_dir}/embedded/{{bin,lib,include}}/*python*' | tar --directory '{extracted_python_dir}' --extract"
         )
 
         os.environ["DELVE"] = "1"
         os.environ["LD_LIBRARY_PATH"] = (
-            os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}/opt/datadog-agent/embedded/lib"
+            os.environ.get("LD_LIBRARY_PATH", "") + f":{extracted_python_dir}{install_dir}/embedded/lib"
         )
         build(
             ctx,
-            cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}/opt/datadog-agent/embedded -DPython3_FIND_STRATEGY=LOCATION',
+            cmake_options=f'-DPython3_ROOT_DIR={extracted_python_dir}{install_dir}/embedded -DPython3_FIND_STRATEGY=LOCATION',
         )
         ctx.run(
-            f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
+            f'perl -0777 -pe \'s|{extracted_python_dir}({install_dir}/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
         if process_agent:
             process_agent_build(ctx)
@@ -402,9 +411,9 @@ def hacky_dev_image_build(
 
     copy_extra_agents = ""
     if process_agent:
-        copy_extra_agents += "COPY bin/process-agent/process-agent /opt/datadog-agent/embedded/bin/process-agent\n"
+        copy_extra_agents += f"COPY bin/process-agent/process-agent {install_dir}/embedded/bin/process-agent\n"
     if trace_agent:
-        copy_extra_agents += "COPY bin/trace-agent/trace-agent /opt/datadog-agent/embedded/bin/trace-agent\n"
+        copy_extra_agents += f"COPY bin/trace-agent/trace-agent {install_dir}/embedded/bin/trace-agent\n"
 
     with tempfile.NamedTemporaryFile(mode='w') as dockerfile:
         dockerfile.write(
@@ -421,13 +430,13 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get install -y patchelf
 
-COPY bin/agent/agent                            /opt/datadog-agent/bin/agent/agent
-COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
-COPY dev/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+COPY bin/agent/agent                            {install_dir}/bin/agent/agent
+COPY dev/lib/libdatadog-agent-rtloader.so.0.1.0 {install_dir}/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+COPY dev/lib/libdatadog-agent-three.so          {install_dir}/embedded/lib/libdatadog-agent-three.so
 
-RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/bin/agent/agent
-RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
-RUN patchelf --set-rpath /opt/datadog-agent/embedded/lib /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+RUN patchelf --set-rpath {install_dir}/embedded/lib {install_dir}/bin/agent/agent
+RUN patchelf --set-rpath {install_dir}/embedded/lib {install_dir}/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+RUN patchelf --set-rpath {install_dir}/embedded/lib {install_dir}/embedded/lib/libdatadog-agent-three.so
 
 FROM golang:latest AS dlv
 
@@ -444,9 +453,9 @@ ENV DELVE_PAGER=less
 
 COPY --from=dlv /go/bin/dlv /usr/local/bin/dlv
 COPY --from=src /usr/src/datadog-agent {os.getcwd()}
-COPY --from=bin /opt/datadog-agent/bin/agent/agent                                 /opt/datadog-agent/bin/agent/agent
-COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 /opt/datadog-agent/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
-COPY --from=bin /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so          /opt/datadog-agent/embedded/lib/libdatadog-agent-three.so
+COPY --from=bin {install_dir}/bin/agent/agent                                 {install_dir}/bin/agent/agent
+COPY --from=bin {install_dir}/embedded/lib/libdatadog-agent-rtloader.so.0.1.0 {install_dir}/embedded/lib/libdatadog-agent-rtloader.so.0.1.0
+COPY --from=bin {install_dir}/embedded/lib/libdatadog-agent-three.so          {install_dir}/embedded/lib/libdatadog-agent-three.so
 {copy_extra_agents}
 RUN agent completion bash > /usr/share/bash-completion/completions/agent
 

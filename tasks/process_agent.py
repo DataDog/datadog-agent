@@ -5,10 +5,11 @@ import tempfile
 
 from invoke import task
 from invoke.exceptions import Exit
+from typing import Optional
 
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
-from .utils import REPO_PATH, bin_name, get_build_flags
+from .utils import REPO_PATH, DEFAULT_AGENT_PATH, bin_name, get_build_flags
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 BIN_DIR = os.path.join(".", "bin", "process-agent")
@@ -27,12 +28,15 @@ def build(
     python_runtimes='3',
     arch="x64",
     go_mod="mod",
+    install_dir : Optional[str] = None,
 ):
     """
     Build the process agent
     """
+    install_dir = install_dir or DEFAULT_AGENT_PATH
+
     flavor = AgentFlavor[flavor]
-    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes)
+    ldflags, gcflags, env = get_build_flags(ctx, major_version=major_version, python_runtimes=python_runtimes, install_dir=install_dir)
 
     # generate windows resources
     if sys.platform == 'win32':
@@ -95,7 +99,7 @@ class TempDir:
 
 
 @task
-def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest", include_agent_binary=False):
+def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:latest", include_agent_binary=False, install_dir: Optional[str]=None):
     """
     Build a dev image of the process-agent based off an existing datadog-agent image
 
@@ -106,6 +110,8 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
     """
     if image is None:
         raise Exit(message="image was not specified")
+    
+    install_dir = install_dir or DEFAULT_AGENT_PATH
 
     with TempDir() as docker_context:
         ctx.run(f"cp tools/ebpf/Dockerfiles/Dockerfile-process-agent-dev {docker_context + '/Dockerfile'}")
@@ -114,7 +120,7 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run(f"cp bin/system-probe/system-probe {docker_context + '/system-probe'}")
         if include_agent_binary:
             ctx.run(f"cp bin/agent/agent {docker_context + '/agent'}")
-            core_agent_dest = "/opt/datadog-agent/bin/agent/agent"
+            core_agent_dest = f"{install_dir}/bin/agent/agent"
         else:
             # this is necessary so that the docker build doesn't fail while attempting to copy the agent binary
             ctx.run(f"touch {docker_context}/agent")
@@ -125,8 +131,8 @@ def build_dev_image(ctx, image=None, push=False, base_image="datadog/agent:lates
         ctx.run(f"cp pkg/ebpf/bytecode/build/co-re/*.o {docker_context}/co-re/")
         ctx.run(f"cp pkg/ebpf/bytecode/build/runtime/*.c {docker_context}")
         ctx.run(f"chmod 0444 {docker_context}/*.o {docker_context}/*.c {docker_context}/co-re/*.o")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/clang-bpf {docker_context}")
-        ctx.run(f"cp /opt/datadog-agent/embedded/bin/llc-bpf {docker_context}")
+        ctx.run(f"cp {install_dir}/embedded/bin/clang-bpf {docker_context}")
+        ctx.run(f"cp {install_dir}/embedded/bin/llc-bpf {docker_context}")
         ctx.run(f"cp pkg/network/protocols/tls/java/agent-usm.jar {docker_context}")
 
         with ctx.cd(docker_context):

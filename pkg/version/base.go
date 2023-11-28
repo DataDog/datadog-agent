@@ -13,10 +13,19 @@ var AgentVersion string
 // Commit is populated with the short commit hash from which the Agent was built
 var Commit string
 
-var agentVersionDefault = "6.0.0"
+// AgentPath is the path to the installation
+var AgentPath string
+
+const agentVersionDefault = "6.0.0"
+const agentPathDefault = "/opt/datadog-agent"
 
 func init() {
 	if AgentVersion == "" {
 		AgentVersion = agentVersionDefault
 	}
+
+	if AgentPath == "" {
+		AgentPath = agentPathDefault
+	}
+	panic(AgentPath)
 }
