@@ -111,6 +111,10 @@ func TestExecCommandError(t *testing.T) {
 				pprof.Lookup("goroutine").WriteTo(file, 2)
 			}
 		}()
+
+		// just making sure writing to the artifact works
+		// will remove before merging once the job runs
+		time.Sleep(4 * time.Minute)
 	}
 
 	inputPayload := "{\"version\": \"" + secrets.PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
