@@ -37,6 +37,12 @@ VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
+RELEASE_JSON_FIELDS_TO_UPDATE = [
+    "INTEGRATIONS_CORE_VERSION",
+    "OMNIBUS_SOFTWARE_VERSION",
+    "OMNIBUS_RUBY_VERSION",
+    "MACOS_BUILD_VERSION",
+]
 
 
 @task
@@ -1232,7 +1238,7 @@ def _get_release_json_value(key):
     return release_json
 
 
-def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
+def create_and_update_release_branch(ctx, repo, release_branch, base_directory="~/dd", upstream="origin"):
     # Perform branch out in all required repositories
     with ctx.cd(f"{base_directory}/{repo}"):
         # Step 1 - Create a local branch out from the default branch
@@ -1245,11 +1251,31 @@ def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upst
         ctx.run(f"git checkout -b {release_branch}")
 
         if repo == UNFREEZE_REPO_AGENT:
+            # Step 1.1 - In datadog-agent repo update base_branch and nightly builds entries
             rj = _load_release_json()
+
             rj["base_branch"] = release_branch
+
+            for nightly in ["nightly", "nightly-a7"]:
+                for field in RELEASE_JSON_FIELDS_TO_UPDATE:
+                    rj[nightly][field] = f"{release_branch}"
+
             _save_release_json(rj)
-            ctx.run("git add release.json")
-            ok = try_git_command(ctx, f"git commit -m 'Set base_branch to {release_branch}'")
+
+            # Step 1.2 - In datadog-agent repo update gitlab-ci.yaml jobs
+            with open(".gitlab-ci.yml", "r") as gl:
+                file_content = gl.readlines()
+
+            with open(".gitlab-ci.yml", "w") as gl:
+                for line in file_content:
+                    if re.search(r"compare_to: main", line):
+                        gl.write(line.replace("main", f"{release_branch}"))
+                    else:
+                        gl.write(line)
+
+            # Step 1.3 - Commit new changes
+            ctx.run("git add release.json .gitlab-ci.yml")
+            ok = try_git_command(ctx, f"git commit -m 'Update release.json and .gitlab-ci.yml with {release_branch}'")
             if not ok:
                 raise Exit(
                     color_message(
@@ -1274,13 +1300,13 @@ def create_release_branch(ctx, repo, release_branch, base_directory="~/dd", upst
 
 
 @task(help={'upstream': "Remote repository name (default 'origin')"})
-def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin", redo=False):
+def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"):
     """
     Performs set of tasks required for the main branch unfreeze during the agent release cycle.
     That includes:
-    - creates a release branch in datadog-agent, omnibus-ruby and omnibus-software repositories,
-    - pushes an empty commit on the datadog-agent main branch,
-    - creates devel tags in the datadog-agent repository on the empty commit from the last step.
+    - creates a release branch in datadog-agent, datadog-agent-macos, omnibus-ruby and omnibus-software repositories,
+    - updates release.json on new datadog-agent branch to point to newly created release branches in nightly section
+    - updates entries in .gitlab-ci.yml which depend on local branch name
 
     Notes:
     base_directory - path to the directory where dd repos are cloned, defaults to ~/dd, but can be overwritten.
@@ -1300,7 +1326,6 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
 
     # Strings with proper branch/tag names
     release_branch = current.branch()
-    devel_tag = str(next)
 
     # Step 0: checks
 
@@ -1317,41 +1342,8 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
     ):
         raise Exit(color_message("Aborting.", "red"), code=1)
 
-    # Step 1: Create release branch
     for repo in UNFREEZE_REPOS:
-        create_release_branch(ctx, repo, release_branch, base_directory=base_directory)
-
-    print(color_message("Creating empty commit for devel tags", "bold"))
-    with ctx.cd(f"{base_directory}/datadog-agent"):
-        ctx.run("git checkout main")
-        ok = try_git_command(ctx, "git commit --allow-empty -m 'Empty commit for next release devel tags'")
-        if not ok:
-            raise Exit(
-                color_message(
-                    "Could not create commit. Please commit manually, push the commit manually to the main branch.",
-                    "red",
-                ),
-                code=1,
-            )
-
-        print(color_message("Pushing new commit", "bold"))
-        res = ctx.run(f"git push {upstream}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push commit to the upstream '{upstream}'. Please push it manually.",
-                    "red",
-                ),
-                code=1,
-            )
-
-    # Step 3: Create tags for next version
-    print(color_message(f"Creating devel tags for agent version(s) {list_major_versions}", "bold"))
-    print(
-        color_message("If commit signing is enabled, you will have to make sure each tag gets properly signed.", "bold")
-    )
-
-    tag_version(ctx, devel_tag, tag_modules=False, push=True, force=redo)
+        create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
 
 
 @task

@@ -196,6 +196,33 @@ func (suite *ecsSuite) TestNginx() {
 			},
 		},
 	})
+
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "apps-nginx-server",
+		},
+		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:ecs-.*-nginx-ec2-`,
+				`^docker_image:ghcr.io/datadog/apps-nginx-server:main$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:nginx$`,
+				`^git.commit.sha:`,                                                       // org.opencontainers.image.revision docker image label
+				`^git.repository_url:https://github.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^image_id:sha256:`,
+				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
+				`^image_tag:main$`,
+				`^short_image:apps-nginx-server$`,
+				`^task_arn:arn:`,
+				`^task_family:.*-nginx-ec2$`,
+				`^task_name:.*-nginx-ec2$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			Message: `GET / HTTP/1\.1`,
+		},
+	})
 }
 
 func (suite *ecsSuite) TestRedis() {
@@ -225,6 +252,31 @@ func (suite *ecsSuite) TestRedis() {
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
+		},
+	})
+
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "redis",
+		},
+		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^container_id:`,
+				`^container_name:ecs-.*-redis-ec2-`,
+				`^docker_image:redis:latest$`,
+				`^ecs_cluster_name:` + regexp.QuoteMeta(suite.ecsClusterName) + `$`,
+				`^ecs_container_name:redis$`,
+				`^image_id:sha256:`,
+				`^image_name:redis$`,
+				`^image_tag:latest$`,
+				`^short_image:redis$`,
+				`^task_arn:arn:`,
+				`^task_family:.*-redis-ec2$`,
+				`^task_name:.*-redis-ec2$`,
+				`^task_version:[[:digit:]]+$`,
+			},
+			Message: `oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo`,
 		},
 	})
 }

@@ -5,6 +5,7 @@ NOTE: Changes made to this template should be reflected on the following templat
 ==========
 Aggregator
 ==========
+{{- with .aggregatorStats }}
 {{- if .ChecksMetricSample }}
   Checks Metric Sample: {{humanize .ChecksMetricSample}}
 {{- end }}
@@ -54,4 +55,5 @@ Aggregator
 {{- end }}
 {{- if .HostnameUpdate}}
   Hostname Update: {{humanize .HostnameUpdate}}
+{{- end }}
 {{- end }}

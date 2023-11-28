@@ -120,6 +120,17 @@ func setSecurityEventsTags(span span, events []any, headers, respHeaders map[str
 	}
 }
 
+// setAPISecurityEventsTags sets the AppSec-specific span tags related to API security schemas
+func setAPISecurityTags(span span, derivatives map[string]any) {
+	for key, val := range derivatives {
+		if rawVal, err := json.Marshal(val); err != nil {
+			log.Errorf("appsec: unexpected error while creating the API security tags: %v", err)
+		} else {
+			span.SetMetaTag(key, string(rawVal))
+		}
+	}
+}
+
 // normalizeHTTPHeaders returns the HTTP headers following Datadog's
 // normalization format.
 func normalizeHTTPHeaders(headers map[string][]string) (normalized map[string]string) {
