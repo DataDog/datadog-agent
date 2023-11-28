@@ -13,6 +13,17 @@ func (d *dispatcher) isolateCheck(isolateCheckID string) types.IsolateResponse {
 	// Update stats prior to starting isolate to ensure all checks are accounted for
 	d.updateRunnersStats()
 	currentDistribution := d.currentDistribution()
+
+	// If there is only one runner, we cannot isolate the check
+	if len(currentDistribution.runnerWorkers()) == 1 {
+		return types.IsolateResponse{
+			CheckID:    isolateCheckID,
+			CheckNode:  "",
+			IsIsolated: false,
+			Reason:     "No other runners available",
+		}
+	}
+
 	isolateNode := currentDistribution.runnerForCheck(isolateCheckID)
 	if isolateNode == "" {
 		return types.IsolateResponse{
