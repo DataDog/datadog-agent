@@ -176,7 +176,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: 58b54f06414b
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: c8eaaee94472
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -304,6 +304,10 @@ variables:
 .if_scheduled_main: &if_scheduled_main
   if: $CI_PIPELINE_SOURCE == "schedule" && $CI_COMMIT_BRANCH == "main"
 
+# Rule to trigger jobs only when a branch matches the mergequeue pattern.
+.if_mergequeue: &if_mergequeue
+  if: $CI_COMMIT_BRANCH =~ /^mq-working-branch-/
+
 #
 # Workflow rules
 # Rules used to define whether a pipeline should run, and with which variables
@@ -340,26 +344,38 @@ workflow:
 #
 
 .manual:
+  - <<: *if_mergequeue
+    when: never
   - when: manual
     allow_failure: true
 
 .on_a6:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_6
 
 .on_a6_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_6
     when: manual
     allow_failure: true
 
 .on_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_7
 
 .on_a7_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_version_7
     when: manual
     allow_failure: true
 
 .on_dev_branch_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_main_branch
     when: never
   - <<: *if_tagged_commit
@@ -386,6 +402,8 @@ workflow:
   - <<: *if_main_branch
 
 .on_tag_or_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_tagged_commit
   - <<: *if_version_7
 
@@ -536,6 +554,8 @@ workflow:
 # rule to trigger job for internal image deployment if deploy is set or
 # manually if not
 .on_deploy_a7_internal_or_manual:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_deploy
@@ -776,6 +796,8 @@ workflow:
     when: never
   - <<: *if_release_branch
     when: never
+  - <<: *if_mergequeue
+    when: never
 
 .on_main_or_release_branch_or_deploy_always:
   - <<: *if_deploy
@@ -859,6 +881,8 @@ workflow:
 # In that case, the target OS versions is a subset of the
 # available versions, stored in DEFAULT_KITCHEN_OSVERS
 .on_default_kitchen_tests_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_kitchen
@@ -867,6 +891,8 @@ workflow:
       KITCHEN_OSVERS: $DEFAULT_KITCHEN_OSVERS
 
 .on_default_new-e2e_tests_a7:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_kitchen
@@ -875,6 +901,8 @@ workflow:
       E2E_OSVERS: $E2E_BRANCH_OSVERS
 
 .on_default_kitchen_tests_a7_always:
+  - <<: *if_mergequeue
+    when: never
   - <<: *if_not_version_7
     when: never
   - <<: *if_kitchen
@@ -894,6 +922,8 @@ workflow:
 .on_security_agent_changes_or_manual:
   - <<: *if_main_branch
     allow_failure: true
+  - <<: *if_mergequeue
+    when: never
   - changes:
       paths:
         - pkg/ebpf/**/*
@@ -910,6 +940,8 @@ workflow:
 
 .on_system_probe_changes_or_manual:
   - <<: *if_main_branch
+  - <<: *if_mergequeue
+    when: never
   - changes:
       paths:
         - pkg/collector/corechecks/ebpf/**/*
@@ -966,3 +998,7 @@ workflow:
     when: never
   - <<: *if_main_branch
     when: on_success
+
+.except_mergequeue:
+  - <<: *if_mergequeue
+    when: never

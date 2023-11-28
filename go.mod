@@ -74,7 +74,7 @@ require (
 	code.cloudfoundry.org/garden v0.0.0-20210208153517-580cadd489d2
 	code.cloudfoundry.org/lager v2.0.0+incompatible
 	github.com/CycloneDX/cyclonedx-go v0.7.2
-	github.com/DataDog/appsec-internal-go v1.0.2
+	github.com/DataDog/appsec-internal-go v1.2.0
 	github.com/DataDog/datadog-agent/pkg/gohai v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/obfuscate v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.50.0-rc.4
@@ -87,7 +87,7 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.3.1-0.20231115110321-54ec306d83b2
 	// do not update datadog-operator to 1.2.1 because the indirect dependency github.com/DataDog/datadog-api-client-go/v2 v2.15.0 is trigger a huge Go heap memory increase.
 	github.com/DataDog/datadog-operator v1.1.0
-	github.com/DataDog/ebpf-manager v0.3.6
+	github.com/DataDog/ebpf-manager v0.3.7
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.1
