@@ -6,7 +6,6 @@
 package listeners
 
 import (
-	"expvar"
 	"fmt"
 	"net"
 	"strings"
@@ -18,21 +17,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-var (
-	udpExpvars             = expvar.NewMap("dogstatsd-udp")
-	udpPacketReadingErrors = expvar.Int{}
-	udpPackets             = expvar.Int{}
-	udpBytes               = expvar.Int{}
-)
+var udpTelemetry = newListenerTelemetry("udp", "UDP")
 
 // RandomPortName is the value for dogstatsd_port setting that indicates that the server should allocate a random unique port.
 const RandomPortName = "__random__" // this would be zero if zero wasn't used already to disable udp support.
-
-func init() {
-	udpExpvars.Set("PacketReadingErrors", &udpPacketReadingErrors)
-	udpExpvars.Set("Packets", &udpPackets)
-	udpExpvars.Set("Bytes", &udpBytes)
-}
 
 // UDPListener implements the StatsdListener interface for UDP protocol.
 // It listens to a given UDP address and sends back packets ready to be
@@ -109,7 +97,6 @@ func (l *UDPListener) Listen() {
 	for {
 		n, _, err := l.conn.ReadFrom(l.buffer)
 		t1 = time.Now()
-		udpPackets.Add(1)
 
 		if err != nil {
 			// connection has been closed
@@ -118,14 +105,9 @@ func (l *UDPListener) Listen() {
 			}
 
 			log.Errorf("dogstatsd-udp: error reading packet: %v", err)
-			udpPacketReadingErrors.Add(1)
-			tlmUDPPackets.Inc("error")
+			udpTelemetry.onReadError()
 		} else {
-			tlmUDPPackets.Inc("ok")
-
-			udpBytes.Add(int64(n))
-			tlmUDPPacketsBytes.Add(float64(n))
-
+			udpTelemetry.onReadSuccess(n)
 			// packetAssembler merges multiple packets together and sends them when its buffer is full
 			l.packetAssembler.AddMessage(l.buffer[:n])
 		}

@@ -6,26 +6,13 @@
 package listeners
 
 import (
+	"expvar"
+	"fmt"
+
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 )
 
 var (
-	// UDP
-	tlmUDPPackets = telemetry.NewCounter("dogstatsd", "udp_packets",
-		[]string{"state"}, "Dogstatsd UDP packets count")
-	tlmUDPPacketsBytes = telemetry.NewCounter("dogstatsd", "udp_packets_bytes",
-		nil, "Dogstatsd UDP packets bytes count")
-
-	// UDS
-	tlmUDSPackets = telemetry.NewCounter("dogstatsd", "uds_packets",
-		[]string{"listener_id", "transport", "state"}, "Dogstatsd UDS packets count")
-	tlmUDSOriginDetectionError = telemetry.NewCounter("dogstatsd", "uds_origin_detection_error",
-		[]string{"listener_id", "transport"}, "Dogstatsd UDS origin detection error count")
-	tlmUDSPacketsBytes = telemetry.NewCounter("dogstatsd", "uds_packets_bytes",
-		[]string{"listener_id", "transport"}, "Dogstatsd UDS packets bytes")
-	tlmUDSConnections = telemetry.NewGauge("dogstatsd", "uds_connections",
-		[]string{"listener_id", "transport"}, "Dogstatsd UDS connections count")
-
 	tlmListener            = telemetry.NewHistogramNoOp()
 	defaultListenerBuckets = []float64{300, 500, 1000, 1500, 2000, 2500, 3000, 10000, 20000, 50000}
 )
@@ -44,4 +31,50 @@ func InitTelemetry(buckets []float64) {
 		[]string{"listener_id", "transport", "listener_type"},
 		"Time in nanoseconds while the listener is not reading data",
 		buckets)
+}
+
+type listenerTelemetry struct {
+	packetReadingErrors expvar.Int
+	packets             expvar.Int
+	bytes               expvar.Int
+	expvars             *expvar.Map
+	tlmPackets          telemetry.Counter
+	tlmPacketsBytes     telemetry.Counter
+}
+
+func newListenerTelemetry(metricName string, name string) *listenerTelemetry {
+	expvars := expvar.NewMap("dogstatsd-" + metricName)
+	packetReadingErrors := expvar.Int{}
+	packets := expvar.Int{}
+	bytes := expvar.Int{}
+
+	tlmPackets := telemetry.NewCounter("dogstatsd", metricName+"_packets",
+		[]string{"state"}, fmt.Sprintf("Dogstatsd %s packets count", name))
+	tlmPacketsBytes := telemetry.NewCounter("dogstatsd", metricName+"_packets_bytes",
+		nil, fmt.Sprintf("Dogstatsd %s packets bytes count", name))
+	expvars.Set("PacketReadingErrors", &packetReadingErrors)
+	expvars.Set("Packets", &packets)
+	expvars.Set("Bytes", &bytes)
+
+	return &listenerTelemetry{
+		expvars:             expvars,
+		packetReadingErrors: packetReadingErrors,
+		tlmPackets:          tlmPackets,
+		packets:             packets,
+		bytes:               bytes,
+		tlmPacketsBytes:     tlmPacketsBytes,
+	}
+}
+
+func (t *listenerTelemetry) onReadSuccess(n int) {
+	t.packets.Add(1)
+	t.tlmPackets.Inc("ok")
+	t.bytes.Add(int64(n))
+	t.tlmPacketsBytes.Add(float64(n))
+}
+
+func (t *listenerTelemetry) onReadError() {
+	t.packets.Add(1)
+	t.packetReadingErrors.Add(1)
+	t.tlmPackets.Inc("error")
 }
