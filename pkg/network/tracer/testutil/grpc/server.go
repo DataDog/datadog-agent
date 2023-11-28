@@ -248,6 +248,7 @@ func NewServerWithoutBind() *Server {
 	return server
 }
 
+// GetGRPCServer returns the gRPC server.
 func (s *Server) GetGRPCServer() *grpc.Server {
 	return s.grpcSrv
 }
