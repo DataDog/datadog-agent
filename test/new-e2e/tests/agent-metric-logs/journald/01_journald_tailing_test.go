@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -23,14 +22,20 @@ type LinuxVMFakeintakeSuite struct {
 	DevMode bool
 }
 
-//go:embed log-config/log-config.yaml
+//go:embed log-config/journald-log-config.yaml
 var logConfig []byte
 
-//go:embed log-config/log-config2.yaml
+//go:embed log-config/journald-include-log-config.yaml
 var logConfig2 []byte
 
-//go:embed log-config/log-config3.yaml
+//go:embed log-config/journald-exclude-log-config.yaml
 var logConfig3 []byte
+
+//go:embed log-config/python-log-script.sh
+var pythonScript []byte
+
+//go:embed log-config/random-logger-service.sh
+var randomLogger []byte
 
 // logsExampleStackDef returns the stack definition required for the log agent test suite.
 func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
@@ -49,7 +54,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 		s.DevMode = true
 	}
 
-	e2e.Run(t, &LinuxVMFakeintakeSuite{}, logsExampleStackDef(), params.WithDevMode())
+	e2e.Run(t, &LinuxVMFakeintakeSuite{}, logsExampleStackDef())
 }
 
 func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
@@ -69,7 +74,6 @@ func (s *LinuxVMFakeintakeSuite) TestJournald() {
 	s.Run("journaldIncludeServiceLogCollection()", s.journaldIncludeServiceLogCollection)
 
 	s.Run("journaldExcludeServiceCollection()", s.journaldExcludeServiceCollection)
-
 }
 
 func (s *LinuxVMFakeintakeSuite) journaldLogCollection() {
@@ -83,7 +87,7 @@ func (s *LinuxVMFakeintakeSuite) journaldLogCollection() {
 	// Generate log
 	generateLog(s, "hello-world", "journald")
 
-	// Part 2: require.NoError t,are found in intake after generation
+	// Part 2: check that the generated log is collected
 	checkLogs(s, "hello", "hello-world")
 }
 
@@ -96,54 +100,32 @@ func (s *LinuxVMFakeintakeSuite) journaldIncludeServiceLogCollection() {
 	vm := s.Env().VM
 	t := s.T()
 
-	python_script := `sudo bash -c 'cat > /usr/bin/random-logger.py << EOF
-#!/usr/bin/env python3
-
-import logging
-import random
-from time import sleep
-
-logging.basicConfig(format="%(asctime)s | %(levelname)s | %(message)s", level=logging.DEBUG)
-
-while True:
-    logging.info("This is less important than debug log and is often used to provide context in the current task.")
-    sleep(random.uniform(0, 5))
-EOF'
-`
+	// Create journald log generation script
+	python_script := string(pythonScript)
 	_, err := vm.ExecuteWithError(python_script)
 	require.NoError(t, err, "Failed to generate journald log generation script ")
-	_, err = vm.ExecuteWithError("sudo chmod 777 /usr/bin/random-logger.py")
-	require.NoError(t, err, "Failed to change permission for journald script")
 
-	logger_service := `sudo bash -c 'cat > /etc/systemd/system/random-logger.service << EOF
-[Unit]
-Description=Random logger
-
-[Service]
-ExecStart=/usr/bin/random-logger.py
-
-[Install]
-WantedBy=multi-user.target
-EOF'
-`
-
+	// Create journald log generation service
+	logger_service := string(randomLogger)
 	_, err = vm.ExecuteWithError(logger_service)
 	require.NoError(t, err, "Failed to create journald log generation service ")
 
-	_, err = vm.ExecuteWithError("sudo chmod 777 /etc/systemd/system/random-logger.service")
-	require.NoError(t, err, "Failed to change permission for service")
-
+	// Enable journald log generation service
 	_, err = vm.ExecuteWithError("sudo systemctl daemon-reload")
 	require.NoError(t, err, "Failed to load journald service")
 
+	// Start journald log generation service
 	_, err = vm.ExecuteWithError("sudo systemctl enable --now random-logger.service")
 	require.NoError(t, err, "Failed to enable journaald service")
 
+	// Restart agent
 	_, err = vm.ExecuteWithError("sudo service datadog-agent restart")
 	require.NoError(t, err, "Failed to restart the agent")
 
+	// Check that the agent service log is collected
 	checkLogs(s, "random-logger.py", "less important")
 
+	// Disable journald log generation service
 	_, err = vm.ExecuteWithError("sudo systemctl disable --now random-logger.service")
 	require.NoError(t, err, "Failed to disable the logging service")
 }
@@ -157,6 +139,6 @@ func (s *LinuxVMFakeintakeSuite) journaldExcludeServiceCollection() {
 	// Restart agent
 	s.Env().VM.Execute("sudo systemctl restart datadog-agent")
 
-	// Check that the agent service log is not collected
+	// Check that the datadog-agent.service log is not collected
 	checkExcludeLog(s, "not-datadog", "running check")
 }

@@ -98,6 +98,33 @@ func checkLogs(suite *LinuxVMFakeintakeSuite, service, content string) {
 
 }
 
+// checkExcludeLog checks and verifies excluded logs is not inside the intake.
+func checkExcludeLog(suite *LinuxVMFakeintakeSuite, service, content string) {
+	client := suite.Env().Fakeintake
+
+	suite.EventuallyWithT(func(c *assert.CollectT) {
+		names, err := client.GetLogServiceNames()
+		if !assert.NoErrorf(c, err, "Error found: %s", err) {
+			return
+		}
+
+		if len(names) > 0 {
+			logs, err := client.FilterLogs(service)
+			if !assert.NoErrorf(c, err, "Error found: %s", err) {
+				return
+			}
+			if !assert.NotEmpty(c, logs, "No logs with service matching '%s' found, instead got '%s'", service, names) {
+				return
+			}
+
+			logs, err = client.FilterLogs(service, fi.WithMessageContaining(content))
+			logcContent := logsToString(logs)
+			assert.NoErrorf(c, err, "Error found: %s", err)
+			assert.NotContainsf(c, logs, content, "Expected no log with content: '%s', but received %s logs.", content, logcContent)
+		}
+	}, 2*time.Minute, 1*time.Second)
+}
+
 // cleanUp cleans up any existing log files (only useful when running dev mode/local runs).
 func (s *LinuxVMFakeintakeSuite) cleanUp() {
 	t := s.T()
@@ -133,32 +160,7 @@ func (s *LinuxVMFakeintakeSuite) cleanUp() {
 	}, 2*time.Minute, 1*time.Second)
 }
 
-func checkExcludeLog(suite *LinuxVMFakeintakeSuite, service, content string) {
-	client := suite.Env().Fakeintake
-
-	suite.EventuallyWithT(func(c *assert.CollectT) {
-		names, err := client.GetLogServiceNames()
-		if !assert.NoErrorf(c, err, "Error found: %s", err) {
-			return
-		}
-
-		if len(names) > 0 {
-			logs, err := client.FilterLogs(service)
-			if !assert.NoErrorf(c, err, "Error found: %s", err) {
-				return
-			}
-			if !assert.NotEmpty(c, logs, "No logs with service matching '%s' found, instead got '%s'", service, names) {
-				return
-			}
-
-			logs, err = client.FilterLogs(service, fi.WithMessageContaining(content))
-			logcContent := logsToString(logs)
-			assert.NoErrorf(c, err, "Error found: %s", err)
-			assert.NotContainsf(c, logs, content, "Expected no log with content: '%s', but received %s logs.", content, logcContent)
-		}
-	}, 2*time.Minute, 1*time.Second)
-}
-
+// prettyPrintLog pretty prints a log entry.
 func prettyPrintLog(log *aggregator.Log) string {
 	// Unmarshal and re-marshal the message field for pretty printing
 	var messageObj map[string]interface{}
@@ -176,6 +178,7 @@ func prettyPrintLog(log *aggregator.Log) string {
 	return string(logStr)
 }
 
+// logsToString converts a slice of logs to a string.
 func logsToString(logs []*aggregator.Log) string {
 	var logsStrings []string
 	for _, log := range logs {
