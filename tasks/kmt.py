@@ -45,6 +45,7 @@ def create_stack(ctx, stack=None):
         "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
     }
 )
+<<<<<<< HEAD
 def gen_config(
     ctx,
     stack=None,
@@ -59,6 +60,10 @@ def gen_config(
     output_file="vmconfig.json",
 ):
     vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
+=======
+def gen_config(ctx, stack=None, vms="*", sets="", init_stack=False, vcpu="4", memory="8192", new=False, ci=False):
+    vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci)
+>>>>>>> ab15e0bd83 (add to task to generate vmconfig.json at runtime)
 
 
 @task

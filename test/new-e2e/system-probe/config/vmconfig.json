@@ -74,6 +74,7 @@
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-12-generic-x86_64.qcow2.xz"
                 },
                 {
+<<<<<<< HEAD
                     "dir": "centos-7.9-x86_64.qcow2",
                     "tag": "centos_79",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-7.9-x86_64.qcow2.xz"
@@ -82,6 +83,11 @@
                     "dir": "centos-8-x86_64.qcow2",
                     "tag": "centos_8",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-8-x86_64.qcow2.xz"
+=======
+                    "dir": "CentOS-7-x86_64-GenericCloud-2211.qcow2",
+                    "tag": "centos_79",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/CentOS-7-x86_64-GenericCloud-2211.qcow2.xz"
+>>>>>>> ab15e0bd83 (add to task to generate vmconfig.json at runtime)
                 }
             ],
             "vcpu": [
@@ -100,9 +106,13 @@
             ]
         },
         {
+<<<<<<< HEAD
             "tags": [
                 "distro_arm64"
             ],
+=======
+            "name": "distro_arm64",
+>>>>>>> ab15e0bd83 (add to task to generate vmconfig.json at runtime)
             "recipe": "distro-arm64",
             "arch": "arm64",
             "console_type": "file",
@@ -168,6 +178,7 @@
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-12-generic-arm64.qcow2.xz"
                 },
                 {
+<<<<<<< HEAD
                     "dir": "centos-7.9-arm64.qcow2",
                     "tag": "centos_79",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-7.9-arm64.qcow2.xz"
@@ -176,6 +187,11 @@
                     "dir": "centos-8-arm64.qcow2",
                     "tag": "centos_8",
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-8-arm64.qcow2.xz"
+=======
+                    "dir": "CentOS-7-aarch64-GenericCloud-2211.qcow2",
+                    "tag": "centos_79",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/CentOS-7-aarch64-GenericCloud-2211.qcow2.xz"
+>>>>>>> ab15e0bd83 (add to task to generate vmconfig.json at runtime)
                 }
             ],
             "machine": "virt",
