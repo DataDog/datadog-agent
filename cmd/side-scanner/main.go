@@ -1776,7 +1776,7 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 			UserIds:       []string{self.AccountID},
 		})
 		if err != nil {
-			err = fmt.Errorf("could not modify snapshot attribytes %q for sharing with account ID %q: %w", snapshotARN, self.AccountID, err)
+			err = fmt.Errorf("could not modify snapshot attributes %q for sharing with account ID %q: %w", snapshotARN, self.AccountID, err)
 			return
 		}
 	}
