@@ -14,7 +14,8 @@ package http2
 import "C"
 
 const (
-	maxHTTP2Path = C.HTTP2_MAX_PATH_LEN
+	maxHTTP2Path     = C.HTTP2_MAX_PATH_LEN
+	HTTP2PathBuckets = C.HTTP2_TELEMETRY_PATH_BUCKETS
 	// The kernel limit per page in the per-cpu array of the http2 terminated connections map.
 	HTTP2TerminatedBatchSize = C.HTTP2_TERMINATED_BATCH_SIZE
 )

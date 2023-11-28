@@ -8,6 +8,8 @@
 package http2
 
 import (
+	"strconv"
+
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -24,18 +26,8 @@ type kernelTelemetry struct {
 	endOfStream *libtelemetry.Counter
 	// endOfStreamRST Count of RST flags seen
 	endOfStreamRST *libtelemetry.Counter
-	// pathSizeBucket Count of path sizes is less or equal than 120
-	pathSizeBucket0 *libtelemetry.Counter
-	// pathSizeBucket1 Count of path sizes between 121-130 bytes
-	pathSizeBucket1 *libtelemetry.Counter
-	// pathSizeBucket2 Count of path sizes between 131-140 bytes
-	pathSizeBucket2 *libtelemetry.Counter
-	// pathSizeBucket3 Count of path sizes between 141-150 bytes
-	pathSizeBucket3 *libtelemetry.Counter
-	// pathSizeBucket4 Count of path sizes between 151-160 bytes
-	pathSizeBucket4 *libtelemetry.Counter
-	// pathSizeBucket5 Count of path sizes greater than 161 bytes
-	pathSizeBucket5 *libtelemetry.Counter
+	// pathSizeBucket Count of path sizes divided into buckets.
+	pathSizeBucket [HTTP2PathBuckets + 1]*libtelemetry.Counter
 	// pathExceedsFrame Count of times we couldn't retrieve the path due to reaching the end of the frame.
 	pathExceedsFrame *libtelemetry.Counter
 	// exceedingMaxInterestingFrames Count of times we reached the max number of frames per iteration.
@@ -47,22 +39,20 @@ type kernelTelemetry struct {
 // newHTTP2KernelTelemetry hold HTTP/2 kernel metrics.
 func newHTTP2KernelTelemetry() *kernelTelemetry {
 	metricGroup := libtelemetry.NewMetricGroup("usm.http2", libtelemetry.OptPrometheus)
-	return &kernelTelemetry{
-		metricGroup: metricGroup,
-
+	http2KernelTel := &kernelTelemetry{
+		metricGroup:                   metricGroup,
 		http2requests:                 metricGroup.NewCounter("requests"),
 		http2responses:                metricGroup.NewCounter("responses"),
 		endOfStream:                   metricGroup.NewCounter("eos"),
 		endOfStreamRST:                metricGroup.NewCounter("rst"),
 		pathExceedsFrame:              metricGroup.NewCounter("path_exceeds_frame"),
-		pathSizeBucket0:               metricGroup.NewCounter("path_size_bucket_1"),
-		pathSizeBucket1:               metricGroup.NewCounter("path_size_bucket_2"),
-		pathSizeBucket2:               metricGroup.NewCounter("path_size_bucket_3"),
-		pathSizeBucket3:               metricGroup.NewCounter("path_size_bucket_4"),
-		pathSizeBucket4:               metricGroup.NewCounter("path_size_bucket_5"),
-		pathSizeBucket5:               metricGroup.NewCounter("path_size_bucket_6"),
 		exceedingMaxInterestingFrames: metricGroup.NewCounter("exceeding_max_interesting_frames"),
 		exceedingMaxFramesToFilter:    metricGroup.NewCounter("exceeding_max_frames_to_filter")}
+	for bucketIndex := range http2KernelTel.pathSizeBucket {
+		http2KernelTel.pathSizeBucket[bucketIndex] = metricGroup.NewCounter("path_size_bucket_" + (strconv.Itoa(bucketIndex + 1)))
+	}
+
+	return http2KernelTel
 }
 
 // update updates the kernel metrics with the given telemetry.
@@ -72,14 +62,11 @@ func (t *kernelTelemetry) update(tel *HTTP2Telemetry) {
 	t.endOfStream.Add(int64(tel.End_of_stream))
 	t.endOfStreamRST.Add(int64(tel.End_of_stream_rst))
 	t.pathExceedsFrame.Add(int64(tel.Path_exceeds_frame))
-	t.pathSizeBucket0.Add(int64(tel.Path_size_bucket[0]))
-	t.pathSizeBucket1.Add(int64(tel.Path_size_bucket[1]))
-	t.pathSizeBucket2.Add(int64(tel.Path_size_bucket[2]))
-	t.pathSizeBucket3.Add(int64(tel.Path_size_bucket[3]))
-	t.pathSizeBucket4.Add(int64(tel.Path_size_bucket[4]))
-	t.pathSizeBucket5.Add(int64(tel.Path_size_bucket[5]))
 	t.exceedingMaxInterestingFrames.Add(int64(tel.Exceeding_max_interesting_frames))
 	t.exceedingMaxFramesToFilter.Add(int64(tel.Exceeding_max_frames_to_filter))
+	for bucketIndex := range t.pathSizeBucket {
+		t.pathSizeBucket[bucketIndex].Add(int64(tel.Path_size_bucket[bucketIndex]))
+	}
 }
 
 func (t *kernelTelemetry) Log() {
