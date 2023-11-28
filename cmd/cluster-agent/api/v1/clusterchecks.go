@@ -136,11 +136,7 @@ func postIsolateCheck(sc clusteragent.ServerContext) func(w http.ResponseWriter,
 		vars := mux.Vars(r)
 		isolateCheckID := vars["identifier"]
 
-		response, err := sc.ClusterCheckHandler.IsolateCheck(isolateCheckID)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		response := sc.ClusterCheckHandler.IsolateCheck(isolateCheckID)
 
 		writeJSONResponse(w, response)
 	}
