@@ -162,7 +162,7 @@ DEFAULT_MODULES = {
     "pkg/config/logs": GoModule("pkg/config/logs", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
-    "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),
+    "pkg/remoteconfig": GoModule("pkg/remoteconfig", independent=True),
     "pkg/util/cgroups": GoModule("pkg/util/cgroups", independent=True, condition=lambda: sys.platform == "linux"),
     "pkg/util/http": GoModule("pkg/util/http", independent=True),
     "pkg/util/log": GoModule("pkg/util/log", independent=True),
