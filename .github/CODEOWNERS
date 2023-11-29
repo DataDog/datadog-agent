@@ -328,7 +328,6 @@
 /pkg/proto/datadog/languagedetection    @DataDog/processes
 /pkg/proto/datadog/process              @DataDog/processes
 /pkg/proto/datadog/trace                @DataDog/agent-apm
-/pkg/proto/pbgo/trace                   @DataDog/agent-apm
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/secrets/                           @DataDog/agent-shared-components
@@ -370,6 +369,8 @@
 /pkg/process/net/                       @DataDog/processes @DataDog/Networks
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
 /pkg/proto/pbgo/                        # do not notify anyone
+/pkg/proto/pbgo/trace                   @DataDog/agent-apm
+/pkg/proto/pbgo/core                    @DataDog/processes
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/Networks
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
