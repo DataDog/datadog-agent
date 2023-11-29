@@ -6,14 +6,14 @@
 package rcclient
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/data"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -72,7 +72,7 @@ func TestAgentConfigCallback(t *testing.T) {
 
 	structRC := rc.(rcClient)
 
-	structRC.client, _ = remote.NewUnverifiedGRPCClient(
+	structRC.client, _ = remoteconfig.NewUnverifiedGRPCClient(
 		"test-agent",
 		"9.99.9",
 		[]data.Product{data.ProductAgentConfig},

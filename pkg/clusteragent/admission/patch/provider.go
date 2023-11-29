@@ -9,10 +9,10 @@ package patch
 
 import (
 	"errors"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
 )
 
 type patchProvider interface {
@@ -20,7 +20,7 @@ type patchProvider interface {
 	subscribe(kind TargetObjKind) chan Request
 }
 
-func newPatchProvider(rcClient *remote.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (patchProvider, error) {
+func newPatchProvider(rcClient *remoteconfig.Client, isLeaderNotif <-chan struct{}, telemetryCollector telemetry.TelemetryCollector, clusterName string) (patchProvider, error) {
 	if config.IsRemoteConfigEnabled(config.Datadog) {
 		return newRemoteConfigProvider(rcClient, isLeaderNotif, telemetryCollector, clusterName)
 	}

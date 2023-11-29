@@ -17,11 +17,11 @@ import (
 
 	"go.etcd.io/bbolt"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/api"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/uptane"
 	"github.com/DataDog/datadog-agent/pkg/proto/msgpgo"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/api"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/data"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/uptane"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )

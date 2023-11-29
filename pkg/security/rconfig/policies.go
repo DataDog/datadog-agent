@@ -9,6 +9,8 @@ package rconfig
 import (
 	"bytes"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/data"
 	"strings"
 	"sync"
 	"time"
@@ -16,8 +18,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/skydive-project/go-debouncer"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
-	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -33,7 +33,7 @@ const (
 type RCPolicyProvider struct {
 	sync.RWMutex
 
-	client               *remote.Client
+	client               *remoteconfig.Client
 	onNewPoliciesReadyCb func()
 	lastDefaults         map[string]state.RawConfig
 	lastCustoms          map[string]state.RawConfig
@@ -49,7 +49,7 @@ func NewRCPolicyProvider() (*RCPolicyProvider, error) {
 		return nil, fmt.Errorf("failed to parse agent version: %v", err)
 	}
 
-	c, err := remote.NewUnverifiedGRPCClient(agentName, agentVersion.String(), []data.Product{data.ProductCWSDD, data.ProductCWSCustom}, securityAgentRCPollInterval)
+	c, err := remoteconfig.NewUnverifiedGRPCClient(agentName, agentVersion.String(), []data.Product{data.ProductCWSDD, data.ProductCWSCustom}, securityAgentRCPollInterval)
 	if err != nil {
 		return nil, err
 	}

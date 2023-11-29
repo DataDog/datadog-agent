@@ -9,7 +9,7 @@ import (
 	"encoding/json"
 	fmt "fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/config/remote/meta"
+	"github.com/DataDog/datadog-agent/pkg/remoteconfig/meta"
 )
 
 var (

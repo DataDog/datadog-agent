@@ -12,8 +12,8 @@ import (
 	"github.com/DataDog/go-tuf/data"
 	"github.com/Masterminds/semver"
 
-	rdata "github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	rdata "github.com/DataDog/datadog-agent/pkg/remoteconfig/data"
 )
 
 // ConfigFileMetaCustom is the custom metadata of a config
