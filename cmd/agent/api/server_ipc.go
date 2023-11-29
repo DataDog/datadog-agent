@@ -20,13 +20,13 @@ import (
 
 const ipc_server_name string = "IPC API Server"
 
-var ipcConfigListener net.Listener
+var ipcListener net.Listener
 var allowedConfigPaths = map[string]struct{}{
 	"api_key": {},
 }
 
-func startIPCServer(ipcConfigHostPort string, tlsConfig *tls.Config) (err error) {
-	ipcConfigListener, err = getListener(ipcConfigHostPort)
+func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config) (err error) {
+	ipcListener, err = getListener(ipcServerAddr)
 	if err != nil {
 		return err
 	}
@@ -53,13 +53,13 @@ func startIPCServer(ipcConfigHostPort string, tlsConfig *tls.Config) (err error)
 		"/config/",
 		http.StripPrefix("/config", configEndpointMux))
 
-	ipcConfigServer := &http.Server{
-		Addr:      ipcConfigHostPort,
+	ipcServer := &http.Server{
+		Addr:      ipcServerAddr,
 		Handler:   http.TimeoutHandler(ipcMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second, "timeout"),
 		TLSConfig: tlsConfig,
 	}
 
-	startServer(ipcConfigListener, ipcConfigServer, ipc_server_name)
+	startServer(ipcListener, ipcServer, ipc_server_name)
 
 	return nil
 }
@@ -82,5 +82,5 @@ func getConfigMarshalled(path string) ([]byte, error) {
 }
 
 func stopIPCServer() {
-	stopServer(ipcConfigListener, ipc_server_name)
+	stopServer(ipcListener, ipc_server_name)
 }

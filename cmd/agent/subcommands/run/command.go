@@ -517,7 +517,7 @@ func startAgent(
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(
+	if err = api.StartServers(
 		configService,
 		flare,
 		server,
@@ -649,7 +649,7 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 		common.MetadataScheduler.Stop()
 	}
 	traps.StopServer()
-	api.StopServer()
+	api.StopServers()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
 

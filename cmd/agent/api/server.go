@@ -62,8 +62,8 @@ func stopServer(listener net.Listener, name string) {
 	}
 }
 
-// StartServer creates the router and starts the HTTP server
-func StartServer(
+// StartServers creates certificates and starts API servers
+func StartServers(
 	configService *remoteconfig.Service,
 	flare flare.Component,
 	dogstatsdServer dogstatsdServer.Component,
@@ -85,13 +85,13 @@ func StartServer(
 
 	additionalHostIdentities := []string{apiAddr}
 
-	ipcHost := config.Datadog.GetString("agent_ipc_host")
-	apiConfigPort := config.Datadog.GetInt("agent_ipc_port")
-	apiConfigEnabled := apiConfigPort > 0
-	apiConfigHostPort := net.JoinHostPort(ipcHost, strconv.Itoa(apiConfigPort))
+	ipcServerHost := config.Datadog.GetString("agent_ipc_host")
+	ipcServerPort := config.Datadog.GetInt("agent_ipc_port")
+	ipcServerEnabled := ipcServerPort > 0
+	ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
 
-	if apiConfigEnabled {
-		additionalHostIdentities = append(additionalHostIdentities, apiConfigHostPort)
+	if ipcServerEnabled {
+		additionalHostIdentities = append(additionalHostIdentities, ipcServerHostPort)
 	}
 
 	tlsKeyPair, tlsCertPool, err := initializeTLS(additionalHostIdentities...)
@@ -121,10 +121,10 @@ func StartServer(
 	}
 
 	// start the IPC server
-	if apiConfigEnabled {
-		if err := startIPCServer(apiConfigHostPort, tlsConfig); err != nil {
+	if ipcServerEnabled {
+		if err := startIPCServer(ipcServerHostPort, tlsConfig); err != nil {
 			// if we fail to start the IPC server, we should stop the CMD server
-			StopServer()
+			StopServers()
 			return fmt.Errorf("unable to start IPC API server: %v", err)
 		}
 	}
@@ -132,8 +132,8 @@ func StartServer(
 	return nil
 }
 
-// StopServer closes the connections and the servers
-func StopServer() {
+// StopServers closes the connections and the servers
+func StopServers() {
 	stopCMDServer()
 	stopIPCServer()
 }
