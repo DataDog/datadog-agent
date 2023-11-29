@@ -41,8 +41,6 @@ func generateLog(s *LinuxVMFakeintakeSuite, content string) {
 	}
 
 	s.Env().VM.Execute(cmd)
-
-	// Check if the log has been generated.
 	output := s.Env().VM.Execute(checkCmd)
 	if strings.Contains(output, content) {
 		t.Logf("Finished generating %s log.", os)
@@ -71,8 +69,14 @@ func checkLogs(suite *LinuxVMFakeintakeSuite, service, content string) {
 			logs, err = client.FilterLogs(service, fi.WithMessageContaining(content))
 			assert.NoErrorf(c, err, "Error found: %s", err)
 			assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', but received %v logs.", content, logs)
+		} else {
+			logs, err := client.FilterLogs(service)
+			if !assert.NoErrorf(c, err, "Error found: %s", err) {
+				return
+			}
+			assert.Emptyf(c, logs, "Expected no logs from service: %s with content: %s but found %", service, content)
 		}
-	}, 5*time.Minute, 10*time.Second)
+	}, 2*time.Minute, 1*time.Second)
 
 }
 

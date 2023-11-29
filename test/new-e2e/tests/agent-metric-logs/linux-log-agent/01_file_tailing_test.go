@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -41,7 +42,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 	s := &LinuxVMFakeintakeSuite{}
 	_, s.DevMode = os.LookupEnv("TESTS_E2E_DEVMODE")
 
-	e2e.Run(t, s, logsExampleStackDef())
+	e2e.Run(t, s, logsExampleStackDef(), params.WithDevMode())
 }
 
 func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
@@ -67,7 +68,7 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 	t := s.T()
 	fakeintake := s.Env().Fakeintake
 
-	// Create a new log file
+	// Create a new log file with permissionn inaccessable to the agent
 	s.Env().VM.Execute("sudo touch /var/log/hello-world.log")
 
 	// Part 1: Ensure no logs are present in fakeintake
@@ -90,39 +91,26 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 	// Generate log
 	generateLog(s, "hello-world")
 
-	// Part 3: Assert that logs are found in intake after generation
+	// Part 3: Check intake for new logs
 	checkLogs(s, "hello", "hello-world")
 }
 
 func (s *LinuxVMFakeintakeSuite) LogPermission() {
 
-	// Part 4: Block permission and check the Agent status
-	s.Env().VM.Execute("sudo chmod 000 /var/log/hello-world.log")
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		// Check the Agent status
-		statusOutput, err := s.Env().VM.ExecuteWithError("sudo datadog-agent status | grep -A 10 'custom_logs'")
-		if !assert.NoError(c, err, "Issue running agent status: %s", err) {
-			return
-		}
+	// Part 4: Allow on only write permission to the log file so the agent cannot tail it
+	s.Env().VM.Execute("sudo chmod 666 /var/log/hello-world.log")
 
-		if !assert.NotContainsf(c, statusOutput, "Status: OK", "Expecting log file to be inaccessible but it is accessible instead: \n %s", statusOutput) {
-			return
-		}
+	generateLog(s, "access-denied")
 
-		assert.Contains(c, statusOutput, "denied", "Log file is correctly inaccessible")
-	}, 3*time.Minute, 10*time.Second)
+	// Check intake to see if new logs are not present
+	checkLogs(s, "hello", "access-denied")
 
 	// Part 5: Restore permissions
 	s.Env().VM.Execute("sudo chmod 777 /var/log/hello-world.log")
 
-	// Part 6: Generate new logs and ceck the Agent status
-	generateLog(s, "hello-world")
-
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		statusOutput, err := s.Env().VM.ExecuteWithError("sudo datadog-agent status | grep -A 10 'custom_logs'")
-		assert.NoError(c, err, "Issue running agent status: %s", err)
-		assert.Contains(c, statusOutput, "Status: OK", "Expecting log file to be accessible but it is inaccessible instead")
-	}, 5*time.Minute, 2*time.Second)
+	// Part 6: Generate new logs and check the intake for new logs
+	generateLog(s, "access-granted")
+	checkLogs(s, "hello", "access-granted")
 }
 
 func (s *LinuxVMFakeintakeSuite) LogRotation() {
@@ -139,16 +127,9 @@ func (s *LinuxVMFakeintakeSuite) LogRotation() {
 	// Grant new log file permission
 	s.Env().VM.Execute("sudo chmod 777 /var/log/hello-world.log")
 
-	// Check if agent is tailing new log file via agent status
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		newStatusOutput, err := s.Env().VM.ExecuteWithError("sudo datadog-agent status | grep -A 10 'custom_logs'")
-		assert.NoErrorf(c, err, "Issue running agent status. Is the agent running?\n %s", newStatusOutput)
-		assert.Containsf(c, newStatusOutput, "Path: /var/log/hello-world.log", "The agent is not tailing the expected log file,instead: \n %s", newStatusOutput)
-	}, 5*time.Minute, 10*time.Second)
-
-	// Generate new log
+	// Generate new logs
 	generateLog(s, "hello-world-new-content")
 
-	// Verify Log's content is generated and submitted
+	// Check intake for new logs
 	checkLogs(s, "hello", "hello-world-new-content")
 }
