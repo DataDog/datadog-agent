@@ -6,8 +6,6 @@
 package config
 
 import (
-	"strings"
-
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
@@ -18,9 +16,6 @@ var (
 )
 
 func init() {
-	// Configure Datadog global configuration
-	Datadog = NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	SystemProbe = NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 	// Configuration defaults
 	pkgconfigsetup.InitConfig(Datadog)
 	pkgconfigsetup.InitSystemProbeConfig(SystemProbe)

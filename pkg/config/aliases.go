@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package config defines the configuration of the agent
 package config
 
 import (
@@ -84,10 +85,9 @@ func IsAutoconfigEnabled() bool {
 
 // Aliases for config overrides
 var (
-	AddOverride        = model.AddOverride
-	AddOverrides       = model.AddOverrides
-	AddOverrideFunc    = model.AddOverrideFunc
-	applyOverrideFuncs = model.ApplyOverrideFuncs
+	AddOverride     = model.AddOverride
+	AddOverrides    = model.AddOverrides
+	AddOverrideFunc = model.AddOverrideFunc
 )
 
 // LoggerName Alias
@@ -129,14 +129,14 @@ func GetIPCAddress() (string, error) {
 	return pkgconfigsetup.GetIPCAddress(Datadog)
 }
 
-type Endpoint = pkgconfigsetup.Endpoint
-
+// Datatype Aliases
 const (
 	Metrics = pkgconfigsetup.Metrics
 	Traces  = pkgconfigsetup.Traces
 	Logs    = pkgconfigsetup.Logs
 )
 
+// Aliases for config defaults
 const (
 	DefaultForwarderRecoveryInterval         = pkgconfigsetup.DefaultForwarderRecoveryInterval
 	DefaultAPIKeyValidationInterval          = pkgconfigsetup.DefaultAPIKeyValidationInterval
@@ -170,57 +170,81 @@ const (
 	DefaultProcessRTQueueSize                = pkgconfigsetup.DefaultProcessRTQueueSize
 )
 
+type (
+	// ConfigurationProviders Alias
+	ConfigurationProviders = pkgconfigsetup.ConfigurationProviders
+	// Listeners Alias
+	Listeners = pkgconfigsetup.Listeners
+	// MappingProfile Alias
+	MappingProfile = pkgconfigsetup.MappingProfile
+	// Endpoint Alias
+	Endpoint = pkgconfigsetup.Endpoint
+)
+
+// GetObsPipelineURL Alias using Datadog config
 func GetObsPipelineURL(datatype pkgconfigsetup.DataType) (string, error) {
 	return pkgconfigsetup.GetObsPipelineURL(datatype, Datadog)
 }
 
-type (
-	ConfigurationProviders = pkgconfigsetup.ConfigurationProviders
-	Listeners              = pkgconfigsetup.Listeners
-	MappingProfile         = pkgconfigsetup.MappingProfile
-)
-
+// LoadCustom Alias
 func LoadCustom(config model.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*model.Warnings, error) {
 	return pkgconfigsetup.LoadCustom(config, origin, secretResolver, additionalKnownEnvVars)
 }
 
+// LoadDatadogCustom Alias
 func LoadDatadogCustom(config model.Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*model.Warnings, error) {
 	return pkgconfigsetup.LoadDatadogCustom(config, origin, secretResolver, additionalKnownEnvVars)
 }
 
+// GetValidHostAliases Alias using Datadog config
 func GetValidHostAliases(ctx context.Context) ([]string, error) {
 	return pkgconfigsetup.GetValidHostAliases(ctx, Datadog)
 }
 
+// IsCLCRunner Alias using Datadog config
 func IsCLCRunner() bool {
 	return pkgconfigsetup.IsCLCRunner(Datadog)
 }
 
+// GetBindHostFromConfig Alias using Datadog config
 func GetBindHostFromConfig(config model.Reader) string {
 	return pkgconfigsetup.GetBindHostFromConfig(config)
 }
 
+// GetBindHost Alias using Datadog config
 func GetBindHost() string {
 	return pkgconfigsetup.GetBindHost(Datadog)
 }
 
+// GetDogstatsdMappingProfiles Alias using Datadog config
 func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
 	return pkgconfigsetup.GetDogstatsdMappingProfiles(Datadog)
 }
 
 var (
-	IsRemoteConfigEnabled   = pkgconfigsetup.IsRemoteConfigEnabled
-	StartTime               = pkgconfigsetup.StartTime
+	// IsRemoteConfigEnabled Alias
+	IsRemoteConfigEnabled = pkgconfigsetup.IsRemoteConfigEnabled
+	// StartTime Alias
+	StartTime = pkgconfigsetup.StartTime
+	// StandardJMXIntegrations Alias
 	StandardJMXIntegrations = pkgconfigsetup.StandardJMXIntegrations
-	SetupOTLP               = pkgconfigsetup.SetupOTLP
-	InitSystemProbeConfig   = pkgconfigsetup.InitSystemProbeConfig
+	// SetupOTLP Alias
+	SetupOTLP = pkgconfigsetup.OTLP
+	// InitSystemProbeConfig Alias
+	InitSystemProbeConfig = pkgconfigsetup.InitSystemProbeConfig
+	// InitConfig Alias
+	InitConfig = pkgconfigsetup.InitConfig
+
+	// GetRemoteConfigurationAllowedIntegrations Alias
+	GetRemoteConfigurationAllowedIntegrations = pkgconfigsetup.GetRemoteConfigurationAllowedIntegrations
 )
 
-// LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
+// LoadWithoutSecret Alias using Datadog config
 func LoadWithoutSecret() (*model.Warnings, error) {
 	return pkgconfigsetup.LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
 }
 
+// GetProcessAPIAddressPort Alias using Datadog config
 func GetProcessAPIAddressPort() (string, error) {
 	return pkgconfigsetup.GetProcessAPIAddressPort(Datadog)
 }

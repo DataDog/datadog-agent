@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package config defines the configuration of the agent
+// Package setup defines the configuration of the agent
 package setup
 
 import (
@@ -32,8 +32,8 @@ import (
 
 // Datadog is the global configuration object
 var (
-	Datadog     pkgconfigmodel.Config
-	SystemProbe pkgconfigmodel.Config
+	Datadog     pkgconfigmodel.Config = pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
+	SystemProbe pkgconfigmodel.Config = pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
 )
 
 const (
@@ -1264,7 +1264,7 @@ func InitConfig(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault("language_detection.client_period", "10s")
 
 	setupAPM(config)
-	SetupOTLP(config)
+	OTLP(config)
 	setupProcesses(config)
 }
 

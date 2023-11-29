@@ -27,8 +27,8 @@ const (
 	OTLPDebug                 = OTLPSection + "." + OTLPDebugKey
 )
 
-// SetupOTLP related configuration.
-func SetupOTLP(config pkgconfigmodel.Config) {
+// OTLP related configuration.
+func OTLP(config pkgconfigmodel.Config) {
 	config.BindEnvAndSetDefault(OTLPTracePort, 5003)
 	config.BindEnvAndSetDefault(OTLPMetricsEnabled, true)
 	config.BindEnvAndSetDefault(OTLPTracesEnabled, true)
