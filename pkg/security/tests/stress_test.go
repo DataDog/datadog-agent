@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -41,6 +42,11 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 	}
 	defer test.Close()
 
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
 	testFolder, _, err := test.Path(path.Dir(pathname))
 	if err != nil {
 		t.Fatal(err)
@@ -53,7 +59,8 @@ func stressOpen(t *testing.T, rule *rules.RuleDefinition, pathname string, size 
 		t.Fatal(err)
 	}
 
-	eventStreamMonitor := test.probe.GetMonitors().GetEventStreamMonitor()
+	eventStreamMonitor := p.GetMonitors().GetEventStreamMonitor()
+
 	eventStreamMonitor.GetAndResetLostCount("events", -1)
 	eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)
 
@@ -183,6 +190,11 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 	}
 	defer test.Close()
 
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
 	testFolder, _, err := test.Path(path.Dir(pathname))
 	if err != nil {
 		t.Fatal(err)
@@ -195,7 +207,7 @@ func stressExec(t *testing.T, rule *rules.RuleDefinition, pathname string, execu
 		t.Fatal(err)
 	}
 
-	eventStreamMonitor := test.probe.GetMonitors().GetEventStreamMonitor()
+	eventStreamMonitor := p.GetMonitors().GetEventStreamMonitor()
 	eventStreamMonitor.GetAndResetLostCount("events", -1)
 	eventStreamMonitor.GetKernelLostCount("events", -1, model.MaxKernelEventType)
 

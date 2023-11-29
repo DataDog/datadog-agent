@@ -63,6 +63,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ./pkg/util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ./pkg/util/system/socket/
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
 )
 
@@ -238,12 +239,12 @@ require (
 	go4.org/netipx v0.0.0-20220812043211-3cc044ffd68d
 	golang.org/x/arch v0.6.0
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d
-	golang.org/x/net v0.18.0
+	golang.org/x/net v0.19.0
 	golang.org/x/sync v0.5.0
-	golang.org/x/sys v0.14.1-0.20231108175955-e4099bfacb8c
+	golang.org/x/sys v0.15.0
 	golang.org/x/text v0.14.0
 	golang.org/x/time v0.3.0
-	golang.org/x/tools v0.15.0
+	golang.org/x/tools v0.16.0
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2
 	google.golang.org/genproto v0.0.0-20231030173426-d783a09b4405 // indirect
 	google.golang.org/grpc v1.59.0
@@ -546,10 +547,10 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.20.0 // indirect
 	go.opentelemetry.io/otel/trace v1.20.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.0.0 // indirect
-	golang.org/x/crypto v0.15.0 // indirect
+	golang.org/x/crypto v0.16.0 // indirect
 	golang.org/x/mod v0.14.0
 	golang.org/x/oauth2 v0.11.0 // indirect
-	golang.org/x/term v0.14.0 // indirect
+	golang.org/x/term v0.15.0 // indirect
 	gonum.org/v1/gonum v0.14.0 // indirect
 	google.golang.org/api v0.134.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
@@ -611,6 +612,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4
 	github.com/DataDog/go-libddwaf/v2 v2.2.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0

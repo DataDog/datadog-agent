@@ -121,7 +121,7 @@ type ActivityDumpManager interface {
 type SecurityProfileManager struct {
 	config              *config.Config
 	statsdClient        statsd.ClientInterface
-	resolvers           *resolvers.Resolvers
+	resolvers           *resolvers.EBPFResolvers
 	providers           []Provider
 	activityDumpManager ActivityDumpManager
 
@@ -143,7 +143,7 @@ type SecurityProfileManager struct {
 }
 
 // NewSecurityProfileManager returns a new instance of SecurityProfileManager
-func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.Resolvers, manager *manager.Manager) (*SecurityProfileManager, error) {
+func NewSecurityProfileManager(config *config.Config, statsdClient statsd.ClientInterface, resolvers *resolvers.EBPFResolvers, manager *manager.Manager) (*SecurityProfileManager, error) {
 	profileCache, err := simplelru.NewLRU[cgroupModel.WorkloadSelector, *SecurityProfile](config.RuntimeSecurity.SecurityProfileCacheSize, nil)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't create security profile cache: %w", err)

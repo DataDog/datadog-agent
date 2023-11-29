@@ -37,8 +37,8 @@ type protocol struct {
 	telemetry *http.Telemetry
 	// TODO: Do we need to duplicate?
 	statkeeper              *http.StatKeeper
-	http2InFlightMapCleaner *ddebpf.MapCleaner
-	dynamicTableMapCleaner  *ddebpf.MapCleaner
+	http2InFlightMapCleaner *ddebpf.MapCleaner[http2StreamKey, EbpfTx]
+	dynamicTableMapCleaner  *ddebpf.MapCleaner[http2DynamicTableIndex, http2DynamicTableEntry]
 	eventsConsumer          *events.Consumer
 
 	terminatedConnectionsEventsConsumer *events.Consumer
@@ -267,24 +267,19 @@ func (p *protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting %q map: %s", inFlightMap, err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner(http2Map, new(http2StreamKey), new(EbpfTx))
+	mapCleaner, err := ddebpf.NewMapCleaner[http2StreamKey, EbpfTx](http2Map, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key, val interface{}) bool {
-		http2Txn, ok := val.(*EbpfTx)
-		if !ok {
-			return false
-		}
-
-		if updated := int64(http2Txn.Stream.Response_last_seen); updated > 0 {
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key http2StreamKey, val EbpfTx) bool {
+		if updated := int64(val.Stream.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(http2Txn.Stream.Request_started)
+		started := int64(val.Stream.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 
@@ -298,7 +293,7 @@ func (p *protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
 		return
 	}
 
-	mapCleaner, err := ddebpf.NewMapCleaner(dynamicTableMap, new(http2DynamicTableIndex), new(http2DynamicTableEntry))
+	mapCleaner, err := ddebpf.NewMapCleaner[http2DynamicTableIndex, http2DynamicTableEntry](dynamicTableMap, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
@@ -320,13 +315,8 @@ func (p *protocol) setupDynamicTableMapCleaner(mgr *manager.Manager) {
 		func() {
 			terminatedConnectionsMap = make(map[netebpf.ConnTuple]struct{})
 		},
-		func(now int64, key, val interface{}) bool {
-			keyIndex, ok := key.(*http2DynamicTableIndex)
-			if !ok {
-				return false
-			}
-
-			_, ok = terminatedConnectionsMap[keyIndex.Tup]
+		func(_ int64, key http2DynamicTableIndex, _ http2DynamicTableEntry) bool {
+			_, ok := terminatedConnectionsMap[key.Tup]
 			return ok
 		})
 	p.dynamicTableMapCleaner = mapCleaner

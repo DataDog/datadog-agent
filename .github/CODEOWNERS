@@ -83,6 +83,8 @@
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-platform
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/ebpf-platform @DataDog/agent-platform
+/.gitlab/functional_test/system_probe_windows.yml    @DataDog/agent-platform @DataDog/windows-kernel-integrations
+/.gitlab/functional_test/common.yml                  @DataDog/agent-platform @DataDog/windows-kernel-integrations @DataDog/ebpf-platform
 /.gitlab/functional_test_sysprobe/system_probe.yml   @DataDog/ebpf-platform @DataDog/agent-platform
 
 /.gitlab/integration_test/windows.yml                @DataDog/agent-platform @DataDog/windows-agent
@@ -353,6 +355,8 @@
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/util/intern/                       @DataDog/ebpf-platform
+/pkg/util/crashreport/                  @DataDog/windows-kernel-integrations
+/pkg/util/pdhutil/                      @DataDog/windows-agent
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/logs/                              @DataDog/agent-metrics-logs
@@ -479,6 +483,7 @@
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
+/test/new-e2e/tests/cws                       @DataDog/agent-security
 /test/new-e2e/tests/agent-platform            @DataDog/agent-platform
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs

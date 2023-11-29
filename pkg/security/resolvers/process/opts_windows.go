@@ -3,15 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux && !windows
-
 // Package process holds process related files
 package process
 
-import "go.uber.org/atomic"
+// ResolverOpts options of resolver
+type ResolverOpts struct {
+	envsWithValue map[string]bool
+}
 
-// Resolver defines a resolver
-type Resolver struct {
-	// stats
-	cacheSize *atomic.Int64
+// NewResolverOpts returns a new set of process resolver options
+func NewResolverOpts() ResolverOpts {
+	return ResolverOpts{}
 }
