@@ -235,6 +235,7 @@
 /pkg/aggregator/                        @DataDog/agent-metrics-logs
 /pkg/collector/                         @DataDog/agent-metrics-logs
 /pkg/cli/                               @DataDog/agent-shared-components
+/pkg/cli/subcommands/clusterchecks      @DataDog/container-integrations
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-metrics-logs @DataDog/agent-shared-components
