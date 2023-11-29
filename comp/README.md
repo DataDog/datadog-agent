@@ -18,6 +18,16 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package diagnosesendermanager defines the sender manager for the local diagnose check
 
+## [comp/api](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/api) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package api implements the "api" bundle,
+
+### [comp/api/api](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/api/api)
+
+Package api implements the internal Agent API which exposes endpoints such as config, flare or status
+
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/checks) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -42,10 +52,6 @@ Package winregistry implements the Windows Registry check
 
 Package core implements the "core" bundle, providing services common to all
 agent flavors and binaries.
-
-### [comp/core/api](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/api)
-
-Package api implements the internal Agent API which exposes endpoints such as config, flare or status
 
 ### [comp/core/config](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/core/config)
 
