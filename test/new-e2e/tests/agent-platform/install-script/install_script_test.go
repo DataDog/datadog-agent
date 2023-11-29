@@ -32,8 +32,9 @@ import (
 var osVersion = flag.String("osversion", "", "os version to test")
 var platform = flag.String("platform", "", "platform to test")
 var cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
-var architecture = flag.String("arch", "x84_64", "architecture to test (x86_64, arm64))")
+var architecture = flag.String("arch", "x86_64", "architecture to test (x86_64, arm64))")
 var flavor = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-proxy, datadog-heroku-agent)")
+var majorVersion = flag.String("major-version", "7", "major version to test (6, 7)")
 
 type installScriptSuite struct {
 	e2e.Suite[e2e.VMEnv]
@@ -75,10 +76,10 @@ func TestInstallScript(t *testing.T) {
 			}
 		}
 
-		t.Run(fmt.Sprintf("test install script on %s %s %s", osVers, *architecture, *flavor), func(tt *testing.T) {
+		t.Run(fmt.Sprintf("test install script on %s %s %s agent %s", osVers, *architecture, *flavor, *majorVersion), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
-			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor)))
+			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)))
 		})
 	}
 }
@@ -106,13 +107,16 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 	unixHelper := helpers.NewUnixHelper()
 	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
 
-	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(flavor))
+	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(flavor), installparams.WithMajorVersion(*majorVersion))
 
 	common.CheckInstallation(is.T(), client)
 	common.CheckAgentBehaviour(is.T(), client)
 	common.CheckAgentStops(is.T(), client)
 	common.CheckAgentRestarts(is.T(), client)
 	common.CheckIntegrationInstall(is.T(), client)
+	if *majorVersion == "6" {
+		common.CheckAgentPython(is.T(), client, "2")
+	}
 	common.CheckAgentPython(is.T(), client, "3")
 	common.CheckApmEnabled(is.T(), client)
 	common.CheckApmDisabled(is.T(), client)
