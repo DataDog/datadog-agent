@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"hash"
 	"hash/fnv"
+	"sync"
 	"syscall"
 	"unsafe"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -54,6 +56,7 @@ var helperNames = map[int]string{
 // EBPFTelemetry struct contains all the maps that
 // are registered to have their telemetry collected.
 type EBPFTelemetry struct {
+	mtx          sync.Mutex
 	MapErrMap    *ebpf.Map
 	HelperErrMap *ebpf.Map
 	mapKeys      map[string]uint64
@@ -94,6 +97,9 @@ func (b *EBPFTelemetry) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the collector
 func (b *EBPFTelemetry) Collect(ch chan<- prometheus.Metric) {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
 	var hval HelperErrTelemetry
 	for probeName, k := range b.probeKeys {
 		err := b.HelperErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&hval))
@@ -195,6 +201,9 @@ func probeKey(h hash.Hash64, m *manager.Probe) uint64 {
 }
 
 func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
 	z := new(MapErrTelemetry)
 	h := keyHash()
 	for _, m := range maps {
@@ -215,6 +224,9 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 }
 
 func (b *EBPFTelemetry) initializeHelperErrTelemetryMap(probes []*manager.Probe) error {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
 	z := new(HelperErrTelemetry)
 	h := keyHash()
 	for _, p := range probes {
@@ -257,7 +269,9 @@ func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdent
 			specs = append(specs, s...)
 		}
 	}
-	return specs, nil
+	return slices.DeleteFunc(specs, func(x *ebpf.ProgramSpec) bool {
+		return x == nil
+	}), nil
 }
 
 func patchEBPFTelemetry(m *manager.Manager, enable bool, undefinedProbes []manager.ProbeIdentificationPair) error {
@@ -271,9 +285,6 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool, undefinedProbes []manag
 	}
 
 	for _, spec := range specs {
-		if spec == nil {
-			continue
-		}
 		iter := spec.Instructions.Iterate()
 		for iter.Next() {
 			ins := iter.Ins
