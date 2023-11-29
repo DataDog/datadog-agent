@@ -24,6 +24,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -46,7 +47,7 @@ func TestNetDevice(t *testing.T) {
 		Expression: `dns.question.type == A && dns.question.name == "google.com" && process.file.name == "testsuite"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +156,7 @@ func TestTCFilters(t *testing.T) {
 		Expression: `dns.question.type == A`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,10 +212,15 @@ func TestTCFilters(t *testing.T) {
 			t.Error("Ingress tc classifier does not exist")
 		}
 		if !egressExists {
-			t.Fatalf("Egress tc classifier does not exist")
+			t.Fatal("Egress tc classifier does not exist")
 		}
 
-		if err := test.probe.Manager.CleanupNetworkNamespace(nsid); err != nil {
+		p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+		if !ok {
+			t.Fatal("not supported")
+		}
+
+		if err := p.Manager.CleanupNetworkNamespace(nsid); err != nil {
 			t.Fatal(err)
 		}
 

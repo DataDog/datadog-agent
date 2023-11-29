@@ -79,9 +79,7 @@ func (p *EnvsEntry) FilterEnvs(envsWithValue map[string]bool) ([]string, bool) {
 }
 
 // FilterEnvs returns an array of environment variable key value pairs matching the desired keys
-//
-//nolint:unused
-func filterEnvs(allEnvVars []string, desiredKeys map[string]bool) []string {
+func FilterEnvs(allEnvVars []string, desiredKeys map[string]bool) []string {
 	if len(allEnvVars) == 0 {
 		return nil
 	}

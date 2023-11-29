@@ -171,10 +171,8 @@ type BaseEvent struct {
 	Rules        []*MatchedRule `field:"-"`
 
 	// context shared with all events
-	SpanContext            SpanContext            `field:"-" json:"-"`
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`
 	ContainerContext       *ContainerContext      `field:"container" event:"*"`
-	NetworkContext         NetworkContext         `field:"network" event:"dns"`
 	SecurityProfileContext SecurityProfileContext `field:"-"`
 
 	// internal usage
@@ -287,11 +285,6 @@ func (e *Event) RemoveFromFlags(flag uint32) {
 	e.Flags ^= flag
 }
 
-// HasProfile returns true if we found a profile for that event
-func (e *Event) HasProfile() bool {
-	return e.SecurityProfileContext.Name != ""
-}
-
 // GetType returns the event type
 func (e *Event) GetType() string {
 	return EventType(e.Type).String()
@@ -340,7 +333,7 @@ func (e *Event) ResolveProcessCacheEntry() (*ProcessCacheEntry, bool) {
 
 // ResolveEventTime uses the field handler
 func (e *Event) ResolveEventTime() time.Time {
-	return e.FieldHandlers.ResolveEventTime(e)
+	return e.FieldHandlers.ResolveEventTime(e, &e.BaseEvent)
 }
 
 // GetProcessService uses the field handler
@@ -591,9 +584,7 @@ type DNSEvent struct {
 type BaseExtraFieldHandlers interface {
 	ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool)
 	ResolveContainerContext(ev *Event) (*ContainerContext, bool)
-	ResolveEventTime(ev *Event) time.Time
 	GetProcessService(ev *Event) string
-	ResolveK8SExtra(ev *Event, ctx *UserSessionContext) map[string][]string
 }
 
 // ResolveProcessCacheEntry stub implementation
@@ -606,22 +597,7 @@ func (dfh *DefaultFieldHandlers) ResolveContainerContext(ev *Event) (*ContainerC
 	return nil, false
 }
 
-// ResolveEventTime stub implementation
-func (dfh *DefaultFieldHandlers) ResolveEventTime(ev *Event) time.Time {
-	return ev.Timestamp
-}
-
 // GetProcessService stub implementation
 func (dfh *DefaultFieldHandlers) GetProcessService(ev *Event) string {
 	return ""
-}
-
-// ResolveHashes resolves the hash of the provided file
-func (dfh *DefaultFieldHandlers) ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string {
-	return nil
-}
-
-// ResolveK8SExtra resolves the K8S user session extra field
-func (dfh *DefaultFieldHandlers) ResolveK8SExtra(_ *Event, _ *UserSessionContext) map[string][]string {
-	return nil
 }

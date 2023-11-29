@@ -161,7 +161,7 @@ func TestNetFlow_IntegrationTest_AdditionalFields(t *testing.T) {
 						{
 							Field:       11,
 							Destination: "source.port", // Inverting source and destination port to test
-							Type:        common.Varint,
+							Type:        common.Integer,
 						},
 						{
 							Field:       7,
@@ -170,7 +170,7 @@ func TestNetFlow_IntegrationTest_AdditionalFields(t *testing.T) {
 						{
 							Field:       32,
 							Destination: "icmp_type",
-							Type:        common.Bytes,
+							Type:        common.Hex,
 						},
 					},
 				}},
@@ -224,17 +224,17 @@ func BenchmarkNetflowAdditionalFields(b *testing.B) {
 		{
 			Field:       11,
 			Destination: "source.port",
-			Type:        common.Varint,
+			Type:        common.Integer,
 		},
 		{
 			Field:       7,
 			Destination: "destination.port",
-			Type:        common.Varint,
+			Type:        common.Integer,
 		},
 		{
 			Field:       32,
 			Destination: "icmp_type",
-			Type:        common.Bytes,
+			Type:        common.Hex,
 		},
 	})
 

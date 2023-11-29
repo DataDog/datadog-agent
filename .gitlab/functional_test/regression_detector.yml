@@ -1,5 +1,8 @@
 single-machine-performance-regression_detector:
   stage: functional_test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
   needs:
@@ -76,7 +79,7 @@ single-machine-performance-regression_detector:
             --comparison-sha ${CI_COMMIT_SHA}
             --target-name datadog-agent
             --target-command "/bin/entrypoint.sh"
-            --target-environment-variables "DD_HOSTNAME=smp-regression,DD_DD_URL=http://127.0.0.1:9092,DD_API_KEY=00000001"
+            --target-environment-variables "DD_HOSTNAME=smp-regression,DD_DD_URL=http://127.0.0.1:9092"
             --target-config-dir test/regression/
             --target-cpu-allotment ${CPUS}
             --target-memory-allotment ${MEMORY}

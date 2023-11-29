@@ -15,8 +15,10 @@ import (
 
 	"github.com/DataDog/viper"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -56,6 +58,7 @@ type Config struct {
 	LogFile          string
 	LogLevel         string
 	DebugPort        int
+	HealthPort       int
 	TelemetryEnabled bool
 
 	StatsdHost string
@@ -90,7 +93,7 @@ func newSysprobeConfig(configPath string) (*Config, error) {
 		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", false, aconfig.Datadog.GetEnvVars())
+	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", optional.NewNoneOption[secrets.Component](), aconfig.Datadog.GetEnvVars())
 	if err != nil {
 		var e viper.ConfigFileNotFoundError
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
@@ -125,6 +128,7 @@ func load() (*Config, error) {
 		LogFile:          cfg.GetString("log_file"),
 		LogLevel:         cfg.GetString("log_level"),
 		DebugPort:        cfg.GetInt(spNS("debug_port")),
+		HealthPort:       cfg.GetInt(spNS("health_port")),
 		TelemetryEnabled: cfg.GetBool(spNS("telemetry_enabled")),
 
 		StatsdHost: aconfig.GetBindHost(),
@@ -197,7 +201,7 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		aconfig.Datadog.SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", false, aconfig.SystemProbe.GetEnvVars())
+	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), aconfig.SystemProbe.GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {

@@ -257,8 +257,6 @@ func AllTailRoutes(ERPCDentryResolutionEnabled, networkEnabled, supportMmapableM
 func AllBPFProbeWriteUserProgramFunctions() []string {
 	return []string{
 		"tail_call_target_dentry_resolver_erpc_write_user",
-		"tail_call_target_dentry_resolver_parent_erpc_write_user",
-		"tail_call_target_dentry_resolver_segment_erpc_write_user",
 	}
 }
 

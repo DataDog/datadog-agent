@@ -67,6 +67,7 @@ type Check struct {
 	agentVersion                            string
 	checkInterval                           float64
 	tags                                    []string
+	tagsWithoutDbRole                       []string
 	configTags                              []string
 	tagsString                              string
 	cdbName                                 string
@@ -88,6 +89,15 @@ type Check struct {
 	initialized                             bool
 	multitenant                             bool
 	lastOracleRows                          []OracleRow // added for tests
+	databaseRole                            string
+	openMode                                string
+}
+
+type vDatabase struct {
+	Name         string `db:"NAME"`
+	Cdb          string `db:"CDB"`
+	DatabaseRole string `db:"DATABASE_ROLE"`
+	OpenMode     string `db:"OPEN_MODE"`
 }
 
 func handleServiceCheck(c *Check, err error) {
@@ -161,6 +171,14 @@ func (c *Check) Run() error {
 	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
 
 	if metricIntervalExpired {
+		if c.dbmEnabled {
+			err := c.dataGuard()
+			if err != nil {
+				return err
+			}
+		}
+		fixTags(c)
+
 		err := c.OS_Stats()
 		if err != nil {
 			db, errConnect := c.Connect()
@@ -179,7 +197,7 @@ func (c *Check) Run() error {
 
 		if c.config.SysMetrics.Enabled {
 			log.Debugf("%s Entered sysmetrics", c.logPrompt)
-			err := c.SysMetrics()
+			_, err := c.sysMetrics()
 			if err != nil {
 				return fmt.Errorf("%s failed to collect sysmetrics %w", c.logPrompt, err)
 			}
@@ -298,6 +316,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
 
 	tags := make([]string, len(c.config.Tags))
+	copy(tags, c.config.Tags)
 
 	tags = append(tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 	tags = append(tags, fmt.Sprintf("dbm:%t", c.dbmEnabled))
@@ -313,7 +332,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if c.config.ServiceName != "" {
 		tags = append(tags, fmt.Sprintf("service:%s", c.config.ServiceName))
 	}
+	c.configTags = make([]string, len(tags))
 	copy(c.configTags, tags)
+	c.tags = make([]string, len(tags))
+	copy(c.tags, tags)
 
 	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
 
@@ -377,4 +399,14 @@ func isDbVersionLessThan(c *Check, v string) bool {
 
 func isDbVersionGreaterOrEqualThan(c *Check, v string) bool {
 	return !isDbVersionLessThan(c, v)
+}
+
+func fixTags(c *Check) {
+	c.tags = make([]string, len(c.tagsWithoutDbRole))
+	copy(c.tags, c.tagsWithoutDbRole)
+	if c.databaseRole != "" {
+		roleTag := strings.ToLower(strings.ReplaceAll(string(c.databaseRole), " ", "_"))
+		c.tags = append(c.tags, "database_role:"+roleTag)
+	}
+	c.tagsString = strings.Join(c.tags, ",")
 }

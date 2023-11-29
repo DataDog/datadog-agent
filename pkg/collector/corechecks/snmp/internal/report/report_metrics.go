@@ -95,7 +95,7 @@ func (ms *MetricSender) GetCheckInstanceMetricTags(metricTags []profiledefinitio
 		}
 		strValue, err := newValue.ToString()
 		if err != nil {
-			log.Debugf("error converting value (%#v) to string : %v", value, err)
+			log.Debugf("error converting value (%#v) to string : %v", newValue, err)
 			continue
 		}
 		globalTags = append(globalTags, checkconfig.BuildMetricTagsFromValue(&metricTag, strValue)...)

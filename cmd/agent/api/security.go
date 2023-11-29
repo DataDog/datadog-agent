@@ -10,6 +10,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
@@ -26,7 +27,6 @@ var (
 func validateToken(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := util.Validate(w, r); err != nil {
-			http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -67,25 +67,26 @@ func buildSelfSignedKeyPair() ([]byte, []byte) {
 	return rootCertPEM, rootKeyPEM
 }
 
-func initializeTLS() {
-
+func initializeTLS() error {
 	cert, key := buildSelfSignedKeyPair()
 	if cert == nil {
-		panic("unable to generate certificate")
+		return errors.New("unable to generate certificate")
 	}
 	pair, err := tls.X509KeyPair(cert, key)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("unable to generate TLS key pair: %v", err)
 	}
 	tlsKeyPair = &pair
 	tlsCertPool = x509.NewCertPool()
 	ok := tlsCertPool.AppendCertsFromPEM(cert)
 	if !ok {
-		panic("bad certs")
+		return fmt.Errorf("unable to add new certificate to pool")
 	}
 
 	tlsAddr, err = getIPCAddressPort()
 	if err != nil {
-		panic("unable to get IPC address and port")
+		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
+
+	return nil
 }

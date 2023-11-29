@@ -13,11 +13,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/samber/lo"
 )
 
 // metricTransformerFunc is used to tweak or generate new metrics from a given KSM metric
@@ -242,12 +243,13 @@ func podPhaseTransformer(s sender.Sender, name string, metric ksmstore.DDMetric,
 }
 
 var allowedWaitingReasons = map[string]struct{}{
-	"errimagepull":         {},
-	"imagepullbackoff":     {},
-	"crashloopbackoff":     {},
-	"containercreating":    {},
-	"createcontainererror": {},
-	"invalidimagename":     {},
+	"errimagepull":               {},
+	"imagepullbackoff":           {},
+	"crashloopbackoff":           {},
+	"containercreating":          {},
+	"createcontainererror":       {},
+	"invalidimagename":           {},
+	"createcontainerconfigerror": {},
 }
 
 // containerWaitingReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_waiting_reason

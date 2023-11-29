@@ -8,20 +8,36 @@ package aggregator
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+type tags []string
+
 type Log struct {
 	collectedTime time.Time
-	Message       string   `json:"message"`
-	Status        string   `json:"status"`
-	Timestamp     int      `json:"timestamp"`
-	HostName      string   `json:"hostname"`
-	Service       string   `json:"service"`
-	Source        string   `json:"source"`
-	Tags          []string `json:"tags"`
+	Message       string `json:"message"`
+	Status        string `json:"status"`
+	Timestamp     int    `json:"timestamp"`
+	HostName      string `json:"hostname"`
+	Service       string `json:"service"`
+	Source        string `json:"ddsource"`
+	Tags          tags   `json:"ddtags"`
+}
+
+func (t *tags) UnmarshalJSON(b []byte) error {
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	*t = tags(strings.Split(s, ","))
+	return nil
+}
+
+func (t tags) MarshalJSON() ([]byte, error) {
+	return json.Marshal(strings.Join(t, ","))
 }
 
 func (l *Log) name() string {
