@@ -113,7 +113,9 @@ var defaultActions = []string{
 type (
 	rolesMapping map[string]*arn.ARN
 
-	findings struct{} // TODO
+	findings struct {
+		Results []yaraResult
+	}
 
 	scanConfigRaw struct {
 		Type  string `json:"type"`
@@ -420,7 +422,9 @@ func scanCmd(config scanConfig) error {
 					fmt.Printf("scanning result %s: %s\n", result.scan, prototext.Format(result.sbom))
 				}
 				if result.findings != nil {
-					panic("unimplemented")
+					for _, result := range result.findings.Results {
+						fmt.Printf("found %s in %s\n", result.Rule, result.File)
+					}
 				}
 			}
 		}
