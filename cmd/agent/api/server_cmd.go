@@ -44,6 +44,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
+const cmd_server_name string = "CMD API Server"
+
 var cmdListener net.Listener
 
 func startCMDServer(
@@ -69,7 +71,7 @@ func startCMDServer(
 	if err != nil {
 		// we use the listener to handle commands for the Agent, there's
 		// no way we can recover from this error
-		return fmt.Errorf("Unable to create the api server: %v", err)
+		return fmt.Errorf("unable to listen to the given address: %v", err)
 	}
 
 	// gRPC server
@@ -148,7 +150,7 @@ func startCMDServer(
 		grpcutil.TimeoutHandlerFunc(cmdMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
 	)
 
-	startServer(cmdListener, srv, "API server")
+	startServer(cmdListener, srv, cmd_server_name)
 
 	return nil
 }
@@ -156,4 +158,8 @@ func startCMDServer(
 // ServerAddress returns the server address.
 func ServerAddress() *net.TCPAddr {
 	return cmdListener.Addr().(*net.TCPAddr)
+}
+
+func stopCMDServer() {
+	stopServer(cmdListener, cmd_server_name)
 }

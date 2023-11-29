@@ -43,13 +43,23 @@ func startServer(listener net.Listener, srv *http.Server, name string) {
 	// Use a stack depth of 4 on top of the default one to get a relevant filename in the stdlib
 	logWriter, _ := config.NewLogWriter(5, seelog.ErrorLvl)
 
-	srv.ErrorLog = stdLog.New(logWriter, fmt.Sprintf("Error from the agent http %s: ", name), 0) // log errors to seelog
+	srv.ErrorLog = stdLog.New(logWriter, fmt.Sprintf("Error from the Agent HTTP server '%s': ", name), 0) // log errors to seelog
 
 	tlsListener := tls.NewListener(listener, srv.TLSConfig)
 
 	go srv.Serve(tlsListener) //nolint:errcheck
 
-	log.Infof("%s started on %s", name, listener.Addr().String())
+	log.Infof("Started HTTP server '%s' on %s", name, listener.Addr().String())
+}
+
+func stopServer(listener net.Listener, name string) {
+	if listener != nil {
+		if err := listener.Close(); err != nil {
+			log.Errorf("Error stopping HTTP server '%s': %s", name, err)
+		} else {
+			log.Infof("Stopped HTTP server '%s'", name)
+		}
+	}
 }
 
 // StartServer creates the router and starts the HTTP server
@@ -99,6 +109,7 @@ func StartServer(
 		return err
 	}
 
+	// start the CMD server
 	if err := startCMDServer(
 		apiAddr, tlsConfig, tlsCertPool,
 		configService, flare, dogstatsdServer,
@@ -106,26 +117,23 @@ func StartServer(
 		senderManager, hostMetadata, invAgent,
 		demux, invHost, secretResolver,
 	); err != nil {
-		return err
+		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}
 
+	// start the IPC server
 	if apiConfigEnabled {
 		if err := startIPCServer(apiConfigHostPort, tlsConfig); err != nil {
+			// if we fail to start the IPC server, we should stop the CMD server
 			StopServer()
-			return err
+			return fmt.Errorf("unable to start IPC API server: %v", err)
 		}
 	}
 
 	return nil
 }
 
-// StopServer closes the connection and the server
-// stops listening to new commands.
+// StopServer closes the connections and the servers
 func StopServer() {
-	if cmdListener != nil {
-		cmdListener.Close()
-	}
-	if ipcConfigListener != nil {
-		ipcConfigListener.Close()
-	}
+	stopCMDServer()
+	stopIPCServer()
 }

@@ -18,6 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+const ipc_server_name string = "IPC API Server"
+
 var ipcConfigListener net.Listener
 var allowedConfigPaths = map[string]struct{}{
 	"api_key": {},
@@ -57,7 +59,7 @@ func startIPCServer(ipcConfigHostPort string, tlsConfig *tls.Config) (err error)
 		TLSConfig: tlsConfig,
 	}
 
-	startServer(ipcConfigListener, ipcConfigServer, "Config API server")
+	startServer(ipcConfigListener, ipcConfigServer, ipc_server_name)
 
 	return nil
 }
@@ -77,4 +79,8 @@ func getConfigMarshalled(path string) ([]byte, error) {
 	}
 
 	return json.Marshal(value)
+}
+
+func stopIPCServer() {
+	stopServer(ipcConfigListener, ipc_server_name)
 }

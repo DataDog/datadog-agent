@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // validateToken - validates token for legacy API
@@ -59,6 +60,8 @@ func buildSelfSignedKeyPair(additionalHostIdentities ...string) ([]byte, []byte)
 }
 
 func initializeTLS(additionalHostIdentities ...string) (*tls.Certificate, *x509.CertPool, error) {
+	log.Info("Initializing TLS certificates")
+
 	cert, key := buildSelfSignedKeyPair(additionalHostIdentities...)
 	if cert == nil {
 		return nil, nil, errors.New("unable to generate certificate")
