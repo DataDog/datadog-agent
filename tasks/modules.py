@@ -186,6 +186,7 @@ DEFAULT_MODULES = {
     "pkg/util/statstracker": GoModule("pkg/util/statstracker", independent=True),
     "pkg/util/system/socket": GoModule("pkg/util/system/socket", independent=True),
     "pkg/util/testutil": GoModule("pkg/util/testutil", independent=True),
+    "pkg/util/winutil": GoModule("pkg/util/winutil", independent=True),
     "pkg/version": GoModule("pkg/version", independent=True),
     "pkg/networkdevice/profile": GoModule("pkg/networkdevice/profile", independent=True),
     "pkg/collector/check/defaults": GoModule("pkg/collector/check/defaults", independent=True),
