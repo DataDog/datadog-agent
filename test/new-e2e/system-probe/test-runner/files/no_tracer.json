@@ -1,5 +1,8 @@
 {
     "pkg/network/tracer": {
         "run": "TestUSMSuite"
+    },
+    "*": {
+        "exclude": false
     }
 }
