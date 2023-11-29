@@ -10,9 +10,6 @@ from .init_kmt import KMT_ROOTFS_DIR, KMT_STACKS_DIR, VMCONFIG, check_and_get_st
 from .stacks import create_stack, stack_exists
 from .tool import Exit, ask, info, warn
 
-vm_recipe = "recipe"
-vm_architecture = "arch"
-vm_version = "version"
 local_arch = "local"
 vmconfig_file = "test/new-e2e/system-probe/config/vmconfig.json"
 
@@ -118,7 +115,6 @@ table = [
     ["debian 10 - v4.19.0", TICK, TICK],
     ["debian 11 - v5.10.0", TICK, TICK],
 ]
-
 
 
 def lte_414(version):
