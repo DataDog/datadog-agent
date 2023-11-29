@@ -6,6 +6,7 @@
 package render
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -14,157 +15,75 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFormatStatus(t *testing.T) {
+func TestFormat(t *testing.T) {
 	originalTZ := os.Getenv("TZ")
 	os.Setenv("TZ", "UTC")
 	defer func() {
 		os.Setenv("TZ", originalTZ)
 	}()
-	agentJSON, err := os.ReadFile("fixtures/agent_status.json")
-	require.NoError(t, err)
-	agentText, err := os.ReadFile("fixtures/agent_status.text")
-	require.NoError(t, err)
+
 	const statusRenderErrors = "Status render errors"
 
-	t.Run("render errors", func(t *testing.T) {
-		actual, err := FormatStatus([]byte{})
+	tests := []struct {
+		name           string
+		formatFunction func([]byte) (string, error)
+		jsonFile       string
+		resultFile     string
+	}{
+		{
+			name:           "Core status",
+			formatFunction: FormatStatus,
+			jsonFile:       "fixtures/agent_status.json",
+			resultFile:     "fixtures/agent_status.text",
+		},
+		{
+			name:           "Cluster Agent Status",
+			formatFunction: FormatDCAStatus,
+			jsonFile:       "fixtures/cluster_agent_status.json",
+			resultFile:     "fixtures/cluster_agent_status.text",
+		},
+		{
+			name:           "Security Agent Status",
+			formatFunction: FormatSecurityAgentStatus,
+			jsonFile:       "fixtures/security_agent_status.json",
+			resultFile:     "fixtures/security_agent_status.text",
+		},
+		{
+			name:           "Process Agent Status",
+			formatFunction: FormatProcessAgentStatus,
+			jsonFile:       "fixtures/process_agent_status.json",
+			resultFile:     "fixtures/process_agent_status.text",
+		},
+		{
+			name:           "Check Stats",
+			formatFunction: FormatCheckStats,
+			jsonFile:       "fixtures/check_stats.json",
+			resultFile:     "fixtures/check_stats.text",
+		},
+	}
+
+	for _, tt := range tests {
+		jsonBytes, err := os.ReadFile(tt.jsonFile)
 		require.NoError(t, err)
-		assert.Contains(t, actual, statusRenderErrors)
-	})
-
-	t.Run("no render errors", func(t *testing.T) {
-		actual, err := FormatStatus(agentJSON)
-		require.NoError(t, err)
-
-		// We replace windows line break by linux so the tests pass on every OS
-		result := strings.Replace(string(agentText), "\r\n", "\n", -1)
-		actual = strings.Replace(actual, "\r\n", "\n", -1)
-
-		assert.Equal(t, actual, result)
-		assert.NotContains(t, actual, statusRenderErrors)
-	})
-}
-
-func TestFormatDCAStatus(t *testing.T) {
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
-	defer func() {
-		os.Setenv("TZ", originalTZ)
-	}()
-	agentJSON, err := os.ReadFile("fixtures/cluster_agent_status.json")
-	require.NoError(t, err)
-	agentText, err := os.ReadFile("fixtures/cluster_agent_status.text")
-	require.NoError(t, err)
-	const statusRenderErrors = "Status render errors"
-
-	t.Run("render errors", func(t *testing.T) {
-		actual, err := FormatDCAStatus([]byte{})
-		require.NoError(t, err)
-		assert.Contains(t, actual, statusRenderErrors)
-	})
-
-	t.Run("no render errors", func(t *testing.T) {
-		actual, err := FormatDCAStatus(agentJSON)
-		require.NoError(t, err)
-
-		// We replace windows line break by linux so the tests pass on every OS
-		result := strings.Replace(string(agentText), "\r\n", "\n", -1)
-		actual = strings.Replace(actual, "\r\n", "\n", -1)
-
-		assert.Equal(t, actual, result)
-		assert.NotContains(t, actual, statusRenderErrors)
-	})
-}
-
-func TestFormatSecurityAgentStatus(t *testing.T) {
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
-	defer func() {
-		os.Setenv("TZ", originalTZ)
-	}()
-	agentJSON, err := os.ReadFile("fixtures/security_agent_status.json")
-	require.NoError(t, err)
-	agentText, err := os.ReadFile("fixtures/security_agent_status.text")
-	require.NoError(t, err)
-	const statusRenderErrors = "Status render errors"
-
-	t.Run("render errors", func(t *testing.T) {
-		actual, err := FormatSecurityAgentStatus([]byte{})
-		require.NoError(t, err)
-		assert.Contains(t, actual, statusRenderErrors)
-	})
-
-	t.Run("no render errors", func(t *testing.T) {
-		actual, err := FormatSecurityAgentStatus(agentJSON)
+		expectedOutput, err := os.ReadFile(tt.resultFile)
 		require.NoError(t, err)
 
-		// We replace windows line break by linux so the tests pass on every OS
-		result := strings.Replace(string(agentText), "\r\n", "\n", -1)
-		actual = strings.Replace(actual, "\r\n", "\n", -1)
+		t.Run(fmt.Sprintf("%s: render errors", tt.name), func(t *testing.T) {
+			output, err := tt.formatFunction([]byte{})
+			require.NoError(t, err)
+			assert.Contains(t, output, statusRenderErrors)
+		})
 
-		assert.Equal(t, actual, result)
-		assert.NotContains(t, actual, statusRenderErrors)
-	})
-}
+		t.Run(fmt.Sprintf("%s: no render errors", tt.name), func(t *testing.T) {
+			output, err := tt.formatFunction(jsonBytes)
+			require.NoError(t, err)
 
-func TestFormatProcessAgentStatus(t *testing.T) {
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
-	defer func() {
-		os.Setenv("TZ", originalTZ)
-	}()
-	agentJSON, err := os.ReadFile("fixtures/process_agent_status.json")
-	require.NoError(t, err)
-	agentText, err := os.ReadFile("fixtures/process_agent_status.text")
-	require.NoError(t, err)
-	const statusRenderErrors = "Status render errors"
+			// We replace windows line break by linux so the tests pass on every OS
+			result := strings.Replace(string(expectedOutput), "\r\n", "\n", -1)
+			output = strings.Replace(output, "\r\n", "\n", -1)
 
-	t.Run("render errors", func(t *testing.T) {
-		actual, err := FormatProcessAgentStatus([]byte{})
-		require.NoError(t, err)
-		assert.Contains(t, actual, statusRenderErrors)
-	})
-
-	t.Run("no render errors", func(t *testing.T) {
-		actual, err := FormatProcessAgentStatus(agentJSON)
-		require.NoError(t, err)
-
-		// We replace windows line break by linux so the tests pass on every OS
-		result := strings.Replace(string(agentText), "\r\n", "\n", -1)
-		actual = strings.Replace(actual, "\r\n", "\n", -1)
-
-		assert.Equal(t, actual, result)
-		assert.NotContains(t, actual, statusRenderErrors)
-	})
-}
-
-func TestFormatCheckStats(t *testing.T) {
-	originalTZ := os.Getenv("TZ")
-	os.Setenv("TZ", "UTC")
-	defer func() {
-		os.Setenv("TZ", originalTZ)
-	}()
-	jsonBytes, err := os.ReadFile("fixtures/check_stats.json")
-	require.NoError(t, err)
-	agentText, err := os.ReadFile("fixtures/check_stats.text")
-	require.NoError(t, err)
-	const statusRenderErrors = "Status render errors"
-
-	t.Run("render errors", func(t *testing.T) {
-		actual, err := FormatCheckStats([]byte{})
-		require.NoError(t, err)
-		assert.Contains(t, actual, statusRenderErrors)
-	})
-
-	t.Run("no render errors", func(t *testing.T) {
-		actual, err := FormatCheckStats(jsonBytes)
-		require.NoError(t, err)
-
-		// We replace windows line break by linux so the tests pass on every OS
-		result := strings.Replace(string(agentText), "\r\n", "\n", -1)
-		actual = strings.Replace(actual, "\r\n", "\n", -1)
-
-		assert.Equal(t, actual, result)
-		assert.NotContains(t, actual, statusRenderErrors)
-	})
+			assert.Equal(t, output, result)
+			assert.NotContains(t, output, statusRenderErrors)
+		})
+	}
 }
