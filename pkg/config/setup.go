@@ -13,8 +13,8 @@ import (
 
 // Datadog is the global configuration object
 var (
-	Datadog     Config
-	SystemProbe Config
+	Datadog     = pkgconfigsetup.Datadog
+	SystemProbe = pkgconfigsetup.SystemProbe
 )
 
 func init() {

@@ -26,11 +26,7 @@ func setupConfig(deps configDependencies) (pkgconfigmodel.Config, *pkgconfigmode
 	failOnMissingFile := !p.configMissingOK
 	defaultConfPath := p.defaultConfPath
 
-	config := pkgconfigmodel.NewConfig("datadog", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.InitConfig(config)
-
-	systemProbe := pkgconfigmodel.NewConfig("system-probe", "DD", strings.NewReplacer(".", "_"))
-	pkgconfigsetup.InitSystemProbeConfig(systemProbe)
+	config := pkgconfigsetup.Datadog
 
 	if configName != "" {
 		config.SetConfigName(configName)
@@ -55,9 +51,9 @@ func setupConfig(deps configDependencies) (pkgconfigmodel.Config, *pkgconfigmode
 	var warnings *pkgconfigmodel.Warnings
 	resolver := deps.getSecretResolver()
 	if resolver == nil {
-		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, systemProbe.GetEnvVars())
+		warnings, err = pkgconfigsetup.LoadWithoutSecret(config, pkgconfigsetup.SystemProbe.GetEnvVars())
 	} else {
-		warnings, err = pkgconfigsetup.LoadWithSecret(config, resolver, systemProbe.GetEnvVars())
+		warnings, err = pkgconfigsetup.LoadWithSecret(config, resolver, pkgconfigsetup.SystemProbe.GetEnvVars())
 	}
 
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
