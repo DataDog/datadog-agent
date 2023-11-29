@@ -13,8 +13,8 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/netsampler/goflow2/utils"
+	"github.com/prometheus/client_golang/prometheus"
 	"sync"
 	"time"
 
@@ -43,18 +43,16 @@ type StateNetFlow struct {
 
 	ctx context.Context
 
-	sender             sender.Sender
 	mappedFieldsConfig map[uint16]config.Mapping
 }
 
 // NewStateNetFlow initializes a new Netflow/IPFIX producer, with the goflow default producer and the additional fields producer
-func NewStateNetFlow(mappingConfs []config.Mapping, sender sender.Sender) *StateNetFlow {
+func NewStateNetFlow(mappingConfs []config.Mapping) *StateNetFlow {
 	return &StateNetFlow{
 		ctx:                context.Background(),
 		samplinglock:       &sync.RWMutex{},
 		sampling:           make(map[string]producer.SamplingRateSystem),
 		mappedFieldsConfig: mapFieldsConfig(mappingConfs),
-		sender:             sender,
 	}
 }
 
@@ -88,9 +86,19 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 	if err != nil {
 		switch err.(type) {
 		case *netflow.ErrorTemplateNotFound:
-			s.sender.Count(common.MetricPrefix+"processor.errors", 1, "", []string{"exporter_ip:" + key, "error:template_not_found", "flow_protocol:netflow"})
+			utils.NetFlowErrors.With(
+				prometheus.Labels{
+					"router": key,
+					"error":  "template_not_found",
+				}).
+				Inc()
 		default:
-			s.sender.Count(common.MetricPrefix+"processor.errors", 1, "", []string{"exporter_ip:" + key, "error:error_decoding", "flow_protocol:netflow"})
+			utils.NetFlowErrors.With(
+				prometheus.Labels{
+					"router": key,
+					"error":  "error_decoding",
+				}).
+				Inc()
 		}
 		return err
 	}
@@ -153,12 +161,22 @@ func (s *StateNetFlow) FlowRoutine(workers int, addr string, port int, reuseport
 func (s *StateNetFlow) sendTelemetryMetrics(msg any, exporterIP string) {
 	switch msgDec := msg.(type) {
 	case netflow.NFv9Packet:
-		s.sender.Count(common.MetricPrefix+"processor.processed", 1, "", []string{"exporter_ip:" + exporterIP, "version:9", "flow_protocol:netflow"})
+		utils.NetFlowStats.With(
+			prometheus.Labels{
+				"router":  exporterIP,
+				"version": "9",
+			}).
+			Inc()
 		for _, fs := range msgDec.FlowSets {
 			s.sendFlowSetMetrics(fs, exporterIP, "9")
 		}
 	case netflow.IPFIXPacket:
-		s.sender.Count(common.MetricPrefix+"processor.processed", 1, "", []string{"exporter_ip:" + exporterIP, "version:10", "flow_protocol:netflow"})
+		utils.NetFlowStats.With(
+			prometheus.Labels{
+				"router":  exporterIP,
+				"version": "10",
+			}).
+			Inc()
 		for _, fs := range msgDec.FlowSets {
 			s.sendFlowSetMetrics(fs, exporterIP, "10")
 		}
@@ -168,12 +186,36 @@ func (s *StateNetFlow) sendTelemetryMetrics(msg any, exporterIP string) {
 func (s *StateNetFlow) sendFlowSetMetrics(fs any, exporterIP string, version string) {
 	switch fs.(type) {
 	case netflow.TemplateFlowSet:
-		s.sender.Count(common.MetricPrefix+"processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:template_flow_set", "flow_protocol:netflow"})
+		utils.NetFlowSetStatsSum.With(
+			prometheus.Labels{
+				"router":  exporterIP,
+				"version": version,
+				"type":    "TemplateFlowSet",
+			}).
+			Inc()
 	case netflow.NFv9OptionsTemplateFlowSet:
-		s.sender.Count(common.MetricPrefix+"processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:options_template_flow_set", "flow_protocol:netflow"})
+		utils.NetFlowSetStatsSum.With(
+			prometheus.Labels{
+				"router":  exporterIP,
+				"version": version,
+				"type":    "OptionsTemplateFlowSet",
+			}).
+			Inc()
 	case netflow.OptionsDataFlowSet:
-		s.sender.Count(common.MetricPrefix+"processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:options_data_flow_set", "flow_protocol:netflow"})
+		utils.NetFlowSetStatsSum.With(
+			prometheus.Labels{
+				"router":  exporterIP,
+				"version": version,
+				"type":    "OptionsDataFlowSet",
+			}).
+			Inc()
 	case netflow.DataFlowSet:
-		s.sender.Count(common.MetricPrefix+"processor.flowsets", 1, "", []string{"exporter_ip:" + exporterIP, "version:" + version, "type:data_flow_set", "flow_protocol:netflow"})
+		utils.NetFlowSetStatsSum.With(
+			prometheus.Labels{
+				"router":  exporterIP,
+				"version": version,
+				"type":    "DataFlowSet",
+			}).
+			Inc()
 	}
 }

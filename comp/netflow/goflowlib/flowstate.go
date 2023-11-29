@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
-
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	"go.uber.org/atomic"
 
@@ -53,7 +51,6 @@ func StartFlowRoutine(
 	fieldMappings []config.Mapping,
 	flowInChan chan *common.Flow,
 	logger log.Component,
-	sender sender.Sender,
 	atomicErr *atomic.String,
 	listenerFlowCount *atomic.Int64) (*FlowStateWrapper, error) {
 	var flowState FlowRunnableState
@@ -70,7 +67,7 @@ func StartFlowRoutine(
 		}
 		defer templateSystem.Close(ctx)
 
-		state := netflowstate.NewStateNetFlow(fieldMappings, sender)
+		state := netflowstate.NewStateNetFlow(fieldMappings)
 		state.Format = formatDriver
 		state.Logger = logrusLogger
 		state.TemplateSystem = templateSystem

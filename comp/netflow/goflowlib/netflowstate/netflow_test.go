@@ -8,13 +8,14 @@ package netflowstate
 import (
 	"context"
 	"github.com/DataDog/datadog-agent/comp/netflow/testutil"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
+	promtestutil "github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/stretchr/testify/assert"
+
 	// install the in-memory template manager
 	_ "github.com/netsampler/goflow2/decoders/netflow/templates/memory"
 	"github.com/netsampler/goflow2/utils"
 	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"net"
 	"testing"
@@ -28,9 +29,6 @@ func (m *mockedFormatDriver) Format(_ interface{}) ([]byte, []byte, error) {
 }
 
 func TestNetflowState_TelemetryMetrics(t *testing.T) {
-	sender := mocksender.NewMockSender("")
-	sender.On("Count", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
-
 	logrusLogger := logrus.StandardLogger()
 	ctx := context.Background()
 
@@ -38,7 +36,7 @@ func TestNetflowState_TelemetryMetrics(t *testing.T) {
 	require.NoError(t, err, "error with template")
 	defer templateSystem.Close(ctx)
 
-	state := NewStateNetFlow(nil, sender)
+	state := NewStateNetFlow(nil)
 	state.Format = &mockedFormatDriver{}
 	state.Logger = logrusLogger
 	state.TemplateSystem = templateSystem
@@ -57,7 +55,10 @@ func TestNetflowState_TelemetryMetrics(t *testing.T) {
 	err = state.DecodeFlow(flowPacket)
 	require.NoError(t, err, "error handling flow packet")
 
-	sender.AssertMetric(t, "Count", "datadog.netflow.processor.processed", 1, "", []string{"exporter_ip:127.0.0.1", "version:9", "flow_protocol:netflow"})
-	sender.AssertMetric(t, "Count", "datadog.netflow.processor.flowsets", 1, "", []string{"exporter_ip:127.0.0.1", "type:template_flow_set", "version:9", "flow_protocol:netflow"})
-	sender.AssertMetric(t, "Count", "datadog.netflow.processor.flowsets", 1, "", []string{"exporter_ip:127.0.0.1", "type:data_flow_set", "version:9", "flow_protocol:netflow"})
+	assert.Equal(t, 1, promtestutil.CollectAndCount(utils.NetFlowStats))
+	assert.Equal(t, 2, promtestutil.CollectAndCount(utils.NetFlowSetStatsSum))
+
+	assert.Equal(t, float64(1), promtestutil.ToFloat64(utils.NetFlowStats.WithLabelValues("127.0.0.1", "9")))
+	assert.Equal(t, float64(1), promtestutil.ToFloat64(utils.NetFlowSetStatsSum.WithLabelValues("127.0.0.1", "9", "TemplateFlowSet")))
+	assert.Equal(t, float64(1), promtestutil.ToFloat64(utils.NetFlowSetStatsSum.WithLabelValues("127.0.0.1", "9", "DataFlowSet")))
 }
