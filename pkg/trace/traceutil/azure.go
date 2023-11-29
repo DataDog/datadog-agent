@@ -18,6 +18,7 @@ const (
 	aasOperatingSystem  = "aas.environment.os"
 	aasRuntime          = "aas.environment.runtime"
 	aasExtensionVersion = "aas.environment.extension_version"
+	aasFunctionRuntime  = "aas.environment.function_runtime"
 	aasResourceGroup    = "aas.resource.group"
 	aasResourceID       = "aas.resource.id"
 	aasSiteKind         = "aas.site.kind"
@@ -34,7 +35,8 @@ const (
 	containerFramework = "Container"
 	unknown            = "unknown"
 
-	appService = "app"
+	appService  = "app"
+	functionApp = "functionapp"
 )
 
 func GetAppServicesTags() map[string]string {
@@ -79,6 +81,16 @@ func getAppServicesTags(getenv func(string) string) map[string]string {
 		} else if val := getenv("DD_AAS_DOTNET_EXTENSION_VERSION"); val != "" {
 			tags[aasExtensionVersion] = val
 		}
+	}
+
+	// Function Apps require a different runtime and kind
+	if inFunctionApp() {
+		runtime := getenv("FUNCTIONS_WORKER_RUNTIME")
+		version := getenv("FUNCTIONS_EXTENSION_VERSION")
+
+		tags[aasRuntime] = runtime
+		tags[aasFunctionRuntime] = version
+		tags[aasSiteKind] = functionApp
 	}
 
 	return tags
@@ -142,6 +154,12 @@ func getLinuxRuntime(getenv func(string) string) (rt string) {
 	}
 
 	return rt
+}
+
+func inFunctionApp() bool {
+	_, existsRuntime := os.LookupEnv("FUNCTIONS_WORKER_RUNTIME")
+	_, existsVersion := os.LookupEnv("FUNCTIONS_EXTENSION_VERSION")
+	return existsRuntime && existsVersion
 }
 
 func parseAzureSubscriptionID(subID string) (id string) {

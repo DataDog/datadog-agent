@@ -101,6 +101,27 @@ func TestCompileAzureResourceID(t *testing.T) {
 	assert.Equal(t, "/subscriptions/00000000/resourcegroups/resource/providers/microsoft.web/sites/site-name", resourceID)
 }
 
+func TestAzureFunction(t *testing.T) {
+	t.Setenv("FUNCTIONS_WORKER_RUNTIME", "node")
+	t.Setenv("FUNCTIONS_EXTENSION_VERSION", "~4")
+
+	metadata := getAppServicesTags(mockGetEnvVarFunctionApp)
+	os := runtime.GOOS
+
+	assert.Equal(t, "1234abcd", metadata[aasInstanceID])
+	assert.Equal(t, "test-instance", metadata[aasInstanceName])
+	assert.Equal(t, os, metadata[aasOperatingSystem])
+	assert.Equal(t, "node", metadata[aasRuntime])
+	assert.Equal(t, "test-resource-group", metadata[aasResourceGroup])
+	assert.Equal(t, "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/test-resource-group/providers/microsoft.web/sites/site-name-test", metadata[aasResourceID])
+	assert.Equal(t, "functionapp", metadata[aasSiteKind])
+	assert.Equal(t, "site-name-test", metadata[aasSiteName])
+	assert.Equal(t, "app", metadata[aasSiteType])
+	assert.Equal(t, "00000000-0000-0000-0000-000000000000", metadata[aasSubscriptionID])
+	assert.Equal(t, "~4", metadata[aasFunctionRuntime])
+
+}
+
 func mockAzureAppServiceMetadata() map[string]string {
 	aasMetadata = make(map[string]string)
 	aasMetadata["WEBSITE_SITE_NAME"] = "site-name-test"
@@ -114,7 +135,27 @@ func mockAzureAppServiceMetadata() map[string]string {
 	return aasMetadata
 }
 
+func mockAzureFunctionAppMetadata() map[string]string {
+	aasMetadata = make(map[string]string)
+	aasMetadata["WEBSITE_SITE_NAME"] = "site-name-test"
+	aasMetadata["WEBSITE_OWNER_NAME"] = "00000000-0000-0000-0000-000000000000+apm-dotnet-EastUSwebspace-Linux"
+	aasMetadata["WEBSITE_RESOURCE_GROUP"] = "test-resource-group"
+	aasMetadata["WEBSITE_INSTANCE_ID"] = "1234abcd"
+	aasMetadata["COMPUTERNAME"] = "test-instance"
+	aasMetadata["WEBSITE_STACK"] = "NODE"
+	aasMetadata["WEBSITE_NODE_DEFAULT_VERSION"] = "~18"
+	aasMetadata["FUNCTIONS_WORKER_RUNTIME"] = "node"
+	aasMetadata["FUNCTIONS_EXTENSION_VERSION"] = "~4"
+
+	return aasMetadata
+}
+
 func mockGetEnvVar(key string) string {
 	aasMetadata := mockAzureAppServiceMetadata()
+	return aasMetadata[key]
+}
+
+func mockGetEnvVarFunctionApp(key string) string {
+	aasMetadata := mockAzureFunctionAppMetadata()
 	return aasMetadata[key]
 }
