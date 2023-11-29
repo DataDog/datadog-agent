@@ -139,11 +139,11 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
     // step function of the difference is 0 if the difference is negative, and 1 if the difference is positive.
     // Thus, if the difference is negative, we will get 0, and if the difference is positive, we will get the difference.
     size = size < HTTP2_TELEMETRY_MAX_PATH_LEN ? 0 : size - HTTP2_TELEMETRY_MAX_PATH_LEN;
-    // This line acts as a ciel function, which means that if the size is not a multiple of the bucket size, we will
+    // This line acts as a ceil function, which means that if the size is not a multiple of the bucket size, we will
     // round it up to the next bucket. Since we don't have float numbers in eBPF, we are adding the (bucket size - 1)
-    // to the size, and then dividing it by the bucket size. This will give us the ciel function.
-#define CIEL_FUNCTION_FACTOR (HTTP2_TELEMETRY_PATH_BUCKETS_SIZE - 1)
-    __u8 bucket_idx = (size + CIEL_FUNCTION_FACTOR) / HTTP2_TELEMETRY_PATH_BUCKETS_SIZE;
+    // to the size, and then dividing it by the bucket size. This will give us the ceil function.
+#define CEIL_FUNCTION_FACTOR (HTTP2_TELEMETRY_PATH_BUCKETS_SIZE - 1)
+    __u8 bucket_idx = (size + CEIL_FUNCTION_FACTOR) / HTTP2_TELEMETRY_PATH_BUCKETS_SIZE;
 
     // This line guarantees that the bucket index is between 0 and HTTP2_TELEMETRY_PATH_BUCKETS.
     // Although, it is not needed, we keep this function to please the verifier, and to have an explicit lower bound.
@@ -176,21 +176,19 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    // We skip if:
-    // - The string is too big
-    // - This is not a path
-    // - We won't be able to store the header info
-
     if (index == kIndexPath) {
         update_path_size_telemetry(http2_tel, str_len);
     }
 
-    if ((str_len > HTTP2_MAX_PATH_LEN) || index != kIndexPath || headers_to_process == NULL) {
-        goto end;
+    // We skip if:
+    // - The string is too big
+    // - This is not a path
+    // - We won't be able to store the header info
+    if (str_len > HTTP2_MAX_PATH_LEN || index != kIndexPath || headers_to_process == NULL) {
+            goto end;
     }
 
-    __u32 final_size = str_len < HTTP2_MAX_PATH_LEN ? str_len : HTTP2_MAX_PATH_LEN;
-    if (skb_info->data_off + final_size > skb_info->data_end) {
+    if (skb_info->data_off + str_len > skb_info->data_end) {
         __sync_fetch_and_add(&http2_tel->path_exceeds_frame, 1);
         goto end;
     }

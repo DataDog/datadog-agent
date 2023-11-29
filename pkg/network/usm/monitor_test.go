@@ -18,6 +18,7 @@ import (
 	nethttp "net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -847,13 +848,9 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 			res := make(map[http.Key]int)
 			assert.Eventually(t, func() bool {
 				telemetry, err := usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry()
-				if err != nil {
-					t.Logf("failed dumping http2_in_flight: %s", err)
-				}
+				require.NoError(t, err)
+				return reflect.DeepEqual(tt.expectedTelemetry, telemetry)
 
-				require.Equal(t, tt.expectedTelemetry, telemetry)
-
-				return true
 			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedTelemetry)
 		})
 	}

@@ -47,7 +47,7 @@ type Protocol struct {
 	terminatedConnections               []netebpf.ConnTuple
 	terminatedConnectionMux             sync.Mutex
 
-	// kernelTelemetry is used to retrieve metrics from the kernel
+	// http2Telemetry is used to retrieve metrics from the kernel
 	http2Telemetry             *kernelTelemetry
 	kernelTelemetryStopChannel chan struct{}
 }
@@ -63,7 +63,7 @@ const (
 	parserTailCall                   = "socket__http2_frames_parser"
 	eventStream                      = "http2"
 	terminatedConnectionsEventStream = "terminated_http2"
-	TelemetryMap                     = "http2_telemetry"
+	telemetryMap                     = "http2_telemetry"
 )
 
 var Spec = &protocols.ProtocolSpec{
@@ -222,7 +222,7 @@ func (p *Protocol) PostStart(mgr *manager.Manager) error {
 }
 
 func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
-	mp, _, err := mgr.GetMap(TelemetryMap)
+	mp, _, err := mgr.GetMap(telemetryMap)
 	if err != nil {
 		log.Warnf("unable to get http2 telemetry map: %s", err)
 		return
@@ -234,7 +234,7 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 	}
 	var zero uint32
 	http2Telemetry := &HTTP2Telemetry{}
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(30 * time.Second)
 
 	go func() {
 		defer ticker.Stop()
@@ -243,7 +243,7 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 			select {
 			case <-ticker.C:
 				if err := mp.Lookup(unsafe.Pointer(&zero), unsafe.Pointer(http2Telemetry)); err != nil {
-					log.Warnf("unable to lookup http2 telemetry map: %s", err)
+					log.Errorf("unable to lookup http2 telemetry map: %s", err)
 					return
 				}
 
@@ -467,7 +467,7 @@ func (p *Protocol) GetHTTP2KernelTelemetry() (*HTTP2Telemetry, error) {
 	http2Telemetry := &HTTP2Telemetry{}
 	var zero uint32
 
-	mp, _, err := p.mgr.GetMap(TelemetryMap)
+	mp, _, err := p.mgr.GetMap(telemetryMap)
 	if err != nil {
 		log.Errorf("unable to get http2 telemetry map: %s", err)
 		return nil, err
