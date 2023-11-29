@@ -20,7 +20,7 @@ func conf() pkgconfigmodel.Config {
 	return conf
 }
 
-// SetupConfFromYAML generates a configuration from the given yaml config
+// confFromYAML generates a configuration from the given yaml config
 func confFromYAML(yamlConfig string) pkgconfigmodel.Config {
 	conf := conf()
 	conf.SetConfigType("yaml")
