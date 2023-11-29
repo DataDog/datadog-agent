@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// Protocol implements the interface that represents a protocol supported by USM for HTTP/2.
 type Protocol struct {
 	cfg *config.Config
 	mgr *manager.Manager
