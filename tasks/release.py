@@ -1397,6 +1397,7 @@ def update_build_links(_ctx, new_version):
     ATLASSIAN_PASSWORD is a token. See: https://id.atlassian.com/manage-profile/security/api-tokens
     """
     from atlassian import Confluence
+    from atlassian.confluence import ApiError
 
     BUILD_LINKS_PAGE_ID = 2889876360
 
@@ -1437,12 +1438,12 @@ def update_build_links(_ctx, new_version):
     for key in patterns:
         body = body.replace(key, patterns[key])
 
-    response = confluence.update_page(BUILD_LINKS_PAGE_ID, title, body=body)
-
-    if response.status_code != 200:
+    try:
+        confluence.update_page(BUILD_LINKS_PAGE_ID, title, body=body)
+    except ApiError as e:
         raise Exit(
             color_message(
-                f"Failed to update conluence page. Response status code - {response.status_code}",
+                f"Failed to update confluence page. Reason: {e.reason}",
                 "red",
             ),
             code=1,
