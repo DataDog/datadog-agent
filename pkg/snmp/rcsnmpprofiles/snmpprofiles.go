@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"strings"
 )
 
 // RemoteConfigSNMPProfilesManager receives configuration from remote-config
@@ -27,19 +28,7 @@ func NewRemoteConfigSNMPProfilesManager() *RemoteConfigSNMPProfilesManager {
 
 // Callback is when profiles updates are available (rc product NDM_DEVICE_PROFILES_CUSTOM)
 func (rc *RemoteConfigSNMPProfilesManager) Callback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	var profiles []profiledefinition.ProfileDefinition
 	log.Info("[RC Callback] RC Callback")
-	for path, rawConfig := range updates {
-		log.Infof("[RC Callback] Path: %s", path)
-
-		profileDef := profiledefinition.DeviceProfileRcConfig{}
-		json.Unmarshal(rawConfig.Config, &profileDef)
-
-		log.Infof("[RC Callback] Profile Name: %s", profileDef.Profile.Name)
-		log.Infof("[RC Callback] Profile: %+v", profileDef.Profile)
-
-		profiles = append(profiles, profileDef.Profile)
-	}
 
 	// TODO: Do not collect snmp-listener configs
 	snmpConfigList, err := parse.GetConfigCheckSnmp()
@@ -51,5 +40,25 @@ func (rc *RemoteConfigSNMPProfilesManager) Callback(updates map[string]state.Raw
 
 	for _, config := range snmpConfigList {
 		log.Infof("[RC Callback] SNMP config: %+v", config)
+	}
+
+	var profiles []profiledefinition.ProfileDefinition
+	for path, rawConfig := range updates {
+		log.Infof("[RC Callback] Path: %s", path)
+
+		profileDef := profiledefinition.DeviceProfileRcConfig{}
+		json.Unmarshal(rawConfig.Config, &profileDef)
+
+		log.Infof("[RC Callback] Profile Name: %s", profileDef.Profile.Name)
+		log.Infof("[RC Callback] Profile Desc: %s", profileDef.Profile.Description)
+
+		profiles = append(profiles, profileDef.Profile)
+
+		for _, config := range snmpConfigList {
+			ipaddr := config.IPAddress
+			if ipaddr != "" && strings.Contains(profileDef.Profile.Description, ipaddr) {
+				log.Infof("[RC Callback] Run Device OID Scan for: %s", ipaddr)
+			}
+		}
 	}
 }
