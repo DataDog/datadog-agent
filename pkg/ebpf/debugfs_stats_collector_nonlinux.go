@@ -9,6 +9,7 @@ package ebpf
 
 import "github.com/prometheus/client_golang/prometheus"
 
+// NewDebugFsStatCollector creates a DebugFsStatCollector
 func NewDebugFsStatCollector() prometheus.Collector {
 	return &NoopDebugFsStatCollector{}
 }
