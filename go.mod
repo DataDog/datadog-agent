@@ -89,7 +89,7 @@ require (
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.1
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.1
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.8.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/metrics v0.8.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/quantile v0.8.0
 	github.com/DataDog/sketches-go v1.4.2
@@ -615,7 +615,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4
 	github.com/DataDog/go-libddwaf/v2 v2.2.0
-	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
+	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.2
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/aws/aws-sdk-go-v2/service/kms v1.22.2
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.21.6
