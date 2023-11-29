@@ -10,16 +10,12 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .agent import render_config
-from .security_agent import render_config as render_security_agent_config
 from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
 from .flavor import AgentFlavor
 from .rtloader import install as rtloader_install
 from .rtloader import make as rtloader_make
-from .utils import (
-    REPO_PATH,
-    bin_name,
-    get_build_flags,
-)
+from .security_agent import render_config as render_security_agent_config
+from .utils import REPO_PATH, bin_name, get_build_flags
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "allinone", bin_name("allinone"))
@@ -86,7 +82,7 @@ def build(
 
     for build in ALLINONE_AGENTS:
         if build in exclude:
-            all_tags.add("no_"+build.replace("-", "_"))
+            all_tags.add("no_" + build.replace("-", "_"))
             continue
 
         include_tags = (
@@ -128,8 +124,4 @@ def build(
         windows_sysprobe=windows_sysprobe,
     )
 
-    render_security_agent_config(
-        ctx,
-        env=env,
-        skip_assets=skip_assets
-    )
+    render_security_agent_config(ctx, env=env, skip_assets=skip_assets)
