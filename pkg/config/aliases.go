@@ -156,7 +156,6 @@ const (
 	DefaultAuditorTTL                        = pkgconfigsetup.DefaultAuditorTTL
 	DefaultMaxMessageSizeBytes               = pkgconfigsetup.DefaultMaxMessageSizeBytes
 	DefaultProcessEntityStreamPort           = pkgconfigsetup.DefaultProcessEntityStreamPort
-	DefaultProcessAgentLogFile               = pkgconfigsetup.DefaultProcessAgentLogFile
 	DefaultProcessEventsCheckInterval        = pkgconfigsetup.DefaultProcessEventsCheckInterval
 	DefaultProcessEventsMinCheckInterval     = pkgconfigsetup.DefaultProcessEventsMinCheckInterval
 	ProcessMaxPerMessageLimit                = pkgconfigsetup.ProcessMaxPerMessageLimit
@@ -168,6 +167,7 @@ const (
 	DefaultProcessQueueBytes                 = pkgconfigsetup.DefaultProcessQueueBytes
 	DefaultProcessQueueSize                  = pkgconfigsetup.DefaultProcessQueueSize
 	DefaultProcessRTQueueSize                = pkgconfigsetup.DefaultProcessRTQueueSize
+	DefaultRuntimePoliciesDir                = pkgconfigsetup.DefaultRuntimePoliciesDir
 )
 
 type (
