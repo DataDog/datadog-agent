@@ -73,7 +73,7 @@ func StartServer(
 		return fmt.Errorf("unable to get IPC address and port: %v", err)
 	}
 
-	extraHosts := []string{apiAddr}
+	additionalHostIdentities := []string{apiAddr}
 
 	ipcHost := config.Datadog.GetString("agent_ipc_host")
 	apiConfigPort := config.Datadog.GetInt("agent_ipc_port")
@@ -81,10 +81,10 @@ func StartServer(
 	apiConfigHostPort := net.JoinHostPort(ipcHost, strconv.Itoa(apiConfigPort))
 
 	if apiConfigEnabled {
-		extraHosts = append(extraHosts, apiConfigHostPort)
+		additionalHostIdentities = append(additionalHostIdentities, apiConfigHostPort)
 	}
 
-	tlsKeyPair, tlsCertPool, err := initializeTLS(extraHosts...)
+	tlsKeyPair, tlsCertPool, err := initializeTLS(additionalHostIdentities...)
 	if err != nil {
 		return fmt.Errorf("unable to initialize TLS: %v", err)
 	}
