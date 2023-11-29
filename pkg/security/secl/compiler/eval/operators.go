@@ -1121,3 +1121,14 @@ func CIDRArrayContains(a *CIDREvaluator, b *CIDRArrayEvaluator, state *State) (*
 		isDeterministic: isDc,
 	}, nil
 }
+
+// PacketMatchesFilter evaluates a Packet against a packet filter
+func PacketMatchesFilter(p *PacketEvaluator, filter *PacketFilter, _ *State) (*BoolEvaluator, error) {
+	return &BoolEvaluator{
+		EvalFnc: func(ctx *Context) bool {
+			return filter.Matches(p.Eval(ctx).(Packet))
+		},
+		Weight:          p.Weight,
+		isDeterministic: p.isDeterministic,
+	}, nil
+}

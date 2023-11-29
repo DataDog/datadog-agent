@@ -20,6 +20,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/google/gopacket"
+
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 )
 
@@ -183,8 +185,9 @@ type Event struct {
 	UnloadModule UnloadModuleEvent `field:"unload_module" event:"unload_module"` // [7.35] [Kernel] A kernel module was deleted
 
 	// network events
-	DNS  DNSEvent  `field:"dns" event:"dns"`   // [7.36] [Network] A DNS request was sent
-	Bind BindEvent `field:"bind" event:"bind"` // [7.37] [Network] A bind was executed
+	DNS    DNSEvent    `field:"dns" event:"dns"`                                 // [7.36] [Network] A DNS request was sent
+	Bind   BindEvent   `field:"bind" event:"bind"`                               // [7.37] [Network] A bind was executed
+	Packet PacketEvent `field:"packet,type_override:eval.Packet" event:"packet"` // [x.xx] [Network] A packet was captured
 
 	// internal usage
 	Umount           UmountEvent           `field:"-" json:"-"`
@@ -803,6 +806,25 @@ type BindEvent struct {
 
 	Addr       IPPortContext `field:"addr"`        // Bound address
 	AddrFamily uint16        `field:"addr.family"` // SECLDoc[addr.family] Definition:`Address family`
+}
+
+// PacketEvent represents a packet event
+type PacketEvent struct {
+	gopacket.PacketMetadata
+	gopacket.Packet
+}
+
+// GetCaptureInfo returns the capture info of the packet event
+func (p PacketEvent) GetCaptureInfo() gopacket.CaptureInfo {
+	return p.CaptureInfo
+}
+
+// GetData returns a byte slice containing packet data of the packet event
+func (p PacketEvent) GetData() []byte {
+	if p.Packet == nil {
+		return nil
+	}
+	return p.Packet.Data()
 }
 
 // NetDevice represents a network device

@@ -388,7 +388,28 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 
 	switch obj := obj.(type) {
 	case *ast.BooleanExpression:
+		if obj.Expression != nil {
+			return nodeToEvaluator(obj.Expression, opts, state)
+		}
 		return nodeToEvaluator(obj.Expression, opts, state)
+	case *ast.PacketMatchingOperation:
+		filter, err := CompilePacketFilter(*obj.PacketFilter)
+		if err != nil {
+			return nil, obj.Pos, err
+		}
+		identEvaluator, pos, err := identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, opts, state)
+		if err != nil {
+			return nil, pos, err
+		}
+		packetEvaluator, ok := identEvaluator.(*PacketEvaluator)
+		if !ok {
+			return nil, obj.Pos, NewTypeError(obj.Pos, reflect.TypeOf(PacketEvaluator{}).Kind())
+		}
+		boolEvaluator, err := PacketMatchesFilter(packetEvaluator, filter, state)
+		if err != nil {
+			return nil, obj.Pos, err
+		}
+		return boolEvaluator, obj.Pos, nil
 	case *ast.Expression:
 		cmp, pos, err = nodeToEvaluator(obj.Comparison, opts, state)
 		if err != nil {

@@ -408,3 +408,33 @@ func (s *CIDRArrayEvaluator) GetField() string {
 func (s *CIDRArrayEvaluator) IsStatic() bool {
 	return s.EvalFnc == nil
 }
+
+// PacketEvaluator represents a packet evaluator
+type PacketEvaluator struct {
+	EvalFnc func(ctx *Context) *Packet
+	Field   Field
+	Weight  int
+
+	// used during compilation of partial
+	isDeterministic bool
+}
+
+// Eval returns the result of the evaluation
+func (p *PacketEvaluator) Eval(ctx *Context) interface{} {
+	return p.EvalFnc(ctx)
+}
+
+// IsDeterministicFor returns whether the evaluator is partial
+func (p *PacketEvaluator) IsDeterministicFor(field Field) bool {
+	return p.isDeterministic || (p.Field != "" && p.Field == field)
+}
+
+// GetField returns field name used by this evaluator
+func (p *PacketEvaluator) GetField() string {
+	return p.Field
+}
+
+// IsStatic returns whether the evaluator is a scalar
+func (p *PacketEvaluator) IsStatic() bool {
+	return p.EvalFnc == nil
+}

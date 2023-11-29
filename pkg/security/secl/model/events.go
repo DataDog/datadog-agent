@@ -92,6 +92,9 @@ const (
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
+	// PacketEventType is used to report packet events
+	PacketEventType
+
 	// FirstEventType is the first valid event type
 	FirstEventType = FileOpenEventType
 
@@ -205,6 +208,8 @@ func (t EventType) String() string {
 		return "syscalls"
 	case AnomalyDetectionSyscallEventType:
 		return "anomaly_detection_syscall"
+	case PacketEventType:
+		return "packet"
 
 	case CustomLostReadEventType:
 		return "lost_events_read"

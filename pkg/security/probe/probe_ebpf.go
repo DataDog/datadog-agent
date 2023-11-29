@@ -1412,6 +1412,18 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 		}
 	}
 
+	var pktFilterExpressions []string
+	for _, rule := range rs.GetRules() {
+		if slices.Contains(rule.GetEvaluator().EventTypes, model.PacketEventType.String()) {
+			pktFilterExpressions = append(pktFilterExpressions, rule.Expression)
+		}
+	}
+	if len(pktFilterExpressions) > 0 {
+		if err := p.updateSocketFilter(pktFilterExpressions); err != nil {
+			return nil, err
+		}
+	}
+
 	return ars, nil
 }
 
@@ -1918,4 +1930,9 @@ func (p *EBPFProbe) HandleActions(rule *rules.Rule, event eval.Event) {
 			}
 		}
 	}
+}
+
+func (p *EBPFProbe) updateSocketFilter(filterExpressions []string) error {
+	fmt.Printf("Updating socket filter with %d expressions:\n%+q\n", len(filterExpressions), filterExpressions)
+	return nil
 }

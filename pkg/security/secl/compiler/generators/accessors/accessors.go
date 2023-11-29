@@ -356,6 +356,7 @@ type seclField struct {
 	exposedAtEventRootOnly bool // fields that should only be exposed at the root of an event, i.e. `parent` should not be exposed for an `ancestor` of a process
 	containerStructName    string
 	gettersOnly            bool //  a field that is not exposed via SECL, but still has an accessor generated
+	typeNameOverride       string
 }
 
 func parseFieldDef(def string) (seclField, error) {
@@ -404,6 +405,8 @@ func parseFieldDef(def string) (seclField, error) {
 						field.exposedAtEventRootOnly = true
 					}
 				}
+			case "type_override":
+				field.typeNameOverride = value
 			}
 		}
 	}
@@ -505,6 +508,9 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 			}
 
 			for _, seclField := range fields {
+				if seclField.typeNameOverride != "" {
+					fieldType = seclField.typeNameOverride
+				}
 				handleNonEmbedded(module, seclField, prefixedFieldName, event, fieldType, isPointer, isArray)
 
 				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
@@ -562,6 +568,9 @@ func handleSpecRecursive(module *common.Module, astFiles *AstFiles, spec interfa
 				}
 			}
 			for _, seclField := range gettersOnlyFields {
+				if seclField.typeNameOverride != "" {
+					fieldType = seclField.typeNameOverride
+				}
 				handleNonEmbedded(module, seclField, prefixedFieldName, event, fieldType, isPointer, isArray)
 
 				if seclFieldIterator := seclField.iterator; seclFieldIterator != "" {
