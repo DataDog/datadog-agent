@@ -10,10 +10,12 @@ import (
 
 	slog "github.com/cihub/seelog"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/logs"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // Aliases to conf package
@@ -149,6 +151,23 @@ const (
 	DefaultBatchMaxSize                      = pkgconfigsetup.DefaultBatchMaxSize
 	DefaultNumWorkers                        = pkgconfigsetup.DefaultNumWorkers
 	MaxNumWorkers                            = pkgconfigsetup.MaxNumWorkers
+	DefaultSite                              = pkgconfigsetup.DefaultSite
+	OTLPTracePort                            = pkgconfigsetup.OTLPTracePort
+	DefaultAuditorTTL                        = pkgconfigsetup.DefaultAuditorTTL
+	DefaultMaxMessageSizeBytes               = pkgconfigsetup.DefaultMaxMessageSizeBytes
+	DefaultProcessEntityStreamPort           = pkgconfigsetup.DefaultProcessEntityStreamPort
+	DefaultProcessAgentLogFile               = pkgconfigsetup.DefaultProcessAgentLogFile
+	DefaultProcessEventsCheckInterval        = pkgconfigsetup.DefaultProcessEventsCheckInterval
+	DefaultProcessEventsMinCheckInterval     = pkgconfigsetup.DefaultProcessEventsMinCheckInterval
+	ProcessMaxPerMessageLimit                = pkgconfigsetup.ProcessMaxPerMessageLimit
+	DefaultProcessMaxPerMessage              = pkgconfigsetup.DefaultProcessMaxPerMessage
+	ProcessMaxMessageBytesLimit              = pkgconfigsetup.ProcessMaxMessageBytesLimit
+	DefaultProcessDiscoveryHintFrequency     = pkgconfigsetup.DefaultProcessDiscoveryHintFrequency
+	DefaultProcessMaxMessageBytes            = pkgconfigsetup.DefaultProcessMaxMessageBytes
+	DefaultProcessExpVarPort                 = pkgconfigsetup.DefaultProcessExpVarPort
+	DefaultProcessQueueBytes                 = pkgconfigsetup.DefaultProcessQueueBytes
+	DefaultProcessQueueSize                  = pkgconfigsetup.DefaultProcessQueueSize
+	DefaultProcessRTQueueSize                = pkgconfigsetup.DefaultProcessRTQueueSize
 )
 
 func GetObsPipelineURL(datatype pkgconfigsetup.DataType) (string, error) {
@@ -187,4 +206,21 @@ func GetBindHost() string {
 
 func GetDogstatsdMappingProfiles() ([]MappingProfile, error) {
 	return pkgconfigsetup.GetDogstatsdMappingProfiles(Datadog)
+}
+
+var (
+	IsRemoteConfigEnabled   = pkgconfigsetup.IsRemoteConfigEnabled
+	StartTime               = pkgconfigsetup.StartTime
+	StandardJMXIntegrations = pkgconfigsetup.StandardJMXIntegrations
+	SetupOTLP               = pkgconfigsetup.SetupOTLP
+	InitSystemProbeConfig   = pkgconfigsetup.InitSystemProbeConfig
+)
+
+// LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
+func LoadWithoutSecret() (*model.Warnings, error) {
+	return pkgconfigsetup.LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
+}
+
+func GetProcessAPIAddressPort() (string, error) {
+	return pkgconfigsetup.GetProcessAPIAddressPort(Datadog)
 }
