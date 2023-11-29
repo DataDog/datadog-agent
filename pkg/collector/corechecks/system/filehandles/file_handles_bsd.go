@@ -2,25 +2,27 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
-//go:build windows
+//go:build freebsd || darwin
 
 package filehandles
 
 import (
+	"github.com/blabber/go-freebsd-sysctl/sysctl"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
-	"github.com/DataDog/datadog-agent/pkg/util/pdhutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// For testing purpose
+var getInt64 = sysctl.GetInt64
 
 const fileHandlesCheckName = "file_handle"
 
 type fhCheck struct {
 	core.CheckBase
-	pdhQuery *pdhutil.PdhQuery
-	// maps metric to counter object
-	counters map[string]pdhutil.PdhSingleInstanceCounter
 }
 
 // Run executes the check
@@ -30,25 +32,22 @@ func (c *fhCheck) Run() error {
 	if err != nil {
 		return err
 	}
-
-	// Fetch PDH query values
-	err = c.pdhQuery.CollectQueryData()
-	if err == nil {
-		// Get values for PDH counters
-		for metricname, counter := range c.counters {
-			var val float64
-			val, err = counter.GetValue()
-			if err == nil {
-				sender.Gauge(metricname, val, "", nil)
-			} else {
-				c.Warnf("file_handle.Check: Error getting process handle count: %v", err)
-			}
-		}
-	} else {
-		c.Warnf("file_handle.Check: Could not collect performance counter data: %v", err)
+	openFh, err := getInt64(openfilesOID)
+	if err != nil {
+		log.Warnf("Error getting %s value %v", openfilesOID, err)
+		return err
 	}
-
+	maxFh, err := getInt64("kern.maxfiles")
+	if err != nil {
+		log.Warnf("Error getting kern.maxfiles value %v", err)
+		return err
+	}
+	log.Debugf("Submitting %s %v", openfilesOID, openFh)
+	log.Debugf("Submitting kern.maxfiles %v", maxFh)
+	sender.Gauge("system.fs.file_handles.used", float64(openFh), "", nil)
+	sender.Gauge("system.fs.file_handles.max", float64(maxFh), "", nil)
 	sender.Commit()
+
 	return nil
 }
 
@@ -56,16 +55,6 @@ func (c *fhCheck) Run() error {
 func (c *fhCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) (err error) {
 	if err := c.CommonConfigure(senderManager, integrationConfigDigest, initConfig, data, source); err != nil {
 		return err
-	}
-
-	// Create PDH query
-	c.pdhQuery, err = pdhutil.CreatePdhQuery()
-	if err != nil {
-		return err
-	}
-
-	c.counters = map[string]pdhutil.PdhSingleInstanceCounter{
-		"system.fs.file_handles.in_use": c.pdhQuery.AddEnglishCounterInstance("Process", "Handle Count", "_Total"),
 	}
 
 	return err
