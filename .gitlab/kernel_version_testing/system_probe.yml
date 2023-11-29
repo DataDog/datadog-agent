@@ -371,13 +371,8 @@ kernel_matrix_testing_setup_env_x64:
         echo "These jobs do not permit retries. The go tests are retried a user-specified number of times automatically. In order to re-run the tests, you must trigger the pipeline again"
         'false'
       fi
-<<<<<<< HEAD
     - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.output | grep $MICROVM_GREP_PATTERN | cut -d ' ' -f 2)
     - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.output | grep $MICROVM_GREP_PATTERN | cut -d ' ' -f 1)
-=======
-    - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.output | grep "$ARCH-$TAG-.*$TEST_SET.*-ddvm" | cut -d ' ' -f 2)
-    - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.output | grep "$ARCH-$TAG-.*$TEST_SET.*-ddvm" | cut -d ' ' -f 1)
->>>>>>> e77a527be0 (exact match on domain name)
     - GO_VERSION=$(inv go-version)
     - !reference [.setup_ssh_config]
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
@@ -399,7 +394,7 @@ kernel_matrix_testing_setup_env_x64:
       - $DD_AGENT_TESTING_DIR/junit-$ARCH-$TAG-$TEST_SET.tar.gz
       - $DD_AGENT_TESTING_DIR/testjson-$ARCH-$TAG-$TEST_SET.tar.gz
 
-.kmt_run_tests_x64:
+kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -413,19 +408,7 @@ kernel_matrix_testing_setup_env_x64:
       - TAG: ["ubuntu_16.04", "ubuntu_18.04", "ubuntu_20.04", "ubuntu_22.04", "ubuntu_23.10", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38", "debian_10", "debian_11", "debian_12", "centos_79", "centos_8"]
         TEST_SET: ["no_tracersuite", "only_tracersuite"]
 
-kmt_run_tests_no_tracer_x64:
-  extends:
-    - .kmt_run_tests_x64
-  variables:
-    TEST_SET: "no_tracer"
-
-kmt_run_tests_only_tracer_x64:
-  extends:
-    - .kmt_run_tests_x64
-  variables:
-    TEST_SET: "only_tracer"
-
-.kmt_run_tests_arm64:
+kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
