@@ -8,7 +8,6 @@ from urllib.parse import urlparse
 
 from .init_kmt import KMT_STACKS_DIR, VMCONFIG, KMT_ROOTFS_DIR, check_and_get_stack
 from .stacks import create_stack, stack_exists
-from urllib.parse import urlparse
 from .tool import Exit, ask, info, warn
 
 vm_recipe = "recipe"
