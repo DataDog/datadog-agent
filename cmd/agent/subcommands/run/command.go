@@ -83,8 +83,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	otlpStatus "github.com/DataDog/datadog-agent/pkg/status/otlp"
 	pkgTelemetry "github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	pkgcommon "github.com/DataDog/datadog-agent/pkg/util/common"
@@ -481,8 +481,8 @@ func startAgent(
 		configService, err = remoteconfig.NewService()
 		if err != nil {
 			log.Errorf("Failed to initialize config management service: %s", err)
-		} else if err := configService.Start(context.Background()); err != nil {
-			log.Errorf("Failed to start config management service: %s", err)
+		} else {
+			configService.Start(context.Background())
 		}
 
 		if err := rcclient.Start("core-agent"); err != nil {
@@ -528,6 +528,7 @@ func startAgent(
 		demultiplexer,
 		hostMetadata,
 		invAgent,
+		demultiplexer,
 		invHost,
 		secretResolver,
 	); err != nil {
@@ -614,7 +615,7 @@ func startAgent(
 		return err
 	}
 	// TODO: (components) remove this once migrating the status package to components
-	status.SetOtelCollector(otelcollector)
+	otlpStatus.SetOtelCollector(otelcollector)
 
 	return nil
 }

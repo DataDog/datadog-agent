@@ -150,6 +150,10 @@ func TestSELinux(t *testing.T) {
 }
 
 func TestSELinuxCommitBools(t *testing.T) {
+	if !isSELinuxEnabled() {
+		t.Skipf("SELinux is not available, skipping tests")
+	}
+
 	ruleset := []*rules.RuleDefinition{
 		{
 			ID:         "test_selinux_commit_bools",
@@ -162,10 +166,6 @@ func TestSELinuxCommitBools(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer test.Close()
-
-	if !isSELinuxEnabled() {
-		t.Skipf("SELinux is not available, skipping tests")
-	}
 
 	savedBoolValue, err := getBoolValue(TestBoolName)
 	if err != nil {

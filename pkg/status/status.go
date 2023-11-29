@@ -19,7 +19,6 @@ import (
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/custommetrics"
@@ -31,7 +30,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	"github.com/DataDog/datadog-agent/pkg/status/apm"
 	"github.com/DataDog/datadog-agent/pkg/status/collector"
+	"github.com/DataDog/datadog-agent/pkg/status/jmx"
+	"github.com/DataDog/datadog-agent/pkg/status/otlp"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -59,14 +61,11 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
 	stats["hostinfo"] = hostMetadataUtils.GetInformation()
 
-	stats["JMXStatus"] = GetJMXStatus()
-	stats["JMXStartupError"] = GetJMXStartupError()
+	jmx.PopulateStatus(stats)
 
 	stats["logsStats"] = logsStatus.Get(verbose)
 
-	if otlp.IsDisplayed() {
-		stats["otlp"] = GetOTLPStatus()
-	}
+	otlp.PopulateStatus(stats)
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
@@ -84,6 +83,7 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 	}
 
 	stats["processAgentStatus"] = GetProcessAgentStatus()
+	stats["apmStats"] = apm.GetAPMStatus()
 
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
 		stats["TransportWarnings"] = httputils.GetNumberOfWarnings() > 0
