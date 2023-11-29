@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
+
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
 	"go.uber.org/atomic"
 

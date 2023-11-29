@@ -10,7 +10,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"go.uber.org/atomic"
 )
 
@@ -23,7 +22,7 @@ type netflowListener struct {
 	flowCount *atomic.Int64
 }
 
-func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggregator.FlowAggregator, logger log.Component, sender sender.Sender) (*netflowListener, error) {
+func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggregator.FlowAggregator, logger log.Component) (*netflowListener, error) {
 	listenerAtomicErr := atomic.NewString("")
 	listenerFlowCount := atomic.NewInt64(0)
 
@@ -36,7 +35,6 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 		listenerConfig.Mapping,
 		flowAgg.GetFlowInChan(),
 		logger,
-		sender,
 		listenerAtomicErr,
 		listenerFlowCount)
 

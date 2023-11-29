@@ -14,7 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
 	"github.com/netsampler/goflow2/utils"
-	"github.com/prometheus/client_golang/prometheus"
 	"sync"
 	"time"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/netsampler/goflow2/format"
 	"github.com/netsampler/goflow2/producer"
 	"github.com/netsampler/goflow2/transport"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // StateNetFlow holds a NetflowV9/IPFIX producer
