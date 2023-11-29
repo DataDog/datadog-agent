@@ -293,7 +293,7 @@ upload_minimized_btfs_arm64:
     KUBERNETES_MEMORY_REQUEST: "12Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
     VMCONFIG_FILE: "${CI_PROJECT_DIR}/vmconfig-${CI_PIPELINE_ID}-${ARCH}.json"
-    TEST_SETS: "no_tracer,only_tracer"
+    TEST_SETS: "no_tracersuite,only_tracersuite"
   before_script:
     - set +x
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
@@ -393,7 +393,7 @@ kernel_matrix_testing_setup_env_x64:
       - $DD_AGENT_TESTING_DIR/junit-$ARCH-$TAG-$TEST_SET.tar.gz
       - $DD_AGENT_TESTING_DIR/testjson-$ARCH-$TAG-$TEST_SET.tar.gz
 
-.kmt_run_tests_x64:
+kernel_matrix_testing_run_tests_x64:
   extends:
     - .kernel_matrix_testing_run_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_x64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -405,20 +405,9 @@ kernel_matrix_testing_setup_env_x64:
   parallel:
     matrix:
       - TAG: ["ubuntu_16.04", "ubuntu_18.04", "ubuntu_20.04", "ubuntu_22.04", "ubuntu_23.10", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38", "debian_10", "debian_11", "debian_12", "centos_79", "centos_8"]
+        TEST_SET: ["no_tracersuite", "only_tracersuite"]
 
-kmt_run_tests_no_tracer_x64:
-  extends:
-    - .kmt_run_tests_x64
-  variables:
-    TEST_SET: "no_tracer"
-
-kmt_run_tests_only_tracer_x64:
-  extends:
-    - .kmt_run_tests_x64
-  variables:
-    TEST_SET: "only_tracer"
-
-.kmt_run_tests_arm64:
+kernel_matrix_testing_run_tests_arm64:
   extends:
     - .kernel_matrix_testing_run_tests
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/system-probe_arm64$DATADOG_AGENT_SYSPROBE_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_SYSPROBE_BUILDIMAGES
@@ -430,18 +419,7 @@ kmt_run_tests_only_tracer_x64:
   parallel:
     matrix:
       - TAG: ["ubuntu_18.04", "ubuntu_20.04", "ubuntu_22.04", "ubuntu_23.10", "amzn_4.14", "amzn_5.4", "amzn_5.10", "fedora_37", "fedora_38", "debian_10", "debian_11", "debian_12", "centos_79", "centos_8"]
-
-kmt_run_tests_no_tracer_arm64:
-  extends:
-    - .kmt_run_tests_arm64
-  variables:
-    TEST_SET: "no_tracer"
-
-kmt_run_tests_only_tracer_arm64:
-  extends:
-    - .kmt_run_tests_arm64
-  variables:
-    TEST_SET: "only_tracer"
+        TEST_SET: ["no_tracersuite", "only_tracersuite"]
 
 .kernel_matrix_testing_cleanup:
   stage: kernel_matrix_testing
