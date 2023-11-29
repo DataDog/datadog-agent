@@ -1416,7 +1416,7 @@ def update_build_links(_ctx, new_version):
     if username is None or password is None:
         raise Exit(
             color_message(
-                "No Atlassian credentials provided. Check --help for more details.",
+                "No Atlassian credentials provided. Run inv --help update-build-links for more details.",
                 "red",
             ),
             code=1,
@@ -1437,7 +1437,16 @@ def update_build_links(_ctx, new_version):
     for key in patterns:
         body = body.replace(key, patterns[key])
 
-    confluence.update_page(BUILD_LINKS_PAGE_ID, title, body=body)
+    response = confluence.update_page(BUILD_LINKS_PAGE_ID, title, body=body)
+
+    if response.status_code != 200:
+        raise Exit(
+            color_message(
+                f"Failed to update conluence page. Response status code - {response.status_code}",
+                "red",
+            ),
+            code=1,
+        )
 
 
 def _create_build_links_patterns(current_version, new_version):
