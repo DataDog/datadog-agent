@@ -45,10 +45,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks"
 	"github.com/DataDog/datadog-agent/pkg/collector"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -171,7 +172,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	}
 
 	// Initialize remote configuration
-	var rcClient *remote.Client
+	var rcClient *client.Client
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
 		var err error
 		rcClient, err = initializeRemoteConfig(mainCtx)
@@ -442,15 +443,42 @@ func setupClusterCheck(ctx context.Context) (*clusterchecks.Handler, error) {
 	return handler, nil
 }
 
-func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
-	configService, err := remoteconfig.NewService()
+func initializeRemoteConfig(ctx context.Context) (*client.Client, error) {
+	clusterName := ""
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		pkglog.Warnf("Error while getting hostname, needed for retrieving cluster-name: cluster-name won't be set for remote-config")
+	} else {
+		clusterName = clustername.GetClusterName(context.TODO(), hname)
+	}
+
+	clusterID, err := clustername.GetClusterID()
+	if err != nil {
+		pkglog.Warnf("Error retrieving cluster ID: cluster-id won't be set for remote-config")
+	}
+
+	apiKey := pkgconfig.Datadog.GetString("api_key")
+	if pkgconfig.Datadog.IsSet("remote_configuration.api_key") {
+		apiKey = pkgconfig.Datadog.GetString("remote_configuration.api_key")
+	}
+	apiKey = configUtils.SanitizeAPIKey(apiKey)
+	baseRawURL := configUtils.GetMainEndpoint(pkgconfig.Datadog, "https://config.", "remote_configuration.rc_dd_url")
+	traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(pkgconfig.Datadog)
+
+	configService, err := remoteconfig.NewService(pkgconfig.Datadog, apiKey, baseRawURL, hname, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
 	}
 
 	configService.Start(ctx)
 
-	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductAPMTracing}, time.Second*5)
+	rcClient, err := client.NewClient(configService,
+		client.WithAgent("cluster-agent", version.AgentVersion),
+		client.WithCluster(clusterName, clusterID),
+		client.WithProducts([]data.Product{data.ProductAPMTracing}),
+		client.WithPollInterval(5*time.Second),
+		client.WithDirectorRootOverride(pkgconfig.Datadog.GetString("remote_configuration.director_root")),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create local remote-config client: %w", err)
 	}

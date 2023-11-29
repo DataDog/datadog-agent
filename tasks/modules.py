@@ -166,6 +166,7 @@ DEFAULT_MODULES = {
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True),
     "pkg/config/logs": GoModule("pkg/config/logs", independent=True),
+    "pkg/config/remote": GoModule("pkg/config/remote", independent=True),
     "pkg/security/secl": GoModule("pkg/security/secl", independent=True),
     "pkg/status/health": GoModule("pkg/status/health", independent=True),
     "pkg/remoteconfig/state": GoModule("pkg/remoteconfig/state", independent=True),

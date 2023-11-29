@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
 
+	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/process/containercheck/containercheckimpl"
@@ -58,7 +60,7 @@ func TestRunnerRealtime(t *testing.T) {
 			core.MockBundle,
 		))
 		rtChan <- types.RTResponse{
-			{
+			&model.CollectorStatus{
 				ActiveClients: 1,
 				Interval:      10,
 			},
@@ -92,7 +94,7 @@ func TestRunnerRealtime(t *testing.T) {
 		))
 
 		rtChan <- types.RTResponse{
-			{
+			&model.CollectorStatus{
 				ActiveClients: 1,
 				Interval:      10,
 			},

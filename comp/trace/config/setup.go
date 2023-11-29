@@ -22,9 +22,10 @@ import (
 
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
+	"github.com/DataDog/datadog-agent/pkg/api/security"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/remote"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	//nolint:revive // TODO(APM) Fix revive linter
@@ -103,17 +104,25 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 		cfg.LogFilePath = DefaultLogFilePath
 	}
 
+	ipcAddress, err := coreconfig.GetIPCAddress()
+	if err != nil {
+		return nil, err
+	}
+
 	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
 	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
 	if p := coreconfig.Datadog.GetProxies(); p != nil {
 		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
-		client, err := remote.NewGRPCClient(
-			rcClientName,
-			version.AgentVersion,
-			[]data.Product{data.ProductAPMSampling, data.ProductAgentConfig},
-			rcClientPollInterval,
+		client, err := client.NewGRPCClient(
+			ipcAddress,
+			coreconfig.GetIPCPort(),
+			security.FetchAuthToken,
+			client.WithAgent(rcClientName, version.AgentVersion),
+			client.WithProducts([]data.Product{data.ProductAPMSampling, data.ProductAgentConfig}),
+			client.WithPollInterval(rcClientPollInterval),
+			client.WithDirectorRootOverride(c.GetString("remote_configuration.director_root")),
 		)
 		if err != nil {
 			log.Errorf("Error when subscribing to remote config management %v", err)
@@ -798,7 +807,13 @@ var fallbackHostnameFunc = os.Hostname
 func acquireHostname(c *config.AgentConfig) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	client, err := grpc.GetDDAgentClient(ctx)
+
+	ipcAddress, err := coreconfig.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+
+	client, err := grpc.GetDDAgentClient(ctx, ipcAddress, coreconfig.GetIPCPort())
 	if err != nil {
 		return err
 	}
