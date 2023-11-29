@@ -411,7 +411,7 @@ func (s *CIDRArrayEvaluator) IsStatic() bool {
 
 // PacketEvaluator represents a packet evaluator
 type PacketEvaluator struct {
-	EvalFnc func(ctx *Context) *Packet
+	EvalFnc func(ctx *Context) Packet
 	Field   Field
 	Weight  int
 

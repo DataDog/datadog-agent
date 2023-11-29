@@ -187,7 +187,7 @@ type Event struct {
 	// network events
 	DNS    DNSEvent    `field:"dns" event:"dns"`                                 // [7.36] [Network] A DNS request was sent
 	Bind   BindEvent   `field:"bind" event:"bind"`                               // [7.37] [Network] A bind was executed
-	Packet PacketEvent `field:"packet,type_override:eval.Packet" event:"packet"` // [x.xx] [Network] A packet was captured
+	Packet PacketEvent `field:"packet,type_override:eval.Packet" event:"packet"` // [x.xx] [Network] A packet was captured SECLDoc[packet] Definition:`A packet was captured`
 
 	// internal usage
 	Umount           UmountEvent           `field:"-" json:"-"`
@@ -815,8 +815,8 @@ type PacketEvent struct {
 }
 
 // GetCaptureInfo returns the capture info of the packet event
-func (p PacketEvent) GetCaptureInfo() gopacket.CaptureInfo {
-	return p.CaptureInfo
+func (p PacketEvent) GetCaptureInfo() *gopacket.CaptureInfo {
+	return &p.CaptureInfo
 }
 
 // GetData returns a byte slice containing packet data of the packet event
@@ -826,6 +826,21 @@ func (p PacketEvent) GetData() []byte {
 	}
 	return p.Packet.Data()
 }
+
+// ZeroPacketEvent represents an empty packet event
+type ZeroPacketEvent struct{}
+
+// GetCaptureInfo returns the capture info of the packet event
+func (p ZeroPacketEvent) GetCaptureInfo() *gopacket.CaptureInfo {
+	return nil
+}
+
+// GetData returns a byte slice containing packet data of the packet event
+func (p ZeroPacketEvent) GetData() []byte {
+	return nil
+}
+
+var zeroPacketEvent ZeroPacketEvent
 
 // NetDevice represents a network device
 type NetDevice struct {

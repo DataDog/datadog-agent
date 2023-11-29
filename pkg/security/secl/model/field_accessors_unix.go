@@ -4213,6 +4213,15 @@ func (ev *Event) GetOpenRetval() int64 {
 	return ev.Open.SyscallEvent.Retval
 }
 
+// GetPacket returns the value of the field, resolving if necessary
+func (ev *Event) GetPacket() eval.Packet {
+	zeroValue := &zeroPacketEvent
+	if ev.GetEventType().String() != "packet" {
+		return zeroValue
+	}
+	return ev.Packet
+}
+
 // GetProcessAncestorsArgs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsArgs() []string {
 	zeroValue := []string{}

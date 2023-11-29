@@ -43,6 +43,7 @@ func (m *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("mount"),
 		eval.EventType("mprotect"),
 		eval.EventType("open"),
+		eval.EventType("packet"),
 		eval.EventType("ptrace"),
 		eval.EventType("removexattr"),
 		eval.EventType("rename"),
@@ -3746,6 +3747,15 @@ func (m *Model) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Eval
 			EvalFnc: func(ctx *eval.Context) int {
 				ev := ctx.Event.(*Event)
 				return int(ev.Open.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+		}, nil
+	case "packet":
+		return &eval.PacketEvaluator{
+			EvalFnc: func(ctx *eval.Context) eval.Packet {
+				ev := ctx.Event.(*Event)
+				return ev.Packet
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -16506,6 +16516,7 @@ func (ev *Event) GetFields() []eval.Field {
 		"open.file.user",
 		"open.flags",
 		"open.retval",
+		"packet",
 		"process.ancestors.args",
 		"process.ancestors.args_flags",
 		"process.ancestors.args_options",
@@ -18362,6 +18373,7 @@ func (ev *Event) GetFieldValue(field eval.Field) (interface{}, error) {
 		return int(ev.Open.Flags), nil
 	case "open.retval":
 		return int(ev.Open.SyscallEvent.Retval), nil
+	case "packet":
 	case "process.ancestors.args":
 		var values []string
 		ctx := eval.NewContext(ev)
@@ -24408,6 +24420,8 @@ func (ev *Event) GetFieldEventType(field eval.Field) (eval.EventType, error) {
 		return "open", nil
 	case "open.retval":
 		return "open", nil
+	case "packet":
+		return "packet", nil
 	case "process.ancestors.args":
 		return "*", nil
 	case "process.ancestors.args_flags":
@@ -26917,6 +26931,7 @@ func (ev *Event) GetFieldType(field eval.Field) (reflect.Kind, error) {
 		return reflect.Int, nil
 	case "open.retval":
 		return reflect.Int, nil
+	case "packet":
 	case "process.ancestors.args":
 		return reflect.String, nil
 	case "process.ancestors.args_flags":
@@ -31743,6 +31758,7 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		}
 		ev.Open.SyscallEvent.Retval = int64(rv)
 		return nil
+	case "packet":
 	case "process.ancestors.args":
 		if ev.BaseEvent.ProcessContext == nil {
 			ev.BaseEvent.ProcessContext = &ProcessContext{}

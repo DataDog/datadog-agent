@@ -3170,6 +3170,20 @@
       ]
     },
     {
+      "name": "packet",
+      "definition": "A packet was captured SECLDoc[packet] Definition:`A packet was captured`",
+      "type": "Network",
+      "from_agent_version": "x.xx",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "packet",
+          "definition": "A packet was captured",
+          "property_doc_link": "packet-doc"
+        }
+      ]
+    },
+    {
       "name": "ptrace",
       "definition": "A ptrace command was executed",
       "type": "Kernel",
@@ -9014,6 +9028,18 @@
       ],
       "constants": "Open flags",
       "constants_link": "open-flags",
+      "examples": []
+    },
+    {
+      "name": "packet",
+      "link": "packet-doc",
+      "type": "eval.Packet",
+      "definition": "A packet was captured",
+      "prefixes": [
+        ""
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {

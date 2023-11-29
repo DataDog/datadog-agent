@@ -87,6 +87,8 @@ func (sf *StructField) GetEvaluatorType() string {
 		if sf.IsArray {
 			evaluatorType = "eval.CIDRValuesEvaluator"
 		}
+	} else if sf.ReturnType == "eval.Packet" {
+		evaluatorType = "eval.PacketEvaluator"
 	} else {
 		evaluatorType = "eval.StringEvaluator"
 		if sf.Iterator != nil || sf.IsArray {
@@ -113,6 +115,8 @@ func (sf *StructField) GetDefaultReturnValue() string {
 			return "&eval.CIDRValues{}"
 		}
 		return "net.IPNet{}"
+	} else if sf.ReturnType == "eval.Packet" {
+		return "&zeroPacketEvent"
 	} else {
 		if sf.Iterator != nil || sf.IsArray {
 			return "[]string{}"
