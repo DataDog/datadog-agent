@@ -82,7 +82,96 @@ namespace Datadog.CustomActions
             return EnsureNpmServiceDependendency(new SessionWrapper(session));
         }
 
-        private ActionResult ConfigureServiceUsers()
+        private void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
+        {
+            var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
+            var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
+            if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
+            {
+                _session.Log("Password not provided, will not change service user password");
+                // set to null so we don't modify the service config
+                ddAgentUserPassword = null;
+            }
+            else if (isServiceAccount)
+            {
+                _session.Log("Ignoring provided password because account is a service account");
+                // Follow rules for ChangeServiceConfig
+                if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+                    ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
+                    ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
+                {
+                    // Specify an empty string if the account has no password or if the service runs in the LocalService, NetworkService, or LocalSystem account.
+                    ddAgentUserPassword = "";
+                }
+                else
+                {
+                    // If the account name specified by the lpServiceStartName parameter is the name of a managed service account or virtual account name, the lpPassword parameter must be NULL.
+                    ddAgentUserPassword = null;
+                }
+            }
+
+            _session.Log($"Configuring services with account {ddAgentUserName}");
+
+            // ddagentuser
+            if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
+            {
+                ddAgentUserName = "LocalSystem";
+            }
+            else if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid))
+            {
+                ddAgentUserName = "LocalService";
+            }
+            else if (ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
+            {
+                ddAgentUserName = "NetworkService";
+            }
+            _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+
+            // SYSTEM
+            // LocalSystem is a SCM specific shorthand that doesn't need to be localized
+            _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
+            _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
+
+            var installCWS = _session.Property("INSTALL_CWS");
+            if (!string.IsNullOrEmpty(installCWS))
+            {
+                _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            }
+        }
+
+        /// <summary>
+        /// Grant ddagentuser start/stop service privileges for the agent services
+        /// </summary>
+        private void ConfigureServicePermissions(SecurityIdentifier ddAgentUserSID)
+        {
+            var previousDdAgentUserSid = InstallStateCustomActions.GetPreviousAgentUser(_session, _registryServices, _nativeMethods);
+
+            var services = new string[]
+            {
+                "datadog-process-agent", "datadog-trace-agent", "datadog-system-probe", "datadogagent",
+            };
+            foreach (var serviceName in services)
+            {
+                var securityDescriptor = _serviceController.GetAccessSecurity(serviceName);
+
+                if (previousDdAgentUserSid != null && previousDdAgentUserSid != ddAgentUserSID)
+                {
+                    // remove previous user
+                    securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow, previousDdAgentUserSid,
+                        (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
+                }
+
+                // add current user
+                securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, ddAgentUserSID,
+                    (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP),
+                    InheritanceFlags.None, PropagationFlags.None);
+
+                _serviceController.SetAccessSecurity(serviceName, securityDescriptor);
+            }
+        }
+
+        private ActionResult ConfigureServices()
         {
             try
             {
@@ -99,160 +188,21 @@ namespace Datadog.CustomActions
                     throw new Exception($"Could not find user {ddAgentUserName}.");
                 }
 
-                var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
-                var isServiceAccount = _nativeMethods.IsServiceAccount(securityIdentifier);
-                if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
-                {
-                    _session.Log("Password not provided, will not change service user password");
-                    // set to null so we don't modify the service config
-                    ddAgentUserPassword = null;
-                }
-                else if (isServiceAccount)
-                {
-                    _session.Log("Ignoring provided password because account is a service account");
-                    // Follow rules for ChangeServiceConfig
-                    if (securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
-                        securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
-                        securityIdentifier.IsWellKnown(WellKnownSidType.NetworkServiceSid))
-                    {
-                        // Specify an empty string if the account has no password or if the service runs in the LocalService, NetworkService, or LocalSystem account.
-                        ddAgentUserPassword = "";
-                    }
-                    else
-                    {
-                        // If the account name specified by the lpServiceStartName parameter is the name of a managed service account or virtual account name, the lpPassword parameter must be NULL.
-                        ddAgentUserPassword = null;
-                    }
-                }
-
-                _session.Log($"Configuring services with account {ddAgentUserName}");
-
-                // ddagentuser
-                if (securityIdentifier.IsWellKnown(WellKnownSidType.LocalSystemSid))
-                {
-                    ddAgentUserName = "LocalSystem";
-                }
-                else if (securityIdentifier.IsWellKnown(WellKnownSidType.LocalServiceSid))
-                {
-                    ddAgentUserName = "LocalService";
-                }
-                else if (securityIdentifier.IsWellKnown(WellKnownSidType.NetworkServiceSid))
-                {
-                    ddAgentUserName = "NetworkService";
-                }
-                _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
-                _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
-
-                // SYSTEM
-                // LocalSystem is a SCM specific shorthand that doesn't need to be localized
-                _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
-                _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
-
-                var installCWS = _session.Property("INSTALL_CWS");
-                if (!string.IsNullOrEmpty(installCWS))
-                {
-                    _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
-                }
-
-                ConfigureServicePermissions();
+                ConfigureServiceUsers(ddAgentUserName, securityIdentifier);
+                ConfigureServicePermissions(securityIdentifier);
             }
             catch (Exception e)
             {
-                _session.Log($"Failed to configure service logon users: {e}");
+                _session.Log($"Failed to configure services: {e}");
                 return ActionResult.Failure;
             }
             return ActionResult.Success;
         }
 
-        // TODO: Make shared/common with ConfigureUserCustomActions
-        //       maybe set name/SID as a property in ProcessDDAgentUserCredentials ?
-        private SecurityIdentifier GetPreviousAgentUser()
-        {
-            try
-            {
-                using var subkey =
-                    _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
-                if (subkey == null)
-                {
-                    throw new Exception("Datadog registry key does not exist");
-                }
-                var domain = subkey.GetValue("installedDomain")?.ToString();
-                var user = subkey.GetValue("installedUser")?.ToString();
-                if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
-                {
-                    throw new Exception("Agent user information is not in registry");
-                }
-
-                var name = $"{domain}\\{user}";
-                _session.Log($"Found agent user information in registry {name}");
-                var userFound = _nativeMethods.LookupAccountName(name,
-                    out _,
-                    out _,
-                    out var securityIdentifier,
-                    out _);
-                if (!userFound || securityIdentifier == null)
-                {
-                    throw new Exception($"Could not find account for user {name}.");
-                }
-
-                _session.Log($"Found previous agent user {name} ({securityIdentifier})");
-                return securityIdentifier;
-            }
-            catch (Exception e)
-            {
-                _session.Log($"Could not find previous agent user: {e}");
-            }
-
-            return null;
-        }
-
-        /// <summary>
-        /// Grant ddagentuser start/stop service privileges for the agent services
-        /// </summary>
-        private void ConfigureServicePermissions()
-        {
-            var previousDdAgentUserSid = GetPreviousAgentUser();
-
-            // Get SID for agent user
-            var ddAgentUserName = $"{_session.Property("DDAGENTUSER_PROCESSED_FQ_NAME")}";
-            var userFound = _nativeMethods.LookupAccountName(ddAgentUserName,
-                out _,
-                out _,
-                out var ddAgentUserSid,
-                out _);
-            if (!userFound)
-            {
-                throw new Exception($"Could not find user {ddAgentUserName}.");
-            }
-
-            var services = new string[]
-            {
-                "datadog-process-agent", "datadog-trace-agent", "datadog-system-probe", "datadogagent",
-            };
-            foreach (var serviceName in services)
-            {
-                var securityDescriptor = _serviceController.GetAccessSecurity(serviceName);
-
-                if (previousDdAgentUserSid != null && previousDdAgentUserSid != ddAgentUserSid)
-                {
-                    // remove previous user
-                    securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow, previousDdAgentUserSid,
-                        (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
-                }
-
-                // add current user
-                securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, ddAgentUserSid,
-                    (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP),
-                    InheritanceFlags.None, PropagationFlags.None);
-
-                _serviceController.SetAccessSecurity(serviceName, securityDescriptor);
-            }
-        }
-
         [CustomAction]
         public static ActionResult ConfigureServiceUsers(Session session)
         {
-            return new ServiceCustomAction(new SessionWrapper(session)).ConfigureServiceUsers();
+            return new ServiceCustomAction(new SessionWrapper(session)).ConfigureServices();
         }
 
         /// <summary>
