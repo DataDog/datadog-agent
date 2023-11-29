@@ -7,12 +7,14 @@ package cws
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +29,7 @@ import (
 
 type agentSuite struct {
 	e2e.Suite[e2e.AgentEnv]
-	apiClient     cws.MyAPIClient
+	apiClient     *cws.APIClient
 	signalRuleID  string
 	agentRuleID   string
 	dirname       string
@@ -48,7 +50,6 @@ var systemProbeConfig string
 var securityAgentConfig string
 
 func TestAgentSuite(t *testing.T) {
-
 	e2e.Run(t, &agentSuite{}, e2e.AgentStackDef(
 		e2e.WithVMParams(ec2params.WithName("cws-e2e-tests")),
 		e2e.WithAgentParams(
@@ -60,19 +61,18 @@ func TestAgentSuite(t *testing.T) {
 }
 
 func (a *agentSuite) SetupSuite() {
-
 	// Create temporary directory
 	tempDir := a.Env().VM.Execute("mktemp -d")
 	a.dirname = strings.TrimSuffix(tempDir, "\n")
 	a.filename = fmt.Sprintf("%s/secret", a.dirname)
 	a.testID = uuid.NewString()[:4]
 	a.desc = fmt.Sprintf("e2e test rule %s", a.testID)
-	a.agentRuleName = fmt.Sprintf("e2e_agent_rule_%s", a.testID)
+	a.agentRuleName = fmt.Sprintf("new_e2e_agent_rule_%s", a.testID)
 	a.Suite.SetupSuite()
+	a.apiClient = cws.NewAPIClient()
 }
 
 func (a *agentSuite) TearDownSuite() {
-
 	if len(a.signalRuleID) != 0 {
 		a.apiClient.DeleteSignalRule(a.signalRuleID)
 	}
@@ -84,8 +84,6 @@ func (a *agentSuite) TearDownSuite() {
 }
 
 func (a *agentSuite) TestOpenSignal() {
-	a.apiClient = cws.NewAPIClient()
-
 	// Create CWS Agent rule
 	rule := fmt.Sprintf("open.file.path == \"%s\"", a.filename)
 	res, err := a.apiClient.CreateCWSAgentRule(a.agentRuleName, a.desc, rule)
@@ -102,11 +100,11 @@ func (a *agentSuite) TestOpenSignal() {
 	assert.Equal(a.T(), isReady, true, "Agent should be ready")
 
 	// Check if system-probe has started
-	err = a.Env().Agent.WaitAgentLogs("system-probe", cws.SystemProbeStartLog)
+	err = a.waitAgentLogs("system-probe", cws.SystemProbeStartLog)
 	require.NoError(a.T(), err, "system-probe could not start")
 
 	// Check if security-agent has started
-	err = a.Env().Agent.WaitAgentLogs("security-agent", cws.SecurityStartLog)
+	err = a.waitAgentLogs("security-agent", cws.SecurityStartLog)
 	require.NoError(a.T(), err, "security-agent could not start")
 
 	// Download policies
@@ -117,7 +115,7 @@ func (a *agentSuite) TestOpenSignal() {
 	require.NoError(a.T(), err, "Could not get APP KEY")
 
 	a.EventuallyWithT(func(c *assert.CollectT) {
-		policies := a.Env().VM.Execute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s DD_SITE=datadoghq.com %s runtime policy download", appKey, apiKey, cws.SecurityAgentPath))
+		policies := a.Env().VM.Execute(fmt.Sprintf("DD_APP_KEY=%s DD_API_KEY=%s %s runtime policy download", appKey, apiKey, cws.SecurityAgentPath))
 		assert.NotEmpty(c, policies, "should not be empty")
 		a.policies = policies
 	}, 5*time.Minute, 10*time.Second)
@@ -145,7 +143,7 @@ func (a *agentSuite) TestOpenSignal() {
 	a.Env().VM.Execute(fmt.Sprintf("touch %s", a.filename))
 
 	// Check agent event
-	err = a.Env().Agent.WaitAgentLogs("security-agent", "Successfully posted payload to")
+	err = a.waitAgentLogs("security-agent", "Successfully posted payload to")
 	require.NoError(a.T(), err, "could not send payload")
 
 	// Check app signal
@@ -155,4 +153,18 @@ func (a *agentSuite) TestOpenSignal() {
 	agentContext = signal.Attributes["agent"].(map[string]interface{})
 	assert.Contains(a.T(), agentContext["rule_id"], a.agentRuleName, "unable to find tag")
 
+}
+
+func (a *agentSuite) waitAgentLogs(agentName string, pattern string) error {
+	err := backoff.Retry(func() error {
+		output, err := a.Env().VM.ExecuteWithError(fmt.Sprintf("cat /var/log/datadog/%s.log", agentName))
+		if err != nil {
+			return err
+		}
+		if strings.Contains(output, pattern) {
+			return nil
+		}
+		return errors.New("no log found")
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
+	return err
 }

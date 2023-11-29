@@ -69,7 +69,6 @@ type Resolver struct {
 	statsdClient    statsd.ClientInterface
 	lock            sync.RWMutex
 	mounts          map[uint32]*model.Mount
-	pidToMounts     map[uint32]map[uint32]*model.Mount
 	minMountID      uint32 // used to find the first userspace visible mount ID
 	redemption      *simplelru.LRU[uint32, *redemptionEntry]
 	fallbackLimiter *utils.Limiter[uint64]
@@ -120,13 +119,12 @@ func (mr *Resolver) syncPid(pid uint32) error {
 	}
 
 	for _, mnt := range mnts {
-		if m, exists := mr.mounts[uint32(mnt.ID)]; exists {
-			mr.updatePidMapping(m, pid)
+		if _, exists := mr.mounts[uint32(mnt.ID)]; exists {
 			continue
 		}
 
 		m := newMountFromMountInfo(mnt)
-		mr.insert(m, pid)
+		mr.insert(m)
 	}
 
 	return nil
@@ -160,7 +158,7 @@ func (mr *Resolver) delete(mount *model.Mount) {
 		curr, rest := openQueue[len(openQueue)-1], openQueue[:len(openQueue)-1]
 		openQueue = rest
 
-		delete(mr.mounts, curr.MountID)
+		mr.finalize(curr)
 
 		entry := redemptionEntry{
 			mount:      curr,
@@ -172,10 +170,6 @@ func (mr *Resolver) delete(mount *model.Mount) {
 			if child.ParentPathKey.MountID == curr.MountID {
 				openQueue = append(openQueue, child)
 			}
-		}
-
-		for _, mounts := range mr.pidToMounts {
-			delete(mounts, mount.MountID)
 		}
 	}
 }
@@ -212,7 +206,7 @@ func (mr *Resolver) ResolveFilesystem(mountID uint32, device uint32, pid uint32,
 }
 
 // Insert a new mount point in the cache
-func (mr *Resolver) Insert(m model.Mount, pid uint32) error {
+func (mr *Resolver) Insert(m model.Mount) error {
 	if m.MountID == 0 {
 		return ErrMountUndefined
 	}
@@ -220,37 +214,12 @@ func (mr *Resolver) Insert(m model.Mount, pid uint32) error {
 	mr.lock.Lock()
 	defer mr.lock.Unlock()
 
-	mr.insert(&m, pid)
+	mr.insert(&m)
 
 	return nil
 }
 
-func (mr *Resolver) updatePidMapping(m *model.Mount, pid uint32) {
-	if pid == 0 {
-		return
-	}
-
-	mounts := mr.pidToMounts[pid]
-	if mounts == nil {
-		mounts = make(map[uint32]*model.Mount)
-		mr.pidToMounts[pid] = mounts
-	}
-	mounts[m.MountID] = m
-}
-
-// DelPid removes the pid form the pid mapping
-func (mr *Resolver) DelPid(pid uint32) {
-	if pid == 0 {
-		return
-	}
-
-	mr.lock.Lock()
-	defer mr.lock.Unlock()
-
-	delete(mr.pidToMounts, pid)
-}
-
-func (mr *Resolver) insert(m *model.Mount, pid uint32) {
+func (mr *Resolver) insert(m *model.Mount) {
 	// umount the previous one if exists
 	if prev, ok := mr.mounts[m.MountID]; ok {
 		// put the prev entry and the all the children in the redemption list
@@ -273,8 +242,6 @@ func (mr *Resolver) insert(m *model.Mount, pid uint32) {
 	}
 
 	mr.mounts[m.MountID] = m
-
-	mr.updatePidMapping(m, pid)
 }
 
 func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
@@ -286,20 +253,14 @@ func (mr *Resolver) getFromRedemption(mountID uint32) *model.Mount {
 }
 
 func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
-	mount := mr.mounts[mountID]
-	if mount != nil {
-		return mount
-	}
-
-	return mr.getFromRedemption(mountID)
+	return mr.mounts[mountID]
 }
 
-func (mr *Resolver) lookupByDevice(device uint32, pid uint32) *model.Mount {
+/*
+func (mr *Resolver) lookupByDevice(device uint32) *model.Mount {
 	var result *model.Mount
 
-	mounts := mr.pidToMounts[pid]
-
-	for _, mount := range mounts {
+	for _, mount := range mr.mounts {
 		if mount.Device == device {
 			// should be consistent across all the mounts
 			if result != nil && result.MountPointStr != mount.MountPointStr {
@@ -311,22 +272,33 @@ func (mr *Resolver) lookupByDevice(device uint32, pid uint32) *model.Mount {
 
 	return result
 }
+*/
 
-func (mr *Resolver) lookupMount(mountID uint32, device uint32, pid uint32) *model.Mount {
-	mount := mr.lookupByMountID(mountID)
-	if mount != nil {
-		return mount
+func (mr *Resolver) lookupMount(mountID uint32, _ uint32, allowFallbacks bool) *model.Mount {
+	if m := mr.lookupByMountID(mountID); m != nil {
+		return m
 	}
 
-	return mr.lookupByDevice(device, pid)
+	if allowFallbacks {
+		// TODO(safchain) reintroduce using a namespace aware approach
+		/*if m := mr.lookupByDevice(device); m != nil {
+			return m
+		}*/
+
+		if m := mr.getFromRedemption(mountID); m != nil {
+			return m
+		}
+	}
+
+	return nil
 }
 
-func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cache map[uint32]bool) (string, error) {
+func (mr *Resolver) _getMountPath(mountID uint32, device uint32, cache map[uint32]bool, allowFallbacks bool) (string, error) {
 	if _, err := mr.IsMountIDValid(mountID); err != nil {
 		return "", err
 	}
 
-	mount := mr.lookupMount(mountID, device, pid)
+	mount := mr.lookupMount(mountID, device, allowFallbacks)
 	if mount == nil {
 		return "", &ErrMountNotFound{MountID: mountID}
 	}
@@ -350,7 +322,7 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 		return "", ErrMountUndefined
 	}
 
-	parentMountPath, err := mr._getMountPath(mount.ParentPathKey.MountID, mount.Device, pid, cache)
+	parentMountPath, err := mr._getMountPath(mount.ParentPathKey.MountID, mount.Device, cache, allowFallbacks)
 	if err != nil {
 		return "", err
 	}
@@ -365,8 +337,8 @@ func (mr *Resolver) _getMountPath(mountID uint32, device uint32, pid uint32, cac
 	return mountPointStr, nil
 }
 
-func (mr *Resolver) getMountPath(mountID uint32, device uint32, pid uint32) (string, error) {
-	return mr._getMountPath(mountID, device, pid, map[uint32]bool{})
+func (mr *Resolver) getMountPath(mountID uint32, device uint32, allowDeviceFallback bool) (string, error) {
+	return mr._getMountPath(mountID, device, map[uint32]bool{}, allowDeviceFallback)
 }
 
 // ResolveMountRoot returns the root of a mount identified by its mount ID.
@@ -420,7 +392,11 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	path, err := mr.getMountPath(mountID, device, pid)
+	// if UseProcFS is disabled, we can directly allow the device fallback and redemption since getMountPath will be called
+	// only once
+	allowFallbacks := !mr.opts.UseProcFS
+
+	path, err := mr.getMountPath(mountID, device, allowFallbacks)
 	if err == nil {
 		mr.cacheHitsStats.Inc()
 		return path, nil
@@ -435,7 +411,7 @@ func (mr *Resolver) resolveMountPath(mountID uint32, device uint32, pid uint32, 
 		return "", err
 	}
 
-	path, err = mr.getMountPath(mountID, device, pid)
+	path, err = mr.getMountPath(mountID, device, true)
 	if err == nil {
 		mr.procHitsStats.Inc()
 		return path, nil
@@ -461,7 +437,11 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 	// force a resolution here to make sure the LRU keeps doing its job and doesn't evict important entries
 	workload, _ := mr.cgroupsResolver.GetWorkload(containerID)
 
-	mount := mr.lookupMount(mountID, device, pid)
+	// if UseProcFS is disabled, we can directly allow the device fallback and redemption since getMountPath will be called
+	// only once
+	allowFallbacks := !mr.opts.UseProcFS
+
+	mount := mr.lookupMount(mountID, device, allowFallbacks)
 	if mount != nil {
 		mr.cacheHitsStats.Inc()
 		return mount, nil
@@ -476,7 +456,7 @@ func (mr *Resolver) resolveMount(mountID uint32, device uint32, pid uint32, cont
 		return nil, err
 	}
 
-	mount = mr.mounts[mountID]
+	mount = mr.lookupMount(mountID, device, true)
 	if mount != nil {
 		mr.procHitsStats.Inc()
 		return mount, nil
@@ -598,7 +578,6 @@ func NewResolver(statsdClient statsd.ClientInterface, cgroupsResolver *cgroup.Re
 		cgroupsResolver: cgroupsResolver,
 		lock:            sync.RWMutex{},
 		mounts:          make(map[uint32]*model.Mount),
-		pidToMounts:     make(map[uint32]map[uint32]*model.Mount),
 		cacheHitsStats:  atomic.NewInt64(0),
 		procHitsStats:   atomic.NewInt64(0),
 		cacheMissStats:  atomic.NewInt64(0),
