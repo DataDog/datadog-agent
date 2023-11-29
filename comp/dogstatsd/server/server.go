@@ -179,7 +179,7 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 		"dogstatsd",
 		"channel_latency",
 		[]string{"shard", "message_type"},
-		"Time in millisecond to push metrics to the aggregator input buffer",
+		"Time in nanosecond to push metrics to the aggregator input buffer",
 		buckets)
 
 	listeners.InitTelemetry(get("telemetry.dogstatsd.listeners_latency_buckets"))
