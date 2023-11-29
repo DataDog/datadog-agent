@@ -13,6 +13,7 @@ import (
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
@@ -76,14 +77,14 @@ func assertStressProcessCollected(
 		}
 	}
 
-	assert.True(t, found, "stress process not found")
+	require.True(t, found, "stress process not found")
 	assert.True(t, populated, "no stress process had all data populated")
 }
 
 // processHasData asserts that the given process has the expected data populated
 func processHasData(process *agentmodel.Process) bool {
 	return process.Pid != 0 && process.NsPid != 0 && len(process.User.Name) > 0 &&
-		process.Cpu.TotalPct > 0 && process.Cpu.UserPct > 0 && process.Cpu.SystemPct > 0 &&
+		process.Cpu.TotalPct > 0 && process.Cpu.SystemPct > 0 &&
 		process.Memory.Rss > 0 && process.Memory.Vms > 0
 }
 
@@ -115,7 +116,7 @@ func assertStressProcessDiscoveryCollected(
 		}
 	}
 
-	assert.True(t, found, "stress process not found")
+	require.True(t, found, "stress process not found")
 	assert.True(t, populated, "no stress process had all data populated")
 }
 

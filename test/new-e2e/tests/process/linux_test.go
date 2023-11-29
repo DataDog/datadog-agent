@@ -49,7 +49,9 @@ func (s *linuxTestSuite) TestProcessCheck() {
 		var err error
 		payloads, err = s.Env().Fakeintake.GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
-		assert.NotEmpty(c, payloads, "no process payloads returned")
+
+		// Wait for two payloads, as processes must be detected in two check runs to be returned
+		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
 	assertStressProcessCollected(t, payloads, false)
@@ -82,6 +84,9 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
 	)))
 
+	// Flush fake intake to remove payloads that won't have IO stats
+	s.Env().Fakeintake.FlushServerAndResetAggregators()
+
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
@@ -93,7 +98,9 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 		var err error
 		payloads, err = s.Env().Fakeintake.GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
-		assert.NotEmpty(c, payloads, "no process payloads returned")
+
+		// Wait for two payloads, as processes must be detected in two check runs to be returned
+		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
 	}, 2*time.Minute, 10*time.Second)
 
 	assertStressProcessCollected(t, payloads, true)
