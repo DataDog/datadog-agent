@@ -351,6 +351,7 @@ kernel_matrix_testing_setup_env_x64:
   variables:
     AWS_EC2_SSH_KEY_FILE: $CI_PROJECT_DIR/ssh_key
     RETRY: 2
+    MICROVM_GREP_PATTERN: "$ARCH-$TAG-.*$TEST_SET.*-ddvm"
   before_script:
     - set +x
     - export DD_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.datadog_api_key_org2 --with-decryption --query "Parameter.Value" --out text)
@@ -370,8 +371,8 @@ kernel_matrix_testing_setup_env_x64:
         echo "These jobs do not permit retries. The go tests are retried a user-specified number of times automatically. In order to re-run the tests, you must trigger the pipeline again"
         'false'
       fi
-    - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.output | grep "$ARCH-$TAG-.*$TEST_SET.*-ddvm" | cut -d ' ' -f 2)
-    - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.output | grep "$ARCH-$TAG-.*$TEST_SET.*-ddvm" | cut -d ' ' -f 1)
+    - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.output | grep $MICROVM_GREP_PATTERN | cut -d ' ' -f 2)
+    - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.output | grep $MICROVM_GREP_PATTERN | cut -d ' ' -f 1)
     - GO_VERSION=$(inv go-version)
     - !reference [.setup_ssh_config]
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
@@ -381,7 +382,7 @@ kernel_matrix_testing_setup_env_x64:
     - $CI_PROJECT_DIR/connector-$ARCH -host $INSTANCE_IP -user ubuntu -ssh-file $AWS_EC2_SSH_KEY_FILE -vm-cmd "${NESTED_VM_CMD}"
     - ssh metal_instance "ssh ${MICRO_VM_IP} '/test-json-review'"
   after_script:
-    - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.output | grep $ARCH-$TAG | grep $TEST_SET | cut -d ' ' -f 2)
+    - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.output | grep $MICROVM_GREP_PATTERN | cut -d ' ' -f 2)
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/junit.tar.gz /home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz"
     - scp "metal_instance:/home/ubuntu/junit-${ARCH}-${TAG}-${TEST_SET}.tar.gz" $DD_AGENT_TESTING_DIR/
     - ssh metal_instance "scp ${MICRO_VM_IP}:/ci-visibility/testjson.tar.gz /home/ubuntu/testjson-${ARCH}-${TAG}-${TEST_SET}.tar.gz"
