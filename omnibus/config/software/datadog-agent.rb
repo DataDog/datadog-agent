@@ -170,7 +170,7 @@ build do
       if not linux_target? or standalone_agents.include? "security-agent"
         command "invoke -e security-agent.build  --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
         if windows_target?
-          copy 'bin/security-agent/security-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent"
+          copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
         else
           copy 'bin/security-agent/security-agent', "#{install_dir}/embedded/bin"
         end
