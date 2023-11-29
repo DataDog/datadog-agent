@@ -237,6 +237,8 @@ var (
 
 	// GetRemoteConfigurationAllowedIntegrations Alias
 	GetRemoteConfigurationAllowedIntegrations = pkgconfigsetup.GetRemoteConfigurationAllowedIntegrations
+	// LoadProxyFromEnv Alias
+	LoadProxyFromEnv = pkgconfigsetup.LoadProxyFromEnv
 )
 
 // LoadWithoutSecret Alias using Datadog config
