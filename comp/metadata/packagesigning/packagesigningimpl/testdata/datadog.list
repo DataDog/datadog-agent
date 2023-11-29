@@ -1,0 +1,2 @@
+deb [signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] https://apt.datadoghq.com/ stable 7
+deb [signed-by=/usr/toto/keyring.gpg] https://apt.datadoghq.com/ stable 7

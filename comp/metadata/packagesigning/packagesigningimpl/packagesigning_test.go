@@ -157,3 +157,54 @@ func TestDecryptGPGReader(t *testing.T) {
 
 	}
 }
+
+func TestParseRepoFile(t *testing.T) {
+	testCases := []struct {
+		name     string
+		fileName string
+		gpgCheck bool
+		gpgFiles []string
+	}{
+		{
+			name:     "Main file with serveral repo config",
+			fileName: "testdata/main.repo",
+			gpgCheck: false,
+			gpgFiles: []string{"/etc/httpfile",
+				"https://httpfile.com",
+				"https://ook.com",
+				"/etc/rincewind",
+				"https://leia.com",
+				"/etc/luke",
+				"https://strength.com",
+				"https://courage.com",
+				"/etc/wisdom",
+				"https://brahma.com",
+				"/etc/vishnu",
+				"/etc/shiva"},
+		},
+		{
+			name:     "One file with 2 different configurations",
+			fileName: "testdata/multi.repo",
+			gpgCheck: false,
+			gpgFiles: []string{"https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public",
+				"https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
+				"https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public",
+				"/etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release",
+				"/etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-beta"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			gpgCheck, gpgFiles := parseRepoFile(testCase.fileName, false)
+			for idx, f := range gpgFiles {
+				if f != testCase.gpgFiles[idx] {
+					t.Errorf("Expected gpgFile %s, got %s", testCase.gpgFiles[idx], f)
+				}
+			}
+			if gpgCheck != testCase.gpgCheck {
+				t.Errorf("Expected gpgCheck %t, got %t", testCase.gpgCheck, gpgCheck)
+			}
+		})
+	}
+}

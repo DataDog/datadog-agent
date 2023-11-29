@@ -1,0 +1,27 @@
+[main]
+gpgcheck=0
+[basic http not included]
+gpgkey=https://basic.com
+[file and http same line]
+gpgcheck=1
+gpgkey=https://httpfile.com file:///etc/httpfile
+[file and http multiline]
+gpgcheck=1
+gpgkey=https://ook.com
+ file:///etc/rincewind
+[multiline with more spaces]
+gpgcheck=1
+gpgkey=https://leia.com
+	file:///etc/luke
+[same line and multiline]
+gpgcheck=1
+gpgkey=https://strength.com https://courage.com
+ file:///etc/wisdom
+[check locally deactivated]
+gpgcheck=0
+gpgkey=https://caesar.com
+ file:///etc/pompey file:///etc/crassus
+[several files on second line]
+gpgcheck=1
+gpgkey=https://brahma.com
+ file:///etc/vishnu file:///etc/shiva

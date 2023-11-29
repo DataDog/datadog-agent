@@ -16,6 +16,7 @@ import (
 const (
 	yumConf  = "/etc/yum.conf"
 	yumRepo  = "/etc/yum.repos.d/"
+	dnfConf  = "/etc/dnf/dnf.conf"
 	zyppConf = "/etc/zypp/zypp.conf"
 	zyppRepo = "/etc/zypp/repos.d/"
 )
@@ -23,6 +24,10 @@ const (
 // getMainGPGCheck returns gpgcheck setting for [main] table
 func getMainGPGCheck(pkgManager string) bool {
 	repoConfig, _ := getRepoPathFromPkgManager(pkgManager)
+	if repoConfig == "" {
+		// if we end up in a non supported distribution
+		return false
+	}
 	gpgCheck, _ := parseRepoFile(repoConfig, false)
 	return gpgCheck
 }
@@ -43,6 +48,10 @@ func getKeysFromRepoFiles(allKeys map[SigningKey]struct{}, pkgManager string) {
 	var gpgCheck bool
 	var gpgFiles []string
 	repoConfig, repoFilesDir := getRepoPathFromPkgManager(pkgManager)
+	if repoConfig == "" {
+		// if we end up in a non supported distribution
+		return
+	}
 
 	// First parsing of the main config file
 	if _, err := os.Stat(repoConfig); os.IsExist(err) {
@@ -66,10 +75,14 @@ func getKeysFromRepoFiles(allKeys map[SigningKey]struct{}, pkgManager string) {
 
 // getRepoPathFromPkgManager returns the path to the configuration file and the path to the repository files for RH or SUSE based OS
 func getRepoPathFromPkgManager(pkgManager string) (string, string) {
-	if pkgManager == "zypper" {
+	if pkgManager == "yum" {
+		return yumConf, yumRepo
+	} else if pkgManager == "dnf" {
+		return dnfConf, yumRepo
+	} else if pkgManager == "zypper" {
 		return zyppConf, zyppRepo
 	}
-	return yumConf, yumRepo
+	return "", ""
 }
 
 func getKeysFromRPMDB(allKeys map[SigningKey]struct{}) {
@@ -110,10 +123,7 @@ func parseRepoFile(inputFile string, gpgConf bool) (bool, []string) {
 	inMain := false
 	var gpgFiles []string
 	var localGpgFiles []string
-	defer file.Close()
-	if err != nil {
-		return true, nil
-	}
+
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -139,8 +149,8 @@ func parseRepoFile(inputFile string, gpgConf bool) (bool, []string) {
 		}
 		if strings.HasPrefix(line, "gpgkey") {
 			// check format `gpgkey=file///etc/file1 file:///etc/file2`
-			signedFile := signedBy.FindAllStringSubmatch(line, -1)
-			for _, match := range signedFile {
+			publicKeyURIs := signedBy.FindAllStringSubmatch(line, -1)
+			for _, match := range publicKeyURIs {
 				if len(match) > 1 {
 					localGpgFiles = append(localGpgFiles, match[1])
 				}

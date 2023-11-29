@@ -16,7 +16,7 @@ The payload is a JSON dict with a list of keys, each having the following fields
 - `signing_keys` - **list of dict of string to JSON type**
   - `fingerprint` - **string**: the 8-char long key fingerprint.
   - `expiration_date` - **string**: the expiration date of the key.
-  - `key_type` - **string**: the type of key. which represents how it is referenced in the host. Possible values are "signed-by", "trusted" or "debsig" for debianoids, "repo" or "rpm" for redhat-like (including SUSE)
+  - `key_type` - **string**: the type of key. which represents how it is referenced in the host. Possible values are "signed-by", "trusted" or "debsig" for DEB-based distributions, "repo" or "rpm" for RPM-based distributions
   
 
 ## Example Payload

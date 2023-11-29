@@ -20,11 +20,18 @@ type SigningKey struct {
 	Fingerprint    string `json:"signing_key_fingerprint"`
 	ExpirationDate string `json:"signing_key_expiration_date"`
 	KeyType        string `json:"signing_key_type"`
+	// Repositories   []repositories `json:"repositories"`
 }
+
+// type repositories struct {
+// 	RepoName string `json:"repo_name"`
+// }
 
 const (
 	aptPath    = "/etc/apt"
 	yumPath    = "/etc/yum"
+	dnfPath    = "/etc/dnf"
+	zyppPath   = "/etc/zypp"
 	noExpDate  = "9999-12-31"
 	formatDate = "2006-01-02"
 )
@@ -35,8 +42,12 @@ func getPackageManager() string {
 		return "apt"
 	} else if _, err := os.Stat(yumPath); os.IsExist(err) {
 		return "yum"
+	} else if _, err := os.Stat(dnfPath); os.IsExist(err) {
+		return "dnf"
+	} else if _, err := os.Stat(zyppPath); os.IsExist(err) {
+		return "zypper"
 	}
-	return "zypper"
+	return ""
 }
 
 // decryptGPGFile parse a gpg file (local or http) and extract signing keys information
