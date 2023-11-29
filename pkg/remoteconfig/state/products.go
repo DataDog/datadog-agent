@@ -6,18 +6,19 @@
 package state
 
 var validProducts = map[string]struct{}{
-	ProductAgentConfig:       {},
-	ProductAgentTask:         {},
-	ProductAgentIntegrations: {},
-	ProductAPMSampling:       {},
-	ProductCWSDD:             {},
-	ProductCWSCustom:         {},
-	ProductCWSProfiles:       {},
-	ProductASM:               {},
-	ProductASMFeatures:       {},
-	ProductASMDD:             {},
-	ProductASMData:           {},
-	ProductAPMTracing:        {},
+	ProductAgentConfig:             {},
+	ProductAgentTask:               {},
+	ProductAgentIntegrations:       {},
+	ProductAPMSampling:             {},
+	ProductCWSDD:                   {},
+	ProductCWSCustom:               {},
+	ProductCWSProfiles:             {},
+	ProductNDMDeviceProfilesCustom: {},
+	ProductASM:                     {},
+	ProductASMFeatures:             {},
+	ProductASMDD:                   {},
+	ProductASMData:                 {},
+	ProductAPMTracing:              {},
 }
 
 const (
@@ -35,6 +36,8 @@ const (
 	ProductCWSCustom = "CWS_CUSTOM"
 	// ProductCWSProfiles is the cloud workload security profile product
 	ProductCWSProfiles = "CWS_SECURITY_PROFILES"
+	// ProductNDMDeviceProfilesCustom is the NDM Custom Profiles product
+	ProductNDMDeviceProfilesCustom = "NDM_DEVICE_PROFILES_CUSTOM"
 	// ProductASM is the ASM product used by customers to issue rules configurations
 	ProductASM = "ASM"
 	// ProductASMFeatures is the ASM product used form ASM activation through remote config
