@@ -66,7 +66,6 @@ def check_component(file, content):
         "comp/trace/agent/component.go",
         "comp/trace/config/component.go",
         "comp/process/apiserver/component.go",
-        "comp/process/forwarders/component.go",
     ]
 
     if file in components_to_migrate:
