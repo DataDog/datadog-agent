@@ -74,12 +74,12 @@
                 {
                     "dir": "centos-7.9-x86_64.qcow2",
                     "tag": "centos_79",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/bryce.kahle/centos-8/centos-7.9-x86_64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-7.9-x86_64.qcow2.xz"
                 },
                 {
                     "dir": "centos-8-x86_64.qcow2",
                     "tag": "centos_8",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/bryce.kahle/centos-8/centos-8-x86_64.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-8-x86_64.qcow2.xz"
                 }
             ],
             "vcpu": [
