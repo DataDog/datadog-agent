@@ -45,10 +45,8 @@ agent flavors and binaries.
 
 ### [comp/core/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/config)
 
-This component initializes pkg/config/model based on the bundle params, and
-will return the same results as that package.  This is to support migration
-to a component architecture.  When no code still uses pkg/config, that
-package will be removed.
+Package config implements a component to handle agent configuration.  This
+component temporarily wraps pkg/config.
 
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
 
