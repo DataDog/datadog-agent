@@ -160,7 +160,7 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
 //
 // We are only interested in path headers, that we will store in our internal
 // dynamic table, and will skip headers that are not path headers.
-static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter) {
+static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel) {
     __u64 str_len = 0;
     if (!read_hpack_int(skb, skb_info, MAX_6_BITS, &str_len)) {
         return false;
@@ -180,7 +180,6 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     // - The string is too big
     // - This is not a path
     // - We won't be able to store the header info
-    if (str_len > HTTP2_MAX_PATH_LEN || index != kIndexPath || headers_to_process == NULL) {
 
     if (index == kIndexPath) {
         update_path_size_telemetry(http2_tel, str_len);
@@ -400,7 +399,6 @@ static __always_inline void parse_frame(struct __sk_buff *skb, skb_info_t *skb_i
     if (should_handle_end_of_stream) {
         handle_end_of_stream(current_stream, &http2_ctx->http2_stream_key, http2_tel);
     }
-
 
     return;
 }
