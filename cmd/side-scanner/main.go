@@ -1901,10 +1901,19 @@ func shareAndAttachSnapshot(ctx context.Context, metrictags []string, rolesMappi
 			os.Remove(mountTarget)
 		})
 
+
+		fsOptions := ""
+		switch mp.fsType {
+		case "ext2", "ext3", "ext4":
+			fsOptions = "ro,noload"
+		case "xfs":
+			fsOptions = "ro,norecovery,nouuid"
+		}
+
 		var mountOutput []byte
 		for i := 0; i < 50; i++ {
 			log.Debugf("execing mount %#v %q", mp.devicePath, mountTarget)
-			mountOutput, err = exec.CommandContext(ctx, "mount", "-o", "ro", "-t", mp.fsType, "--source", mp.devicePath, "--target", mountTarget).CombinedOutput()
+			mountOutput, err = exec.CommandContext(ctx, "mount", "-o", fsOptions, "-t", mp.fsType, "--source", mp.devicePath, "--target", mountTarget).CombinedOutput()
 			if err == nil {
 				break
 			}
