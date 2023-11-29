@@ -55,6 +55,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/executable => ./pkg/util/executable
 	github.com/DataDog/datadog-agent/pkg/util/filesystem => ./pkg/util/filesystem
 	github.com/DataDog/datadog-agent/pkg/util/fxutil => ./pkg/util/fxutil/
+	github.com/DataDog/datadog-agent/pkg/util/grpc => ./pkg/util/grpc/
 	github.com/DataDog/datadog-agent/pkg/util/http => ./pkg/util/http/
 	github.com/DataDog/datadog-agent/pkg/util/json => ./pkg/util/json
 	github.com/DataDog/datadog-agent/pkg/util/log => ./pkg/util/log
