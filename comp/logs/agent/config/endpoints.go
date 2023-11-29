@@ -56,6 +56,7 @@ type Endpoint struct {
 	Origin    IntakeOrigin
 }
 
+// GetUseSSL returns the UseSSL config setting
 func (e *Endpoint) GetUseSSL() bool {
 	return e.UseSSL == nil || *e.UseSSL
 }

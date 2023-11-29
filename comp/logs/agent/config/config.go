@@ -17,6 +17,7 @@ import (
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	pointer "github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // ContainerCollectAll is the name of the docker integration that collect logs from all containers
@@ -144,6 +145,7 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
+		UseSSL:                  pointer.Ptr(true),
 	}
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
