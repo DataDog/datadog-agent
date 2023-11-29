@@ -65,7 +65,6 @@ def check_component(file, content):
         "comp/remote-config/rcclient/component.go",
         "comp/trace/agent/component.go",
         "comp/trace/config/component.go",
-        "comp/languagedetection/client/component.go",
         "comp/process/apiserver/component.go",
         "comp/process/forwarders/component.go",
     ]
