@@ -143,6 +143,7 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 	}, nil
 }
 
+// Name returns the protocol name.
 func (p *Protocol) Name() string {
 	return "HTTP2"
 }
