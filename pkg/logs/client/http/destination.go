@@ -382,10 +382,8 @@ func buildURL(endpoint config.Endpoint) string {
 
 func getMessageTimestamp(messages []*message.Message) int64 {
 	timestampNanos := int64(-1)
-	for _, message := range messages {
-		if message.IngestionTimestamp > timestampNanos {
-			timestampNanos = message.IngestionTimestamp
-		}
+	if len(messages) > 0 {
+		timestampNanos = messages[len(messages)-1].IngestionTimestamp
 	}
 	return timestampNanos / int64(time.Millisecond/time.Nanosecond)
 }
