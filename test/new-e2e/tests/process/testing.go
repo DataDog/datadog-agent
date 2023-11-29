@@ -9,7 +9,6 @@ package process
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
@@ -31,23 +30,21 @@ var systemProbeConfigStr string
 // assertRunningChecks asserts that the given process agent checks are running on the given VM
 func assertRunningChecks(t *assert.CollectT, vm client.VM, checks []string, withSystemProbe bool) {
 	status := vm.Execute("sudo datadog-agent status --json")
-	var statusMap map[string]any
+	var statusMap struct {
+		ProcessAgentStatus struct {
+			Expvars struct {
+				EnabledChecks                []string `json:"enabled_checks"`
+				SysProbeProcessModuleEnabled bool     `json:"system_probe_process_module_enabled"`
+			} `json:"expvars"`
+		} `json:"processAgentStatus"`
+	}
 	err := json.Unmarshal([]byte(status), &statusMap)
 	assert.NoError(t, err, "failed to unmarshal agent status")
 
-	processAgentStatus, ok := statusMap["processAgentStatus"].(map[string]any)
-	assert.True(t, ok, "unable to get process agent status")
-
-	expvars, ok := processAgentStatus["expvars"].(map[string]any)
-	assert.True(t, ok, "unable to get process agent expvars")
-
-	enabledChecks, ok := expvars["enabled_checks"].([]any)
-	assert.True(t, ok, "unable to get process agent enabled checks")
-
-	assert.ElementsMatch(t, checks, enabledChecks)
+	assert.ElementsMatch(t, checks, statusMap.ProcessAgentStatus.Expvars.EnabledChecks)
 
 	if withSystemProbe {
-		assert.True(t, expvars["system_probe_process_module_enabled"].(bool),
+		assert.True(t, statusMap.ProcessAgentStatus.Expvars.SysProbeProcessModuleEnabled,
 			"system probe process module not enabled")
 	}
 }
@@ -65,7 +62,6 @@ func assertStressProcessCollected(
 				populated = processHasData(process)
 
 				if withIOStats {
-					fmt.Println(process)
 					populated = populated && processHasIOStats(process)
 				}
 
