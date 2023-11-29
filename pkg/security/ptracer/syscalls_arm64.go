@@ -15,6 +15,7 @@ import (
 
 const (
 	OpenatNr   = 56  // OpenatNr defines the syscall ID for arm64
+	Openat2Nr  = 437 // Openat2Nr defines the syscall ID for amd64
 	ExecveNr   = 221 // ExecveNr defines the syscall ID for arm64
 	ExecveatNr = 281 // ExecveatNr defines the syscall ID for arm64
 	CloneNr    = 220 // CloneNr defines the syscall ID for arm64

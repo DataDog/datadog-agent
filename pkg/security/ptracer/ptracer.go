@@ -10,7 +10,6 @@ package ptracer
 
 import (
 	"bytes"
-	"encoding/binary"
 	"os"
 	"runtime"
 	"syscall"
@@ -19,6 +18,8 @@ import (
 	"github.com/elastic/go-seccomp-bpf/arch"
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 // CallbackType represents a callback type
@@ -108,27 +109,27 @@ func (t *Tracer) PeekString(pid int, ptr uint64) (string, error) {
 	return string(result), nil
 }
 
-// ReadArgUint64 reads the and returns the wanted arg as uint64
+// ReadArgUint64 reads the regs and returns the wanted arg as uint64
 func (t *Tracer) ReadArgUint64(regs syscall.PtraceRegs, arg int) uint64 {
 	return t.argToRegValue(regs, arg)
 }
 
-// ReadArgInt64 reads the and returns the wanted arg as int64
+// ReadArgInt64 reads the regs and returns the wanted arg as int64
 func (t *Tracer) ReadArgInt64(regs syscall.PtraceRegs, arg int) int64 {
 	return int64(t.argToRegValue(regs, arg))
 }
 
-// ReadArgInt32 reads the and returns the wanted arg as int32
+// ReadArgInt32 reads the regs and returns the wanted arg as int32
 func (t *Tracer) ReadArgInt32(regs syscall.PtraceRegs, arg int) int32 {
 	return int32(t.argToRegValue(regs, arg))
 }
 
-// ReadArgUint32 reads the and returns the wanted arg as uint32
+// ReadArgUint32 reads the regs and returns the wanted arg as uint32
 func (t *Tracer) ReadArgUint32(regs syscall.PtraceRegs, arg int) uint32 {
 	return uint32(t.argToRegValue(regs, arg))
 }
 
-// ReadArgString reads the and returns the wanted arg as string
+// ReadArgString reads the regs and returns the wanted arg as string
 func (t *Tracer) ReadArgString(pid int, regs syscall.PtraceRegs, arg int) (string, error) {
 	ptr := t.argToRegValue(regs, arg)
 	return t.readString(pid, ptr)
@@ -155,7 +156,7 @@ func (t *Tracer) ReadArgStringArray(pid int, regs syscall.PtraceRegs, arg int) (
 			return result, err
 		}
 
-		ptr := binary.LittleEndian.Uint64(data)
+		ptr := model.ByteOrder.Uint64(data)
 		if ptr == 0 {
 			break
 		}
@@ -254,6 +255,7 @@ func (t *Tracer) Trace(cb func(cbType CallbackType, nr int, pid int, ppid int, r
 
 	return nil
 }
+
 func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
 	policy := seccomp.Policy{
 		DefaultAction: seccomp.ActionAllow,

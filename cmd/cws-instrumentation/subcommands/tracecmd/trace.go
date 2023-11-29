@@ -75,7 +75,6 @@ func fillProcessCwd(process *Process) error {
 		return err
 	}
 	process.Cwd = cwd
-	log.Debugf("fillProcessCwd: %v", cwd)
 	return nil
 }
 
@@ -493,7 +492,7 @@ func startCWSPtracer(params *traceCliParams, args []string) error {
 					log.Errorf("unable to handle open: %v", err)
 					return
 				}
-			case ptracer.OpenatNr:
+			case ptracer.OpenatNr, ptracer.Openat2Nr:
 				if err := handleOpenAt(tracer, process, msg, regs); err != nil {
 					log.Errorf("unable to handle openat: %v", err)
 					return
