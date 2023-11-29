@@ -1919,12 +1919,16 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 			os.Remove(mountPoint)
 		})
 
-		fsOptions := ""
+		fsOptions := "ro,noauto,nodev,noexec,nosuid," // these are generic options supported for all filesystems
 		switch mp.fsType {
 		case "ext2", "ext3", "ext4":
-			fsOptions = "ro,noload"
+			// noload means we do not try to load the journal
+			fsOptions += "noload"
 		case "xfs":
-			fsOptions = "ro,norecovery,nouuid"
+			// norecovery means we do not try to recover the FS
+			fsOptions += "norecovery,nouuid"
+		default:
+			panic(fmt.Errorf("unsupported filesystem type %s", mp.fsType))
 		}
 
 		var mountOutput []byte
