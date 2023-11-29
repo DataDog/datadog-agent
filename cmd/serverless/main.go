@@ -187,7 +187,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 
 	apikey.CheckForSingleAPIKey()
 
-	// Set API key from DD_KMS_API_KEY, DD_API_KEY_KMS_ENCRYPTED, or DD_API_KEY_SECRET_ARN
+	// Set API key from DD_KMS_API_KEY environment variable or environment variables suffixed with KMS_ENCRYPTED or SECRET_ARN
 	apikey.SetSecretsFromEnv(os.Environ())
 
 	// Validate that an API key has been set, either by DD_API_KEY or read from KMS or Secrets Manager
