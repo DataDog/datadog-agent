@@ -119,9 +119,22 @@ READ_INTO_BUFFER(path, HTTP2_MAX_PATH_LEN, BLK_SIZE)
 
 // update_path_size_telemetry updates the path size telemetry.
 static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_tel, __u64 size) {
-    __s64 bucket_idx = (size - HTTP2_TELEMETRY_MAX_PATH_LEN) / HTTP2_TELEMETRY_PATH_BUCKETS_SIZE;
-    bucket_idx = bucket_idx > HTTP2_TELEMETRY_PATH_BUCKETS ? HTTP2_TELEMETRY_PATH_BUCKETS : bucket_idx;
+    // This line can be considered as a step function of the difference multiplied by difference.
+    // step function of the difference is 0 if the difference is negative, and 1 if the difference is positive.
+    // Thus, if the difference is negative, we will get 0, and if the difference is positive, we will get the difference.
+    size = size < HTTP2_TELEMETRY_MAX_PATH_LEN ? 0 : size - HTTP2_TELEMETRY_MAX_PATH_LEN;
+    // This line acts as a ciel function, which means that if the size is not a multiple of the bucket size, we will
+    // round it up to the next bucket. Since we don't have float numbers in eBPF, we are adding the (bucket size - 1)
+    // to the size, and then dividing it by the bucket size. This will give us the ciel function.
+#define CIEL_FUNCTION_FACTOR (HTTP2_TELEMETRY_PATH_BUCKETS_SIZE - 1)
+    __u8 bucket_idx = (size + CIEL_FUNCTION_FACTOR) / HTTP2_TELEMETRY_PATH_BUCKETS_SIZE;
+
+    // This line guarantees that the bucket index is between 0 and HTTP2_TELEMETRY_PATH_BUCKETS.
+    // Although, it is not needed, we keep this function to please the verifier, and to have an explicit lower bound.
     bucket_idx = bucket_idx < 0 ? 0 : bucket_idx;
+    // This line guarantees that the bucket index is between 0 and HTTP2_TELEMETRY_PATH_BUCKETS, and we cannot
+    // exceed the upper bound.
+    bucket_idx = bucket_idx > HTTP2_TELEMETRY_PATH_BUCKETS ? HTTP2_TELEMETRY_PATH_BUCKETS : bucket_idx;
 
     __sync_fetch_and_add(&http2_tel->path_size_bucket[bucket_idx], 1);
 }
