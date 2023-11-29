@@ -137,3 +137,34 @@ func TestFormatProcessAgentStatus(t *testing.T) {
 		assert.NotContains(t, actual, statusRenderErrors)
 	})
 }
+
+func TestFormatCheckStats(t *testing.T) {
+	originalTZ := os.Getenv("TZ")
+	os.Setenv("TZ", "UTC")
+	defer func() {
+		os.Setenv("TZ", originalTZ)
+	}()
+	jsonBytes, err := os.ReadFile("fixtures/check_stats.json")
+	require.NoError(t, err)
+	agentText, err := os.ReadFile("fixtures/check_stats.text")
+	require.NoError(t, err)
+	const statusRenderErrors = "Status render errors"
+
+	t.Run("render errors", func(t *testing.T) {
+		actual, err := FormatCheckStats([]byte{})
+		require.NoError(t, err)
+		assert.Contains(t, actual, statusRenderErrors)
+	})
+
+	t.Run("no render errors", func(t *testing.T) {
+		actual, err := FormatCheckStats(jsonBytes)
+		require.NoError(t, err)
+
+		// We replace windows line break by linux so the tests pass on every OS
+		result := strings.Replace(string(agentText), "\r\n", "\n", -1)
+		actual = strings.Replace(actual, "\r\n", "\n", -1)
+
+		assert.Equal(t, actual, result)
+		assert.NotContains(t, actual, statusRenderErrors)
+	})
+}
