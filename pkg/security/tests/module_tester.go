@@ -525,7 +525,7 @@ func assertFieldStringArrayIndexedOneOf(tb *testing.T, e *model.Event, field str
 
 //nolint:deadcode,unused
 func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *sprobe.Probe) {
-	eventJSON, err := serializers.MarshalEvent(event, probe.GetResolvers())
+	eventJSON, err := serializers.MarshalEvent(event)
 	if err != nil {
 		tb.Errorf("failed to marshal event: %v", err)
 		return
@@ -614,7 +614,7 @@ func validateProcessContextSECL(tb testing.TB, event *model.Event, probe *sprobe
 	valid := nameFieldValid && pathFieldValid
 
 	if !valid {
-		eventJSON, err := serializers.MarshalEvent(event, probe.GetResolvers())
+		eventJSON, err := serializers.MarshalEvent(event)
 		if err != nil {
 			tb.Errorf("failed to marshal event: %v", err)
 			return
@@ -676,8 +676,8 @@ func validateProcessContext(tb testing.TB, event *model.Event, probe *sprobe.Pro
 //nolint:deadcode,unused
 func validateEvent(tb testing.TB, validate func(event *model.Event, rule *rules.Rule), probe *sprobe.Probe) func(event *model.Event, rule *rules.Rule) {
 	return func(event *model.Event, rule *rules.Rule) {
-		validateProcessContext(tb, event, probe)
 		validate(event, rule)
+		validateProcessContext(tb, event, probe)
 	}
 }
 
@@ -955,7 +955,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		}
 
 		if ruleDefs != nil && logStatusMetrics {
-			t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
+			t.Logf("%s entry stats: %s\n", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 		}
 		return testMod, nil
 	} else if testMod != nil {
@@ -1028,7 +1028,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		return nil, err
 	}
 
-	testMod.probe.AddNewNotifyDiscarderPushedCallback(testMod.NotifyDiscarderPushedCallback)
+	testMod.probe.AddDiscarderPushedCallback(testMod.NotifyDiscarderPushedCallback)
 
 	if err := testMod.eventMonitor.Init(); err != nil {
 		return nil, fmt.Errorf("failed to init module: %w", err)
@@ -1036,7 +1036,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	kv, _ := kernel.NewKernelVersion()
 
-	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && secconfig.Probe.RuntimeCompilationEnabled && !testMod.eventMonitor.Probe.IsRuntimeCompiled() && !kv.IsSuseKernel() {
+	var isRuntimeCompiled bool
+	if p, ok := testMod.eventMonitor.Probe.PlatformProbe.(*probe.EBPFProbe); ok {
+		isRuntimeCompiled = p.IsRuntimeCompiled()
+	}
+
+	if os.Getenv("DD_TESTS_RUNTIME_COMPILED") == "1" && secconfig.Probe.RuntimeCompilationEnabled && !isRuntimeCompiled && !kv.IsSuseKernel() {
 		return nil, errors.New("failed to runtime compile module")
 	}
 
@@ -1064,7 +1069,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	}
 
 	if logStatusMetrics {
-		t.Logf("%s entry stats: %s\n", t.Name(), GetStatusMetrics(testMod.probe))
+		t.Logf("%s entry stats: %s\n", t.Name(), GetEBPFStatusMetrics(testMod.probe))
 	}
 
 	return testMod, nil
@@ -1197,7 +1202,7 @@ func (tm *testModule) GetEventDiscarder(tb testing.TB, action func() error, cb o
 
 //nolint:deadcode,unused
 func (tm *testModule) marshalEvent(ev *model.Event) (string, error) {
-	b, err := serializers.MarshalEvent(ev, tm.probe.GetResolvers())
+	b, err := serializers.MarshalEvent(ev)
 	return string(b), err
 }
 
@@ -1210,12 +1215,18 @@ func (tm *testModule) debugEvent(ev *model.Event) string {
 	return string(b)
 }
 
-// GetStatusMetrics returns a string representation of the perf buffer monitor metrics
-func GetStatusMetrics(probe *sprobe.Probe) string {
+// GetEBPFStatusMetrics returns a string representation of the perf buffer monitor metrics
+func GetEBPFStatusMetrics(probe *sprobe.Probe) string {
 	if probe == nil {
 		return ""
 	}
-	monitors := probe.GetMonitors()
+
+	p, ok := probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return ""
+	}
+
+	monitors := p.GetMonitors()
 	if monitors == nil {
 		return ""
 	}
@@ -1262,7 +1273,7 @@ func (tm *testModule) NewTimeoutError() ErrTimeout {
 	var msg strings.Builder
 
 	msg.WriteString("timeout, details: ")
-	msg.WriteString(GetStatusMetrics(tm.probe))
+	msg.WriteString(GetEBPFStatusMetrics(tm.probe))
 	msg.WriteString(spew.Sdump(ddebpf.GetProbeStats()))
 
 	events := tm.ruleEngine.StopEventCollector()
@@ -1672,7 +1683,7 @@ func (tm *testModule) Close() {
 	tm.statsdClient.Flush()
 
 	if logStatusMetrics {
-		tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetStatusMetrics(tm.probe))
+		tm.t.Logf("%s exit stats: %s\n", tm.t.Name(), GetEBPFStatusMetrics(tm.probe))
 	}
 
 	if withProfile {
@@ -1894,11 +1905,16 @@ func checkKernelCompatibility(tb testing.TB, why string, skipCheck func(kv *kern
 }
 
 func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, formats []string) ([]string, error) {
-	managers := tm.probe.GetProfileManagers()
-	if managers == nil {
-		return nil, errors.New("No monitor")
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return nil, errors.New("not supported")
 	}
-	p := &api.ActivityDumpParams{
+
+	managers := p.GetProfileManagers()
+	if managers == nil {
+		return nil, errors.New("no manager")
+	}
+	params := &api.ActivityDumpParams{
 		Comm:              comm,
 		Timeout:           "1m",
 		DifferentiateArgs: true,
@@ -1910,7 +1926,7 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 			RemoteStorageCompression: false,
 		},
 	}
-	mess, err := managers.DumpActivity(p)
+	mess, err := managers.DumpActivity(params)
 	if err != nil || mess == nil || len(mess.Storage) < 1 {
 		return nil, fmt.Errorf("failed to start activity dump: err:%v message:%v len:%v", err, mess, len(mess.Storage))
 	}
@@ -1923,16 +1939,21 @@ func (tm *testModule) StartActivityDumpComm(comm string, outputDir string, forma
 }
 
 func (tm *testModule) StopActivityDump(name, containerID, comm string) error {
-	managers := tm.probe.GetProfileManagers()
-	if managers == nil {
-		return errors.New("No monitor")
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return errors.New("not supported")
 	}
-	p := &api.ActivityDumpStopParams{
+
+	managers := p.GetProfileManagers()
+	if managers == nil {
+		return errors.New("no manager")
+	}
+	params := &api.ActivityDumpStopParams{
 		Name:        name,
 		ContainerID: containerID,
 		Comm:        comm,
 	}
-	_, err := managers.StopActivityDump(p)
+	_, err := managers.StopActivityDump(params)
 	if err != nil {
 		return err
 	}
@@ -1947,12 +1968,17 @@ type activityDumpIdentifier struct {
 }
 
 func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
-	managers := tm.probe.GetProfileManagers()
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return nil, errors.New("not supported")
+	}
+
+	managers := p.GetProfileManagers()
 	if managers == nil {
 		return nil, errors.New("No monitor")
 	}
-	p := &api.ActivityDumpListParams{}
-	mess, err := managers.ListActivityDumps(p)
+	params := &api.ActivityDumpListParams{}
+	mess, err := managers.ListActivityDumps(params)
 	if err != nil || mess == nil {
 		return nil, err
 	}
@@ -1980,7 +2006,12 @@ func (tm *testModule) ListActivityDumps() ([]*activityDumpIdentifier, error) {
 }
 
 func (tm *testModule) DecodeActivityDump(path string) (*dump.ActivityDump, error) {
-	managers := tm.probe.GetProfileManagers()
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return nil, errors.New("not supported")
+	}
+
+	managers := p.GetProfileManagers()
 	if managers == nil {
 		return nil, errors.New("No monitor")
 	}
@@ -2121,7 +2152,12 @@ func (tm *testModule) addAllEventTypesOnDump(dockerInstance *dockerCmdWrapper, i
 
 //nolint:deadcode,unused
 func (tm *testModule) triggerLoadControllerReducer(dockerInstance *dockerCmdWrapper, id *activityDumpIdentifier) {
-	managers := tm.probe.GetProfileManagers()
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return
+	}
+
+	managers := p.GetProfileManagers()
 	if managers == nil {
 		return
 	}
@@ -2369,9 +2405,14 @@ func (tm *testModule) GetADSelector(dumpID *activityDumpIdentifier) (*cgroupMode
 }
 
 func (tm *testModule) SetProfileStatus(selector *cgroupModel.WorkloadSelector, newStatus model.Status) error {
-	managers := tm.probe.GetProfileManagers()
+	p, ok := tm.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		return errors.New("not supported")
+	}
+
+	managers := p.GetProfileManagers()
 	if managers == nil {
-		return errors.New("No monitor")
+		return errors.New("no manager")
 	}
 
 	spm := managers.GetSecurityProfileManager()

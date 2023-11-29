@@ -22,7 +22,7 @@ require (
 	// `TEST_INFRA_DEFINITIONS_BUILDIMAGES` matches the commit sha in the module version
 	// Example: 	github.com/DataDog/test-infra-definitions v0.0.0-YYYYMMDDHHmmSS-0123456789AB
 	// => TEST_INFRA_DEFINITIONS_BUILDIMAGES: 0123456789AB
-	github.com/DataDog/test-infra-definitions v0.0.0-20231123150722-c8eaaee94472
+	github.com/DataDog/test-infra-definitions v0.0.0-20231129092443-a60850d5606e
 	github.com/aws/aws-sdk-go-v2 v1.22.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.40
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.130.0
@@ -165,7 +165,7 @@ require (
 	github.com/pulumi/pulumi-awsx/sdk v1.0.6 // indirect
 	github.com/pulumi/pulumi-command/sdk v0.9.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 // indirect
-	github.com/pulumi/pulumi-eks/sdk v1.0.2 // indirect
+	github.com/pulumi/pulumi-eks/sdk v1.0.4 // indirect
 	github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.2 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.4.0 // indirect
 	// pulumi-random v4.14.0 uses GO 1.21:
@@ -222,3 +222,5 @@ require (
 	sigs.k8s.io/yaml v1.3.0 // indirect
 	sourcegraph.com/sourcegraph/appdash v0.0.0-20211028080628-e2786a622600 // indirect
 )
+
+require github.com/pulumi/pulumi-tls/sdk/v4 v4.10.0 // indirect

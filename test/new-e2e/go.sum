@@ -12,8 +12,8 @@ github.com/DataDog/datadog-api-client-go/v2 v2.15.0 h1:5UVON1xs6Lul4d6R5TmLDqqSJ
 github.com/DataDog/datadog-api-client-go/v2 v2.15.0/go.mod h1:ZG8wS+y2rUmkRDJZQq7Og7EAPFPage+7vXcmuah2I9o=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a h1:m9REhmyaWD5YJ0P53ygRHxKKo+KM+nw+zz0hEdKztMo=
 github.com/DataDog/mmh3 v0.0.0-20200805151601-30884ca2197a/go.mod h1:SvsjzyJlSg0rKsqYgdcFxeEVflx3ZNAyFfkUHP0TxXg=
-github.com/DataDog/test-infra-definitions v0.0.0-20231123150722-c8eaaee94472 h1:Vl2osi/6xOlZGjtQ9tD1Jw6705vd3IDkehXr/EBmRPM=
-github.com/DataDog/test-infra-definitions v0.0.0-20231123150722-c8eaaee94472/go.mod h1:PAsIkmkyjq2GD12gwu8gmjl6AdRH3IT/VMy3ycSOiG8=
+github.com/DataDog/test-infra-definitions v0.0.0-20231129092443-a60850d5606e h1:yVjfUFnwtxqppiAnlQbQcGt6wQ9hqaRoI72+HP690OE=
+github.com/DataDog/test-infra-definitions v0.0.0-20231129092443-a60850d5606e/go.mod h1:P6FDz6Iyki8kX1WoDln5U+3kVLC+QzRi7FIzauuZ6jM=
 github.com/DataDog/zstd v1.5.2 h1:vUG4lAyuPCXO0TLbXvPv7EB7cNK1QV/luu55UHLrrn8=
 github.com/DataDog/zstd v1.5.2/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
@@ -444,8 +444,8 @@ github.com/pulumi/pulumi-command/sdk v0.9.2 h1:2siCFR8pS2sSwXkeWiLrprGEtBL54FsHT
 github.com/pulumi/pulumi-command/sdk v0.9.2/go.mod h1:VeUXTI/iTgKVjRChRJbLRlBVGxAH+uymscfwzBC2VqY=
 github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1 h1:plWLn9O6u80Vr37LoCsckyobBfcrdTU9cERor72QjqA=
 github.com/pulumi/pulumi-docker/sdk/v3 v3.6.1/go.mod h1:N4Yu4c49QErfucPt9Y/fGmpTryRqc0VfhyKHsGR9/g8=
-github.com/pulumi/pulumi-eks/sdk v1.0.2 h1:Kg+AwcuME7adnFiIDZogdAf//vIGDmhGP6PHL7lddEc=
-github.com/pulumi/pulumi-eks/sdk v1.0.2/go.mod h1:UwT4cRUztFr1//bOp0ACe3Cb3HOzRlX8sYz1psPWHHM=
+github.com/pulumi/pulumi-eks/sdk v1.0.4 h1:j2tul6k0oZHDQwHU+75Jo8Qe4neYxv2hNpo5uanywrQ=
+github.com/pulumi/pulumi-eks/sdk v1.0.4/go.mod h1:eSRoTIxvvu+uyc4tXo//TCsE9qD/DUx+OSLiyZvRB/A=
 github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.17.0/go.mod h1:w+Y1d8uqc+gv7JYWLF4rfzvTsIIHR1SCL+GG6sX1xMM=
 github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.2 h1:xJu48+RW+BHHnKtBni6Vj5vKqOEgCzdZAysGbh6tVM0=
 github.com/pulumi/pulumi-kubernetes/sdk/v3 v3.30.2/go.mod h1:7yCJFC/jnUwFs566f0FAY2iAzc4G1mQP8H6K+40FK4Y=
@@ -453,6 +453,8 @@ github.com/pulumi/pulumi-libvirt/sdk v0.4.0 h1:wq1Ox8FRKQ1kc2DPq3m5DGQgZEhE7kp4m
 github.com/pulumi/pulumi-libvirt/sdk v0.4.0/go.mod h1:tjjyDajp6Pb1pRCdaIugknIfzxw3Prev3o/k2nade+I=
 github.com/pulumi/pulumi-random/sdk/v4 v4.13.4 h1:g3jdktE5L5IDrOw4OiB+yhgxSw0okRPJnyV6PlIzTEQ=
 github.com/pulumi/pulumi-random/sdk/v4 v4.13.4/go.mod h1:cFlJw0eQnqN+62QpITEF9M08gVyzNCeXrKRsuJptFak=
+github.com/pulumi/pulumi-tls/sdk/v4 v4.10.0 h1:4MC0GyEomAjEZJPXEzBZpZ4+TOUg5WE77k38tMDIvS0=
+github.com/pulumi/pulumi-tls/sdk/v4 v4.10.0/go.mod h1:tNXsM/+RsiVVmBdzJMOOp6gMoi3sPko5u0FKdiei+cE=
 github.com/pulumi/pulumi/sdk/v3 v3.16.0/go.mod h1:252ou/zAU1g6E8iTwe2Y9ht7pb5BDl2fJlOuAgZCHiA=
 github.com/pulumi/pulumi/sdk/v3 v3.50.1/go.mod h1:tqQ4z9ocyM/UI2VQ7ZReWR3w6dF5ffEozoHipOMcDh4=
 github.com/pulumi/pulumi/sdk/v3 v3.84.0 h1:/vCRj6ATGVZw4pFmG7pZgjlKUcnbbnb9vmlqd+OpdXo=

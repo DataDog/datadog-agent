@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -85,11 +84,6 @@ func (p *Probe) IsActivityDumpEnabled() bool {
 // StatsPollingInterval returns polling interval duration
 func (p *Probe) StatsPollingInterval() time.Duration {
 	return p.Config.Probe.StatsPollingInterval
-}
-
-// GetResolvers returns the resolvers of Probe
-func (p *Probe) GetResolvers() *resolvers.Resolvers {
-	return nil
 }
 
 // FlushDiscarders invalidates all the discarders
