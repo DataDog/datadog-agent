@@ -182,6 +182,7 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 		}
 
 		return true
+		return false
 	})
 	if err != nil {
 		return fmt.Errorf("test glob: %s", err)
