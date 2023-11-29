@@ -58,7 +58,7 @@ type ActivityDumpManager struct {
 	emptyDropped           *atomic.Uint64
 	dropMaxDumpReached     *atomic.Uint64
 	newEvent               func() *model.Event
-	resolvers              *resolvers.Resolvers
+	resolvers              *resolvers.EBPFResolvers
 	kernelVersion          *kernel.Version
 	manager                *manager.Manager
 	dumpHandler            ActivityDumpHandler
@@ -252,7 +252,7 @@ func (adm *ActivityDumpManager) HandleActivityDump(dump *api.ActivityDumpStreamM
 }
 
 // NewActivityDumpManager returns a new ActivityDumpManager instance
-func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, resolvers *resolvers.Resolvers,
+func NewActivityDumpManager(config *config.Config, statsdClient statsd.ClientInterface, newEvent func() *model.Event, resolvers *resolvers.EBPFResolvers,
 	kernelVersion *kernel.Version, manager *manager.Manager) (*ActivityDumpManager, error) {
 	tracedPIDs, err := managerhelper.Map(manager, "traced_pids")
 	if err != nil {

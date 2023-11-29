@@ -21,7 +21,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/jmx"
-	"github.com/DataDog/datadog-agent/pkg/status"
+	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util"
 
 	yaml "gopkg.in/yaml.v2"
@@ -87,12 +87,12 @@ func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 func setJMXStatus(w http.ResponseWriter, r *http.Request) {
 	decoder := json.NewDecoder(r.Body)
 
-	var jmxStatus status.JMXStatus
-	err := decoder.Decode(&jmxStatus)
+	var status jmxStatus.Status
+	err := decoder.Decode(&status)
 	if err != nil {
 		log.Errorf("unable to parse jmx status: %s", err)
 		http.Error(w, err.Error(), 500)
 	}
 
-	status.SetJMXStatus(jmxStatus)
+	jmxStatus.SetStatus(status)
 }
