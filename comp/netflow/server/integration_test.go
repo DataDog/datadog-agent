@@ -9,10 +9,6 @@ package server
 
 import (
 	"context"
-	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/netflowstate"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
@@ -196,15 +192,6 @@ func TestNetFlow_IntegrationTest_AdditionalFields(t *testing.T) {
 func BenchmarkNetflowAdditionalFields(b *testing.B) {
 	flowChan := make(chan *common.Flow, 10)
 	listenerFlowCount := atomic.NewInt64(0)
-
-	demul := fxutil.Test[demultiplexer.Component](b, fx.Options(
-		log.MockModule,
-		demultiplexer.MockModule,
-		defaultforwarder.MockModule,
-		config.MockModule))
-
-	sender, err := demul.GetDefaultSender()
-	require.NoError(b, err, "error getting sender")
 
 	go func() {
 		for {
