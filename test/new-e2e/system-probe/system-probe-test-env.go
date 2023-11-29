@@ -228,7 +228,9 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 		}, opts.FailOnMissing)
 		if err != nil {
 			return handleScenarioFailure(err, func(possibleError handledError) {
-				if possibleError.errorType == insufficientCapacityError {
+				// handle the following errors by trying in a different availability zone
+				if possibleError.errorType == insufficientCapacityError ||
+					possibleError.errorType == ec2StateChangeTimeoutError {
 					currentAZ++
 				}
 			})

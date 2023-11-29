@@ -3,6 +3,5 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package filehandles defines the file_handle core check
 package filehandles
-
-const openfilesOID = "kern.openfiles"

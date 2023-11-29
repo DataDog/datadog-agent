@@ -175,8 +175,6 @@ func (p *WindowsProbe) SendStats() error {
 
 // NewWindowsProbe instantiates a new runtime security agent probe
 func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsProbe, error) {
-	opts.normalize()
-
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
 	p := &WindowsProbe{
@@ -189,8 +187,6 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 		onStart:      make(chan *procmon.ProcessStartNotification),
 		onStop:       make(chan *procmon.ProcessStopNotification),
 	}
-
-	probe.scrubber = newProcScrubber(config.Probe.CustomSensitiveWords)
 
 	var err error
 	p.Resolvers, err = resolvers.NewResolvers(config, p.statsdClient, probe.scrubber)
@@ -261,6 +257,7 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		Opts:         opts,
 		Config:       config,
 		StatsdClient: opts.StatsdClient,
+		scrubber:     newProcScrubber(config.Probe.CustomSensitiveWords),
 	}
 
 	pp, err := NewWindowsProbe(p, config, opts)

@@ -63,6 +63,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/util/statstracker => ./pkg/util/statstracker
 	github.com/DataDog/datadog-agent/pkg/util/system/socket => ./pkg/util/system/socket/
 	github.com/DataDog/datadog-agent/pkg/util/testutil => ./pkg/util/testutil
+	github.com/DataDog/datadog-agent/pkg/util/winutil => ./pkg/util/winutil/
 	github.com/DataDog/datadog-agent/pkg/version => ./pkg/version
 )
 
@@ -611,6 +612,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/sort v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/statstracker v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.0-rc.4
+	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4
 	github.com/DataDog/go-libddwaf/v2 v2.2.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
