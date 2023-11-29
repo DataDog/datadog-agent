@@ -1,7 +1,9 @@
 {
     "vmsets": [
         {
-            "name": "distro_x86_64",
+            "tags": [
+                "distro_x86_64"
+            ],
             "recipe": "distro-x86_64",
             "arch": "x86_64",
             "console_type": "file",
@@ -98,7 +100,9 @@
             ]
         },
         {
-            "name": "distro_arm64",
+            "tags": [
+                "distro_arm64"
+            ],
             "recipe": "distro-arm64",
             "arch": "arm64",
             "console_type": "file",

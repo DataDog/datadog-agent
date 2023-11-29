@@ -242,7 +242,7 @@ def get_kernel_config(template, recipe, version, arch):
     setname = f"{recipe}_{arch}"
 
     for vmset in template["vmsets"]:
-        if vmset["name"] != setname:
+        if setname not in vmset["tags"]:
             continue
 
         for kernel in vmset["kernels"]:
@@ -252,11 +252,11 @@ def get_kernel_config(template, recipe, version, arch):
     raise Exit(f"No kernel {version} in set {setname}")
 
 
-def vmset_exists(vm_config, setname):
+def vmset_exists(vm_config, tags):
     vmsets = vm_config["vmsets"]
 
     for vmset in vmsets:
-        if vmset["name"] == setname:
+        if set(vmset["tags"]) == tags:
             return True
 
     return False
@@ -271,12 +271,8 @@ def kernel_in_vmset(vmset, kernel):
     return False
 
 
-def vmset_name(arch, recipe, setprefix):
-    name = f"{recipe}_{arch}"
-    if setprefix != "":
-        return f"{setprefix}_{name}"
-
-    return name
+def vmset_name(arch, recipe):
+    return f"{recipe}_{arch}"
 
 
 def add_custom_vmset(vmset, vm_config):
@@ -294,11 +290,11 @@ def add_custom_vmset(vmset, vm_config):
     if lte:
         image_path = f"custom-buster.{arch}.qcow2"
 
-    if vmset_exists(vm_config, vmset.name):
+    if vmset_exists(vm_config, vmset.tags):
         return
 
     new_set = {
-        "name": vmset.name,
+        "tags": list(vmset.tags),
         "recipe": f"{vmset.recipe}-{vmset.arch}",
         "arch": vmset.arch,
         "kernels": list(),
@@ -312,14 +308,14 @@ def add_custom_vmset(vmset, vm_config):
 
 
 def add_vmset(vmset, vm_config):
-    if vmset_exists(vm_config, vmset.name):
+    if vmset_exists(vm_config, vmset.tags):
         return
 
     if vmset.recipe == "custom":
         return add_custom_vmset(vmset, vm_config)
 
     new_set = {
-        "name": vmset.name,
+        "tags": list(vmset.tags),
         "recipe": f"{vmset.recipe}-{vmset.arch}",
         "arch": vmset.arch,
         "kernels": list(),
@@ -328,16 +324,16 @@ def add_vmset(vmset, vm_config):
     vm_config["vmsets"].append(new_set)
 
 
-def add_kernel(vm_config, kernel, setname):
+def add_kernel(vm_config, kernel, tags):
     for vmset in vm_config["vmsets"]:
-        if vmset["name"] != setname:
+        if set(vmset["tags"]) != tags:
             continue
 
         if not kernel_in_vmset(vmset, kernel):
             vmset["kernels"].append(kernel)
             return
 
-    raise Exit(f"Unable to find vmset with name {setname}")
+    raise Exit(f"Unable to find vmset with tags {tags}")
 
 
 def add_vcpu(vmset, vcpu):
@@ -360,7 +356,7 @@ def add_disks(vmconfig_template, vmset):
     tname = template_name(vmset["arch"], vmset["recipe"])
 
     for template in vmconfig_template["vmsets"]:
-        if template["name"] == tname:
+        if tname in template["tags"]:
             vmset["disks"] = copy.deepcopy(template["disks"])
 
 
@@ -397,28 +393,36 @@ class VM:
 
 
 class VMSet:
-    def __init__(self, arch, recipe, name):
+    def __init__(self, arch, recipe, tags):
         self.arch = arch
         self.recipe = recipe
-        self.name = name
+        self.tags = tags
         self.vms = list()
 
     def __eq__(self, other):
-        return self.name == other.name
+        for tag in self.tags:
+            if tag not in other.tags:
+                return False
+        return True
 
     def __hash__(self):
-        return hash(self.name)
+        return hash('-'.join(self.tags))
 
     def __repr__(self):
         vm_str = list()
         for vm in self.vms:
             vm_str.append(vm.version)
-        return f"<VMSet> name={self.name} arch={self.arch} vms={','.join(vm_str)}"
+        return f"<VMSet> tags={'-'.join(self.tags)} arch={self.arch} vms={','.join(vm_str)}"
 
     def add_vm_if_belongs(self, recipe, version, arch):
         if recipe == "custom":
-            expected_prefix = custom_version_prefix(version)
-            if not self.name.startswith(expected_prefix):
+            expected_tag = custom_version_prefix(version)
+            found = False
+            for tag in self.tags:
+                if tag == expected_tag:
+                    found = True
+
+            if not found:
                 return
 
         if self.recipe == recipe and self.arch == arch:
@@ -441,10 +445,10 @@ def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
 
         # duplicate vm if multiple sets provided by user
         for s in sets:
-            vmsets.add(VMSet(arch, recipe, vmset_name(arch, recipe, s)))
+            vmsets.add(VMSet(arch, recipe, set([vmset_name(arch, recipe), s])))
 
         if len(sets) == 0:
-            vmsets.add(VMSet(arch, recipe, vmset_name(arch, recipe, "")))
+            vmsets.add(VMSet(arch, recipe, set([vmset_name(arch, recipe)])))
 
     # map vms to vmsets
     for recipe, version, arch in normalized_vm_defs:
@@ -459,7 +463,7 @@ def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
     for vmset in vmsets:
         for vm in vmset.vms:
             add_kernel(
-                vm_config, get_kernel_config(vmconfig_template, vmset.recipe, vm.version, vmset.arch), vmset.name
+                vm_config, get_kernel_config(vmconfig_template, vmset.recipe, vm.version, vmset.arch), vmset.tags,
             )
 
     for vmset in vm_config["vmsets"]:
