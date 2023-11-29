@@ -199,6 +199,72 @@ func runCommand() *cobra.Command {
 	return runCmd
 }
 
+type YaraResult struct {
+	File string
+	Info string
+	Rule string
+}
+
+func runYara(ctx context.Context, rules, dir string) ([]YaraResult, error) {
+	args := []string{"-r", "-w", rules, dir}
+
+	cmd := exec.CommandContext(ctx, "/opt/datadog-agent/embedded/bin/yara", args...)
+	cmd.Dir = dir
+
+	log.Debugf("running %s\n", cmd.String())
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	defer cmd.Wait()
+
+	results := make([]YaraResult, 0)
+
+	scannerErr := bufio.NewScanner(stderr)
+
+	go func() {
+		for scannerErr.Scan() {
+			log.Warnf("yara: %s", scannerErr.Text())
+		}
+	}()
+
+	scannerOut := bufio.NewScanner(stdout)
+
+	for scannerOut.Scan() {
+		log.Debugf("yara: %s", scannerOut.Text())
+		s := strings.Split(scannerOut.Text(), " ")
+		switch len(s) {
+		case 2:
+			result := YaraResult{
+				Rule: s[0],
+				File: s[1],
+			}
+			results = append(results, result)
+		case 3:
+			result := YaraResult{
+				Rule: s[0],
+				Info: s[1],
+				File: s[2],
+			}
+			results = append(results, result)
+		default:
+			log.Warnf("invalid yara output: %s", scannerOut.Text())
+		}
+	}
+
+	return results, nil
+}
+
 func scanCommand() *cobra.Command {
 	var cliArgs struct {
 		ScanType string
@@ -1382,6 +1448,13 @@ func scanEBS(ctx context.Context, scan *scanTask) (entity *sbommodel.SBOMEntity,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("could not create local trivy artifact: %w", err)
+		}
+		results, err := runYara(ctx, "/tmp/rules.yar", fmt.Sprintf("%s/home", mountTarget))
+		if err != nil {
+			return nil, err
+		}
+		for _, result := range results {
+			log.Debugf("found %s in %s\n", result.Rule, result.File)
 		}
 	} else {
 		_, snapshotID, _ := getARNResource(snapshotARN)
