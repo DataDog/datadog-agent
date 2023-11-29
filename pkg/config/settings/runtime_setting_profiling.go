@@ -11,7 +11,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/profiling"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -82,7 +81,7 @@ func (l *ProfilingRuntimeSetting) Set(v interface{}, source model.Source) error 
 
 	if profile {
 		// populate site
-		s := pkgconfigsetup.DefaultSite
+		s := config.DefaultSite
 		if cfg.IsSet(l.ConfigPrefix + "site") {
 			s = cfg.GetString(l.ConfigPrefix + "site")
 		}
