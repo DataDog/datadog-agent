@@ -84,6 +84,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -501,7 +502,15 @@ func startAgent(
 	// start remote configuration management
 	var configService *remoteconfig.Service
 	if pkgconfig.IsRemoteConfigEnabled(pkgconfig.Datadog) {
-		configService, err = remoteconfig.NewService()
+		apiKey := pkgconfig.Datadog.GetString("api_key")
+		if pkgconfig.Datadog.IsSet("remote_configuration.api_key") {
+			apiKey = pkgconfig.Datadog.GetString("remote_configuration.api_key")
+		}
+		apiKey = configUtils.SanitizeAPIKey(apiKey)
+		baseRawURL := configUtils.GetMainEndpoint(pkgconfig.Datadog, "https://config.", "remote_configuration.rc_dd_url")
+		traceAgentEnv := configUtils.GetTraceAgentDefaultEnv(pkgconfig.Datadog)
+
+		configService, err = remoteconfig.NewService(pkgconfig.Datadog, apiKey, baseRawURL, hostnameDetected, remoteconfig.WithTraceAgentEnv(traceAgentEnv))
 		if err != nil {
 			log.Errorf("Failed to initialize config management service: %s", err)
 		} else {
