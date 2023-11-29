@@ -74,7 +74,7 @@ func TestStepByStepScript(t *testing.T) {
 			}
 		}
 
-		t.Run(fmt.Sprintf("test install script on %s %s", osVers, *architecture), func(tt *testing.T) {
+		t.Run(fmt.Sprintf("test step by step on %s %s", osVers, *architecture), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
 			version, err := strconv.Atoi(osVers)
@@ -84,7 +84,17 @@ func TestStepByStepScript(t *testing.T) {
 	}
 }
 
-func (is *stepByStepSuite) StepByStepDebianTest() {
+func (is *stepByStepSuite) StepByStepTest() {
+	if *platform == "debian" || *platform == "ubuntu" {
+		StepByStepDebianTest(is)
+	} else if *platform == "centos" || *platform == "amazonlinux" || *platform == "fedora" || *platform == "redhat" {
+		StepByStepRhelTest(is)
+	} else if *platform == "suse" {
+		StepByStepSuseTest(is)
+	}
+}
+
+func StepByStepDebianTest(is *stepByStepSuite) {
 	var aptTrustedDKeyring = "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
 	var aptUsrShareKeyring = "/usr/share/keyrings/datadog-archive-keyring.gpg"
 	var aptrepo = "http://apttesting.datad0g.com/"
@@ -125,7 +135,7 @@ func (is *stepByStepSuite) StepByStepDebianTest() {
 	})
 }
 
-func (is *stepByStepSuite) StepByStepRhelTest() {
+func StepByStepRhelTest(is *stepByStepSuite) {
 	var yumrepo = "http://yumtesting.datad0g.com/testing/pipeline-23775094-a7/7/x86_64/"
 
 	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
@@ -170,7 +180,7 @@ func (is *stepByStepSuite) StepByStepRhelTest() {
 	})
 }
 
-func (is *stepByStepSuite) StepByStepSuseTest() {
+func StepByStepSuseTest(is *stepByStepSuite) {
 	var suserepo = ""
 	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
 	unixHelper := helpers.NewUnixHelper()
