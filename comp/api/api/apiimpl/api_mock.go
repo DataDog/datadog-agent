@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package apiimpl implements the internal Agent API which exposes endpoints such as config, flare or status
+//go:build test
+
 package apiimpl
 
 import (
@@ -11,9 +12,8 @@ import (
 
 	"go.uber.org/fx"
 
-	apiPackage "github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
-	"github.com/DataDog/datadog-agent/comp/core/api"
+	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -30,59 +30,45 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-// Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newAPIServer),
-)
-
-type apiServer struct {
+type mockAPIServer struct {
 }
 
-var _ api.Component = (*apiServer)(nil)
+var _ api.Mock = (*mockAPIServer)(nil)
 
-func newAPIServer() api.Component {
-	return &apiServer{}
+// MockModule defines the fx options for the mock component.
+var MockModule = fxutil.Component(
+	fx.Provide(newMock),
+)
+
+func newMock() api.Mock {
+	return &mockAPIServer{}
 }
 
 // StartServer creates the router and starts the HTTP server
-func (server *apiServer) StartServer(
-	configService *remoteconfig.Service,
-	flare flare.Component,
-	dogstatsdServer dogstatsdServer.Component,
-	capture replay.Component,
-	serverDebug dogstatsddebug.Component,
-	wmeta workloadmeta.Component,
-	logsAgent optional.Option[logsAgent.Component],
-	senderManager sender.DiagnoseSenderManager,
-	hostMetadata host.Component,
-	invAgent inventoryagent.Component,
-	demux demultiplexer.Component,
-	invHost inventoryhost.Component,
-	secretResolver secrets.Component,
+func (mock *mockAPIServer) StartServer(
+	_ *remoteconfig.Service,
+	_ flare.Component,
+	_ dogstatsdServer.Component,
+	_ replay.Component,
+	_ dogstatsddebug.Component,
+	_ workloadmeta.Component,
+	_ optional.Option[logsAgent.Component],
+	_ sender.DiagnoseSenderManager,
+	_ host.Component,
+	_ inventoryagent.Component,
+	_ demultiplexer.Component,
+	_ inventoryhost.Component,
+	_ secrets.Component,
 ) error {
-	return apiPackage.StartServer(configService,
-		flare,
-		dogstatsdServer,
-		capture,
-		serverDebug,
-		wmeta,
-		logsAgent,
-		senderManager,
-		hostMetadata,
-		invAgent,
-		demux,
-		invHost,
-		secretResolver,
-	)
+	return nil
 }
 
 // StopServer closes the connection and the server
 // stops listening to new commands.
-func (server *apiServer) StopServer() {
-	apiPackage.StopServer()
+func (mock *mockAPIServer) StopServer() {
 }
 
 // ServerAddress returns the server address.
-func (server *apiServer) ServerAddress() *net.TCPAddr {
-	return apiPackage.ServerAddress()
+func (mock *mockAPIServer) ServerAddress() *net.TCPAddr {
+	return nil
 }

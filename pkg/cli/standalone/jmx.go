@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	internalAPI "github.com/DataDog/datadog-agent/comp/core/api"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"

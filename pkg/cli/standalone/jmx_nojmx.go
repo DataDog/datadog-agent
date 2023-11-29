@@ -10,7 +10,7 @@ package standalone
 import (
 	"fmt"
 
-	internalAPI "github.com/DataDog/datadog-agent/comp/core/api"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
