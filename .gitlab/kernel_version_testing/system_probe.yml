@@ -456,7 +456,7 @@ kmt_run_tests_only_tracer_arm64:
 kernel_matrix_testing_cleanup_arm64:
   extends:
     - .kernel_matrix_testing_cleanup
-  needs: ["kernel_matrix_testing_setup_env_arm64", "kmt_run_tests_no_tracer_arm64", "kmt_run_tests_only_tracer_arm64"]
+  needs: ["kernel_matrix_testing_setup_env_arm64", "kernel_matrix_testing_run_tests_arm64"]
   variables:
     ARCH: arm64
     INSTANCE_TYPE: "m6gd.metal"
@@ -464,7 +464,7 @@ kernel_matrix_testing_cleanup_arm64:
 kernel_matrix_testing_cleanup_x64:
   extends:
     - .kernel_matrix_testing_cleanup
-  needs: ["kernel_matrix_testing_setup_env_x64", "kmt_run_tests_no_tracer_x64", "kmt_run_tests_only_tracer_x64"]
+  needs: ["kernel_matrix_testing_setup_env_x64", "kernel_matrix_testing_run_tests_x64"]
   variables:
     ARCH: x86_64
     INSTANCE_TYPE: "m5d.metal"
