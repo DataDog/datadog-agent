@@ -34,8 +34,8 @@ func init() {
 }
 
 type packageRunConfiguration struct {
-	Run     string
-	Skip    string
+	RunOnly []string `json:"run-only"`
+	Skip    []string
 	Exclude bool
 }
 
@@ -123,11 +123,11 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 	}
 
 	packagesRunConfig := testConfig.packagesRunConfig
-	if config, ok := packagesRunConfig[pkg]; ok && config.Run != "" {
-		args = append(args, "-test.run", config.Run)
+	if config, ok := packagesRunConfig[pkg]; ok && config.RunOnly != nil {
+		args = append(args, "-test.run", strings.Join(config.RunOnly, "|"))
 	}
-	if config, ok := packagesRunConfig[pkg]; ok && config.Skip != "" {
-		args = append(args, "-test.skip", config.Skip)
+	if config, ok := packagesRunConfig[pkg]; ok && config.Skip != nil {
+		args = append(args, "-test.skip", strings.Join(config.Skip, "|"))
 	}
 
 	return args
@@ -181,7 +181,6 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 			return !config.Exclude
 		}
 
-		return true
 		return false
 	})
 	if err != nil {
