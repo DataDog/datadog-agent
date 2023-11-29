@@ -21,6 +21,7 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 
 	params := installparams.NewParams(options...)
 	commandLine := ""
+
 	if params.PipelineID != "" {
 		testEnvVars := []string{}
 		testEnvVars = append(testEnvVars, "TESTING_APT_URL=apttesting.datad0g.com")
@@ -36,8 +37,12 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 		commandLine = fmt.Sprintf("DD_AGENT_MAJOR_VERSION=%s", params.MajorVersion)
 	}
 
+	if params.Flavor != "" {
+		commandLine += fmt.Sprintf(" DD_AGENT_FLAVOR=%s ", params.Flavor)
+	}
+
 	t.Run("Installing the agent", func(tt *testing.T) {
-		cmd := fmt.Sprintf(`DD_API_KEY="aaaaaaaaaa" %v DD_SITE="datadoghq.eu" bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"`, commandLine)
+		cmd := fmt.Sprintf(`DD_API_KEY="aaaaaaaaaa" %v DD_SITE="datadoghq.eu" bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh)"`, commandLine, params.MajorVersion)
 		output, err := client.VMClient.ExecuteWithError(cmd)
 		tt.Log(output)
 		require.NoError(tt, err, "agent installation should not return any error: ", err)

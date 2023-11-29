@@ -17,6 +17,10 @@ import (
 )
 
 func TestUserGroup(t *testing.T) {
+	if testEnvironment == DockerEnvironment {
+		t.Skip("Skip test spawning docker containers on docker")
+	}
+
 	ruleDefs := []*rules.RuleDefinition{
 		{
 			ID:         "test_rule_user",
@@ -118,31 +122,32 @@ func TestUserGroup(t *testing.T) {
 	defer test.Close()
 
 	for _, distroTest := range distroTests {
-		dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), distroTest.name)
-		if err != nil {
-			t.Skipf("Skipping user group tests: Docker not available: %s", err)
-			return
-		}
+		t.Run(distroTest.name, func(t *testing.T) {
+			dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), distroTest.name)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if _, err := dockerWrapper.start(); err != nil {
-			t.Fatal(err)
-		}
-		defer dockerWrapper.stop()
+			if _, err := dockerWrapper.start(); err != nil {
+				t.Fatal(err)
+			}
+			defer dockerWrapper.stop()
 
-		for _, testCommand := range distroTest.testCommands {
-			i := 0
-			dockerWrapper.RunTest(t, distroTest.name+"-"+testCommand.name, func(t *testing.T, kind wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
-				test.WaitSignals(t, func() error {
-					return cmdFunc(testCommand.cmd[0], testCommand.cmd[1:], nil).Run()
-				}, func(event *model.Event, rule *rules.Rule) error {
-					assertTriggeredRule(t, rule, testCommand.rules[i])
-					i++
-					if i < len(testCommand.rules) {
-						return errSkipEvent
-					}
-					return nil
+			for _, testCommand := range distroTest.testCommands {
+				i := 0
+				dockerWrapper.RunTest(t, testCommand.name, func(t *testing.T, kind wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
+					test.WaitSignals(t, func() error {
+						return cmdFunc(testCommand.cmd[0], testCommand.cmd[1:], nil).Run()
+					}, func(event *model.Event, rule *rules.Rule) error {
+						assertTriggeredRule(t, rule, testCommand.rules[i])
+						i++
+						if i < len(testCommand.rules) {
+							return errSkipEvent
+						}
+						return nil
+					})
 				})
-			})
-		}
+			}
+		})
 	}
 }

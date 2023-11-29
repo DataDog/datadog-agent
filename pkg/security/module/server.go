@@ -321,7 +321,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 
 func marshalEvent(event events.Event, probe *sprobe.Probe) ([]byte, error) {
 	if ev, ok := event.(*model.Event); ok {
-		return serializers.MarshalEvent(ev, probe.GetResolvers())
+		return serializers.MarshalEvent(ev)
 	}
 
 	if ev, ok := event.(events.EventMarshaler); ok {

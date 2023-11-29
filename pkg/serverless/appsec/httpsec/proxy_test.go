@@ -20,6 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	os.Setenv("DD_APPSEC_WAF_TIMEOUT", "1m")
+}
+
 func TestProxyLifecycleProcessor(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
 	lp, err := appsec.New()

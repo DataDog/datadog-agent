@@ -68,7 +68,7 @@ import (
 )
 
 var (
-	defaultMinInterval = 5 * time.Minute
+	defaultMinInterval = 1 * time.Minute
 	defaultMaxInterval = 10 * time.Minute
 
 	// For testing purposes
