@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package log
+package logimpl
 
 import (
 	"testing"
@@ -11,11 +11,12 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestMockLogging(t *testing.T) {
-	log := fxutil.Test[Component](t, fx.Options(
+	log := fxutil.Test[log.Component](t, fx.Options(
 		fx.Supply(Params{}),
 		config.MockModule,
 		MockModule,
