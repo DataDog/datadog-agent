@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
@@ -64,7 +64,7 @@ func TestAgentConfigCallback(t *testing.T) {
 	err := settings.RegisterRuntimeSetting(mockSettings)
 	assert.NoError(t, err)
 
-	rc := fxutil.Test[Component](t, fx.Options(Module, log.MockModule))
+	rc := fxutil.Test[Component](t, fx.Options(Module, logimpl.MockModule))
 
 	layerStartFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": "debug"}}`)}
 	layerEndFlare := state.RawConfig{Config: []byte(`{"name": "layer1", "config": {"log_level": ""}}`)}

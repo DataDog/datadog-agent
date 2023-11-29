@@ -25,7 +25,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -600,7 +599,7 @@ func TestProcessEvents(t *testing.T) {
 			var SBOMsSent = atomic.NewInt32(0)
 
 			workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-				log.MockModule,
+				logimpl.MockModule,
 				configcomp.MockModule,
 				fx.Supply(context.Background()),
 				fx.Supply(workloadmeta.NewParams()),

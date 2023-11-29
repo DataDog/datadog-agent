@@ -117,7 +117,7 @@ func setup() error {
 		fx.Supply(compcfg.NewAgentParams(
 			"", compcfg.WithConfigMissingOK(true))),
 		compcfg.Module,
-		fx.Supply(complog.ForOneShot("TEST", "info", false)),
+		fx.Supply(complogimpl.ForOneShot("TEST", "info", false)),
 		complog.Module,
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
