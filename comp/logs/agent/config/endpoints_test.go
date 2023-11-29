@@ -80,7 +80,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	suite.Equal("azerty", endpoint.APIKey)
 	suite.Equal("agent-intake.logs.datadoghq.com", endpoint.Host)
 	suite.Equal(10516, endpoint.Port)
-	suite.True(endpoint.UseSSL)
+	suite.True(endpoint.GetUseSSL())
 	suite.Equal("boz:1234", endpoint.ProxyAddress)
 	suite.Equal(1, len(endpoints.Endpoints))
 
@@ -91,7 +91,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	suite.Equal("azerty", endpoint.APIKey)
 	suite.Equal("agent-443-intake.logs.datadoghq.com", endpoint.Host)
 	suite.Equal(443, endpoint.Port)
-	suite.True(endpoint.UseSSL)
+	suite.True(endpoint.GetUseSSL())
 	suite.Equal("boz:1234", endpoint.ProxyAddress)
 	suite.Equal(1, len(endpoints.Endpoints))
 
@@ -103,7 +103,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	suite.Equal("azerty", endpoint.APIKey)
 	suite.Equal("host", endpoint.Host)
 	suite.Equal(1234, endpoint.Port)
-	suite.False(endpoint.UseSSL)
+	suite.False(endpoint.GetUseSSL())
 	suite.Equal("boz:1234", endpoint.ProxyAddress)
 	suite.Equal(1, len(endpoints.Endpoints))
 
@@ -115,7 +115,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithDefaultAndVa
 	suite.Equal("azerty", endpoint.APIKey)
 	suite.Equal("", endpoint.Host)
 	suite.Equal(1234, endpoint.Port)
-	suite.True(endpoint.UseSSL)
+	suite.True(endpoint.GetUseSSL())
 	suite.Equal("boz:1234", endpoint.ProxyAddress)
 	suite.Equal(1, len(endpoints.Endpoints))
 }
@@ -133,7 +133,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	suite.Equal(endpoints.BatchWait, 5*time.Second)
 
 	endpoint = endpoints.Main
-	suite.True(endpoint.UseSSL)
+	suite.True(endpoint.GetUseSSL())
 	suite.Equal("agent-http-intake.logs.datadoghq.com", endpoint.Host)
 }
 
@@ -187,7 +187,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidHTTPCon
 	suite.Equal(endpoints.BatchWait, 9*time.Second)
 
 	endpoint = endpoints.Main
-	suite.True(endpoint.UseSSL)
+	suite.True(endpoint.GetUseSSL())
 	suite.Equal("foo", endpoint.Host)
 }
 
@@ -204,7 +204,7 @@ func (suite *EndpointsTestSuite) TestBuildEndpointsShouldSucceedWithValidProxyCo
 	suite.True(endpoints.UseHTTP)
 
 	endpoint = endpoints.Main
-	suite.True(endpoint.UseSSL)
+	suite.True(endpoint.GetUseSSL())
 	suite.Equal("foo", endpoint.Host)
 	suite.Equal(1234, endpoint.Port)
 }
@@ -396,7 +396,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
 	endpoint = endpoints.Endpoints[1]
 	suite.Equal("foo", endpoint.Host)
 	suite.Equal("1234", endpoint.APIKey)
-	suite.True(endpoint.UseSSL)
+	suite.True(endpoint.GetUseSSL())
 
 	suite.config.SetWithoutSource("logs_config.use_http", true)
 	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
@@ -411,7 +411,7 @@ func (suite *EndpointsTestSuite) TestAdditionalEndpoints() {
 	suite.True(endpoint.UseCompression)
 	suite.Equal(6, endpoint.CompressionLevel)
 
-	suite.True(endpoint.UseSSL)
+	suite.True(endpoint.GetUseSSL())
 }
 
 func (suite *EndpointsTestSuite) TestAdditionalEndpointsMappedCorrectly() {

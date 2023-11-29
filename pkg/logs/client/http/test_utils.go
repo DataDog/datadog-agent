@@ -15,6 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+
+	pointer "github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
 
 // StatusCodeContainer is a lock around the status code to return
@@ -72,12 +74,11 @@ func NewTestServerWithOptions(statusCode int, senders int, retryDestination bool
 	port, _ := strconv.Atoi(url[2])
 	destCtx := client.NewDestinationsContext()
 	destCtx.Start()
-	falseVal := false
 	endpoint := config.Endpoint{
 		APIKey:           "test",
 		Host:             strings.Replace(url[1], "/", "", -1),
 		Port:             port,
-		UseSSL:           &falseVal,
+		UseSSL:           pointer.Ptr(false),
 		BackoffFactor:    1,
 		BackoffBase:      1,
 		BackoffMax:       10,

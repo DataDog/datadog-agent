@@ -56,6 +56,10 @@ type Endpoint struct {
 	Origin    IntakeOrigin
 }
 
+func (e *Endpoint) GetUseSSL() bool {
+	return e.UseSSL == nil || *e.UseSSL
+}
+
 // GetStatus returns the endpoint status
 func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 	compression := "uncompressed"
@@ -68,7 +72,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 
 	var protocol string
 	if useHTTP {
-		if e.UseSSL == nil || *e.UseSSL {
+		if e.GetUseSSL() {
 			protocol = "HTTPS"
 			if port == 0 {
 				port = 443 // use default port
@@ -83,7 +87,7 @@ func (e *Endpoint) GetStatus(prefix string, useHTTP bool) string {
 			}
 		}
 	} else {
-		if e.UseSSL == nil || *e.UseSSL {
+		if e.GetUseSSL() {
 			protocol = "SSL encrypted TCP"
 		} else {
 			protocol = "TCP"

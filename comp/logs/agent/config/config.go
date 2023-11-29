@@ -156,7 +156,7 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 		}
 		main.Host = host
 		main.Port = port
-		*main.UseSSL = logsConfig.logsNoSSL()
+		*main.UseSSL = !logsConfig.logsNoSSL()
 	} else if logsConfig.usePort443() {
 		main.Host = logsConfig.ddURL443()
 		main.Port = 443
