@@ -370,8 +370,8 @@ kernel_matrix_testing_setup_env_x64:
         echo "These jobs do not permit retries. The go tests are retried a user-specified number of times automatically. In order to re-run the tests, you must trigger the pipeline again"
         'false'
       fi
-    - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.output | grep $ARCH-$TAG | grep $TEST_SET | cut -d ' ' -f 2)
-    - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.output | grep $ARCH-$TAG | grep $TEST_SET | cut -d ' ' -f 1)
+    - MICRO_VM_IP=$(cat $CI_PROJECT_DIR/stack.output | grep "$ARCH-$TAG-.*$TEST_SET.*-ddvm" | cut -d ' ' -f 2)
+    - MICRO_VM_NAME=$(cat $CI_PROJECT_DIR/stack.output | grep "$ARCH-$TAG-.*$TEST_SET.*-ddvm" | cut -d ' ' -f 1)
     - GO_VERSION=$(inv go-version)
     - !reference [.setup_ssh_config]
     # ssh into each micro-vm and run initialization script. This script will also run the tests.
