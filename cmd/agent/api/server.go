@@ -91,7 +91,7 @@ func StartServers(
 	ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
 
 	if ipcServerEnabled {
-		additionalHostIdentities = append(additionalHostIdentities, ipcServerHostPort)
+		additionalHostIdentities = append(additionalHostIdentities, ipcServerHost)
 	}
 
 	tlsKeyPair, tlsCertPool, err := initializeTLS(additionalHostIdentities...)
