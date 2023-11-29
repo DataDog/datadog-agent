@@ -500,6 +500,7 @@ func startAgent(
 				common.AC.AddConfigProvider(rcProvider, true, 10*time.Second)
 			}
 			if pkgconfig.Datadog.GetBool("remote_configuration.ndm_device_oid_collector.enabled") {
+				log.Infof("Start RC Device OID Collector")
 				rcProvider := rcsnmpprofiles.NewRemoteConfigSNMPProfilesManager()
 				rcclient.Subscribe(data.ProductNDMDeviceProfilesCustom, rcProvider.Callback)
 			}

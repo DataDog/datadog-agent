@@ -40,7 +40,4 @@ func (rc *RemoteConfigSNMPProfilesManager) Callback(updates map[string]state.Raw
 		profiles = append(profiles, profileDef.Profile)
 	}
 
-	setGlobalRcProfiles(profiles)
-
-	log.Infof("GetGlobalRcProfiles(): %+v", GetGlobalRcProfiles())
 }
