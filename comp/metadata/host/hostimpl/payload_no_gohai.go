@@ -5,10 +5,14 @@
 
 //go:build freebsd || netbsd || openbsd || solaris || dragonfly
 
-package host
+package hostimpl
 
 import (
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	"fmt"
+
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
+	"github.com/DataDog/datadog-agent/pkg/metadata/common"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 )
 
 // Payload handles the JSON unmarshalling of the metadata payload

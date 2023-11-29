@@ -58,7 +58,6 @@ def check_component(file, content):
         "comp/dogstatsd/server/component.go",
         "comp/forwarder/defaultforwarder/component.go",
         "comp/logs/agent/component.go",
-        "comp/metadata/host/component.go",
         "comp/metadata/inventoryagent/component.go",
         "comp/netflow/config/component.go",
         "comp/netflow/server/component.go",

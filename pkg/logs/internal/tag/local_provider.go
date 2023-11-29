@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	coreConfig "github.com/DataDog/datadog-agent/pkg/config"
 
 	"github.com/benbjohnson/clock"

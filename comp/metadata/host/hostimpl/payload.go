@@ -5,14 +5,14 @@
 
 //go:build linux || windows || darwin
 
-package host
+package hostimpl
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/comp/metadata/host/utils"
+	"github.com/DataDog/datadog-agent/comp/metadata/host/hostimpl/utils"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
