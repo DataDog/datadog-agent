@@ -27,7 +27,7 @@ type kernelTelemetry struct {
 	// endOfStreamRST Count of RST flags seen
 	endOfStreamRST *libtelemetry.Counter
 	// pathSizeBucket Count of path sizes divided into buckets.
-	pathSizeBucket [HTTP2PathBuckets + 1]*libtelemetry.Counter
+	pathSizeBucket [http2PathBuckets + 1]*libtelemetry.Counter
 	// pathExceedsFrame Count of times we couldn't retrieve the path due to reaching the end of the frame.
 	pathExceedsFrame *libtelemetry.Counter
 	// exceedingMaxInterestingFrames Count of times we reached the max number of frames per iteration.
