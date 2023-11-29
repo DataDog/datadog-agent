@@ -211,7 +211,7 @@ func TestHistogramCountSampling(t *testing.T) {
 	testWithTagsStore(t, testHistogramCountSampling)
 }
 
-func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
+func testCheckHistogramBucketSampling[T uint16 | uint32](t *testing.T, store *tags.Store) {
 	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	bucket1 := &metrics.HistogramBucket{
@@ -231,7 +231,7 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	_, flushed := checkSampler.flush()
 	assert.Equal(t, 1, len(flushed))
 
-	expSketch := &quantile.Sketch{}
+	expSketch := &quantile.Sketch[T]{}
 	// linear interpolated values
 	expSketch.Insert(quantile.Default(), 10.0, 12.5, 15.0, 17.5)
 
@@ -263,7 +263,7 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 	assert.Len(t, checkSampler.lastBucketValue, 0)
 	_, flushed = checkSampler.flush()
 
-	expSketch = &quantile.Sketch{}
+	expSketch = &quantile.Sketch[T]{}
 	// linear interpolated values (only 2 since we stored the delta)
 	expSketch.Insert(quantile.Default(), 10.0, 15.0)
 
@@ -285,10 +285,15 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 }
 
 func TestCheckHistogramBucketSampling(t *testing.T) {
-	testWithTagsStore(t, testCheckHistogramBucketSampling)
+	t.Run("uint16", func(t *testing.T) {
+		testWithTagsStore(t, testCheckHistogramBucketSampling[uint16])
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testWithTagsStore(t, testCheckHistogramBucketSampling[uint32])
+	})
 }
 
-func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store) {
+func testCheckHistogramBucketDontFlushFirstValue[T uint16 | uint32](t *testing.T, store *tags.Store) {
 	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	bucket1 := &metrics.HistogramBucket{
@@ -323,7 +328,7 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 	checkSampler.commit(12401.0)
 	_, flushed = checkSampler.flush()
 
-	expSketch := &quantile.Sketch{}
+	expSketch := &quantile.Sketch[T]{}
 	// linear interpolated values (only 2 since we stored the delta)
 	expSketch.Insert(quantile.Default(), 10.0, 15.0)
 
@@ -340,10 +345,15 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 }
 
 func TestCheckHistogramBucketDontFlushFirstValue(t *testing.T) {
-	testWithTagsStore(t, testCheckHistogramBucketDontFlushFirstValue)
+	t.Run("uint16", func(t *testing.T) {
+		testWithTagsStore(t, testCheckHistogramBucketDontFlushFirstValue[uint16])
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testWithTagsStore(t, testCheckHistogramBucketDontFlushFirstValue[uint32])
+	})
 }
 
-func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
+func testCheckHistogramBucketInfinityBucket[T uint16 | uint32](t *testing.T, store *tags.Store) {
 	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	bucket1 := &metrics.HistogramBucket{
@@ -360,7 +370,7 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 	_, flushed := checkSampler.flush()
 	assert.Equal(t, 1, len(flushed))
 
-	expSketch := &quantile.Sketch{}
+	expSketch := &quantile.Sketch[T]{}
 	expSketch.InsertMany(quantile.Default(), []float64{9000.0, 9000.0, 9000.0, 9000.0})
 
 	// ~3% error seen in this test case for sums (sum error is additive so it's always the worst)
@@ -375,10 +385,15 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 }
 
 func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
-	testWithTagsStore(t, testCheckHistogramBucketInfinityBucket)
+	t.Run("uint16", func(t *testing.T) {
+		testWithTagsStore(t, testCheckHistogramBucketInfinityBucket[uint16])
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testWithTagsStore(t, testCheckHistogramBucketInfinityBucket[uint32])
+	})
 }
 
-func testCheckDistribution(t *testing.T, store *tags.Store) {
+func testCheckDistribution[T uint16 | uint32](t *testing.T, store *tags.Store) {
 	checkSampler := newCheckSampler(1, true, 1*time.Second, store)
 
 	mSample1 := metrics.MetricSample{
@@ -395,7 +410,7 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 
 	_, sketches := checkSampler.flush()
 
-	expSketch := &quantile.Sketch{}
+	expSketch := &quantile.Sketch[T]{}
 	expSketch.Insert(quantile.Default(), 1)
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
@@ -409,5 +424,10 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 }
 
 func TestCheckDistribution(t *testing.T) {
-	testWithTagsStore(t, testCheckDistribution)
+	t.Run("uint16", func(t *testing.T) {
+		testWithTagsStore(t, testCheckDistribution[uint16])
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testWithTagsStore(t, testCheckDistribution[uint32])
+	})
 }

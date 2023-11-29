@@ -18,8 +18,17 @@ import (
 )
 
 func TestAssertSketchSeriesEqual(t *testing.T) {
-	arange := func(n int) *quantile.Sketch {
-		s := &quantile.Sketch{}
+	t.Run("uint16", func(t *testing.T) {
+		testAssertSketchSeriesEqual[uint16](t)
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testAssertSketchSeriesEqual[uint32](t)
+	})
+}
+
+func testAssertSketchSeriesEqual[T uint16 | uint32](t *testing.T) {
+	arange := func(n int) *quantile.Sketch[T] {
+		s := &quantile.Sketch[T]{}
 		c := quantile.Default()
 
 		for i := 0; i < n; i++ {

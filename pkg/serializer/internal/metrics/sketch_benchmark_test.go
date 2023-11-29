@@ -18,9 +18,18 @@ import (
 )
 
 func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
+	b.Run("uint16", func(b *testing.B) {
+		benchmarkSplitPayloadsSketchesSplitInner[uint16](b, numPoints)
+	})
+	b.Run("uint32", func(b *testing.B) {
+		benchmarkSplitPayloadsSketchesSplitInner[uint32](b, numPoints)
+	})
+}
+
+func benchmarkSplitPayloadsSketchesSplitInner[T uint16 | uint32](b *testing.B, numPoints int) {
 	testSketchSeries := metrics.NewSketchesSourceTest()
 	for i := 0; i < numPoints; i++ {
-		testSketchSeries.Append(Makeseries(200))
+		testSketchSeries.Append(Makeseries[T](200))
 	}
 
 	serializer := SketchSeriesList{SketchesSource: testSketchSeries}
@@ -33,9 +42,18 @@ func benchmarkSplitPayloadsSketchesSplit(b *testing.B, numPoints int) {
 }
 
 func benchmarkSplitPayloadsSketchesNew(b *testing.B, numPoints int) {
+	b.Run("uint16", func(b *testing.B) {
+		benchmarkSplitPayloadsSketchesNewInner[uint16](b, numPoints)
+	})
+	b.Run("uint32", func(b *testing.B) {
+		benchmarkSplitPayloadsSketchesNewInner[uint32](b, numPoints)
+	})
+}
+
+func benchmarkSplitPayloadsSketchesNewInner[T uint16 | uint32](b *testing.B, numPoints int) {
 	testSketchSeries := metrics.NewSketchesSourceTest()
 	for i := 0; i < numPoints; i++ {
-		testSketchSeries.Append(Makeseries(200))
+		testSketchSeries.Append(Makeseries[T](200))
 	}
 	serializer := SketchSeriesList{SketchesSource: testSketchSeries}
 	b.ReportAllocs()

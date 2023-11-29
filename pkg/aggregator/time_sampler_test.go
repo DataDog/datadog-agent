@@ -47,7 +47,7 @@ func TestCalculateBucketStart(t *testing.T) {
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
 }
 
-func testBucketSampling(t *testing.T, store *tags.Store) {
+func testBucketSampling(t *testing.T, _ *tags.Store) {
 	sampler := testTimeSampler()
 
 	mSample := metrics.MetricSample{
@@ -81,7 +81,7 @@ func TestBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testBucketSampling)
 }
 
-func testContextSampling(t *testing.T, store *tags.Store) {
+func testContextSampling(t *testing.T, _ *tags.Store) {
 	sampler := testTimeSampler()
 
 	mSample1 := metrics.MetricSample{
@@ -148,7 +148,7 @@ func TestContextSampling(t *testing.T) {
 	testWithTagsStore(t, testContextSampling)
 }
 
-func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
+func testCounterExpirySeconds(t *testing.T, _ *tags.Store) {
 	sampler := testTimeSampler()
 
 	math.Abs(1)
@@ -284,7 +284,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 	testWithTagsStore(t, testCounterExpirySeconds)
 }
 
-func testSketch(t *testing.T, store *tags.Store) {
+func testSketch[T uint16 | uint32](t *testing.T, _ *tags.Store) {
 	const (
 		defaultBucketSize = 10
 	)
@@ -321,7 +321,7 @@ func testSketch(t *testing.T, store *tags.Store) {
 			name   = "m.0"
 			tags   = []string{"a"}
 			host   = "host"
-			exp    = &quantile.Sketch{}
+			exp    = &quantile.Sketch[T]{}
 			keyGen = ckey.NewKeyGenerator()
 		)
 
@@ -354,10 +354,15 @@ func testSketch(t *testing.T, store *tags.Store) {
 
 }
 func TestSketch(t *testing.T) {
-	testWithTagsStore(t, testSketch)
+	t.Run("uint16", func(t *testing.T) {
+		testWithTagsStore(t, testSketch[uint16])
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testWithTagsStore(t, testSketch[uint32])
+	})
 }
 
-func testSketchBucketSampling(t *testing.T, store *tags.Store) {
+func testSketchBucketSampling[T uint16 | uint32](t *testing.T, _ *tags.Store) {
 	sampler := testTimeSampler()
 
 	mSample1 := metrics.MetricSample{
@@ -381,7 +386,7 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	sampler.sample(&mSample1, 10021)
 
 	_, flushed := flushSerie(sampler, 10020.0)
-	expSketch := &quantile.Sketch{}
+	expSketch := &quantile.Sketch[T]{}
 	expSketch.Insert(quantile.Default(), 1, 2)
 
 	assert.Equal(t, 1, len(flushed))
@@ -399,11 +404,17 @@ func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	// The samples added after the flush time remains in the dist sampler
 	assert.Equal(t, 1, sampler.sketchMap.Len())
 }
+
 func TestSketchBucketSampling(t *testing.T) {
-	testWithTagsStore(t, testSketchBucketSampling)
+	t.Run("uint16", func(t *testing.T) {
+		testWithTagsStore(t, testSketchBucketSampling[uint16])
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testWithTagsStore(t, testSketchBucketSampling[uint32])
+	})
 }
 
-func testSketchContextSampling(t *testing.T, store *tags.Store) {
+func testSketchContextSampling[T uint16 | uint32](t *testing.T, _ *tags.Store) {
 	sampler := testTimeSampler()
 
 	mSample1 := metrics.MetricSample{
@@ -424,7 +435,7 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 	sampler.sample(&mSample2, 10011)
 
 	_, flushed := flushSerie(sampler, 10020)
-	expSketch := &quantile.Sketch{}
+	expSketch := &quantile.Sketch[T]{}
 	expSketch.Insert(quantile.Default(), 1)
 
 	assert.Equal(t, 2, len(flushed))
@@ -452,11 +463,17 @@ func testSketchContextSampling(t *testing.T, store *tags.Store) {
 		ContextKey: generateContextKey(&mSample2),
 	}, flushed[1])
 }
+
 func TestSketchContextSampling(t *testing.T) {
-	testWithTagsStore(t, testSketchContextSampling)
+	t.Run("uint16", func(t *testing.T) {
+		testWithTagsStore(t, testSketchContextSampling[uint16])
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testWithTagsStore(t, testSketchContextSampling[uint32])
+	})
 }
 
-func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
+func testBucketSamplingWithSketchAndSeries[T uint16 | uint32](t *testing.T, _ *tags.Store) {
 	sampler := testTimeSampler()
 
 	dSample1 := metrics.MetricSample{
@@ -497,7 +514,7 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 		metrics.AssertSerieEqual(t, expectedSerie, series[0])
 	}
 
-	expSketch := &quantile.Sketch{}
+	expSketch := &quantile.Sketch[T]{}
 	expSketch.Insert(quantile.Default(), 1)
 
 	metrics.AssertSketchSeriesEqual(t, &metrics.SketchSeries{
@@ -512,7 +529,12 @@ func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	}, sketches[0])
 }
 func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
-	testWithTagsStore(t, testBucketSamplingWithSketchAndSeries)
+	t.Run("uint16", func(t *testing.T) {
+		testWithTagsStore(t, testBucketSamplingWithSketchAndSeries[uint16])
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testWithTagsStore(t, testBucketSamplingWithSketchAndSeries[uint32])
+	})
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {

@@ -371,6 +371,15 @@ func makeSeries(numItems, numPoints int) *IterableSeries {
 }
 
 func TestMarshalSplitCompress(t *testing.T) {
+	t.Run("uint16", func(t *testing.T) {
+		testMarshalSplitCompress[uint16](t)
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testMarshalSplitCompress[uint32](t)
+	})
+}
+
+func testMarshalSplitCompress[T uint16 | uint32](t *testing.T) {
 	series := makeSeries(10000, 50)
 
 	payloads, err := series.MarshalSplitCompress(marshaler.NewBufferContext())
@@ -392,6 +401,15 @@ func TestMarshalSplitCompress(t *testing.T) {
 }
 
 func TestMarshalSplitCompressPointsLimit(t *testing.T) {
+	t.Run("uint16", func(t *testing.T) {
+		testMarshalSplitCompressPointsLimit[uint16](t)
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testMarshalSplitCompressPointsLimit[uint32](t)
+	})
+}
+
+func testMarshalSplitCompressPointsLimit[T uint16 | uint32](t *testing.T) {
 	mockConfig := config.Mock(t)
 	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
 	defer mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", oldMax)
@@ -406,6 +424,15 @@ func TestMarshalSplitCompressPointsLimit(t *testing.T) {
 }
 
 func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
+	t.Run("uint16", func(t *testing.T) {
+		testMarshalSplitCompressPointsLimitTooBig[uint16](t)
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testMarshalSplitCompressPointsLimitTooBig[uint32](t)
+	})
+}
+
+func testMarshalSplitCompressPointsLimitTooBig[T uint16 | uint32](t *testing.T) {
 	mockConfig := config.Mock(t)
 	oldMax := mockConfig.GetInt("serializer_max_series_points_per_payload")
 	defer mockConfig.SetWithoutSource("serializer_max_series_points_per_payload", oldMax)
@@ -418,7 +445,17 @@ func TestMarshalSplitCompressPointsLimitTooBig(t *testing.T) {
 }
 
 // test taken from the spliter
+
 func TestPayloadsSeries(t *testing.T) {
+	t.Run("uint16", func(t *testing.T) {
+		testPayloadsSeries[uint16](t)
+	})
+	t.Run("uint32", func(t *testing.T) {
+		testPayloadsSeries[uint32](t)
+	})
+}
+
+func testPayloadsSeries[T uint16 | uint32](t *testing.T) {
 	testSeries := metrics.Series{}
 	for i := 0; i < 30000; i++ {
 		point := metrics.Serie{
@@ -472,6 +509,15 @@ func TestPayloadsSeries(t *testing.T) {
 var result transaction.BytesPayloads
 
 func BenchmarkPayloadsSeries(b *testing.B) {
+	b.Run("uint16", func(b *testing.B) {
+		benchmarkPayloadsSeries[uint16](b)
+	})
+	b.Run("uint32", func(b *testing.B) {
+		benchmarkPayloadsSeries[uint32](b)
+	})
+}
+
+func benchmarkPayloadsSeries[T uint16 | uint32](b *testing.B) {
 	testSeries := metrics.Series{}
 	for i := 0; i < 400000; i++ {
 		point := metrics.Serie{
