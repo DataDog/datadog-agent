@@ -182,6 +182,9 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	events.Configure(terminatedConnectionsEventStream, mgr, opts)
 }
 
+// PreStart is called before the start of the provided eBPF manager.
+// Additional initialisation steps, such as starting an event consumer,
+// should be performed here.
 func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 	p.mgr = mgr
 	p.eventsConsumer, err = events.NewConsumer(
@@ -213,6 +216,9 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 	return
 }
 
+// PostStart is called after the start of the provided eBPF manager. Final
+// initialisation steps, such as setting up a map cleaner, should be
+// performed here.
 func (p *Protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
 
@@ -257,6 +263,10 @@ func (p *Protocol) updateKernelTelemetry(mgr *manager.Manager) {
 	}()
 }
 
+// Stop is called before the provided eBPF manager is stopped.  Cleanup
+// steps, such as stopping events consumers, should be performed here.
+// Note that since this method is a cleanup method, it *should not* fail and
+// tries to cleanup resources as best as it can.
 func (p *Protocol) Stop(_ *manager.Manager) {
 	// http2InFlightMapCleaner handles nil pointer receivers
 	p.http2InFlightMapCleaner.Stop()
@@ -278,6 +288,8 @@ func (p *Protocol) Stop(_ *manager.Manager) {
 	close(p.kernelTelemetryStopChannel)
 }
 
+// DumpMaps dumps the content of the map represented by mapName &
+// currentMap, if it used by the eBPF program, to output.
 func (p *Protocol) DumpMaps(output *strings.Builder, mapName string, currentMap *ebpf.Map) {
 	if mapName == inFlightMap { // maps/http2_in_flight (BPF_MAP_TYPE_HASH), key ConnTuple, value httpTX
 		output.WriteString("Map: '" + mapName + "', key: 'ConnTuple', value: 'httpTX'\n")
