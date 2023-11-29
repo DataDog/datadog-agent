@@ -41,7 +41,7 @@ func ParseCPUSetFormat(line string) uint64 {
 			p1, _ := strconv.Atoi(string(currentSegment[split+1:]))
 			numCPUs += uint64(p1 - p0 + 1)
 		} else {
-			numCPUs += 1
+			numCPUs++
 		}
 	}
 	return numCPUs
