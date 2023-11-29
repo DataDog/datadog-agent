@@ -1,6 +1,6 @@
 {
     "pkg/network/tracer": {
-        "skip": "TestUSMSuite"
+        "skip": ["^TestUSMSuite$"]
     },
     "*": {
         "exclude": true
