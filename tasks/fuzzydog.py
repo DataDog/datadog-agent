@@ -17,8 +17,9 @@ def fuzzydog(ctx, version, duration="600"):
             target_binary = remove_prefix(cwd, directory).replace(os.path.sep, "_")
             bld = f'go test -c -o ./{target_binary}'
             ctx.run(bld)
-            fzz = f'fuzzydog fuzzer create datadog-agent --duration={duration} --version={version} --binary={target_binary} --type=go-native-fuzz --team=datadog-agent'
-            ctx.run(fzz)
+            for target_function in funcs:
+                fzz = f'fuzzydog fuzzer create datadog-agent --duration={duration} --version={version} --function={target_function} --type=go-native-fuzz --team=datadog-agent'
+                ctx.run(fzz)
             ctx.run(f'rm ./{target_binary}')
 
 def search_fuzz_tests(directory):
