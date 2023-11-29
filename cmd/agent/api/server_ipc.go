@@ -31,10 +31,27 @@ func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config) (err error) {
 		return err
 	}
 
+	ipcMux := http.NewServeMux()
+	ipcMux.Handle(
+		"/config/",
+		http.StripPrefix("/config", getConfigEndpointMux()))
+
+	ipcServer := &http.Server{
+		Addr:      ipcServerAddr,
+		Handler:   http.TimeoutHandler(ipcMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second, "timeout"),
+		TLSConfig: tlsConfig,
+	}
+
+	startServer(ipcListener, ipcServer, ipc_server_name)
+
+	return nil
+}
+
+func getConfigEndpointMux() *gorilla.Router {
 	configEndpointHandler := func(w http.ResponseWriter, r *http.Request) {
 		vars := gorilla.Vars(r)
 
-		body, err := getConfigMarshalled(vars["path"])
+		body, err := getConfigValueAsJSON(vars["path"])
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -48,23 +65,10 @@ func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config) (err error) {
 	configEndpointMux.HandleFunc("/{path}", configEndpointHandler).Methods("GET")
 	configEndpointMux.Use(validateToken)
 
-	ipcMux := http.NewServeMux()
-	ipcMux.Handle(
-		"/config/",
-		http.StripPrefix("/config", configEndpointMux))
-
-	ipcServer := &http.Server{
-		Addr:      ipcServerAddr,
-		Handler:   http.TimeoutHandler(ipcMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second, "timeout"),
-		TLSConfig: tlsConfig,
-	}
-
-	startServer(ipcListener, ipcServer, ipc_server_name)
-
-	return nil
+	return configEndpointMux
 }
 
-func getConfigMarshalled(path string) ([]byte, error) {
+func getConfigValueAsJSON(path string) ([]byte, error) {
 	if path == "." {
 		path = ""
 	}
