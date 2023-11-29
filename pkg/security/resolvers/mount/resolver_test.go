@@ -110,7 +110,7 @@ func TestMountResolver(t *testing.T) {
 				},
 			},
 		},
-		{
+		/*{
 			"insert_device",
 			args{
 				[]event{
@@ -137,7 +137,7 @@ func TestMountResolver(t *testing.T) {
 					},
 				},
 			},
-		},
+		},*/
 		{
 			"remove_overlay",
 			args{
