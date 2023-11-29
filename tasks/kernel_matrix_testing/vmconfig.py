@@ -98,7 +98,7 @@ arch_mapping = {
     "x86_64": "x86_64",
     "arm64": "arm64",
     "arm": "arm64",
-    "aarch64": "arm64"
+    "aarch64": "arm64",
 }
 
 TICK = "\u2713"
@@ -184,6 +184,7 @@ def list_possible():
 
     return result
 
+
 # normalize_vm_def converts the detected user provider vm-def
 # to a standard form with consisten values for
 # recipe: [custom, distro]
@@ -205,7 +206,7 @@ def normalize_vm_def(possible, vm):
     return recipe, version, arch
 
 
-def get_custom_kernel_config(template, recipe, version, arch):
+def get_custom_kernel_config(version, arch):
     if arch == local_arch:
         arch = arch_mapping[platform.machine()]
 
@@ -233,7 +234,7 @@ def get_custom_kernel_config(version, arch):
 # to the micro-vms scenario in test-infra-definitions
 def get_kernel_config(template, recipe, version, arch):
     if recipe == "custom":
-        return get_custom_kernel_config(template, recipe, version, arch)
+        return get_custom_kernel_config(version, arch)
 
     if arch == "local":
         arch = arch_mapping[platform.machine()]
@@ -366,7 +367,7 @@ def add_console(vmset):
 def url_to_fspath(url):
     source = urlparse(url)
     if os.path.basename(source.path).endswith(".xz"):
-        filename = os.path.basename(source.path)[:-len(".xz")]
+        filename = os.path.basename(source.path)[: -len(".xz")]
     else:
         filename = os.path.basename(source.path)
 
@@ -444,10 +445,10 @@ def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
 
         # duplicate vm if multiple sets provided by user
         for s in sets:
-            vmsets.add(VMSet(arch, recipe, set([vmset_name(arch, recipe), s])))
+            vmsets.add(VMSet(arch, recipe, {vmset_name(arch, recipe), s}))
 
         if len(sets) == 0:
-            vmsets.add(VMSet(arch, recipe, set([vmset_name(arch, recipe)])))
+            vmsets.add(VMSet(arch, recipe, {vmset_name(arch, recipe)}))
 
     # map vms to vmsets
     for recipe, version, arch in normalized_vm_defs:
@@ -462,7 +463,9 @@ def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
     for vmset in vmsets:
         for vm in vmset.vms:
             add_kernel(
-                vm_config, get_kernel_config(vmconfig_template, vmset.recipe, vm.version, vmset.arch), vmset.tags,
+                vm_config,
+                get_kernel_config(vmconfig_template, vmset.recipe, vm.version, vmset.arch),
+                vmset.tags,
             )
 
     for vmset in vm_config["vmsets"]:

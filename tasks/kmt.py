@@ -56,7 +56,7 @@ def gen_config(
     new=False,
     ci=False,
     arch="",
-    output_file="vmconfig.json"
+    output_file="vmconfig.json",
 ):
     vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
 
