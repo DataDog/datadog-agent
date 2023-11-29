@@ -16,6 +16,7 @@ import (
 	gorilla "github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const ipc_server_name string = "IPC API Server"
@@ -49,9 +50,7 @@ func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config) (err error) {
 
 func getConfigEndpointMux() *gorilla.Router {
 	configEndpointHandler := func(w http.ResponseWriter, r *http.Request) {
-		vars := gorilla.Vars(r)
-
-		body, err := getConfigValueAsJSON(vars["path"])
+		body, err := getConfigValueAsJSON(r)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
@@ -61,22 +60,22 @@ func getConfigEndpointMux() *gorilla.Router {
 
 	configEndpointMux := gorilla.NewRouter()
 	configEndpointMux.HandleFunc("/", configEndpointHandler).Methods("GET")
-	configEndpointMux.HandleFunc("/.", configEndpointHandler).Methods("GET")
 	configEndpointMux.HandleFunc("/{path}", configEndpointHandler).Methods("GET")
 	configEndpointMux.Use(validateToken)
 
 	return configEndpointMux
 }
 
-func getConfigValueAsJSON(path string) ([]byte, error) {
-	if path == "." {
-		path = ""
-	}
+func getConfigValueAsJSON(r *http.Request) ([]byte, error) {
+	vars := gorilla.Vars(r)
+	path := vars["path"]
 
 	if _, ok := allowedConfigPaths[path]; !ok {
-		return nil, fmt.Errorf("querying config %s is not allowed", path)
+		log.Warn("config endpoint received a request from '%s' for config '%s' which is not allowed", r.RemoteAddr, path)
+		return nil, fmt.Errorf("querying config value '%s' is not allowed", path)
 	}
 
+	log.Debug("config endpoint received a request from '%s' for config '%s'", r.RemoteAddr, path)
 	value := config.Datadog.Get(path)
 	if value == nil {
 		return nil, fmt.Errorf("no runtime setting found for %s", path)
