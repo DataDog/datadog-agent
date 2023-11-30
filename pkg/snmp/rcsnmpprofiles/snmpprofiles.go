@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"os"
 	"strings"
 )
 
@@ -58,7 +59,31 @@ func (rc *RemoteConfigSNMPProfilesManager) Callback(updates map[string]state.Raw
 			ipaddr := config.IPAddress
 			if ipaddr != "" && strings.Contains(profileDef.Profile.Description, ipaddr) {
 				log.Infof("[RC Callback] Run Device OID Scan for: %s", ipaddr)
+
+				rc.collectDeviceOIDs(config)
 			}
 		}
+	}
+}
+
+func (rc *RemoteConfigSNMPProfilesManager) collectDeviceOIDs(config parse.SNMPConfig) {
+	session := createSession(config)
+
+	// Establish connection
+	err := session.Connect()
+	if err != nil {
+		log.Errorf("[RC Callback] Connect err: %v\n", err)
+		os.Exit(1)
+		return
+	}
+	defer session.Conn.Close()
+
+	log.Infof("[RC Callback] session: %+v", session)
+
+	variables := FetchAllFirstRowOIDsVariables(session)
+	log.Infof("[RC Callback] Variables: %d", len(variables))
+
+	for _, variable := range variables {
+		log.Infof("[RC Callback]  Variable Name: %s", variable.Name)
 	}
 }
