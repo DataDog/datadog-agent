@@ -11,9 +11,9 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	"github.com/DataDog/datadog-agent/comp/process/hostinfo/hostinfoimpl"
 	"github.com/DataDog/datadog-agent/comp/process/submitter"
-	"github.com/DataDog/datadog-agent/comp/process/forwarders/forwardersimpl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
