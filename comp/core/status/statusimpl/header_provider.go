@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
 	pkgConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -25,7 +26,11 @@ type headerProvider struct {
 	htmlTemplatesFunctions htmlTemplate.FuncMap
 }
 
-func (h headerProvider) JSON(stats map[string]interface{}) {
+func (h *headerProvider) Index() int {
+	return 0
+}
+
+func (h *headerProvider) JSON(stats map[string]interface{}) {
 	for k, v := range h.data {
 		stats[k] = v
 	}
@@ -34,7 +39,7 @@ func (h headerProvider) JSON(stats map[string]interface{}) {
 //go:embed templates
 var templatesFS embed.FS
 
-func (h headerProvider) Text(buffer io.Writer) error {
+func (h *headerProvider) Text(buffer io.Writer) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "text.tmpl"))
 	if tmplErr != nil {
 		return tmplErr
@@ -43,7 +48,7 @@ func (h headerProvider) Text(buffer io.Writer) error {
 	return t.Execute(buffer, h.data)
 }
 
-func (h headerProvider) HTML(buffer io.Writer) error {
+func (h *headerProvider) HTML(buffer io.Writer) error {
 	tmpl, tmplErr := templatesFS.ReadFile(path.Join("templates", "html.tmpl"))
 	if tmplErr != nil {
 		return tmplErr
@@ -52,9 +57,7 @@ func (h headerProvider) HTML(buffer io.Writer) error {
 	return t.Execute(buffer, h.data)
 }
 
-func (h headerProvider) AppendToHeader(map[string]interface{}) {}
-
-func newHeaderProvider(config config.Component) headerProvider {
+func newHeaderProvider(config config.Component) status.HeaderStatusProvider {
 	configObject := config.Object()
 	data := map[string]interface{}{}
 	//  TODO: using globals
@@ -76,7 +79,7 @@ func newHeaderProvider(config config.Component) headerProvider {
 	title := fmt.Sprintf("Agent (v%s)", data["version"])
 	data["title"] = title
 
-	return headerProvider{
+	return &headerProvider{
 		data:                   data,
 		textTemplatesFunctions: textTemplate.FuncMap{},
 		htmlTemplatesFunctions: htmlTemplate.FuncMap{},
