@@ -12,8 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/snmp/rcsnmpprofiles/valuestore"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/gosnmp/gosnmp"
 	"os"
 	"strings"
 	"time"
@@ -73,6 +75,9 @@ func (rc *RemoteConfigSNMPProfilesManager) Callback(updates map[string]state.Raw
 }
 
 func (rc *RemoteConfigSNMPProfilesManager) collectDeviceOIDs(config parse.SNMPConfig) {
+	namespace := "default" // TODO: CHANGE PLACEHOLDER
+	deviceId := namespace + ":" + config.IPAddress
+
 	session := createSession(config)
 	log.Infof("[RC Callback] session: %+v", session)
 
@@ -90,30 +95,60 @@ func (rc *RemoteConfigSNMPProfilesManager) collectDeviceOIDs(config parse.SNMPCo
 
 	for _, variable := range variables {
 		log.Infof("[RC Callback] Variable Name: %s", variable.Name)
+	}
 
-		metadataPayloads := metadata.BatchPayloads("default",
-			"",
-			time.Now(),
-			metadata.PayloadMetadataBatchSize,
-			nil,
-			nil,
-			nil,
-			nil,
-			nil,
-			nil,
-		)
-		for _, payload := range metadataPayloads {
-			payloadBytes, err := json.Marshal(payload)
-			if err != nil {
-				log.Errorf("[RC Callback] Error marshalling device metadata: %s", err)
-				continue
-			}
-			log.Debugf("[RC Callback] Device OID metadata payload: %s", string(payloadBytes))
-			rc.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
-			if err != nil {
-				log.Errorf("[RC Callback] Error sending event platform event for Device OID metadata: %s", err)
-			}
+	deviceOIDs := buildDeviceScanMetadata(deviceId, variables)
+	metadataPayloads := metadata.BatchPayloads(namespace,
+		"",
+		time.Now(),
+		metadata.PayloadMetadataBatchSize,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		deviceOIDs,
+	)
+	for _, payload := range metadataPayloads {
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			log.Errorf("[RC Callback] Error marshalling device metadata: %s", err)
+			continue
+		}
+		log.Debugf("[RC Callback] Device OID metadata payload: %s", string(payloadBytes))
+		rc.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
+		if err != nil {
+			log.Errorf("[RC Callback] Error sending event platform event for Device OID metadata: %s", err)
+		}
+	}
+}
+
+func buildDeviceScanMetadata(deviceId string, oidsValues []gosnmp.SnmpPDU) []metadata.DeviceOid {
+	var deviceOids []metadata.DeviceOid
+	if oidsValues == nil {
+		return deviceOids
+	}
+	for _, variablePdu := range oidsValues {
+		_, value, err := valuestore.GetResultValueFromPDU(variablePdu)
+		if err != nil {
+			log.Debugf("GetValueFromPDU error: %s", err)
+			continue
 		}
 
+		// TODO: How to store different types? Use Base64?
+		strValue, err := value.ToString()
+		if err != nil {
+			log.Debugf("ToString error: %s", err)
+			continue
+		}
+
+		deviceOids = append(deviceOids, metadata.DeviceOid{
+			DeviceID:    deviceId,
+			Oid:         strings.TrimLeft(variablePdu.Name, "."),
+			Type:        variablePdu.Type.String(), // TODO: Map to internal types?
+			ValueString: strValue,
+		})
 	}
+	return deviceOids
 }

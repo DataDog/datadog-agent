@@ -63,7 +63,7 @@ func Test_batchPayloads(t *testing.T) {
 			}},
 		})
 	}
-	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks, netflowExporters, diagnoses)
+	payloads := BatchPayloads("my-ns", "127.0.0.0/30", collectTime, 100, devices, interfaces, ipAddresses, topologyLinks, netflowExporters, diagnoses, nil)
 
 	require.Len(t, payloads, 8)
 
