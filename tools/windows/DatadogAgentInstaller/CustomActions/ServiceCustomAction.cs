@@ -7,6 +7,7 @@ using System.ServiceProcess;
 using Datadog.CustomActions.Extensions;
 using Datadog.CustomActions.Interfaces;
 using Datadog.CustomActions.Native;
+using Datadog.CustomActions.RollbackData;
 using Microsoft.Deployment.WindowsInstaller;
 using Microsoft.Win32;
 using ServiceController = Datadog.CustomActions.Native.ServiceController;
@@ -21,14 +22,19 @@ namespace Datadog.CustomActions
         private readonly IDirectoryServices _directoryServices;
         private readonly IFileServices _fileServices;
         private readonly IServiceController _serviceController;
+        private readonly IFileSystemServices _fileSystemServices;
+
+        private readonly RollbackDataStore _rollbackDataStore;
 
         public ServiceCustomAction(
             ISession session,
+            string rollbackDataName,
             INativeMethods nativeMethods,
             IRegistryServices registryServices,
             IDirectoryServices directoryServices,
             IFileServices fileServices,
-            IServiceController serviceController)
+            IServiceController serviceController,
+            IFileSystemServices fileSystemServices)
         {
             _session = session;
             _nativeMethods = nativeMethods;
@@ -36,16 +42,38 @@ namespace Datadog.CustomActions
             _directoryServices = directoryServices;
             _fileServices = fileServices;
             _serviceController = serviceController;
+            _fileSystemServices = fileSystemServices;
+
+            if (!string.IsNullOrEmpty(rollbackDataName))
+            {
+                _rollbackDataStore = new RollbackDataStore(_session, rollbackDataName, _fileSystemServices, _serviceController);
+            }
         }
 
         public ServiceCustomAction(ISession session)
+            : this(
+                session,
+                null,
+                new Win32NativeMethods(),
+                new RegistryServices(),
+                new DirectoryServices(),
+                new FileServices(),
+                new ServiceController(),
+                new FileSystemServices()
+            )
+        {
+        }
+
+        public ServiceCustomAction(ISession session, string rollbackDataName)
         : this(
             session,
+            rollbackDataName,
             new Win32NativeMethods(),
             new RegistryServices(),
             new DirectoryServices(),
             new FileServices(),
-            new ServiceController()
+            new ServiceController(),
+            new FileSystemServices()
         )
         {
         }
@@ -140,6 +168,20 @@ namespace Datadog.CustomActions
             }
         }
 
+        private void UpdateAndLogAccessControl(string serviceName, CommonSecurityDescriptor securityDescriptor)
+        {
+            var oldSD = _serviceController.GetAccessSecurity(serviceName);
+            _session.Log(
+                $"{serviceName} current ACLs: {oldSD.GetSddlForm(AccessControlSections.All)}");
+
+            _rollbackDataStore.Add(new ServicePermissionRollbackData(serviceName, _serviceController));
+            _serviceController.SetAccessSecurity(serviceName, securityDescriptor);
+
+            var newSD = _serviceController.GetAccessSecurity(serviceName);
+            _session.Log(
+                $"{serviceName} new ACLs: {newSD.GetSddlForm(AccessControlSections.All)}");
+        }
+
         /// <summary>
         /// Grant ddagentuser start/stop service privileges for the agent services
         /// </summary>
@@ -167,7 +209,7 @@ namespace Datadog.CustomActions
                     (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP),
                     InheritanceFlags.None, PropagationFlags.None);
 
-                _serviceController.SetAccessSecurity(serviceName, securityDescriptor);
+                UpdateAndLogAccessControl(serviceName, securityDescriptor);
             }
         }
 
@@ -196,13 +238,37 @@ namespace Datadog.CustomActions
                 _session.Log($"Failed to configure services: {e}");
                 return ActionResult.Failure;
             }
+            finally
+            {
+                _rollbackDataStore.Store();
+            }
             return ActionResult.Success;
         }
 
         [CustomAction]
-        public static ActionResult ConfigureServiceUsers(Session session)
+        public static ActionResult ConfigureServices(Session session)
         {
-            return new ServiceCustomAction(new SessionWrapper(session)).ConfigureServices();
+            return new ServiceCustomAction(new SessionWrapper(session), "ConfigureServices").ConfigureServices();
+        }
+
+        private ActionResult ConfigureServicesRollback()
+        {
+            try
+            {
+                _rollbackDataStore.Restore();
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to rollback service configuration: {e}");
+            }
+
+            return ActionResult.Success;
+        }
+
+        [CustomAction]
+        public static ActionResult ConfigureServicesRollback(Session session)
+        {
+            return new ServiceCustomAction(new SessionWrapper(session), "ConfigureServices").ConfigureServicesRollback();
         }
 
         /// <summary>

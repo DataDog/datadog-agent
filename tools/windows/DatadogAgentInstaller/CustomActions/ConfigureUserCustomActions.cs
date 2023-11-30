@@ -41,7 +41,7 @@ namespace Datadog.CustomActions
             _fileSystemServices = fileSystemServices;
             _serviceController = serviceController;
 
-            _rollbackDataStore = new RollbackDataStore(_session, rollbackDataName, _fileSystemServices);
+            _rollbackDataStore = new RollbackDataStore(_session, rollbackDataName, _fileSystemServices, _serviceController);
         }
 
         public ConfigureUserCustomActions(ISession session, string rollbackDataName)
