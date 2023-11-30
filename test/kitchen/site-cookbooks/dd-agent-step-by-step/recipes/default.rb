@@ -37,7 +37,7 @@ when 'debian'
       sudo apt-get update
       sudo apt-get install #{node['dd-agent-step-by-step']['package_name']} -y -q
     EOF
-  end
+  end·
 
 when 'rhel'
   if platform?('centos') && node['dd-agent-rspec'] && node['dd-agent-rspec']['enable_cws']

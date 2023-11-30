@@ -30,7 +30,7 @@ var packageName = flag.String("packagename", "datadog-agent", "name of the packa
 type stepByStepSuite struct {
 	e2e.Suite[e2e.VMEnv]
 	agentMajorVersion int
-	osVersion         int
+	osVersion         float64
 	cwsSupported      bool
 }
 
@@ -77,14 +77,16 @@ func TestStepByStepScript(t *testing.T) {
 		t.Run(fmt.Sprintf("test step by step on %s %s", osVers, *architecture), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
-			version, err := strconv.Atoi(osVers)
+			slice := strings.Split(osVers, "-")
+			require.Equal(tt, len(slice), 2)
+			version, err := strconv.ParseFloat(slice[1], 64)
 			require.NoError(tt, err)
 			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version, agentMajorVersion: 7}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture)))
 		})
 	}
 }
 
-func (is *stepByStepSuite) StepByStepTest() {
+func (is *stepByStepSuite) TestStepByStep() {
 	if *platform == "debian" || *platform == "ubuntu" {
 		StepByStepDebianTest(is)
 	} else if *platform == "centos" || *platform == "amazonlinux" || *platform == "fedora" || *platform == "redhat" {
@@ -97,9 +99,8 @@ func (is *stepByStepSuite) StepByStepTest() {
 func StepByStepDebianTest(is *stepByStepSuite) {
 	var aptTrustedDKeyring = "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
 	var aptUsrShareKeyring = "/usr/share/keyrings/datadog-archive-keyring.gpg"
-	var aptrepo = "http://apttesting.datad0g.com/"
-	var aptrepoDist = ""
-
+	var aptrepo = "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
+	var aptrepoDist = fmt.Sprintf("pipeline-%s-a%d-%s", os.Getenv("CI_PIPELINE_ID"), is.agentMajorVersion, *architecture)
 	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
 	unixHelper := helpers.NewUnixHelper()
 	vm := is.Env().VM.(*client.PulumiStackVM)
@@ -119,6 +120,7 @@ func StepByStepDebianTest(is *stepByStepSuite) {
 			tmpCmd = fmt.Sprintf("sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key)
 			ExecuteWithoutError(tmpCmd, t, VMclient)
 			tmpCmd = fmt.Sprintf("sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring)
+			ExecuteWithoutError(tmpCmd, t, VMclient)
 		}
 	})
 	if (*platform == "ubuntu" && is.osVersion < 16) || (*platform == "debian" && is.osVersion < 9) {
@@ -136,7 +138,14 @@ func StepByStepDebianTest(is *stepByStepSuite) {
 }
 
 func StepByStepRhelTest(is *stepByStepSuite) {
-	var yumrepo = "http://yumtesting.datad0g.com/testing/pipeline-23775094-a7/7/x86_64/"
+	var arch string
+	if *architecture == "arm64" {
+		arch = "aarch64"
+	} else {
+		arch = *architecture
+	}
+	var yumrepo = fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%d/%d/%s/",
+		os.Getenv("CI_PIPELINE_ID"), is.agentMajorVersion, is.agentMajorVersion, arch)
 
 	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
 	unixHelper := helpers.NewUnixHelper()
@@ -156,7 +165,7 @@ func StepByStepRhelTest(is *stepByStepSuite) {
 		protocol = "http"
 	}
 	var repo_gpgcheck = "1"
-	if is.osVersion < 8 { // TODO: refacto to check < 8.2
+	if is.osVersion < 8.2 {
 		repo_gpgcheck = "0"
 	}
 
