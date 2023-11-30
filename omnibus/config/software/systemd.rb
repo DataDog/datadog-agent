@@ -33,10 +33,11 @@ relative_path "#{name}-#{version}"
 
 build do
   env = with_standard_compiler_flags(with_embedded_path)
-  env["CFLAGS"] << " -fPIC"
 
-  configure "", env: env
-
-  make "-j #{workers}", env: env
-  make "install", env: env
+  # We only need the headers for coreos/go-systemd, and building
+  # libsystemd itself would be fairly complicated as our toolchain doesn't
+  # default include `/usr/include` in its default include path, while systemd
+  # definitely need files in /usr/include/sys to build.
+  mkdir "#{install_dir}/embedded/include/systemd"
+  copy "src/systemd/*.h", "#{install_dir}/embedded/include/systemd/"
 end
