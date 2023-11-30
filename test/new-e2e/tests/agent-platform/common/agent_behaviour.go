@@ -182,8 +182,8 @@ func CheckDogstatsdAgentRestarts(t *testing.T, client *TestClient) {
 
 	t.Run("restart when running", func(tt *testing.T) {
 		// If the agent is not started yet, start it
-		if _, err := client.SvcManager.Status("datadog-agent"); err != nil {
-			_, err := client.SvcManager.Start("datadog-agent")
+		if _, err := client.SvcManager.Status("datadog-dogstatsd"); err != nil {
+			_, err := client.SvcManager.Start("datadog-dogstatsd")
 			require.NoError(tt, err)
 		}
 
