@@ -149,6 +149,7 @@ type (
 		scan     *scanTask
 		err      error
 		sbom     *sbommodel.SBOMEntity
+		duration time.Duration
 		findings *findings
 	}
 )
@@ -449,7 +450,7 @@ func scanCmd(config scanConfig) error {
 				log.Errorf("error scanning task %s: %s", result.scan, result.err)
 			} else {
 				if result.sbom != nil {
-					fmt.Printf("scanning result %s: %s\n", result.scan, prototext.Format(result.sbom))
+					fmt.Printf("scanning result %s (took %d): %s\n", result.scan, result.duration, prototext.Format(result.sbom))
 				}
 				if result.findings != nil {
 					for _, result := range result.findings.Results {
@@ -571,11 +572,11 @@ func offlineCmd(poolSize int, regions []string, maxScans int, attachVolume bool)
 	resultsCh := make(chan scanResult)
 
 	go func() {
-		for scanResult := range resultsCh {
-			if scanResult.err != nil {
-				log.Warnf("scan %s finished with error: %v", scanResult.scan, scanResult.err)
+		for result := range resultsCh {
+			if result.err != nil {
+				log.Warnf("scan %s finished with error: %v", result.scan, result.err)
 			} else {
-				log.Infof("scan %s finished successfully", scanResult.scan)
+				log.Infof("scan %s finished successfully (took %s)", result.scan, result.duration)
 			}
 		}
 	}()
@@ -1067,11 +1068,12 @@ func (s *sideScanner) start(ctx context.Context) {
 			} else {
 				if result.sbom != nil {
 					if hasResults(result.sbom) {
+						log.Debugf("scan %s finished successfully (took %d)", result.scan, result.duration)
 						statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0)
 					} else {
+						log.Debugf("scan %s finished successfully without results (took %d)", result.scan, result.duration)
 						statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagNoResult(result.scan), 1.0)
 					}
-					log.Debugf("sending SBOM for scan %s", result.scan)
 					s.sendSBOM(result.sbom)
 				}
 				if result.findings != nil {
@@ -1612,7 +1614,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		ebsclient := ebs.NewFromConfig(cfg)
 		scanStartedAt = time.Now()
 		sbom, err := launchScannerTrivyVM(ctx, scan, ebsclient, snapshotARN)
-		resultsCh <- scanResult{err: err, scan: scan, sbom: sbom}
+		resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(scanStartedAt)}
 	}
 
 	// TODO: remove this check once we definitly move to nbd mounting
@@ -1632,11 +1634,13 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 			for _, action := range scan.Actions {
 				switch action {
 				case vulns:
+					start := time.Now()
 					sbom, err := launchScannerTrivyLocal(ctx, scan, mountPoint)
-					resultsCh <- scanResult{err: err, scan: scan, sbom: sbom}
+					resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(start)}
 				case malware:
+					start := time.Now()
 					findings, err := launchScannerMalwareLocal(ctx, scan, mountPoint)
-					resultsCh <- scanResult{err: err, scan: scan, findings: findings}
+					resultsCh <- scanResult{err: err, scan: scan, findings: findings, duration: time.Since(start)}
 				}
 			}
 		}
@@ -1712,9 +1716,8 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	}
 
 	scanStartedAt := time.Now()
-
 	sbom, err := launchScannerTrivyLocal(ctx, scan, codePath)
-	resultsCh <- scanResult{err: err, scan: scan, sbom: sbom}
+	resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(scanStartedAt)}
 
 	scanDuration := time.Since(scanStartedAt)
 	statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0)

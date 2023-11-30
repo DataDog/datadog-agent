@@ -97,6 +97,11 @@ func startClient(ctx context.Context, opts EBSBlockDeviceOptions) error {
 	}
 	defer conn.Close()
 
+	go func() {
+		<-ctx.Done()
+		conn.Close()
+	}()
+
 	defer func() {
 		log.Debugf("disconnecting nbd client %s", dev.Name())
 		_ = client.Disconnect(dev)
