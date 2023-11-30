@@ -34,9 +34,10 @@ type Rule struct {
 
 // RuleEvaluator - Evaluation part of a Rule
 type RuleEvaluator struct {
-	Eval        BoolEvalFnc
-	EventTypes  []EventType
-	FieldValues map[Field][]FieldValue
+	Eval         BoolEvalFnc
+	EventTypes   []EventType
+	FieldValues  map[Field][]FieldValue
+	PacketFilter *PacketFilter
 
 	partialEvals map[Field]BoolEvalFnc
 }
@@ -203,9 +204,10 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 	}
 
 	return &RuleEvaluator{
-		Eval:        evalBool.EvalFnc,
-		EventTypes:  events,
-		FieldValues: state.fieldValues,
+		Eval:         evalBool.EvalFnc,
+		EventTypes:   events,
+		FieldValues:  state.fieldValues,
+		PacketFilter: state.packetFilter,
 	}, nil
 }
 

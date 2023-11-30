@@ -39,3 +39,8 @@ func (pf *PacketFilter) Matches(pkt Packet) bool {
 	}
 	return pf.compiled.Matches(*ci, data)
 }
+
+// GetExpression returns the expression of the filter
+func (pf *PacketFilter) GetExpression() string {
+	return pf.expression
+}

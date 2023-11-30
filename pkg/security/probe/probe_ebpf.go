@@ -49,6 +49,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream/ringbuffer"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/packet"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/mount"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
@@ -85,7 +86,8 @@ var (
 
 // EBPFProbe defines a platform probe
 type EBPFProbe struct {
-	Resolvers *resolvers.EBPFResolvers
+	Resolvers     *resolvers.EBPFResolvers
+	packetManager *packet.Manager
 
 	// Constants and configuration
 	opts         Opts
@@ -1377,6 +1379,13 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 	}
 
 	for eventType, report := range ars.Policies {
+		et := config.ParseEvalEventType(eventType)
+		if et == model.UnknownEventType {
+			return nil, errors.New("unable to parse the eval event type")
+		}
+		if et > model.LastEventType {
+			continue
+		}
 		if err := p.ApplyFilterPolicy(eventType, report.Mode, report.Flags); err != nil {
 			return nil, err
 		}
@@ -1414,14 +1423,12 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.ApplyRuleSetRepor
 
 	var pktFilterExpressions []string
 	for _, rule := range rs.GetRules() {
-		if slices.Contains(rule.GetEvaluator().EventTypes, model.PacketEventType.String()) {
-			pktFilterExpressions = append(pktFilterExpressions, rule.Expression)
+		if slices.Contains(rule.GetEvaluator().EventTypes, model.PacketEventType.String()) && rule.GetEvaluator().PacketFilter != nil {
+			pktFilterExpressions = append(pktFilterExpressions, rule.GetEvaluator().PacketFilter.GetExpression())
 		}
 	}
-	if len(pktFilterExpressions) > 0 {
-		if err := p.updateSocketFilter(pktFilterExpressions); err != nil {
-			return nil, err
-		}
+	if err := p.packetManager.UpdatePacketFilter(pktFilterExpressions); err != nil {
+		return nil, err
 	}
 
 	return ars, nil
@@ -1702,6 +1709,8 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 			eventstream.EventStreamMap: true,
 		}
 	}
+
+	p.packetManager = packet.NewManager(p.ctx, p.NewEvent(), p.DispatchEvent)
 
 	return p, nil
 }

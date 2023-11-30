@@ -810,13 +810,15 @@ type BindEvent struct {
 
 // PacketEvent represents a packet event
 type PacketEvent struct {
-	gopacket.PacketMetadata
 	gopacket.Packet
 }
 
 // GetCaptureInfo returns the capture info of the packet event
 func (p PacketEvent) GetCaptureInfo() *gopacket.CaptureInfo {
-	return &p.CaptureInfo
+	if p.Packet == nil || p.Packet.Metadata() == nil {
+		return nil
+	}
+	return &p.Packet.Metadata().CaptureInfo
 }
 
 // GetData returns a byte slice containing packet data of the packet event

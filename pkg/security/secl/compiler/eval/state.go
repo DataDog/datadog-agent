@@ -33,6 +33,7 @@ type State struct {
 	registersInfo   map[RegisterID]*registerInfo
 	registerCounter int
 	regexpCache     StateRegexpCache
+	packetFilter    *PacketFilter
 }
 
 func (s *State) newAnonymousRegID() string {

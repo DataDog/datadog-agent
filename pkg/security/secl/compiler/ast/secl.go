@@ -128,8 +128,8 @@ type Macro struct {
 type BooleanExpression struct {
 	Pos lexer.Position
 
-	Expression              *Expression              `parser:"@@"`
-	PacketMatchingOperation *PacketMatchingOperation `parser:"| @@"`
+	Expression *Expression `parser:"@@"`
+	// PacketMatchingOperation *PacketMatchingOperation `parser:"| @@"`
 }
 
 // Expression describes an expression
@@ -244,10 +244,10 @@ type Array struct {
 	Numbers       []int          `parser:"| \"[\" @Int { \",\" @Int } \"]\""`
 }
 
-// PacketMatchingOperation describes a packet matching operation
-type PacketMatchingOperation struct {
-	Pos lexer.Position
+// // PacketMatchingOperation describes a packet matching operation
+// type PacketMatchingOperation struct {
+// 	Pos lexer.Position
 
-	Ident        *string `parser:"@Ident"`
-	PacketFilter *string `parser:"matches @String"`
-}
+// 	Ident        *string `parser:"@Ident"`
+// 	PacketFilter *string `parser:"\"matches\" @String"`
+// }

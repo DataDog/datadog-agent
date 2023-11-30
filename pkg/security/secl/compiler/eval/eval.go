@@ -392,24 +392,24 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			return nodeToEvaluator(obj.Expression, opts, state)
 		}
 		return nodeToEvaluator(obj.Expression, opts, state)
-	case *ast.PacketMatchingOperation:
-		filter, err := CompilePacketFilter(*obj.PacketFilter)
-		if err != nil {
-			return nil, obj.Pos, err
-		}
-		identEvaluator, pos, err := identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, opts, state)
-		if err != nil {
-			return nil, pos, err
-		}
-		packetEvaluator, ok := identEvaluator.(*PacketEvaluator)
-		if !ok {
-			return nil, obj.Pos, NewTypeError(obj.Pos, reflect.TypeOf(PacketEvaluator{}).Kind())
-		}
-		boolEvaluator, err := PacketMatchesFilter(packetEvaluator, filter, state)
-		if err != nil {
-			return nil, obj.Pos, err
-		}
-		return boolEvaluator, obj.Pos, nil
+	// case *ast.PacketMatchingOperation:
+	// 	filter, err := CompilePacketFilter(*obj.PacketFilter)
+	// 	if err != nil {
+	// 		return nil, obj.Pos, err
+	// 	}
+	// 	identEvaluator, pos, err := identToEvaluator(&ident{Pos: obj.Pos, Ident: obj.Ident}, opts, state)
+	// 	if err != nil {
+	// 		return nil, pos, err
+	// 	}
+	// 	packetEvaluator, ok := identEvaluator.(*PacketEvaluator)
+	// 	if !ok {
+	// 		return nil, obj.Pos, NewTypeError(obj.Pos, reflect.TypeOf(PacketEvaluator{}).Kind())
+	// 	}
+	// 	boolEvaluator, err := PacketMatchesFilter(packetEvaluator, filter, state)
+	// 	if err != nil {
+	// 		return nil, obj.Pos, err
+	// 	}
+	// 	return boolEvaluator, obj.Pos, nil
 	case *ast.Expression:
 		cmp, pos, err = nodeToEvaluator(obj.Comparison, opts, state)
 		if err != nil {
@@ -781,6 +781,26 @@ func nodeToEvaluator(obj interface{}, opts *Opts, state *State) (interface{}, le
 			}
 
 			switch unary := unary.(type) {
+			case *PacketEvaluator:
+				nextString, ok := next.(*StringEvaluator)
+				if !ok {
+					return nil, pos, NewTypeError(pos, reflect.String)
+				}
+				filter, err := CompilePacketFilter(nextString.Value)
+				if err != nil {
+					return nil, pos, err
+				}
+
+				switch *obj.ScalarComparison.Op {
+				case "==":
+					boolEvaluator, err := PacketMatchesFilter(unary, filter, state)
+					if err != nil {
+						return nil, pos, err
+					}
+					state.packetFilter = filter
+					return boolEvaluator, obj.Pos, nil
+				}
+				return nil, pos, NewOpUnknownError(obj.Pos, *obj.ScalarComparison.Op)
 			case *BoolEvaluator:
 				nextBool, ok := next.(*BoolEvaluator)
 				if !ok {
