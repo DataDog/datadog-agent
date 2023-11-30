@@ -58,10 +58,10 @@ func NewServer(options ...func(*Server)) *Server {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", fi.handleDatadogRequest)
-	mux.HandleFunc("/fakeintake/payloads/", fi.handleGetPayloads)
-	mux.HandleFunc("/fakeintake/health/", fi.handleFakeHealth)
-	mux.HandleFunc("/fakeintake/routestats/", fi.handleGetRouteStats)
-	mux.HandleFunc("/fakeintake/flushPayloads/", fi.handleFlushPayloads)
+	mux.HandleFunc("/fakeintake/payloads", fi.handleGetPayloads)
+	mux.HandleFunc("/fakeintake/health", fi.handleFakeHealth)
+	mux.HandleFunc("/fakeintake/routestats", fi.handleGetRouteStats)
+	mux.HandleFunc("/fakeintake/flushPayloads", fi.handleFlushPayloads)
 
 	fi.server = http.Server{
 		Handler: mux,
