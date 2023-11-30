@@ -1,7 +1,6 @@
 package main
 
 import (
-	// Trivy stuffs
 	"context"
 	"fmt"
 	"path/filepath"
