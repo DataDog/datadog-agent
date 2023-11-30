@@ -155,7 +155,12 @@ func (pm *ProcessMonitor) handleProcessExec(pid uint32) {
 
 	for callback := range pm.processExecCallbacks {
 		temporaryCallback := callback
-		pm.callbackRunner <- func() { (*temporaryCallback)(pid) }
+		select {
+		case pm.callbackRunner <- func() { (*temporaryCallback)(pid) }:
+			continue
+		default:
+			log.Debug("can't send exec callback to callbackRunner, channel is full")
+		}
 	}
 }
 
@@ -167,7 +172,12 @@ func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 
 	for callback := range pm.processExitCallbacks {
 		temporaryCallback := callback
-		pm.callbackRunner <- func() { (*temporaryCallback)(pid) }
+		select {
+		case pm.callbackRunner <- func() { (*temporaryCallback)(pid) }:
+			continue
+		default:
+			log.Debug("can't send exit callback to callbackRunner, channel is full")
+		}
 	}
 }
 
