@@ -1,4 +1,4 @@
-package step_by_step
+package stepbystep
 
 import (
 	"encoding/json"
@@ -164,9 +164,9 @@ func StepByStepRhelTest(is *stepByStepSuite) {
 	if is.osVersion < 6 {
 		protocol = "http"
 	}
-	var repo_gpgcheck = "1"
+	var repogpgcheck = "1"
 	if is.osVersion < 8.2 {
-		repo_gpgcheck = "0"
+		repogpgcheck = "0"
 	}
 
 	fileContent := fmt.Sprintf("[datadog]\n"+
@@ -178,7 +178,7 @@ func StepByStepRhelTest(is *stepByStepSuite) {
 		"gpgkey=%s://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public\n"+
 		"%s://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
 		"%s://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
-		yumrepo, repo_gpgcheck, protocol, protocol, protocol)
+		yumrepo, repogpgcheck, protocol, protocol, protocol)
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", fileContent)
 	require.NoError(is.T(), err)
 
