@@ -9,6 +9,7 @@
     E2E_OSVERS: "centos-610,centos-79,rhel-86"
     E2E_CWS_SUPPORTED_OSVERS: "centos-79,rhel-86"
     E2E_BRANCH_OSVERS: "centos-79"
+    E2E_OVERRIDE_INSTANCE_TYPE: "t2.medium" # CentOS 6 does not support ENA, so we cannot use t3 instances
   needs: ["deploy_rpm_testing-a6_x64"]
 
 .new-e2e_centos_a7_x86_64:
@@ -17,6 +18,7 @@
     E2E_OSVERS: "centos-9,centos-10,centos-11,centos-12"
     E2E_CWS_SUPPORTED_OSVERS: "centos-10,centos-11"
     E2E_BRANCH_OSVERS: "centos-11"
+    E2E_OVERRIDE_INSTANCE_TYPE: "t2.medium" # CentOS 6 does not support ENA, so we cannot use t3 instances
   needs: ["deploy_deb_testing-a7_x64"]
 
 new-e2e-agent-platform-install-script-centos-a6-x86_64:
