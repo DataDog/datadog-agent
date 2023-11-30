@@ -57,8 +57,14 @@ func TestNetflowState_TelemetryMetrics(t *testing.T) {
 
 	assert.Equal(t, 1, promtestutil.CollectAndCount(utils.NetFlowStats))
 	assert.Equal(t, 2, promtestutil.CollectAndCount(utils.NetFlowSetStatsSum))
+	assert.Equal(t, 2, promtestutil.CollectAndCount(utils.NetFlowSetRecordsStatsSum))
+	assert.Equal(t, 1, promtestutil.CollectAndCount(utils.NetFlowTimeStatsSum))
+	assert.Equal(t, 1, promtestutil.CollectAndCount(utils.DecoderTime))
 
 	assert.Equal(t, float64(1), promtestutil.ToFloat64(utils.NetFlowStats.WithLabelValues("127.0.0.1", "9")))
 	assert.Equal(t, float64(1), promtestutil.ToFloat64(utils.NetFlowSetStatsSum.WithLabelValues("127.0.0.1", "9", "TemplateFlowSet")))
 	assert.Equal(t, float64(1), promtestutil.ToFloat64(utils.NetFlowSetStatsSum.WithLabelValues("127.0.0.1", "9", "DataFlowSet")))
+	assert.Equal(t, float64(1), promtestutil.ToFloat64(utils.NetFlowSetRecordsStatsSum.WithLabelValues("127.0.0.1", "9", "TemplateFlowSet")))
+	assert.Equal(t, float64(29), promtestutil.ToFloat64(utils.NetFlowSetRecordsStatsSum.WithLabelValues("127.0.0.1", "9", "DataFlowSet")))
+	assert.Equal(t, float64(29), promtestutil.ToFloat64(utils.NetFlowSetRecordsStatsSum.WithLabelValues("127.0.0.1", "9", "DataFlowSet")))
 }

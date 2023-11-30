@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	"github.com/DataDog/datadog-agent/comp/netflow/config"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
+	flowmessage "github.com/netsampler/goflow2/pb"
 	"github.com/netsampler/goflow2/utils"
 	"sync"
 	"time"
@@ -82,6 +83,7 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 		ts = uint64(pkt.RecvTime.UTC().Unix())
 	}
 
+	timeTrackStart := time.Now()
 	msgDec, err := netflow.DecodeMessageContext(s.ctx, buf, key, netflow.TemplateWrapper{Ctx: s.ctx, Key: key, Inner: s.TemplateSystem})
 	if err != nil {
 		switch err.(type) {
@@ -118,6 +120,7 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 	for i, fmsg := range flowMessageSet {
 		fmsg.TimeReceived = ts
 		fmsg.SamplerAddress = samplerAddress
+		timeDiff := fmsg.TimeReceived - fmsg.TimeFlowEnd
 
 		message := common.FlowMessageWithAdditionalFields{
 			FlowMessage: fmsg,
@@ -127,12 +130,26 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 			message.AdditionalFields = additionalFields[i]
 		}
 
+		utils.NetFlowTimeStatsSum.With(
+			prometheus.Labels{
+				"router":  key,
+				"version": flowVersion(fmsg),
+			}).
+			Observe(float64(timeDiff))
+
 		_, _, err := s.Format.Format(&message)
 
 		if err != nil && s.Logger != nil {
 			s.Logger.Error(err)
 		}
 	}
+
+	timeTrackStop := time.Now()
+	utils.DecoderTime.With(
+		prometheus.Labels{
+			"name": "NetFlow",
+		}).
+		Observe(float64((timeTrackStop.Sub(timeTrackStart)).Nanoseconds()) / 1000)
 
 	return nil
 }
@@ -184,38 +201,49 @@ func (s *StateNetFlow) sendTelemetryMetrics(msg any, exporterIP string) {
 }
 
 func (s *StateNetFlow) sendFlowSetMetrics(fs any, exporterIP string, version string) {
-	switch fs.(type) {
+	switch fsConv := fs.(type) {
 	case netflow.TemplateFlowSet:
-		utils.NetFlowSetStatsSum.With(
-			prometheus.Labels{
-				"router":  exporterIP,
-				"version": version,
-				"type":    "TemplateFlowSet",
-			}).
-			Inc()
+		labels := prometheus.Labels{
+			"router":  exporterIP,
+			"version": version,
+			"type":    "TemplateFlowSet",
+		}
+		utils.NetFlowSetStatsSum.With(labels).Inc()
+		utils.NetFlowSetRecordsStatsSum.With(labels).Add(float64(len(fsConv.Records)))
 	case netflow.NFv9OptionsTemplateFlowSet:
-		utils.NetFlowSetStatsSum.With(
-			prometheus.Labels{
-				"router":  exporterIP,
-				"version": version,
-				"type":    "OptionsTemplateFlowSet",
-			}).
-			Inc()
+		labels := prometheus.Labels{
+			"router":  exporterIP,
+			"version": version,
+			"type":    "OptionsTemplateFlowSet",
+		}
+		utils.NetFlowSetStatsSum.With(labels).Inc()
+		utils.NetFlowSetRecordsStatsSum.With(labels).Add(float64(len(fsConv.Records)))
 	case netflow.OptionsDataFlowSet:
-		utils.NetFlowSetStatsSum.With(
-			prometheus.Labels{
-				"router":  exporterIP,
-				"version": version,
-				"type":    "OptionsDataFlowSet",
-			}).
-			Inc()
+		labels := prometheus.Labels{
+			"router":  exporterIP,
+			"version": version,
+			"type":    "OptionsDataFlowSet",
+		}
+		utils.NetFlowSetStatsSum.With(labels).Inc()
+		utils.NetFlowSetRecordsStatsSum.With(labels).Add(float64(len(fsConv.Records)))
 	case netflow.DataFlowSet:
-		utils.NetFlowSetStatsSum.With(
-			prometheus.Labels{
-				"router":  exporterIP,
-				"version": version,
-				"type":    "DataFlowSet",
-			}).
-			Inc()
+		labels := prometheus.Labels{
+			"router":  exporterIP,
+			"version": version,
+			"type":    "DataFlowSet",
+		}
+		utils.NetFlowSetStatsSum.With(labels).Inc()
+		utils.NetFlowSetRecordsStatsSum.With(labels).Add(float64(len(fsConv.Records)))
+	}
+}
+
+func flowVersion(fmsg *flowmessage.FlowMessage) string {
+	switch fmsg.Type {
+	case flowmessage.FlowMessage_NETFLOW_V9:
+		return "9"
+	case flowmessage.FlowMessage_IPFIX:
+		return "10"
+	default:
+		return "unknown"
 	}
 }
