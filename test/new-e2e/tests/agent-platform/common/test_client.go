@@ -51,6 +51,11 @@ func getServiceManager(vmClient e2eClient.VM) ServiceManager {
 	if _, err := vmClient.ExecuteWithError("command -v systemctl"); err == nil {
 		return svcmanager.NewSystemctlSvcManager(vmClient)
 	}
+
+	if _, err := vmClient.ExecuteWithError("command -v /sbin/initctl"); err == nil {
+		return svcmanager.NewUpstartSvcManager(vmClient)
+	}
+
 	return nil
 }
 
