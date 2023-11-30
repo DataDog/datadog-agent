@@ -207,11 +207,16 @@ namespace Datadog.CustomActions
             {
                 var securityDescriptor = _serviceController.GetAccessSecurity(serviceName);
 
+                // remove previous user
                 if (previousDdAgentUserSid != null && previousDdAgentUserSid != ddAgentUserSID)
                 {
-                    // remove previous user
-                    securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow, previousDdAgentUserSid,
-                        (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
+                    // unless that user is LocalSystem
+                    if (!previousDdAgentUserSid.IsWellKnown(WellKnownSidType.LocalSystemSid))
+                    {
+                        securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow,
+                            previousDdAgentUserSid,
+                            (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
+                    }
                 }
 
                 // Remove Everyone
@@ -220,9 +225,13 @@ namespace Datadog.CustomActions
                     (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
 
                 // add current user
-                securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, ddAgentUserSID,
-                    (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP),
-                    InheritanceFlags.None, PropagationFlags.None);
+                // Unless the user is LocalSystem since it already has access
+                if (!ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
+                {
+                    securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, ddAgentUserSID,
+                        (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP),
+                        InheritanceFlags.None, PropagationFlags.None);
+                }
 
                 UpdateAndLogAccessControl(serviceName, securityDescriptor);
             }
