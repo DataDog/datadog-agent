@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,7 @@ type windowsFlareSuite struct {
 
 func TestWindowsFlareSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsFlareSuite{}, e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS))))
+	e2e.Run(t, &windowsFlareSuite{}, e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)), e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer())))
 }
 
 func (v *windowsFlareSuite) TestFlareWindows() {

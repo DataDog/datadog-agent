@@ -28,9 +28,9 @@ type Payload struct {
 }
 
 // SplitPayload breaks the payload into times number of pieces
-func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) { //nolint:revive // TODO fix revive unusued-parameter
+func (p *Payload) SplitPayload(_ int) ([]marshaler.AbstractMarshaler, error) {
 	// Metadata payloads are analyzed as a whole, so they cannot be split
-	return nil, fmt.Errorf("V5 Payload splitting is not implemented")
+	return nil, fmt.Errorf("host Payload splitting is not implemented")
 }
 
 // MarshalJSON serialization a Payload to JSON

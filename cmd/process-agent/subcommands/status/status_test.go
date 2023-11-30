@@ -42,7 +42,8 @@ func fakeStatusServer(t *testing.T, stats status.Status) *httptest.Server {
 
 func TestStatus(t *testing.T) {
 	testTime := time.Now()
-	expectedStatus := status.Status{
+	statusData := map[string]status.Status{}
+	statusInfo := status.Status{
 		Date: float64(testTime.UnixNano()),
 		Core: status.CoreStatus{
 			Metadata: hostMetadataUtils.Payload{
@@ -51,12 +52,13 @@ func TestStatus(t *testing.T) {
 		},
 		Expvars: status.ProcessExpvars{},
 	}
+	statusData["processAgentStatus"] = statusInfo
 
-	server := fakeStatusServer(t, expectedStatus)
+	server := fakeStatusServer(t, statusInfo)
 	defer server.Close()
 
 	// Build what the expected status should be
-	j, err := json.Marshal(expectedStatus)
+	j, err := json.Marshal(statusData)
 	require.NoError(t, err)
 	expectedOutput, err := render.FormatProcessAgentStatus(j)
 	require.NoError(t, err)
