@@ -1,0 +1,11 @@
+[Unit]
+Description=Datadog Security Agent reloader
+Requires=sys-kernel-debug.mount
+After=network.target sys-kernel-debug.mount
+
+[Service]
+Type=simple
+ExecStart=/bin/systemctl restart datadog-agent-security
+
+[Install]
+WantedBy=multi-user.target

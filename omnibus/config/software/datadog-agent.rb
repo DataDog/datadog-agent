@@ -246,12 +246,28 @@ build do
         dest: "#{install_dir}/scripts/datadog-agent-sysprobe.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
+    erb source: "systemd.sysprobe-reload.service.erb",
+        dest: "#{install_dir}/scripts/datadog-agent-sysprobe-reload.service",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
+    erb source: "systemd.sysprobe-reload.path.erb",
+        dest: "#{install_dir}/scripts/datadog-agent-sysprobe-reload.path",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.trace.service.erb",
         dest: "#{install_dir}/scripts/datadog-agent-trace.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
     erb source: "systemd.security.service.erb",
         dest: "#{install_dir}/scripts/datadog-agent-security.service",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
+    erb source: "systemd.security-reload.service.erb",
+        dest: "#{install_dir}/scripts/datadog-agent-security-reload.service",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
+    erb source: "systemd.security-reload.path.erb",
+        dest: "#{install_dir}/scripts/datadog-agent-security-reload.path",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
   end

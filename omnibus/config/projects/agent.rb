@@ -238,8 +238,12 @@ if linux_target?
   extra_package_file "#{systemd_directory}/datadog-agent.service"
   extra_package_file "#{systemd_directory}/datadog-agent-process.service"
   extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
+  extra_package_file "#{systemd_directory}/datadog-agent-sysprobe-reload.service"
+  extra_package_file "#{systemd_directory}/datadog-agent-sysprobe-reload.path"
   extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
   extra_package_file "#{systemd_directory}/datadog-agent-security.service"
+  extra_package_file "#{systemd_directory}/datadog-agent-security-reload.service"
+  extra_package_file "#{systemd_directory}/datadog-agent-security-reload.path"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'

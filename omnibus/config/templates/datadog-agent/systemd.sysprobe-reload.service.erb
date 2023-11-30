@@ -1,0 +1,11 @@
+[Unit]
+Description=Datadog System Probe reloader
+Requires=sys-kernel-debug.mount
+After=network.target sys-kernel-debug.mount
+
+[Service]
+Type=simple
+ExecStart=/bin/systemctl restart datadog-agent-sysprobe
+
+[Install]
+WantedBy=multi-user.target

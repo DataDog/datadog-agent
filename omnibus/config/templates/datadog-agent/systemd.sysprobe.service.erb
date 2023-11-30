@@ -4,7 +4,9 @@ Requires=sys-kernel-debug.mount
 Before=datadog-agent.service
 After=network.target sys-kernel-debug.mount
 BindsTo=datadog-agent.service
-ConditionPathExists=<%= etc_dir %>/system-probe.yaml
+Wants=datadog-agent-sysprobe-reload.path datadog-agent-sysprobe-reload.service
+ConditionPathExists=|<%= etc_dir %>/system-probe.yaml
+ConditionPathExists=|<%= etc_dir %>/enabled.d/system-probe
 
 [Service]
 Type=simple
