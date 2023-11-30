@@ -109,14 +109,11 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	// Short-circuit and return without counting the trace in the sampling rate logic
 	// if its value has not been set automatically by the client lib.
 	// The feedback loop should be scoped to the values it can act upon.
-	if samplingPriority < 0 {
-		return sampled
-	}
-	if samplingPriority > 1 {
+	if samplingPriority < 0 || samplingPriority > 1 {
 		return sampled
 	}
 
-	signature := s.catalog.register(ServiceSignature{Name: root.Service, Env: toSamplerEnv(tracerEnv, s.agentEnv)})
+	signature := s.catalog.register(ServiceSignature{Name: root.Service, Env: tracerEnv})
 
 	// Update sampler state by counting this trace
 	s.countSignature(now, root, signature, clientDroppedP0sWeight)
@@ -128,29 +125,26 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	return sampled
 }
 
-func (s *PrioritySampler) applyRate(root *pb.Span, signature Signature) float64 {
+func (s *PrioritySampler) applyRate(root *pb.Span, signature Signature) {
 	if root.ParentID != 0 {
-		return 1.0
+		return // this is a child span
 	}
 	// recent tracers annotate roots with applied priority rate
 	// agentRateKey is set when the agent computed rate is applied
-	if rate, ok := getMetric(root, agentRateKey); ok {
-		return rate
+	if _, ok := getMetric(root, agentRateKey); ok {
+		return
 	}
 	// ruleRateKey is set when a tracer rule rate is applied
-	if rate, ok := getMetric(root, ruleRateKey); ok {
-		return rate
+	if _, ok := getMetric(root, ruleRateKey); ok {
+		return
 	}
 	// slow path used by older tracer versions
 	// dd-trace-go used to set the rate in deprecatedRateKey
-	if rate, ok := getMetric(root, deprecatedRateKey); ok {
-		return rate
+	if _, ok := getMetric(root, deprecatedRateKey); ok {
+		return
 	}
 	rate := s.sampler.getSignatureSampleRate(signature)
-
 	setMetric(root, deprecatedRateKey, rate)
-
-	return rate
 }
 
 // countSignature counts all chunks received with local chunk root signature.
@@ -167,5 +161,5 @@ func (s *PrioritySampler) countSignature(now time.Time, root *pb.Span, signature
 // agents to pick the right service rate.
 func (s *PrioritySampler) ratesByService() map[ServiceSignature]float64 {
 	rates, defaultRate := s.sampler.getAllSignatureSampleRates()
-	return s.catalog.ratesByService(s.agentEnv, rates, defaultRate)
+	return s.catalog.ratesByService(rates, defaultRate)
 }

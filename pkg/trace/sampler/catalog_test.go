@@ -35,7 +35,7 @@ func TestCatalogRegression(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < n; i++ {
-			cat.ratesByService("", map[Signature]float64{
+			cat.ratesByService(map[Signature]float64{
 				ServiceSignature{}.Hash():                 0.3,
 				ServiceSignature{"web", "staging"}.Hash(): 0.4,
 			}, 0.2)
@@ -139,31 +139,6 @@ func catalogContains(t *testing.T, cat *serviceKeyCatalog, has map[ServiceSignat
 	}
 }
 
-func TestCatalogEnvMatchAgent(t *testing.T) {
-	assert := assert.New(t)
-	cat := newServiceLookup(0)
-
-	sig1 := ServiceSignature{"service1", defaultEnv}
-	cat.register(sig1)
-	sig2 := ServiceSignature{"service2", defaultEnv}
-	cat.register(sig2)
-
-	rates := map[Signature]float64{
-		sig1.Hash(): 0.3,
-		sig2.Hash(): 0.7,
-	}
-	const totalRate = 0.2
-
-	rateByService := cat.ratesByService(defaultEnv, rates, totalRate)
-	assert.Equal(map[ServiceSignature]float64{
-		{"service1", defaultEnv}: 0.3,
-		{"service1", ""}:         0.3,
-		{"service2", defaultEnv}: 0.7,
-		{"service2", ""}:         0.7,
-		{}:                       0.2,
-	}, rateByService)
-}
-
 func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	assert := assert.New(t)
 
@@ -181,7 +156,7 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	}
 	const totalRate = 0.2
 
-	rateByService := cat.ratesByService("", rates, totalRate)
+	rateByService := cat.ratesByService(rates, totalRate)
 	assert.Equal(map[ServiceSignature]float64{
 		{"service1", "testEnv"}: 0.3,
 		{"service2", "testEnv"}: 0.7,
@@ -190,7 +165,7 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 
 	delete(rates, sig1)
 
-	rateByService = cat.ratesByService("", rates, totalRate)
+	rateByService = cat.ratesByService(rates, totalRate)
 	assert.Equal(map[ServiceSignature]float64{
 		{"service2", "testEnv"}: 0.7,
 		{}:                      0.2,
@@ -198,7 +173,7 @@ func TestServiceKeyCatalogRatesByService(t *testing.T) {
 
 	delete(rates, sig2)
 
-	rateByService = cat.ratesByService("", rates, totalRate)
+	rateByService = cat.ratesByService(rates, totalRate)
 	assert.Equal(map[ServiceSignature]float64{
 		{}: 0.2,
 	}, rateByService)
