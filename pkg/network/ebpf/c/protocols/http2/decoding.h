@@ -553,8 +553,6 @@ static __always_inline bool get_first_frame(struct __sk_buff *skb, skb_info_t *s
 // - DATA frames with the END_STREAM flag set
 static __always_inline __u8 find_relevant_frames(struct __sk_buff *skb, skb_info_t *skb_info, http2_frame_with_offset *frames_array, __u8 original_index, http2_telemetry_t *http2_tel) {
     bool is_headers_or_rst_frame, is_data_end_of_stream;
-    bool passed_max_interesting_frames = false;
-    __u8 interesting_frame_index = 0;
     struct http2_frame current_frame = {};
 
     // We may have found a relevant frame already in http2_handle_first_frame,
@@ -562,9 +560,7 @@ static __always_inline __u8 find_relevant_frames(struct __sk_buff *skb, skb_info
     // interesting_frame_index to original_index directly, as this will confuse
     // the verifier, leading it into thinking the index could have an arbitrary
     // value.
-    if (original_index == 1) {
-        interesting_frame_index = 1;
-    }
+    __u8 interesting_frame_index = original_index == 1;
 
     __u32 iteration = 0;
 #pragma unroll(HTTP2_MAX_FRAMES_TO_FILTER)
@@ -590,7 +586,6 @@ static __always_inline __u8 find_relevant_frames(struct __sk_buff *skb, skb_info
             frames_array[interesting_frame_index].offset = skb_info->data_off;
             interesting_frame_index++;
         }
-        passed_max_interesting_frames |= ((is_headers_or_rst_frame || is_data_end_of_stream) && interesting_frame_index >= HTTP2_MAX_FRAMES_ITERATIONS);
         skb_info->data_off += current_frame.length;
     }
 
@@ -599,7 +594,7 @@ static __always_inline __u8 find_relevant_frames(struct __sk_buff *skb, skb_info
         __sync_fetch_and_add(&http2_tel->exceeding_max_frames_to_filter, 1);
     }
 
-    if (passed_max_interesting_frames) {
+    if (interesting_frame_index == HTTP2_MAX_FRAMES_ITERATIONS) {
         __sync_fetch_and_add(&http2_tel->exceeding_max_interesting_frames, 1);
     }
 
