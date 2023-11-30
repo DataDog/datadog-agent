@@ -92,20 +92,20 @@ func (s *Store) CleanUpPayloadsOlderThan(time time.Time) {
 }
 
 // GetRawPayloads returns payloads collected for route `route`
-func (s *Store) GetRawPayloads(route string) []api.Payload {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	payloads := make([]api.Payload, 0, len(s.rawPayloads[route]))
-	payloads = append(payloads, s.rawPayloads[route]...)
+func (s *Store) GetRawPayloads(route string) (payloads []api.Payload) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	payloads = make([]api.Payload, len(s.rawPayloads[route]))
+	copy(payloads, s.rawPayloads[route])
 	return payloads
 }
 
 // GetJSONPayloads returns payloads collected and parsed to json for route `route`
-func (s *Store) GetJSONPayloads(route string) []api.ParsedPayload {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	payloads := make([]api.ParsedPayload, 0, len(s.jsonPayloads[route]))
-	payloads = append(payloads, s.jsonPayloads[route]...)
+func (s *Store) GetJSONPayloads(route string) (payloads []api.ParsedPayload) {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+	payloads = make([]api.ParsedPayload, len(s.jsonPayloads[route]))
+	copy(payloads, s.jsonPayloads[route])
 	return payloads
 }
 
