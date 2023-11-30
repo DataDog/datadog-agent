@@ -173,7 +173,7 @@ func CheckDogstatsdAgentRestarts(t *testing.T, client *TestClient) {
 			require.NoError(tt, err)
 		}
 
-		_, err := client.SvcManager.Restart("datadog-dogstatsd")
+		_, err := client.SvcManager.Start("datadog-dogstatsd")
 		require.NoError(tt, err)
 
 		_, err = client.SvcManager.Status("datadog-dogstatsd")

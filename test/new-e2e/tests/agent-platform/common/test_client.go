@@ -56,6 +56,9 @@ func getServiceManager(vmClient e2eClient.VM) ServiceManager {
 		return svcmanager.NewUpstartSvcManager(vmClient)
 	}
 
+	if _, err := vmClient.ExecuteWithError("command -v service"); err == nil {
+		return svcmanager.NewServiceSvcManager(vmClient)
+	}
 	return nil
 }
 
