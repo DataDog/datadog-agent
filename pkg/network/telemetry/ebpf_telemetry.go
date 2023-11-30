@@ -314,10 +314,10 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 		}
 
 		options.ConstantEditors = append(options.ConstantEditors, buildMapErrTelemetryConstants(m)...)
-	} else {
-		// we cannot exclude the telemetry maps because on some kernels, deadcode elimination hasn't removed references
-		// leave key constants as zero, and deadcode elimination should reduce number of instructions
 	}
+	// we cannot exclude the telemetry maps because on some kernels, deadcode elimination hasn't removed references
+	// if telemetry not enabled: leave key constants as zero, and deadcode elimination should reduce number of instructions
+
 	return nil
 }
 
