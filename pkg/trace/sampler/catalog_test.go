@@ -140,6 +140,29 @@ func catalogContains(t *testing.T, cat *serviceKeyCatalog, has map[ServiceSignat
 	}
 }
 
+func TestServiceKeyCatalogRatesByServiceEmptyEnv(t *testing.T) {
+	assert := assert.New(t)
+	cat := newServiceLookup(0)
+
+	sig1 := ServiceSignature{Name: "service1"}
+	cat.register(sig1)
+	sig2 := ServiceSignature{Name: "service2"}
+	cat.register(sig2)
+
+	rates := map[Signature]float64{
+		sig1.Hash(): 0.3,
+		sig2.Hash(): 0.7,
+	}
+	const totalRate = 0.2
+
+	rateByService := cat.ratesByService(rates, totalRate)
+	assert.Equal(map[ServiceSignature]float64{
+		{"service1", ""}: 0.3,
+		{"service2", ""}: 0.7,
+		{}:               0.2,
+	}, rateByService)
+}
+
 func TestServiceKeyCatalogRatesByService(t *testing.T) {
 	assert := assert.New(t)
 
