@@ -18,7 +18,7 @@ from .libs.common.gitlab import Gitlab, get_gitlab_token
 from .libs.common.user_interactions import yes_no_question
 from .libs.version import Version
 from .modules import DEFAULT_MODULES
-from .pipeline import run
+from .pipeline import edit_schedule, run
 from .utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -1358,18 +1358,10 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
 
 
-@task
-def update_last_stable(_, major_versions="6,7"):
+def _update_last_stable(_, version, major_versions="6,7"):
     """
     Updates the last_release field(s) of release.json
     """
-    gh = GithubAPI('datadog/datadog-agent')
-    latest_release = gh.latest_release()
-    match = VERSION_RE.search(latest_release)
-    if not match:
-        raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
-    version = _create_version_from_match(match)
-
     release_json = _load_release_json()
     list_major_versions = parse_major_versions(major_versions)
     # If the release isn't a RC, update the last stable release field
@@ -1377,6 +1369,24 @@ def update_last_stable(_, major_versions="6,7"):
         version.major = major
         release_json['last_stable'][str(major)] = str(version)
     _save_release_json(release_json)
+
+
+@task
+def cleanup(ctx):
+    """
+    Perform the post release cleanup steps
+    Currently this:
+      - Updates the scheduled nightly pipeline to target the new stable branch
+      - Updates the release.json last_stable fields
+    """
+    gh = GithubAPI('datadog/datadog-agent')
+    latest_release = gh.latest_release()
+    match = VERSION_RE.search(latest_release)
+    if not match:
+        raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
+    version = _create_version_from_match(match)
+    _update_last_stable(ctx, version)
+    edit_schedule(ctx, 2555, ref=version.branch())
 
 
 @task
