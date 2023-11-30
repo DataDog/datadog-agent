@@ -11,13 +11,20 @@ package config
 // team: agent-apm
 
 import (
+	"fmt"
+
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
 func setupConfig(deps dependencies, apikey string) (*config.AgentConfig, error) {
 	if apikey != "" {
+		fmt.Printf("Using API key %s\n", apikey)
+		fmt.Printf("deps.Config: %T\n", deps.Config)
+		fmt.Printf("deps.Config.Get API key: %v\n", deps.Config.Get("api_key"))
+
 		if mock, ok := deps.Config.(corecompcfg.Mock); ok && !mock.IsSet("api_key") {
+			fmt.Println("Setting API key")
 			mock.SetWithoutSource("api_key", apikey)
 		}
 	}

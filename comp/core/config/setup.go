@@ -18,7 +18,7 @@ import (
 )
 
 // setupConfig is copied from cmd/agent/common/helpers.go.
-func setupConfig(deps configDependencies) (pkgconfigmodel.Config, *pkgconfigmodel.Warnings, error) {
+func setupConfig(config pkgconfigmodel.Config, deps configDependencies) (*pkgconfigmodel.Warnings, error) {
 	p := deps.getParams()
 
 	confFilePath := p.ConfFilePath
@@ -26,7 +26,6 @@ func setupConfig(deps configDependencies) (pkgconfigmodel.Config, *pkgconfigmode
 	failOnMissingFile := !p.configMissingOK
 	defaultConfPath := p.defaultConfPath
 
-	config := pkgconfigsetup.Datadog
 	pkgconfigsetup.InitConfig(config)
 	systemProbe := pkgconfigsetup.SystemProbe
 	pkgconfigsetup.InitSystemProbeConfig(systemProbe)
@@ -72,7 +71,7 @@ func setupConfig(deps configDependencies) (pkgconfigmodel.Config, *pkgconfigmode
 		} else {
 			err = fmt.Errorf("unable to load Datadog config file: %w", err)
 		}
-		return config, warnings, err
+		return warnings, err
 	}
-	return config, warnings, nil
+	return warnings, nil
 }
