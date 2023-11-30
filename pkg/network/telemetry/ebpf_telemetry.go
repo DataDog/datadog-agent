@@ -93,12 +93,7 @@ func (b *EBPFTelemetry) populateMapsWithKeys(m *manager.Manager) error {
 	if err := b.initializeMapErrTelemetryMap(m.Maps); err != nil {
 		return err
 	}
-	// manager is initialized, so excluded functions are already removed
-	progs, err := getEnabledProgramNames(m)
-	if err != nil {
-		return err
-	}
-	if err := b.initializeHelperErrTelemetryMap(progs); err != nil {
+	if err := b.initializeHelperErrTelemetryMap(); err != nil {
 		return err
 	}
 	return nil
@@ -212,7 +207,7 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 		}
 
 		key := mapKey(h, m)
-		err := b.mapErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
+		err := b.mapErrMap.Update(unsafe.Pointer(&key), unsafe.Pointer(z), ebpf.UpdateNoExist)
 		if err != nil {
 			return fmt.Errorf("failed to initialize telemetry struct for map %s", m.Name)
 		}
@@ -221,30 +216,23 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 	return nil
 }
 
-func (b *EBPFTelemetry) initializeHelperErrTelemetryMap(funcNames []string) error {
+func (b *EBPFTelemetry) initializeHelperErrTelemetryMap() error {
 	if b.helperErrMap == nil {
 		return nil
 	}
 
+	// the `probeKeys` get added during instruction patching, so we just try to insert entries for any that don't exist
 	z := new(HelperErrTelemetry)
-	h := keyHash()
-	for _, p := range funcNames {
-		// Some hook points, like tcp_sendmsg, are probed in
-		// multiple different programs.
-		if _, ok := b.probeKeys[p]; ok {
-			continue
-		}
-
-		key := probeKey(h, p)
-		err := b.helperErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
+	for p, key := range b.probeKeys {
+		err := b.helperErrMap.Update(unsafe.Pointer(&key), unsafe.Pointer(z), ebpf.UpdateNoExist)
 		if err != nil {
 			return fmt.Errorf("failed to initialize telemetry struct for probe %s", p)
 		}
-		b.probeKeys[p] = key
 	}
 	return nil
 }
-func patchEBPFTelemetry(m *manager.Manager, enable bool) error {
+
+func patchEBPFTelemetry(m *manager.Manager, enable bool, bpfTelemetry *EBPFTelemetry) error {
 	const symbol = "telemetry_program_id_key"
 	newIns := asm.Mov.Reg(asm.R1, asm.R1)
 	if enable {
@@ -261,15 +249,19 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool) error {
 	for fn, p := range progs {
 		// do constant editing of programs for helper errors post-init
 		ins := p.Instructions
-		offsets := ins.ReferenceOffsets()
-		indices := offsets[symbol]
-		if len(indices) > 0 {
-			for _, index := range indices {
-				load := &ins[index]
-				if load.OpCode != ldDWImm {
-					return fmt.Errorf("symbol %v: load: found %v instead of %v", symbol, load.OpCode, ldDWImm)
+		if enable && bpfTelemetry != nil {
+			offsets := ins.ReferenceOffsets()
+			indices := offsets[symbol]
+			if len(indices) > 0 {
+				for _, index := range indices {
+					load := &ins[index]
+					if load.OpCode != ldDWImm {
+						return fmt.Errorf("symbol %v: load: found %v instead of %v", symbol, load.OpCode, ldDWImm)
+					}
+					key := probeKey(h, fn)
+					load.Constant = int64(key)
+					bpfTelemetry.probeKeys[fn] = key
 				}
-				load.Constant = int64(probeKey(h, fn))
 			}
 		}
 
@@ -297,7 +289,7 @@ func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetr
 		return err
 	}
 	m.InstructionPatcher = func(m *manager.Manager) error {
-		return patchEBPFTelemetry(m, activateBPFTelemetry)
+		return patchEBPFTelemetry(m, activateBPFTelemetry, bpfTelemetry)
 	}
 
 	if activateBPFTelemetry {
