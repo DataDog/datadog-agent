@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 
 from .kmt_os import get_kmt_os
+from .compiler import build_compiler
 from .download import download_kernel_packages, download_rootfs
 from .tool import info
 
@@ -70,4 +71,4 @@ def init_kernel_matrix_testing_system(ctx, lite):
     assert_user_in_docker_group(ctx)
     info(f"[+] User '{os.getlogin()}' in group 'docker'")
 
-    ctx.run("cd ../datadog-agent-buildimages && docker build -f system-probe_x64/Dockerfile -t kmt:compile .")
+    build_compiler(ctx)
