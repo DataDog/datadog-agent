@@ -1,7 +1,7 @@
 {
     "debian": {
         "x86_64": {
-            "debian-9":  "ami-0272fcfb8ca47d813",
+            "debian-9":  "ami-099d228beefd189f5",
             "debian-10": "ami-041540a5c191757a0",
             "debian-11": "ami-09e24b0cfe072ecef",
             "debian-12": "ami-06db4d78cb1d3bbf9"
@@ -10,6 +10,20 @@
             "debian-10": "ami-0108ade0d057c8eba",
             "debian-11": "ami-03ea090ddd75eb738",
             "debian-12": "ami-02aab8d5301cb8d68"
+        }
+    },
+    "amazonlinux": {
+        "x86_64": {
+            "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
+            "amazonlinux2-5-10": "ami-06a0cd9728546d178",
+            "amazonlinux2022-5-15": "ami-0309aede310b9cc1f",
+            "amazonlinux2023": "ami-0889a44b331db0194"
+        },
+        "arm64": {
+            "amazonlinux2-4-14": "ami-090230ed0c6b13c74",
+            "amazonlinux2-5-10": "ami-09e51988f56677f44",
+            "amazonlinux2022-5-15": "ami-0a8495f6303122235",
+            "amazonlinux2023": "ami-08fc6fb8ad2e794bb"
         }
     }
 }

@@ -43,6 +43,8 @@ type Helper interface {
 	GetInstallFolder() string
 	GetConfigFolder() string
 	GetBinaryPath() string
+	GetConfigFileName() string
+	GetServiceName() string
 }
 
 func getServiceManager(vmClient e2eClient.VM) ServiceManager {
@@ -55,6 +57,10 @@ func getServiceManager(vmClient e2eClient.VM) ServiceManager {
 func getPackageManager(vmClient e2eClient.VM) PackageManager {
 	if _, err := vmClient.ExecuteWithError("command -v apt"); err == nil {
 		return pkgmanager.NewAptPackageManager(vmClient)
+	}
+
+	if _, err := vmClient.ExecuteWithError("command -v yum"); err == nil {
+		return pkgmanager.NewYumPackageManager(vmClient)
 	}
 	return nil
 }

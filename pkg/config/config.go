@@ -7,7 +7,6 @@
 package config
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -245,7 +244,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("syslog_pem", "")
 	config.BindEnvAndSetDefault("syslog_key", "")
 	config.BindEnvAndSetDefault("syslog_tls_verify", true)
-	config.BindEnvAndSetDefault("cmd_host", "localhost")
+	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
@@ -257,7 +256,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnv("bind_host")
-	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
@@ -1775,13 +1773,16 @@ func ResolveSecrets(config Config, secretResolver secrets.Component, origin stri
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		finalYamlConf, err := secretResolver.Decrypt(yamlConf, origin)
+		err = secretResolver.ResolveWithCallback(
+			yamlConf,
+			origin,
+			func(yamlPath []string, value any) {
+				settingName := strings.Join(yamlPath, ".")
+				log.Debugf("replacing handle for setting '%s' with secret value", settingName)
+				config.Set(settingName, value, pkgconfigmodel.SourceAgentRuntime)
+			})
 		if err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
-		}
-		r := bytes.NewReader(finalYamlConf)
-		if err = config.MergeConfigOverride(r); err != nil {
-			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
 		}
 	}
 	return nil

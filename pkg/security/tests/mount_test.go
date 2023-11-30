@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -324,6 +325,11 @@ func TestMountSnapshot(t *testing.T) {
 	}
 	defer test.Close()
 
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
 	tmpfsMountB, bindMountB, err := createHierarchy(rootB)
 	if err != nil {
 		t.Fatal(err)
@@ -331,7 +337,7 @@ func TestMountSnapshot(t *testing.T) {
 	defer tmpfsMountB.unmount(0)
 	defer bindMountB.unmount(0)
 
-	mountResolver := test.probe.GetResolvers().MountResolver
+	mountResolver := p.Resolvers.MountResolver
 	pid := utils.Getpid()
 
 	mounts, err := kernel.ParseMountInfoFile(int32(pid))
