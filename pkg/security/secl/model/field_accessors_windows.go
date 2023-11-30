@@ -16,27 +16,24 @@ import (
 
 // GetContainerCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerCreatedAt() int {
-	zeroValue := 0
 	if ev.BaseEvent.ContainerContext == nil {
-		return zeroValue
+		return 0
 	}
 	return ev.FieldHandlers.ResolveContainerCreatedAt(ev, ev.BaseEvent.ContainerContext)
 }
 
 // GetContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerId() string {
-	zeroValue := ""
 	if ev.BaseEvent.ContainerContext == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveContainerID(ev, ev.BaseEvent.ContainerContext)
 }
 
 // GetContainerTags returns the value of the field, resolving if necessary
 func (ev *Event) GetContainerTags() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ContainerContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	return ev.FieldHandlers.ResolveContainerTags(ev, ev.BaseEvent.ContainerContext)
 }
@@ -48,366 +45,335 @@ func (ev *Event) GetEventTimestamp() int {
 
 // GetExecCmdline returns the value of the field, resolving if necessary
 func (ev *Event) GetExecCmdline() string {
-	zeroValue := ""
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return ""
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exec.Process)
 }
 
 // GetExecCmdlineScrubbed returns the value of the field, resolving if necessary
 func (ev *Event) GetExecCmdlineScrubbed() string {
-	zeroValue := ""
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return ""
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exec.Process)
 }
 
 // GetExecContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetExecContainerId() string {
-	zeroValue := ""
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return ""
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.Exec.Process.ContainerID
 }
 
 // GetExecCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetExecCreatedAt() int {
-	zeroValue := 0
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return 0
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return 0
 	}
 	return ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exec.Process)
 }
 
 // GetExecEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetExecEnvp() []string {
-	zeroValue := []string{}
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return []string{}
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exec.Process)
 }
 
 // GetExecEnvs returns the value of the field, resolving if necessary
 func (ev *Event) GetExecEnvs() []string {
-	zeroValue := []string{}
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return []string{}
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exec.Process)
 }
 
 // GetExecExecTime returns the value of the field, resolving if necessary
 func (ev *Event) GetExecExecTime() time.Time {
-	zeroValue := time.Time{}
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return time.Time{}
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return time.Time{}
 	}
 	return ev.Exec.Process.ExecTime
 }
 
 // GetExecExitTime returns the value of the field, resolving if necessary
 func (ev *Event) GetExecExitTime() time.Time {
-	zeroValue := time.Time{}
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return time.Time{}
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return time.Time{}
 	}
 	return ev.Exec.Process.ExitTime
 }
 
 // GetExecFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFileName() string {
-	zeroValue := ""
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return ""
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent)
 }
 
 // GetExecFileNameLength returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFileNameLength() int {
-	zeroValue := 0
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return 0
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return 0
 	}
 	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exec.Process.FileEvent))
 }
 
 // GetExecFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFilePath() string {
-	zeroValue := ""
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return ""
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent)
 }
 
 // GetExecFilePathLength returns the value of the field, resolving if necessary
 func (ev *Event) GetExecFilePathLength() int {
-	zeroValue := 0
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return 0
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return 0
 	}
 	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exec.Process.FileEvent))
 }
 
 // GetExecPid returns the value of the field, resolving if necessary
 func (ev *Event) GetExecPid() uint32 {
-	zeroValue := uint32(0)
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return uint32(0)
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return uint32(0)
 	}
 	return ev.Exec.Process.PIDContext.Pid
 }
 
 // GetExecPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetExecPpid() uint32 {
-	zeroValue := uint32(0)
 	if ev.GetEventType().String() != "exec" {
-		return zeroValue
+		return uint32(0)
 	}
 	if ev.Exec.Process == nil {
-		return zeroValue
+		return uint32(0)
 	}
 	return ev.Exec.Process.PPid
 }
 
 // GetExitCause returns the value of the field, resolving if necessary
 func (ev *Event) GetExitCause() uint32 {
-	zeroValue := uint32(0)
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return uint32(0)
 	}
 	return ev.Exit.Cause
 }
 
 // GetExitCmdline returns the value of the field, resolving if necessary
 func (ev *Event) GetExitCmdline() string {
-	zeroValue := ""
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return ""
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveProcessCmdLine(ev, ev.Exit.Process)
 }
 
 // GetExitCmdlineScrubbed returns the value of the field, resolving if necessary
 func (ev *Event) GetExitCmdlineScrubbed() string {
-	zeroValue := ""
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return ""
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, ev.Exit.Process)
 }
 
 // GetExitCode returns the value of the field, resolving if necessary
 func (ev *Event) GetExitCode() uint32 {
-	zeroValue := uint32(0)
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return uint32(0)
 	}
 	return ev.Exit.Code
 }
 
 // GetExitContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetExitContainerId() string {
-	zeroValue := ""
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return ""
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.Exit.Process.ContainerID
 }
 
 // GetExitCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetExitCreatedAt() int {
-	zeroValue := 0
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return 0
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return 0
 	}
 	return ev.FieldHandlers.ResolveProcessCreatedAt(ev, ev.Exit.Process)
 }
 
 // GetExitEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetExitEnvp() []string {
-	zeroValue := []string{}
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return []string{}
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessEnvp(ev, ev.Exit.Process)
 }
 
 // GetExitEnvs returns the value of the field, resolving if necessary
 func (ev *Event) GetExitEnvs() []string {
-	zeroValue := []string{}
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return []string{}
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessEnvs(ev, ev.Exit.Process)
 }
 
 // GetExitExecTime returns the value of the field, resolving if necessary
 func (ev *Event) GetExitExecTime() time.Time {
-	zeroValue := time.Time{}
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return time.Time{}
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return time.Time{}
 	}
 	return ev.Exit.Process.ExecTime
 }
 
 // GetExitExitTime returns the value of the field, resolving if necessary
 func (ev *Event) GetExitExitTime() time.Time {
-	zeroValue := time.Time{}
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return time.Time{}
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return time.Time{}
 	}
 	return ev.Exit.Process.ExitTime
 }
 
 // GetExitFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFileName() string {
-	zeroValue := ""
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return ""
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent)
 }
 
 // GetExitFileNameLength returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFileNameLength() int {
-	zeroValue := 0
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return 0
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return 0
 	}
 	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.Exit.Process.FileEvent))
 }
 
 // GetExitFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFilePath() string {
-	zeroValue := ""
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return ""
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent)
 }
 
 // GetExitFilePathLength returns the value of the field, resolving if necessary
 func (ev *Event) GetExitFilePathLength() int {
-	zeroValue := 0
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return 0
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return 0
 	}
 	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.Exit.Process.FileEvent))
 }
 
 // GetExitPid returns the value of the field, resolving if necessary
 func (ev *Event) GetExitPid() uint32 {
-	zeroValue := uint32(0)
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return uint32(0)
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return uint32(0)
 	}
 	return ev.Exit.Process.PIDContext.Pid
 }
 
 // GetExitPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetExitPpid() uint32 {
-	zeroValue := uint32(0)
 	if ev.GetEventType().String() != "exit" {
-		return zeroValue
+		return uint32(0)
 	}
 	if ev.Exit.Process == nil {
-		return zeroValue
+		return uint32(0)
 	}
 	return ev.Exit.Process.PPid
 }
 
 // GetProcessAncestorsCmdline returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCmdline() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []string{}
 	}
 	var values []string
 	ctx := eval.NewContext(ev)
@@ -424,12 +390,11 @@ func (ev *Event) GetProcessAncestorsCmdline() []string {
 
 // GetProcessAncestorsCmdlineScrubbed returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCmdlineScrubbed() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []string{}
 	}
 	var values []string
 	ctx := eval.NewContext(ev)
@@ -446,12 +411,11 @@ func (ev *Event) GetProcessAncestorsCmdlineScrubbed() []string {
 
 // GetProcessAncestorsContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsContainerId() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []string{}
 	}
 	var values []string
 	ctx := eval.NewContext(ev)
@@ -468,12 +432,11 @@ func (ev *Event) GetProcessAncestorsContainerId() []string {
 
 // GetProcessAncestorsCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsCreatedAt() []int {
-	zeroValue := []int{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []int{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []int{}
 	}
 	var values []int
 	ctx := eval.NewContext(ev)
@@ -490,12 +453,11 @@ func (ev *Event) GetProcessAncestorsCreatedAt() []int {
 
 // GetProcessAncestorsEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsEnvp() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []string{}
 	}
 	var values []string
 	ctx := eval.NewContext(ev)
@@ -512,12 +474,11 @@ func (ev *Event) GetProcessAncestorsEnvp() []string {
 
 // GetProcessAncestorsEnvs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsEnvs() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []string{}
 	}
 	var values []string
 	ctx := eval.NewContext(ev)
@@ -534,12 +495,11 @@ func (ev *Event) GetProcessAncestorsEnvs() []string {
 
 // GetProcessAncestorsFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileName() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []string{}
 	}
 	var values []string
 	ctx := eval.NewContext(ev)
@@ -556,12 +516,11 @@ func (ev *Event) GetProcessAncestorsFileName() []string {
 
 // GetProcessAncestorsFileNameLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFileNameLength() []int {
-	zeroValue := []int{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []int{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []int{}
 	}
 	var values []int
 	ctx := eval.NewContext(ev)
@@ -578,12 +537,11 @@ func (ev *Event) GetProcessAncestorsFileNameLength() []int {
 
 // GetProcessAncestorsFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFilePath() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []string{}
 	}
 	var values []string
 	ctx := eval.NewContext(ev)
@@ -600,12 +558,11 @@ func (ev *Event) GetProcessAncestorsFilePath() []string {
 
 // GetProcessAncestorsFilePathLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsFilePathLength() []int {
-	zeroValue := []int{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []int{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []int{}
 	}
 	var values []int
 	ctx := eval.NewContext(ev)
@@ -622,12 +579,11 @@ func (ev *Event) GetProcessAncestorsFilePathLength() []int {
 
 // GetProcessAncestorsPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsPid() []uint32 {
-	zeroValue := []uint32{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []uint32{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -644,12 +600,11 @@ func (ev *Event) GetProcessAncestorsPid() []uint32 {
 
 // GetProcessAncestorsPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessAncestorsPpid() []uint32 {
-	zeroValue := []uint32{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []uint32{}
 	}
 	if ev.BaseEvent.ProcessContext.Ancestor == nil {
-		return zeroValue
+		return []uint32{}
 	}
 	var values []uint32
 	ctx := eval.NewContext(ev)
@@ -666,120 +621,107 @@ func (ev *Event) GetProcessAncestorsPpid() []uint32 {
 
 // GetProcessCmdline returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessCmdline() string {
-	zeroValue := ""
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveProcessCmdLine(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessCmdlineScrubbed returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessCmdlineScrubbed() string {
-	zeroValue := ""
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveProcessCmdLineScrubbed(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessContainerId() string {
-	zeroValue := ""
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.BaseEvent.ProcessContext.Process.ContainerID
 }
 
 // GetProcessCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessCreatedAt() int {
-	zeroValue := 0
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return 0
 	}
 	return ev.FieldHandlers.ResolveProcessCreatedAt(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEnvp() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessEnvp(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessEnvs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessEnvs() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	return ev.FieldHandlers.ResolveProcessEnvs(ev, &ev.BaseEvent.ProcessContext.Process)
 }
 
 // GetProcessExecTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessExecTime() time.Time {
-	zeroValue := time.Time{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return time.Time{}
 	}
 	return ev.BaseEvent.ProcessContext.Process.ExecTime
 }
 
 // GetProcessExitTime returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessExitTime() time.Time {
-	zeroValue := time.Time{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return time.Time{}
 	}
 	return ev.BaseEvent.ProcessContext.Process.ExitTime
 }
 
 // GetProcessFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileName() string {
-	zeroValue := ""
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFileNameLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFileNameLength() int {
-	zeroValue := 0
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return 0
 	}
 	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
 }
 
 // GetProcessFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFilePath() string {
-	zeroValue := ""
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return ""
 	}
 	return ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent)
 }
 
 // GetProcessFilePathLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessFilePathLength() int {
-	zeroValue := 0
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return 0
 	}
 	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Process.FileEvent))
 }
 
 // GetProcessParentCmdline returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentCmdline() string {
-	zeroValue := ""
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return ""
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return ""
 	}
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return ""
@@ -789,12 +731,11 @@ func (ev *Event) GetProcessParentCmdline() string {
 
 // GetProcessParentCmdlineScrubbed returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentCmdlineScrubbed() string {
-	zeroValue := ""
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return ""
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return ""
 	}
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return ""
@@ -804,12 +745,11 @@ func (ev *Event) GetProcessParentCmdlineScrubbed() string {
 
 // GetProcessParentContainerId returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentContainerId() string {
-	zeroValue := ""
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return ""
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return ""
 	}
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return ""
@@ -819,12 +759,11 @@ func (ev *Event) GetProcessParentContainerId() string {
 
 // GetProcessParentCreatedAt returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentCreatedAt() int {
-	zeroValue := 0
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return 0
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return 0
 	}
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return 0
@@ -834,12 +773,11 @@ func (ev *Event) GetProcessParentCreatedAt() int {
 
 // GetProcessParentEnvp returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEnvp() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return []string{}
 	}
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
@@ -849,12 +787,11 @@ func (ev *Event) GetProcessParentEnvp() []string {
 
 // GetProcessParentEnvs returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentEnvs() []string {
-	zeroValue := []string{}
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return []string{}
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return []string{}
 	}
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return []string{}
@@ -864,12 +801,11 @@ func (ev *Event) GetProcessParentEnvs() []string {
 
 // GetProcessParentFileName returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileName() string {
-	zeroValue := ""
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return ""
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return ""
 	}
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return ""
@@ -879,24 +815,22 @@ func (ev *Event) GetProcessParentFileName() string {
 
 // GetProcessParentFileNameLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFileNameLength() int {
-	zeroValue := 0
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return 0
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return 0
 	}
 	return len(ev.FieldHandlers.ResolveFileBasename(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
 }
 
 // GetProcessParentFilePath returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFilePath() string {
-	zeroValue := ""
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return ""
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return ""
 	}
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return ""
@@ -906,24 +840,22 @@ func (ev *Event) GetProcessParentFilePath() string {
 
 // GetProcessParentFilePathLength returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentFilePathLength() int {
-	zeroValue := 0
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return 0
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return 0
 	}
 	return len(ev.FieldHandlers.ResolveFilePath(ev, &ev.BaseEvent.ProcessContext.Parent.FileEvent))
 }
 
 // GetProcessParentPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentPid() uint32 {
-	zeroValue := uint32(0)
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return uint32(0)
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return uint32(0)
 	}
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return uint32(0)
@@ -933,12 +865,11 @@ func (ev *Event) GetProcessParentPid() uint32 {
 
 // GetProcessParentPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessParentPpid() uint32 {
-	zeroValue := uint32(0)
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return uint32(0)
 	}
 	if ev.BaseEvent.ProcessContext.Parent == nil {
-		return zeroValue
+		return uint32(0)
 	}
 	if !ev.BaseEvent.ProcessContext.HasParent() {
 		return uint32(0)
@@ -948,18 +879,16 @@ func (ev *Event) GetProcessParentPpid() uint32 {
 
 // GetProcessPid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessPid() uint32 {
-	zeroValue := uint32(0)
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return uint32(0)
 	}
 	return ev.BaseEvent.ProcessContext.Process.PIDContext.Pid
 }
 
 // GetProcessPpid returns the value of the field, resolving if necessary
 func (ev *Event) GetProcessPpid() uint32 {
-	zeroValue := uint32(0)
 	if ev.BaseEvent.ProcessContext == nil {
-		return zeroValue
+		return uint32(0)
 	}
 	return ev.BaseEvent.ProcessContext.Process.PPid
 }
