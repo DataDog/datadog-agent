@@ -11,5 +11,19 @@
             "debian-11": "ami-03ea090ddd75eb738",
             "debian-12": "ami-02aab8d5301cb8d68"
         }
+    },
+    "amazonlinux": {
+        "x86_64": {
+            "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
+            "amazonlinux2-5-10": "ami-06a0cd9728546d178",
+            "amazonlinux2022-5-15": "ami-0309aede310b9cc1f",
+            "amazonlinux2023": "ami-0889a44b331db0194"
+        },
+        "arm64": {
+            "amazonlinux2-4-14": "ami-090230ed0c6b13c74",
+            "amazonlinux2-5-10": "ami-09e51988f56677f44",
+            "amazonlinux2022-5-15": "ami-0a8495f6303122235",
+            "amazonlinux2023": "ami-08fc6fb8ad2e794bb"
+        }
     }
 }
