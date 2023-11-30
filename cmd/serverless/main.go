@@ -345,9 +345,7 @@ func runAgent() (err error) {
 		}
 	}()
 
-	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
-	go handleTerminationSignals(serverlessDaemon, stopCh, signalCh)
+	go handleTerminationSignals(serverlessDaemon, stopCh, signal.Notify)
 
 	// this log line is used for performance checks during CI
 	// please be careful before modifying/removing it
@@ -360,14 +358,11 @@ func runAgent() (err error) {
 
 // handleTerminationSignals handles OS termination signals.
 // If a specified signal is received the serverless agent stops.
-func handleTerminationSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}, signalCh chan os.Signal) {
-	for signo := range signalCh {
-		switch signo {
-		default:
-			log.Infof("Received signal '%s', shutting down...", signo)
-			serverlessDaemon.Stop()
-			stopCh <- struct{}{}
-			return
-		}
-	}
+func handleTerminationSignals(serverlessDaemon *daemon.Daemon, stopCh chan struct{}, notify func(c chan<- os.Signal, sig ...os.Signal)) {
+	signalCh := make(chan os.Signal, 1)
+	notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
+	signo := <-signalCh
+	log.Infof("Received signal '%s', shutting down...", signo)
+	serverlessDaemon.Stop()
+	stopCh <- struct{}{}
 }
