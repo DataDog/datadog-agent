@@ -327,15 +327,6 @@ func (a *Agent) Process(p *api.Payload) {
 			if p.ClientComputedTopLevel {
 				traceutil.UpdateTracerTopLevel(span)
 			}
-
-			for _, spanlink := range span.SpanLinks {
-				if len(spanlink.Attributes) != 0 {
-					normalizedAttributes := make(map[string]string, len(spanlink.Attributes))
-					for k, v := range spanlink.Attributes {
-						normalizedAttributes[traceutil.NormalizeTag(k)] = traceutil.NormalizeTagValue(v)
-					}
-				}
-			}
 		}
 		a.Replacer.Replace(chunk.Spans)
 
