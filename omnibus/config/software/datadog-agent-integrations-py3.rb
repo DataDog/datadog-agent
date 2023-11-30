@@ -264,6 +264,18 @@ build do
           vars: { requirements: lib_req["req_lines"] }
     end
 
+    # Constraints file for constraining transitive dependencies in those cases where there may be incompatible versions
+    constraints = []
+    if redhat_target?
+      constraints.push("bcrypt < 4.1.0")
+    end
+
+    constraints_file = windows_safe_path(project_dir, "constraints.txt")
+    block "Write constraints file" do
+      File.open(constraints_file, 'w') { |f| f << constraints.join("\n") }
+    end
+
+
     # Increasing pip max retries (default: 5 times) and pip timeout (default 15 seconds) to avoid blocking network errors
     pip_max_retries = 20
     pip_timeout = 20
@@ -274,11 +286,11 @@ build do
     command "#{python} -m pip install datadog_checks_base --no-deps --no-index --find-links=#{wheel_build_dir}"
     command "#{python} -m pip wheel . --no-deps --no-index --wheel-dir=#{wheel_build_dir}", :env => build_env, :cwd => cwd_downloader
     command "#{python} -m pip install datadog_checks_downloader --no-deps --no-index --find-links=#{wheel_build_dir}"
-    command "#{python} -m piptools compile --generate-hashes --output-file #{compiled_reqs_file_path} #{static_reqs_out_file} " \
+    command "#{python} -m piptools compile --generate-hashes -c #{constraints_file} --output-file #{compiled_reqs_file_path} #{static_reqs_out_file} " \
       "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => build_env
     # Pip-compiling seperately each lib that needs a custom build installation
     specific_build_env.each do |lib, env|
-      command "#{python} -m piptools compile --generate-hashes --output-file #{requirements_custom[lib]["compiled_req_file_path"]} #{requirements_custom[lib]["req_file_path"]} " \
+      command "#{python} -m piptools compile --generate-hashes -c #{constraints_file} --output-file #{requirements_custom[lib]["compiled_req_file_path"]} #{requirements_custom[lib]["req_file_path"]} " \
       "--pip-args \"--retries #{pip_max_retries} --timeout #{pip_timeout}\"", :env => env
     end
 
