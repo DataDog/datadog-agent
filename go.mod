@@ -622,6 +622,7 @@ require (
 	github.com/containerd/typeurl/v2 v2.1.1
 	github.com/gocomply/scap v0.1.2-0.20230531064509-55a00f73e8d6
 	github.com/godror/godror v0.37.0
+	github.com/jinroh/go-nbd v0.0.0-20231130123830-c38d5f5140c8
 	github.com/jmoiron/sqlx v1.3.5
 	github.com/kr/pretty v0.3.1
 	github.com/protocolbuffers/protoscope v0.0.0-20221109213918-8e7a6aafa2c9
