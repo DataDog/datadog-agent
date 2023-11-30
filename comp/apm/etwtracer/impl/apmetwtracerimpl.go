@@ -326,6 +326,7 @@ func (a *apmetwtracerimpl) removePID(pid uint64) error {
 	if pidCtx, ok = a.pids[pid]; !ok {
 		return fmt.Errorf("could not find PID %d in PID list", pid)
 	}
+	delete(a.pids, pid)
 	pidCtx.conn.Close()
 
 	return a.reconfigureProvider()
