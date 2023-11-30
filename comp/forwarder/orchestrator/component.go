@@ -11,6 +11,7 @@ import "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 // team: agent-metrics-logs
 
 // Component is the component type.
+// The main method of this component is `Get` which returns the forwarder instance only if it enabled.
 type Component interface {
 	// Get the forwarder instance if it exists.
 	Get() (defaultforwarder.Forwarder, bool)
