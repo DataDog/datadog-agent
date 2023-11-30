@@ -35,7 +35,6 @@ const (
 // Computed rates are sent in http responses to trace-agent. The rates are continuously adjusted in function
 // of the received traffic to match a targetTPS (target traces per second).
 type PrioritySampler struct {
-	agentEnv string
 	// sampler targetTPS is defined locally on the agent
 	// This sampler tries to get the received number of sampled trace chunks/s to match its targetTPS.
 	sampler *Sampler
@@ -50,7 +49,6 @@ type PrioritySampler struct {
 // NewPrioritySampler returns an initialized Sampler
 func NewPrioritySampler(conf *config.AgentConfig, dynConf *DynamicConfig) *PrioritySampler {
 	s := &PrioritySampler{
-		agentEnv:      conf.DefaultEnv,
 		sampler:       newSampler(conf.ExtraSampleRate, conf.TargetTPS, []string{"sampler:priority"}),
 		rateByService: &dynConf.RateByService,
 		catalog:       newServiceLookup(conf.MaxCatalogEntries),
