@@ -178,26 +178,7 @@ func runAgent(stopCh chan struct{}) (serverlessDaemon *daemon.Daemon, err error)
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
 
-	// API key reading
-	// ---------------
-
-	// API key reading priority:
-	// Plaintext > KMS > Secrets Manager
-	// If an API key is set but failing, the next will be tried
-
-	apikey.CheckForSingleAPIKey()
-
-	// Set API key from DD_KMS_API_KEY environment variable or environment variables suffixed with KMS_ENCRYPTED or SECRET_ARN
-	apikey.SetSecretsFromEnv(os.Environ())
-
-	// Validate that an API key has been set, either by DD_API_KEY or read from KMS or Secrets Manager
-	// ---------------------------
-	if !config.Datadog.IsSet("api_key") {
-		// we're not reporting the error to AWS because we don't want the function
-		// execution to be stopped. TODO(remy): discuss with AWS if there is way
-		// of reporting non-critical init errors.
-		log.Error("No API key configured")
-	}
+	apikey.HandleEnv()
 
 	logChannel := make(chan *logConfig.ChannelMessage)
 	// Channels for ColdStartCreator
