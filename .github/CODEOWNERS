@@ -370,7 +370,10 @@
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
 /pkg/proto/pbgo/                        # do not notify anyone
 /pkg/proto/pbgo/trace                   @DataDog/agent-apm
-/pkg/proto/pbgo/core                    @DataDog/processes
+/pkg/proto/pbgo/languagedetection       @DataDog/agent-apm
+/pkg/proto/pbgo/process                 @DataDog/processes
+/pkg/proto/pbgo/core                    @DataDog/agent-shared-components
+/pkg/proto/pbgo/mocks/core              @DataDog/agent-shared-components
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/Networks
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
