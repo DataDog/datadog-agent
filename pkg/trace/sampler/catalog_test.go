@@ -47,8 +47,9 @@ func TestCatalogRegression(t *testing.T) {
 
 func TestServiceSignatureString(t *testing.T) {
 	assert := assert.New(t)
-
-	assert.Equal(defaultServiceRateKey, ServiceSignature{}.String())
+	assert.Equal("service:,env:", ServiceSignature{}.String()) // default
+	assert.Equal("service:,env:prod", ServiceSignature{Env: "prod"}.String())
+	assert.Equal("service:myservice,env:", ServiceSignature{Name: "myservice"}.String())
 	assert.Equal("service:mcnulty,env:test", ServiceSignature{"mcnulty", "test"}.String())
 }
 

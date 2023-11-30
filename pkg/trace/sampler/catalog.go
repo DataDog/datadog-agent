@@ -12,10 +12,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
 
-// defaultServiceRateKey specifies the key for the default rate to be used by any service that
-// doesn't have a rate specified.
-const defaultServiceRateKey = "service:,env:"
-
 // maxCatalogEntries specifies the maximum number of entries allowed in the catalog.
 const maxCatalogEntries = 5000
 
