@@ -56,6 +56,7 @@ excluded_folders = [
 
 # package names of dependencies that won't be added to the Agent Python environment
 excluded_packages = Array.new
+excluded_packages_py2 = Array.new
 
 # We build these manually
 excluded_packages.push(/^confluent-kafka==/)
@@ -90,6 +91,8 @@ end
 
 if linux_target?
   excluded_packages.push(/^oracledb==/)
+  excluded_packages_py2.push(/^pyyaml==/)
+  excluded_packages_py2.push(/^kubernetes==/)
 end
 
 build do
@@ -240,6 +243,9 @@ build do
     block "Create filtered requirements" do
       File.open("#{static_reqs_in_file}", 'r+').readlines().each do |line|
         next if excluded_packages.any? { |package_regex| line.match(package_regex) }
+        if python_major_version == "2"
+          next if excluded_packages_py2.any? { |package_regex| line.match(package_regex) }
+        end
 
         # on non windows OS, we use the c version of the psycopg installation
         if line.start_with?('psycopg[binary]') && !windows_target?
