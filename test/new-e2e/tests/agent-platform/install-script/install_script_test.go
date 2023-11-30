@@ -67,6 +67,8 @@ func TestInstallScript(t *testing.T) {
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
 	fmt.Println("Parsed platform json file: ", platformJSON)
+
+	vmOpts := []ec2params.Option{}
 	for _, osVers := range osVersions {
 		osVers := osVers
 		cwsSupported := false
@@ -76,10 +78,14 @@ func TestInstallScript(t *testing.T) {
 			}
 		}
 
+		vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform]))
+		if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
+			vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
+		}
 		t.Run(fmt.Sprintf("test install script on %s %s %s agent %s", osVers, *architecture, *flavor, *majorVersion), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
-			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)))
+			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(vmOpts...), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)))
 		})
 	}
 }
