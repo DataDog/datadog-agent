@@ -28,6 +28,7 @@ import (
 	"net"
 	"os"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 )
@@ -101,6 +102,14 @@ const (
 	clrEventResponse    = 16
 	errorResponse       = 255
 	payloadBufferSize   = 64 * units.Kilobyte
+
+	//revive:disable:var-naming Name is intended to match the Windows API name
+	// ERROR_BROKEN_PIPE The pipe has been ended.
+	ERROR_BROKEN_PIPE = 109
+
+	// ERROR_NO_DATA The pipe is being closed.
+	ERROR_NO_DATA = 232
+	//revive:enable:var-naming
 )
 
 type win32MessageBytePipe interface {
@@ -275,10 +284,16 @@ func (a *apmetwtracerimpl) doTrace() {
 		var err error
 		defer func() {
 			if err != nil {
-				a.log.Errorf("Could not write ETW event for PID %d, %v", pid, err)
-				err = a.removePID(pid)
-				if err != nil {
-					a.log.Errorf("Could not remove PID %d, %v", pid, err)
+				if err == syscall.Errno(ERROR_BROKEN_PIPE) ||
+					err == syscall.Errno(ERROR_NO_DATA) {
+					// Don't log error for normal pipe termination
+					a.log.Trace("Listener for process %d disconnected", pid)
+				} else {
+					a.log.Errorf("Could not write ETW event for PID %d, %v", pid, err)
+					err = a.removePID(pid)
+					if err != nil {
+						a.log.Errorf("Could not remove PID %d, %v", pid, err)
+					}
 				}
 			}
 			defer a.pidMutex.Unlock()
