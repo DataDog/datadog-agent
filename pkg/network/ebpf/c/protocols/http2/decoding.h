@@ -107,13 +107,10 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
     }
 
     // TODO: can improve by declaring MAX_INTERESTING_STATIC_TABLE_INDEX
-    if (is_interesting_static_entry(index)) {
+    if (is_static_table_entry(index)) {
         headers_to_process->index = index;
         headers_to_process->type = kStaticHeader;
-        (*interesting_headers_counter)++;
-        return;
-    }
-    if (is_static_table_entry(index)) {
+        *interesting_headers_counter += is_interesting_static_entry(index);
         return;
     }
 
@@ -174,10 +171,10 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
-    bool is_path = false;
     if (index == kIndexPath) {
-        is_path = true;
         update_path_size_telemetry(http2_tel, str_len);
+    } else {
+        goto end;
     }
 
     // We skip if:
@@ -200,7 +197,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     // If the string len (`str_len`) is in the range of [0, HTTP2_MAX_PATH_LEN], and we don't exceed packet boundaries
     // (skb_info->data_off + str_len <= skb_info->data_end) and the index is kIndexPath, then we have a path header,
     // and we're increasing the counter. In any other case, we're not increasing the counter.
-    *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN && is_path);
+    *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN);
 end:
     skb_info->data_off += str_len;
     return true;
