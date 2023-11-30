@@ -62,6 +62,11 @@ func getPackageManager(vmClient e2eClient.VM) PackageManager {
 	if _, err := vmClient.ExecuteWithError("command -v yum"); err == nil {
 		return pkgmanager.NewYumPackageManager(vmClient)
 	}
+
+	if _, err := vmClient.ExecuteWithError("command -v zypper"); err == nil {
+		return pkgmanager.NewZypperPackageManager(vmClient)
+	}
+
 	return nil
 }
 
