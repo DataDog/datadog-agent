@@ -204,6 +204,11 @@ namespace Datadog.CustomActions
                         (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
                 }
 
+                // Remove Everyone
+                // [7.47 - 7.50) added an ACE for Everyone, so make sure to remove it
+                securityDescriptor.DiscretionaryAcl.RemoveAccess(AccessControlType.Allow, new SecurityIdentifier("WD"),
+                    (int)(ServiceAccess.SERVICE_ALL_ACCESS), InheritanceFlags.None, PropagationFlags.None);
+
                 // add current user
                 securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, ddAgentUserSID,
                     (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP),
