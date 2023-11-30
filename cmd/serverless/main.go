@@ -7,6 +7,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"strconv"
@@ -122,14 +124,14 @@ func runAgent() (err error) {
 		// we still need to register the extension but let's return after (no-op)
 		id, _, registrationError := registration.RegisterExtension(extensionRegistrationRoute, extensionRegistrationTimeout)
 		if registrationError != nil {
-			log.Errorf("Can't register as a serverless agent: %s", registrationError)
+			err = errors.New(fmt.Sprintf("Can't register as a serverless agent: %s", registrationError))
 		}
 		ctx := context.Background()
 		processError := registration.NoOpProcessEvent(ctx, id)
 		if processError != nil {
-			log.Errorf("Can't process events: %s", processError)
+			err = errors.New(fmt.Sprintf("Can't process events: %s", processError))
 		}
-		return nil
+		return err
 	}
 
 	// immediately starts the communication server
@@ -151,7 +153,7 @@ func runAgent() (err error) {
 		// any ID assigned, thus, we can't report an error to the init error route
 		// which needs an Id.
 		log.Errorf("Can't register as a serverless agent: %s", err)
-		return
+		return errors.New(fmt.Sprintf("Can't register as a serverless agent: %s", err))
 	}
 	if len(functionArn) > 0 {
 		serverlessDaemon.ExecutionContext.SetArnFromExtensionResponse(string(functionArn))
@@ -295,8 +297,7 @@ func runAgent() (err error) {
 
 	ta := serverlessDaemon.TraceAgent.Get()
 	if ta == nil {
-		log.Error("Unexpected nil instance of the trace-agent")
-		return
+		return errors.New("Unexpected nil instance of the trace-agent")
 	}
 
 	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
@@ -344,10 +345,8 @@ func runAgent() (err error) {
 		}
 	}()
 
-	// setup a channel to catch SIGINT and SIGTERM signals
-	signals := []os.Signal{syscall.SIGINT, syscall.SIGTERM}
 	signalCh := make(chan os.Signal, 1)
-	signal.Notify(signalCh, signals[0], signals[1])
+	signal.Notify(signalCh, syscall.SIGINT, syscall.SIGTERM)
 	go handleTerminationSignals(serverlessDaemon, stopCh, signalCh)
 
 	// this log line is used for performance checks during CI
