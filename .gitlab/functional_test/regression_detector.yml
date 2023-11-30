@@ -17,7 +17,7 @@ single-machine-performance-regression_detector:
       - outputs/report.html              # for debugging, also on S3
     when: always
   variables:
-    SMP_VERSION: 0.10.0
+    SMP_VERSION: 0.11.0
     LADING_VERSION: 0.19.1
     CPUS: 7
     MEMORY: "30g"
