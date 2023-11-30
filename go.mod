@@ -24,6 +24,8 @@ replace (
 )
 
 replace (
+	github.com/DataDog/datadog-agent/comp/core/flare/types => ./comp/core/flare/types
+	github.com/DataDog/datadog-agent/comp/core/secrets => ./comp/core/secrets
 	github.com/DataDog/datadog-agent/comp/core/telemetry => ./comp/core/telemetry/
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey => ./pkg/aggregator/ckey/
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults => ./pkg/collector/check/defaults
@@ -584,6 +586,8 @@ require github.com/lorenzosaino/go-sysctl v0.3.1
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.0
 	github.com/DataDog/agent-payload/v5 v5.0.100
+	github.com/DataDog/datadog-agent/comp/core/flare/types v0.0.0-00010101000000-000000000000
+	github.com/DataDog/datadog-agent/comp/core/secrets v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/comp/core/telemetry v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/aggregator/ckey v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/collector/check/defaults v0.50.0-rc.4

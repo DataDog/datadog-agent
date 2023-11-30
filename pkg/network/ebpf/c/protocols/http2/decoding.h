@@ -123,6 +123,8 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
 
     headers_to_process->index = dynamic_index->index;
     headers_to_process->type = kExistingDynamicHeader;
+    // If the entry exists, increase the counter. If the entry is missing, then we won't increase the counter.
+    // This is a simple trick to spare if-clause, to reduce pressure on the complexity of the program.
     *interesting_headers_counter += bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) != NULL;
     return;
 }
@@ -195,6 +197,9 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     headers_to_process->type = kNewDynamicHeader;
     headers_to_process->new_dynamic_value_offset = skb_info->data_off;
     headers_to_process->new_dynamic_value_size = str_len;
+    // If the string len (`str_len`) is in the range of [0, HTTP2_MAX_PATH_LEN], and we don't exceed packet boundaries
+    // (skb_info->data_off + str_len <= skb_info->data_end) and the index is kIndexPath, then we have a path header,
+    // and we're increasing the counter. In any other case, we're not increasing the counter.
     *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN && is_path);
 end:
     skb_info->data_off += str_len;

@@ -51,12 +51,19 @@ func getServiceManager(vmClient e2eClient.VM) ServiceManager {
 	if _, err := vmClient.ExecuteWithError("command -v systemctl"); err == nil {
 		return svcmanager.NewSystemctlSvcManager(vmClient)
 	}
+	if _, err := vmClient.ExecuteWithError("command -v service"); err == nil {
+		return svcmanager.NewServiceSvcManager(vmClient)
+	}
 	return nil
 }
 
 func getPackageManager(vmClient e2eClient.VM) PackageManager {
 	if _, err := vmClient.ExecuteWithError("command -v apt"); err == nil {
 		return pkgmanager.NewAptPackageManager(vmClient)
+	}
+
+	if _, err := vmClient.ExecuteWithError("command -v yum"); err == nil {
+		return pkgmanager.NewYumPackageManager(vmClient)
 	}
 	return nil
 }
