@@ -60,7 +60,6 @@ func NewServer(options ...func(*Server)) *Server {
 	mux.HandleFunc("/", fi.handleDatadogRequest)
 	mux.HandleFunc("/fakeintake/payloads/", fi.handleGetPayloads)
 	mux.HandleFunc("/fakeintake/health/", fi.handleFakeHealth)
-	mux.HandleFunc("/fakeintake/routestats/", fi.handleGetRouteStats)
 	mux.HandleFunc("/fakeintake/flushPayloads/", fi.handleFlushPayloads)
 
 	fi.server = http.Server{
@@ -336,33 +335,5 @@ func (fi *Server) handleGetPayloads(w http.ResponseWriter, req *http.Request) {
 func (fi *Server) handleFakeHealth(w http.ResponseWriter, _ *http.Request) {
 	writeHTTPResponse(w, httpResponse{
 		statusCode: http.StatusOK,
-	})
-}
-
-func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) {
-	log.Print("Handling getRouteStats request")
-	routes := fi.store.GetRouteStats()
-	// build response
-	resp := api.APIFakeIntakeRouteStatsGETResponse{
-		Routes: map[string]api.RouteStat{},
-	}
-	for route, count := range routes {
-		resp.Routes[route] = api.RouteStat{ID: route, Count: count}
-	}
-	jsonResp, err := json.Marshal(resp)
-	if err != nil {
-		writeHTTPResponse(w, httpResponse{
-			contentType: "text/plain",
-			statusCode:  http.StatusInternalServerError,
-			body:        []byte(err.Error()),
-		})
-		return
-	}
-
-	// send response
-	writeHTTPResponse(w, httpResponse{
-		contentType: "application/json",
-		statusCode:  http.StatusOK,
-		body:        jsonResp,
 	})
 }
