@@ -229,7 +229,7 @@ build do
     # Creating a hash containing the requirements and requirements file path associated to every lib
     requirements_custom = Hash.new()
     specific_build_env.each do |lib, env|
-      lib_compiled_req_file_path = (windows_target? ? "#{windows_safe_path(install_dir)}\\" : "#{install_dir}/") + "agent_#{lib}_requirements-py3.txt"
+      lib_compiled_req_file_path = (windows_target? ? "#{windows_safe_path(install_dir)}\\" : "#{install_dir}/") + "agent_#{lib}_requirements-#{python_major_version}.txt"
       requirements_custom[lib] = {
         "req_lines" => Array.new,
         "req_file_path" => static_reqs_out_folder + lib + "-py#{python_major_version}.in",
