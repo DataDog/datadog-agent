@@ -11,5 +11,8 @@ type SecretVal struct {
 	ErrorMsg string `json:"error,omitempty"`
 }
 
+// ResolveCallback is the callback type used by the ResolveWithCallback method
+type ResolveCallback func(key []string, value any)
+
 // PayloadVersion defines the current payload version sent to a secret backend
 const PayloadVersion = "1.0"
