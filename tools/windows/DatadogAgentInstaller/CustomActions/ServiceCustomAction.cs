@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Authentication.ExtendedProtection;
@@ -189,10 +190,19 @@ namespace Datadog.CustomActions
         {
             var previousDdAgentUserSid = InstallStateCustomActions.GetPreviousAgentUser(_session, _registryServices, _nativeMethods);
 
-            var services = new string[]
+            var services = new List<string>
             {
-                "datadog-process-agent", "datadog-trace-agent", "datadog-system-probe", "datadogagent",
+                Constants.ProcessAgentServiceName,
+                Constants.SystemProbeServiceName,
+                Constants.TraceAgentServiceName,
+                Constants.AgentServiceName,
             };
+
+            if (!string.IsNullOrEmpty(_session.Property("INSTALL_CWS")))
+            {
+                services.Add(Constants.SecurityAgentServiceName);
+            }
+
             foreach (var serviceName in services)
             {
                 var securityDescriptor = _serviceController.GetAccessSecurity(serviceName);
