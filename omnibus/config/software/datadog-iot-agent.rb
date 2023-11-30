@@ -85,7 +85,7 @@ build do
 
   end
   if windows_target?
-    platform = windows_arch_i386? ? "x86" : "x64"
+    platform = "x64"
 
     conf_dir = "#{install_dir}/etc/datadog-agent"
     mkdir conf_dir
@@ -110,7 +110,7 @@ build do
     if windows_target?
       # defer compilation step in a block to allow getting the project's build version, which is populated
       # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
-      platform = windows_arch_i386? ? "x86" : "x64"
+      platform = "x64"
       command "invoke trace-agent.build --major-version #{major_version_arg} --arch #{platform}", :env => env
 
       copy 'bin/trace-agent/trace-agent.exe', "#{Omnibus::Config.source_dir()}/datadog-iot-agent/src/github.com/DataDog/datadog-agent/bin/agent"

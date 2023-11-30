@@ -60,9 +60,9 @@ build do
 
   # we assume the go deps are already installed before running omnibus
   if windows_target?
-    platform = windows_arch_i386? ? "x86" : "x64"
+    platform = "x64"
     do_windows_sysprobe = ""
-    if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
       do_windows_sysprobe = "--windows-sysprobe"
     end
     command "inv -e rtloader.clean"
@@ -91,7 +91,7 @@ build do
 
   # move around bin and config files
   move 'bin/agent/dist/datadog.yaml', "#{conf_dir}/datadog.yaml.example"
-  if linux_target? or (windows_target? and not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?)
+  if linux_target? or (windows_target? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?)
       move 'bin/agent/dist/system-probe.yaml', "#{conf_dir}/system-probe.yaml.example"
   end
   move 'bin/agent/dist/conf.d', "#{conf_dir}/"
@@ -108,7 +108,7 @@ build do
   block do
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
-    platform = windows_arch_i386? ? "x86" : "x64"
+    platform = "x64"
     command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
     if windows_target?
@@ -120,7 +120,7 @@ build do
 
   # Process agent
   if windows_target?
-    platform = windows_arch_i386? ? "x86" : "x64"
+    platform = "x64"
     # Build the process-agent with the correct go version for windows
     command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch #{platform} --flavor #{flavor_arg}", :env => env
 
@@ -132,12 +132,10 @@ build do
 
   # System-probe
   if windows_target?
-    unless windows_arch_i386?
-      if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-        ## don't bother with system probe build on x86.
-        command "invoke -e system-probe.build --windows"
-        copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
-      end
+    if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
+      ## don't bother with system probe build on x86.
+      command "invoke -e system-probe.build --windows"
+      copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
     end
   elsif linux_target?
     command "invoke -e system-probe.build-sysprobe-binary"
