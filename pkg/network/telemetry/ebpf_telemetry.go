@@ -8,6 +8,7 @@
 package telemetry
 
 import (
+	"errors"
 	"fmt"
 	"hash"
 	"hash/fnv"
@@ -207,7 +208,7 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 
 		key := mapKey(h, m)
 		err := b.mapErrMap.Update(unsafe.Pointer(&key), unsafe.Pointer(z), ebpf.UpdateNoExist)
-		if err != nil {
+		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 			return fmt.Errorf("failed to initialize telemetry struct for map %s", m.Name)
 		}
 		b.mapKeys[m.Name] = key
@@ -224,7 +225,7 @@ func (b *EBPFTelemetry) initializeHelperErrTelemetryMap() error {
 	z := new(HelperErrTelemetry)
 	for p, key := range b.probeKeys {
 		err := b.helperErrMap.Update(unsafe.Pointer(&key), unsafe.Pointer(z), ebpf.UpdateNoExist)
-		if err != nil {
+		if err != nil && !errors.Is(err, ebpf.ErrKeyExist) {
 			return fmt.Errorf("failed to initialize telemetry struct for probe %s", p)
 		}
 	}
