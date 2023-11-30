@@ -71,6 +71,12 @@ func TestInstallScript(t *testing.T) {
 	vmOpts := []ec2params.Option{}
 	for _, osVers := range osVersions {
 		osVers := osVers
+
+		if platformJSON[*platform][*architecture][osVers] == "" {
+			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
+			t.Fatalf("No image found for %s %s %s", *platform, *architecture, osVers)
+		}
+
 		cwsSupported := false
 		for _, cwsSupportedOs := range cwsSupportedOsVersionList {
 			if cwsSupportedOs == osVers {
