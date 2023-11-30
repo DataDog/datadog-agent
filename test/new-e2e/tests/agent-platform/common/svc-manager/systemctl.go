@@ -25,7 +25,6 @@ func NewSystemctlSvcManager(vmClient client.VM) *SystemCtlSvcManager {
 // Status returns status from systemctl
 func (s *SystemCtlSvcManager) Status(service string) (string, error) {
 	return s.vmClient.ExecuteWithError(fmt.Sprintf("systemctl status --no-pager %s.service", service))
-
 }
 
 // Stop executes stop command from stystemctl
