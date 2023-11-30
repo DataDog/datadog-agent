@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 )

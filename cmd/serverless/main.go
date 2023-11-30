@@ -7,7 +7,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -124,12 +123,12 @@ func runAgent() (err error) {
 		// we still need to register the extension but let's return after (no-op)
 		id, _, registrationError := registration.RegisterExtension(extensionRegistrationRoute, extensionRegistrationTimeout)
 		if registrationError != nil {
-			err = errors.New(fmt.Sprintf("Can't register as a serverless agent: %s", registrationError))
+			err = fmt.Errorf("Can't register as a serverless agent: %s", registrationError)
 		}
 		ctx := context.Background()
 		processError := registration.NoOpProcessEvent(ctx, id)
 		if processError != nil {
-			err = errors.New(fmt.Sprintf("Can't process events: %s", processError))
+			err = fmt.Errorf("Can't process events: %s", processError)
 		}
 		return err
 	}
@@ -152,8 +151,7 @@ func runAgent() (err error) {
 		// at this point, we were not even able to register, thus, we don't have
 		// any ID assigned, thus, we can't report an error to the init error route
 		// which needs an Id.
-		log.Errorf("Can't register as a serverless agent: %s", err)
-		return errors.New(fmt.Sprintf("Can't register as a serverless agent: %s", err))
+		return fmt.Errorf("Can't register as a serverless agent: %s", err)
 	}
 	if len(functionArn) > 0 {
 		serverlessDaemon.ExecutionContext.SetArnFromExtensionResponse(string(functionArn))
@@ -297,7 +295,7 @@ func runAgent() (err error) {
 
 	ta := serverlessDaemon.TraceAgent.Get()
 	if ta == nil {
-		return errors.New("Unexpected nil instance of the trace-agent")
+		return fmt.Errorf("Unexpected nil instance of the trace-agent")
 	}
 
 	// set up invocation processor in the serverless Daemon to be used for the proxy and/or lifecycle API
