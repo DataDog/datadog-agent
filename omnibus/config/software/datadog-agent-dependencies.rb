@@ -13,3 +13,5 @@ end
 if with_python_runtime? "3"
   dependency 'datadog-agent-integrations-py3-dependencies'
 end
+
+dependency "systemd"
