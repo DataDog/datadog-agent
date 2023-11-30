@@ -1,12 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-find_package (Python3 COMPONENTS Interpreter Development)
-
-if(Python3_VERSION_MINOR LESS "7")
-  message(
-    FATAL_ERROR
-    "Python3 version found is too old: found ${Python3_EXECUTABLE} (version \"${Python3_VERSION}\"), minimum required version is 3.7"
-  )
-endif()
+pkg_check_modules(Python3 REQUIRED "python3-embed >= 3.11")
 
 project(datadog-agent-three VERSION 0.1.0 DESCRIPTION "CPython backend for the Datadog Agent")
 
@@ -63,6 +56,7 @@ target_include_directories(datadog-agent-three PUBLIC
     ${CMAKE_SOURCE_DIR}/common/builtins
     ${Python3_INCLUDE_DIRS}
 )
+target_link_directories(datadog-agent-three PRIVATE ${Python3_LIBRARY_DIRS})
 target_link_libraries(datadog-agent-three ${Python3_LIBRARIES} datadog-agent-rtloader)
 
 if(WIN32)
