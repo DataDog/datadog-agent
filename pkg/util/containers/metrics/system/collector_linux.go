@@ -120,6 +120,7 @@ func newSystemCollector(cache *provider.Cache) (provider.CollectorMetadata, erro
 			collectors.OpenFilesCount = provider.MakeRef[provider.ContainerOpenFilesCountGetter](systemCollector, collectorLowPriority)
 			collectors.PIDs = provider.MakeRef[provider.ContainerPIDsGetter](systemCollector, collectorLowPriority)
 			collectors.ContainerIDForPID = provider.MakeRef[provider.ContainerIDForPIDRetriever](systemCollector, collectorLowPriority)
+			collectors.ContainerIDForInode = provider.MakeRef[provider.ContainerIDForInodeRetriever](systemCollector, collectorLowPriority)
 		}
 
 		// We can retrieve self PID with cgroupv1 or cgroupv2 with host ns

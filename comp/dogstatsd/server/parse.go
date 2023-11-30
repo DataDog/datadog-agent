@@ -23,7 +23,14 @@ const (
 	metricSampleType messageType = iota
 	serviceCheckType
 	eventType
+<<<<<<< HEAD
 	cacheValidity = 2 * time.Second
+=======
+	// readerCacheExpiration determines the duration for which the cgroups data is cached in the cgroups reader.
+	// This value needs to be large enough to reduce latency and I/O load.
+	// It also needs to be small enough to catch the first metrics of new containers.
+	readerCacheExpiration = 2 * time.Second
+>>>>>>> 363791f363 ([dogstatsd] Add inode origin detection)
 )
 
 var (
@@ -260,9 +267,9 @@ func (p *parser) extractContainerID(rawContainerIDField []byte) []byte {
 			return nil
 		}
 
-		containerID, err := p.provider.GetMetaCollector().GetContainerIDForInode(inodeField, cacheValidity)
+		containerID, err := provider.GetProvider().GetMetaCollector().GetContainerIDForInode(inodeField, readerCacheExpiration)
 		if err != nil {
-			log.Debugf("Failed to get container ID, got %v", err)
+			log.Debugf("Failed to get container ID, got %v", inodeField, err)
 			return nil
 		}
 		return []byte(containerID)
