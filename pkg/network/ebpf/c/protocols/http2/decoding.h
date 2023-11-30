@@ -172,7 +172,9 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
         goto end;
     }
 
+    bool is_path = false;
     if (index == kIndexPath) {
+        is_path = true;
         update_path_size_telemetry(http2_tel, str_len);
     }
 
@@ -193,7 +195,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     headers_to_process->type = kNewDynamicHeader;
     headers_to_process->new_dynamic_value_offset = skb_info->data_off;
     headers_to_process->new_dynamic_value_size = str_len;
-    *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN);
+    *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN && is_path);
 end:
     skb_info->data_off += str_len;
     return true;
