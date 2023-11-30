@@ -7,23 +7,29 @@ package rcsnmpprofiles
 
 import (
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	"github.com/DataDog/datadog-agent/pkg/epforwarder"
+	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/profile/profiledefinition"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"os"
 	"strings"
+	"time"
 )
 
 // RemoteConfigSNMPProfilesManager receives configuration from remote-config
 type RemoteConfigSNMPProfilesManager struct {
 	upToDate bool
+	sender   sender.Sender
 }
 
 // NewRemoteConfigSNMPProfilesManager creates a new RemoteConfigSNMPProfilesManager.
-func NewRemoteConfigSNMPProfilesManager() *RemoteConfigSNMPProfilesManager {
+func NewRemoteConfigSNMPProfilesManager(sender sender.Sender) *RemoteConfigSNMPProfilesManager {
 	return &RemoteConfigSNMPProfilesManager{
 		upToDate: false,
+		sender:   sender,
 	}
 }
 
@@ -84,5 +90,30 @@ func (rc *RemoteConfigSNMPProfilesManager) collectDeviceOIDs(config parse.SNMPCo
 
 	for _, variable := range variables {
 		log.Infof("[RC Callback] Variable Name: %s", variable.Name)
+
+		metadataPayloads := metadata.BatchPayloads("default",
+			"",
+			time.Now(),
+			metadata.PayloadMetadataBatchSize,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+			nil,
+		)
+		for _, payload := range metadataPayloads {
+			payloadBytes, err := json.Marshal(payload)
+			if err != nil {
+				log.Errorf("[RC Callback] Error marshalling device metadata: %s", err)
+				continue
+			}
+			log.Debugf("[RC Callback] Device OID metadata payload: %s", string(payloadBytes))
+			rc.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
+			if err != nil {
+				log.Errorf("[RC Callback] Error sending event platform event for Device OID metadata: %s", err)
+			}
+		}
+
 	}
 }

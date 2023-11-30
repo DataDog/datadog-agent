@@ -501,8 +501,13 @@ func startAgent(
 			}
 			if pkgconfig.Datadog.GetBool("remote_configuration.ndm_device_oid_collector.enabled") {
 				log.Infof("Start RC Device OID Collector")
-				rcProvider := rcsnmpprofiles.NewRemoteConfigSNMPProfilesManager()
-				rcclient.Subscribe(data.ProductNDMDeviceProfilesCustom, rcProvider.Callback)
+				sender, err := demultiplexer.GetDefaultSender()
+				if err != nil {
+					pkglog.Errorf("Failed to get sender: %s", err)
+				} else {
+					rcProvider := rcsnmpprofiles.NewRemoteConfigSNMPProfilesManager(sender)
+					rcclient.Subscribe(data.ProductNDMDeviceProfilesCustom, rcProvider.Callback)
+				}
 			}
 		}
 	}
