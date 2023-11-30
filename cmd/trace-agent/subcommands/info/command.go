@@ -43,7 +43,7 @@ func runTraceAgentInfoFct(params *subcommands.GlobalParams, fct interface{}) err
 		coreconfig.Module,
 		secretsimpl.Module,
 		// TODO: (component)
-		// fx.Supply(log.ForOneShot(params.LoggerName, "off", true)),
+		// fx.Supply(logimpl.ForOneShot(params.LoggerName, "off", true)),
 		// log.Module,
 	)
 }
