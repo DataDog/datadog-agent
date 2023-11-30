@@ -79,9 +79,6 @@ func (cat *serviceKeyCatalog) ratesByService(rates map[Signature]float64, defaul
 			delete(cat.items, key)
 			continue
 		}
-		if key.Env == "" {
-			rbs[ServiceSignature{Name: key.Name}] = rbs[key]
-		}
 	}
 	rbs[ServiceSignature{}] = defaultRate
 	return rbs
