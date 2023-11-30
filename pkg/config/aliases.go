@@ -169,6 +169,8 @@ const (
 	DefaultProcessRTQueueSize                = pkgconfigsetup.DefaultProcessRTQueueSize
 	DefaultRuntimePoliciesDir                = pkgconfigsetup.DefaultRuntimePoliciesDir
 	DefaultGRPCConnectionTimeoutSecs         = pkgconfigsetup.DefaultGRPCConnectionTimeoutSecs
+	DefaultProcessEndpoint                   = pkgconfigsetup.DefaultProcessEndpoint
+	DefaultProcessEventsEndpoint             = pkgconfigsetup.DefaultProcessEventsEndpoint
 )
 
 type (
