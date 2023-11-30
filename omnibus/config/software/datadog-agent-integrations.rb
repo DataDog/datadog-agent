@@ -53,6 +53,7 @@ excluded_folders = [
   'datadog_checks_tests_helper',   # Testing and Development package, (NOT AN INTEGRATION)
   'docker_daemon',                 # Agent v5 only
 ]
+excluded_folders_py2 = []  # For py2-only exclusions
 
 # package names of dependencies that won't be added to the Agent Python environment
 excluded_packages = Array.new
@@ -69,6 +70,9 @@ if osx_target?
 end
 
 if arm_target?
+  excluded_folders_py2.push('aerospike')
+  excluded_packages_py2.push(/^aerospike==/)
+
   # This doesn't build on ARM
   excluded_folders.push('ibm_ace')
   excluded_folders.push('ibm_mq')
@@ -357,6 +361,7 @@ build do
 
         # do not install excluded integrations
         next if !File.directory?("#{check_dir}") || excluded_folders.include?(check)
+        next if python_major_version == "2" && excluded_folders_py2.include?(check)
 
         # If there is no manifest file, then we should assume the folder does not
         # contain a working check and move onto the next
