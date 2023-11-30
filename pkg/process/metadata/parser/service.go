@@ -23,6 +23,7 @@ const (
 	javaJarFlag      = "-jar"
 	javaJarExtension = ".jar"
 	javaApachePrefix = "org.apache."
+	kubeletPrefix    = "kubelet"
 )
 
 // List of binaries that usually have additional process context of whats running
@@ -36,6 +37,10 @@ var binsWithContext = map[string]serviceExtractorFn{
 	"java":      parseCommandContextJava,
 	"java.exe":  parseCommandContextJava,
 	"sudo":      parseCommandContext,
+}
+
+var serviceTagCommands = map[string]struct{}{
+	kubeletPrefix: {},
 }
 
 var _ metadata.Extractor = &ServiceExtractor{}
@@ -148,6 +153,13 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 	exe = trimColonRight(removeFilePath(exe))
 	if !isRuneLetterAt(exe, 0) {
 		exe = parseExeStartWithSymbol(exe)
+	}
+
+	if _, ok := serviceTagCommands[exe]; ok {
+		return &serviceMetadata{
+			cmdline:        cmd,
+			serviceContext: "service:" + kubeletPrefix,
+		}
 	}
 
 	if contextFn, ok := binsWithContext[exe]; ok {

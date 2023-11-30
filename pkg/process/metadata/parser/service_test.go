@@ -117,6 +117,13 @@ func TestExtractServiceMetadata(t *testing.T) {
 			},
 			expectedServiceTag: "process_context:cat",
 		},
+		{
+			name: "kubelet heath check",
+			cmdline: []string{
+				"kubelet", "--address=1.1.1.1", "--cloud-provider=aws",
+			},
+			expectedServiceTag: "service:kubelet",
+		},
 	}
 
 	for _, tt := range tests {
