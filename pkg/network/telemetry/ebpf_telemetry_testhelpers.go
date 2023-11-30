@@ -15,10 +15,14 @@ import (
 
 // GetHelpersTelemetry returns a map of error telemetry for each ebpf program
 func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
-	var val HelperErrTelemetry
 	helperTelemMap := make(map[string]interface{})
+	if b.helperErrMap == nil {
+		return helperTelemMap
+	}
+
+	var val HelperErrTelemetry
 	for probeName, k := range b.probeKeys {
-		err := b.HelperErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
+		err := b.helperErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
 		if err != nil {
 			log.Debugf("failed to get telemetry for map:key %s:%d\n", probeName, k)
 			continue
@@ -40,10 +44,14 @@ func (b *EBPFTelemetry) GetHelpersTelemetry() map[string]interface{} {
 
 // GetMapsTelemetry returns a map of error telemetry for each ebpf map
 func (b *EBPFTelemetry) GetMapsTelemetry() map[string]interface{} {
-	var val MapErrTelemetry
 	t := make(map[string]interface{})
+	if b.mapErrMap == nil {
+		return t
+	}
+
+	var val MapErrTelemetry
 	for m, k := range b.mapKeys {
-		err := b.MapErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
+		err := b.mapErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
 		if err != nil {
 			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
 			continue

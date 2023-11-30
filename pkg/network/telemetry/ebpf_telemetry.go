@@ -19,9 +19,11 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -57,8 +59,8 @@ var helperNames = map[int]string{
 // are registered to have their telemetry collected.
 type EBPFTelemetry struct {
 	mtx          sync.Mutex
-	MapErrMap    *ebpf.Map
-	HelperErrMap *ebpf.Map
+	mapErrMap    *ebpf.Map
+	helperErrMap *ebpf.Map
 	mapKeys      map[string]uint64
 	probeKeys    map[string]uint64
 }
@@ -74,16 +76,29 @@ func NewEBPFTelemetry() *EBPFTelemetry {
 	}
 }
 
-// RegisterEBPFTelemetry initializes the maps for holding telemetry info
-func (b *EBPFTelemetry) RegisterEBPFTelemetry(m *manager.Manager) error {
-	if b == nil {
-		return nil
+// populateMapsWithKeys initializes the maps for holding telemetry info.
+// It must be called after the manager is initialized
+func (b *EBPFTelemetry) populateMapsWithKeys(m *manager.Manager) error {
+	b.mtx.Lock()
+	defer b.mtx.Unlock()
+
+	// first manager to call will populate the maps
+	if b.mapErrMap == nil {
+		b.mapErrMap, _, _ = m.GetMap(probes.MapErrTelemetryMap)
+	}
+	if b.helperErrMap == nil {
+		b.helperErrMap, _, _ = m.GetMap(probes.HelperErrTelemetryMap)
 	}
 
 	if err := b.initializeMapErrTelemetryMap(m.Maps); err != nil {
 		return err
 	}
-	if err := b.initializeHelperErrTelemetryMap(m.Probes); err != nil {
+	// manager is initialized, so excluded functions are already removed
+	progs, err := getEnabledProgramNames(m)
+	if err != nil {
+		return err
+	}
+	if err := b.initializeHelperErrTelemetryMap(progs); err != nil {
 		return err
 	}
 	return nil
@@ -100,33 +115,37 @@ func (b *EBPFTelemetry) Collect(ch chan<- prometheus.Metric) {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 
-	var hval HelperErrTelemetry
-	for probeName, k := range b.probeKeys {
-		err := b.HelperErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&hval))
-		if err != nil {
-			log.Debugf("failed to get telemetry for probe:key %s:%d\n", probeName, k)
-			continue
-		}
-		for indx, helperName := range helperNames {
-			base := maxErrno * indx
-			if count := getErrCount(hval.Count[base : base+maxErrno]); len(count) > 0 {
-				for errStr, errCount := range count {
-					ch <- prometheus.MustNewConstMetric(ebpfHelperErrorsGauge, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr)
+	if b.helperErrMap != nil {
+		var hval HelperErrTelemetry
+		for probeName, k := range b.probeKeys {
+			err := b.helperErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&hval))
+			if err != nil {
+				log.Debugf("failed to get telemetry for probe:key %s:%d\n", probeName, k)
+				continue
+			}
+			for indx, helperName := range helperNames {
+				base := maxErrno * indx
+				if count := getErrCount(hval.Count[base : base+maxErrno]); len(count) > 0 {
+					for errStr, errCount := range count {
+						ch <- prometheus.MustNewConstMetric(ebpfHelperErrorsGauge, prometheus.GaugeValue, float64(errCount), helperName, probeName, errStr)
+					}
 				}
 			}
 		}
 	}
 
-	var val MapErrTelemetry
-	for m, k := range b.mapKeys {
-		err := b.MapErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
-		if err != nil {
-			log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
-			continue
-		}
-		if count := getErrCount(val.Count[:]); len(count) > 0 {
-			for errStr, errCount := range count {
-				ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr)
+	if b.mapErrMap != nil {
+		var val MapErrTelemetry
+		for m, k := range b.mapKeys {
+			err := b.mapErrMap.Lookup(unsafe.Pointer(&k), unsafe.Pointer(&val))
+			if err != nil {
+				log.Debugf("failed to get telemetry for map:key %s:%d\n", m, k)
+				continue
+			}
+			if count := getErrCount(val.Count[:]); len(count) > 0 {
+				for errStr, errCount := range count {
+					ch <- prometheus.MustNewConstMetric(ebpfMapOpsErrorsGauge, prometheus.GaugeValue, float64(errCount), m, errStr)
+				}
 			}
 		}
 	}
@@ -150,35 +169,13 @@ func getErrCount(v []uint64) map[string]uint64 {
 	return errCount
 }
 
-// BuildTelemetryKeys returns the keys used to index the maps holding telemetry
-// information for bpf helper errors.
-func BuildTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
-	keys := buildMapErrTelemetryKeys(mgr)
-	return append(buildHelperErrTelemetryKeys(mgr), keys...)
-}
-
-func buildMapErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
+func buildMapErrTelemetryConstants(mgr *manager.Manager) []manager.ConstantEditor {
 	var keys []manager.ConstantEditor
 	h := keyHash()
 	for _, m := range mgr.Maps {
 		keys = append(keys, manager.ConstantEditor{
 			Name:  m.Name + "_telemetry_key",
 			Value: mapKey(h, m),
-		})
-	}
-	return keys
-}
-
-func buildHelperErrTelemetryKeys(mgr *manager.Manager) []manager.ConstantEditor {
-	var keys []manager.ConstantEditor
-	h := keyHash()
-	for _, p := range mgr.Probes {
-		keys = append(keys, manager.ConstantEditor{
-			Name:  "telemetry_program_id_key",
-			Value: probeKey(h, p),
-			ProbeIdentificationPairs: []manager.ProbeIdentificationPair{
-				p.ProbeIdentificationPair,
-			},
 		})
 	}
 	return keys
@@ -194,15 +191,16 @@ func mapKey(h hash.Hash64, m *manager.Map) uint64 {
 	return h.Sum64()
 }
 
-func probeKey(h hash.Hash64, m *manager.Probe) uint64 {
+func probeKey(h hash.Hash64, funcName string) uint64 {
 	h.Reset()
-	_, _ = h.Write([]byte(m.EBPFFuncName))
+	_, _ = h.Write([]byte(funcName))
 	return h.Sum64()
 }
 
 func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
+	if b.mapErrMap == nil {
+		return nil
+	}
 
 	z := new(MapErrTelemetry)
 	h := keyHash()
@@ -214,7 +212,7 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 		}
 
 		key := mapKey(h, m)
-		err := b.MapErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
+		err := b.mapErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
 		if err != nil {
 			return fmt.Errorf("failed to initialize telemetry struct for map %s", m.Name)
 		}
@@ -223,69 +221,61 @@ func (b *EBPFTelemetry) initializeMapErrTelemetryMap(maps []*manager.Map) error 
 	return nil
 }
 
-func (b *EBPFTelemetry) initializeHelperErrTelemetryMap(probes []*manager.Probe) error {
-	b.mtx.Lock()
-	defer b.mtx.Unlock()
+func (b *EBPFTelemetry) initializeHelperErrTelemetryMap(funcNames []string) error {
+	if b.helperErrMap == nil {
+		return nil
+	}
 
 	z := new(HelperErrTelemetry)
 	h := keyHash()
-	for _, p := range probes {
+	for _, p := range funcNames {
 		// Some hook points, like tcp_sendmsg, are probed in
 		// multiple different programs.
-		if _, ok := b.probeKeys[p.EBPFFuncName]; ok {
+		if _, ok := b.probeKeys[p]; ok {
 			continue
 		}
 
 		key := probeKey(h, p)
-		err := b.HelperErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
+		err := b.helperErrMap.Put(unsafe.Pointer(&key), unsafe.Pointer(z))
 		if err != nil {
-			return fmt.Errorf("failed to initialize telemetry struct for probe %s", p.EBPFFuncName)
+			return fmt.Errorf("failed to initialize telemetry struct for probe %s", p)
 		}
-		b.probeKeys[p.EBPFFuncName] = key
+		b.probeKeys[p] = key
 	}
 	return nil
 }
-
-const ebpfTelemetryPatchCall = -1
-
-func getAllProgramSpecs(m *manager.Manager, undefinedProbes []manager.ProbeIdentificationPair) ([]*ebpf.ProgramSpec, error) {
-	var specs []*ebpf.ProgramSpec
-	for _, p := range m.Probes {
-		s, present, err := m.GetProgramSpec(p.ProbeIdentificationPair)
-		if err != nil {
-			return nil, err
-		}
-		if present {
-			specs = append(specs, s...)
-		}
-	}
-
-	for _, id := range undefinedProbes {
-		s, present, err := m.GetProgramSpec(id)
-		if err != nil {
-			return nil, err
-		}
-		if present {
-			specs = append(specs, s...)
-		}
-	}
-	return slices.DeleteFunc(specs, func(x *ebpf.ProgramSpec) bool {
-		return x == nil
-	}), nil
-}
-
-func patchEBPFTelemetry(m *manager.Manager, enable bool, undefinedProbes []manager.ProbeIdentificationPair) error {
-	specs, err := getAllProgramSpecs(m, undefinedProbes)
-	if err != nil {
-		return err
-	}
+func patchEBPFTelemetry(m *manager.Manager, enable bool) error {
+	const symbol = "telemetry_program_id_key"
 	newIns := asm.Mov.Reg(asm.R1, asm.R1)
 	if enable {
 		newIns = asm.StoreXAdd(asm.R1, asm.R2, asm.Word)
 	}
+	ldDWImm := asm.LoadImmOp(asm.DWord)
+	h := keyHash()
 
-	for _, spec := range specs {
-		iter := spec.Instructions.Iterate()
+	progs, err := m.GetProgramSpecs()
+	if err != nil {
+		return err
+	}
+
+	for fn, p := range progs {
+		// do constant editing of programs for helper errors post-init
+		ins := p.Instructions
+		offsets := ins.ReferenceOffsets()
+		indices := offsets[symbol]
+		if len(indices) > 0 {
+			for _, index := range indices {
+				load := &ins[index]
+				if load.OpCode != ldDWImm {
+					return fmt.Errorf("symbol %v: load: found %v instead of %v", symbol, load.OpCode, ldDWImm)
+				}
+				load.Constant = int64(probeKey(h, fn))
+			}
+		}
+
+		// patch telemetry helper calls
+		const ebpfTelemetryPatchCall = -1
+		iter := ins.Iterate()
 		for iter.Next() {
 			ins := iter.Ins
 			if !ins.IsBuiltinCall() || ins.Constant != ebpfTelemetryPatchCall {
@@ -297,16 +287,61 @@ func patchEBPFTelemetry(m *manager.Manager, enable bool, undefinedProbes []manag
 	return nil
 }
 
-// ActivateBPFTelemetry registers the instruction patcher with the provided manager if telemetry is supported.
-func ActivateBPFTelemetry(m *manager.Manager, undefinedProbes []manager.ProbeIdentificationPair) error {
+// setupForTelemetry sets up the manager to handle eBPF telemetry.
+// It will patch the instructions of all the manager probes and `undefinedProbes` provided.
+// Constants are replaced for map error and helper error keys with their respective values.
+// This must be called before ebpf-manager.Manager.Init/InitWithOptions
+func setupForTelemetry(m *manager.Manager, options *manager.Options, bpfTelemetry *EBPFTelemetry) error {
 	activateBPFTelemetry, err := ebpfTelemetrySupported()
 	if err != nil {
 		return err
 	}
 	m.InstructionPatcher = func(m *manager.Manager) error {
-		return patchEBPFTelemetry(m, activateBPFTelemetry, undefinedProbes)
+		return patchEBPFTelemetry(m, activateBPFTelemetry)
+	}
+
+	if activateBPFTelemetry {
+		// add telemetry maps to list of maps, if not present
+		if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == probes.MapErrTelemetryMap }) {
+			m.Maps = append(m.Maps, &manager.Map{Name: probes.MapErrTelemetryMap})
+		}
+		if !slices.ContainsFunc(m.Maps, func(x *manager.Map) bool { return x.Name == probes.HelperErrTelemetryMap }) {
+			m.Maps = append(m.Maps, &manager.Map{Name: probes.HelperErrTelemetryMap})
+		}
+
+		if bpfTelemetry != nil {
+			bpfTelemetry.setupMapEditors(options)
+		}
+
+		options.ConstantEditors = append(options.ConstantEditors, buildMapErrTelemetryConstants(m)...)
+	} else {
+		options.ExcludedMaps = append(options.ExcludedMaps, probes.MapErrTelemetryMap, probes.HelperErrTelemetryMap)
+		// leave key constants as zero, and deadcode elimination should reduce number of instructions
 	}
 	return nil
+}
+
+func (b *EBPFTelemetry) setupMapEditors(opts *manager.Options) {
+	if (b.mapErrMap != nil) || (b.helperErrMap != nil) {
+		if opts.MapEditors == nil {
+			opts.MapEditors = make(map[string]*ebpf.Map)
+		}
+	}
+	// if the maps have already been loaded, setup editors to point to them
+	if b.mapErrMap != nil {
+		opts.MapEditors[probes.MapErrTelemetryMap] = b.mapErrMap
+	}
+	if b.helperErrMap != nil {
+		opts.MapEditors[probes.HelperErrTelemetryMap] = b.helperErrMap
+	}
+}
+
+func getEnabledProgramNames(m *manager.Manager) ([]string, error) {
+	progs, err := m.GetProgramSpecs()
+	if err != nil {
+		return nil, err
+	}
+	return maps.Keys(progs), nil
 }
 
 // ebpfTelemetrySupported returns whether eBPF telemetry is supported, which depends on the verifier in 4.14+

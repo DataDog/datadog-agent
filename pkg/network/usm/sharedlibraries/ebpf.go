@@ -79,11 +79,7 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 }
 
 func (e *ebpfProgram) Init() error {
-	err := errtelemetry.ActivateBPFTelemetry(e.Manager.Manager, getAllUndefinedProbes())
-	if err != nil {
-		return err
-	}
-
+	var err error
 	if e.cfg.EnableCORE {
 		err = e.initCORE()
 		if err == nil {
@@ -205,21 +201,4 @@ func getAssetName(module string, debug bool) string {
 	}
 
 	return fmt.Sprintf("%s.o", module)
-}
-
-func getAllUndefinedProbes() []manager.ProbeIdentificationPair {
-	undefined := []manager.ProbeIdentificationPair{}
-
-	if !sysOpenAt2Supported() {
-		undefined = append(undefined,
-			manager.ProbeIdentificationPair{
-				EBPFFuncName: "tracepoint__syscalls__sys_enter_openat2",
-			},
-			manager.ProbeIdentificationPair{
-				EBPFFuncName: "tracepoint__syscalls__sys_exit_openat2",
-			},
-		)
-	}
-
-	return undefined
 }

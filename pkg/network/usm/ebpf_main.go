@@ -389,18 +389,7 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		}
 	}
 
-	var undefinedProbes []manager.ProbeIdentificationPair
-	for _, tc := range e.tailCallRouter {
-		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
-	}
-
-	err := errtelemetry.ActivateBPFTelemetry(e.Manager.Manager, undefinedProbes)
-	if err != nil {
-		cleanup()
-		return err
-	}
-
-	err = e.InitWithOptions(buf, options)
+	err := e.InitWithOptions(buf, options)
 	if err != nil {
 		cleanup()
 	} else {

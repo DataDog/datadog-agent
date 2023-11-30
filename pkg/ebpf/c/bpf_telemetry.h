@@ -18,9 +18,9 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
     ({                                                                             \
         long errno_ret, errno_slot;                                                \
         errno_ret = fn(&map, args);                                                \
-        if (errno_ret < 0) {                                                       \
-            unsigned long err_telemetry_key;                                       \
-            LOAD_CONSTANT(MK_KEY(map), err_telemetry_key);                         \
+        unsigned long err_telemetry_key;                                           \
+        LOAD_CONSTANT(MK_KEY(map), err_telemetry_key);                             \
+        if (errno_ret < 0 && err_telemetry_key > 0) {                              \
             map_err_telemetry_t *entry =                                           \
                 bpf_map_lookup_elem(&map_err_telemetry_map, &err_telemetry_key);   \
             if (entry) {                                                           \
