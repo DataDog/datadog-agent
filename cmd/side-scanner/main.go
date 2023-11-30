@@ -450,7 +450,7 @@ func scanCmd(config scanConfig) error {
 				log.Errorf("error scanning task %s: %s", result.scan, result.err)
 			} else {
 				if result.sbom != nil {
-					fmt.Printf("scanning result %s (took %d): %s\n", result.scan, result.duration, prototext.Format(result.sbom))
+					fmt.Printf("scanning result %s (took %s): %s\n", result.scan, result.duration, prototext.Format(result.sbom))
 				}
 				if result.findings != nil {
 					for _, result := range result.findings.Results {
@@ -1068,10 +1068,10 @@ func (s *sideScanner) start(ctx context.Context) {
 			} else {
 				if result.sbom != nil {
 					if hasResults(result.sbom) {
-						log.Debugf("scan %s finished successfully (took %d)", result.scan, result.duration)
+						log.Debugf("scan %s finished successfully (took %s)", result.scan, result.duration)
 						statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0)
 					} else {
-						log.Debugf("scan %s finished successfully without results (took %d)", result.scan, result.duration)
+						log.Debugf("scan %s finished successfully without results (took %s)", result.scan, result.duration)
 						statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagNoResult(result.scan), 1.0)
 					}
 					s.sendSBOM(result.sbom)
