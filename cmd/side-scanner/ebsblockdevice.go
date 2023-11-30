@@ -99,12 +99,10 @@ func startClient(ctx context.Context, opts EBSBlockDeviceOptions) error {
 
 	go func() {
 		<-ctx.Done()
-		conn.Close()
-	}()
-
-	defer func() {
-		log.Debugf("disconnecting nbd client %s", dev.Name())
-		_ = client.Disconnect(dev)
+		log.Debugf("nbdclient: disconnecting %s", dev.Name())
+		if err := client.Disconnect(dev); err != nil {
+			log.Warnf("nbdclient: disconnected with error %s: %v", dev.Name(), err)
+		}
 	}()
 
 	err = client.Connect(conn, dev, &client.Options{
@@ -112,8 +110,9 @@ func startClient(ctx context.Context, opts EBSBlockDeviceOptions) error {
 		BlockSize:  512,
 	})
 	if err != nil {
-		log.Errorf("could not start ebs client: %v", err)
+		log.Errorf("nbdclient: could not start: %v", err)
 	}
+	log.Debugf("nbdclient: finished %s: %v", dev.Name(), err)
 	return err
 }
 
@@ -146,17 +145,17 @@ func startServer(ctx context.Context, opts EBSBlockDeviceOptions, ready chan err
 				if errors.Is(err, net.ErrClosed) {
 					return
 				}
-				log.Warnf("Could not accept connection: %v", err)
+				log.Warnf("nbdserver: could not accept connection: %v", err)
 				continue
 			}
 
 			go func() {
 				defer func() {
-					log.Debugf("Client disconnected")
+					log.Debugf("nbdserver: client disconnected")
 					conn.Close()
 				}()
 
-				log.Debugf("Client connected")
+				log.Debugf("nbdserver: client connected %q", conn.LocalAddr())
 				err := server.Handle(conn,
 					[]*server.Export{
 						{
@@ -173,7 +172,7 @@ func startServer(ctx context.Context, opts EBSBlockDeviceOptions, ready chan err
 						SupportsMultiConn:  true,
 					})
 				if err != nil {
-					log.Errorf("could not handle new connection: %v", err)
+					log.Errorf("nbdserver: could not handle new connection %q: %v", conn.LocalAddr(), err)
 				}
 			}()
 		}
