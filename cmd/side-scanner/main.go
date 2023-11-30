@@ -76,8 +76,7 @@ var statsd *ddgostatsd.Client
 var (
 	globalParams struct {
 		configFilePath string
-		attachVolumes  bool
-		nbd            bool
+		attachMode     string
 	}
 
 	defaultHTTPClient = &http.Client{
@@ -105,6 +104,10 @@ type scanAction string
 const (
 	malware scanAction = "malware"
 	vulns              = "vulns"
+
+	volumeAttach string = "volume-attach"
+	nbdAttach           = "nbd-attach"
+	noAttach            = "no-attach"
 )
 
 var defaultActions = []string{
@@ -121,11 +124,10 @@ type (
 	scanConfigRaw struct {
 		Type  string `json:"type"`
 		Tasks []struct {
-			Type         string   `json:"type"`
-			ARN          string   `json:"arn"`
-			Hostname     string   `json:"hostname"`
-			AttachVolume bool     `json:"attachVolume,omitempty"`
-			Actions      []string `json:"actions,omitempty"`
+			Type     string   `json:"type"`
+			ARN      string   `json:"arn"`
+			Hostname string   `json:"hostname"`
+			Actions  []string `json:"actions,omitempty"`
 		} `json:"tasks"`
 		Roles []string `json:"roles"`
 	}
@@ -137,12 +139,11 @@ type (
 	}
 
 	scanTask struct {
-		Type         scanType
-		ARN          arn.ARN
-		Hostname     string
-		AttachVolume bool
-		Actions      []scanAction
-		Roles        rolesMapping
+		Type     scanType
+		ARN      arn.ARN
+		Hostname string
+		Actions  []scanAction
+		Roles    rolesMapping
 	}
 
 	scanResult struct {
@@ -176,14 +177,20 @@ func rootCommand() *cobra.Command {
 		Short:        "Datadog Side Scanner at your service.",
 		Long:         `Datadog Side Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			switch globalParams.attachMode {
+			case volumeAttach, nbdAttach, noAttach:
+			default:
+				return fmt.Errorf("invalid flag \"disk-mode\": expecting either %s, %s or %s", volumeAttach, nbdAttach, noAttach)
+			}
 			initStatsdClient()
+			return nil
 		},
 	}
 
-	sideScannerCmd.PersistentFlags().StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to side-scanner configuration yaml file")
-	sideScannerCmd.PersistentFlags().BoolVarP(&globalParams.attachVolumes, "attach-volumes", "", false, "scan EBS snapshots by creating a dedicated volume")
-	sideScannerCmd.PersistentFlags().BoolVarP(&globalParams.nbd, "nbd", "", false, "scan EBS snapshots using network-block-device mounts")
+	pflags := sideScannerCmd.PersistentFlags()
+	pflags.StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to side-scanner configuration yaml file")
+	pflags.StringVar(&globalParams.attachMode, "disk-mode", "no-attach", fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", volumeAttach, nbdAttach, noAttach))
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 	sideScannerCmd.AddCommand(offlineCommand())
@@ -217,8 +224,8 @@ func runCommand() *cobra.Command {
 		},
 	}
 	runCmd.Flags().StringVarP(&runParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
-	runCmd.Flags().IntVarP(&runParams.poolSize, "workers", "", 40, "number of scans running in parallel")
-	runCmd.Flags().StringSliceVarP(&runParams.allowedScanTypes, "allowed-scans-type", "", nil, "lists of allowed scan types (ebs-scan, lambda-scan)")
+	runCmd.Flags().IntVar(&runParams.poolSize, "workers", 40, "number of scans running in parallel")
+	runCmd.Flags().StringSliceVar(&runParams.allowedScanTypes, "allowed-scans-type", nil, "lists of allowed scan types (ebs-volume, lambda)")
 	return runCmd
 }
 
@@ -246,8 +253,7 @@ func scanCommand() *cobra.Command {
 							cliArgs.ARN,
 							cliArgs.Hostname,
 							nil,
-							roles,
-							globalParams.attachVolumes)
+							roles)
 						if err != nil {
 							return err
 						}
@@ -269,10 +275,13 @@ func scanCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&cliArgs.RawScan, "raw-config-data", "", "", "scan config data in JSON")
-	cmd.Flags().StringVarP(&cliArgs.ScanType, "scan-type", "", "", "scan type")
-	cmd.Flags().StringVarP(&cliArgs.ARN, "arn", "", "", "arn to scan")
-	cmd.Flags().StringVarP(&cliArgs.Hostname, "hostname", "", "", "scan hostname")
+	cmd.Flags().StringVar(&cliArgs.RawScan, "raw-config-data", "", "scan config data in JSON")
+	cmd.Flags().StringVar(&cliArgs.ScanType, "scan-type", "", "scan type")
+	cmd.Flags().StringVar(&cliArgs.ARN, "arn", "", "arn to scan")
+	cmd.Flags().StringVar(&cliArgs.Hostname, "hostname", "", "scan hostname")
+	cmd.MarkFlagsRequiredTogether("arn", "raw-config-data")
+	cmd.MarkFlagsRequiredTogether("arn", "scan-type", "hostname")
+
 	return cmd
 }
 
@@ -288,7 +297,7 @@ func offlineCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans, globalParams.attachVolumes)
+					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans, globalParams.attachMode)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -308,10 +317,11 @@ func offlineCommand() *cobra.Command {
 func attachCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "attach",
-		Short: "Attach a list of ARNs given in stdin into volumes to the EC2 instance",
+		Short: "Attach a list of ARNs given in stdin into volumes to the EC2 instance using a dedicated EBS volume",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
+					globalParams.attachMode = volumeAttach
 					return attachCmd()
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
@@ -327,19 +337,18 @@ func attachCommand() *cobra.Command {
 
 func mountCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "mount <snapshot-arn>",
-		Short: "Runs the side-scanner in offline mode (server-less mode)",
+		Use:   "nbd-mount <snapshot-arn>",
+		Short: "Mount the given snapshot into /snapshots/<snapshot-id>/<part> using a network block device",
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					if len(args) == 0 {
-						return fmt.Errorf("missing snapshot-arn")
-					}
 					snapshotARN, err := arn.Parse(args[0])
 					if err != nil {
 						return err
 					}
-					return mountCmd(snapshotARN)
+					globalParams.attachMode = nbdAttach
+					return nbdMountCmd(snapshotARN)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -470,7 +479,7 @@ func scanCmd(config scanConfig) error {
 	return nil
 }
 
-func offlineCmd(poolSize int, regions []string, maxScans int, attachVolume bool) error {
+func offlineCmd(poolSize int, regions []string, maxScans int, attachMode string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	defer statsd.Flush()
@@ -545,12 +554,12 @@ func offlineCmd(poolSize int, regions []string, maxScans int, attachVolume bool)
 			if regionName == "auto" {
 				regionName = selfRegion
 			}
-			volumesForRegion, err := listEBSVolumesForRegion(ctx, *identity.Account, regionName, roles, attachVolume)
+			volumesForRegion, err := listEBSVolumesForRegion(ctx, *identity.Account, regionName, roles)
 			if err != nil {
 				log.Errorf("could not scan region %q: %v", regionName, err)
 			}
 			for _, volumeARN := range volumesForRegion {
-				scan, err := newScanTask(string(ebsScanType), volumeARN.String(), "unknown", defaultActions, roles, attachVolume)
+				scan, err := newScanTask(string(ebsScanType), volumeARN.String(), "unknown", defaultActions, roles)
 				if err != nil {
 					log.Warnf("could not create scan for volume %s: %v", volumeARN, err)
 				} else {
@@ -609,7 +618,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int, attachVolume bool)
 	return nil
 }
 
-func listEBSVolumesForRegion(ctx context.Context, accountID, regionName string, roles rolesMapping, attachVolume bool) (arns []arn.ARN, err error) {
+func listEBSVolumesForRegion(ctx context.Context, accountID, regionName string, roles rolesMapping) (arns []arn.ARN, err error) {
 	cfg, awsstats, err := newAWSConfig(ctx, regionName, roles[accountID])
 	if err != nil {
 		return nil, err
@@ -854,7 +863,6 @@ func attachCmd() error {
 			hostname,
 			nil,
 			roles,
-			true,
 		)
 		if err != nil {
 			return err
@@ -900,7 +908,7 @@ func attachCmd() error {
 	return nil
 }
 
-func mountCmd(snapshotARN arn.ARN) error {
+func nbdMountCmd(snapshotARN arn.ARN) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -936,7 +944,7 @@ func mountCmd(snapshotARN arn.ARN) error {
 	return nil
 }
 
-func newScanTask(t string, resourceARN, hostname string, actions []string, roles rolesMapping, attachVolume bool) (*scanTask, error) {
+func newScanTask(t string, resourceARN, hostname string, actions []string, roles rolesMapping) (*scanTask, error) {
 	// TODO(jinroh): proper input sanitization here where we validate more
 	// precisly the ARN resource type/id
 	var scan scanTask
@@ -954,7 +962,6 @@ func newScanTask(t string, resourceARN, hostname string, actions []string, roles
 		return nil, fmt.Errorf("unknown scan type %q", t)
 	}
 	scan.Hostname = hostname
-	scan.AttachVolume = attachVolume
 	scan.Roles = roles
 
 	if actions == nil {
@@ -995,7 +1002,7 @@ func unmarshalConfig(b []byte) (*scanConfig, error) {
 
 	config.Tasks = make([]*scanTask, 0, len(configRaw.Tasks))
 	for _, scan := range configRaw.Tasks {
-		task, err := newScanTask(scan.Type, scan.ARN, scan.Hostname, scan.Actions, config.Roles, scan.AttachVolume)
+		task, err := newScanTask(scan.Type, scan.ARN, scan.Hostname, scan.Actions, config.Roles)
 		if err != nil {
 			log.Warnf("dropping malformed task: %v", err)
 			continue
@@ -1533,10 +1540,10 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) error {
 	resourceType, _, ok := getARNResource(scan.ARN)
 	if !ok {
-		return fmt.Errorf("ebs-scan: bad or missing ARN: %s", scan.ARN)
+		return fmt.Errorf("ebs-volume: bad or missing ARN: %s", scan.ARN)
 	}
 	if scan.Hostname == "" {
-		return fmt.Errorf("ebs-scan: missing hostname")
+		return fmt.Errorf("ebs-volume: missing hostname")
 	}
 
 	defer statsd.Flush()
@@ -1569,11 +1576,11 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	case ec2types.ResourceTypeSnapshot:
 		snapshotARN = scan.ARN
 	default:
-		return fmt.Errorf("ebs-scan: bad arn %q", scan.ARN)
+		return fmt.Errorf("ebs-volume: bad arn %q", scan.ARN)
 	}
 
 	if snapshotARN.Resource == "" {
-		return fmt.Errorf("ebs-scan: missing snapshot ID")
+		return fmt.Errorf("ebs-volume: missing snapshot ID")
 	}
 
 	log.Infof("start EBS scanning %s", scan)
@@ -1582,7 +1589,8 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	var localSnapshotARN arn.ARN
 	var scanStartedAt time.Time
 	var cleanupAttach func(context.Context)
-	if scan.AttachVolume {
+	switch globalParams.attachMode {
+	case volumeAttach:
 		device, localSnapshotARN, cleanupAttach, err = shareAndAttachSnapshot(ctx, scan, snapshotARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
@@ -1592,7 +1600,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		if err != nil {
 			return err
 		}
-	} else if globalParams.nbd {
+	case nbdAttach:
 		ebsclient := ebs.NewFromConfig(cfg)
 		device, cleanupAttach, err = attachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient)
 		defer func() {
@@ -1604,7 +1612,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		if err != nil {
 			return err
 		}
-	} else {
+	case noAttach:
 		// Only vulns scanning works without a proper mount point (for now)
 		for _, action := range scan.Actions {
 			if action != vulns {
