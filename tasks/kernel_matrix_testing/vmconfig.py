@@ -6,12 +6,13 @@ import os
 import platform
 from urllib.parse import urlparse
 
-from .init_kmt import KMT_ROOTFS_DIR, KMT_STACKS_DIR, VMCONFIG, check_and_get_stack
+from .download import arch_mapping, platforms_file, vmconfig_file
+from .init_kmt import VMCONFIG, check_and_get_stack
+from .kmt_os import get_kmt_os
 from .stacks import create_stack, stack_exists
 from .tool import Exit, ask, info, warn
 
 local_arch = "local"
-vmconfig_file = "test/new-e2e/system-probe/config/vmconfig.json"
 
 try:
     from thefuzz import fuzz, process
@@ -86,15 +87,8 @@ distributions = {
     "debian_12": "debian_12",
     # CentOS mappings
     "centos_79": "centos_79",
-}
-
-arch_mapping = {
-    "amd64": "x86_64",
-    "x86": "x86_64",
-    "x86_64": "x86_64",
-    "arm64": "arm64",
-    "arm": "arm64",
-    "aarch64": "arm64",
+    "centos_7": "centos_79",
+    "centos_8": "centos_8",
 }
 
 TICK = "\u2713"
@@ -107,9 +101,6 @@ table = [
     ["amazon linux 2 - v4.14", TICK, TICK],
     ["amazon linux 2 - v5.4", TICK, TICK],
     ["amazon linux 2 - v5.10", TICK, TICK],
-    ["amazon linux 2 - v5.15", TICK, CROSS],
-    ["fedora 35 - v5.14.10", TICK, TICK],
-    ["fedora 36 - v5.17.5", TICK, TICK],
     ["fedora 37 - v6.0.7", TICK, TICK],
     ["fedora 38 - v6.2.9", TICK, TICK],
     ["debian 10 - v4.19.0", TICK, TICK],
@@ -222,29 +213,32 @@ def get_custom_kernel_config(version, arch):
         "extra_params": extra_params,
     }
 
+def xz_suffix_removed(path):
+    if path.endswith(".xz"):
+        return path[: -len(".xz")]
+
+    return path
 
 # This function derives the configuration for each
 # unique kernel or distribution from the normalized vm-def.
 # For more details on the generated configuration element, refer
 # to the micro-vms scenario in test-infra-definitions
-def get_kernel_config(template, recipe, version, arch):
+def get_kernel_config(platforms, recipe, version, arch):
     if recipe == "custom":
         return get_custom_kernel_config(version, arch)
 
     if arch == "local":
         arch = arch_mapping[platform.machine()]
 
-    setname = f"{recipe}_{arch}"
+    url_base = platforms["url_base"]
+    kernel_path = platforms[arch][version]
+    kernel_name = xz_suffix_removed(os.path.basename(kernel_path))
 
-    for vmset in template["vmsets"]:
-        if setname not in vmset["tags"]:
-            continue
-
-        for kernel in vmset["kernels"]:
-            if kernel["tag"] == version:
-                return copy.deepcopy(kernel)
-
-    raise Exit(f"No kernel {version} in set {setname}")
+    return {
+        "tag": version,
+        "image_source": os.path.join(url_base, kernel_path),
+        "dir": kernel_name
+    }
 
 
 def vmset_exists(vm_config, tags):
@@ -347,6 +341,19 @@ def template_name(arch, recipe):
     return f"{recipe_without_arch}_{arch}"
 
 
+def add_machine_type(vmconfig_template, vmset):
+    tname = template_name(vmset["arch"], vmset["recipe"])
+    for template in vmconfig_template["vmsets"]:
+        if tname not in template["tags"]:
+            continue
+
+        if "machine" not in template:
+            return
+
+        vmset["machine"] = template["machine"]
+
+
+
 def add_disks(vmconfig_template, vmset):
     tname = template_name(vmset["arch"], vmset["recipe"])
 
@@ -361,12 +368,10 @@ def add_console(vmset):
 
 def url_to_fspath(url):
     source = urlparse(url)
-    if os.path.basename(source.path).endswith(".xz"):
-        filename = os.path.basename(source.path)[: -len(".xz")]
-    else:
-        filename = os.path.basename(source.path)
+    filename = os.path.basename(source.path)
+    filename = xz_suffix_removed(os.path.basename(source.path))
 
-    return f"file://{os.path.join(KMT_ROOTFS_DIR,filename)}"
+    return f"file://{os.path.join(get_kmt_os().rootfs_dir,filename)}"
 
 
 def image_source_to_path(vmset):
@@ -429,6 +434,9 @@ def custom_version_prefix(version):
 
 
 def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
+    with open(platforms_file) as f:
+        platforms = json.load(f)
+
     with open(vmconfig_file) as f:
         vmconfig_template = json.load(f)
 
@@ -459,13 +467,14 @@ def generate_vmconfig(vm_config, normalized_vm_defs, vcpu, memory, sets, ci):
         for vm in vmset.vms:
             add_kernel(
                 vm_config,
-                get_kernel_config(vmconfig_template, vmset.recipe, vm.version, vmset.arch),
+                get_kernel_config(platforms, vmset.recipe, vm.version, vmset.arch),
                 vmset.tags,
             )
 
     for vmset in vm_config["vmsets"]:
         add_vcpu(vmset, vcpu)
         add_memory(vmset, memory)
+        add_machine_type(vmconfig_template, vmset)
 
         if vmset["recipe"] != "custom":
             add_disks(vmconfig_template, vmset)
@@ -511,7 +520,7 @@ def gen_config(ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", mem
     for vm in vm_types:
         normalized_vms.append(normalize_vm_def(possible, vm))
 
-    vmconfig_file = f"{KMT_STACKS_DIR}/{stack}/{VMCONFIG}"
+    vmconfig_file = f"{get_kmt_os().stacks_dir}/{stack}/{VMCONFIG}"
     if new or not os.path.exists(vmconfig_file):
         empty_config(vmconfig_file)
 
@@ -543,21 +552,13 @@ def gen_config(ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", mem
 
 
 def list_all_distro_normalized_vms(archs):
-    with open(vmconfig_file) as f:
-        vmconfig = json.load(f)
+    with open(platforms_file) as f:
+        platforms = json.load(f)
 
     vms = list()
     for arch in archs:
-        distributions = list()
-        for vmset in vmconfig["vmsets"]:
-            if vmset["arch"] not in arch:
-                continue
-
-            for kernel in vmset["kernels"]:
-                distributions.append(kernel["tag"])
-
-        for distro_version in distributions:
-            vms.append(("distro", distro_version, arch))
+        for distro in platforms[arch]:
+            vms.append(("distro", distro, arch))
 
     return vms
 
@@ -582,7 +583,6 @@ def gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, o
         arch_ls = [arch_mapping[arch]]
 
     vms_to_generate = list_all_distro_normalized_vms(arch_ls)
-
     vm_config = generate_vmconfig({"vmsets": []}, vms_to_generate, ls_to_int(vcpu_ls), ls_to_int(memory_ls), set_ls, ci)
 
     with open(output_file, "w") as f:

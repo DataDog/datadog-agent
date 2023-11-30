@@ -8,16 +8,10 @@ from invoke import task
 from .kernel_matrix_testing import stacks, vmconfig
 from .kernel_matrix_testing.download import revert_kernel_packages, revert_rootfs, update_kernel_packages, update_rootfs
 from .kernel_matrix_testing.init_kmt import (
-    KMT_BACKUP_DIR,
-    KMT_DIR,
-    KMT_KHEADERS_DIR,
-    KMT_PACKAGES_DIR,
-    KMT_ROOTFS_DIR,
-    KMT_SHARED_DIR,
-    KMT_STACKS_DIR,
     check_and_get_stack,
     init_kernel_matrix_testing_system,
 )
+from .kernel_matrix_testing.kmt_os import get_kmt_os
 from .kernel_matrix_testing.tool import Exit, ask, info, warn
 from .system_probe import EMBEDDED_SHARE_DIR
 
@@ -88,7 +82,7 @@ def stack(ctx, stack=None):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.output")
+    ctx.run(f"cat {get_kmt_os().stacks_dir}/{stack}/stack.output")
 
 
 @task
@@ -103,34 +97,38 @@ def init(ctx, lite=False):
 
 @task
 def update_resources(ctx, no_backup=False):
+    kmt_os = get_kmt_os()
+
     warn("Updating resource dependencies will delete all running stacks.")
     if ask("are you sure you want to continue? (y/n)").lower() != "y":
         raise Exit("[-] Update aborted")
 
-    for stack in glob(f"{KMT_STACKS_DIR}/*"):
+    for stack in glob(f"{kmt_os.stacks_dir}/*"):
         destroy_stack(ctx, stack=os.path.basename(stack), force=True)
 
-    update_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_KHEADERS_DIR, KMT_BACKUP_DIR, no_backup)
-    update_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR, no_backup)
+    update_kernel_packages(ctx, kmt_os.packages_dir, kmt_os.kheaders_dir, kmt_os.backup_dir, no_backup)
+    update_rootfs(ctx, kmt_os.rootfs_dir, kmt_os.backup_dir, no_backup)
 
 
 @task
 def revert_resources(ctx):
+    kmt_os = get_kmt_os()
+
     warn("Reverting resource dependencies will delete all running stacks.")
     if ask("are you sure you want to revert to backups? (y/n)").lower() != "y":
         raise Exit("[-] Revert aborted")
 
-    for stack in glob(f"{KMT_STACKS_DIR}/*"):
+    for stack in glob(f"{kmt_os.stacks_dir}/*"):
         destroy_stack(ctx, stack=stack, force=True)
 
-    revert_kernel_packages(ctx, KMT_PACKAGES_DIR, KMT_BACKUP_DIR)
-    revert_rootfs(ctx, KMT_ROOTFS_DIR, KMT_BACKUP_DIR)
+    revert_kernel_packages(ctx, kmt_os.packages_dir, kmt_os.backup_dir)
+    revert_rootfs(ctx, kmt_os.rootfs_dir, kmt_os.backup_dir)
 
     info("[+] Reverted successfully")
 
 
 def get_vm_ip(stack, version, arch):
-    with open(f"{KMT_STACKS_DIR}/{stack}/stack.output", 'r') as f:
+    with open(f"{get_kmt_os.stacks_dir}/{stack}/stack.output", 'r') as f:
         entries = f.readlines()
         for entry in entries:
             match = re.search(f"^.+{arch}-{version}.+\\s+.+$", entry.strip('\n'))
@@ -158,7 +156,7 @@ def build_target_set(stack, vms, ssh_key):
 
 
 def get_instance_ip(stack, arch):
-    with open(f"{KMT_STACKS_DIR}/{stack}/stack.output", 'r') as f:
+    with open(f"{get_kmt_os().stacks_dir}/{stack}/stack.output", 'r') as f:
         entries = f.readlines()
         for entry in entries:
             if f"{arch}-instance-ip" in entry.split(' ')[0]:
@@ -176,12 +174,13 @@ def ssh_key_to_path(ssh_key):
 
 def sync_source(ctx, vm_ls, source, target, ssh_key):
     ssh_key_path = ssh_key_to_path(ssh_key)
+    kmt_dir = get_kmt_os().kmt_dir
 
     for arch, _, ip in vm_ls:
-        vm_copy = f"rsync -e \\\"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\\\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:{target}"
+        vm_copy = f"rsync -e \\\"ssh -o StrictHostKeyChecking=no -i {kmt_dir}/ddvm_rsa\\\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:{target}"
         if arch == "local":
             ctx.run(
-                f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {KMT_DIR}/ddvm_rsa\" -p --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{ip}:{target}"
+                f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {kmt_dir}/ddvm_rsa\" -p --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{ip}:{target}"
             )
         elif arch == "x86_64" or arch == "arm64":
             instance_name, instance_ip = get_instance_ip(stack, arch)
@@ -431,7 +430,7 @@ def clean(ctx, stack=None, container=False, image=False):
 
     ctx.run("rm -rf ./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg")
     ctx.run(f"rm -rf kmt-deps/{stack}", warn=True)
-    ctx.run(f"rm {KMT_SHARED_DIR}/*.tar.gz", warn=True)
+    ctx.run(f"rm {get_kmt_os().shared_dir}/*.tar.gz", warn=True)
 
     if container:
         ctx.run("docker rm -f $(docker ps -aqf \"name=kmt-compiler\")")
