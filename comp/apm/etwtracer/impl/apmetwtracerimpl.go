@@ -256,50 +256,73 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 		}
 	}()
 
-	go func() {
-		var payloadBuffer bytes.Buffer
-		// preallocate a fixed size
-		payloadBuffer.Grow(int(payloadBufferSize))
-
-		// StartTracing blocks the caller
-		_ = a.session.StartTracing(func(e *etw.DDEventRecord) {
-			a.pidMutex.Lock()
-			defer a.pidMutex.Unlock()
-
-			a.log.Debugf("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
-			pid := uint64(e.EventHeader.ProcessID)
-			var pidCtx pidContext
-			var ok bool
-			if pidCtx, ok = a.pids[pid]; !ok {
-				// We may still be receiving events a few moments
-				// after a process un-registers itself, no need to log anything here.
-				return
-			}
-
-			payloadBuffer.Reset()
-			binWriter := bufio.NewWriter(&payloadBuffer)
-			binary.Write(binWriter, binary.LittleEndian, header{
-				Magic:           a.magic,
-				CommandResponse: clrEventResponse,
-				Size:            uint16(headerSize+unsafe.Sizeof(e.EventHeader)+unsafe.Sizeof(e.UserDataLength)) + e.UserDataLength,
-			})
-			binary.Write(binWriter, binary.LittleEndian, e.EventHeader)
-			binary.Write(binWriter, binary.LittleEndian, e.UserDataLength)
-			binWriter.Write(etwutil.GoBytes(unsafe.Pointer(e.UserData), int(e.UserDataLength)))
-			binWriter.Flush()
-
-			_, writeErr := pidCtx.conn.Write(payloadBuffer.Bytes())
-			if writeErr != nil {
-				a.log.Errorf("Could not write ETW event for PID %d, %v", pid, writeErr)
-				err = a.removePID(pid)
-				if err != nil {
-					a.log.Errorf("Could not remove PID %d, %v", pid, writeErr)
-				}
-			}
-		})
-	}()
+	go a.doTrace()
 
 	return nil
+}
+
+func (a *apmetwtracerimpl) doTrace() {
+	var payloadBuffer bytes.Buffer
+	// preallocate a fixed size
+	payloadBuffer.Grow(int(payloadBufferSize))
+
+	// StartTracing blocks the caller
+	_ = a.session.StartTracing(func(e *etw.DDEventRecord) {
+		a.log.Debugf("Received event %d for PID %d", e.EventHeader.EventDescriptor.ID, e.EventHeader.ProcessID)
+		pid := uint64(e.EventHeader.ProcessID)
+
+		a.pidMutex.Lock()
+		var err error
+		defer func() {
+			if err != nil {
+				a.log.Errorf("Could not write ETW event for PID %d, %v", pid, err)
+				err = a.removePID(pid)
+				if err != nil {
+					a.log.Errorf("Could not remove PID %d, %v", pid, err)
+				}
+			}
+			defer a.pidMutex.Unlock()
+		}()
+
+		var pidCtx pidContext
+		var ok bool
+		if pidCtx, ok = a.pids[pid]; !ok {
+			// We may still be receiving events a few moments
+			// after a process un-registers itself, no need to log anything here.
+			return
+		}
+
+		payloadBuffer.Reset()
+		binWriter := bufio.NewWriter(&payloadBuffer)
+		err = binary.Write(binWriter, binary.LittleEndian, header{
+			Magic:           a.magic,
+			CommandResponse: clrEventResponse,
+			Size:            uint16(headerSize+unsafe.Sizeof(e.EventHeader)+unsafe.Sizeof(e.UserDataLength)) + e.UserDataLength,
+		})
+		if err != nil {
+			return
+		}
+		err = binary.Write(binWriter, binary.LittleEndian, e.EventHeader)
+		if err != nil {
+			return
+		}
+		err = binary.Write(binWriter, binary.LittleEndian, e.UserDataLength)
+		if err != nil {
+			return
+		}
+		_, err = binWriter.Write(etwutil.GoBytes(unsafe.Pointer(e.UserData), int(e.UserDataLength)))
+		if err != nil {
+			return
+		}
+		err = binWriter.Flush()
+		if err != nil {
+			return
+		}
+		_, err = pidCtx.conn.Write(payloadBuffer.Bytes())
+		if err != nil {
+			return
+		}
+	})
 }
 
 func (a *apmetwtracerimpl) stop(_ context.Context) error {
