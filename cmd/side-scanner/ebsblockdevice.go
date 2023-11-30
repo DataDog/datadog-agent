@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"os"
+	"path"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -48,6 +49,11 @@ type EBSBlockDeviceOptions struct {
 }
 
 func SetupEBSBlockDevice(ctx context.Context, opts EBSBlockDeviceOptions) error {
+	_, err := os.Stat(opts.DeviceName)
+	if err != nil {
+		return fmt.Errorf("ebsblockdevice: could not stat device %q: %w", opts.DeviceName, err)
+	}
+
 	ready := make(chan error)
 	go startServer(ctx, opts, ready)
 	select {
@@ -70,36 +76,52 @@ func SetupEBSBlockDevice(ctx context.Context, opts EBSBlockDeviceOptions) error 
 	}
 }
 
-func getSocketAddr(snapshotARN arn.ARN) string {
+func getSocketAddr(device string, snapshotARN arn.ARN) string {
 	h := sha256.New()
 	h.Write([]byte(snapshotARN.String()))
-	return fmt.Sprintf("/tmp/nbd-ebs-%x", h.Sum(nil))
+	return fmt.Sprintf("/tmp/nbd-ebs-%s-%x", path.Base(device), h.Sum(nil))
 }
 
 func startClient(ctx context.Context, opts EBSBlockDeviceOptions) error {
-	var d net.Dialer
-	addr := getSocketAddr(opts.SnapshotARN)
-	conn, err := d.DialContext(ctx, "unix", addr)
-	if err != nil {
-		return fmt.Errorf("ebsblockdevice: could not dial %s: %v", addr)
-	}
-	defer conn.Close()
-
 	dev, err := os.Open(opts.DeviceName)
 	if err != nil {
 		return fmt.Errorf("ebsblockdevice: could not open device %q: %w", opts.DeviceName, err)
 	}
 	defer dev.Close()
 
-	return client.Connect(conn, dev, &client.Options{
+	var d net.Dialer
+	addr := getSocketAddr(opts.DeviceName, opts.SnapshotARN)
+	conn, err := d.DialContext(ctx, "unix", addr)
+	if err != nil {
+		return fmt.Errorf("ebsblockdevice: could not dial %s: %v", addr)
+	}
+	defer conn.Close()
+
+	defer func() {
+		log.Debugf("disconnecting nbd client %s", dev.Name())
+		_ = client.Disconnect(dev)
+	}()
+
+	err = client.Connect(conn, dev, &client.Options{
 		ExportName: opts.Name,
 		BlockSize:  512,
 	})
+	if err != nil {
+		log.Errorf("could not start ebs client: %v", err)
+	}
+	return err
 }
 
 func startServer(ctx context.Context, opts EBSBlockDeviceOptions, ready chan error) {
 	var lc net.ListenConfig
-	addr := getSocketAddr(opts.SnapshotARN)
+	_, snapshotID, _ := getARNResource(opts.SnapshotARN)
+	b, err := newEBSBackend(ctx, opts.EBSClient, snapshotID)
+	if err != nil {
+		ready <- fmt.Errorf("ebsblockdevice: could not start backend: %w", err)
+		return
+	}
+
+	addr := getSocketAddr(opts.DeviceName, opts.SnapshotARN)
 	if _, err := os.Stat(addr); err == nil {
 		os.Remove(addr)
 	}
@@ -111,20 +133,12 @@ func startServer(ctx context.Context, opts EBSBlockDeviceOptions, ready chan err
 	defer l.Close()
 	defer os.Remove(addr)
 
-	_, snapshotID, _ := getARNResource(opts.SnapshotARN)
-	b, err := newEBSBackend(ctx, opts.EBSClient, snapshotID)
-	if err != nil {
-		ready <- fmt.Errorf("ebsblockdevice: could not start backend: %w", err)
-		return
-	}
-
 	go func() {
 		ready <- nil
 		for {
 			conn, err := l.Accept()
 			if err != nil {
-				// https://github.com/golang/go/issues/4373
-				if strings.Contains(err.Error(), "use of closed network connection") {
+				if errors.Is(err, net.ErrClosed) {
 					return
 				}
 				log.Warnf("Could not accept connection: %v", err)

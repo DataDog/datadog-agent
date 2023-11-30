@@ -287,7 +287,7 @@ func offlineCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans)
+					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans, globalParams.attachVolumes)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -469,7 +469,7 @@ func scanCmd(config scanConfig) error {
 	return nil
 }
 
-func offlineCmd(poolSize int, regions []string, maxScans int) error {
+func offlineCmd(poolSize int, regions []string, maxScans int, attachVolume bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	defer statsd.Flush()
@@ -544,11 +544,18 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 			if regionName == "auto" {
 				regionName = selfRegion
 			}
-			scansForRegion, err := listEBSScansForRegion(ctx, *identity.Account, regionName, roles[*identity.Account])
+			volumesForRegion, err := listEBSVolumesForRegion(ctx, *identity.Account, regionName, roles, attachVolume)
 			if err != nil {
 				log.Errorf("could not scan region %q: %v", regionName, err)
 			}
-			scans = append(scans, scansForRegion...)
+			for _, volumeARN := range volumesForRegion {
+				scan, err := newScanTask(string(ebsScanType), volumeARN.String(), "unknown", defaultActions, roles, attachVolume)
+				if err != nil {
+					log.Warnf("could not create scan for volume %s: %v", volumeARN, err)
+				} else {
+					scans = append(scans, scan)
+				}
+			}
 		}
 
 		if maxScans > 0 && len(scans) > maxScans {
@@ -564,10 +571,11 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	resultsCh := make(chan scanResult)
 
 	go func() {
-		for {
-			_, ok := <-resultsCh // drop the results
-			if !ok {
-				return
+		for scanResult := range resultsCh {
+			if scanResult.err != nil {
+				log.Warnf("scan %s finished with error: %v", scanResult.scan, scanResult.err)
+			} else {
+				log.Infof("scan %s finished successfully", scanResult.scan)
 			}
 		}
 	}()
@@ -600,8 +608,8 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	return nil
 }
 
-func listEBSScansForRegion(ctx context.Context, accountID, regionName string, assumedRole *arn.ARN) (scans []*scanTask, err error) {
-	cfg, awsstats, err := newAWSConfig(ctx, regionName, assumedRole)
+func listEBSVolumesForRegion(ctx context.Context, accountID, regionName string, roles rolesMapping, attachVolume bool) (arns []arn.ARN, err error) {
+	cfg, awsstats, err := newAWSConfig(ctx, regionName, roles[accountID])
 	if err != nil {
 		return nil, err
 	}
@@ -650,12 +658,7 @@ func listEBSScansForRegion(ctx context.Context, accountID, regionName string, as
 					}
 					volumeARN := ec2ARN(regionName, accountID, ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
 					log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeARN, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
-					scan := scanTask{
-						Type:     ebsScanType,
-						ARN:      volumeARN,
-						Hostname: *instance.InstanceId,
-					}
-					scans = append(scans, &scan)
+					arns = append(arns, volumeARN)
 				}
 			}
 		}
@@ -1579,10 +1582,26 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	var cleanupAttach func(context.Context)
 	if scan.AttachVolume {
 		device, localSnapshotARN, cleanupAttach, err = shareAndAttachSnapshot(ctx, scan, snapshotARN)
+		defer func() {
+			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+			defer cancel()
+			cleanupAttach(cleanupctx)
+		}()
+		if err != nil {
+			return err
+		}
 	} else if globalParams.nbd {
 		ebsclient := ebs.NewFromConfig(cfg)
 		device, cleanupAttach, err = attachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient)
+		defer func() {
+			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+			defer cancel()
+			cleanupAttach(cleanupctx)
+		}()
 		localSnapshotARN = snapshotARN
+		if err != nil {
+			return err
+		}
 	} else {
 		// Only vulns scanning works without a proper mount point (for now)
 		for _, action := range scan.Actions {
@@ -1598,15 +1617,6 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 
 	// TODO: remove this check once we definitly move to nbd mounting
 	if device != "" {
-		defer func() {
-			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
-			defer cancel()
-			cleanupAttach(cleanupctx)
-		}()
-		if err != nil {
-			return err
-		}
-
 		mountPoints, cleanupMount, err := mountDevice(ctx, scan, localSnapshotARN, device)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
