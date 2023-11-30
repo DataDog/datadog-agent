@@ -462,6 +462,20 @@
       ],
       "description": "FileEventSerializer serializes a file event to JSON"
     },
+    "FlattenedPacketEvent": {
+      "properties": {
+        "metadata": true,
+        "layers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/NetworkLayer"
+          },
+          "type": "object"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "FlattenedPacketEventSerializer is a helper struct to serialize a packet to JSON with flattened layers."
+    },
     "IPPort": {
       "properties": {
         "ip": {
@@ -743,6 +757,24 @@
         "ifname"
       ],
       "description": "NetworkDeviceSerializer serializes the network device context to JSON"
+    },
+    "NetworkLayer": {
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "data": true
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ],
+      "description": "NetworkLayerSerializer is a helper struct to serialize network layers to JSON."
     },
     "PTraceEvent": {
       "properties": {
@@ -1369,6 +1401,9 @@
     },
     "usr": {
       "$ref": "#/$defs/UserContext"
+    },
+    "packet": {
+      "$ref": "#/$defs/FlattenedPacketEvent"
     }
   },
   "additionalProperties": false,

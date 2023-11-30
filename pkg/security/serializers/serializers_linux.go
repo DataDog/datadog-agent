@@ -11,11 +11,15 @@
 package serializers
 
 import (
+	json "encoding/json"
 	"fmt"
 	"syscall"
 	"time"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/google/gopacket"
+	jwriter "github.com/mailru/easyjson/jwriter"
 
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
@@ -461,6 +465,19 @@ type AnomalyDetectionSyscallEventSerializer struct {
 	Syscall string `json:"syscall"`
 }
 
+// NetworkLayerSerializer is a helper struct to serialize network layers to JSON.
+type NetworkLayerSerializer struct {
+	Name  string      `json:"name"`
+	Type  string      `json:"type"`
+	Layer interface{} `json:"data,omitempty"`
+}
+
+// FlattenedPacketEventSerializer is a helper struct to serialize a packet to JSON with flattened layers.
+type FlattenedPacketEventSerializer struct {
+	Metadata interface{}                        `json:"metadata,omitempty"`
+	Layers   map[string]*NetworkLayerSerializer `json:"layers,omitempty"`
+}
+
 // EventSerializer serializes an event to JSON
 // easyjson:json
 type EventSerializer struct {
@@ -483,6 +500,7 @@ type EventSerializer struct {
 	*MountEventSerializer                   `json:"mount,omitempty"`
 	*AnomalyDetectionSyscallEventSerializer `json:"anomaly_detection_syscall,omitempty"`
 	*UserContextSerializer                  `json:"usr,omitempty"`
+	*FlattenedPacketEventSerializer         `json:"packet,omitempty"`
 }
 
 func newAnomalyDetectionSyscallEventSerializer(e *model.AnomalyDetectionSyscallEvent) *AnomalyDetectionSyscallEventSerializer {
@@ -922,6 +940,50 @@ func newSecurityProfileContextSerializer(e *model.SecurityProfileContext) *Secur
 	}
 }
 
+// NewPacketLayerSerializer creates a new NetworkLayerSerializer.
+func NewPacketLayerSerializer(name string, layer gopacket.Layer) *NetworkLayerSerializer {
+	if layer == nil {
+		return nil
+	}
+	return &NetworkLayerSerializer{
+		Name:  name,
+		Type:  layer.LayerType().String(),
+		Layer: layer,
+	}
+}
+
+// NewFlattenedPacketEventSerializer creates a new FlattenedPacketEventSerializer.
+func NewFlattenedPacketEventSerializer(e *model.PacketEvent) *FlattenedPacketEventSerializer {
+	layers := make(map[string]*NetworkLayerSerializer, 4)
+	if e.ApplicationLayer() != nil {
+		layers["application"] = NewPacketLayerSerializer("application", e.ApplicationLayer())
+	}
+	if e.TransportLayer() != nil {
+		layers["transport"] = NewPacketLayerSerializer("transport", e.TransportLayer())
+	}
+	if e.NetworkLayer() != nil {
+		layers["network"] = NewPacketLayerSerializer("network", e.NetworkLayer())
+	}
+	if e.LinkLayer() != nil {
+		layers["link"] = NewPacketLayerSerializer("link", e.LinkLayer())
+	}
+
+	return &FlattenedPacketEventSerializer{
+		Metadata: e.Metadata(),
+		Layers:   layers,
+	}
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (l *NetworkLayerSerializer) MarshalEasyJSON(w *jwriter.Writer) {
+	w.Raw(json.Marshal(l))
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (e *FlattenedPacketEventSerializer) MarshalEasyJSON(w *jwriter.Writer) {
+	w.Raw(json.Marshal(e))
+}
+
 // ToJSON returns json
 func (e *EventSerializer) ToJSON() ([]byte, error) {
 	return utils.MarshalEasyJSON(e)
@@ -1149,6 +1211,9 @@ func NewEventSerializer(event *model.Event) *EventSerializer {
 	case model.DNSEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(0)
 		s.DNSEventSerializer = newDNSEventSerializer(&event.DNS)
+	case model.PacketEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(0)
+		s.FlattenedPacketEventSerializer = NewFlattenedPacketEventSerializer(&event.Packet)
 	}
 
 	return s
