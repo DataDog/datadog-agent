@@ -87,12 +87,14 @@ single-machine-performance-regression_detector:
     # Wait for job to complete.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
             job status
+            --use-consignor welch
             --wait
             --wait-delay-seconds 60
             --submission-metadata submission_metadata
     # Now that the job is completed pull the analysis report, output it to stdout.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
             job sync
+            --use-consignor welch
             --submission-metadata submission_metadata
             --output-path outputs
     # Replace empty lines in the output with lines containing various unicode
@@ -124,4 +126,5 @@ single-machine-performance-regression_detector:
     # Finally, exit 1 if the job signals a regression else 0.
     - RUST_LOG="${RUST_LOG}" ./smp --team-id ${SMP_AGENT_TEAM_ID} --api-base ${SMP_API} --aws-named-profile ${AWS_NAMED_PROFILE}
             job result
+            --use-consignor welch
             --submission-metadata submission_metadata
