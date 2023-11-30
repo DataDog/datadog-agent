@@ -77,6 +77,7 @@ var (
 	globalParams struct {
 		configFilePath string
 		attachVolumes  bool
+		nbd            bool
 	}
 
 	defaultHTTPClient = &http.Client{
@@ -181,9 +182,11 @@ func rootCommand() *cobra.Command {
 
 	sideScannerCmd.PersistentFlags().StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to side-scanner configuration yaml file")
 	sideScannerCmd.PersistentFlags().BoolVarP(&globalParams.attachVolumes, "attach-volumes", "", false, "scan EBS snapshots by creating a dedicated volume")
+	sideScannerCmd.PersistentFlags().BoolVarP(&globalParams.nbd, "nbd", "", false, "scan EBS snapshots using network-block-device mounts")
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 	sideScannerCmd.AddCommand(offlineCommand())
+	sideScannerCmd.AddCommand(attachCommand())
 	sideScannerCmd.AddCommand(mountCommand())
 	sideScannerCmd.AddCommand(cleanupCommand())
 
@@ -301,14 +304,41 @@ func offlineCommand() *cobra.Command {
 	return cmd
 }
 
+func attachCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "attach",
+		Short: "Attach a list of ARNs given in stdin into volumes to the EC2 instance",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return fxutil.OneShot(
+				func(_ complog.Component, _ compconfig.Component) error {
+					return attachCmd()
+				},
+				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
+				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
+				complog.Module,
+				compconfig.Module,
+			)
+		},
+	}
+
+	return cmd
+}
+
 func mountCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "mount",
+		Use:   "mount <snapshot-arn>",
 		Short: "Runs the side-scanner in offline mode (server-less mode)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return mountCmd()
+					if len(args) == 0 {
+						return fmt.Errorf("missing snapshot-arn")
+					}
+					snapshotARN, err := arn.Parse(args[0])
+					if err != nil {
+						return err
+					}
+					return mountCmd(snapshotARN)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -768,7 +798,7 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) err
 	return nil
 }
 
-func mountCmd() error {
+func attachCmd() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -845,8 +875,13 @@ func mountCmd() error {
 			return fmt.Errorf("unsupport resource type %q", resourceType)
 		}
 
-		mountPoints, cleanupVolume, err := shareAndAttachSnapshot(ctx, scan, snapshotARN)
+		device, localSnapshotARN, cleanupVolume, err := shareAndAttachSnapshot(ctx, scan, snapshotARN)
 		cleanups = append(cleanups, cleanupVolume)
+		if err != nil {
+			return err
+		}
+		mountPoints, cleanupMount, err := mountDevice(ctx, scan, localSnapshotARN, device)
+		cleanups = append(cleanups, cleanupMount)
 		if err != nil {
 			return err
 		}
@@ -858,6 +893,42 @@ func mountCmd() error {
 
 	<-ctx.Done()
 
+	return nil
+}
+
+func mountCmd(snapshotARN arn.ARN) error {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
+	cfg, _, err := newAWSConfig(ctx, snapshotARN.Region, nil)
+	if err != nil {
+		return err
+	}
+	ebsclient := ebs.NewFromConfig(cfg)
+	device := nextNBDDevice()
+	err = SetupEBSBlockDevice(ctx, EBSBlockDeviceOptions{
+		EBSClient:   ebsclient,
+		Name:        snapshotARN.String(),
+		Description: "",
+		SnapshotARN: snapshotARN,
+		DeviceName:  device,
+	})
+	if err != nil {
+		return err
+	}
+
+	mountPoints, cleanupMount, err := mountDevice(ctx, nil, snapshotARN, device)
+	defer cleanupMount(context.TODO())
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(mountPoints)
+
+	select {
+	case <-time.After(60 * time.Minute):
+	case <-ctx.Done():
+	}
 	return nil
 }
 
@@ -1502,8 +1573,17 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 
 	log.Infof("start EBS scanning %s", scan)
 
+	var device string
+	var localSnapshotARN arn.ARN
 	var scanStartedAt time.Time
-	if !scan.AttachVolume {
+	var cleanupAttach func(context.Context)
+	if scan.AttachVolume {
+		device, localSnapshotARN, cleanupAttach, err = shareAndAttachSnapshot(ctx, scan, snapshotARN)
+	} else if globalParams.nbd {
+		ebsclient := ebs.NewFromConfig(cfg)
+		device, cleanupAttach, err = attachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient)
+		localSnapshotARN = snapshotARN
+	} else {
 		// Only vulns scanning works without a proper mount point (for now)
 		for _, action := range scan.Actions {
 			if action != vulns {
@@ -1511,22 +1591,32 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 			}
 		}
 		ebsclient := ebs.NewFromConfig(cfg)
-		if err != nil {
-			return fmt.Errorf("could not create EBS client: %w", err)
-		}
 		scanStartedAt = time.Now()
 		sbom, err := launchScannerTrivyVM(ctx, scan, ebsclient, snapshotARN)
 		resultsCh <- scanResult{err: err, scan: scan, sbom: sbom}
-	} else {
-		mountPoints, cleanupVolume, err := shareAndAttachSnapshot(ctx, scan, snapshotARN)
+	}
+
+	// TODO: remove this check once we definitly move to nbd mounting
+	if device != "" {
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
-			cleanupVolume(cleanupctx)
+			cleanupAttach(cleanupctx)
 		}()
 		if err != nil {
 			return err
 		}
+
+		mountPoints, cleanupMount, err := mountDevice(ctx, scan, localSnapshotARN, device)
+		defer func() {
+			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+			defer cancel()
+			cleanupMount(cleanupctx)
+		}()
+		if err != nil {
+			return err
+		}
+
 		scanStartedAt = time.Now()
 		for _, mountPoint := range mountPoints {
 			for _, action := range scan.Actions {
@@ -1548,6 +1638,24 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	return nil
 }
 
+func attachSnapshotWithNBD(ctx context.Context, scan *scanTask, snapshotARN arn.ARN, ebsclient *ebs.Client) (string, func(context.Context), error) {
+	ctx, cancel := context.WithCancel(ctx)
+	cleanupAttach := func(ctx context.Context) {
+		cancel()
+	}
+	device := nextNBDDevice()
+	err := SetupEBSBlockDevice(ctx, EBSBlockDeviceOptions{
+		EBSClient:   ebsclient,
+		Name:        scan.ARN.String(),
+		DeviceName:  device,
+		SnapshotARN: snapshotARN,
+	})
+	if err != nil {
+		return "", cleanupAttach, err
+	}
+	return device, cleanupAttach, nil
+}
+
 // reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
 var deviceName struct {
 	mu     sync.Mutex
@@ -1563,6 +1671,20 @@ func nextDeviceName() string {
 		deviceName.letter += 1
 	}
 	return fmt.Sprintf("/dev/sd%c", deviceName.letter)
+}
+
+var nbdDeviceName struct {
+	mu    sync.Mutex
+	count int
+}
+
+func nextNBDDevice() string {
+	const nbdsMax = 1024
+	nbdDeviceName.mu.Lock()
+	defer nbdDeviceName.mu.Unlock()
+	count := nbdDeviceName.count
+	nbdDeviceName.count += 1 % nbdsMax
+	return fmt.Sprintf("/dev/nbd%d", count)
 }
 
 func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) error {
@@ -1721,7 +1843,7 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 	return nil
 }
 
-func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (mountPoints []string, cleanupVolume func(context.Context), err error) {
+func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (device string, localSnapshotARN arn.ARN, cleanupVolume func(context.Context), err error) {
 	var cleanups []func(context.Context)
 	pushCleanup := func(cleanup func(context.Context)) {
 		cleanups = append(cleanups, cleanup)
@@ -1783,10 +1905,12 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 			return
 		}
 		log.Debugf("successfully copied snapshot %q into %q: %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
-		snapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, ec2types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
+		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, ec2types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
+	} else {
+		localSnapshotARN = snapshotARN
 	}
 
-	if snapshotARN.AccountID != "" && snapshotARN.AccountID != self.AccountID {
+	if localSnapshotARN.AccountID != "" && localSnapshotARN.AccountID != self.AccountID {
 		_, err = remoteEC2Client.ModifySnapshotAttribute(ctx, &ec2.ModifySnapshotAttributeInput{
 			SnapshotId:    aws.String(snapshotID),
 			Attribute:     ec2types.SnapshotAttributeNameCreateVolumePermission,
@@ -1794,7 +1918,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 			UserIds:       []string{self.AccountID},
 		})
 		if err != nil {
-			err = fmt.Errorf("could not modify snapshot attributes %q for sharing with account ID %q: %w", snapshotARN, self.AccountID, err)
+			err = fmt.Errorf("could not modify snapshot attributes %q for sharing with account ID %q: %w", localSnapshotARN, self.AccountID, err)
 			return
 		}
 	}
@@ -1807,8 +1931,8 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 	}
 	locaEC2Client := ec2.NewFromConfig(localAWSCfg)
 
-	log.Debugf("creating new volume for snapshot %q in az %q", snapshotARN, self.AvailabilityZone)
-	_, localSnapshotID, _ := getARNResource(snapshotARN)
+	log.Debugf("creating new volume for snapshot %q in az %q", localSnapshotARN, self.AvailabilityZone)
+	_, localSnapshotID, _ := getARNResource(localSnapshotARN)
 	volume, err := locaEC2Client.CreateVolume(ctx, &ec2.CreateVolumeInput{
 		VolumeType:        ec2types.VolumeTypeGp2,
 		AvailabilityZone:  aws.String(self.AvailabilityZone),
@@ -1844,7 +1968,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 		}
 	})
 
-	device := nextDeviceName()
+	device = nextDeviceName()
 	log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
 	for i := 0; i < 10; i++ {
 		_, err = locaEC2Client.AttachVolume(ctx, &ec2.AttachVolumeInput{
@@ -1862,6 +1986,20 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 	if err != nil {
 		err = fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, err)
 		return
+	}
+
+	return
+}
+
+func mountDevice(ctx context.Context, scan *scanTask, snapshotARN arn.ARN, device string) (mountPoints []string, cleanupMount func(context.Context), err error) {
+	var cleanups []func(context.Context)
+	pushCleanup := func(cleanup func(context.Context)) {
+		cleanups = append(cleanups, cleanup)
+	}
+	cleanupMount = func(ctx context.Context) {
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			cleanups[i](ctx)
+		}
 	}
 
 	type devicePartition struct {
@@ -1901,14 +2039,16 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 		return
 	}
 
+	_, snapshotID, _ := getARNResource(snapshotARN)
+
 	pushCleanup(func(_ context.Context) {
-		baseMountTarget := fmt.Sprintf("/snapshots/%s", localSnapshotID)
+		baseMountTarget := fmt.Sprintf("/snapshots/%s", snapshotID)
 		log.Debugf("unlink directory %q", baseMountTarget)
 		os.Remove(baseMountTarget)
 	})
 
 	for _, mp := range partitions {
-		mountPoint := fmt.Sprintf("/snapshots/%s/%s", localSnapshotID, path.Base(mp.devicePath))
+		mountPoint := fmt.Sprintf("/snapshots/%s/%s", snapshotID, path.Base(mp.devicePath))
 		err = os.MkdirAll(mountPoint, 0700)
 		if err != nil {
 			err = fmt.Errorf("could not create mountPoint directory %q: %w", mountPoint, err)
@@ -1933,7 +2073,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 
 		var mountOutput []byte
 		for i := 0; i < 50; i++ {
-			log.Debugf("execing mount %#v %q", mp.devicePath, mountPoint)
+			log.Debugf("execing mount -o %s -t %s --source %s --target %q", fsOptions, mp.fsType, mp.devicePath, mountPoint)
 			mountOutput, err = exec.CommandContext(ctx, "mount", "-o", fsOptions, "-t", mp.fsType, "--source", mp.devicePath, "--target", mountPoint).CombinedOutput()
 			if err == nil {
 				break
