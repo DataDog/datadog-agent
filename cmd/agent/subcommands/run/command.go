@@ -23,7 +23,6 @@ import (
 	"go.uber.org/fx"
 	"gopkg.in/DataDog/dd-trace-go.v1/profiler"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/misconfig"
@@ -39,6 +38,8 @@ import (
 	// checks implemented as components
 
 	// core components
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -207,9 +208,10 @@ func run(log log.Component,
 	secretResolver secrets.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
+	agentAPI internalAPI.Component,
 ) error {
 	defer func() {
-		stopAgent(cliParams, server, demultiplexer)
+		stopAgent(cliParams, server, demultiplexer, agentAPI)
 	}()
 
 	// prepare go runtime
@@ -267,6 +269,7 @@ func run(log log.Component,
 		invAgent,
 		invHost,
 		secretResolver,
+		agentAPI,
 	); err != nil {
 		return err
 	}
@@ -312,6 +315,7 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		workloadmeta.Module,
+		apiimpl.Module,
 
 		dogstatsd.Bundle,
 		otelcol.Bundle,
@@ -378,6 +382,7 @@ func startAgent(
 	invAgent inventoryagent.Component,
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
+	agentAPI internalAPI.Component,
 ) error {
 
 	var err error
@@ -517,7 +522,7 @@ func startAgent(
 	}
 
 	// start the cmd HTTP server
-	if err = api.StartServer(
+	if err = agentAPI.StartServer(
 		configService,
 		flare,
 		server,
@@ -621,12 +626,12 @@ func startAgent(
 }
 
 // StopAgentWithDefaults is a temporary way for other packages to use stopAgent.
-func StopAgentWithDefaults(server dogstatsdServer.Component, demultiplexer demultiplexer.Component) {
-	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, demultiplexer)
+func StopAgentWithDefaults(server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
+	stopAgent(&cliParams{GlobalParams: &command.GlobalParams{}}, server, demultiplexer, agentAPI)
 }
 
 // stopAgent Tears down the agent process
-func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultiplexer demultiplexer.Component) {
+func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultiplexer demultiplexer.Component, agentAPI internalAPI.Component) {
 	// retrieve the agent health before stopping the components
 	// GetReadyNonBlocking has a 100ms timeout to avoid blocking
 	health, err := health.GetReadyNonBlocking()
@@ -649,7 +654,7 @@ func stopAgent(cliParams *cliParams, server dogstatsdServer.Component, demultipl
 		common.MetadataScheduler.Stop()
 	}
 	traps.StopServer()
-	api.StopServer()
+	agentAPI.StopServer()
 	clcrunnerapi.StopCLCRunnerServer()
 	jmx.StopJmxfetch()
 
