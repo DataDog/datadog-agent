@@ -845,13 +845,15 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 
 			tt.runClients(t, 1)
 
-			res := make(map[http.Key]int)
+			var telemetry *usmhttp2.HTTP2Telemetry
 			assert.Eventually(t, func() bool {
-				telemetry, err := usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry()
+				telemetry, err = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry()
 				require.NoError(t, err)
 				return reflect.DeepEqual(tt.expectedTelemetry, telemetry)
-
-			}, time.Second*5, time.Millisecond*100, "%v != %v", res, tt.expectedTelemetry)
+			}, time.Second*5, time.Millisecond*100)
+			if t.Failed() {
+				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
+			}
 		})
 	}
 }

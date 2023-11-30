@@ -121,13 +121,9 @@ static __always_inline void parse_field_indexed(dynamic_table_index_t *dynamic_i
     // Our internal indexes start from 1, so we subtract 61 in order to match the given index.
     dynamic_index->index = global_dynamic_counter - (index - MAX_STATIC_TABLE_INDEX);
 
-    if (bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) == NULL) {
-        return;
-    }
-
     headers_to_process->index = dynamic_index->index;
     headers_to_process->type = kExistingDynamicHeader;
-    (*interesting_headers_counter)++;
+    *interesting_headers_counter += bpf_map_lookup_elem(&http2_dynamic_table, dynamic_index) != NULL;
     return;
 }
 
@@ -184,8 +180,8 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     // - The string is too big
     // - This is not a path
     // - We won't be able to store the header info
-    if (str_len > HTTP2_MAX_PATH_LEN || index != kIndexPath || headers_to_process == NULL) {
-            goto end;
+    if (headers_to_process == NULL) {
+        goto end;
     }
 
     if (skb_info->data_off + str_len > skb_info->data_end) {
@@ -197,7 +193,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     headers_to_process->type = kNewDynamicHeader;
     headers_to_process->new_dynamic_value_offset = skb_info->data_off;
     headers_to_process->new_dynamic_value_size = str_len;
-    (*interesting_headers_counter)++;
+    *interesting_headers_counter += (str_len > 0 && str_len <= HTTP2_MAX_PATH_LEN);
 end:
     skb_info->data_off += str_len;
     return true;
