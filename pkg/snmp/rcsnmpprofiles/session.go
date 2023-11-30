@@ -3,6 +3,7 @@ package rcsnmpprofiles
 import (
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/gosnmp/gosnmp"
+	"time"
 )
 
 func createSession(config parse.SNMPConfig) gosnmp.GoSNMP {
@@ -12,8 +13,8 @@ func createSession(config parse.SNMPConfig) gosnmp.GoSNMP {
 		Community: config.CommunityString,
 		Transport: "udp",
 		Version:   gosnmp.Version2c,
-		//Timeout:   time.Duration(cliParams.timeout * int(time.Second)),
-		//Retries:   cliParams.retries,
+		Timeout:   time.Duration(5 * int(time.Second)),
+		Retries:   3,
 		//// v3
 		//SecurityModel: gosnmp.UserSecurityModel,
 		//ContextName:   cliParams.snmpContext,

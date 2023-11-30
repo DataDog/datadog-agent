@@ -68,6 +68,7 @@ func (rc *RemoteConfigSNMPProfilesManager) Callback(updates map[string]state.Raw
 
 func (rc *RemoteConfigSNMPProfilesManager) collectDeviceOIDs(config parse.SNMPConfig) {
 	session := createSession(config)
+	log.Infof("[RC Callback] session: %+v", session)
 
 	// Establish connection
 	err := session.Connect()
@@ -78,12 +79,10 @@ func (rc *RemoteConfigSNMPProfilesManager) collectDeviceOIDs(config parse.SNMPCo
 	}
 	defer session.Conn.Close()
 
-	log.Infof("[RC Callback] session: %+v", session)
-
 	variables := FetchAllFirstRowOIDsVariables(session)
 	log.Infof("[RC Callback] Variables: %d", len(variables))
 
 	for _, variable := range variables {
-		log.Infof("[RC Callback]  Variable Name: %s", variable.Name)
+		log.Infof("[RC Callback] Variable Name: %s", variable.Name)
 	}
 }
