@@ -19,7 +19,6 @@ import (
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/prometheus/client_golang/prometheus"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/sys/unix"
 
@@ -326,14 +325,6 @@ func (b *EBPFTelemetry) setupMapEditors(opts *manager.Options) {
 	if b.helperErrMap != nil {
 		opts.MapEditors[probes.HelperErrTelemetryMap] = b.helperErrMap
 	}
-}
-
-func getEnabledProgramNames(m *manager.Manager) ([]string, error) {
-	progs, err := m.GetProgramSpecs()
-	if err != nil {
-		return nil, err
-	}
-	return maps.Keys(progs), nil
 }
 
 // ebpfTelemetrySupported returns whether eBPF telemetry is supported, which depends on the verifier in 4.14+
