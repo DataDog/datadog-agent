@@ -276,6 +276,16 @@ supported Datadog intakes.
 
 
 
+## [comp/serverless](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/serverless) (Component Bundle)
+
+*Datadog Team*: serverless-agent
+
+Package serverless implements the "serverless" bundle,
+
+### [comp/serverless/daemon](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/serverless/daemon)
+
+Package daemon acts as the communication server between the Serverless runtime and the Datadog agent
+
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/systray) (Component Bundle)
 
 *Datadog Team*: windows-agent

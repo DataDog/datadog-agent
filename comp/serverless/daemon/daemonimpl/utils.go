@@ -3,14 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package daemon
+package daemonimpl
 
 import (
 	"sync"
 	"time"
 )
 
-const LocalTestEnvVar = "DD_LOCAL_TEST"
+const localTestEnvVar = "DD_LOCAL_TEST"
 
 // waitWithTimeout waits for a WaitGroup with a specified max timeout.
 // Returns true if waiting timed out.

@@ -14,13 +14,18 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	"github.com/DataDog/datadog-agent/comp/serverless/daemon"
+	"github.com/DataDog/datadog-agent/comp/serverless/daemon/daemonimpl"
+	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestDaemonStopOnTerminationSignals(t *testing.T) {
 	stopCh := make(chan struct{})
-	serverlessDaemon := daemon.StartDaemon("http://localhost:8124")
+	serverlessDaemon := fxutil.Test[daemon.Mock](t, fx.Supply(daemonimpl.Params{Addr: "http://localhost:8124", SketchesBucketOffset: time.Second * 10}), daemonimpl.MockModule)
+	serverlessDaemon.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 
 	testCases := []struct {
 		name   string
@@ -45,7 +50,7 @@ func TestDaemonStopOnTerminationSignals(t *testing.T) {
 			select {
 			// Expected behavior, the daemon should be stopped
 			case <-stopCh:
-				assert.Equal(t, true, serverlessDaemon.Stopped)
+				assert.Equal(t, true, serverlessDaemon.GetStopped())
 			case <-time.After(1000 * time.Millisecond):
 				t.Error("Timeout waiting for daemon to stop")
 			}

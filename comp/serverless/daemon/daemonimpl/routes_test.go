@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package daemon
+package daemonimpl
 
 import (
 	"bytes"
@@ -15,12 +15,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 	"golang.org/x/exp/slices"
 
+	"github.com/DataDog/datadog-agent/comp/serverless/daemon"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
+	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 type mockLifecycleProcessor struct {
@@ -47,12 +51,13 @@ func (m *mockLifecycleProcessor) OnInvokeEnd(endDetails *invocationlifecycle.Inv
 func TestStartInvocation(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprintf("127.0.0.1:%d", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	m := &mockLifecycleProcessor{}
-	d.InvocationProcessor = m
+	d.SetInvocationProcessor(invocationlifecycle.InvocationProcessor(m))
 
 	client := &http.Client{Timeout: 1 * time.Second}
 	body := bytes.NewBuffer([]byte(`{"toto": "titi", "tata":true}`))
@@ -70,12 +75,13 @@ func TestStartInvocation(t *testing.T) {
 func TestEndInvocation(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprintf("127.0.0.1:%d", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	m := &mockLifecycleProcessor{}
-	d.InvocationProcessor = m
+	d.SetInvocationProcessor(invocationlifecycle.InvocationProcessor(m))
 
 	client := &http.Client{}
 	body := bytes.NewBuffer([]byte(`{}`))
@@ -90,23 +96,24 @@ func TestEndInvocation(t *testing.T) {
 	assert.False(m.isError)
 	assert.True(m.OnInvokeEndCalled)
 
-	lastRequestID := d.ExecutionContext.GetCurrentState().LastRequestID
-	coldStartTags := d.ExecutionContext.GetColdStartTagsForRequestID(lastRequestID)
+	lastRequestID := d.GetExecutionContext().GetCurrentState().LastRequestID
+	coldStartTags := d.GetExecutionContext().GetColdStartTagsForRequestID(lastRequestID)
 
 	assert.Equal(m.lastEndDetails.ColdStart, coldStartTags.IsColdStart)
 	assert.Equal(m.lastEndDetails.ProactiveInit, coldStartTags.IsProactiveInit)
-	assert.Equal(m.lastEndDetails.Runtime, d.ExecutionContext.GetCurrentState().Runtime)
+	assert.Equal(m.lastEndDetails.Runtime, d.GetExecutionContext().GetCurrentState().Runtime)
 }
 
 func TestEndInvocationWithError(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprintf("127.0.0.1:%d", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
 	m := &mockLifecycleProcessor{}
-	d.InvocationProcessor = m
+	d.SetInvocationProcessor(invocationlifecycle.InvocationProcessor(m))
 
 	client := &http.Client{}
 	body := bytes.NewBuffer([]byte(`{}`))
@@ -127,15 +134,16 @@ func TestTraceContext(t *testing.T) {
 	assert := assert.New(t)
 
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprintf("127.0.0.1:%d", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
-	d.InvocationProcessor = &invocationlifecycle.LifecycleProcessor{
-		ExtraTags:           d.ExtraTags,
+	d.SetInvocationProcessor(&invocationlifecycle.LifecycleProcessor{
+		ExtraTags:           d.GetExtraTags(),
 		Demux:               nil,
 		ProcessTrace:        nil,
 		DetectLambdaLibrary: func() bool { return false },
-	}
+	})
 	client := &http.Client{}
 	body := bytes.NewBuffer([]byte(`{"toto": "tutu","Headers": {"x-datadog-trace-id": "2222","x-datadog-parent-id":"3333"}}`))
 	request, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port), body)
@@ -147,17 +155,18 @@ func TestTraceContext(t *testing.T) {
 	assert.Nil(err)
 	res, err := client.Do(request)
 	assert.Nil(err)
-	assert.Equal("2222", fmt.Sprintf("%v", d.InvocationProcessor.GetExecutionInfo().TraceID))
+	assert.Equal("2222", fmt.Sprintf("%v", d.GetInvocationProcessor().GetExecutionInfo().TraceID))
 	if res != nil {
 		res.Body.Close()
-		assert.Equal(res.Header.Get("x-datadog-trace-id"), fmt.Sprintf("%v", d.InvocationProcessor.GetExecutionInfo().TraceID))
-		assert.Equal(res.Header.Get("x-datadog-span-id"), fmt.Sprintf("%v", d.InvocationProcessor.GetExecutionInfo().SpanID))
+		assert.Equal(res.Header.Get("x-datadog-trace-id"), fmt.Sprintf("%v", d.GetInvocationProcessor().GetExecutionInfo().TraceID))
+		assert.Equal(res.Header.Get("x-datadog-span-id"), fmt.Sprintf("%v", d.GetInvocationProcessor().GetExecutionInfo().SpanID))
 	}
 }
 
 func TestStartEndInvocationSpanParenting(t *testing.T) {
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprintf("127.0.0.1:%d", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	time.Sleep(100 * time.Millisecond)
 	defer d.Stop()
 
@@ -174,7 +183,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 		ProcessTrace:        processTrace,
 		DetectLambdaLibrary: func() bool { return false },
 	}
-	d.InvocationProcessor = processor
+	d.SetInvocationProcessor(processor)
 
 	client := &http.Client{Timeout: 1 * time.Second}
 	startURL := fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port)
@@ -329,7 +338,7 @@ func TestStartEndInvocationSpanParenting(t *testing.T) {
 
 // Helper function for reading test file
 func getEventFromFile(filename string) string {
-	event, err := os.ReadFile("../trace/testdata/event_samples/" + filename)
+	event, err := os.ReadFile("../../../../pkg/serverless/trace/testdata/event_samples/" + filename)
 	if err != nil {
 		panic(err)
 	}

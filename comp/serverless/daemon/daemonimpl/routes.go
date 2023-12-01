@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package daemon
+package daemonimpl
 
 import (
 	"encoding/base64"
@@ -23,7 +23,7 @@ type Hello struct {
 	daemon *Daemon
 }
 
-func (h *Hello) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *Hello) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 	log.Debug("Hit on the serverless.Hello route.")
 	h.daemon.LambdaLibraryDetected = true
 }
@@ -34,12 +34,12 @@ type Flush struct {
 	daemon *Daemon
 }
 
-func (f *Flush) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (f *Flush) ServeHTTP(_ http.ResponseWriter, _ *http.Request) {
 	log.Debug("Hit on the serverless.Flush route.")
-	if os.Getenv(LocalTestEnvVar) == "true" || os.Getenv(LocalTestEnvVar) == "1" {
+	if os.Getenv(localTestEnvVar) == "true" || os.Getenv(localTestEnvVar) == "1" {
 		// used only for testing purpose as the Logs API is not supported by the Lambda Emulator
 		// thus we canot get the REPORT log line telling that the invocation is finished
-		f.daemon.HandleRuntimeDone()
+		f.daemon.handleRuntimeDone()
 	}
 }
 
@@ -131,7 +131,7 @@ type TraceContext struct {
 	daemon *Daemon
 }
 
-func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (tc *TraceContext) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	executionInfo := tc.daemon.InvocationProcessor.GetExecutionInfo()
 	log.Debug("Hit on the serverless.TraceContext route.")
 	w.Header().Set(invocationlifecycle.TraceIDHeader, fmt.Sprintf("%v", executionInfo.TraceID))

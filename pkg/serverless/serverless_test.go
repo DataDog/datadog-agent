@@ -7,22 +7,20 @@ package serverless
 
 import (
 	"fmt"
-	"os"
+	"net"
 	"runtime/debug"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	"github.com/DataDog/datadog-agent/comp/serverless/daemon"
+	"github.com/DataDog/datadog-agent/comp/serverless/daemon/daemonimpl"
+	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-func TestMain(m *testing.M) {
-	origShutdownDelay := daemon.ShutdownDelay
-	daemon.ShutdownDelay = 0
-	defer func() { daemon.ShutdownDelay = origShutdownDelay }()
-	os.Exit(m.Run())
-}
 
 func TestHandleInvocationShouldNotSIGSEGVWhenTimedOut(t *testing.T) {
 	currentPanicOnFaultBehavior := debug.SetPanicOnFault(true)
@@ -36,7 +34,12 @@ func TestHandleInvocationShouldNotSIGSEGVWhenTimedOut(t *testing.T) {
 
 	for i := 0; i < 10; i++ { // each one of these takes about a second on my laptop
 		fmt.Printf("Running this test the %d time\n", i)
-		d := daemon.StartDaemon("http://localhost:8124")
+
+		// wait for port 8125 to be available since the DogStatsD Server started by Daemon needs it open
+		waitForUDPPort(8125, 1*time.Second)
+
+		d := fxutil.Test[daemon.Mock](t, fx.Supply(daemonimpl.Params{Addr: "http://localhost:8124", SketchesBucketOffset: time.Second * 10}), daemonimpl.MockModule)
+		d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 		d.WaitForDaemon()
 
 		//deadline = current time - 20 ms
@@ -68,4 +71,30 @@ func TestRemoveQualifierFromArnWithoutAlias(t *testing.T) {
 	invokedFunctionArn := "arn:aws:lambda:eu-south-1:425362996713:function:inferred-spans-function-urls-dev-harv-function-urls"
 	functionArn := removeQualifierFromArn(invokedFunctionArn)
 	assert.Equal(t, functionArn, invokedFunctionArn)
+}
+
+func waitForUDPPort(port int, timeout time.Duration) {
+	address := fmt.Sprintf("127.0.0.1:%d", port)
+
+	startTime := time.Now()
+
+	for {
+		conn, err := net.DialTimeout("udp", address, timeout)
+
+		if err == nil {
+			// Successfully dialed the address, so the port is available
+			log.Debugf("Port %d is now open for listening.\n", port)
+			conn.Close()
+			return
+		}
+
+		// Check if the timeout has been reached
+		if time.Since(startTime) >= timeout {
+			log.Debugf("Timed out waiting for port %d to become available", port)
+			return
+		}
+
+		// Port not available yet, retry after a short interval
+		time.Sleep(100 * time.Millisecond)
+	}
 }

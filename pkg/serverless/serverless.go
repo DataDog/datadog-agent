@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
+	"github.com/DataDog/datadog-agent/comp/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
@@ -74,7 +74,7 @@ func (s ShutdownReason) String() string {
 }
 
 // InvocationHandler is the invocation handler signature
-type InvocationHandler func(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string)
+type InvocationHandler func(doneChannel chan bool, serverlessDaemon daemon.Component, arn string, requestID string)
 
 // Payload is the payload read in the response while subscribing to
 // the AWS Extension env.
@@ -94,7 +94,7 @@ type FlushableAgent interface {
 // WaitForNextInvocation makes a blocking HTTP call to receive the next event from AWS.
 // Note that for now, we only subscribe to INVOKE and SHUTDOWN events.
 // Write into stopCh to stop the main thread of the running program.
-func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id registration.ID) error {
+func WaitForNextInvocation(stopCh chan struct{}, serverlessDaemon daemon.Component, id registration.ID) error {
 	var err error
 	var request *http.Request
 	var response *http.Response
@@ -110,7 +110,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 		return fmt.Errorf("WaitForNextInvocation: while GET next route: %v", err)
 	}
 	// we received an INVOKE or SHUTDOWN event
-	daemon.StoreInvocationTime(time.Now())
+	serverlessDaemon.StoreInvocationTime(time.Now())
 
 	var body []byte
 	if body, err = io.ReadAll(response.Body); err != nil {
@@ -125,75 +125,75 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 
 	if payload.EventType == Invoke {
 		functionArn := removeQualifierFromArn(payload.InvokedFunctionArn)
-		callInvocationHandler(daemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
+		callInvocationHandler(serverlessDaemon, functionArn, payload.DeadlineMs, safetyBufferTimeout, payload.RequestID, handleInvocation)
 	} else if payload.EventType == Shutdown {
 		// Log collection can be safely called multiple times, so ensure we start log collection during a SHUTDOWN event too in case an INVOKE event is never received
-		daemon.StartLogCollection()
+		serverlessDaemon.StartLogCollection()
 		log.Debug("Received shutdown event. Reason: " + payload.ShutdownReason)
 		isTimeout := strings.ToLower(payload.ShutdownReason.String()) == Timeout.String()
 		if isTimeout {
-			coldStartTags := daemon.ExecutionContext.GetColdStartTagsForRequestID(daemon.ExecutionContext.LastRequestID())
-			metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
+			coldStartTags := serverlessDaemon.GetExecutionContext().GetColdStartTagsForRequestID(serverlessDaemon.GetExecutionContext().LastRequestID())
+			metricTags := tags.AddColdStartTag(serverlessDaemon.GetExtraTags().Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
 			metricTags = tags.AddInitTypeTag(metricTags)
-			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
-			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
+			metrics.SendTimeoutEnhancedMetric(metricTags, serverlessDaemon.GetMetricAgent().Demux)
+			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), serverlessDaemon.GetMetricAgent().Demux)
 		}
-		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
+		err := serverlessDaemon.GetExecutionContext().SaveCurrentExecutionContext()
 		if err != nil {
 			log.Warnf("Unable to save the current state. Failed with: %s", err)
 		}
-		daemon.Stop()
+		serverlessDaemon.Stop()
 		stopCh <- struct{}{}
 	}
 
 	return nil
 }
 
-func callInvocationHandler(daemon *daemon.Daemon, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, requestID string, invocationHandler InvocationHandler) {
+func callInvocationHandler(serverlessDaemon daemon.Component, arn string, deadlineMs int64, safetyBufferTimeout time.Duration, requestID string, invocationHandler InvocationHandler) {
 	timeout := computeTimeout(time.Now(), deadlineMs, safetyBufferTimeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	doneChannel := make(chan bool)
-	daemon.TellDaemonRuntimeStarted()
-	go invocationHandler(doneChannel, daemon, arn, requestID)
+	serverlessDaemon.TellDaemonRuntimeStarted()
+	go invocationHandler(doneChannel, serverlessDaemon, arn, requestID)
 	select {
 	case <-ctx.Done():
 		log.Debug("Timeout detected, finishing the current invocation now to allow receiving the SHUTDOWN event")
 		// Tell the Daemon that the runtime is done (even though it isn't, because it's timing out) so that we can receive the SHUTDOWN event
-		daemon.TellDaemonRuntimeDone()
+		serverlessDaemon.TellDaemonRuntimeDone()
 		return
 	case <-doneChannel:
 		return
 	}
 }
 
-func handleInvocation(doneChannel chan bool, daemon *daemon.Daemon, arn string, requestID string) {
+func handleInvocation(doneChannel chan bool, serverlessDaemon daemon.Component, arn string, requestID string) {
 	log.Debug("Received invocation event...")
-	daemon.ExecutionContext.SetFromInvocation(arn, requestID)
-	daemon.StartLogCollection()
-	coldStartTags := daemon.ExecutionContext.GetColdStartTagsForRequestID(requestID)
+	serverlessDaemon.GetExecutionContext().SetFromInvocation(arn, requestID)
+	serverlessDaemon.StartLogCollection()
+	coldStartTags := serverlessDaemon.GetExecutionContext().GetColdStartTagsForRequestID(requestID)
 
-	if daemon.MetricAgent != nil {
-		metricTags := tags.AddColdStartTag(daemon.ExtraTags.Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
+	if serverlessDaemon.GetMetricAgent() != nil {
+		metricTags := tags.AddColdStartTag(serverlessDaemon.GetExtraTags().Tags, coldStartTags.IsColdStart, coldStartTags.IsProactiveInit)
 		metricTags = tags.AddInitTypeTag(metricTags)
-		metrics.SendInvocationEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
+		metrics.SendInvocationEnhancedMetric(metricTags, serverlessDaemon.GetMetricAgent().Demux)
 	} else {
 		log.Error("Could not send the invocation enhanced metric")
 	}
 
 	if coldStartTags.IsColdStart {
-		daemon.UpdateStrategy()
+		serverlessDaemon.UpdateStrategy()
 	}
 
 	// immediately check if we should flush data
-	if daemon.ShouldFlush(flush.Starting) {
-		log.Debugf("The flush strategy %s has decided to flush at moment: %s", daemon.GetFlushStrategy(), flush.Starting)
-		daemon.TriggerFlush(false)
+	if serverlessDaemon.ShouldFlush(flush.Starting) {
+		log.Debugf("The flush strategy %s has decided to flush at moment: %s", serverlessDaemon.GetFlushStrategy(), flush.Starting)
+		serverlessDaemon.TriggerFlush(false)
 	} else {
-		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", daemon.GetFlushStrategy(), flush.Starting)
+		log.Debugf("The flush strategy %s has decided to not flush at moment: %s", serverlessDaemon.GetFlushStrategy(), flush.Starting)
 	}
 
-	daemon.WaitForDaemon()
+	serverlessDaemon.WaitForDaemon()
 	doneChannel <- true
 }
 

@@ -3,36 +3,33 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package daemon
+package daemonimpl
 
 import (
 	"fmt"
 	"net/http"
-	"os"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/serverless/daemon"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/random"
+	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/testutil"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
-
-func TestMain(m *testing.M) {
-	origShutdownDelay := ShutdownDelay
-	ShutdownDelay = 0
-	defer func() { ShutdownDelay = origShutdownDelay }()
-	os.Exit(m.Run())
-}
 
 func TestWaitForDaemonBlocking(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprint("127.0.0.1:", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
@@ -54,30 +51,33 @@ func GetValueSyncOnce(so *sync.Once) uint64 {
 func TestTellDaemonRuntimeDoneOnceStartOnly(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprint("127.0.0.1:", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
-	assert.Equal(uint64(0), GetValueSyncOnce(d.TellDaemonRuntimeDoneOnce))
+	assert.Equal(uint64(0), GetValueSyncOnce(d.GetTellDaemonRuntimeDoneOnce()))
 }
 
 func TestTellDaemonRuntimeDoneOnceStartAndEnd(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprint("127.0.0.1:", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
 	d.TellDaemonRuntimeDone()
 
-	assert.Equal(uint64(1), GetValueSyncOnce(d.TellDaemonRuntimeDoneOnce))
+	assert.Equal(uint64(1), GetValueSyncOnce(d.GetTellDaemonRuntimeDoneOnce()))
 }
 
 func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
-	t.Setenv(LocalTestEnvVar, "true")
+	t.Setenv(localTestEnvVar, "true")
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprint("127.0.0.1:", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	defer d.Stop()
 	d.TellDaemonRuntimeStarted()
 	client := &http.Client{Timeout: 1 * time.Second}
@@ -92,7 +92,7 @@ func TestTellDaemonRuntimeDoneIfLocalTest(t *testing.T) {
 	defer response.Body.Close()
 	assert.Nil(err)
 	select {
-	case <-wrapWait(d.RuntimeWg):
+	case <-wrapWait(d.GetRuntimeWg()):
 		// all good
 	case <-time.NewTimer(500 * time.Millisecond).C:
 		t.Fail()
@@ -111,28 +111,31 @@ func wrapWait(wg *sync.WaitGroup) <-chan struct{} {
 func TestTellDaemonRuntimeNotDoneIf(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprint("127.0.0.1:", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	defer d.Stop()
 	d.TellDaemonRuntimeStarted()
-	assert.Equal(uint64(0), GetValueSyncOnce(d.TellDaemonRuntimeDoneOnce))
+	assert.Equal(uint64(0), GetValueSyncOnce(d.GetTellDaemonRuntimeDoneOnce()))
 }
 
 func TestTellDaemonRuntimeDoneOnceStartAndEndAndTimeout(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprint("127.0.0.1:", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	defer d.Stop()
 
 	d.TellDaemonRuntimeStarted()
 	d.TellDaemonRuntimeDone()
 	d.TellDaemonRuntimeDone()
 
-	assert.Equal(uint64(1), GetValueSyncOnce(d.TellDaemonRuntimeDoneOnce))
+	assert.Equal(uint64(1), GetValueSyncOnce(d.GetTellDaemonRuntimeDoneOnce()))
 }
 
 func TestRaceTellDaemonRuntimeStartedVersusTellDaemonRuntimeDone(t *testing.T) {
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprint("127.0.0.1:", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	defer d.Stop()
 
 	go d.TellDaemonRuntimeStarted()
@@ -175,7 +178,8 @@ func TestSetTraceTagOk(t *testing.T) {
 
 func TestOutOfOrderInvocations(t *testing.T) {
 	port := testutil.FreeTCPPort(t)
-	d := StartDaemon(fmt.Sprint("127.0.0.1:", port))
+	d := fxutil.Test[daemon.Mock](t, fx.Supply(Params{Addr: fmt.Sprint("127.0.0.1:", port), SketchesBucketOffset: time.Second * 10}), MockModule)
+	d.Start(time.Now(), "/var/task/datadog.yaml", registration.ID("1"), registration.FunctionARN("arn:1"))
 	defer d.Stop()
 
 	assert.NotPanics(t, d.TellDaemonRuntimeDone)

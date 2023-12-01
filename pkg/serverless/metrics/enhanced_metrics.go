@@ -238,6 +238,7 @@ func incrementEnhancedMetric(name string, tags []string, timestamp float64, demu
 	if strings.ToLower(os.Getenv(enhancedMetricsEnvVar)) == "false" {
 		return
 	}
+
 	demux.AggregateSample(metrics.MetricSample{
 		Name:       name,
 		Value:      1.0,
