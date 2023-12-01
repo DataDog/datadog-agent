@@ -97,8 +97,8 @@ func testTrackContext(t *testing.T, store *tags.Store) {
 	assert.Equal(t, uint64(1), contextResolver.countsByMtype[metrics.CountType])
 	assert.Equal(t, uint64(0), contextResolver.countsByMtype[metrics.RateType])
 
-	assert.Equal(t, uint64(2), contextResolver.bytesByMtype[metrics.GaugeType])
-	assert.Equal(t, uint64(1), contextResolver.bytesByMtype[metrics.CountType])
+	assert.Equal(t, uint64(0x90), contextResolver.bytesByMtype[metrics.GaugeType])
+	assert.Equal(t, uint64(0x48), contextResolver.bytesByMtype[metrics.CountType])
 	assert.Equal(t, uint64(0), contextResolver.bytesByMtype[metrics.RateType])
 
 	unknownContextKey := ckey.ContextKey(0xffffffffffffffff)
