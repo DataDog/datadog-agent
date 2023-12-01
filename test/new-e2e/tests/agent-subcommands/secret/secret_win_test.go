@@ -31,7 +31,7 @@ func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /does/not/exist")
 	assert.Contains(v.T(), output, "Executable permissions: error: secretBackendCommand '/does/not/exist' does not exist")
-	assert.Contains(v.T(), output, "Number of secrets decrypted: 0")
+	assert.Contains(v.T(), output, "Number of secrets resolved: 0")
 }
 
 func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
@@ -42,7 +42,7 @@ func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: C:\\Windows\\system32\\cmd.exe")
 	assert.Regexp(v.T(), "Executable permissions: error: invalid executable 'C:\\\\Windows\\\\system32\\\\cmd.exe': other users/groups than LOCAL_SYSTEM, .+ have rights on it", output)
-	assert.Contains(v.T(), output, "Number of secrets decrypted: 0")
+	assert.Contains(v.T(), output, "Number of secrets resolved: 0")
 }
 
 //go:embed fixtures/setup_secret.ps1
@@ -66,8 +66,8 @@ host_aliases:
 
 	ddagentRegex := `Access : .+\\ddagentuser Allow  ReadAndExecute`
 	assert.Regexp(v.T(), ddagentRegex, output)
-	assert.Contains(v.T(), output, "Number of secrets decrypted: 1")
+	assert.Contains(v.T(), output, "Number of secrets resolved: 1")
 	assert.Contains(v.T(), output, "- 'alias_secret':\r\n\tused in 'datadog.yaml' configuration in entry 'host_aliases'")
-	// assert we don't output the decrypted secret
+	// assert we don't output the resolved secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")
 }

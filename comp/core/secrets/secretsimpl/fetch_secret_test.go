@@ -11,11 +11,14 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"runtime/pprof"
 	"testing"
+	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 )
 
 var (
@@ -81,6 +84,35 @@ func TestLimitBuffer(t *testing.T) {
 }
 
 func TestExecCommandError(t *testing.T) {
+	// TODO: remove once the issue is resolved
+	//
+	// This test has an issue on Windows where it can block entirely and timeout after 4 minutes
+	// (while the go test timeout is 3 minutes), and in that case it doesn't print stack traces.
+	//
+	// As a workaround, we explicitly write routine stack traces in an artifact if the test
+	// is not finished after 2 minutes.
+	if _, ok := os.LookupEnv("CI_PIPELINE_ID"); ok && runtime.GOOS == "windows" {
+		done := make(chan struct{}, 1)
+		defer func() {
+			done <- struct{}{}
+		}()
+		go func() {
+			select {
+			case <-done:
+			case <-time.After(2 * time.Minute):
+				// files junit-*.tgz are automatically considered as artifacts
+				file, err := os.OpenFile(`C:\mnt\junit-TestExecCommandError.tgz`, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "could not write stack traces: %v", err)
+					return
+				}
+				defer file.Close()
+				fmt.Fprintf(file, "test will timeout, printing goroutine stack traces:\n")
+				pprof.Lookup("goroutine").WriteTo(file, 2)
+			}
+		}()
+	}
+
 	inputPayload := "{\"version\": \"" + secrets.PayloadVersion + "\" , \"secrets\": [\"sec1\", \"sec2\"]}"
 
 	t.Run("Empty secretBackendCommand", func(t *testing.T) {
