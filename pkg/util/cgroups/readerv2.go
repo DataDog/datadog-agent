@@ -15,6 +15,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/karrick/godirwalk"
 )
 
@@ -22,14 +23,12 @@ const (
 	controllersFile = "cgroup.controllers"
 )
 
-type inodeMapper map[uint64]Cgroup
-
 type readerV2 struct {
 	cgroupRoot        string
 	cgroupControllers map[string]struct{}
 	filter            ReaderFilter
 	pidMapper         pidMapper
-	inodeMapper       inodeMapper
+	inodeMapper       map[uint64]Cgroup
 }
 
 func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter) (*readerV2, error) {
@@ -43,7 +42,7 @@ func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter) (*readerV2, e
 		cgroupControllers: controllers,
 		filter:            filter,
 		pidMapper:         getPidMapper(procPath, cgroupRoot, "", filter),
-		inodeMapper:       make(inodeMapper),
+		inodeMapper:       make(map[uint64]Cgroup),
 	}, nil
 }
 
@@ -74,6 +73,7 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 					}
 					inode, err := inodeForFile(fullPath)
 					if err != nil {
+						log.Debugf("failed to retrieve cgroup id for %s: %s", fullPath, err)
 						return err
 					}
 					cgroup := newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
