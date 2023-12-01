@@ -20,16 +20,12 @@ type windowsSecretSuite struct {
 	baseSecretSuite
 }
 
-type windowsSecretSuiteDev struct {
-	e2e.Suite[e2e.AgentEnv]
-}
-
 func TestWindowsSecretSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsSecretSuiteDev{}, e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS))))
+	e2e.Run(t, &windowsSecretSuite{}, e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS))))
 }
 
-func (v *windowsSecretSuiteDev) TestAgentSecretExecDoesNotExist() {
+func (v *windowsSecretSuite) TestAgentSecretExecDoesNotExist() {
 	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)), e2e.WithAgentParams(agentparams.WithAgentConfig("secret_backend_command: /does/not/exist"))))
 	output := v.Env().Agent.Secret()
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
@@ -38,7 +34,7 @@ func (v *windowsSecretSuiteDev) TestAgentSecretExecDoesNotExist() {
 	assert.Contains(v.T(), output, "Number of secrets decrypted: 0")
 }
 
-func (v *windowsSecretSuiteDev) TestAgentSecretChecksExecutablePermissions() {
+func (v *windowsSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)), e2e.WithAgentParams(agentparams.WithAgentConfig("secret_backend_command: C:\\Windows\\system32\\cmd.exe"))))
 
 	output := v.Env().Agent.Secret()
@@ -52,7 +48,7 @@ func (v *windowsSecretSuiteDev) TestAgentSecretChecksExecutablePermissions() {
 //go:embed fixtures/setup_secret.ps1
 var secretSetupScript []byte
 
-func (v *windowsSecretSuiteDev) TestAgentSecretCorrectPermissions() {
+func (v *windowsSecretSuite) TestAgentSecretCorrectPermissions() {
 	config := `secret_backend_command: C:\secret.bat
 host_aliases:
   - ENC[alias_secret]`
