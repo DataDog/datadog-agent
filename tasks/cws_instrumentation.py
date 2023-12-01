@@ -8,7 +8,6 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .build_tags import get_default_build_tags
-from .system_probe import CURRENT_ARCH
 from .utils import (
     REPO_PATH,
     bin_name,
@@ -32,9 +31,6 @@ def build(
     race=False,
     incremental_build=True,
     major_version='7',
-    # arch is never used here; we keep it to have a
-    # consistent CLI on the build task for all agents.
-    arch=CURRENT_ARCH,  # noqa: U100
     go_mod="mod",
     static=False,
 ):
