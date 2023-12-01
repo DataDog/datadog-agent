@@ -41,9 +41,10 @@ type dependencies struct {
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newSecretResolverProvider),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newSecretResolverProvider))
+}
 
 type handleToContext map[string][]secretContext
 

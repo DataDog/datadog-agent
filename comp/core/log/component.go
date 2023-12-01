@@ -72,9 +72,11 @@ type Mock interface {
 }
 
 // Module defines the fx options for this component.
-var Module fx.Option = fxutil.Component(
-	fx.Provide(newAgentLogger),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAgentLogger),
+	)
+}
 
 // TraceModule defines the fx options for this component in its Trace variant.
 //

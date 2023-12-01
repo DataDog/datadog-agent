@@ -28,7 +28,7 @@ func fulfillDeps(t testing.TB, overrides map[string]interface{}) serverdebug.Com
 		core.MockBundle,
 		fx.Supply(core.BundleParams{}),
 		fx.Replace(configComponent.MockParams{Overrides: overrides}),
-		Module,
+		Module(),
 	))
 }
 

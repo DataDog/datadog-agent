@@ -31,9 +31,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newAPIServer),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAPIServer))
+}
 
 type apiServer struct {
 }

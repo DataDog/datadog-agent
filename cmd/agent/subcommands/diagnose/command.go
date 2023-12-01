@@ -80,7 +80,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 					LogParams:    log.ForOneShot("CORE", "off", true)}),
 				core.Bundle,
-				diagnosesendermanagerimpl.Module,
+				diagnosesendermanagerimpl.Module(),
 			)
 		},
 	}

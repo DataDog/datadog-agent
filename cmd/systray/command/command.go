@@ -97,11 +97,11 @@ func MakeCommand() *cobra.Command {
 					path.DefaultJmxLogFile,
 					path.DefaultDogstatsDLogFile,
 				)),
-				flare.Module,
-				diagnosesendermanagerimpl.Module,
+				flare.Module(),
+				diagnosesendermanagerimpl.Module(),
 				// systray
 				fx.Supply(systrayParams),
-				systrayimpl.Module,
+				systrayimpl.Module(),
 				// require the systray component, causing it to start
 				fx.Invoke(func(_ systray.Component) {}),
 			)

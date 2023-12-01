@@ -90,8 +90,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				dogstatsd.ClientBundle,
 				forwarder.Bundle,
 				fx.Provide(defaultforwarder.NewParamsWithResolvers),
-				demultiplexer.Module,
-				orchestratorForwarderImpl.Module,
+				demultiplexer.Module(),
+				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 				fx.Provide(func() demultiplexer.Params {
 					opts := aggregator.DefaultAgentDemultiplexerOptions()
@@ -101,7 +101,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				// workloadmeta setup
 				collectors.GetCatalog(),
-				workloadmeta.Module,
+				workloadmeta.Module(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
 
 					catalog := workloadmeta.NodeAgent

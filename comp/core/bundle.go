@@ -31,13 +31,13 @@ import (
 var Bundle = fxutil.Bundle(
 	// As `config.Module` expects `config.Params` as a parameter, it is require to define how to get `config.Params` from `BundleParams`.
 	fx.Provide(func(params BundleParams) config.Params { return params.ConfigParams }),
-	config.Module,
+	config.Module(),
 	fx.Provide(func(params BundleParams) log.Params { return params.LogParams }),
-	log.Module,
+	log.Module(),
 	fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
-	secretsimpl.Module,
+	secretsimpl.Module(),
 	fx.Provide(func(params BundleParams) secrets.Params { return params.SecretParams }),
-	sysprobeconfigimpl.Module,
-	telemetry.Module,
-	hostnameimpl.Module,
+	sysprobeconfigimpl.Module(),
+	telemetry.Module(),
+	hostnameimpl.Module(),
 )

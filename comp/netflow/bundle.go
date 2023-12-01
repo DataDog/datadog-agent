@@ -17,6 +17,6 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
-	server.Module,
-	config.Module,
+	server.Module(),
+	config.Module(),
 )

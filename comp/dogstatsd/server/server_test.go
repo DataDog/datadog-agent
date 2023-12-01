@@ -54,7 +54,7 @@ func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule,
-		Module,
+		Module(),
 	))
 }
 
@@ -71,7 +71,7 @@ func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 		}),
 		fx.Supply(Params{Serverless: false}),
 		replay.MockModule,
-		Module,
+		Module(),
 	))
 }
 

@@ -131,15 +131,15 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
 
-				workloadmeta.Module,
-				apiimpl.Module,
+				workloadmeta.Module(),
+				apiimpl.Module(),
 				fx.Supply(workloadmeta.NewParams()),
 				fx.Supply(context.Background()),
 
 				forwarder.Bundle,
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
-				demultiplexer.Module,
-				orchestratorForwarderImpl.Module,
+				demultiplexer.Module(),
+				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
 				fx.Provide(func() demultiplexer.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)

@@ -21,6 +21,6 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
-	config.Module,
-	agent.Module,
+	config.Module(),
+	agent.Module(),
 )

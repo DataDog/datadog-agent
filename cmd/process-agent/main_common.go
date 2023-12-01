@@ -132,7 +132,7 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 		process.Bundle,
 
 		// Provide remote config client module
-		rcclient.Module,
+		rcclient.Module(),
 
 		// Provide the corresponding workloadmeta Params to configure the catalog
 		collectors.GetCatalog(),

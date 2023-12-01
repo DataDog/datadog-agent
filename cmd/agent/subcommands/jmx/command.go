@@ -104,14 +104,14 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			fx.Supply(cliParams),
 			fx.Supply(params),
 			core.Bundle,
-			diagnosesendermanagerimpl.Module,
+			diagnosesendermanagerimpl.Module(),
 			// workloadmeta setup
 			collectors.GetCatalog(),
 			fx.Supply(workloadmeta.Params{
 				InitHelper: common.GetWorkloadmetaInit(),
 			}),
-			workloadmeta.Module,
-			apiimpl.Module,
+			workloadmeta.Module(),
+			apiimpl.Module(),
 		)
 	}
 

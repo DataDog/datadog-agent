@@ -22,6 +22,6 @@ func TestSubmitterLifecycle(t *testing.T) {
 		hostinfoimpl.MockModule,
 		core.MockBundle,
 		forwarders.MockModule,
-		Module,
+		Module(),
 	))
 }

@@ -34,22 +34,22 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
-	runnerimpl.Module,
-	submitterimpl.Module,
-	profilerimpl.Module,
+	runnerimpl.Module(),
+	submitterimpl.Module(),
+	profilerimpl.Module(),
 
 	// Checks
-	connectionscheckimpl.Module,
-	containercheckimpl.Module,
-	podcheckimpl.Module,
-	processcheckimpl.Module,
-	processeventscheckimpl.Module,
-	rtcontainercheckimpl.Module,
-	processdiscoverycheckimpl.Module,
+	connectionscheckimpl.Module(),
+	containercheckimpl.Module(),
+	podcheckimpl.Module(),
+	processcheckimpl.Module(),
+	processeventscheckimpl.Module(),
+	rtcontainercheckimpl.Module(),
+	processdiscoverycheckimpl.Module(),
 
-	hostinfoimpl.Module,
-	expvarsimpl.Module,
-	apiserver.Module,
-	forwarders.Module,
-	workloadmeta.Module,
+	hostinfoimpl.Module(),
+	expvarsimpl.Module(),
+	apiserver.Module(),
+	forwarders.Module(),
+	workloadmeta.Module(),
 )

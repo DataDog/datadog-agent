@@ -36,7 +36,7 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		logger,
 		fx.Provide(func(params BundleParams) sysprobeconfigimpl.Params { return params.SysprobeConfigParams }),
 		sysprobeconfigimpl.MockModule,
-		telemetry.Module,
+		telemetry.Module(),
 		hostnameimpl.MockModule,
 	)
 }

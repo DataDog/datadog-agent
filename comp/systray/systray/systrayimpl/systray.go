@@ -35,9 +35,10 @@ import (
 )
 
 // Module for ddtray
-var Module = fxutil.Component(
-	fx.Provide(newSystray),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newSystray))
+}
 
 type dependencies struct {
 	fx.In

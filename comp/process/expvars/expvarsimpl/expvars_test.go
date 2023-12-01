@@ -24,7 +24,7 @@ func TestExpvarServer(t *testing.T) {
 	_ = fxutil.Test[expvars.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 
-		Module,
+		Module(),
 		hostinfoimpl.MockModule,
 		core.MockBundle,
 	))
@@ -47,7 +47,7 @@ func TestTelemetry(t *testing.T) {
 			"telemetry.enabled": true,
 		}}),
 
-		Module,
+		Module(),
 		hostinfoimpl.MockModule,
 		core.MockBundle,
 	))
