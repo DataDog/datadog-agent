@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	golog "log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -27,7 +28,6 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	proto "github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Process represents a process context
@@ -318,14 +318,22 @@ func checkEntryPoint(path string) (string, error) {
 	return name, nil
 }
 
-// StartCWSPtracer
-func StartCWSPtracer(args []string, grpcAddr string) error {
+// StartCWSPtracer start the ptracer
+func StartCWSPtracer(args []string, grpcAddr string, verbose bool) error {
 	entry, err := checkEntryPoint(args[0])
 	if err != nil {
 		return err
 	}
 
-	log.Infof("Run %s %v [%s]\n", entry, args, os.Getenv("DD_CONTAINER_ID"))
+	logErrorf := golog.Printf
+	logDebugf := func(fmt string, args ...any) {}
+	if verbose {
+		logDebugf = func(fmt string, args ...any) {
+			golog.Printf(fmt, args...)
+		}
+	}
+
+	logDebugf("Run %s %v [%s]\n", entry, args, os.Getenv("DD_CONTAINER_ID"))
 
 	var (
 		client proto.SyscallMsgStreamClient
@@ -372,7 +380,7 @@ func StartCWSPtracer(args []string, grpcAddr string) error {
 		var seq uint64
 		if client != nil {
 			msg := &proto.SyscallMsg{}
-			log.Debugf("sending message: %+v", msg)
+			logDebugf("connection to system-probe...")
 
 			_, err := client.SendSyscallMsg(ctx, msg)
 			if err != nil {
@@ -380,7 +388,6 @@ func StartCWSPtracer(args []string, grpcAddr string) error {
 				for err != nil {
 					now := time.Now()
 					if time.Since(lastLog) > time.Second {
-						log.Errorf("waiting for the server: %+v", err)
 						lastLog = now
 					}
 
@@ -395,11 +402,11 @@ func StartCWSPtracer(args []string, grpcAddr string) error {
 
 		for msg := range msgChan {
 			msg.SeqNum = seq
-			log.Debugf("sending message: %+v", msg)
+			logDebugf("sending message: %+v", msg)
 			if client != nil {
 				_, err := client.SendSyscallMsg(ctx, msg)
 				if err != nil {
-					log.Errorf("SendSyscallMsg failed: %v", err)
+					logErrorf("SendSyscallMsg failed: %v", err)
 				}
 			}
 			seq++
@@ -414,7 +421,7 @@ func StartCWSPtracer(args []string, grpcAddr string) error {
 		select {
 		case msgChan <- msg:
 		default:
-			log.Error("unable to send message")
+			logErrorf("unable to send message")
 		}
 	}
 
@@ -441,39 +448,39 @@ func StartCWSPtracer(args []string, grpcAddr string) error {
 			switch nr {
 			case OpenNr:
 				if err := handleOpen(tracer, process, msg, regs); err != nil {
-					log.Errorf("unable to handle open: %v", err)
+					logErrorf("unable to handle open: %v", err)
 					return
 				}
 			case OpenatNr, Openat2Nr:
 				if err := handleOpenAt(tracer, process, msg, regs); err != nil {
-					log.Errorf("unable to handle openat: %v", err)
+					logErrorf("unable to handle openat: %v", err)
 					return
 				}
 			case ExecveNr:
 				if err = handleExecve(tracer, process, msg, regs); err != nil {
-					log.Errorf("unable to handle execve: %v", err)
+					logErrorf("unable to handle execve: %v", err)
 					return
 				}
 			case ExecveatNr:
 				if err = handleExecveAt(tracer, process, msg, regs); err != nil {
-					log.Errorf("unable to handle execveat: %v", err)
+					logErrorf("unable to handle execveat: %v", err)
 					return
 				}
 			case FcntlNr:
 				_ = handleFcntl(tracer, process, msg, regs)
 			case DupNr, Dup2Nr, Dup3Nr:
 				if err = handleDup(tracer, process, msg, regs); err != nil {
-					log.Errorf("unable to handle dup: %v", err)
+					logErrorf("unable to handle dup: %v", err)
 					return
 				}
 			case ChdirNr:
 				if err = handleChdir(tracer, process, msg, regs); err != nil {
-					log.Errorf("unable to handle chdir: %v", err)
+					logErrorf("unable to handle chdir: %v", err)
 					return
 				}
 			case FchdirNr:
 				if err = handleFchdir(tracer, process, msg, regs); err != nil {
-					log.Errorf("unable to handle fchdir: %v", err)
+					logErrorf("unable to handle fchdir: %v", err)
 					return
 				}
 
@@ -538,8 +545,6 @@ func StartCWSPtracer(args []string, grpcAddr string) error {
 					}
 					process.Cwd = msg.Chdir.Path
 				}
-
-				// TODO case chdir
 			}
 		case CallbackExitType:
 			msg := &proto.SyscallMsg{
