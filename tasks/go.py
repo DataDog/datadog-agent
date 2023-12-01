@@ -23,7 +23,6 @@ GOOS_MAPPING = {
 }
 GOARCH_MAPPING = {
     "x64": "amd64",
-    "x86": "386",
     "arm64": "arm64",
 }
 
