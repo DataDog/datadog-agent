@@ -8,6 +8,7 @@ package config
 
 import (
 	"encoding/json"
+	"expvar"
 	"fmt"
 	"net/http"
 
@@ -21,6 +22,28 @@ type authorizedSet map[string]struct{}
 
 var authorizedConfigPaths = authorizedSet{
 	"api_key": {},
+}
+
+// runtime metrics about the config endpoint usage
+var (
+	successExpvar      *expvar.Map
+	unauthorizedExpvar *expvar.Map
+	unsetExpvar        *expvar.Map
+	failedExpvar       *expvar.Map
+	expvars            *expvar.Map
+)
+
+func init() {
+	expvars = expvar.NewMap("config_endpoint")
+	for name, expv := range map[string]**expvar.Map{
+		"success":      &successExpvar,
+		"unauthorized": &unauthorizedExpvar,
+		"unset":        &unsetExpvar,
+		"failed":       &failedExpvar,
+	} {
+		(*expv) = expvar.NewMap(name)
+		expvars.Set(name, *expv)
+	}
 }
 
 // GetConfigEndpointMux builds and returns the mux for the config endpoint
@@ -54,6 +77,7 @@ func getConfigValueAsJSON(cfg config.Reader, r *http.Request, allowedConfigPaths
 	path := vars["path"]
 
 	if _, ok := allowedConfigPaths[path]; !ok {
+		unauthorizedExpvar.Add(path, 1)
 		log.Warnf("config endpoint received a request from '%s' for config '%s' which is not allowed", r.RemoteAddr, path)
 		return nil, http.StatusForbidden, fmt.Errorf("querying config value '%s' is not allowed", path)
 	}
@@ -61,13 +85,16 @@ func getConfigValueAsJSON(cfg config.Reader, r *http.Request, allowedConfigPaths
 	log.Debug("config endpoint received a request from '%s' for config '%s'", r.RemoteAddr, path)
 	value := cfg.Get(path)
 	if value == nil {
+		unsetExpvar.Add(path, 1)
 		return nil, http.StatusNotFound, fmt.Errorf("no runtime setting found for %s", path)
 	}
 
 	body, err := json.Marshal(value)
 	if err != nil {
+		failedExpvar.Add(path, 1)
 		return nil, http.StatusInternalServerError, fmt.Errorf("could not marshal config value of '%s': %v", path, err)
 	}
 
+	successExpvar.Add(path, 1)
 	return body, http.StatusOK, nil
 }
