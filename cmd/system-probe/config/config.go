@@ -10,14 +10,17 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 
 	"github.com/DataDog/viper"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
@@ -113,9 +116,31 @@ func newSysprobeConfig(configPath string) (*Config, error) {
 	return load()
 }
 
+var enableFeatures = []string{
+	"runtime_security_config.enabled",
+	"runtime_security_config.fim_enabled",
+}
+
 func load() (*Config, error) {
 	cfg := aconfig.SystemProbe
 	Adjust(cfg)
+
+	rcConfigPath := filepath.Join(config.DefaultConfPath, "enabled.d", "system-probe")
+	if rcConfigFile, err := os.Open(rcConfigPath); err == nil {
+		fmt.Printf("Reading rcConfigPath %s\n", rcConfigPath)
+		rcConfig := aconfig.NewConfig("system-probe-rc", "DD", strings.NewReplacer(".", "_"))
+		rcConfig.SetConfigType("yaml")
+		if err := rcConfig.ReadConfig(rcConfigFile); err != nil {
+			log.Errorf("failed to read config in %s: %s", rcConfigPath, err)
+		}
+
+		for _, feature := range enableFeatures {
+			fmt.Printf("Setting %s to %v\n", feature, rcConfig.Get(feature))
+			if value := rcConfig.Get(feature); value != nil {
+				cfg.SetWithoutSource(feature, value)
+			}
+		}
+	}
 
 	c := &Config{
 		Enabled:             cfg.GetBool(spNS("enabled")),
