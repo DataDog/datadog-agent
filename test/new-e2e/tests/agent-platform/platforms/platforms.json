@@ -45,5 +45,14 @@
             "amazonlinux2022-5-15": "ami-0a8495f6303122235",
             "amazonlinux2023": "ami-08fc6fb8ad2e794bb"
         }
+    },
+    "suse": {
+        "x86_64": {
+            "sles-12": "ami-09e1f60648b4fb117",
+            "sles-15": "ami-08f3662e2d5b3989a"
+        },
+        "arm64": {
+            "sles-15": "ami-02f7663f03ca92749"
+        }
     }
 }
