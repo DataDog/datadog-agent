@@ -21,47 +21,6 @@ import (
 	cache "github.com/patrickmn/go-cache"
 )
 
-// including sql_id for indexed access
-const PLAN_QUERY = `SELECT /* DD */
-	timestamp,
-	operation,
-	options,
-	object_name,
-	object_type,
-	object_alias,
-	optimizer,
-	id,
-	parent_id,
-	depth,
-	position,
-	search_columns,
-	cost,
-	cardinality,
-	bytes,
-	partition_start,
-	partition_stop,
-	other,
-	cpu_cost,
-	io_cost,
-	temp_space,
-	access_predicates,
-	filter_predicates,
-	projection,
-	executions,
-	last_starts,
-	last_output_rows,
-	last_cr_buffer_gets,
-	last_disk_reads,
-	last_disk_writes,
-	last_elapsed_time,
-	last_memory_used,
-	last_degree,
-	last_tempseg_size
-FROM v$sql_plan_statistics_all s
-WHERE 
-  sql_id = :1 AND plan_hash_value = :2 AND con_id = :3
-ORDER BY id, position`
-
 type StatementMetricsKeyDB struct {
 	ConID                  int    `db:"CON_ID"`
 	PDBName                string `db:"PDB_NAME"`
@@ -115,7 +74,6 @@ type StatementMetricsDB struct {
 	StatementMetricsKeyDB
 	SQLText       string `db:"SQL_TEXT"`
 	SQLTextLength int16  `db:"SQL_TEXT_LENGTH"`
-	SQLID         string `db:"SQL_ID"`
 	StatementMetricsMonotonicCountDB
 	StatementMetricsGaugeDB
 }
@@ -422,7 +380,7 @@ func (c *Check) StatementMetrics() (int, error) {
 			c,
 			&statementMetrics,
 			sql,
-			2*c.config.QueryMetrics.CollectionInterval,
+			lookback,
 			c.config.QueryMetrics.DBRowsLimit,
 		)
 		if err != nil {
@@ -443,10 +401,34 @@ func (c *Check) StatementMetrics() (int, error) {
 		defer o.Stop()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
-		for _, statementMetricRow := range statementMetricsAll {
+		sendPlan := true
+		for i, statementMetricRow := range statementMetricsAll {
+			var trace bool
+			for _, t := range c.config.QueryMetrics.Trackers {
+				if len(t.ContainsText) > 0 {
+					for _, q := range t.ContainsText {
+						if strings.Contains(statementMetricRow.SQLText, q) {
+							trace = true
+						} else {
+							trace = false
+							break
+						}
+					}
+					if trace {
+						break
+					}
+				}
+			}
+			if trace {
+				log.Infof("%s qm_tracker queried: %+v", c.logPrompt, statementMetricRow)
+			}
+
 			newCache[statementMetricRow.StatementMetricsKeyDB] = statementMetricRow.StatementMetricsMonotonicCountDB
 			previousMonotonic, exists := c.statementMetricsMonotonicCountsPrevious[statementMetricRow.StatementMetricsKeyDB]
 			if exists {
+				if trace {
+					log.Infof("%s qm_tracker previous: %+v %+v", c.logPrompt, statementMetricRow.StatementMetricsKeyDB, previousMonotonic)
+				}
 				diff = OracleRowMonotonicCount{}
 				if diff.ParseCalls = statementMetricRow.ParseCalls - previousMonotonic.ParseCalls; diff.ParseCalls < 0 {
 					continue
@@ -472,7 +454,7 @@ func (c *Check) StatementMetrics() (int, error) {
 				if diff.Fetches = statementMetricRow.Fetches - previousMonotonic.Fetches; diff.Fetches < 0 {
 					continue
 				}
-				if diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions; diff.Executions <= 0 {
+				if diff.Executions = statementMetricRow.Executions - previousMonotonic.Executions; diff.Executions < 0 {
 					continue
 				}
 				if diff.EndOfFetchCount = statementMetricRow.EndOfFetchCount - previousMonotonic.EndOfFetchCount; diff.EndOfFetchCount < 0 {
@@ -586,6 +568,9 @@ func (c *Check) StatementMetrics() (int, error) {
 			}
 
 			oracleRows = append(oracleRows, oracleRow)
+			if trace {
+				log.Infof("%s qm_tracker payload: %+v", c.logPrompt, oracleRow)
+			}
 
 			if c.fqtEmitted == nil {
 				c.fqtEmitted = getFqtEmittedCache()
@@ -616,7 +601,11 @@ func (c *Check) StatementMetrics() (int, error) {
 				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 			}
 
-			if c.config.ExecutionPlans.Enabled {
+			if c.config.ExecutionPlans.Enabled && sendPlan {
+				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
+					sendPlan = false
+				}
+
 				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
 				if c.planEmitted == nil {
 					c.planEmitted = getPlanEmittedCache(c)
@@ -626,7 +615,15 @@ func (c *Check) StatementMetrics() (int, error) {
 					var planStepsPayload []PlanDefinition
 					var planStepsDB []PlanRows
 					var oraclePlan OraclePlan
-					err = selectWrapper(c, &planStepsDB, PLAN_QUERY, statementMetricRow.SQLID, statementMetricRow.PlanHashValue, statementMetricRow.ConID)
+
+					var planQuery string
+					if isDbVersionGreaterOrEqualThan(c, minMultitenantVersion) {
+						planQuery = planQuery12
+						err = selectWrapper(c, &planStepsDB, planQuery, statementMetricRow.SQLID, statementMetricRow.PlanHashValue, statementMetricRow.ConID)
+					} else {
+						planQuery = planQuery11
+						err = selectWrapper(c, &planStepsDB, planQuery, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
+					}
 
 					if err == nil {
 						if len(planStepsDB) > 0 {
@@ -783,9 +780,9 @@ func (c *Check) StatementMetrics() (int, error) {
 						log.Errorf("%s failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", c.logPrompt, err, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 					}
 				}
+
 			}
 		}
-
 		c.copyToPreviousMap(newCache)
 	} else {
 		heartbeatStatement := "__other__"
@@ -801,6 +798,10 @@ func (c *Check) StatementMetrics() (int, error) {
 		}
 		oracleRows = append(oracleRows, oracleRow)
 	}
+
+	c.lastOracleRows = make([]OracleRow, len(oracleRows))
+	copy(c.lastOracleRows, oracleRows)
+
 	payload := MetricsPayload{
 		Host:                  c.dbHostname,
 		Timestamp:             float64(time.Now().UnixMilli()),
@@ -829,5 +830,6 @@ func (c *Check) StatementMetrics() (int, error) {
 	if planErrors > 0 {
 		return SQLCount, fmt.Errorf("SQL statements processed: %d, plan errors: %d", SQLCount, planErrors)
 	}
+
 	return SQLCount, nil
 }
