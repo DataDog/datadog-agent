@@ -158,7 +158,7 @@ func extractServiceMetadata(cmd []string) *serviceMetadata {
 	if _, ok := serviceTagCommands[exe]; ok {
 		return &serviceMetadata{
 			cmdline:        cmd,
-			serviceContext: "service:" + kubeletPrefix,
+			serviceContext: "process_context:" + kubeletPrefix,
 		}
 	}
 

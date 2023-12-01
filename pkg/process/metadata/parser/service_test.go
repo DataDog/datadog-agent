@@ -122,7 +122,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 			cmdline: []string{
 				"kubelet", "--address=1.1.1.1", "--cloud-provider=aws",
 			},
-			expectedServiceTag: "service:kubelet",
+			expectedServiceTag: "process_context:kubelet",
 		},
 	}
 
