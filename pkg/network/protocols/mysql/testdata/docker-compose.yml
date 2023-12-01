@@ -10,4 +10,9 @@ services:
       - ${MYSQL_ADDR:-127.0.0.1}:${MYSQL_PORT:-3306}:3306
     tmpfs:
       - /var/lib/mysql
+    networks:
+      - mysql
 
+networks:
+  mysql:
+    driver: bridge

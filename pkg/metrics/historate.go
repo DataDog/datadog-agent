@@ -5,6 +5,10 @@
 
 package metrics
 
+import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
 // Historate tracks the distribution of samples added over one flush period for
 // "rate" like metrics. Warning this doesn't use the harmonic mean, beware of
 // what it means when using it.
@@ -16,9 +20,9 @@ type Historate struct {
 }
 
 // NewHistorate returns a newly-initialized historate
-func NewHistorate(interval int64) *Historate {
+func NewHistorate(interval int64, config pkgconfigmodel.Config) *Historate {
 	return &Historate{
-		histogram: *NewHistogram(interval),
+		histogram: *NewHistogram(interval, config),
 	}
 }
 

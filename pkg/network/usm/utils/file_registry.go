@@ -59,6 +59,7 @@ type FileRegistry struct {
 type FilePath struct {
 	HostPath string
 	ID       PathIdentifier
+	PID      uint32
 }
 
 func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) {
@@ -73,7 +74,7 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 		return FilePath{}, err
 	}
 
-	return FilePath{HostPath: path, ID: pathID}, nil
+	return FilePath{HostPath: path, ID: pathID, PID: pid}, nil
 }
 
 type callback func(FilePath) error

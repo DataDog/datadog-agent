@@ -21,6 +21,8 @@ const (
 	TagsMutationType         = "standard_tags"
 	ConfigMutationType       = "agent_config"
 	LibInjectionMutationType = "lib_injection"
+	CWSPodInstrumentation    = "cws_pod_instrumentation"
+	CWSExecInstrumentation   = "cws_exec_instrumentation"
 )
 
 // Telemetry metrics
@@ -35,10 +37,10 @@ var (
 		[]string{}, "Time left before the certificate expires in hours.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	MutationAttempts = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_attempts",
-		[]string{"mutation_type", "injected", "language"}, "Number of pod mutation attempts by mutation type (agent config, standard tags, lib injection).",
+		[]string{"mutation_type", "injected", "language", "auto_detected"}, "Number of pod mutation attempts by mutation type (agent config, standard tags, lib injection).",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	MutationErrors = telemetry.NewGaugeWithOpts("admission_webhooks", "mutation_errors",
-		[]string{"mutation_type", "reason", "language"}, "Number of mutation failures by mutation type (agent config, standard tags, lib injection).",
+		[]string{"mutation_type", "reason", "language", "auto_detected"}, "Number of mutation failures by mutation type (agent config, standard tags, lib injection).",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	WebhooksReceived = telemetry.NewCounterWithOpts("admission_webhooks", "webhooks_received",
 		[]string{}, "Number of mutation webhook requests received.",
@@ -58,10 +60,10 @@ var (
 		telemetry.Options{NoDoubleUnderscoreSep: true},
 	)
 	LibInjectionAttempts = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_attempts",
-		[]string{"language", "injected"}, "Number of pod library injection attempts by language.",
+		[]string{"language", "injected", "auto_detected"}, "Number of pod library injection attempts by language.",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	LibInjectionErrors = telemetry.NewCounterWithOpts("admission_webhooks", "library_injection_errors",
-		[]string{"language"}, "Number of library injection failures by language",
+		[]string{"language", "auto_detected"}, "Number of library injection failures by language",
 		telemetry.Options{NoDoubleUnderscoreSep: true})
 	RemoteConfigs = telemetry.NewGaugeWithOpts("admission_webhooks", "rc_provider_configs",
 		[]string{}, "Number of valid remote configurations.",

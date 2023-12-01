@@ -200,6 +200,7 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 
 // mainEventLoop is an event loop receiving events from netlink, or periodic events, and handles them.
 func (pm *ProcessMonitor) mainEventLoop() {
+	log.Info("process monitor main event loop is starting")
 	logTicker := time.NewTicker(2 * time.Minute)
 
 	defer func() {
@@ -218,9 +219,11 @@ func (pm *ProcessMonitor) mainEventLoop() {
 	for {
 		select {
 		case <-pm.done:
+			log.Info("process monitor main event loop is shutting down, having been marked to stop")
 			return
 		case event, ok := <-pm.netlinkEventsChannel:
 			if !ok {
+				log.Info("process monitor main event loop is shutting down, netlink events channel was closed")
 				return
 			}
 
@@ -249,6 +252,7 @@ func (pm *ProcessMonitor) mainEventLoop() {
 			}
 		case _, ok := <-pm.netlinkErrorsChannel:
 			if !ok {
+				log.Info("process monitor main event loop is shutting down, netlink errors channel was closed")
 				return
 			}
 			pm.tel.restart.Add(1)
@@ -283,6 +287,7 @@ func (pm *ProcessMonitor) Initialize() error {
 	var initErr error
 	pm.initOnce.Do(
 		func() {
+			log.Info("initializing process monitor")
 			pm.tel = newProcessMonitorTelemetry()
 			pm.done = make(chan struct{})
 			pm.initCallbackRunner()
@@ -313,6 +318,7 @@ func (pm *ProcessMonitor) Initialize() error {
 					return nil
 				}
 				// Scanning already running processes
+				log.Info("process monitor init, scanning all processes")
 				if err := kernel.WithAllProcs(kernel.ProcFSRoot(), handleProcessExecWrapper); err != nil {
 					initErr = fmt.Errorf("process monitor init, scanning all process failed %s", err)
 					pm.tel.processScanFailed.Add(1)
@@ -369,6 +375,7 @@ func (pm *ProcessMonitor) Stop() {
 	}
 
 	// We can get here only once, if the refcount is zero.
+	log.Info("process monitor stopping due to a refcount of 0")
 	if pm.done != nil {
 		close(pm.done)
 		pm.processMonitorWG.Wait()

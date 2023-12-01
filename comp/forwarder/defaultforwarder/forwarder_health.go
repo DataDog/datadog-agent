@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
@@ -61,6 +62,7 @@ func initForwarderHealthExpvars() {
 // unhealthy if the API keys are not longer valid
 type forwarderHealth struct {
 	log                   log.Component
+	config                config.Component
 	health                *health.Handle
 	stop                  chan bool
 	stopped               chan struct{}
@@ -172,7 +174,7 @@ func (fh *forwarderHealth) validateAPIKey(apiKey, domain string) (bool, error) {
 
 	url := fmt.Sprintf("%s%s?api_key=%s", domain, endpoints.V1ValidateEndpoint, apiKey)
 
-	transport := httputils.CreateHTTPTransport()
+	transport := httputils.CreateHTTPTransport(fh.config)
 
 	client := &http.Client{
 		Transport: transport,

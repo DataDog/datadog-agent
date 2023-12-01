@@ -1,12 +1,10 @@
 import datetime
 import errno
 import glob
-import json
 import os
 import re
 import shutil
 import sys
-import tarfile
 import tempfile
 from subprocess import check_output
 
@@ -212,7 +210,9 @@ def ninja_ebpf_probe_syscall_tester(nw, build_dir):
 def build_go_syscall_tester(ctx, build_dir):
     syscall_tester_go_dir = os.path.join(".", "pkg", "security", "tests", "syscall_tester", "go")
     syscall_tester_exe_file = os.path.join(build_dir, "syscall_go_tester")
-    ctx.run(f"go build -o {syscall_tester_exe_file} -tags syscalltesters {syscall_tester_go_dir}/syscall_go_tester.go ")
+    ctx.run(
+        f"go build -o {syscall_tester_exe_file} -tags syscalltesters,osusergo,netgo -ldflags=\"-extldflags=-static\" {syscall_tester_go_dir}/syscall_go_tester.go"
+    )
     return syscall_tester_exe_file
 
 
@@ -680,9 +680,9 @@ def generate_btfhub_constants(ctx, archive_path, force_refresh=False):
 def generate_cws_proto(ctx):
     with tempfile.TemporaryDirectory() as temp_gobin:
         with environ({"GOBIN": temp_gobin}):
-            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28.1")
-            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.4.0")
-            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0")
+            ctx.run("go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.31.0")
+            ctx.run("go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto@v0.5.0")
+            ctx.run("go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.3.0")
 
             plugin_opts = " ".join(
                 [
@@ -695,6 +695,11 @@ def generate_cws_proto(ctx):
             # API
             ctx.run(
                 f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/api/api.proto"
+            )
+
+            # EBPFLESS
+            ctx.run(
+                f"protoc -I. {plugin_opts} --go_out=paths=source_relative:. --go-vtproto_out=. --go-vtproto_opt=features=marshal+unmarshal+size --go-grpc_out=paths=source_relative:. pkg/security/proto/ebpfless/service.proto"
             )
 
     for path in glob.glob("pkg/security/**/*.pb.go", recursive=True):
@@ -818,42 +823,6 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
         args += " -trace"
 
     ctx.run(f"go test {flags} ./pkg/security/ebpf/tests/... {args}")
-
-
-# TODO: this task does the same thing as system-probe.print-failed-tests.
-# They could be refactored to have the logic in only one place.
-@task
-def print_failed_tests(_, output_dir):
-    """
-    print_failed_tests is run at the end of the platform functional test Gitlab job to print failed tests
-    """
-    fail_count = 0
-    for testjson_tgz in glob.glob(f"{output_dir}/**/testjson.tar.gz"):
-        test_platform = os.path.basename(os.path.dirname(testjson_tgz))
-
-        if os.path.isdir(testjson_tgz):
-            # handle weird kitchen bug where it places the tarball in a subdirectory of the same name
-            testjson_tgz = os.path.join(testjson_tgz, "testjson.tar.gz")
-
-        with tempfile.TemporaryDirectory() as unpack_dir:
-            with tarfile.open(testjson_tgz) as tgz:
-                tgz.extractall(path=unpack_dir)
-
-            for test_json in glob.glob(f"{unpack_dir}/*.json"):
-                bundle, _ = os.path.splitext(os.path.basename(test_json))
-                with open(test_json) as tf:
-                    for line in tf:
-                        json_test = json.loads(line.strip())
-                        if 'Test' in json_test:
-                            name = json_test['Test']
-                            action = json_test["Action"]
-
-                            if action == "fail":
-                                print(f"FAIL: [{test_platform}] [{bundle}] {name}")
-                                fail_count += 1
-
-    if fail_count > 0:
-        raise Exit(code=1)
 
 
 @task

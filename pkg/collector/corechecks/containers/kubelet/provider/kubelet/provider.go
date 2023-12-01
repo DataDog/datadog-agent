@@ -15,6 +15,7 @@ import (
 
 	"github.com/prometheus/common/model"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/provider/prometheus"
@@ -24,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	prom "github.com/DataDog/datadog-agent/pkg/util/prometheus"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 var (
@@ -73,8 +73,10 @@ var (
 	}
 
 	counterMetrics = map[string]string{
-		"kubelet_evictions":           "kubelet.evictions",
-		"kubelet_pleg_discard_events": "kubelet.pleg.discard_events",
+		"kubelet_evictions":                          "kubelet.evictions",
+		"kubelet_pleg_discard_events":                "kubelet.pleg.discard_events",
+		"kubelet_cpu_manager_pinning_errors_total":   "kubelet.cpu_manager.pinning_errors_total",
+		"kubelet_cpu_manager_pinning_requests_total": "kubelet.cpu_manager.pinning_requests_total",
 	}
 
 	volumeMetrics = map[string]string{
@@ -90,13 +92,13 @@ var (
 // Provider provides the metrics related to data collected from the `/metrics` Kubelet endpoint
 type Provider struct {
 	filter   *containers.Filter
-	store    workloadmeta.Store
+	store    workloadmeta.Component
 	podUtils *common.PodUtils
 	prometheus.Provider
 }
 
 // NewProvider creates and returns a new Provider, configured based on the values passed in.
-func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Store, podUtils *common.PodUtils) (*Provider, error) {
+func NewProvider(filter *containers.Filter, config *common.KubeletConfig, store workloadmeta.Component, podUtils *common.PodUtils) (*Provider, error) {
 	// clone instance configuration so we can set our default metrics
 	kubeletConfig := *config
 

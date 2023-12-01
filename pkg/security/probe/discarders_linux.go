@@ -55,7 +55,7 @@ var (
 	recentlyAddedTimeout = uint64(2 * time.Second.Nanoseconds())
 )
 
-type onDiscarderHandler func(rs *rules.RuleSet, event *model.Event, probe *Probe, discarder Discarder) (bool, error)
+type onDiscarderHandler func(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error)
 
 var (
 	allDiscarderHandlers   = make(map[eval.EventType][]onDiscarderHandler)
@@ -83,9 +83,8 @@ var InvalidDiscarders = map[eval.Field][]string{
 
 // bumpDiscardersRevision sends an eRPC request to bump the discarders revisionr
 func bumpDiscardersRevision(e *erpc.ERPC) error {
-	var req erpc.Request
-	req.OP = erpc.BumpDiscardersRevision
-	return e.Request(&req)
+	req := erpc.NewERPCRequest(erpc.BumpDiscardersRevision)
+	return e.Request(req)
 }
 
 func marshalDiscardHeader(req *erpc.Request, eventType model.EventType, timeout uint64) int {
@@ -447,7 +446,7 @@ func (id *inodeDiscarders) discardParentInode(req *erpc.Request, rs *rules.RuleS
 type inodeEventGetter = func(event *model.Event) (eval.Field, *model.FileEvent, bool)
 
 func filenameDiscarderWrapper(eventType model.EventType, getter inodeEventGetter) onDiscarderHandler {
-	return func(rs *rules.RuleSet, event *model.Event, probe *Probe, discarder Discarder) (bool, error) {
+	return func(rs *rules.RuleSet, event *model.Event, probe *EBPFProbe, discarder Discarder) (bool, error) {
 		field, fileEvent, isDeleted := getter(event)
 
 		if fileEvent.PathResolutionError != nil {

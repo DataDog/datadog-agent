@@ -65,7 +65,7 @@ Tagger entities are identified by a string-typed ID, with one of the following f
 | *Service*                               | *Tagger Entity*                                                    |
 |-----------------------------------------|--------------------------------------------------------------------|
 | workloadmeta.KindContainer              | `container_id://<sha>`                                             |
-| workloadmeta.KindContainerImageMetadata | `container_image_metadata://<sha>                                  |
+| workloadmeta.KindContainerImageMetadata | `container_image_metadata://<sha>`                                 |
 | workloadmeta.KindGardenContainer        | `container_id://<sha>`                                             |
 | workloadmeta.KindKubernetesPod          | `kubernetes_pod_uid://<uid>`                                       |
 | workloadmeta.KindECSTask                | `ecs_task://<task-id>`                                             |

@@ -175,8 +175,8 @@ func TestLockedCompressorProducesSamePayloads(t *testing.T) {
 }
 
 func TestBuildWithOnErrItemTooBigPolicyMetadata(t *testing.T) {
-	config.Datadog.Set("serializer_max_uncompressed_payload_size", 40)
-	defer config.Datadog.Set("serializer_max_uncompressed_payload_size", nil)
+	config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", 40)
+	defer config.Datadog.SetWithoutSource("serializer_max_uncompressed_payload_size", nil)
 	marshaler := &IterableStreamJSONMarshalerMock{index: 0, maxIndex: 100}
 	builder := NewJSONPayloadBuilder(false)
 	payloads, err := builder.BuildWithOnErrItemTooBigPolicy(

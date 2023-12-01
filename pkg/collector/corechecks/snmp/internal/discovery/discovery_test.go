@@ -34,7 +34,7 @@ func waitForDiscoveredDevices(discovery *Discovery, expectedDeviceCount int, tim
 
 func TestDiscovery(t *testing.T) {
 	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path", "TestDiscovery"))
-	config.Datadog.Set("run_path", path)
+	config.Datadog.SetWithoutSource("run_path", path)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
@@ -85,7 +85,7 @@ func TestDiscovery(t *testing.T) {
 
 func TestDiscoveryCache(t *testing.T) {
 	path, _ := filepath.Abs(filepath.Join(".", "test", "run_path", "TestDiscoveryCache"))
-	config.Datadog.Set("run_path", path)
+	config.Datadog.SetWithoutSource("run_path", path)
 
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {

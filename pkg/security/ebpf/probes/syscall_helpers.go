@@ -94,7 +94,7 @@ func expandKprobeOrFentry(hookpoint string, fentry bool, flag int) []string {
 	var sections []string
 	if flag&Entry == Entry {
 		prefix := "kprobe"
-		if flag&SupportFentry == SupportFentry && fentry {
+		if fentry {
 			prefix = "fentry"
 		}
 
@@ -102,7 +102,7 @@ func expandKprobeOrFentry(hookpoint string, fentry bool, flag int) []string {
 	}
 	if flag&Exit == Exit && !ShouldUseSyscallExitTracepoints() {
 		prefix := "kretprobe"
-		if flag&SupportFexit == SupportFexit && fentry {
+		if fentry {
 			prefix = "fexit"
 		}
 
@@ -116,14 +116,11 @@ func expandSyscallSections(syscallName string, fentry bool, flag int, compat ...
 	sections := expandKprobeOrFentry(getSyscallFnName(syscallName), fentry, flag)
 
 	shouldUseCompat := len(compat) > 0 && compat[0]
-	isFentry := fentry && flag&SupportFentry == SupportFentry
-	isFexit := fentry && flag&SupportFexit == SupportFexit
-
 	if RuntimeArch == "x64" {
 		// HACK: split entry and exit because we currently do not support compat syscall ret hooks
 		// entry
 		entryFlag := flag & ^Exit
-		if shouldUseCompat && !isFentry && syscallPrefix != "sys_" {
+		if shouldUseCompat && !fentry && syscallPrefix != "sys_" {
 			sections = append(sections, expandKprobeOrFentry(getCompatSyscallFnName(syscallName), fentry, entryFlag)...)
 		} else {
 			sections = append(sections, expandKprobeOrFentry(getIA32SyscallFnName(syscallName), fentry, entryFlag)...)
@@ -131,7 +128,7 @@ func expandSyscallSections(syscallName string, fentry bool, flag int, compat ...
 
 		// exit
 		exitFlag := flag & ^Entry
-		if shouldUseCompat && !isFexit && syscallPrefix != "sys_" {
+		if shouldUseCompat && !fentry && syscallPrefix != "sys_" {
 			sections = append(sections, expandKprobeOrFentry(getCompatSyscallFnName(syscallName), fentry, exitFlag)...)
 		} else {
 			sections = append(sections, expandKprobeOrFentry(getIA32SyscallFnName(syscallName), fentry, exitFlag)...)
@@ -148,10 +145,6 @@ const (
 	Exit = 1 << 1
 	// ExpandTime32 indicates that the _time32 suffix should be added to the provided probe if needed
 	ExpandTime32 = 1 << 2
-	// SupportFentry indicates that this probe supports fentry expansion (instead of kprobe)
-	SupportFentry = 1 << 3
-	// SupportFexit indicates that this probe support fexit expansion (instead of kretprobe)
-	SupportFexit = 1 << 4
 
 	// EntryAndExit indicates that both the entry kprobe and exit kretprobe should be expanded
 	EntryAndExit = Entry | Exit

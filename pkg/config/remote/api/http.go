@@ -70,7 +70,7 @@ func NewHTTPClient(auth Auth) (*HTTPClient, error) {
 	if auth.UseAppKey {
 		header["DD-Application-Key"] = []string{auth.AppKey}
 	}
-	transport := httputils.CreateHTTPTransport()
+	transport := httputils.CreateHTTPTransport(config.Datadog)
 	// Set the keep-alive timeout to 30s instead of the default 90s, so the http RC client is not closed by the backend
 	transport.IdleConnTimeout = 30 * time.Second
 

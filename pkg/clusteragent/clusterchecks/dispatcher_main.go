@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -94,6 +95,12 @@ func (d *dispatcher) Schedule(configs []integration.Config) {
 		if !c.ClusterCheck {
 			continue // Ignore non cluster-check configs
 		}
+
+		if c.HasFilter(containers.MetricsFilter) || c.HasFilter(containers.GlobalFilter) {
+			log.Debugf("Config %s is filtered out for metrics collection, ignoring it", c.Name)
+			continue
+		}
+
 		if c.NodeName != "" {
 			// An endpoint check backed by a pod
 			patched, err := d.patchEndpointsConfiguration(c)
@@ -216,7 +223,7 @@ func (d *dispatcher) run(ctx context.Context) {
 			// Rebalance if needed
 			if d.advancedDispatching {
 				// Rebalance checks distribution
-				d.rebalance()
+				d.rebalance(false)
 			}
 		}
 	}

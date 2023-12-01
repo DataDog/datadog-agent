@@ -8,6 +8,7 @@ package generic
 import (
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
@@ -17,7 +18,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const (
@@ -60,19 +60,6 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 		return nil
 	}
 
-	collectorsCache := make(map[workloadmeta.ContainerRuntime]metrics.Collector)
-	getCollector := func(runtime workloadmeta.ContainerRuntime) metrics.Collector {
-		if collector, found := collectorsCache[runtime]; found {
-			return collector
-		}
-
-		collector := p.metricsProvider.GetCollector(string(runtime))
-		if collector != nil {
-			collectorsCache[runtime] = collector
-		}
-		return collector
-	}
-
 	// Extensions: PreProcess hook
 	for _, extension := range p.extensions {
 		extension.PreProcess(p.sendMetric, sender)
@@ -92,7 +79,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 		}
 		tags = p.metricsAdapter.AdaptTags(tags, container)
 
-		collector := getCollector(container.Runtime)
+		collector := p.metricsProvider.GetCollector(string(container.Runtime))
 		if collector == nil {
 			log.Warnf("Collector not found for container: %v, metrics will ne missing", container)
 			continue
@@ -100,7 +87,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 
 		containerStats, err := collector.GetContainerStats(container.Namespace, container.ID, cacheValidity)
 		if err != nil {
-			log.Debugf("Container stats for: %v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("Container stats for: %v not available, err: %v", container, err)
 			continue
 		}
 
@@ -113,7 +100,7 @@ func (p *Processor) Run(sender sender.Sender, cacheValidity time.Duration) error
 		if err == nil {
 			p.sendMetric(sender.Gauge, "container.pid.open_files", pointer.UIntPtrToFloatPtr(openFiles), tags)
 		} else {
-			log.Debugf("OpenFiles count for: %v not available through collector %q, err: %v", container, collector.ID(), err)
+			log.Debugf("OpenFiles count for: %v not available, err: %v", container, err)
 		}
 
 		// TODO: Implement container stats. We currently don't have enough information from Metadata service to do it.

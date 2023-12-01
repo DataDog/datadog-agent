@@ -50,6 +50,7 @@ var (
 		// opensslSpec is unique, as we're modifying its factory during runtime to allow getting more parameters in the
 		// factory.
 		opensslSpec,
+		goTLSSpec,
 	}
 )
 
@@ -70,8 +71,6 @@ const (
 type ebpfProgram struct {
 	*errtelemetry.Manager
 	cfg                   *config.Config
-	subprograms           []subprogram
-	probesResolvers       []probeResolver
 	tailCallRouter        []manager.TailCallRoute
 	connectionProtocolMap *ebpf.Map
 
@@ -79,43 +78,8 @@ type ebpfProgram struct {
 	disabledProtocols []*protocols.ProtocolSpec
 
 	// Used for connection_protocol data expiration
-	mapCleaner *ddebpf.MapCleaner
+	mapCleaner *ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper]
 	buildMode  buildmode.Type
-}
-
-type probeResolver interface {
-	// GetAllUndefinedProbes returns all undefined probes.
-	// Subprogram probes maybe defined in the same ELF file as the probes
-	// of the main program. The cilium loader loads all programs defined
-	// in an ELF file in to the kernel. Therefore, these programs may be
-	// loaded into the kernel, whether the subprogram is activated or not.
-	//
-	// Before the loading can be performed we must associate a function which
-	// performs some fixup in the EBPF bytecode:
-	// https://github.com/DataDog/datadog-agent/blob/main/pkg/ebpf/c/bpf_telemetry.h#L58
-	// If this is not correctly done, the verifier will reject the EBPF bytecode.
-	//
-	// The ebpf telemetry manager
-	// (https://github.com/DataDog/datadog-agent/blob/main/pkg/network/telemetry/telemetry_manager.go#L19)
-	// takes an instance of the Manager managing the main program, to acquire
-	// the list of the probes to patch.
-	// https://github.com/DataDog/datadog-agent/blob/main/pkg/network/telemetry/ebpf_telemetry.go#L256
-	// This Manager may not include the probes of the subprograms. GetAllUndefinedProbes() is,
-	// therefore, necessary for returning the probes of these subprograms so they can be
-	// correctly patched at load-time, when the Manager is being initialized.
-	//
-	// To reiterate, this is necessary due to the fact that the cilium loader loads
-	// all programs defined in an ELF file regardless if they are later attached or not.
-	GetAllUndefinedProbes() []manager.ProbeIdentificationPair
-}
-
-type subprogram interface {
-	Name() string
-	IsBuildModeSupported(buildmode.Type) bool
-	ConfigureManager(*errtelemetry.Manager)
-	ConfigureOptions(*manager.Options)
-	Start()
-	Stop()
 }
 
 func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) (*ebpfProgram, error) {
@@ -148,26 +112,15 @@ func newEBPFProgram(c *config.Config, sockFD, connectionProtocolMap *ebpf.Map, b
 		},
 	}
 
-	subprogramProbesResolvers := make([]probeResolver, 0, 1)
-	subprograms := make([]subprogram, 0, 1)
-	var tailCalls []manager.TailCallRoute
-
-	goTLSProg := newGoTLSProgram(c, sockFD)
-	subprogramProbesResolvers = append(subprogramProbesResolvers, goTLSProg)
-	if goTLSProg != nil {
-		subprograms = append(subprograms, goTLSProg)
-	}
-
 	program := &ebpfProgram{
 		Manager:               errtelemetry.NewManager(mgr, bpfTelemetry),
 		cfg:                   c,
-		subprograms:           subprograms,
-		probesResolvers:       subprogramProbesResolvers,
-		tailCallRouter:        tailCalls,
 		connectionProtocolMap: connectionProtocolMap,
 	}
 
 	opensslSpec.Factory = newSSLProgramProtocolFactory(mgr, sockFD, bpfTelemetry)
+	goTLSSpec.Factory = newGoTLSProgramProtocolFactory(mgr, sockFD)
+
 	if err := program.initProtocols(c); err != nil {
 		return nil, err
 	}
@@ -184,9 +137,6 @@ func (e *ebpfProgram) Init() error {
 	}()
 
 	e.DumpHandler = e.dumpMapsHandler
-	for _, s := range e.subprograms {
-		s.ConfigureManager(e.Manager)
-	}
 
 	if e.cfg.EnableCORE {
 		e.buildMode = buildmode.CORE
@@ -220,6 +170,16 @@ func (e *ebpfProgram) Init() error {
 }
 
 func (e *ebpfProgram) Start() error {
+	// Mainly for tests, but possible for other cases as well, we might have a nil (not shared) connection protocol map
+	// between NPM and USM. In such a case we just create our own instance, but we don't modify the
+	// `e.connectionProtocolMap` field.
+	if e.connectionProtocolMap == nil {
+		m, _, err := e.GetMap(probes.ConnectionProtocolMap)
+		if err != nil {
+			return err
+		}
+		e.connectionProtocolMap = m
+	}
 	mapCleaner, err := e.setupMapCleaner()
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
@@ -256,15 +216,6 @@ func (e *ebpfProgram) Start() error {
 		return errNoProtocols
 	}
 
-	for _, s := range e.subprograms {
-		if s.IsBuildModeSupported(e.buildMode) {
-			s.Start()
-			log.Infof("launched %s subprogram", s.Name())
-		} else {
-			log.Infof("%s subprogram does not support %s build mode", s.Name(), e.buildMode)
-		}
-	}
-
 	for _, protocolName := range e.enabledProtocols {
 		log.Infof("enabled USM protocol: %s", protocolName.Instance.Name())
 	}
@@ -274,9 +225,6 @@ func (e *ebpfProgram) Start() error {
 
 func (e *ebpfProgram) Close() error {
 	e.mapCleaner.Stop()
-	for _, s := range e.subprograms {
-		s.Stop()
-	}
 	stopProtocolWrapper := func(protocol protocols.Protocol, m *manager.Manager) error {
 		protocol.Stop(m)
 		return nil
@@ -413,10 +361,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	options.DefaultKprobeAttachMethod = kprobeAttachMethod
 	options.VerifierOptions.Programs.LogSize = 10 * 1024 * 1024
 
-	for _, s := range e.subprograms {
-		s.ConfigureOptions(&options)
-	}
-
 	supported, notSupported := e.getProtocolsForBuildMode()
 	cleanup := e.configureManagerWithSupportedProtocols(supported)
 	options.TailCallRouter = e.tailCallRouter
@@ -450,10 +394,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
 	}
 
-	for _, s := range e.probesResolvers {
-		undefinedProbes = append(undefinedProbes, s.GetAllUndefinedProbes()...)
-	}
-
 	e.InstructionPatcher = func(m *manager.Manager) error {
 		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
 	}
@@ -461,28 +401,27 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	err := e.InitWithOptions(buf, options)
 	if err != nil {
 		cleanup()
+	} else {
+		// Update the protocols lists to reflect the ones we actually enabled
+		e.enabledProtocols = supported
+		e.disabledProtocols = notSupported
 	}
+
 	return err
 }
 
 const connProtoTTL = 3 * time.Minute
 const connProtoCleaningInterval = 5 * time.Minute
 
-func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner, error) {
-	mapCleaner, err := ddebpf.NewMapCleaner(e.connectionProtocolMap, new(netebpf.ConnTuple), new(netebpf.ProtocolStackWrapper))
+func (e *ebpfProgram) setupMapCleaner() (*ddebpf.MapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper], error) {
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, netebpf.ProtocolStackWrapper](e.connectionProtocolMap, 1024)
 	if err != nil {
 		return nil, err
 	}
 
 	ttl := connProtoTTL.Nanoseconds()
-	mapCleaner.Clean(connProtoCleaningInterval, func(now int64, key, val interface{}) bool {
-		protoStack, ok := val.(*netebpf.ProtocolStackWrapper)
-		if !ok {
-			return false
-		}
-
-		updated := int64(protoStack.Updated)
-		return (now - updated) > ttl
+	mapCleaner.Clean(connProtoCleaningInterval, nil, nil, func(now int64, key netebpf.ConnTuple, val netebpf.ProtocolStackWrapper) bool {
+		return (now - int64(val.Updated)) > ttl
 	})
 
 	return mapCleaner, nil

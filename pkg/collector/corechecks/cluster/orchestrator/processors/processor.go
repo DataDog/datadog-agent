@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator/config"
+	pkgorchestratormodel "github.com/DataDog/datadog-agent/pkg/orchestrator/model"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -30,7 +31,7 @@ type ProcessorContext struct {
 	ClusterID          string
 	HostName           string
 	MsgGroupID         int32
-	NodeType           orchestrator.NodeType
+	NodeType           pkgorchestratormodel.NodeType
 	ApiGroupVersionTag string
 }
 

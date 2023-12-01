@@ -125,6 +125,8 @@ package http
 import (
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -313,6 +315,9 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 
 	// Time
 	httpConnLink.http.Txn.ResponseLastSeen = winutil.FileTimeToUnixNano(uint64(eventInfo.Event.TimeStamp))
+	if httpConnLink.http.Txn.ResponseLastSeen == httpConnLink.http.Txn.RequestStarted {
+		httpConnLink.http.Txn.ResponseLastSeen++
+	}
 
 	// Clean it up related containers
 	cleanupActivityIdViaConnOpen(connOpen, eventInfo.Event.ActivityId)
@@ -326,8 +331,8 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 		log.Infof("  ConnActivityId: %v\n", etw.FormatGUID(httpConnLink.connActivityId))
 		log.Infof("  ActivityId:     %v\n", etw.FormatGUID(eventInfo.Event.ActivityId))
 		if connFound {
-			log.Infof("  Local:          %v\n", etw.IPFormat(connOpen.conn.tup, true))
-			log.Infof("  Remote:         %v\n", etw.IPFormat(connOpen.conn.tup, false))
+			log.Infof("  Local:          %v\n", IPFormat(connOpen.conn.tup, true))
+			log.Infof("  Remote:         %v\n", IPFormat(connOpen.conn.tup, false))
 			log.Infof("  Family:         %v\n", connOpen.conn.tup.Family)
 		}
 		log.Infof("  AppPool:        %v\n", httpConnLink.http.AppPool)
@@ -342,8 +347,8 @@ func completeReqRespTracking(eventInfo *etw.DDEtwEventInfo, httpConnLink *HttpCo
 		log.Infof("%v. %v L[%v], R[%v], F[%v], P[%v], C[%v], V[%v], U[%v]\n",
 			completedRequestCount,
 			etw.FormatUnixTime(httpConnLink.http.Txn.RequestStarted),
-			etw.IPFormat(connOpen.conn.tup, true),
-			etw.IPFormat(connOpen.conn.tup, false),
+			IPFormat(connOpen.conn.tup, true),
+			IPFormat(connOpen.conn.tup, false),
 			connOpen.conn.tup.Family,
 			httpConnLink.http.AppPool,
 			httpConnLink.http.Txn.ResponseStatusCode,
@@ -501,8 +506,8 @@ func httpCallbackOnHTTPConnectionTraceTaskConnConn(eventInfo *etw.DDEtwEventInfo
 	if HttpServiceLogVerbosity == HttpServiceLogVeryVerbose {
 		log.Infof("  Time:           %v\n", etw.FormatUnixTime(connOpen.conn.connected))
 		log.Infof("  ActivityId:     %v\n", etw.FormatGUID(eventInfo.Event.ActivityId))
-		log.Infof("  Local:          %v\n", etw.IPFormat(connOpen.conn.tup, true))
-		log.Infof("  Remote:         %v\n", etw.IPFormat(connOpen.conn.tup, false))
+		log.Infof("  Local:          %v\n", IPFormat(connOpen.conn.tup, true))
+		log.Infof("  Remote:         %v\n", IPFormat(connOpen.conn.tup, false))
 		log.Infof("  Family:         %v\n", connOpen.conn.tup.Family)
 		log.Infof("\n")
 	}
@@ -539,8 +544,8 @@ func httpCallbackOnHTTPConnectionTraceTaskConnClose(eventInfo *etw.DDEtwEventInf
 		if found {
 			log.Infof("  ActivityId: %v, Local[%v], Remote[%v], Family[%v]\n",
 				etw.FormatGUID(eventInfo.Event.ActivityId),
-				etw.IPFormat(connOpen.conn.tup, true),
-				etw.IPFormat(connOpen.conn.tup, false),
+				IPFormat(connOpen.conn.tup, true),
+				IPFormat(connOpen.conn.tup, false),
 				connOpen.conn.tup.Family)
 		} else {
 			log.Infof("  ActivityId: %v not found\n", etw.FormatGUID(eventInfo.Event.ActivityId))
@@ -631,8 +636,8 @@ func httpCallbackOnHTTPRequestTraceTaskRecvReq(eventInfo *etw.DDEtwEventInfo) {
 		log.Infof("  ActivityId:     %v\n", etw.FormatGUID(eventInfo.Event.ActivityId))
 		log.Infof("  RelActivityId:  %v\n", etw.FormatGUID(*eventInfo.RelatedActivityId))
 		if connFound {
-			log.Infof("  Local:          %v\n", etw.IPFormat(connOpen.conn.tup, true))
-			log.Infof("  Remote:         %v\n", etw.IPFormat(connOpen.conn.tup, false))
+			log.Infof("  Local:          %v\n", IPFormat(connOpen.conn.tup, true))
+			log.Infof("  Remote:         %v\n", IPFormat(connOpen.conn.tup, false))
 			log.Infof("  Family:         %v\n", connOpen.conn.tup.Family)
 		}
 		log.Infof("\n")
@@ -705,6 +710,15 @@ func httpCallbackOnHTTPRequestTraceTaskParse(eventInfo *etw.DDEtwEventInfo) {
 
 		// copy rest of arguments
 		copy(httpConnLink.http.RequestFragment[1:], urlParsed.Path)
+
+		// the above `getPath` is expecting characters after the path (the user agent)
+		// string or whatever else is in the request headers.
+		// if it doesn't have anything, it assumes that we weren't able to acquire the
+		// entire URL path.  So, if there's room, append another char on the end so
+		// it knows we got the whole thing
+		if len(urlParsed.Path)+1 < int(maxRequestFragmentBytes) {
+			httpConnLink.http.RequestFragment[len(urlParsed.Path)+1] = 32 // also a space
+		}
 
 	}
 
@@ -792,8 +806,8 @@ func httpCallbackOnHTTPRequestTraceTaskDeliver(eventInfo *etw.DDEtwEventInfo) {
 		log.Infof("  AppPool:        %v\n", httpConnLink.http.AppPool)
 		log.Infof("  Url:            %v\n", httpConnLink.url)
 		if connFound {
-			log.Infof("  Local:          %v\n", etw.IPFormat(connOpen.conn.tup, true))
-			log.Infof("  Remote:         %v\n", etw.IPFormat(connOpen.conn.tup, false))
+			log.Infof("  Local:          %v\n", IPFormat(connOpen.conn.tup, true))
+			log.Infof("  Remote:         %v\n", IPFormat(connOpen.conn.tup, false))
 			log.Infof("  Family:         %v\n", connOpen.conn.tup.Family)
 		}
 		log.Infof("\n")
@@ -1331,5 +1345,37 @@ func (hei *EtwInterface) OnStop() {
 	if iisConfig != nil {
 		iisConfig.Stop()
 		iisConfig = nil
+	}
+}
+func ipAndPortFromTup(tup driver.ConnTupleType, local bool) ([16]uint8, uint16) {
+	if local {
+		return tup.LocalAddr, tup.LocalPort
+	}
+	return tup.RemoteAddr, tup.RemotePort
+}
+
+func ip4format(ip [16]uint8) string {
+	ipObj := netip.AddrFrom4(*(*[4]byte)(ip[:4]))
+	return ipObj.String()
+}
+
+func ip6format(ip [16]uint8) string {
+	ipObj := netip.AddrFrom16(ip)
+	return ipObj.String()
+}
+
+// IPFormat takes a binary ip representation and returns a string type
+func IPFormat(tup driver.ConnTupleType, local bool) string {
+	ip, port := ipAndPortFromTup(tup, local)
+
+	if tup.Family == 2 {
+		// IPv4
+		return fmt.Sprintf("%v:%v", ip4format(ip), port)
+	} else if tup.Family == 23 {
+		// IPv6
+		return fmt.Sprintf("[%v]:%v", ip6format(ip), port)
+	} else {
+		// everything else
+		return "<UNKNOWN>"
 	}
 }

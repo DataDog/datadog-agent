@@ -122,7 +122,7 @@ func (e *Credentials) MarshalBinary(data []byte) (int, error) {
 // MarshalPidCache marshals a binary representation of itself
 func (e *Process) MarshalPidCache(data []byte, bootTime time.Time) (int, error) {
 	// Marshal pid_cache_t
-	if len(data) < 24 {
+	if len(data) < 80 {
 		return 0, ErrNotEnoughSpace
 	}
 	ByteOrder.PutUint64(data[0:8], e.Cookie)
@@ -132,7 +132,8 @@ func (e *Process) MarshalPidCache(data []byte, bootTime time.Time) (int, error) 
 
 	marshalTime(data[16:24], e.ForkTime.Sub(bootTime))
 	marshalTime(data[24:32], e.ExitTime.Sub(bootTime))
-	written := 32
+	ByteOrder.PutUint64(data[32:40], e.UserSession.ID)
+	written := 40
 
 	n, err := MarshalBinary(data[written:], &e.Credentials)
 	if err != nil {

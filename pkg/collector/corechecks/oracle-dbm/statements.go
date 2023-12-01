@@ -401,7 +401,8 @@ func (c *Check) StatementMetrics() (int, error) {
 		defer o.Stop()
 		var diff OracleRowMonotonicCount
 		planErrors = 0
-		for _, statementMetricRow := range statementMetricsAll {
+		sendPlan := true
+		for i, statementMetricRow := range statementMetricsAll {
 			var trace bool
 			for _, t := range c.config.QueryMetrics.Trackers {
 				if len(t.ContainsText) > 0 {
@@ -600,7 +601,11 @@ func (c *Check) StatementMetrics() (int, error) {
 				c.fqtEmitted.Set(queryRow.QuerySignature, "1", cache.DefaultExpiration)
 			}
 
-			if c.config.ExecutionPlans.Enabled {
+			if c.config.ExecutionPlans.Enabled && sendPlan {
+				if (i+1)%10 == 0 && time.Since(start).Seconds() >= float64(c.config.QueryMetrics.MaxRunTime) {
+					sendPlan = false
+				}
+
 				planCacheKey := strconv.FormatUint(statementMetricRow.PlanHashValue, 10)
 				if c.planEmitted == nil {
 					c.planEmitted = getPlanEmittedCache(c)
@@ -775,6 +780,7 @@ func (c *Check) StatementMetrics() (int, error) {
 						log.Errorf("%s failed getting execution plan %s for SQL_ID: %s, plan_hash_value: %d", c.logPrompt, err, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 					}
 				}
+
 			}
 		}
 		c.copyToPreviousMap(newCache)

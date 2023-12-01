@@ -11,12 +11,14 @@ import (
 	json "encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
 
 	pconfig "github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/kfilters"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	easyjson "github.com/mailru/easyjson"
@@ -257,10 +259,20 @@ func (a *APIServer) GetConfig(ctx context.Context, params *api.GetConfigParams) 
 
 // SendEvent forwards events sent by the runtime security module to Datadog
 func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func() []string, service string) {
+	var ruleActions []events.RuleActionContext
+	for _, action := range rule.Definition.Actions {
+		if action.Kill != nil {
+			ruleActions = append(ruleActions, events.RuleActionContext{Name: "kill", Signal: action.Kill.Signal})
+		}
+	}
+
 	agentContext := events.AgentContext{
 		RuleID:      rule.Definition.ID,
 		RuleVersion: rule.Definition.Version,
+		RuleActions: ruleActions,
 		Version:     version.AgentVersion,
+		OS:          runtime.GOOS,
+		Arch:        utils.RuntimeArch(),
 	}
 
 	ruleEvent := &events.Signal{
@@ -309,7 +321,7 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 
 func marshalEvent(event events.Event, probe *sprobe.Probe) ([]byte, error) {
 	if ev, ok := event.(*model.Event); ok {
-		return serializers.MarshalEvent(ev, probe.GetResolvers())
+		return serializers.MarshalEvent(ev)
 	}
 
 	if ev, ok := event.(events.EventMarshaler); ok {
@@ -470,7 +482,9 @@ func newDirectReporter(stopper startstop.Stopper) (common.RawReporter, error) {
 		log.Info(status)
 	}
 
-	reporter, err := reporter.NewCWSReporter(runPath, stopper, endpoints, destinationsCtx)
+	// we set the hostname to the empty string to take advantage of the out of the box message hostname
+	// resolution
+	reporter, err := reporter.NewCWSReporter("", runPath, stopper, endpoints, destinationsCtx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create direct reporter: %w", err)
 	}

@@ -24,6 +24,7 @@ type Journal interface {
 	NextSkip(skip uint64) (uint64, error)
 	Close() error
 	Next() (uint64, error)
+	Previous() (uint64, error)
 	GetEntry() (*sdjournal.JournalEntry, error)
 	GetCursor() (string, error)
 }

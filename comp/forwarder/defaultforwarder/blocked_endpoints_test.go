@@ -36,14 +36,14 @@ func TestMinBackoffFactorValid(t *testing.T) {
 	assert.Equal(t, float64(2), defaultValue)
 
 	// Verify configuration updates global var
-	mockConfig.Set("forwarder_backoff_factor", 4)
+	mockConfig.SetWithoutSource("forwarder_backoff_factor", 4)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, float64(4), policy.MinBackoffFactor)
 
 	// Verify invalid values recover gracefully
-	mockConfig.Set("forwarder_backoff_factor", 1.5)
+	mockConfig.SetWithoutSource("forwarder_backoff_factor", 1.5)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
@@ -63,14 +63,14 @@ func TestBaseBackoffTimeValid(t *testing.T) {
 	assert.Equal(t, float64(2), defaultValue)
 
 	// Verify configuration updates global var
-	mockConfig.Set("forwarder_backoff_base", 4)
+	mockConfig.SetWithoutSource("forwarder_backoff_base", 4)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, float64(4), policy.BaseBackoffTime)
 
 	// Verify invalid values recover gracefully
-	mockConfig.Set("forwarder_backoff_base", 0)
+	mockConfig.SetWithoutSource("forwarder_backoff_base", 0)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
@@ -90,14 +90,14 @@ func TestMaxBackoffTimeValid(t *testing.T) {
 	assert.Equal(t, float64(64), defaultValue)
 
 	// Verify configuration updates global var
-	mockConfig.Set("forwarder_backoff_max", 128)
+	mockConfig.SetWithoutSource("forwarder_backoff_max", 128)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, float64(128), policy.MaxBackoffTime)
 
 	// Verify invalid values recover gracefully
-	mockConfig.Set("forwarder_backoff_max", 0)
+	mockConfig.SetWithoutSource("forwarder_backoff_max", 0)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
@@ -119,21 +119,21 @@ func TestRecoveryIntervalValid(t *testing.T) {
 	assert.Equal(t, false, recoveryReset)
 
 	// Verify configuration updates global var
-	mockConfig.Set("forwarder_recovery_interval", 1)
+	mockConfig.SetWithoutSource("forwarder_recovery_interval", 1)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, 1, policy.RecoveryInterval)
 
 	// Verify invalid values recover gracefully
-	mockConfig.Set("forwarder_recovery_interval", 0)
+	mockConfig.SetWithoutSource("forwarder_recovery_interval", 0)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, defaultValue, policy.RecoveryInterval)
 
 	// Verify reset error count
-	mockConfig.Set("forwarder_recovery_reset", true)
+	mockConfig.SetWithoutSource("forwarder_recovery_reset", true)
 	e = newBlockedEndpoints(mockConfig, log)
 	policy, ok = e.backoffPolicy.(*backoff.ExpBackoffPolicy)
 	assert.True(t, ok)

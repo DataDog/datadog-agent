@@ -2,6 +2,9 @@
 service: integration-tests-extension
 frameworkVersion: "3"
 
+plugins:
+  - serverless-plugin-conditional-functions
+
 resources:
   Description: "[Serverless] Integration tests application for lambda extension"
 
@@ -62,7 +65,84 @@ layers:
       artifact: ../../../../datadog-lambda-extension/.layers/datadog_extension-${env:ARCHITECTURE}.zip
 
 functions:
+  appsec-node:
+    enabled: '"${env:RUN_SUITE_APPSEC}" == "true"'
+    runtime: nodejs18.x
+    handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Node18-x:${env:NODE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_LAMBDA_HANDLER: src/trace.simpleTest
+      DD_SERVERLESS_APPSEC_ENABLED: true
+      # Explicitly disable instrumentation telemetry as this causes the traces to somehow no longer be seen by the recorder.
+      DD_INSTRUMENTATION_TELEMETRY_ENABLED: false
+      DD_TRACE_TELEMETRY_ENABLED: false
+
+  appsec-python:
+    enabled: '"${env:RUN_SUITE_APPSEC}" == "true"'
+    runtime: python3.11
+    handler: datadog_lambda.handler.handler
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:Datadog-Python311${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:PYTHON_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_LAMBDA_HANDLER: src/appSecPython.handler
+      DD_SERVERLESS_APPSEC_ENABLED: true
+
+  appsec-java:
+    enabled: '"${env:RUN_SUITE_APPSEC}" == "true"'
+    runtime: java8.al2
+    handler: Handler
+    package:
+      individually: true
+      artifact: src/java-tests/appsec/target/appsec-dev.jar
+    layers:
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-java:${env:JAVA_TRACE_LAYER_VERSION}
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      JAVA_TOOL_OPTIONS: '-javaagent:"/opt/java/lib/dd-java-agent.jar" -XX:+TieredCompilation -XX:TieredStopAtLevel=1'
+      DD_JMXFETCH_ENABLED: false
+      DD_SERVERLESS_APPSEC_ENABLED: true
+
+  appsec-go:
+    enabled: '"${env:RUN_SUITE_APPSEC}" == "true"'
+    runtime: provided.al2
+    package:
+      individually: true
+      patterns:
+        - src/bin/appsec
+    handler: src/bin/appsec
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+    environment:
+      # AWS_LAMBDA_EXEC_WRAPPER is not applied by provided.al2 and go1.x runtimes
+      DD_SERVERLESS_APPSEC_ENABLED: true
+
+  appsec-csharp:
+    enabled: '"${env:RUN_SUITE_APPSEC}" == "true"'
+    runtime: dotnet6
+    handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
+    package:
+      individually: true
+      artifact: src/csharp-tests/bin/Release/net6.0/handler.zip
+    layers:
+      - { Ref: RecorderExtensionLambdaLayer }
+      - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
+      - arn:aws:lambda:${self:provider.region}:464622532012:layer:dd-trace-dotnet${self:custom.ddLayerArchitectureFlag.${env:ARCHITECTURE}}:${env:DOTNET_TRACE_LAYER_VERSION}
+    environment:
+      AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
+      DD_SERVERLESS_APPSEC_ENABLED: true
+
   metric-node:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: nodejs14.x
     handler: src/metric.enhancedMetricTest
     layers:
@@ -71,6 +151,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   metric-python:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: python3.8
     handler: datadog_lambda.handler.handler
     layers:
@@ -81,6 +162,7 @@ functions:
       DD_LAMBDA_HANDLER: src/metricPython.metric
 
   metric-go:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: provided.al2
     package:
       individually: true
@@ -92,6 +174,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   metric-java:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: java8.al2
     handler: Handler
     package:
@@ -106,6 +189,7 @@ functions:
       DD_JMXFETCH_ENABLED: false
 
   metric-csharp:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Hello
     package:
@@ -119,6 +203,7 @@ functions:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   metric-proxy:
+    enabled: '"${env:RUN_SUITE_METRIC}" == "true"'
     runtime: nodejs14.x
     handler: src/proxyTestFunctions.noop
     layers:
@@ -129,6 +214,7 @@ functions:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   error-node:
+    enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
     runtime: nodejs14.x
     handler: src/metric.errorTest
     layers:
@@ -137,6 +223,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   error-python:
+    enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
     runtime: python3.8
     handler: datadog_lambda.handler.handler
     layers:
@@ -147,6 +234,7 @@ functions:
       DD_LAMBDA_HANDLER: src/metricPython.error
 
   error-java:
+    enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
     runtime: java8.al2
     handler: ErrorHandler
     package:
@@ -161,6 +249,7 @@ functions:
       DD_JMXFETCH_ENABLED: false
 
   error-csharp:
+    enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Error
     package:
@@ -174,6 +263,7 @@ functions:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   error-proxy:
+    enabled: '"${env:RUN_SUITE_ERROR}" == "true"'
     runtime: nodejs14.x
     handler: src/proxyTestFunctions.error
     layers:
@@ -184,6 +274,7 @@ functions:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   timeout-node:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: nodejs14.x
     timeout: 1
     handler: src/metric.timeoutMetricTest
@@ -193,6 +284,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   timeout-python:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: python3.8
     timeout: 1
     handler: datadog_lambda.handler.handler
@@ -204,6 +296,7 @@ functions:
       DD_LAMBDA_HANDLER: src/metricPython.timeout
 
   timeout-go:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: provided.al2
     timeout: 1
     package:
@@ -216,6 +309,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   timeout-java:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: java8.al2
     handler: TimeoutHandler
     timeout: 1
@@ -231,6 +325,7 @@ functions:
       DD_JMXFETCH_ENABLED: false
 
   timeout-csharp:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Timeout
     timeout: 1
@@ -245,6 +340,7 @@ functions:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   timeout-proxy:
+    enabled: '"${env:RUN_SUITE_TIMEOUT}" == "true"'
     runtime: nodejs14.x
     handler: src/proxyTestFunctions.timeout
     layers:
@@ -255,6 +351,7 @@ functions:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   log-node:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: nodejs14.x
     handler: src/log.logTest
     layers:
@@ -263,6 +360,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   log-python:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: python3.8
     handler: datadog_lambda.handler.handler
     layers:
@@ -273,6 +371,7 @@ functions:
       DD_LAMBDA_HANDLER: src/logPython.log
 
   log-go:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: provided.al2
     package:
       individually: true
@@ -284,6 +383,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   log-csharp:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Logs
     package:
@@ -297,6 +397,7 @@ functions:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   log-java:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: java8.al2
     handler: LogHandler
     package:
@@ -311,6 +412,7 @@ functions:
       DD_JMXFETCH_ENABLED: false
 
   log-proxy:
+    enabled: '"${env:RUN_SUITE_LOG}" == "true"'
     runtime: nodejs14.x
     handler: src/proxyTestFunctions.log
     layers:
@@ -321,6 +423,7 @@ functions:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   trace-node:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: nodejs14.x
     handler: /opt/nodejs/node_modules/datadog-lambda-js/handler.handler
     layers:
@@ -331,6 +434,7 @@ functions:
       DD_LAMBDA_HANDLER: src/trace.simpleTest
 
   trace-python:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: python3.8
     handler: datadog_lambda.handler.handler
     layers:
@@ -341,6 +445,7 @@ functions:
       DD_LAMBDA_HANDLER: src/tracePython.simple_test
 
   trace-go:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: provided.al2
     package:
       individually: true
@@ -352,6 +457,7 @@ functions:
       - { Ref: DatadogExtensionIntegrationTestLambdaLayer }
 
   trace-java:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: java8.al2
     handler: TraceHandler
     package:
@@ -366,6 +472,7 @@ functions:
       DD_JMXFETCH_ENABLED: false
 
   trace-csharp:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: dotnet6
     handler: CsharpHandlers::AwsDotnetCsharp.Handler::Trace
     package:
@@ -379,6 +486,7 @@ functions:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   trace-proxy:
+    enabled: '"${env:RUN_SUITE_TRACE}" == "true"'
     runtime: nodejs14.x
     handler: src/proxyTestFunctions.noop
     layers:
@@ -389,6 +497,7 @@ functions:
       AWS_LAMBDA_EXEC_WRAPPER: /opt/datadog_wrapper
 
   otlp-python:
+    enabled: '"${env:RUN_SUITE_OTLP}" == "true"'
     runtime: python3.8
     # a bug in opentelemetry instrumentation makes it impossible to define a
     # handler inside of a directory

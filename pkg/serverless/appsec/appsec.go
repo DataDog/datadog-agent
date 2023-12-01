@@ -9,13 +9,13 @@ package appsec
 
 import (
 	"encoding/json"
+	"math/rand"
 	"time"
 
-	"github.com/DataDog/appsec-internal-go/appsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
-	waf "github.com/DataDog/go-libddwaf"
+	waf "github.com/DataDog/go-libddwaf/v2"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -78,9 +78,10 @@ func newAppSec() (*AppSec, error) {
 	}
 
 	var rules map[string]any
-	if err := json.Unmarshal([]byte(appsec.StaticRecommendedRules), &rules); err != nil {
+	if err := json.Unmarshal(cfg.Rules, &rules); err != nil {
 		return nil, err
 	}
+
 	handle, err := waf.NewHandle(rules, cfg.Obfuscator.KeyRegex, cfg.Obfuscator.ValueRegex)
 	if err != nil {
 		return nil, err
@@ -103,9 +104,9 @@ func (a *AppSec) Close() error {
 	return nil
 }
 
-// Monitor runs the security event rules and return the events as raw JSON byte
-// array.
-func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
+// Monitor runs the security event rules and return the events as a slice
+// The monitored addresses are all persistent addresses
+func (a *AppSec) Monitor(addresses map[string]any) *waf.Result {
 	log.Debugf("appsec: monitoring the request context %v", addresses)
 	ctx := waf.NewContext(a.handle)
 	if ctx == nil {
@@ -113,7 +114,13 @@ func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
 	}
 	defer ctx.Close()
 	timeout := a.cfg.WafTimeout
-	events, _, err := ctx.Run(addresses, timeout)
+
+	// Ask the WAF for schema reporting if API security is enabled
+	if a.canExtractSchemas() {
+		addresses["waf.context.processor"] = map[string]any{"extract-schema": true}
+	}
+
+	res, err := ctx.Run(waf.RunAddressData{Persistent: addresses}, timeout)
 	if err != nil {
 		if err == waf.ErrTimeout {
 			log.Debugf("appsec: waf timeout value of %s reached", timeout)
@@ -122,15 +129,16 @@ func (a *AppSec) Monitor(addresses map[string]interface{}) (events []byte) {
 			return nil
 		}
 	}
+
 	dt, _ := ctx.TotalRuntime()
-	if len(events) > 0 {
-		log.Debugf("appsec: security events found in %s: %s", time.Duration(dt), string(events))
+	if res.HasEvents() {
+		log.Debugf("appsec: security events found in %s: %v", time.Duration(dt), res.Events)
 	}
 	if !a.eventsRateLimiter.Allow() {
 		log.Debugf("appsec: security events discarded: the rate limit of %d events/s is reached", a.cfg.TraceRateLimit)
 		return nil
 	}
-	return events
+	return &res
 }
 
 // wafHealth is a simple test helper that returns the same thing as `waf.Health`
@@ -144,4 +152,10 @@ func wafHealth() error {
 		return err
 	}
 	return nil
+}
+
+// canExtractSchemas checks that API Security is enabled
+// and that sampling rate allows schema extraction for a specific monitoring instance
+func (a *AppSec) canExtractSchemas() bool {
+	return a.cfg.APISec.Enabled && a.cfg.APISec.SampleRate >= rand.Float64()
 }

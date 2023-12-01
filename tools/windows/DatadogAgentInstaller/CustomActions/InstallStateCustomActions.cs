@@ -143,8 +143,8 @@ namespace Datadog.CustomActions
                 var currentBuild = subkey.GetValue("CurrentBuild");
                 if (currentBuild != null)
                 {
-                    _session["WindowsBuild"] = subkey.GetValue("CurrentBuild").ToString();
-                    _session.Log($"WindowsBuild: {_session["WindowsBuild"]}");
+                    _session["DDAGENT_WINDOWSBUILD"] = subkey.GetValue("CurrentBuild").ToString();
+                    _session.Log($"WindowsBuild: {_session["DDAGENT_WINDOWSBUILD"]}");
                 }
             }
             else

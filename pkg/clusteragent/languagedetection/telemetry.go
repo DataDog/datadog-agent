@@ -44,23 +44,29 @@ var (
 	)
 
 	// SkippedPatches tracks the number of times a patch was skipped because no new languages are detected
-	SkippedPatches = telemetry.NewSimpleCounter(
+	SkippedPatches = telemetry.NewCounterWithOpts(
 		subsystem,
 		"skipped_patch",
+		[]string{"owner_kind", "owner_name", "namespace"},
 		"Tracks the number of times a patch was skipped because no new languages are detected",
+		commonOpts,
 	)
 
 	// OkResponses tracks the number the request was processed successfully
-	OkResponses = telemetry.NewSimpleCounter(
+	OkResponses = telemetry.NewCounterWithOpts(
 		subsystem,
 		"ok_response",
+		[]string{},
 		"Tracks the number the request was processed successfully",
+		commonOpts,
 	)
 
 	// ErrorResponses tracks the number of times request processsing fails
-	ErrorResponses = telemetry.NewSimpleCounter(
+	ErrorResponses = telemetry.NewCounterWithOpts(
 		subsystem,
 		"fail_response",
+		[]string{},
 		"Tracks the number of times request processsing fails",
+		commonOpts,
 	)
 )

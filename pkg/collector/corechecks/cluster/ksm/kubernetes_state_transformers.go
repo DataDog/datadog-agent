@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
@@ -113,6 +115,7 @@ func defaultMetricTransformers() map[string]metricTransformerFunc {
 		"kube_limitrange":                               limitrangeTransformer,
 		"kube_persistentvolume_status_phase":            pvPhaseTransformer,
 		"kube_service_spec_type":                        serviceTypeTransformer,
+		"kube_ingress_tls":                              removeSecretTransformer,
 	}
 }
 
@@ -240,12 +243,13 @@ func podPhaseTransformer(s sender.Sender, name string, metric ksmstore.DDMetric,
 }
 
 var allowedWaitingReasons = map[string]struct{}{
-	"errimagepull":         {},
-	"imagepullbackoff":     {},
-	"crashloopbackoff":     {},
-	"containercreating":    {},
-	"createcontainererror": {},
-	"invalidimagename":     {},
+	"errimagepull":               {},
+	"imagepullbackoff":           {},
+	"crashloopbackoff":           {},
+	"containercreating":          {},
+	"createcontainererror":       {},
+	"invalidimagename":           {},
+	"createcontainerconfigerror": {},
 }
 
 // containerWaitingReasonTransformer validates the container waiting reasons for metric kube_pod_container_status_waiting_reason
@@ -533,4 +537,12 @@ func pvPhaseTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, 
 // serviceTypeTransformer generates metrics per service, namespace, and type from the kube_service_spec_type metric
 func serviceTypeTransformer(s sender.Sender, name string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
 	submitActiveMetric(s, ksmMetricPrefix+"service.type", metric, hostname, tags)
+}
+
+// removeSecretTransformer removes the secret tag from the kube_ingress_tls metric
+func removeSecretTransformer(s sender.Sender, _ string, metric ksmstore.DDMetric, hostname string, tags []string, _ time.Time) {
+	if len(tags) > 0 {
+		tags = lo.Filter(tags, func(x string, _ int) bool { return !strings.HasPrefix(x, "secret:") })
+	}
+	s.Gauge(ksmMetricPrefix+"ingress.tls", metric.Val, hostname, tags)
 }

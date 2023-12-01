@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build windows
-
 // Package process holds process related files
 package process
 
@@ -44,11 +42,6 @@ type Resolver struct {
 	processCacheEntryPool *Pool
 }
 
-// ResolverOpts options of resolver
-type ResolverOpts struct {
-	envsWithValue map[string]bool
-}
-
 // NewResolver returns a new process resolver
 func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scrubber *procutil.DataScrubber, //nolint:revive // TODO fix revive unused-parameter
 	opts ResolverOpts) (*Resolver, error) {
@@ -61,14 +54,9 @@ func NewResolver(config *config.Config, statsdClient statsd.ClientInterface, scr
 		statsdClient: statsdClient,
 	}
 
-	p.processCacheEntryPool = NewProcessCacheEntryPool(p)
+	p.processCacheEntryPool = NewProcessCacheEntryPool(func() { p.cacheSize.Dec() })
 
 	return p, nil
-}
-
-// NewResolverOpts returns a new set of process resolver options
-func NewResolverOpts() ResolverOpts {
-	return ResolverOpts{}
 }
 
 func (p *Resolver) insertEntry(entry *model.ProcessCacheEntry) {
@@ -134,7 +122,7 @@ func (p *Resolver) GetEntry(pid Pid) *model.ProcessCacheEntry {
 }
 
 // Resolve returns the cache entry for the given pid
-func (p *Resolver) Resolve(pid, tid uint32, inode uint64, useFallBack bool) *model.ProcessCacheEntry { //nolint:revive // TODO fix revive unused-parameter
+func (p *Resolver) Resolve(pid uint32) *model.ProcessCacheEntry { //nolint:revive // TODO fix revive unused-parameter
 	return p.GetEntry(pid)
 }
 

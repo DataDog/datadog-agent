@@ -8,3 +8,42 @@ go.sum -diff -merge linguist-generated=true
 *_easyjson.go -diff -merge
 *_easyjson.go linguist-generated=true
 pkg/security/probe/constantfetch/btfhub/constants.json -diff -merge linguist-generated=true
+
+# Fix `git diff` when running on the below file formats.
+# Our windows build image uses MinGit which tries to use the astextplain diff algorithm (https://git-scm.com/docs/gitattributes#_setting_the_internal_diff_algorithm).
+# The astextplain binary is not embedded in the docker image making the git diff command fail when one of the below file formats is in the diff.
+# The error is:
+# ```
+# error: cannot spawn astexplain: No such files or directory
+# fatal: unable to read files diff
+# ```
+# We're overriding the MinGit default gitattributes config to avoid using astextplain on the file formats below.
+# The MinGit's gitconfig file still have the problematic config though it should not use it anymore:
+# ```
+# [diff "astextplain"]
+#	textconv = astextplain
+# ```
+
+
+*.doc	diff
+*.DOC	diff
+*.docx	diff
+*.DOCX	diff
+*.docm	diff
+*.DOCM	diff
+*.dot	diff
+*.DOT	diff
+*.dotx	diff
+*.DOTX	diff
+*.dotm	diff
+*.DOTM	diff
+*.pdf	diff
+*.PDF	diff
+*.rtf	diff
+*.RTF	diff
+*.ods	diff
+*.ODS	diff
+*.odf	diff
+*.ODF	diff
+*.odt	diff
+*.ODT	diff

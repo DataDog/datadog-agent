@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Fix a spewing error message ("DCA Client not initialized by main provider, cannot post heartbeat") in the cluster check runner log during CLC initialization.

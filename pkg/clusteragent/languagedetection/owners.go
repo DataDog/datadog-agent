@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	kindDeployment string = "deployment"
-	kindReplicaset string = "replicaset"
+	kindDeployment = "Deployment"
+	kindReplicaset = "ReplicaSet"
 )
 
 // Currently only deployments are supported

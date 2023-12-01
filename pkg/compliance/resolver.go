@@ -89,7 +89,7 @@ type ResolverOptions struct {
 
 	// StatsdClient is the statsd client used internally by the compliance
 	// resolver (optional)
-	StatsdClient *statsd.Client
+	StatsdClient statsd.ClientInterface
 
 	DockerProvider
 	KubernetesProvider
@@ -195,13 +195,13 @@ func (r *defaultResolver) ResolveInputs(ctx context.Context, rule *Rule) (Resolv
 	// the resolved inputs.
 	rootPath := r.opts.HostRoot
 	if pid := r.opts.HostRootPID; pid > 0 {
-		containerID, ok := getProcessContainerID(pid)
+		containerID, ok := utils.GetProcessContainerID(pid)
 		if ok {
-			rootPath, ok = getProcessRootPath(pid)
+			rootPath, ok = utils.GetProcessRootPath(pid)
 			if !ok {
 				return nil, fmt.Errorf("could not resolve the root path to run the resolver for container ID=%q", resolvingContext.ContainerID)
 			}
-			resolvingContext.ContainerID = containerID
+			resolvingContext.ContainerID = string(containerID)
 		}
 	}
 

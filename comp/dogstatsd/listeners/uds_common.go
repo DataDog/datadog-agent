@@ -57,6 +57,9 @@ type UDSListener struct {
 	dogstatsdMemBasedRateLimiter bool
 }
 
+// CloseFunction is a function that closes a connection
+type CloseFunction func(unixConn *net.UnixConn) error
+
 func setupUnixConn(conn *net.UnixConn, originDetection bool, config config.Reader) (bool, error) {
 	if originDetection {
 		err := enableUDSPassCred(conn)
@@ -143,11 +146,13 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 }
 
 // Listen runs the intake loop. Should be called in its own goroutine
-func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
+func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFunction) error {
 	listenerID := l.getListenerID(conn)
 	tlmListenerID := listenerID
-	if !l.config.GetBool("dogstatsd_telemetry_enabled_listener_id") {
-		tlmListenerID = ""
+	telemetryWithFullListenerID := l.config.GetBool("dogstatsd_telemetry_enabled_listener_id")
+	if !telemetryWithFullListenerID {
+		// In case we don't want the full listener id, we only keep the transport.
+		tlmListenerID = "uds-" + conn.LocalAddr().Network()
 	}
 
 	packetsBuffer := packets.NewBuffer(
@@ -158,9 +163,11 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn) error {
 	)
 	tlmUDSConnections.Inc(tlmListenerID, l.transport)
 	defer func() {
-		_ = conn.Close()
+		_ = closeFunc(conn)
 		packetsBuffer.Close()
-		l.clearTelemetry(tlmListenerID)
+		if telemetryWithFullListenerID {
+			l.clearTelemetry(tlmListenerID)
+		}
 		tlmUDSConnections.Dec(tlmListenerID, l.transport)
 	}()
 

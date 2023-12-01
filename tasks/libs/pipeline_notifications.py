@@ -67,7 +67,7 @@ GITHUB_JIRA_MAP = {
     "@datadog/windows-agent": "WINA",
     "@datadog/windows-kernel-integrations": "WKINT",
     "@datadog/opentelemetry": "OTEL",
-    "@datadog/agent-e2e-testing": "AETT",
+    "@datadog/agent-e2e-testing": "APL",
     "@datadog/software-integrity-and-trust": "SINT",
     "@datadog/single-machine-performance": "SMP",
     "@datadog/agent-integrations": "AI",

@@ -86,12 +86,12 @@ func TestGetAPIEndpoints(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.Mock(t)
-			cfg.Set("api_key", tc.apiKey)
+			cfg.SetWithoutSource("api_key", tc.apiKey)
 			if tc.ddURL != "" {
-				cfg.Set("process_config.process_dd_url", tc.ddURL)
+				cfg.SetWithoutSource("process_config.process_dd_url", tc.ddURL)
 			}
 			if tc.additionalEndpoints != nil {
-				cfg.Set("process_config.additional_endpoints", tc.additionalEndpoints)
+				cfg.SetWithoutSource("process_config.additional_endpoints", tc.additionalEndpoints)
 			}
 
 			if eps, err := endpoint.GetAPIEndpoints(cfg); tc.error {
@@ -142,13 +142,13 @@ func TestGetAPIEndpointsSite(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.Mock(t)
 			if tc.site != "" {
-				cfg.Set("site", tc.site)
+				cfg.SetWithoutSource("site", tc.site)
 			}
 			if tc.ddURL != "" {
-				cfg.Set("process_config.process_dd_url", tc.ddURL)
+				cfg.SetWithoutSource("process_config.process_dd_url", tc.ddURL)
 			}
 			if tc.eventsDDURL != "" {
-				cfg.Set("process_config.events_dd_url", tc.eventsDDURL)
+				cfg.SetWithoutSource("process_config.events_dd_url", tc.eventsDDURL)
 			}
 
 			eps, err := endpoint.GetAPIEndpoints(cfg)
@@ -282,21 +282,21 @@ func TestGetConcurrentAPIEndpoints(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := config.Mock(t)
-			cfg.Set("api_key", tc.apiKey)
+			cfg.SetWithoutSource("api_key", tc.apiKey)
 			if tc.ddURL != "" {
-				cfg.Set("process_config.process_dd_url", tc.ddURL)
+				cfg.SetWithoutSource("process_config.process_dd_url", tc.ddURL)
 			}
 
 			if tc.eventsDDURL != "" {
-				cfg.Set("process_config.events_dd_url", tc.eventsDDURL)
+				cfg.SetWithoutSource("process_config.events_dd_url", tc.eventsDDURL)
 			}
 
 			if tc.additionalEndpoints != nil {
-				cfg.Set("process_config.additional_endpoints", tc.additionalEndpoints)
+				cfg.SetWithoutSource("process_config.additional_endpoints", tc.additionalEndpoints)
 			}
 
 			if tc.additionalEventsEndpoints != nil {
-				cfg.Set("process_config.events_additional_endpoints", tc.additionalEventsEndpoints)
+				cfg.SetWithoutSource("process_config.events_additional_endpoints", tc.additionalEventsEndpoints)
 			}
 
 			eps, err := endpoint.GetAPIEndpoints(cfg)

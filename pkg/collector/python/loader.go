@@ -206,6 +206,10 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		C.rtloader_decref(rtloader, checkClass)
 		C.rtloader_decref(rtloader, checkModule)
 
+		if errors.Is(err, check.ErrSkipCheckInstance) {
+			return nil, err
+		}
+
 		addExpvarConfigureError(fmt.Sprintf("%s (%s)", moduleName, wheelVersion), err.Error())
 		return c, fmt.Errorf("could not configure check instance for python check %s: %s", moduleName, err.Error())
 	}

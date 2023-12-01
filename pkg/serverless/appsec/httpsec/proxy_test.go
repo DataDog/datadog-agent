@@ -20,6 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	os.Setenv("DD_APPSEC_WAF_TIMEOUT", "1m")
+}
+
 func TestProxyLifecycleProcessor(t *testing.T) {
 	t.Setenv("DD_SERVERLESS_APPSEC_ENABLED", "true")
 	lp, err := appsec.New()
@@ -79,6 +83,26 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 		// Second invocation containing attacks
 		chunk = runAppSec("request 2", invocationlifecycle.InvocationStartDetails{
 			InvokeEventRawPayload: getEventFromFile("api-gateway-appsec.json"),
+			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		})
+		span = chunk.Spans[0]
+		require.Contains(t, span.Meta, "_dd.appsec.json")
+		require.Equal(t, int32(sampler.PriorityUserKeep), chunk.Priority)
+		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
+	})
+
+	t.Run("api-gateway-kong", func(t *testing.T) {
+		// First invocation without any attack
+		chunk := runAppSec("request 1", invocationlifecycle.InvocationStartDetails{
+			InvokeEventRawPayload: getEventFromFile("api-gateway-kong.json"),
+			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+		})
+		span := chunk.Spans[0]
+		require.Equal(t, 1.0, span.Metrics["_dd.appsec.enabled"])
+
+		// Second invocation containing attacks
+		chunk = runAppSec("request", invocationlifecycle.InvocationStartDetails{
+			InvokeEventRawPayload: getEventFromFile("api-gateway-kong-appsec.json"),
 			InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
 		})
 		span = chunk.Spans[0]

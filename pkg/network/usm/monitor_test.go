@@ -18,6 +18,7 @@ import (
 	nethttp "net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -539,6 +540,127 @@ func TestHTTP2(t *testing.T) {
 	})
 }
 
+func (s *USMHTTP2Suite) TestHTTP2DynamicTableCleanup() {
+	t := s.T()
+	cfg := networkconfig.New()
+	cfg.EnableHTTP2Monitoring = true
+	cfg.HTTP2DynamicTableMapCleanerInterval = 5 * time.Second
+
+	startH2CServer(t)
+
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, monitor.Start())
+	defer monitor.Stop()
+
+	numberOfRequests := usmhttp2.HTTP2TerminatedBatchSize
+	clients := getClientsArray(t, 2)
+	for i := 0; i < numberOfRequests; i++ {
+		req, err := clients[i%2].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
+		require.NoError(t, err, "could not make request")
+		req.Body.Close()
+	}
+
+	matches := PrintableInt(0)
+
+	require.Eventuallyf(t, func() bool {
+		stats := monitor.GetProtocolStats()
+		http2Stats, ok := stats[protocols.HTTP2]
+		if !ok {
+			return false
+		}
+		http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+		for key, stat := range http2StatsTyped {
+			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+				matches.Add(stat.Data[200].Count)
+			}
+		}
+
+		return matches.Load() == numberOfRequests
+	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, numberOfRequests)
+
+	for _, client := range clients {
+		client.CloseIdleConnections()
+	}
+
+	dynamicTableMap, _, err := monitor.ebpfProgram.GetMap("http2_dynamic_table")
+	require.NoError(t, err)
+	iterator := dynamicTableMap.Iterate()
+	key := make([]byte, dynamicTableMap.KeySize())
+	value := make([]byte, dynamicTableMap.ValueSize())
+	count := 0
+	for iterator.Next(&key, &value) {
+		count++
+	}
+	require.GreaterOrEqual(t, count, 0)
+
+	require.Eventually(t, func() bool {
+		iterator = dynamicTableMap.Iterate()
+		count = 0
+		for iterator.Next(&key, &value) {
+			count++
+		}
+
+		return count == 0
+	}, cfg.HTTP2DynamicTableMapCleanerInterval*4, time.Millisecond*100)
+}
+
+func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
+	t := s.T()
+	cfg := networkconfig.New()
+	cfg.EnableHTTP2Monitoring = true
+
+	startH2CServer(t)
+
+	monitor, err := NewMonitor(cfg, nil, nil, nil)
+	require.NoError(t, err)
+	require.NoError(t, monitor.Start())
+	defer monitor.Stop()
+
+	// Should be bigger than the length of the http2_dynamic_table which is 1024
+	const numberOfRequests = 1500
+	const expectedNumberOfRequests = numberOfRequests * 2
+	clients := getClientsArray(t, 1)
+	for i := 0; i < numberOfRequests; i++ {
+		for j := 0; j < 2; j++ {
+			req, err := clients[0].Post(fmt.Sprintf("%s/test-%d", http2SrvAddr, i+1), "application/json", bytes.NewReader([]byte("test")))
+			require.NoError(t, err, "could not make request")
+			req.Body.Close()
+		}
+	}
+
+	matches := PrintableInt(0)
+
+	seenRequests := map[string]int{}
+	assert.Eventuallyf(t, func() bool {
+		stats := monitor.GetProtocolStats()
+		http2Stats, ok := stats[protocols.HTTP2]
+		if !ok {
+			return false
+		}
+		http2StatsTyped := http2Stats.(map[http.Key]*http.RequestStats)
+		for key, stat := range http2StatsTyped {
+			if (key.DstPort == http2SrvPort || key.SrcPort == http2SrvPort) && key.Method == http.MethodPost && strings.HasPrefix(key.Path.Content.Get(), "/test") {
+				if _, ok := seenRequests[key.Path.Content.Get()]; !ok {
+					seenRequests[key.Path.Content.Get()] = 0
+				}
+				seenRequests[key.Path.Content.Get()] += stat.Data[200].Count
+				matches.Add(stat.Data[200].Count)
+			}
+		}
+
+		// Due to a known issue in http2, we might consider an RST packet as a response to a request and therefore
+		// we might capture a request twice. This is why we are expecting to see 2*numberOfRequests instead of
+		return expectedNumberOfRequests <= matches.Load() && matches.Load() <= expectedNumberOfRequests+1
+	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, 2*numberOfRequests)
+
+	for i := 0; i < numberOfRequests; i++ {
+		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != 2 {
+			t.Logf("path: /test-%d should have 2 occurrences but instead has %d", i+1, v)
+		}
+	}
+}
+
 func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	t := s.T()
 	cfg := networkconfig.New()
@@ -659,6 +781,83 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	}
 }
 
+var http2UniquePaths = []string{
+	// size 18 bucket 0
+	"C9ZaSMOpthT9XaRh9yc6AKqfIjT43M8gOz3p9ASKCNRIcLbc3PTqEoms2SDwt6Q90QM7DxjWKlmZUfRU1eOx5DjQOOhLaIJQke4N",
+	// size 122 bucket 1
+	"ZtZuUQeVB7BOl3F45oFicOOOJl21ePFwunMBvBh3bXPMBZqdEZepVsemYA0frZb5M83VHLDWq68KFELDHu0Xo28lzpzO3L7kDXuYuClivgEgURUn47kfwfUfW1PKjfsV6HaYpAZxly48lTGiRIXRINVC8b9jbbjNA6nBzubenIctRKBDywbifoO0YVzCSLm3qjpc4U2k4CZAoUm2X3mGCTwPawlEt8Z2KgFjcB",
+	// size 131, bucket 2
+	"RDBVk5COXAz52GzvuHVWRawNoKhmfxhBiTuyj5QZ6qR1DMsNOn4sWFLnaGXVzrqA8NLr2CaW1IDupzh9AzJlIvgYSf6OYIafIOsImL5O9M3AHzUHGMJ0KhjYGJAzXeTgvwl2qYWmlD9UYGELFpBSzJpykoriocvl3RRoYt4lQ0favN3ptHYNUPJ1XDjH7CdRoad2jrIcKd04J49ZFTHJK7l6MyUe6XWEcfMB3sI2h1jY9z2z",
+	// size 145, bucket 3
+	"T5r8QcP8qCiKVwhWlaxWjYCX8IrTmPrt2HRjfQJP2PxbWjLm8dP4BTDxUAmXJJWNyv4HIIaR3Fj6n8Tu6vSoDcBtKFuMqIPAdYEJt0qo2aaYDKomIJv74z7SiN96GrOufPTm6Eutl3JGeAKW2b0dZ4VYUsIOO8aheEOGmyhyWBymgCtBcXeki1HZZz9J65QColhuslBmbLTfg5sIFA9jImyF4CANIn53lhxzi4hslSCHaGz8JrCqnfbueayY21jUGwCF",
+	// size 155, bucket 4
+	"VP4zOrIPiGhLDLSJYSVU78yUcb8CkU0dVDIZqPq98gVoenX5p1zS6cRX4LtrfSYKCQFX6MquluhDD2GPjZYFIraDLIHCno3yipQBLPGcPbPTgv9SD6jOlHMuLjmsGxyC3y2Hk61bWA6Af4D2SYS0q3BS7ahJ0vjddYYBRIpwMOOIez2jaR56rPcGCRW2eq0T1xAvaNqOpjSuDVYAN7miDxAqFn69eIfJm6YTKgEFy3cua5MBCn7xFxcFvsC11x9D9TzqHZDxGd1SoI",
+	// size 163, bucket 5
+	"X2YRUwfeNEmYWkk0bACThVya8MoSUkR7ZKANCPYkIGHvF9CWGA0rxXKsGogQag7HsJfmgaar3TiOTRUb3ynbmiOz3As9rXYjRGNRdCWGgdBPL8nGa6WheGlJLNtIVsUcxSerNQKmoQqqDLjGftbKXjqdMJLVY6UyECeXOKrrFU9aHx2fjlk2qMNDUptYWuzPPCWAnKOV7PhkkDiXWySbEzMTRb1LsgYxdpivawvxWbs39T9G3itElybS10z6m2MtyhNxjZqrxQnOKuAQrFs6vh9u",
+	// size 175, bucket 6
+	"bq5bcpUgiW1CpKgwdRVIulFMkwRenJWYdW8aek69anIV8w3br0pjGNtfnoPCyj4HUMD5MxWB2xM4XGp7fZ1JRHvskRZEgmoM7ag9BeuigmH05p7dzMwKsD76MqKyPmfhwBUZHLKtJ52ia3mOuMvyYiQNwA6KAU509bwuy4NCREVUAP76WFeAzr0jBvqMFXLg3eQQERIW0tKTcjQg8m9Jx49Vo679QcT40e1R1cjvIauX8uJ2PDQiyiVm2r81mSaabT7pARQcY6HN3pDgBsbpL3E7J7LIWD1YiDr28pfu8mAs",
+	// size 183, bucket 7
+	"LUhWUWPMztVFuEs83i7RmoxRiV1KzOq0NsZmGXVyW49BbBaL63m8H5vDwiewrrKbldXBuctplDxB28QekDclM6cO9BIsRqvzS3a802aOkRHTEruotA8Xh5K9GOMv9DzdoOL9P3GFPsUPgBy0mzFyyRJGk3JXpIH290Bj2FIRnIIpIjjKE1akeaimsuGEheA4D95axRpGmz4cm2s74UiksfBi4JnVX2cBzZN3oQaMt7zrWofwyzcZeF5W1n6BAQWxPPWe4Jyoc34jQ2fiEXQO0NnXe1RFbBD1E33a0OycziXZH9hEP23xvh",
+}
+
+func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
+	t := s.T()
+	cfg := networkconfig.New()
+	cfg.EnableHTTP2Monitoring = true
+
+	startH2CServer(t)
+
+	tests := []struct {
+		name              string
+		runClients        func(t *testing.T, clientsCount int)
+		expectedTelemetry *usmhttp2.HTTP2Telemetry
+	}{
+		{
+			name: "Fill each bucket",
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount)
+				for _, path := range http2UniquePaths {
+					client := clients[getClientsIndex(1, clientsCount)]
+					req, err := client.Post(http2SrvAddr+"/"+path, "application/json", bytes.NewReader([]byte("test")))
+					require.NoError(t, err, "could not make request")
+					req.Body.Close()
+				}
+			},
+
+			expectedTelemetry: &usmhttp2.HTTP2Telemetry{
+				Request_seen:                     8,
+				Response_seen:                    8,
+				End_of_stream:                    16,
+				End_of_stream_rst:                0,
+				Path_exceeds_frame:               0,
+				Exceeding_max_interesting_frames: 0,
+				Exceeding_max_frames_to_filter:   0,
+				Path_size_bucket:                 [8]uint64{1, 1, 1, 1, 1, 1, 1, 1},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			monitor, err := NewMonitor(cfg, nil, nil, nil)
+			require.NoError(t, err)
+			require.NoError(t, monitor.Start())
+			defer monitor.Stop()
+
+			tt.runClients(t, 1)
+
+			var telemetry *usmhttp2.HTTP2Telemetry
+			assert.Eventually(t, func() bool {
+				telemetry, err = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry()
+				require.NoError(t, err)
+				return reflect.DeepEqual(tt.expectedTelemetry, telemetry)
+			}, time.Second*5, time.Millisecond*100)
+			if t.Failed() {
+				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
+			}
+		})
+	}
+}
+
 func getClientsArray(t *testing.T, size int) []*nethttp.Client {
 	t.Helper()
 
@@ -718,7 +917,7 @@ func getClientsIndex(index, totalCount int) int {
 func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp.Request) {
 	requestsExist := make([]bool, len(requests))
 
-	require.Eventually(t, func() bool {
+	assert.Eventually(t, func() bool {
 		stats := getHttpStats(t, monitor)
 
 		if len(stats) == 0 {
@@ -735,16 +934,30 @@ func assertAllRequestsExists(t *testing.T, monitor *Monitor, requests []*nethttp
 
 		// Slight optimization here, if one is missing, then go into another cycle of checking the new connections.
 		// otherwise, if all present, abort.
-		for reqIndex, exists := range requestsExist {
+		for _, exists := range requestsExist {
 			if !exists {
-				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
-				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
 				return false
 			}
 		}
 
 		return true
 	}, 3*time.Second, time.Millisecond*100, "connection not found")
+
+	if t.Failed() {
+		o, err := monitor.DumpMaps("http_in_flight")
+		if err != nil {
+			t.Logf("failed dumping http_in_flight: %s", err)
+		} else {
+			t.Log(o)
+		}
+
+		for reqIndex, exists := range requestsExist {
+			if !exists {
+				// reqIndex is 0 based, while the number is requests[reqIndex] is 1 based.
+				t.Logf("request %d was not found (req %v)", reqIndex+1, requests[reqIndex])
+			}
+		}
+	}
 }
 
 func testHTTPMonitor(t *testing.T, targetAddr, serverAddr string, numReqs int, o testutil.Options) {

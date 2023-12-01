@@ -13,6 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/fx"
+
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -26,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"go.uber.org/fx"
 )
 
 var (
@@ -138,8 +139,12 @@ func (ia *inventoryagent) initData() {
 	ia.data["install_method_installer_version"] = installerVersion
 
 	data, err := hostname.GetWithProvider(context.Background())
-	if err != nil && data.Provider != "" && !data.FromFargate() {
-		ia.data["hostname_source"] = data.Provider
+	if err == nil {
+		if data.Provider != "" && !data.FromFargate() {
+			ia.data["hostname_source"] = data.Provider
+		}
+	} else {
+		ia.log.Warnf("could not fetch 'hostname_source': %v", err)
 	}
 
 	ia.data["agent_version"] = version.AgentVersion
@@ -158,6 +163,7 @@ func (ia *inventoryagent) initData() {
 	ia.data["feature_fips_enabled"] = ia.conf.GetBool("fips.enabled")
 	ia.data["feature_logs_enabled"] = ia.conf.GetBool("logs_enabled")
 	ia.data["feature_cspm_enabled"] = ia.conf.GetBool("compliance_config.enabled")
+	ia.data["feature_cspm_host_benchmarks_enabled"] = ia.conf.GetBool("compliance_config.host_benchmarks.enabled")
 	ia.data["feature_apm_enabled"] = ia.conf.GetBool("apm_config.enabled")
 	ia.data["feature_imdsv2_enabled"] = ia.conf.GetBool("ec2_prefer_imdsv2")
 	ia.data["feature_dynamic_instrumentation_enabled"] = pkgconfig.SystemProbe.GetBool("dynamic_instrumentation.enabled")
@@ -239,10 +245,34 @@ func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
 	if providedConf, err := ia.getProvidedAgentConfiguration(); err == nil {
 		data["provided_configuration"] = providedConf
 	}
+	if fileConf, err := ia.getAgentFileConfiguration(); err == nil {
+		data["file_configuration"] = fileConf
+	}
+	if envVarConf, err := ia.getAgentEnvVarConfiguration(); err == nil {
+		data["environment_variable_configuration"] = envVarConf
+	}
+	if agentRuntimeConf, err := ia.getAgentRuntimeConfiguration(); err == nil {
+		data["agent_runtime_configuration"] = agentRuntimeConf
+	}
+	if remoteConf, err := ia.getAgentRemoteConfiguration(); err == nil {
+		data["remote_configuration"] = remoteConf
+	}
+	if cliConf, err := ia.getAgentCliConfiguration(); err == nil {
+		data["cli_configuration"] = cliConf
+	}
 
 	return &Payload{
 		Hostname:  ia.hostname,
 		Timestamp: time.Now().UnixNano(),
 		Metadata:  data,
 	}
+}
+
+// Get returns a copy of the agent metadata. Useful to be incorporated in the status page.
+func (ia *inventoryagent) Get() map[string]interface{} {
+	data := map[string]interface{}{}
+	for k, v := range ia.data {
+		data[k] = v
+	}
+	return data
 }

@@ -622,6 +622,42 @@ func BenchmarkParseStatusLine(b *testing.B) {
 	}
 }
 
+func BenchmarkParseStatContent(b *testing.B) {
+	probe := getProbeWithPermission()
+	defer probe.Close()
+
+	// hard code the bootTime so we get consistent calculation for createTime
+	probe.bootTime.Store(1606181252)
+	now := time.Now()
+
+	testCases := []struct {
+		name string
+		line []byte
+	}{
+		{
+			name: "normal process",
+			line: []byte("1 (systemd) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
+		},
+		{
+			name: "command line has brackets around",
+			line: []byte("1 ((sd-pam)) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
+		},
+		{
+			name: "fields are separated by multiple white spaces",
+			line: []byte("5  (kworker/0:0H)   S 2 0 0 0 -1   69238880 0 0  0 0  0 0 0 0 0  -20 1 0 17 0 0 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 0 0 0 17 0 0 0 0 0 0 0 0 0 0 0 0 0 0"),
+		},
+		{
+			name: "flags are greater than int32",
+			line: []byte("44 (kintegrityd/0) S 2 0 0 0 -1 2216722496 0 0 0 0 0 0 0 0 20 0 1 0 31 0 0 18446744073709551615 0 0 0 0 0 0 0 2147483647 0 18446744071579499573 0 0 17 0 0 0 0 0 0"),
+		},
+	}
+	for i := 0; i < b.N; i++ {
+		for _, tc := range testCases {
+			probe.parseStatContent(tc.line, &statInfo{cpuStat: &CPUTimesStat{}}, int32(1), now)
+		}
+	}
+}
+
 func TestParseStatusTestFS(t *testing.T) {
 	t.Setenv("HOST_PROC", "resources/test_procfs/proc/")
 	testParseStatus(t, WithProcFSRoot("resources/test_procfs/proc/"))
@@ -809,6 +845,7 @@ func TestParseStatContent(t *testing.T) {
 		isKernelThread bool
 	}{
 		{
+			name: "normal process",
 			line: []byte("1 (systemd) S 0 1 1 0 -1 4194560 425768 306165945 70 4299 4890 2184 563120 375308 20 0 1 0 15 189849600 1541 18446744073709551615 94223912931328 94223914360080 140733806473072 140733806469312 140053573122579 0 671173123 4096 1260 1 0 0 17 0 0 0 155 0 0 94223914368000 942\n23914514184 94223918080000 140733806477086 140733806477133 140733806477133 140733806477283 0"),
 			expected: &statInfo{
 				ppid:       0,
