@@ -40,7 +40,11 @@ def build(
     Build Dogstatsd
     """
     build_tags = get_build_tags(
-        build="agent", arch=arch, flavor=AgentFlavor.dogstatsd, build_include=build_include, build_exclude=build_exclude
+        build="dogstatsd",
+        arch=arch,
+        flavor=AgentFlavor.dogstatsd,
+        build_include=build_include,
+        build_exclude=build_exclude,
     )
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, major_version=major_version)

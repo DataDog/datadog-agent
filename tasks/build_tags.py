@@ -167,6 +167,7 @@ build_tags = {
         "agent": AGENT_TAGS,
         "cluster-agent": CLUSTER_AGENT_TAGS,
         "cluster-agent-cloudfoundry": CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
+        "cws-instrumentation": set(),  # FIXME(CWS): Is this intended?
         "dogstatsd": DOGSTATSD_TAGS,
         "process-agent": PROCESS_AGENT_TAGS,
         "security-agent": SECURITY_AGENT_TAGS,
