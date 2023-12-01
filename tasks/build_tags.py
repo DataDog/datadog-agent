@@ -6,7 +6,7 @@ Utilities to manage build tags
 # so we only need to check that we don't run this code with old Python versions.
 
 import sys
-from typing import Union
+from typing import List, Set, Union
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -208,7 +208,7 @@ def get_build_tags(
     build_include: str = None,
     build_exclude: str = None,
     platform: str = sys.platform,
-) -> list[str]:
+) -> List[str]:
     """
     Compute the list of go build tags to use, based on the build type, flavor,
     and explicit include / exclude tags passed to the function.
@@ -268,7 +268,7 @@ def print_build_tags(
 
 def _default_build_tags(
     build: str = "agent", arch: str = "x64", flavor: AgentFlavor = AgentFlavor.base, platform: str = sys.platform
-) -> list[str]:
+) -> List[str]:
     """
     Build the default list of tags based on the build type and current platform.
 
@@ -281,8 +281,8 @@ def _default_build_tags(
 
 
 def _filter_incompatible_tags(
-    include: Union[list[str], set[str]], arch: str = "x64", platform: str = sys.platform
-) -> list[str]:
+    include: Union[List[str], Set[str]], arch: str = "x64", platform: str = sys.platform
+) -> List[str]:
     """
     Filter out tags incompatible with the platform.
     """
@@ -303,7 +303,7 @@ def _filter_incompatible_tags(
     return _compute_build_tags(include, exclude)
 
 
-def _compute_build_tags(include: Union[list[str], set[str]], exclude: Union[list[str], set[str]]) -> list[str]:
+def _compute_build_tags(include: Union[List[str], Set[str]], exclude: Union[List[str], Set[str]]) -> List[str]:
     """
     Build the sorted list of tags based on inclusions and exclusions passed through
     the command line
