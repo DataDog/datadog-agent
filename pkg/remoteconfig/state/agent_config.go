@@ -26,7 +26,18 @@ type AgentConfig struct {
 
 // ConfigContent contains the configurations set by remote-config
 type ConfigContent struct {
-	LogLevel string `json:"log_level"`
+	LogLevel string    `json:"log_level"`
+	Features *Features `json:"features"`
+}
+
+// Features describes the set of enabled features
+type Features struct {
+	RuntimeSecurityEnabled string `json:"runtime_security_enabled"`
+}
+
+// Feature describe a feature
+type Feature struct {
+	Enabled bool `json:"enabled"`
 }
 
 type agentConfigData struct {
@@ -58,7 +69,7 @@ func parseConfigAgentConfig(data []byte, metadata Metadata) (AgentConfig, error)
 
 	err := json.Unmarshal(data, &d)
 	if err != nil {
-		return AgentConfig{}, fmt.Errorf("Unexpected AGENT_CONFIG received through remote-config: %s", err)
+		return AgentConfig{}, fmt.Errorf("unexpected AGENT_CONFIG received through remote-config: %s", err)
 	}
 
 	return AgentConfig{
@@ -73,7 +84,7 @@ func parseConfigAgentConfigOrder(data []byte, metadata Metadata) (AgentConfigOrd
 
 	err := json.Unmarshal(data, &d)
 	if err != nil {
-		return AgentConfigOrder{}, fmt.Errorf("Unexpected AGENT_CONFIG received through remote-config: %s", err)
+		return AgentConfigOrder{}, fmt.Errorf("unexpected AGENT_CONFIG received through remote-config: %s", err)
 	}
 
 	return AgentConfigOrder{

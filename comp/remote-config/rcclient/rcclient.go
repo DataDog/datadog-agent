@@ -8,12 +8,18 @@
 package rcclient
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
 	"go.uber.org/fx"
 
+	compconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -22,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -94,6 +101,13 @@ func (rc rcClient) Start(agentName string) error {
 
 	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
+	if flavor.GetFlavor() == flavor.DefaultAgent {
+		pkglog.Infof("Subscribing to features update")
+		rc.client.Subscribe(state.ProductDebug, rc.agentFeaturesUpdateCallback)
+	} else {
+		pkglog.Infof("Not subscribing to features update")
+	}
+
 	// Register every product for every listener
 	for _, l := range rc.listeners {
 		for product, callback := range l {
@@ -119,12 +133,84 @@ func (rc rcClient) Subscribe(product data.Product, fn func(update map[string]sta
 	rc.client.Subscribe(string(product), fn)
 }
 
+func (rc rcClient) agentFeaturesUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
+	serviceState := false
+
+	for _, update := range updates {
+		var cfg state.ConfigContent
+		if err := json.Unmarshal(update.Config, &cfg); err != nil {
+			pkglog.Errorf("failed to apply config %s: %s", update.Metadata.ID, err)
+			continue
+		}
+		serviceState = cfg.Features.RuntimeSecurityEnabled == "true"
+	}
+
+	if err := rc.toggleService("security-agent", serviceState); err != nil {
+		pkglog.Errorf("failed to activate security-agent: %s", err)
+	}
+
+	if err := rc.toggleService("system-probe", serviceState); err != nil {
+		pkglog.Errorf("failed to activate system-probe: %s", err)
+	}
+}
+
 func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	mergedConfig, err := state.MergeRCAgentConfig(rc.client.UpdateApplyStatus, updates)
 	if err != nil {
 		return
 	}
 
+	var errs *multierror.Error
+
+	if mergedConfig.LogLevel != "" {
+		if err := rc.applyLogLevel(mergedConfig.LogLevel); err != nil {
+			errs = multierror.Append(err)
+		}
+	}
+
+	// Apply the new status to all configs
+	for cfgPath := range updates {
+		if errs.ErrorOrNil() == nil {
+			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		} else {
+			applyStateCallback(cfgPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: errs.Error(),
+			})
+		}
+	}
+}
+
+func (rc rcClient) toggleService(service string, state bool) error {
+	serviceDir := compconfig.DefaultConfPath
+	servicePath := filepath.Join(serviceDir, "enabled.d", service)
+
+	if state {
+		settings := map[string]bool{
+			"runtime_security_config.enabled":     state,
+			"runtime_security_config.fim_enabled": state,
+		}
+
+		serviceFile, err := os.Create(servicePath)
+		if err != nil {
+			return fmt.Errorf("failed to create file %s: %w", servicePath, err)
+		}
+
+		for key, value := range settings {
+			if _, err := serviceFile.WriteString(fmt.Sprintf("%s: %v\n", key, value)); err != nil {
+				return fmt.Errorf("failed to write to %s: %w", servicePath, err)
+			}
+		}
+
+		serviceFile.Close()
+	} else {
+		_ = os.Remove(servicePath)
+	}
+
+	return nil
+}
+
+func (rc rcClient) applyLogLevel(logLevel string) error {
 	// Checks who (the source) is responsible for the last logLevel change
 	source := config.Datadog.GetSource("log_level")
 
@@ -133,43 +219,33 @@ func (rc rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig,
 		// 2 possible situations:
 		//     - we want to change (once again) the log level through RC
 		//     - we want to fall back to the log level we had saved as fallback (in that case mergedConfig.LogLevel == "")
-		if len(mergedConfig.LogLevel) == 0 {
+		if len(logLevel) == 0 {
 			pkglog.Infof("Removing remote-config log level override, falling back to '%s'", config.Datadog.Get("log_level"))
 			config.Datadog.UnsetForSource("log_level", model.SourceRC)
 		} else {
-			newLevel := mergedConfig.LogLevel
+			newLevel := logLevel
 			pkglog.Infof("Changing log level to '%s' through remote config", newLevel)
-			err = settings.SetRuntimeSetting("log_level", newLevel, model.SourceRC)
+			return settings.SetRuntimeSetting("log_level", newLevel, model.SourceRC)
 		}
 
 	case model.SourceCLI:
 		pkglog.Warnf("Remote config could not change the log level due to CLI override")
-		return
+		return nil
 
 	// default case handles every other source (lower in the hierarchy)
 	default:
 		// If we receive an empty value for log level in the config
 		// then there is nothing to do
-		if len(mergedConfig.LogLevel) == 0 {
-			return
+		if len(logLevel) == 0 {
+			return nil
 		}
 
 		// Need to update the log level even if the level stays the same because we need to update the source
 		// Might be possible to add a check in deeper functions to avoid unnecessary work
-		err = settings.SetRuntimeSetting("log_level", mergedConfig.LogLevel, model.SourceRC)
+		return settings.SetRuntimeSetting("log_level", logLevel, model.SourceRC)
 	}
 
-	// Apply the new status to all configs
-	for cfgPath := range updates {
-		if err == nil {
-			applyStateCallback(cfgPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-		} else {
-			applyStateCallback(cfgPath, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-		}
-	}
+	return nil
 }
 
 // agentTaskUpdateCallback is the callback function called when there is an AGENT_TASK config update
