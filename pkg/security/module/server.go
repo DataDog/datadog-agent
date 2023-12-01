@@ -281,6 +281,10 @@ func (a *APIServer) SendEvent(rule *rules.Rule, e events.Event, extTagsCb func()
 		Arch:        utils.RuntimeArch(),
 	}
 
+	if rule.Definition.GroupID != "" {
+		agentContext.RuleID = rule.Definition.GroupID
+	}
+
 	ruleEvent := &events.Signal{
 		Title:        rule.Definition.Description,
 		AgentContext: agentContext,

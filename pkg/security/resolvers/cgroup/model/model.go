@@ -66,7 +66,7 @@ type CacheEntry struct {
 	sync.RWMutex
 	Deleted          *atomic.Bool
 	WorkloadSelector WorkloadSelector
-	PIDs             map[uint32]int8
+	PIDs             map[uint32]bool
 }
 
 // NewCacheEntry returns a new instance of a CacheEntry
@@ -76,11 +76,11 @@ func NewCacheEntry(id string, pids ...uint32) (*CacheEntry, error) {
 		ContainerContext: model.ContainerContext{
 			ID: id,
 		},
-		PIDs: make(map[uint32]int8, 10),
+		PIDs: make(map[uint32]bool, 10),
 	}
 
 	for _, pid := range pids {
-		newCGroup.PIDs[pid] = 1
+		newCGroup.PIDs[pid] = true
 	}
 	return &newCGroup, nil
 }
@@ -113,7 +113,7 @@ func (cgce *CacheEntry) AddPID(pid uint32) {
 	cgce.Lock()
 	defer cgce.Unlock()
 
-	cgce.PIDs[pid] = 1
+	cgce.PIDs[pid] = true
 }
 
 // SetTags sets the tags for the provided workload
