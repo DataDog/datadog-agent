@@ -25,7 +25,6 @@ def build(
     incremental_build=False,
     major_version='7',
     python_runtimes='3',
-    arch="x64",
     go_mod="mod",
 ):
     """
@@ -53,9 +52,9 @@ def build(
     env.update(goenv)
 
     build_include = (
-        get_default_build_tags(build="process-agent", arch=arch, flavor=flavor)
+        get_default_build_tags(build="process-agent", flavor=flavor)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 

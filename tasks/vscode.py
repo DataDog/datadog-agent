@@ -25,7 +25,6 @@ def set_buildtags(
     build_include=None,
     build_exclude=None,
     flavor=AgentFlavor.base.name,
-    arch='x64',
 ):
     """
     Modifies vscode settings file for this project to include correct build tags
@@ -38,9 +37,9 @@ def set_buildtags(
         return
 
     build_include = (
-        get_default_build_tags(build=target, arch=arch, flavor=flavor)
+        get_default_build_tags(build=target, flavor=flavor)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)
@@ -67,7 +66,6 @@ def setup_devcontainer(
     build_include=None,
     build_exclude=None,
     flavor=AgentFlavor.base.name,
-    arch='x64',
     image='',
 ):
     """
@@ -80,9 +78,9 @@ def setup_devcontainer(
         return
 
     build_include = (
-        get_default_build_tags(build=target, arch=arch, flavor=flavor)
+        get_default_build_tags(build=target, flavor=flavor)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     use_tags = get_build_tags(build_include, build_exclude)

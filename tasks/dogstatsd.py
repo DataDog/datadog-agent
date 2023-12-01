@@ -33,16 +33,15 @@ def build(
     build_include=None,
     build_exclude=None,
     major_version='7',
-    arch="x64",
     go_mod="mod",
 ):
     """
     Build Dogstatsd
     """
     build_include = (
-        get_default_build_tags(build="dogstatsd", arch=arch, flavor=AgentFlavor.dogstatsd)
+        get_default_build_tags(build="dogstatsd", flavor=AgentFlavor.dogstatsd)
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
     build_tags = get_build_tags(build_include, build_exclude)
@@ -132,7 +131,7 @@ def run(ctx, rebuild=False, race=False, build_include=None, build_exclude=None, 
 
 
 @task
-def system_tests(ctx, skip_build=False, go_mod="mod", arch="x64"):
+def system_tests(ctx, skip_build=False, go_mod="mod"):
     """
     Run the system testsuite.
     """
@@ -146,7 +145,7 @@ def system_tests(ctx, skip_build=False, go_mod="mod", arch="x64"):
     cmd = "go test -mod={go_mod} -tags '{build_tags}' -v {REPO_PATH}/test/system/dogstatsd/"
     args = {
         "go_mod": go_mod,
-        "build_tags": " ".join(get_default_build_tags(build="system-tests", arch=arch, flavor=AgentFlavor.dogstatsd)),
+        "build_tags": " ".join(get_default_build_tags(build="system-tests", flavor=AgentFlavor.dogstatsd)),
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args), env=env)
@@ -248,7 +247,7 @@ def omnibus_build(
 
 
 @task
-def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod", arch="x64"):
+def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, go_mod="mod"):
     """
     Run integration tests for dogstatsd
     """
@@ -258,7 +257,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if install_deps:
         deps(ctx)
 
-    go_build_tags = " ".join(get_default_build_tags(build="test", arch=arch))
+    go_build_tags = " ".join(get_default_build_tags(build="test"))
     race_opt = "-race" if race else ""
     exec_opts = ""
 

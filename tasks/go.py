@@ -35,7 +35,6 @@ def run_golangci_lint(
     rtloader_root=None,
     build_tags=None,
     build="test",
-    arch="x64",
     concurrency=None,
     timeout=None,
     verbose=False,
@@ -47,7 +46,7 @@ def run_golangci_lint(
         # as comma separated tokens in a string
         targets = targets.split(',')
 
-    tags = build_tags or get_default_build_tags(build=build, arch=arch)
+    tags = build_tags or get_default_build_tags(build=build)
     if not isinstance(tags, list):
         tags = [tags]
 
@@ -75,9 +74,7 @@ def run_golangci_lint(
 
 
 @task
-def golangci_lint(
-    ctx, targets, rtloader_root=None, build_tags=None, build="test", arch="x64", concurrency=None  # noqa: U100
-):
+def golangci_lint(ctx, targets, rtloader_root=None, build_tags=None, build="test", concurrency=None):  # noqa: U100
     """
     Run golangci-lint on targets using .golangci.yml configuration.
 

@@ -107,9 +107,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                             depsfile = os.path.join(tmpdir, f"{target}-{branch_name}")
                             flavor = details.get("flavor", AgentFlavor.base)
                             build = details.get("build", binary)
-                            build_tags = get_default_build_tags(
-                                build=build, arch=arch, platform=platform, flavor=flavor
-                            )
+                            build_tags = get_default_build_tags(build=build, platform=platform, flavor=flavor)
                             env = {"GOOS": goos, "GOARCH": goarch}
                             ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
         finally:

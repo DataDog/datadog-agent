@@ -545,7 +545,6 @@ def build_sysprobe_binary(
     major_version='7',
     python_runtimes='3',
     go_mod="mod",
-    arch=CURRENT_ARCH,
     binary=BIN_PATH,
     bundle_ebpf=False,
     strip_binary=False,
@@ -556,7 +555,7 @@ def build_sysprobe_binary(
         python_runtimes=python_runtimes,
     )
 
-    build_tags = get_default_build_tags(build="system-probe", arch=arch)
+    build_tags = get_default_build_tags(build="system-probe")
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:

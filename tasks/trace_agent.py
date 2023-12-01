@@ -22,7 +22,6 @@ def build(
     flavor=AgentFlavor.base.name,
     major_version='7',
     python_runtimes='3',
-    arch="x64",
     go_mod="mod",
 ):
     """
@@ -50,7 +49,7 @@ def build(
             flavor=flavor,
         )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
         if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+        else filter_incompatible_tags(build_include.split(","))
     )
     build_exclude = [] if build_exclude is None else build_exclude.split(",")
 
