@@ -9,9 +9,11 @@ package cgroups
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/karrick/godirwalk"
 )
@@ -20,11 +22,14 @@ const (
 	controllersFile = "cgroup.controllers"
 )
 
+type inodeMapper map[uint64]Cgroup
+
 type readerV2 struct {
 	cgroupRoot        string
 	cgroupControllers map[string]struct{}
 	filter            ReaderFilter
 	pidMapper         pidMapper
+	inodeMapper       inodeMapper
 }
 
 func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter) (*readerV2, error) {
@@ -38,9 +43,21 @@ func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter) (*readerV2, e
 		cgroupControllers: controllers,
 		filter:            filter,
 		pidMapper:         getPidMapper(procPath, cgroupRoot, "", filter),
+		inodeMapper:       make(inodeMapper),
 	}, nil
 }
 
+// cgroupByInode returns the cgroup for the given inode.
+func (r *readerV2) cgroupByInode(inode uint64) (Cgroup, error) {
+	cgroup, ok := r.inodeMapper[inode]
+	if !ok {
+		return nil, fmt.Errorf("no cgroup found for inode %d", inode)
+	}
+	return cgroup, nil
+}
+
+// parseCgroups parses the cgroups from the cgroupRoot and returns a map of cgroup id to cgroup.
+// It also populates the inodeMapper.
 func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 	res := make(map[string]Cgroup)
 
@@ -55,9 +72,13 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 					if err != nil {
 						return err
 					}
-
-					res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
-
+					inode, err := inodeForFile(fullPath)
+					if err != nil {
+						return err
+					}
+					cgroup := newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
+					res[id] = cgroup
+					r.inodeMapper[inode] = cgroup
 					if err != nil {
 						return err
 					}
@@ -71,6 +92,15 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 	})
 
 	return res, err
+}
+
+// inodeForFile returns the inode of the file at the given path and follows symlinks.
+func inodeForFile(path string) (uint64, error) {
+	stat, err := os.Stat(path)
+	if err != nil {
+		return 0, err
+	}
+	return stat.Sys().(*syscall.Stat_t).Ino, nil
 }
 
 func readCgroupControllers(cgroupRoot string) (map[string]struct{}, error) {

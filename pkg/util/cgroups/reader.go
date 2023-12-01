@@ -42,6 +42,7 @@ type Reader struct {
 
 type readerImpl interface {
 	parseCgroups() (map[string]Cgroup, error)
+	cgroupByInode(uint64) (Cgroup, error)
 }
 
 // ReaderFilter allows to filter cgroups based on their path + folder name
@@ -202,4 +203,9 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 	r.scrapeTimestmap = time.Now()
 	r.cgroups = newCgroups
 	return nil
+}
+
+// CgroupByInode returns the cgroup identifier for a given inode
+func (r *Reader) CgroupByInode(inode uint64) (Cgroup, error) {
+	return r.impl.cgroupByInode(inode)
 }

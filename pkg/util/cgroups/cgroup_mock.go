@@ -12,6 +12,7 @@ import "time"
 // MockCgroup is a mock implementing the Cgroup interface
 type MockCgroup struct {
 	ID          string
+	In          uint64
 	Parent      Cgroup
 	ParentError error
 	CPU         *CPUStats
@@ -29,6 +30,11 @@ type MockCgroup struct {
 // Identifier mock
 func (mc *MockCgroup) Identifier() string {
 	return mc.ID
+}
+
+// Inode mock
+func (mc *MockCgroup) Inode() (uint64, error) {
+	return mc.In, nil
 }
 
 // GetParent mock

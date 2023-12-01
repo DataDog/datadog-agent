@@ -7,7 +7,9 @@
 
 package cgroups
 
-import "time"
+import (
+	"time"
+)
 
 // Cgroup interface abstracts actual Cgroup implementation (v1/v2)
 type Cgroup interface {
