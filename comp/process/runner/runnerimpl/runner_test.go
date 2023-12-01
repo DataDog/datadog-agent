@@ -28,9 +28,9 @@ func TestRunnerLifecycle(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 
 		Module(),
-		submitterimpl.MockModule,
+		submitterimpl.MockModule(),
 		processcheckimpl.Module(),
-		hostinfoimpl.MockModule,
+		hostinfoimpl.MockModule(),
 		core.MockBundle,
 	))
 }
@@ -52,9 +52,9 @@ func TestRunnerRealtime(t *testing.T) {
 			}}),
 
 			Module(),
-			submitterimpl.MockModule,
+			submitterimpl.MockModule(),
 			processcheckimpl.Module(),
-			hostinfoimpl.MockModule,
+			hostinfoimpl.MockModule(),
 			core.MockBundle,
 		))
 		rtChan <- types.RTResponse{
@@ -85,9 +85,9 @@ func TestRunnerRealtime(t *testing.T) {
 			),
 
 			Module(),
-			submitterimpl.MockModule,
+			submitterimpl.MockModule(),
 			processcheckimpl.Module(),
-			hostinfoimpl.MockModule,
+			hostinfoimpl.MockModule(),
 			core.MockBundle,
 		))
 
@@ -110,12 +110,12 @@ func TestProvidedChecks(t *testing.T) {
 		),
 
 		Module(),
-		submitterimpl.MockModule,
-		hostinfoimpl.MockModule,
+		submitterimpl.MockModule(),
+		hostinfoimpl.MockModule(),
 
 		// Checks
-		processcheckimpl.MockModule,
-		containercheckimpl.MockModule,
+		processcheckimpl.MockModule(),
+		containercheckimpl.MockModule(),
 
 		core.MockBundle,
 	))

@@ -6,10 +6,11 @@
 package config
 
 import (
-	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"strings"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ import (
 )
 
 func TestReadConfig(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, log.MockModule())
 
 	var tests = []struct {
 		name           string

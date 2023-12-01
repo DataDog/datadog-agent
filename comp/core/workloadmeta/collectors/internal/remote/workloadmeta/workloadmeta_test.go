@@ -147,7 +147,7 @@ func TestCollection(t *testing.T) {
 	mockServerStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 	mockServerStore.Start(context.TODO())
 	server := &serverSecure{workloadmetaServer: server.NewServer(mockServerStore)}
@@ -192,7 +192,7 @@ func TestCollection(t *testing.T) {
 			},
 				fx.ResultTags(`group:"workloadmeta"`)),
 		),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 
 	time.Sleep(3 * time.Second)

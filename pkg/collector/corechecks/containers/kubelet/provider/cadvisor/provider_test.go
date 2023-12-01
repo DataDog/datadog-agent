@@ -99,7 +99,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		core.MockBundle,
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 
 	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))

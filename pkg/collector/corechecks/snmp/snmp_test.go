@@ -53,7 +53,7 @@ type deps struct {
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, demultiplexer.MockModule, log.MockModule)
+	return fxutil.Test[deps](t, demultiplexer.MockModule(), log.MockModule())
 }
 
 func Test_Run_simpleCase(t *testing.T) {

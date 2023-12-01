@@ -25,7 +25,7 @@ func TestExpvarServer(t *testing.T) {
 		fx.Supply(core.BundleParams{}),
 
 		Module(),
-		hostinfoimpl.MockModule,
+		hostinfoimpl.MockModule(),
 		core.MockBundle,
 	))
 
@@ -48,7 +48,7 @@ func TestTelemetry(t *testing.T) {
 		}}),
 
 		Module(),
-		hostinfoimpl.MockModule,
+		hostinfoimpl.MockModule(),
 		core.MockBundle,
 	))
 

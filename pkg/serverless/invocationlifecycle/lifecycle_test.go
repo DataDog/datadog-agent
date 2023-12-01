@@ -30,7 +30,7 @@ func TestGenerateEnhancedErrorMetricOnInvocationEnd(t *testing.T) {
 	}
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 
 	endInvocationTime := time.Now()
@@ -61,7 +61,7 @@ func TestStartExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return false }
@@ -96,7 +96,7 @@ func TestStartExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockProcessTrace := func(*api.Payload) {}
 	mockDetectLambdaLibrary := func() bool { return true }
@@ -126,7 +126,7 @@ func TestEndExecutionSpanNoLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
@@ -175,7 +175,7 @@ func TestEndExecutionSpanWithLambdaLibrary(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return true }
 
@@ -214,7 +214,7 @@ func TestEndExecutionSpanWithTraceMetadata(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
@@ -271,7 +271,7 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
@@ -331,7 +331,7 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
@@ -417,7 +417,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
@@ -510,7 +510,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
@@ -599,7 +599,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayWebsocket5xxResponse(t *testing.
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 
@@ -686,7 +686,7 @@ func TestTriggerTypesLifecycleEventForALB5xxResponse(t *testing.T) {
 	mockProcessTrace := func(payload *api.Payload) {
 		tracePayload = payload
 	}
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	defer demux.Stop(false)
 

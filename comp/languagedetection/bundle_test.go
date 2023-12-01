@@ -28,7 +28,7 @@ func TestBundleDependencies(t *testing.T) {
 		telemetry.Module(),
 		log.Module(),
 		fx.Provide(func() secrets.Component { return secretsimpl.NewMockSecretResolver() }),
-		secretsimpl.MockModule,
+		secretsimpl.MockModule(),
 		fx.Supply(log.Params{}),
 		workloadmeta.Module(),
 		fx.Supply(workloadmeta.NewParams()),

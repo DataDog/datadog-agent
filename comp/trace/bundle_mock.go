@@ -25,6 +25,6 @@ import (
 
 // MockBundle defines the fx options for this bundle.
 var MockBundle = fxutil.Bundle(
-	config.MockModule,
-	agent.MockModule,
+	config.MockModule(),
+	agent.MockModule(),
 )

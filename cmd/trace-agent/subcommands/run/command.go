@@ -71,7 +71,7 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		fx.Provide(func() corelog.Params {
 			return corelog.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
-		corelog.TraceModule,
+		corelog.TraceModule(),
 		// setup workloadmeta
 		collectors.GetCatalog(),
 		fx.Supply(workloadmeta.Params{

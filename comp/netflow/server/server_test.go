@@ -64,13 +64,13 @@ func replaceWithDummyFlowProcessor(server *Server) *dummyFlowProcessor {
 // testOptions is an fx collection of common dependencies for all tests
 var testOptions = fx.Options(
 	Module(),
-	nfconfig.MockModule,
-	forwarderimpl.MockModule,
-	hostnameimpl.MockModule,
-	log.MockModule,
-	demultiplexer.MockModule,
-	defaultforwarder.MockModule,
-	config.MockModule,
+	nfconfig.MockModule(),
+	forwarderimpl.MockModule(),
+	hostnameimpl.MockModule(),
+	log.MockModule(),
+	demultiplexer.MockModule(),
+	defaultforwarder.MockModule(),
+	config.MockModule(),
 	fx.Invoke(func(lc fx.Lifecycle, c Component) {
 		// Set the internal flush frequency to a small number so tests don't take forever
 		c.(*Server).FlowAgg.FlushFlowsToSendInterval = 100 * time.Millisecond

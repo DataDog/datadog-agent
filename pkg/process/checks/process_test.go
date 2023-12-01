@@ -75,7 +75,7 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 		core.MockBundle,
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	fakeTagger := local.NewFakeTagger()

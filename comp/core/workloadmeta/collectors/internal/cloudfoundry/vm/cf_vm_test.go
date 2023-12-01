@@ -211,7 +211,7 @@ func TestStartError(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -229,7 +229,7 @@ func TestPullNoContainers(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -257,7 +257,7 @@ func TestPullActiveContainer(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -300,7 +300,7 @@ func TestPullStoppedContainer(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -343,7 +343,7 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -397,7 +397,7 @@ func TestPullAppNameWithDCA(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -431,7 +431,7 @@ func TestPullNoAppNameWithoutDCA(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{
@@ -467,7 +467,7 @@ func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
 		core.MockBundle,
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	c := collector{

@@ -35,7 +35,7 @@ func TestBundleDependencies(t *testing.T) {
 		workloadmeta.Module(),
 		statsd.Module(),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		secretsimpl.MockModule,
+		secretsimpl.MockModule(),
 		fx.Supply(&agent.Params{}),
 	)
 }
@@ -59,7 +59,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		workloadmeta.Module(),
 		fx.Invoke(func(_ config.Component) {}),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
-		statsd.MockModule,
+		statsd.MockModule(),
 		fx.Supply(&agent.Params{}),
 		fx.Invoke(func(_ agent.Component) {}),
 		MockBundle,
@@ -72,5 +72,5 @@ var traceMockBundle = core.MakeMockBundle(
 	fx.Provide(func() log.Params {
 		return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 	}),
-	log.TraceMockModule,
+	log.TraceMockModule(),
 )

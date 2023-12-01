@@ -44,9 +44,11 @@ The completed `impl/your_filename.go` looks like this:
 package config
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
+func Module() fxutil.Module {
+  return fxutil.Component(
     fx.Provide(newFoo),
-)
+  )
+}
 ```
 
 The Component interface is implemented in the same file as the module definition by an unexported type with a sensible name such as `launcher` or `provider` or the classic `foo`.
@@ -55,9 +57,11 @@ The Component interface is implemented in the same file as the module definition
 package config
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-    fx.Provide(newFoo),
-)
+func Module() fxutil.Module {
+  return fxutil.Component(
+      fx.Provide(newFoo),
+  )
+}
 
 type foo {
     foos []string
@@ -156,9 +160,11 @@ The `impl/your_filename_mock.go` looks like this:
 package foo
 
 // MockModule defines the fx options for the mock component.
-var MockModule = fxutil.Component(
+func MockModule() fxutil.Module {
+  return fxutil.Component(
     fx.Provide(newMockFoo),
-)
+  )
+}
 ```
 
 ```go

@@ -98,7 +98,7 @@ func createAgent(suite *AgentTestSuite, endpoints *config.Endpoints) (*agent, *s
 	deps := fxutil.Test[testDeps](suite.T(), fx.Options(
 		core.MockBundle,
 		fx.Replace(configComponent.MockParams{Overrides: suite.configOverrides}),
-		inventoryagent.MockModule,
+		inventoryagent.MockModule(),
 	))
 
 	agent := &agent{

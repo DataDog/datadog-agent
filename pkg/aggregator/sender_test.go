@@ -70,7 +70,7 @@ func assertAggSamplersLen(t *testing.T, agg *BufferedAggregator, n int) {
 func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -90,7 +90,7 @@ func TestGetDefaultSenderReturnsSameSender(t *testing.T) {
 func TestGetSenderWithDifferentIDsReturnsDifferentCheckSamplers(t *testing.T) {
 	// this test not using anything global
 	// -
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := testDemux(log)
 
 	aggregatorInstance := demux.Aggregator()
@@ -120,7 +120,7 @@ func TestGetSenderWithSameIDsReturnsSameSender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -143,7 +143,7 @@ func TestDestroySender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()
@@ -173,7 +173,7 @@ func TestGetAndSetSender(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := testDemux(log)
 
 	itemChan := make(chan senderItem, 10)
@@ -196,7 +196,7 @@ func TestGetSenderDefaultHostname(t *testing.T) {
 	// this test not using anything global
 	// -
 
-	log := fxutil.Test[log.Component](t, log.MockModule)
+	log := fxutil.Test[log.Component](t, log.MockModule())
 	demux := testDemux(log)
 	aggregatorInstance := demux.Aggregator()
 	go aggregatorInstance.run()

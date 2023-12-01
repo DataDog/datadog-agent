@@ -28,6 +28,8 @@ func Module() fxutil.Module {
 		fx.Provide(newForwarders))
 }
 
-var MockModule = fxutil.Component(
-	fx.Provide(newMockForwarders),
-)
+// MockModule defines the fx options for this mock component.
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMockForwarders))
+}

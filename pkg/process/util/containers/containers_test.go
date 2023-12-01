@@ -42,7 +42,7 @@ func TestGetContainers(t *testing.T) {
 		core.MockBundle,
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	fakeTagger := local.NewFakeTagger()

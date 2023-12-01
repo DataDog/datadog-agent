@@ -83,16 +83,22 @@ func Module() fxutil.Module {
 // TODO(components): move this comp/trace; that component shall implement the
 //
 //	log.Component interface.
-var TraceModule fx.Option = fxutil.Component(
-	fx.Provide(newTraceLogger),
-)
+func TraceModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newTraceLogger),
+	)
+}
 
 // MockModule defines the fx options for the mock component.
-var MockModule fx.Option = fxutil.Component(
-	fx.Provide(newMockLogger),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMockLogger),
+	)
+}
 
 // TraceMockModule defines the fx options for the mock component in its Trace variant.
-var TraceMockModule fx.Option = fxutil.Component(
-	fx.Provide(newTraceMockLogger),
-)
+func TraceMockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newTraceMockLogger),
+	)
+}

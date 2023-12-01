@@ -76,8 +76,8 @@ def check_component(file, content):
 
     for not_allow_definition in [
         "type Mock interface",
-        "var Module = fxutil.Component",
-        "var MockModule = fxutil.Component",
+        "func Module() fxutil.Module",
+        "func MockModule() fxutil.Module",
     ]:
         if any(l.startswith(not_allow_definition) for l in content):
             return f"** {file} define '{not_allow_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"

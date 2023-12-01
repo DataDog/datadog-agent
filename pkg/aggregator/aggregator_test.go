@@ -685,7 +685,7 @@ type aggregatorDeps struct {
 }
 
 func createAggrDeps(t *testing.T) aggregatorDeps {
-	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	deps := fxutil.Test[TestDeps](t, defaultforwarder.MockModule(), config.MockModule(), log.MockModule())
 
 	opts := demuxTestOptions()
 	return aggregatorDeps{

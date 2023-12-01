@@ -50,6 +50,7 @@ func NewMockSecretResolver() *MockSecretResolver {
 }
 
 // MockModule is a module containing the mock, useful for testing
-var MockModule = fxutil.Component(
-	fx.Provide(NewMockSecretResolver),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(NewMockSecretResolver))
+}

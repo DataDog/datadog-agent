@@ -43,8 +43,9 @@ type Mock interface {
 //
 //	fxutil.Test[dependencies](
 //	   t,
-//	   inventoryagent.MockModule,
+//	   inventoryagent.MockModule(),
 //	)
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock))
+}

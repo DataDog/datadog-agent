@@ -44,8 +44,8 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 			Serverless: false,
 		}),
 		dogstatsd.Bundle,
-		defaultforwarder.MockModule,
-		demultiplexer.MockModule,
+		defaultforwarder.MockModule(),
+		demultiplexer.MockModule(),
 	))
 
 	demux := deps.Demultiplexer

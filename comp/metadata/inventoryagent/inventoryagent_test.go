@@ -27,8 +27,8 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *invent
 	p := newInventoryAgentProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule,
-			config.MockModule,
+			log.MockModule(),
+			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: confOverrides}),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
 		),

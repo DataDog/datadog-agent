@@ -213,7 +213,7 @@ var (
 func TestFormatPacketV1Generic(t *testing.T) {
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, log.MockModule())
 
 	defaultFormatter, _ := NewJSONFormatter(oidresolver.NewMockResolver(), mockSender, logger)
 	packet := packet.CreateTestV1GenericPacket()
@@ -259,7 +259,7 @@ func TestFormatPacketV1Generic(t *testing.T) {
 }
 
 func TestFormatPacketV1Specific(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, log.MockModule())
 
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
@@ -304,7 +304,7 @@ func TestFormatPacketV1Specific(t *testing.T) {
 }
 
 func TestFormatPacketToJSON(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, log.MockModule())
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
@@ -341,7 +341,7 @@ func TestFormatPacketToJSON(t *testing.T) {
 }
 
 func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, log.MockModule())
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
@@ -374,7 +374,7 @@ func TestFormatPacketToJSONShouldFailIfNotEnoughVariables(t *testing.T) {
 }
 
 func TestNewJSONFormatterWithNilStillWorks(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, log.MockModule())
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 
@@ -714,7 +714,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, log.MockModule())
 	resolver := oidresolver.NewMockResolver()
 	formatter, err := NewJSONFormatter(resolver, mockSender, logger)
 	require.NoError(t, err)
@@ -738,7 +738,7 @@ func TestFormatterWithResolverAndTrapV2(t *testing.T) {
 }
 
 func TestFormatterWithResolverAndTrapV1Generic(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, log.MockModule())
 	myFakeVarTypeExpected := []interface{}{
 		"test0",
 		"test1",
@@ -875,7 +875,7 @@ func TestIsBitEnabled(t *testing.T) {
 }
 
 func TestEnrichBits(t *testing.T) {
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, log.MockModule())
 	data := []struct {
 		description     string
 		variable        trapVariable
@@ -1244,7 +1244,7 @@ func TestFormatterTelemetry(t *testing.T) {
 		},
 	}
 
-	logger := fxutil.Test[log.Component](t, log.MockModule)
+	logger := fxutil.Test[log.Component](t, log.MockModule())
 	mockSender := mocksender.NewMockSender("snmp-traps-telemetry")
 	mockSender.SetupAcceptAll()
 	resolver := oidresolver.NewMockResolver()

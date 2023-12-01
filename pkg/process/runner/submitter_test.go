@@ -339,5 +339,5 @@ func newSubmitterDepsWithConfig(t *testing.T, config ddconfig.Config) submitterD
 }
 
 func getForwardersMockModules(configOverrides map[string]interface{}) fx.Option {
-	return fx.Options(config.MockModule, fx.Replace(config.MockParams{Overrides: configOverrides}), forwarders.MockModule, log.MockModule)
+	return fx.Options(config.MockModule(), fx.Replace(config.MockParams{Overrides: configOverrides}), forwarders.MockModule(), log.MockModule())
 }

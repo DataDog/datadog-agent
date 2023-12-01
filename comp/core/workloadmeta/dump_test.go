@@ -19,8 +19,8 @@ import (
 func TestDump(t *testing.T) {
 
 	deps := fxutil.Test[dependencies](t, fx.Options(
-		log.MockModule,
-		config.MockModule,
+		log.MockModule(),
+		config.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(NewParams()),
 	))

@@ -115,8 +115,8 @@ func getTestInventoryHost(t *testing.T) *invHost {
 	p := newInventoryHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule,
-			config.MockModule,
+			log.MockModule(),
+			config.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
 		),
 	)

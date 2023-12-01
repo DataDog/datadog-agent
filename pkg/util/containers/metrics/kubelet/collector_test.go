@@ -29,7 +29,7 @@ func TestKubeletCollectorLinux(t *testing.T) {
 		core.MockBundle,
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 
 	kubeletMock := mock.NewKubeletMock()
@@ -163,7 +163,7 @@ func TestKubeletCollectorWindows(t *testing.T) {
 		core.MockBundle,
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModule,
+		workloadmeta.MockModule(),
 	))
 	kubeletMock := mock.NewKubeletMock()
 
