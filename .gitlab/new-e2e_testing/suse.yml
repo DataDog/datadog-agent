@@ -17,14 +17,6 @@
     E2E_BRANCH_OSVERS: "sles-15"
   needs: ["deploy_deb_testing-a6_x64"]
 
-.new-e2e_suse_a6_arm64:
-  variables:
-    E2E_ARCH: arm64
-    E2E_OSVERS: "sles-15"
-    E2E_CWS_SUPPORTED_OSVERS: "sles-15"
-    E2E_BRANCH_OSVERS: "sles-15"
-  needs: ["deploy_deb_testing-a6_arm64"]
-
 .new-e2e_suse_a7_x86_64:
   variables:
     E2E_ARCH: x86_64
@@ -48,17 +40,6 @@ new-e2e-agent-platform-install-script-suse-a6-x86_64:
     - .new-e2e_install_script
     - .new-e2e_os_suse
     - .new-e2e_suse_a6_x86_64
-    - .new-e2e_agent_a6
-  variables:
-    FLAVOR: datadog-agent
-
-new-e2e-agent-platform-install-script-suse-a6-arm64:
-  stage: kitchen_testing
-  extends: 
-    - .new_e2e_template
-    - .new-e2e_install_script
-    - .new-e2e_os_suse
-    - .new-e2e_suse_a6_arm64
     - .new-e2e_agent_a6
   variables:
     FLAVOR: datadog-agent
