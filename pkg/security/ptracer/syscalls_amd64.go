@@ -44,6 +44,7 @@ var (
 	PtracedSyscalls = []string{
 		"open",
 		"openat",
+		"openat2",
 		"fork",
 		"vfork",
 		"clone",
