@@ -1902,9 +1902,27 @@ func (p *EBPFProbe) HandleActions(rule *rules.Rule, event eval.Event) {
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
 
 		case action.Kill != nil:
-			if pid := ev.ProcessContext.Pid; pid > 1 && pid != utils.Getpid() {
-				log.Debugf("Requesting signal %s to be sent to %d", action.Kill.Signal, pid)
-				sig := model.SignalConstants[action.Kill.Signal]
+			var pids []uint32
+
+			entry, exists := ev.ResolveProcessCacheEntry()
+			if !exists {
+				return
+			}
+
+			if entry.ContainerID != "" && action.Kill.Scope == "container" {
+				pids = entry.GetContainerPIDs()
+			} else {
+				pids = []uint32{ev.ProcessContext.Pid}
+			}
+
+			sig := model.SignalConstants[action.Kill.Signal]
+
+			for _, pid := range pids {
+				if pid == 0 || pid == utils.Getpid() {
+					continue
+				}
+
+				log.Debugf("requesting signal %s to be sent to %d", action.Kill.Signal, pid)
 
 				var err error
 				if p.supportsBPFSendSignal {
