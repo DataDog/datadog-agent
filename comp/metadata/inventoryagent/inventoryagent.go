@@ -95,7 +95,6 @@ func newInventoryAgentProvider(deps dependencies) provides {
 
 	if ia.Enabled {
 		ia.initData()
-		ia.Refresh()
 	}
 
 	return provides{

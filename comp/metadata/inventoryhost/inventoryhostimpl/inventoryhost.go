@@ -145,7 +145,6 @@ func newInventoryHostProvider(deps dependencies) provides {
 		data:     &hostMetadata{},
 	}
 	ih.InventoryPayload = util.CreateInventoryPayload(deps.Config, deps.Log, deps.Serializer, ih.getPayload, "host.json")
-	ih.Refresh()
 
 	return provides{
 		Comp:          ih,
