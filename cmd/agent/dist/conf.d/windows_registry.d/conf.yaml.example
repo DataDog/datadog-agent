@@ -1,0 +1,42 @@
+init_config:
+  send_on_start: true
+
+instances:
+    # 
+    - registry_keys:
+        HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\SSL 3.0\Client:
+          name: ssl3.client
+          registry_values:
+            Enabled:
+              name: enabled
+              default_value: -1
+            Ciphers:
+              name: ciphers
+              default_value: -1
+        HKLM\Software\Microsoft\Windows NT\CurrentVersion:
+          name: windows_version
+          registry_values:
+            CurrentBuild:
+              name: 'current_build'
+            InstallDate:
+              name: 'install_date'
+            InstallationType:
+              name: 'installation_type'
+    # Second instance of the check
+    - min_collection_interval: 10
+      tags:
+        - key1:value1
+      registry_keys:
+        HKLM\Software\Datadog\Datadog Agent:
+          name: datadog_agent
+          registry_values:
+            installedUser:
+              name: 'installed_user'
+              # Test with a default value
+              default_value: 24
+            # Create this registry value with value %NUMBER_OF_PROCESSORS% to test EXPAND_SZ
+            numProcessors:
+              name: 'number_of_processors'
+            # Create this registry value with value %PATH% to test EXPAND_SZ with non-numerical value
+            path:
+              name: 'path'
