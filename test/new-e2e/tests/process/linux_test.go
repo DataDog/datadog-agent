@@ -35,9 +35,6 @@ func (s *linuxTestSuite) SetupSuite() {
 }
 
 func (s *linuxTestSuite) TestProcessCheck() {
-	s.UpdateEnv(e2e.FakeIntakeStackDef(
-		e2e.WithAgentParams(agentparams.WithAgentConfig(processCheckConfigStr))))
-
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
