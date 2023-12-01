@@ -10,6 +10,7 @@
 #include "ip.h"
 #include "ipv6.h"
 #include "sock.h"
+#include "sockfd-probes.h"
 #include "port_range.h"
 
 #include "protocols/classification/dispatcher-helpers.h"
