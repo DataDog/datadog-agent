@@ -219,6 +219,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 	} else {
 		main.Version = EPIntakeVersion1
 	}
+	main.UseSSL = pointer.Ptr(defaultNoSSL)
 
 	if vectorURL, vectorURLDefined := logsConfig.getObsPipelineURL(); logsConfig.obsPipelineWorkerEnabled() && vectorURLDefined {
 		host, port, useSSL, err := parseAddressWithScheme(vectorURL, defaultNoSSL, parseAddress)
@@ -245,8 +246,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 
 		main.Host = host
 		main.Port = port
-		main.UseSSL = new(bool)
-		main.UseSSL = &useSSL
+		main.UseSSL = pointer.Ptr(useSSL)
 	}
 
 	additionals := logsConfig.getAdditionalEndpoints()

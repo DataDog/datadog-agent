@@ -575,7 +575,7 @@ func getTestEndpoint(host string, port int, ssl bool) Endpoint {
 		Protocol:         "test-proto",
 		Origin:           "test-source",
 	}
-	*e.UseSSL = ssl
+	e.UseSSL = pointer.Ptr(ssl)
 	return e
 }
 
