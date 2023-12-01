@@ -43,7 +43,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		fx.Supply(server.Params{
 			Serverless: false,
 		}),
-		dogstatsd.Bundle,
+		dogstatsd.Bundle(),
 		defaultforwarder.MockModule(),
 		demultiplexer.MockModule(),
 	))

@@ -103,7 +103,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		return fxutil.OneShot(callback,
 			fx.Supply(cliParams),
 			fx.Supply(params),
-			core.Bundle,
+			core.Bundle(),
 			diagnosesendermanagerimpl.Module(),
 			// workloadmeta setup
 			collectors.GetCatalog(),

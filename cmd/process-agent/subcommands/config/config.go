@@ -39,8 +39,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(showRuntimeConfiguration,
 				fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle,
-				process.Bundle,
+				core.Bundle(),
+				process.Bundle(),
 			)
 		},
 	}
@@ -53,8 +53,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(listRuntimeConfigurableValue,
 					fx.Supply(globalParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-					core.Bundle,
-					process.Bundle,
+					core.Bundle(),
+					process.Bundle(),
 				)
 			},
 		},
@@ -68,8 +68,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(setConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
-					core.Bundle,
-					process.Bundle,
+					core.Bundle(),
+					process.Bundle(),
 				)
 			},
 		},
@@ -82,8 +82,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			RunE: func(cmd *cobra.Command, args []string) error {
 				return fxutil.OneShot(getConfigValue,
 					fx.Supply(globalParams, args, command.GetCoreBundleParamsForOneShot(globalParams)),
-					core.Bundle,
-					process.Bundle,
+					core.Bundle(),
+					process.Bundle(),
 				)
 			},
 		},

@@ -88,7 +88,7 @@ func MakeCommand() *cobra.Command {
 					ConfigParams: config.NewParams(path.DefaultConfPath),
 					LogParams:    logParams,
 				}),
-				core.Bundle,
+				core.Bundle(),
 				// flare
 				fx.Supply(flare.NewParams(
 					path.GetDistPath(),

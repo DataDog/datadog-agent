@@ -79,7 +79,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
 					LogParams:    log.ForOneShot("CORE", "off", true)}),
-				core.Bundle,
+				core.Bundle(),
 				diagnosesendermanagerimpl.Module(),
 			)
 		},
@@ -123,7 +123,7 @@ This command print the V5 metadata payload for the Agent. This payload is used t
 			return fxutil.OneShot(printPayload,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -138,7 +138,7 @@ This command prints the gohai data sent by the Agent, including current processe
 			return fxutil.OneShot(printPayload,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -153,7 +153,7 @@ This command print the last Inventory metadata payload sent by the Agent. This p
 			return fxutil.OneShot(printPayload,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -168,7 +168,7 @@ This command print the inventory-agent metadata payload. This payload is used by
 			return fxutil.OneShot(printPayload,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -183,7 +183,7 @@ This command print the inventory-host metadata payload. This payload is used by 
 			return fxutil.OneShot(printPayload,
 				fx.Supply(cliParams),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}

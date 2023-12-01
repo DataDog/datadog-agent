@@ -33,7 +33,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(taggerList,
 				fx.Supply(command.GetCoreBundleParamsForOneShot(globalParams)),
 
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		SilenceUsage: true,

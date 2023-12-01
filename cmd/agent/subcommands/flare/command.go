@@ -102,7 +102,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Provide(func() serializer.MetricSerializer {
 					return nil
 				}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}

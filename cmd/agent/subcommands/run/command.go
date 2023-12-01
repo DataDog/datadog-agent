@@ -288,11 +288,11 @@ func getSharedFxOption() fx.Option {
 			path.DefaultDogstatsDLogFile,
 		)),
 		flare.Module(),
-		core.Bundle,
+		core.Bundle(),
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),
-		forwarder.Bundle,
+		forwarder.Bundle(),
 		fx.Provide(func(config config.Component, log log.Component) defaultforwarder.Params {
 			params := defaultforwarder.NewParams(config, log)
 			// Enable core agent specific features like persistence-to-disk
@@ -318,8 +318,8 @@ func getSharedFxOption() fx.Option {
 		workloadmeta.Module(),
 		apiimpl.Module(),
 
-		dogstatsd.Bundle,
-		otelcol.Bundle,
+		dogstatsd.Bundle(),
+		otelcol.Bundle(),
 		rcclient.Module(),
 
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
@@ -339,9 +339,9 @@ func getSharedFxOption() fx.Option {
 				},
 			})
 		}),
-		logs.Bundle,
+		logs.Bundle(),
 		langDetectionCl.Module(),
-		metadata.Bundle,
+		metadata.Bundle(),
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
 		fx.Provide(func(config config.Component) demultiplexer.Params {
@@ -359,8 +359,8 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
 			return demuxInstance.Serializer()
 		}),
-		ndmtmp.Bundle,
-		netflow.Bundle,
+		ndmtmp.Bundle(),
+		netflow.Bundle(),
 	)
 }
 

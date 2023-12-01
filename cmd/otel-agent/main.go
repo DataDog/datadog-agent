@@ -60,10 +60,10 @@ func run(
 func main() {
 	flag.Parse()
 	err := fxutil.OneShot(run,
-		core.Bundle,
-		forwarder.Bundle,
-		otelcol.Bundle,
-		logs.Bundle,
+		core.Bundle(),
+		forwarder.Bundle(),
+		otelcol.Bundle(),
+		logs.Bundle(),
 		fx.Supply(
 			core.BundleParams{
 				ConfigParams: config.NewAgentParams(*cfgPath),

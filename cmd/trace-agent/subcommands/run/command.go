@@ -88,7 +88,7 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 			MemProfile:  cliParams.MemProfile,
 			PIDFilePath: cliParams.PIDFilePath,
 		}),
-		trace.Bundle,
+		trace.Bundle(),
 		fx.Invoke(func(_ agent.Component) {}),
 	)
 	if err != nil && errors.Is(err, agent.ErrAgentDisabled) {

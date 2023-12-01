@@ -111,8 +111,8 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
 		}),
-		dogstatsd.Bundle,
-		forwarder.Bundle,
+		dogstatsd.Bundle(),
+		forwarder.Bundle(),
 		fx.Provide(defaultforwarder.NewParams),
 		// workloadmeta setup
 		collectors.GetCatalog(),
@@ -143,7 +143,7 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			return demultiplexer.Params{Options: opts, ContinueOnMissingHostname: true}
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
-		metadata.Bundle,
+		metadata.Bundle(),
 	)
 }
 

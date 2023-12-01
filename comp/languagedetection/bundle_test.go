@@ -33,6 +33,6 @@ func TestBundleDependencies(t *testing.T) {
 		workloadmeta.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Invoke(func(client.Component) {}),
-		Bundle,
+		Bundle(),
 	))
 }

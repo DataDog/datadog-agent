@@ -72,8 +72,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runEventListener,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle,
-				process.Bundle,
+				core.Bundle(),
+				process.Bundle(),
 			)
 		},
 		SilenceUsage: true,
@@ -86,8 +86,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(runEventStore,
 				fx.Supply(cliParams, command.GetCoreBundleParamsForOneShot(globalParams)),
-				core.Bundle,
-				process.Bundle,
+				core.Bundle(),
+				process.Bundle(),
 			)
 		},
 		SilenceUsage: true,

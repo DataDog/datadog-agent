@@ -129,14 +129,14 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true)}),
-				core.Bundle,
+				core.Bundle(),
 
 				workloadmeta.Module(),
 				apiimpl.Module(),
 				fx.Supply(workloadmeta.NewParams()),
 				fx.Supply(context.Background()),
 
-				forwarder.Bundle,
+				forwarder.Bundle(),
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				demultiplexer.Module(),
 				orchestratorForwarderImpl.Module(),

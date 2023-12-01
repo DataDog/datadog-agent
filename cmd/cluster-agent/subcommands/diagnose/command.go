@@ -38,7 +38,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", true), // no need to show regular logs
 				}),
-				core.Bundle,
+				core.Bundle(),
 				diagnosesendermanagerimpl.Module(),
 			)
 		},

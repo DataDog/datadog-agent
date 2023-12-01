@@ -27,10 +27,10 @@ import (
 // team: agent-apm
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle,
+	fxutil.TestBundle(t, Bundle(),
 		fx.Provide(func() context.Context { return context.TODO() }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(core.BundleParams{}),
-		core.Bundle,
+		core.Bundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.Module(),
 		statsd.Module(),

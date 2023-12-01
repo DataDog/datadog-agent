@@ -73,7 +73,7 @@ func listCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -96,7 +96,7 @@ func stopCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -150,7 +150,7 @@ func generateDumpCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -228,7 +228,7 @@ func generateEncodingCommands(globalParams *command.GlobalParams) []*cobra.Comma
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -295,7 +295,7 @@ func diffCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}

@@ -94,7 +94,7 @@ func evalCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -124,7 +124,7 @@ func commonCheckPoliciesCommands(globalParams *command.GlobalParams) []*cobra.Co
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -145,7 +145,7 @@ func commonReloadPoliciesCommands(globalParams *command.GlobalParams) []*cobra.C
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -163,7 +163,7 @@ func selfTestCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -193,7 +193,7 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "off", false)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -225,7 +225,7 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -261,7 +261,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -287,7 +287,7 @@ func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot(command.LoggerName, "info", true)}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
