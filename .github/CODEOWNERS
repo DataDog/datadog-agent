@@ -150,6 +150,7 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/platform-integrations
 /cmd/cws-instrumentation/               @DataDog/agent-security
 /cmd/dogstatsd/                         @DataDog/agent-metrics-logs
+/cmd/otel-agent/                        @DataDog/opentelemetry    
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
 /cmd/serverless-init/                   @DataDog/serverless
@@ -227,6 +228,7 @@
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/workloadmeta @DataDog/container-integrations
 /comp/dogstatsd/statsd @DataDog/agent-shared-components
+/comp/forwarder/orchestrator @DataDog/agent-metrics-logs
 # END COMPONENTS
 
 # pkg
@@ -301,6 +303,7 @@
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
+/pkg/config/env/ipc_address*            @DataDog/agent-shared-components
 /pkg/config/logs                        @Datadog/agent-shared-components @Datadog/agent-platform
 /pkg/config/logs/internal/seelog/seelog_config.go          @Datadog/agent-shared-components
 /pkg/config/process*.go                 @DataDog/processes
