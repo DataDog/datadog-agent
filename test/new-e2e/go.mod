@@ -225,9 +225,5 @@ require (
 
 require (
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.10.3 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk v1.104.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute v1.103.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice v1.104.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network v1.104.0 // indirect
 	github.com/pulumi/pulumi-tls/sdk/v4 v4.10.0 // indirect
 )
