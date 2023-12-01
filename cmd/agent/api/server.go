@@ -16,7 +16,6 @@ import (
 	stdLog "log"
 	"net"
 	"net/http"
-	"strconv"
 
 	"github.com/cihub/seelog"
 
@@ -85,11 +84,7 @@ func StartServers(
 
 	additionalHostIdentities := []string{apiAddr}
 
-	ipcServerHost := config.Datadog.GetString("agent_ipc_host")
-	ipcServerPort := config.Datadog.GetInt("agent_ipc_port")
-	ipcServerEnabled := ipcServerPort > 0
-	ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
-
+	ipcServerHost, ipcServerHostPort, ipcServerEnabled := getIPCServerAddressPort()
 	if ipcServerEnabled {
 		additionalHostIdentities = append(additionalHostIdentities, ipcServerHost)
 	}
