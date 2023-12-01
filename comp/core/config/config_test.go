@@ -54,7 +54,7 @@ func TestMockConfig(t *testing.T) {
 	require.Equal(t, "https://example.com", config.GetString("dd_url"))
 
 	// but defaults are set
-	require.Equal(t, "localhost", config.GetString("ipc_address"))
+	require.Equal(t, "localhost", config.GetString("cmd_host"))
 
 	// values can also be set by the mock (config.Writer)
 	config.(Mock).Set("app_key", "newvalue", model.SourceAgentRuntime)

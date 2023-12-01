@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"go.uber.org/fx"
 )
 
@@ -161,7 +162,8 @@ func (a *TestAgentDemultiplexer) Reset() {
 // InitTestAgentDemultiplexerWithFlushInterval inits a TestAgentDemultiplexer with the given options.
 func InitTestAgentDemultiplexerWithOpts(log log.Component, sharedForwarderOptions *defaultforwarder.Options, opts AgentDemultiplexerOptions) *TestAgentDemultiplexer {
 	sharedForwarder := defaultforwarder.NewDefaultForwarder(config.Datadog, log, sharedForwarderOptions)
-	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, opts, "hostname")
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	demux := InitAndStartAgentDemultiplexer(log, sharedForwarder, &orchestratorForwarder, opts, "hostname")
 	testAgent := TestAgentDemultiplexer{
 		AgentDemultiplexer: demux,
 		events:             make(chan []*event.Event),
@@ -193,5 +195,6 @@ type TestDeps struct {
 
 // InitAndStartAgentDemultiplexerForTest initializes an aggregator for tests.
 func InitAndStartAgentDemultiplexerForTest(deps TestDeps, options AgentDemultiplexerOptions, hostname string) *AgentDemultiplexer {
-	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, options, hostname)
+	orchestratorForwarder := optional.NewOption[defaultforwarder.Forwarder](defaultforwarder.NoopForwarder{})
+	return InitAndStartAgentDemultiplexer(deps.Log, deps.SharedForwarder, &orchestratorForwarder, options, hostname)
 }

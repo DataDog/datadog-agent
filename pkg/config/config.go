@@ -7,6 +7,7 @@
 package config
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -244,7 +245,8 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("syslog_pem", "")
 	config.BindEnvAndSetDefault("syslog_key", "")
 	config.BindEnvAndSetDefault("syslog_tls_verify", true)
-	config.BindEnvAndSetDefault("ipc_address", "localhost")
+	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
+	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
@@ -1773,16 +1775,13 @@ func ResolveSecrets(config Config, secretResolver secrets.Component, origin stri
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		err = secretResolver.ResolveWithCallback(
-			yamlConf,
-			origin,
-			func(yamlPath []string, value any) {
-				settingName := strings.Join(yamlPath, ".")
-				log.Debugf("replacing handle for setting '%s' with secret value", settingName)
-				config.Set(settingName, value, pkgconfigmodel.SourceAgentRuntime)
-			})
+		finalYamlConf, err := secretResolver.Decrypt(yamlConf, origin)
 		if err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
+		}
+		r := bytes.NewReader(finalYamlConf)
+		if err = config.MergeConfigOverride(r); err != nil {
+			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
 		}
 	}
 	return nil

@@ -201,7 +201,7 @@ func TestFetchSecretMissingSecret(t *testing.T) {
 	resolver.commandHookFunc = func(string) ([]byte, error) { return []byte("{}"), nil }
 	_, err := resolver.fetchSecret(secrets)
 	assert.NotNil(t, err)
-	assert.Equal(t, "secret handle 'handle1' was not resolved by the secret_backend_command", err.Error())
+	assert.Equal(t, "secret handle 'handle1' was not decrypted by the secret_backend_command", err.Error())
 }
 
 func TestFetchSecretErrorForHandle(t *testing.T) {
@@ -211,7 +211,7 @@ func TestFetchSecretErrorForHandle(t *testing.T) {
 	}
 	_, err := resolver.fetchSecret([]string{"handle1"})
 	assert.NotNil(t, err)
-	assert.Equal(t, "an error occurred while resolving 'handle1': some error", err.Error())
+	assert.Equal(t, "an error occurred while decrypting 'handle1': some error", err.Error())
 }
 
 func TestFetchSecretEmptyValue(t *testing.T) {
@@ -221,14 +221,14 @@ func TestFetchSecretEmptyValue(t *testing.T) {
 	}
 	_, err := resolver.fetchSecret([]string{"handle1"})
 	assert.NotNil(t, err)
-	assert.Equal(t, "resolved secret for 'handle1' is empty", err.Error())
+	assert.Equal(t, "decrypted secret for 'handle1' is empty", err.Error())
 
 	resolver.commandHookFunc = func(string) ([]byte, error) {
 		return []byte("{\"handle1\":{\"value\": \"\"}}"), nil
 	}
 	_, err = resolver.fetchSecret([]string{"handle1"})
 	assert.NotNil(t, err)
-	assert.Equal(t, "resolved secret for 'handle1' is empty", err.Error())
+	assert.Equal(t, "decrypted secret for 'handle1' is empty", err.Error())
 }
 
 func TestFetchSecret(t *testing.T) {

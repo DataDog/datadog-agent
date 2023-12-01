@@ -28,9 +28,10 @@ func TestProxyWithSecret(t *testing.T) {
 		{
 			name: "secrets from configuration for proxy",
 			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
-				resolver.InjectCallback([]string{"proxy", "http"}, "http_url")
-				resolver.InjectCallback([]string{"proxy", "https"}, "https_url")
-				resolver.InjectCallback([]string{"proxy", "no_proxy"}, []string{"no_proxy_1", "no_proxy_2"})
+				resolver.Inject("http_handle", "http_url")
+				resolver.Inject("https_handle", "https_url")
+				resolver.Inject("no_proxy_1_handle", "no_proxy_1")
+				resolver.Inject("no_proxy_2_handle", "no_proxy_2")
 
 				config.SetWithoutSource("secret_backend_command", "some_command")
 				config.SetWithoutSource("proxy.http", "ENC[http_handle]")
@@ -50,9 +51,10 @@ func TestProxyWithSecret(t *testing.T) {
 		{
 			name: "secrets fron DD env vars for proxy",
 			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
-				resolver.InjectCallback([]string{"proxy", "http"}, "http_url")
-				resolver.InjectCallback([]string{"proxy", "https"}, "https_url")
-				resolver.InjectCallback([]string{"proxy", "no_proxy"}, []string{"no_proxy_1", "no_proxy_2"})
+				resolver.Inject("http_handle", "http_url")
+				resolver.Inject("https_handle", "https_url")
+				resolver.Inject("no_proxy_1_handle", "no_proxy_1")
+				resolver.Inject("no_proxy_2_handle", "no_proxy_2")
 
 				config.SetWithoutSource("secret_backend_command", "some_command")
 				t.Setenv("DD_PROXY_HTTP", "ENC[http_handle]")
@@ -72,9 +74,10 @@ func TestProxyWithSecret(t *testing.T) {
 		{
 			name: "secrets fron UNIX env vars for proxy",
 			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
-				resolver.InjectCallback([]string{"proxy", "http"}, "http_url")
-				resolver.InjectCallback([]string{"proxy", "https"}, "https_url")
-				resolver.InjectCallback([]string{"proxy", "no_proxy"}, []string{"no_proxy_1", "no_proxy_2"})
+				resolver.Inject("http_handle", "http_url")
+				resolver.Inject("https_handle", "https_url")
+				resolver.Inject("no_proxy_1_handle", "no_proxy_1")
+				resolver.Inject("no_proxy_2_handle", "no_proxy_2")
 
 				config.SetWithoutSource("secret_backend_command", "some_command")
 				t.Setenv("HTTP_PROXY", "ENC[http_handle]")
