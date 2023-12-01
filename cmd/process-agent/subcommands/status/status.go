@@ -139,7 +139,10 @@ func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options
 			option(&s)
 		}
 
-		body, err = json.Marshal(s)
+		status := map[string]interface{}{}
+		status["processAgentStatus"] = s
+
+		body, err = json.Marshal(status)
 		if err != nil {
 			writeError(log, w, err)
 			return

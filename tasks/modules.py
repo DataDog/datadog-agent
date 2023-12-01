@@ -160,6 +160,8 @@ DEFAULT_MODULES = {
     "pkg/tagset": GoModule("pkg/tagset", independent=True),
     "pkg/metrics": GoModule("pkg/metrics", independent=True),
     "pkg/telemetry": GoModule("pkg/telemetry", independent=True),
+    "comp/core/flare/types": GoModule("comp/core/flare/types", independent=True),
+    "comp/core/secrets": GoModule("comp/core/secrets", independent=True),
     "comp/core/telemetry": GoModule("comp/core/telemetry", independent=True),
     "pkg/config/model": GoModule("pkg/config/model", independent=True),
     "pkg/config/env": GoModule("pkg/config/env", independent=True),
@@ -249,7 +251,7 @@ def go_work(_: Context):
     and the go version contained in the file .go-version.
     If there is already a go.work file, it is renamed go.work.backup and a warning is printed.
     """
-    from semver import Version
+    from semver import VersionInfo
 
     print(
         color_message(
@@ -264,7 +266,7 @@ def go_work(_: Context):
     # read go version from the .go-version file, removing the bugfix part of the version
 
     with open(".go-version") as f:
-        go_version = Version.parse(f.read().strip())
+        go_version = VersionInfo.parse(f.read().strip())
         go_version = f"{go_version.major}.{go_version.minor}"
 
     if os.path.exists("go.work"):

@@ -18,6 +18,16 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package diagnosesendermanager defines the sender manager for the local diagnose check
 
+## [comp/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package api implements the "api" bundle,
+
+### [comp/api/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/api)
+
+Package api implements the internal Agent API which exposes endpoints such as config, flare or status
+
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -114,6 +124,12 @@ Package forwarder implements the "forwarder" bundle
 ### [comp/forwarder/defaultforwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder)
 
 Package defaultForwarder implements a component to send payloads to the backend
+
+### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
+
+*Datadog Team*: agent-metrics-logs
+
+Package orchestrator implements the orchestrator forwarder component.
 
 ## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection) (Component Bundle)
 

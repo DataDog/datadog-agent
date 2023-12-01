@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
 
 func validateReadSize(size, read int) (int, error) {
@@ -1090,15 +1089,4 @@ func (e *AnomalyDetectionSyscallEvent) UnmarshalBinary(data []byte) (int, error)
 
 	e.SyscallID = Syscall(ByteOrder.Uint64(data[0:8]))
 	return 8, nil
-}
-
-// UnmarshalBinary unmarshalls a binary representation of itself
-func (e *UserSessionContext) UnmarshalBinary(data []byte) error {
-	if len(data) < 256 {
-		return ErrNotEnoughSpace
-	}
-
-	e.SessionType = usersession.Type(data[0])
-	e.RawData += NullTerminatedString(data[1:])
-	return nil
 }

@@ -27,6 +27,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
@@ -35,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -129,18 +132,20 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				core.Bundle,
 
 				workloadmeta.Module,
+				apiimpl.Module,
 				fx.Supply(workloadmeta.NewParams()),
 				fx.Supply(context.Background()),
 
 				forwarder.Bundle,
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				demultiplexer.Module,
+				orchestratorForwarderImpl.Module,
+				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
 				fx.Provide(func() demultiplexer.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 					opts := aggregator.DefaultAgentDemultiplexerOptions()
 					opts.FlushInterval = 0
 					opts.UseNoopEventPlatformForwarder = true
-					opts.UseNoopOrchestratorForwarder = true
 					return demultiplexer.Params{Options: opts}
 				}),
 			)
@@ -183,7 +188,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) error {
+func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, agentAPI internalAPI.Component) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
@@ -234,11 +239,11 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 			fmt.Println("Please consider using the 'jmx' command instead of 'check jmx'")
 			selectedChecks := []string{cliParams.checkName}
 			if cliParams.checkRate {
-				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer); err != nil {
+				if err := standalone.ExecJmxListWithRateMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer, agentAPI); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			} else {
-				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer); err != nil {
+				if err := standalone.ExecJmxListWithMetricsJSON(selectedChecks, config.GetString("log_level"), allConfigs, wmeta, demultiplexer, agentAPI); err != nil {
 					return fmt.Errorf("while running the jmx check: %v", err)
 				}
 			}

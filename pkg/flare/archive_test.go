@@ -103,7 +103,7 @@ func setupIPCAddress(t *testing.T, URL string) *config.MockConfig {
 	require.NoError(t, err)
 
 	confMock := config.Mock(t)
-	confMock.SetWithoutSource("ipc_address", host)
+	confMock.SetWithoutSource("cmd_host", host)
 	confMock.SetWithoutSource("cmd_port", port)
 	confMock.SetWithoutSource("process_config.cmd_port", port)
 
