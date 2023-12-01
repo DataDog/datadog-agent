@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/eventstream"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // OrderedPerfMap implements the EventStream interface
@@ -92,8 +93,8 @@ func ExtractEventInfo(record *perf.Record) (QuickInfo, error) {
 	}
 
 	return QuickInfo{
-		CPU:       model.ByteOrder.Uint64(record.RawSample[0:8]),
-		Timestamp: model.ByteOrder.Uint64(record.RawSample[8:16]),
+		CPU:       native.Endian.Uint64(record.RawSample[0:8]),
+		Timestamp: native.Endian.Uint64(record.RawSample[8:16]),
 	}, nil
 }
 

@@ -9,6 +9,8 @@ package model
 import (
 	"math"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // BinaryMarshaler interface implemented by every event type
@@ -34,17 +36,17 @@ func (e *FileFields) MarshalBinary(data []byte) (int, error) {
 	if len(data) < 72 {
 		return 0, ErrNotEnoughSpace
 	}
-	ByteOrder.PutUint64(data[0:8], e.Inode)
-	ByteOrder.PutUint32(data[8:12], e.MountID)
-	ByteOrder.PutUint32(data[12:16], e.PathID)
-	ByteOrder.PutUint32(data[16:20], uint32(e.Flags))
+	native.Endian.PutUint64(data[0:8], e.Inode)
+	native.Endian.PutUint32(data[8:12], e.MountID)
+	native.Endian.PutUint32(data[12:16], e.PathID)
+	native.Endian.PutUint32(data[16:20], uint32(e.Flags))
 
 	// +4 for padding
 
-	ByteOrder.PutUint32(data[24:28], e.UID)
-	ByteOrder.PutUint32(data[28:32], e.GID)
-	ByteOrder.PutUint32(data[32:36], e.NLink)
-	ByteOrder.PutUint16(data[36:38], e.Mode)
+	native.Endian.PutUint32(data[24:28], e.UID)
+	native.Endian.PutUint32(data[28:32], e.GID)
+	native.Endian.PutUint32(data[32:36], e.NLink)
+	native.Endian.PutUint16(data[36:38], e.Mode)
 
 	// +2 for padding
 
@@ -54,8 +56,8 @@ func (e *FileFields) MarshalBinary(data []byte) (int, error) {
 	if timeNsec < 0 {
 		timeNsec = 0
 	}
-	ByteOrder.PutUint64(data[40:48], uint64(timeSec))
-	ByteOrder.PutUint64(data[48:56], uint64(timeNsec))
+	native.Endian.PutUint64(data[40:48], uint64(timeSec))
+	native.Endian.PutUint64(data[48:56], uint64(timeNsec))
 
 	timeSec = time.Unix(0, int64(e.MTime)).Unix()
 	timeNsec = time.Unix(0, int64(e.MTime)).UnixNano()
@@ -63,8 +65,8 @@ func (e *FileFields) MarshalBinary(data []byte) (int, error) {
 	if timeNsec < 0 {
 		timeNsec = 0
 	}
-	ByteOrder.PutUint64(data[56:64], uint64(timeSec))
-	ByteOrder.PutUint64(data[64:72], uint64(timeNsec))
+	native.Endian.PutUint64(data[56:64], uint64(timeSec))
+	native.Endian.PutUint64(data[64:72], uint64(timeNsec))
 	return 72, nil
 }
 
@@ -99,7 +101,7 @@ func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error)
 }
 
 func marshalTime(data []byte, t time.Duration) {
-	ByteOrder.PutUint64(data, uint64(t.Nanoseconds()))
+	native.Endian.PutUint64(data, uint64(t.Nanoseconds()))
 }
 
 // MarshalBinary marshalls a binary representation of itself
@@ -108,14 +110,14 @@ func (e *Credentials) MarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughSpace
 	}
 
-	ByteOrder.PutUint32(data[0:4], e.UID)
-	ByteOrder.PutUint32(data[4:8], e.GID)
-	ByteOrder.PutUint32(data[8:12], e.EUID)
-	ByteOrder.PutUint32(data[12:16], e.EGID)
-	ByteOrder.PutUint32(data[16:20], e.FSUID)
-	ByteOrder.PutUint32(data[20:24], e.FSGID)
-	ByteOrder.PutUint64(data[24:32], e.CapEffective)
-	ByteOrder.PutUint64(data[32:40], e.CapPermitted)
+	native.Endian.PutUint32(data[0:4], e.UID)
+	native.Endian.PutUint32(data[4:8], e.GID)
+	native.Endian.PutUint32(data[8:12], e.EUID)
+	native.Endian.PutUint32(data[12:16], e.EGID)
+	native.Endian.PutUint32(data[16:20], e.FSUID)
+	native.Endian.PutUint32(data[20:24], e.FSGID)
+	native.Endian.PutUint64(data[24:32], e.CapEffective)
+	native.Endian.PutUint64(data[32:40], e.CapPermitted)
 	return 40, nil
 }
 
@@ -125,14 +127,14 @@ func (e *Process) MarshalPidCache(data []byte, bootTime time.Time) (int, error) 
 	if len(data) < 80 {
 		return 0, ErrNotEnoughSpace
 	}
-	ByteOrder.PutUint64(data[0:8], e.Cookie)
-	ByteOrder.PutUint32(data[8:12], e.PPid)
+	native.Endian.PutUint64(data[0:8], e.Cookie)
+	native.Endian.PutUint32(data[8:12], e.PPid)
 
 	// padding
 
 	marshalTime(data[16:24], e.ForkTime.Sub(bootTime))
 	marshalTime(data[24:32], e.ExitTime.Sub(bootTime))
-	ByteOrder.PutUint64(data[32:40], e.UserSession.ID)
+	native.Endian.PutUint64(data[32:40], e.UserSession.ID)
 	written := 40
 
 	n, err := MarshalBinary(data[written:], &e.Credentials)
@@ -152,13 +154,13 @@ func (adlc *ActivityDumpLoadConfig) MarshalBinary() ([]byte, error) {
 	for _, evt := range adlc.TracedEventTypes {
 		eventMask |= 1 << (evt - FirstDiscarderEventType)
 	}
-	ByteOrder.PutUint64(raw[0:8], eventMask)
-	ByteOrder.PutUint64(raw[8:16], uint64(adlc.Timeout))
-	ByteOrder.PutUint64(raw[16:24], adlc.WaitListTimestampRaw)
-	ByteOrder.PutUint64(raw[24:32], adlc.StartTimestampRaw)
-	ByteOrder.PutUint64(raw[32:40], adlc.EndTimestampRaw)
-	ByteOrder.PutUint32(raw[40:44], adlc.Rate)
-	ByteOrder.PutUint32(raw[44:48], adlc.Paused)
+	native.Endian.PutUint64(raw[0:8], eventMask)
+	native.Endian.PutUint64(raw[8:16], uint64(adlc.Timeout))
+	native.Endian.PutUint64(raw[16:24], adlc.WaitListTimestampRaw)
+	native.Endian.PutUint64(raw[24:32], adlc.StartTimestampRaw)
+	native.Endian.PutUint64(raw[32:40], adlc.EndTimestampRaw)
+	native.Endian.PutUint32(raw[40:44], adlc.Rate)
+	native.Endian.PutUint32(raw[44:48], adlc.Paused)
 
 	return raw, nil
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 	manager "github.com/DataDog/ebpf-manager"
 	lib "github.com/cilium/ebpf"
 
@@ -45,7 +46,7 @@ func (d *Monitor) SendStats() error {
 
 		// aggregate all cpu stats
 		for _, stat := range statsAcrossAllCPUs {
-			statsByEventType[eventType] += int32(model.ByteOrder.Uint32(stat[0:4]))
+			statsByEventType[eventType] += int32(native.Endian.Uint32(stat[0:4]))
 		}
 	}
 

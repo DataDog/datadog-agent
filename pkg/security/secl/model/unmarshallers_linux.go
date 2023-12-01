@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 func validateReadSize(size, read int) (int, error) {
@@ -50,7 +51,7 @@ func (e *ChmodEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Mode = ByteOrder.Uint32(data[0:4])
+	e.Mode = native.Endian.Uint32(data[0:4])
 	return n + 4, nil
 }
 
@@ -67,8 +68,8 @@ func (e *ChownEvent) UnmarshalBinary(data []byte) (int, error) {
 	}
 
 	// First convert to int32 to sign extend, then convert to int64
-	e.UID = int64(int32(ByteOrder.Uint32(data[0:4])))
-	e.GID = int64(int32(ByteOrder.Uint32(data[4:8])))
+	e.UID = int64(int32(native.Endian.Uint32(data[0:4])))
+	e.GID = int64(int32(native.Endian.Uint32(data[4:8])))
 	return n + 8, nil
 }
 
@@ -78,9 +79,9 @@ func (e *Event) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.TimestampRaw = ByteOrder.Uint64(data[8:16])
-	e.Type = ByteOrder.Uint32(data[16:20])
-	e.Flags = ByteOrder.Uint32(data[20:24])
+	e.TimestampRaw = native.Endian.Uint64(data[8:16])
+	e.Type = native.Endian.Uint32(data[16:20])
+	e.Flags = native.Endian.Uint32(data[20:24])
 
 	return 24, nil
 }
@@ -90,9 +91,9 @@ func (e *SetuidEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
-	e.UID = ByteOrder.Uint32(data[0:4])
-	e.EUID = ByteOrder.Uint32(data[4:8])
-	e.FSUID = ByteOrder.Uint32(data[8:12])
+	e.UID = native.Endian.Uint32(data[0:4])
+	e.EUID = native.Endian.Uint32(data[4:8])
+	e.FSUID = native.Endian.Uint32(data[8:12])
 	return 16, nil
 }
 
@@ -101,9 +102,9 @@ func (e *SetgidEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
-	e.GID = ByteOrder.Uint32(data[0:4])
-	e.EGID = ByteOrder.Uint32(data[4:8])
-	e.FSGID = ByteOrder.Uint32(data[8:12])
+	e.GID = native.Endian.Uint32(data[0:4])
+	e.EGID = native.Endian.Uint32(data[4:8])
+	e.FSGID = native.Endian.Uint32(data[8:12])
 	return 16, nil
 }
 
@@ -112,8 +113,8 @@ func (e *CapsetEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
-	e.CapEffective = ByteOrder.Uint64(data[0:8])
-	e.CapPermitted = ByteOrder.Uint64(data[8:16])
+	e.CapEffective = native.Endian.Uint64(data[0:8])
+	e.CapPermitted = native.Endian.Uint64(data[8:16])
 	return 16, nil
 }
 
@@ -123,19 +124,19 @@ func (e *Credentials) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.UID = ByteOrder.Uint32(data[0:4])
-	e.GID = ByteOrder.Uint32(data[4:8])
-	e.EUID = ByteOrder.Uint32(data[8:12])
-	e.EGID = ByteOrder.Uint32(data[12:16])
-	e.FSUID = ByteOrder.Uint32(data[16:20])
-	e.FSGID = ByteOrder.Uint32(data[20:24])
-	e.CapEffective = ByteOrder.Uint64(data[24:32])
-	e.CapPermitted = ByteOrder.Uint64(data[32:40])
+	e.UID = native.Endian.Uint32(data[0:4])
+	e.GID = native.Endian.Uint32(data[4:8])
+	e.EUID = native.Endian.Uint32(data[8:12])
+	e.EGID = native.Endian.Uint32(data[12:16])
+	e.FSUID = native.Endian.Uint32(data[16:20])
+	e.FSGID = native.Endian.Uint32(data[20:24])
+	e.CapEffective = native.Endian.Uint64(data[24:32])
+	e.CapPermitted = native.Endian.Uint64(data[32:40])
 	return 40, nil
 }
 
 func unmarshalTime(data []byte) time.Time {
-	if t := int64(ByteOrder.Uint64(data)); t != 0 {
+	if t := int64(native.Endian.Uint64(data)); t != 0 {
 		return time.Unix(0, t)
 	}
 	return time.Time{}
@@ -193,17 +194,17 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 	var read int
 
 	// Unmarshal pid_cache_t
-	cookie := ByteOrder.Uint64(data[0:SizeOfCookie])
+	cookie := native.Endian.Uint64(data[0:SizeOfCookie])
 	if cookie > 0 {
 		e.Cookie = cookie
 	}
-	e.PPid = ByteOrder.Uint32(data[8:12])
+	e.PPid = native.Endian.Uint32(data[8:12])
 
 	// padding
 
 	e.ForkTime = unmarshalTime(data[16:24])
 	e.ExitTime = unmarshalTime(data[24:32])
-	e.UserSession.ID = ByteOrder.Uint64(data[32:40])
+	e.UserSession.ID = native.Endian.Uint64(data[32:40])
 
 	// Unmarshal the credentials contained in pid_cache_t
 	read, err := UnmarshalBinary(data[40:], &e.Credentials)
@@ -253,12 +254,12 @@ func (e *Process) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ArgsID = ByteOrder.Uint32(data[read : read+4])
-	e.ArgsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
+	e.ArgsID = native.Endian.Uint32(data[read : read+4])
+	e.ArgsTruncated = native.Endian.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
-	e.EnvsID = ByteOrder.Uint32(data[read : read+4])
-	e.EnvsTruncated = ByteOrder.Uint32(data[read+4:read+8]) == 1
+	e.EnvsID = native.Endian.Uint32(data[read : read+4])
+	e.EnvsTruncated = native.Endian.Uint32(data[read+4:read+8]) == 1
 	read += 8
 
 	return validateReadSize(size, read)
@@ -271,7 +272,7 @@ func (e *ExitEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	exitStatus := ByteOrder.Uint32(data[0:4])
+	exitStatus := native.Endian.Uint32(data[0:4])
 	if exitStatus&0x7F == 0x00 { // process terminated normally
 		e.Cause = uint32(ExitExited)
 		e.Code = (exitStatus >> 8) & 0xFF
@@ -294,8 +295,8 @@ func (e *InvalidateDentryEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Inode = ByteOrder.Uint64(data[0:8])
-	e.MountID = ByteOrder.Uint32(data[8:12])
+	e.Inode = native.Endian.Uint64(data[0:8])
+	e.MountID = native.Endian.Uint32(data[8:12])
 	// padding
 
 	return 16, nil
@@ -307,8 +308,8 @@ func (e *ArgsEnvsEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ID = ByteOrder.Uint32(data[0:4])
-	e.Size = ByteOrder.Uint32(data[4:8])
+	e.ID = native.Endian.Uint32(data[0:4])
+	e.Size = native.Endian.Uint32(data[4:8])
 	if e.Size > MaxArgEnvSize {
 		e.Size = MaxArgEnvSize
 	}
@@ -322,9 +323,9 @@ func (p *PathKey) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 16 {
 		return 0, ErrNotEnoughData
 	}
-	p.Inode = ByteOrder.Uint64(data[0:8])
-	p.MountID = ByteOrder.Uint32(data[8:12])
-	p.PathID = ByteOrder.Uint32(data[12:16])
+	p.Inode = native.Endian.Uint64(data[0:8])
+	p.MountID = native.Endian.Uint32(data[8:12])
+	p.PathID = native.Endian.Uint32(data[12:16])
 
 	return 16, nil
 }
@@ -341,21 +342,21 @@ func (e *FileFields) UnmarshalBinary(data []byte) (int, error) {
 	}
 	data = data[n:]
 
-	e.Device = ByteOrder.Uint32(data[0:4])
+	e.Device = native.Endian.Uint32(data[0:4])
 
-	e.Flags = int32(ByteOrder.Uint32(data[4:8]))
+	e.Flags = int32(native.Endian.Uint32(data[4:8]))
 
-	e.UID = ByteOrder.Uint32(data[8:12])
-	e.GID = ByteOrder.Uint32(data[12:16])
-	e.NLink = ByteOrder.Uint32(data[16:20])
-	e.Mode = ByteOrder.Uint16(data[20:22])
+	e.UID = native.Endian.Uint32(data[8:12])
+	e.GID = native.Endian.Uint32(data[12:16])
+	e.NLink = native.Endian.Uint32(data[16:20])
+	e.Mode = native.Endian.Uint16(data[20:22])
 
-	timeSec := ByteOrder.Uint64(data[24:32])
-	timeNsec := ByteOrder.Uint64(data[32:40])
+	timeSec := native.Endian.Uint64(data[24:32])
+	timeNsec := native.Endian.Uint64(data[32:40])
 	e.CTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
-	timeSec = ByteOrder.Uint64(data[40:48])
-	timeNsec = ByteOrder.Uint64(data[48:56])
+	timeSec = native.Endian.Uint64(data[40:48])
+	timeNsec = native.Endian.Uint64(data[48:56])
 	e.MTime = uint64(time.Unix(int64(timeSec), int64(timeNsec)).UnixNano())
 
 	return 72, nil
@@ -383,7 +384,7 @@ func (e *MkdirEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Mode = ByteOrder.Uint32(data[0:4])
+	e.Mode = native.Endian.Uint32(data[0:4])
 	return n + 4, nil
 }
 
@@ -405,8 +406,8 @@ func (m *Mount) UnmarshalBinary(data []byte) (int, error) {
 	}
 	data = data[n:]
 
-	m.Device = ByteOrder.Uint32(data[0:4])
-	m.BindSrcMountID = ByteOrder.Uint32(data[4:8])
+	m.Device = native.Endian.Uint32(data[0:4])
+	m.BindSrcMountID = native.Endian.Uint32(data[4:8])
 	m.FSType, err = UnmarshalString(data[8:], 16)
 	if err != nil {
 		return 0, err
@@ -439,8 +440,8 @@ func (e *OpenEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.Flags = ByteOrder.Uint32(data[0:4])
-	e.Mode = ByteOrder.Uint32(data[4:8])
+	e.Flags = native.Endian.Uint32(data[0:4])
+	e.Mode = native.Endian.Uint32(data[4:8])
 	return n + 8, nil
 }
 
@@ -450,8 +451,8 @@ func (s *SpanContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	s.SpanID = ByteOrder.Uint64(data[0:8])
-	s.TraceID = ByteOrder.Uint64(data[8:16])
+	s.SpanID = native.Endian.Uint64(data[0:8])
+	s.TraceID = native.Endian.Uint64(data[8:16])
 
 	return 16, nil
 }
@@ -468,11 +469,11 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 		return n, ErrNotEnoughData
 	}
 
-	e.EventKind = SELinuxEventKind(ByteOrder.Uint32(data[0:4]))
+	e.EventKind = SELinuxEventKind(native.Endian.Uint32(data[0:4]))
 
 	switch e.EventKind {
 	case SELinuxBoolChangeEventKind:
-		boolValue := ByteOrder.Uint32(data[4:8])
+		boolValue := native.Endian.Uint32(data[4:8])
 		if boolValue == ^uint32(0) {
 			e.BoolChangeValue = "error"
 		} else if boolValue > 0 {
@@ -481,11 +482,11 @@ func (e *SELinuxEvent) UnmarshalBinary(data []byte) (int, error) {
 			e.BoolChangeValue = "off"
 		}
 	case SELinuxBoolCommitEventKind:
-		boolValue := ByteOrder.Uint32(data[4:8])
+		boolValue := native.Endian.Uint32(data[4:8])
 		e.BoolCommitValue = boolValue != 0
 	case SELinuxStatusChangeEventKind:
-		disableValue := ByteOrder.Uint16(data[4:6]) != 0
-		enforceValue := ByteOrder.Uint16(data[6:8]) != 0
+		disableValue := native.Endian.Uint16(data[4:6]) != 0
+		enforceValue := native.Endian.Uint16(data[6:8]) != 0
 		if disableValue {
 			e.EnforceStatus = "disabled"
 		} else if enforceValue {
@@ -504,11 +505,11 @@ func (p *PIDContext) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	p.Pid = ByteOrder.Uint32(data[0:4])
-	p.Tid = ByteOrder.Uint32(data[4:8])
-	p.NetNS = ByteOrder.Uint32(data[8:12])
-	p.IsKworker = ByteOrder.Uint32(data[12:16]) > 0
-	p.ExecInode = ByteOrder.Uint64(data[16:24])
+	p.Pid = native.Endian.Uint32(data[0:4])
+	p.Tid = native.Endian.Uint32(data[4:8])
+	p.NetNS = native.Endian.Uint32(data[8:12])
+	p.IsKworker = native.Endian.Uint32(data[12:16]) > 0
+	p.ExecInode = native.Endian.Uint64(data[16:24])
 
 	return 24, nil
 }
@@ -544,7 +545,7 @@ func (e *SyscallEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
-	e.Retval = int64(ByteOrder.Uint64(data[0:8]))
+	e.Retval = int64(native.Endian.Uint64(data[0:8]))
 	return 8, nil
 }
 
@@ -560,7 +561,7 @@ func (e *UmountEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.MountID = ByteOrder.Uint32(data[0:4])
+	e.MountID = native.Endian.Uint32(data[0:4])
 
 	return 8, nil
 }
@@ -577,7 +578,7 @@ func (e *UnlinkEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Flags = ByteOrder.Uint32(data[0:4])
+	e.Flags = native.Endian.Uint32(data[0:4])
 	// padding
 
 	return n + 8, nil
@@ -595,12 +596,12 @@ func (e *UtimesEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	timeSec := ByteOrder.Uint64(data[0:8])
-	timeNsec := ByteOrder.Uint64(data[8:16])
+	timeSec := native.Endian.Uint64(data[0:8])
+	timeNsec := native.Endian.Uint64(data[8:16])
 	e.Atime = time.Unix(int64(timeSec), int64(timeNsec))
 
-	timeSec = ByteOrder.Uint64(data[16:24])
-	timeNsec = ByteOrder.Uint64(data[24:32])
+	timeSec = native.Endian.Uint64(data[16:24])
+	timeNsec = native.Endian.Uint64(data[24:32])
 	e.Mtime = time.Unix(int64(timeSec), int64(timeNsec))
 
 	return n + 32, nil
@@ -625,7 +626,7 @@ func (e *MountReleasedEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.MountID = ByteOrder.Uint32(data[0:4])
+	e.MountID = native.Endian.Uint32(data[0:4])
 
 	return 8, nil
 }
@@ -651,7 +652,7 @@ func (e *BPFEvent) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < cursor+4 {
 		return 0, ErrNotEnoughData
 	}
-	e.Cmd = ByteOrder.Uint32(data[cursor : cursor+4])
+	e.Cmd = native.Endian.Uint32(data[cursor : cursor+4])
 	return cursor + 4, nil
 }
 
@@ -660,8 +661,8 @@ func (m *BPFMap) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 24 {
 		return 0, ErrNotEnoughData
 	}
-	m.ID = ByteOrder.Uint32(data[0:4])
-	m.Type = ByteOrder.Uint32(data[4:8])
+	m.ID = native.Endian.Uint32(data[0:4])
+	m.Type = native.Endian.Uint32(data[4:8])
 
 	var err error
 	m.Name, err = UnmarshalString(data[8:24], 16)
@@ -676,14 +677,14 @@ func (p *BPFProgram) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 64 {
 		return 0, ErrNotEnoughData
 	}
-	p.ID = ByteOrder.Uint32(data[0:4])
-	p.Type = ByteOrder.Uint32(data[4:8])
-	p.AttachType = ByteOrder.Uint32(data[8:12])
+	p.ID = native.Endian.Uint32(data[0:4])
+	p.Type = native.Endian.Uint32(data[4:8])
+	p.AttachType = native.Endian.Uint32(data[8:12])
 	// padding
 	helpers := []uint64{0, 0, 0}
-	helpers[0] = ByteOrder.Uint64(data[16:24])
-	helpers[1] = ByteOrder.Uint64(data[24:32])
-	helpers[2] = ByteOrder.Uint64(data[32:40])
+	helpers[0] = native.Endian.Uint64(data[16:24])
+	helpers[1] = native.Endian.Uint64(data[24:32])
+	helpers[2] = native.Endian.Uint64(data[32:40])
 	p.Helpers = parseHelpers(helpers)
 
 	var err error
@@ -739,9 +740,9 @@ func (e *PTraceEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Request = ByteOrder.Uint32(data[read : read+4])
-	e.PID = ByteOrder.Uint32(data[read+4 : read+8])
-	e.Address = ByteOrder.Uint64(data[read+8 : read+16])
+	e.Request = native.Endian.Uint32(data[read : read+4])
+	e.PID = native.Endian.Uint32(data[read+4 : read+8])
+	e.Address = native.Endian.Uint64(data[read+8 : read+16])
 	return read + 16, nil
 }
 
@@ -756,11 +757,11 @@ func (e *MMapEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.Addr = ByteOrder.Uint64(data[read : read+8])
-	e.Offset = ByteOrder.Uint64(data[read+8 : read+16])
-	e.Len = ByteOrder.Uint32(data[read+16 : read+20])
-	e.Protection = int(ByteOrder.Uint32(data[read+20 : read+24]))
-	e.Flags = int(ByteOrder.Uint32(data[read+24 : read+28]))
+	e.Addr = native.Endian.Uint64(data[read : read+8])
+	e.Offset = native.Endian.Uint64(data[read+8 : read+16])
+	e.Len = native.Endian.Uint32(data[read+16 : read+20])
+	e.Protection = int(native.Endian.Uint32(data[read+20 : read+24]))
+	e.Flags = int(native.Endian.Uint32(data[read+24 : read+28]))
 	return read + 28, nil
 }
 
@@ -775,10 +776,10 @@ func (e *MProtectEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.VMStart = ByteOrder.Uint64(data[read : read+8])
-	e.VMEnd = ByteOrder.Uint64(data[read+8 : read+16])
-	e.VMProtection = int(ByteOrder.Uint32(data[read+16 : read+24]))
-	e.ReqProtection = int(ByteOrder.Uint32(data[read+24 : read+32]))
+	e.VMStart = native.Endian.Uint64(data[read : read+8])
+	e.VMEnd = native.Endian.Uint64(data[read+8 : read+16])
+	e.VMProtection = int(native.Endian.Uint32(data[read+16 : read+24]))
+	e.ReqProtection = int(native.Endian.Uint32(data[read+24 : read+32]))
 	return read + 32, nil
 }
 
@@ -803,13 +804,13 @@ func (e *LoadModuleEvent) UnmarshalBinary(data []byte) (int, error) {
 	e.Args, err = UnmarshalString(data[read:read+128], 128)
 	read += 128
 
-	e.ArgsTruncated = ByteOrder.Uint32(data[read:read+4]) == uint32(1)
+	e.ArgsTruncated = native.Endian.Uint32(data[read:read+4]) == uint32(1)
 	read += 4
 
 	if err != nil {
 		return 0, err
 	}
-	e.LoadedFromMemory = ByteOrder.Uint32(data[read:read+4]) == uint32(1)
+	e.LoadedFromMemory = native.Endian.Uint32(data[read:read+4]) == uint32(1)
 	read += 4
 
 	return read, nil
@@ -844,8 +845,8 @@ func (e *SignalEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.PID = ByteOrder.Uint32(data[read : read+4])
-	e.Type = ByteOrder.Uint32(data[read+4 : read+8])
+	e.PID = native.Endian.Uint32(data[read : read+4])
+	e.Type = native.Endian.Uint32(data[read+4 : read+8])
 	return read + 8, nil
 }
 
@@ -860,8 +861,8 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.PipeEntryFlag = ByteOrder.Uint32(data[read : read+4])
-	e.PipeExitFlag = ByteOrder.Uint32(data[read+4 : read+8])
+	e.PipeEntryFlag = native.Endian.Uint32(data[read : read+4])
+	e.PipeExitFlag = native.Endian.Uint32(data[read+4 : read+8])
 	return read + 4, nil
 }
 
@@ -883,7 +884,7 @@ func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ConfigCookie = ByteOrder.Uint64(data[cursor : cursor+8])
+	e.ConfigCookie = native.Endian.Uint64(data[cursor : cursor+8])
 	return cursor + 8, nil
 }
 
@@ -893,18 +894,18 @@ func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, erro
 		return 0, ErrNotEnoughData
 	}
 
-	eventMask := ByteOrder.Uint64(data[0:8])
+	eventMask := native.Endian.Uint64(data[0:8])
 	for i := uint64(0); i < 64; i++ {
 		if eventMask&(1<<i) == (1 << i) {
 			adlc.TracedEventTypes = append(adlc.TracedEventTypes, EventType(i)+FirstDiscarderEventType)
 		}
 	}
-	adlc.Timeout = time.Duration(ByteOrder.Uint64(data[8:16]))
-	adlc.WaitListTimestampRaw = ByteOrder.Uint64(data[16:24])
-	adlc.StartTimestampRaw = ByteOrder.Uint64(data[24:32])
-	adlc.EndTimestampRaw = ByteOrder.Uint64(data[32:40])
-	adlc.Rate = ByteOrder.Uint32(data[40:44])
-	adlc.Paused = ByteOrder.Uint32(data[44:48])
+	adlc.Timeout = time.Duration(native.Endian.Uint64(data[8:16]))
+	adlc.WaitListTimestampRaw = native.Endian.Uint64(data[16:24])
+	adlc.StartTimestampRaw = native.Endian.Uint64(data[24:32])
+	adlc.EndTimestampRaw = native.Endian.Uint64(data[32:40])
+	adlc.Rate = native.Endian.Uint32(data[40:44])
+	adlc.Paused = native.Endian.Uint32(data[44:48])
 	return 48, nil
 }
 
@@ -919,8 +920,8 @@ func (e *NetworkDeviceContext) UnmarshalBinary(data []byte) (int, error) {
 	if len(data) < 8 {
 		return 0, ErrNotEnoughData
 	}
-	e.NetNS = ByteOrder.Uint32(data[0:4])
-	e.IfIndex = ByteOrder.Uint32(data[4:8])
+	e.NetNS = native.Endian.Uint32(data[0:4])
+	e.IfIndex = native.Endian.Uint32(data[4:8])
 	return 8, nil
 }
 
@@ -942,9 +943,9 @@ func (e *NetworkContext) UnmarshalBinary(data []byte) (int, error) {
 	e.Destination.Port = binary.BigEndian.Uint16(data[read+34 : read+36])
 	// padding 4 bytes
 
-	e.Size = ByteOrder.Uint32(data[read+40 : read+44])
-	e.L3Protocol = ByteOrder.Uint16(data[read+44 : read+46])
-	e.L4Protocol = ByteOrder.Uint16(data[read+46 : read+48])
+	e.Size = native.Endian.Uint32(data[read+40 : read+44])
+	e.L3Protocol = native.Endian.Uint16(data[read+44 : read+46])
+	e.L4Protocol = native.Endian.Uint16(data[read+46 : read+48])
 
 	// readjust IP sizes depending on the protocol
 	switch e.L3Protocol {
@@ -964,11 +965,11 @@ func (e *DNSEvent) UnmarshalBinary(data []byte) (int, error) {
 		return 0, ErrNotEnoughData
 	}
 
-	e.ID = ByteOrder.Uint16(data[0:2])
-	e.Count = ByteOrder.Uint16(data[2:4])
-	e.Type = ByteOrder.Uint16(data[4:6])
-	e.Class = ByteOrder.Uint16(data[6:8])
-	e.Size = ByteOrder.Uint16(data[8:10])
+	e.ID = native.Endian.Uint16(data[0:2])
+	e.Count = native.Endian.Uint16(data[2:4])
+	e.Type = native.Endian.Uint16(data[4:6])
+	e.Class = native.Endian.Uint16(data[6:8])
+	e.Size = native.Endian.Uint16(data[8:10])
 	var err error
 	e.Name, err = decodeDNSName(data[10:])
 	if err != nil {
@@ -991,10 +992,10 @@ func (d *NetDevice) UnmarshalBinary(data []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	d.NetNS = ByteOrder.Uint32(data[16:20])
-	d.IfIndex = ByteOrder.Uint32(data[20:24])
-	d.PeerNetNS = ByteOrder.Uint32(data[24:28])
-	d.PeerIfIndex = ByteOrder.Uint32(data[28:32])
+	d.NetNS = native.Endian.Uint32(data[16:20])
+	d.IfIndex = native.Endian.Uint32(data[20:24])
+	d.PeerNetNS = native.Endian.Uint32(data[24:28])
+	d.PeerIfIndex = native.Endian.Uint32(data[28:32])
 	return 32, nil
 }
 
@@ -1050,7 +1051,7 @@ func (e *BindEvent) UnmarshalBinary(data []byte) (int, error) {
 
 	var ipRaw [16]byte
 	SliceToArray(data[read:read+16], ipRaw[:])
-	e.AddrFamily = ByteOrder.Uint16(data[read+16 : read+18])
+	e.AddrFamily = native.Endian.Uint16(data[read+16 : read+18])
 	e.Addr.Port = binary.BigEndian.Uint16(data[read+18 : read+20])
 
 	// readjust IP size depending on the protocol
@@ -1087,6 +1088,6 @@ func (e *AnomalyDetectionSyscallEvent) UnmarshalBinary(data []byte) (int, error)
 		return 0, ErrNotEnoughData
 	}
 
-	e.SyscallID = Syscall(ByteOrder.Uint64(data[0:8]))
+	e.SyscallID = Syscall(native.Endian.Uint64(data[0:8]))
 	return 8, nil
 }

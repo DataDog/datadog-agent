@@ -8,6 +8,8 @@ package model
 
 import (
 	"bytes"
+
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // SliceToArray copy src bytes to dst. Destination should have enough space
@@ -29,7 +31,7 @@ func UnmarshalStringArray(data []byte) ([]string, error) {
 			return result, ErrStringArrayOverflow
 		}
 		// size of arg
-		n := ByteOrder.Uint32(data[i : i+4])
+		n := native.Endian.Uint32(data[i : i+4])
 		if n == 0 {
 			return result, nil
 		}

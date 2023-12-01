@@ -28,6 +28,7 @@ import (
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
 	mtdt "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree/metadata"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // EventTypeState defines an event type state
@@ -111,8 +112,8 @@ func (p *SecurityProfile) generateSyscallsFilters() [64]byte {
 
 func (p *SecurityProfile) generateKernelSecurityProfileDefinition() [16]byte {
 	var output [16]byte
-	model.ByteOrder.PutUint64(output[0:8], p.profileCookie)
-	model.ByteOrder.PutUint32(output[8:12], uint32(p.Status))
+	native.Endian.PutUint64(output[0:8], p.profileCookie)
+	native.Endian.PutUint32(output[8:12], uint32(p.Status))
 	return output
 }
 

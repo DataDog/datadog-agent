@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 const (
@@ -88,8 +89,8 @@ func bumpDiscardersRevision(e *erpc.ERPC) error {
 }
 
 func marshalDiscardHeader(req *erpc.Request, eventType model.EventType, timeout uint64) int {
-	model.ByteOrder.PutUint64(req.Data[0:8], uint64(eventType))
-	model.ByteOrder.PutUint64(req.Data[8:16], timeout)
+	native.Endian.PutUint64(req.Data[0:8], uint64(eventType))
+	native.Endian.PutUint64(req.Data[8:16], timeout)
 
 	return 16
 }
@@ -103,7 +104,7 @@ type pidDiscarders struct {
 func (p *pidDiscarders) discardWithTimeout(req *erpc.Request, eventType model.EventType, pid uint32, timeout int64) error {
 	req.OP = erpc.DiscardPidOp
 	offset := marshalDiscardHeader(req, eventType, uint64(timeout))
-	model.ByteOrder.PutUint32(req.Data[offset:offset+4], pid)
+	native.Endian.PutUint32(req.Data[offset:offset+4], pid)
 
 	return p.erpc.Request(req)
 }
@@ -211,9 +212,9 @@ func (id *inodeDiscarders) discardInode(req *erpc.Request, eventType model.Event
 	req.OP = erpc.DiscardInodeOp
 
 	offset := marshalDiscardHeader(req, eventType, 0)
-	model.ByteOrder.PutUint64(req.Data[offset:offset+8], inode)
-	model.ByteOrder.PutUint32(req.Data[offset+8:offset+12], mountID)
-	model.ByteOrder.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
+	native.Endian.PutUint64(req.Data[offset:offset+8], inode)
+	native.Endian.PutUint32(req.Data[offset+8:offset+12], mountID)
+	native.Endian.PutUint32(req.Data[offset+12:offset+16], isLeafInt)
 
 	return id.erpc.Request(req)
 }

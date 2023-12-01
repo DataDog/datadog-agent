@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // LostEventCounter interface used to monitor event loss
@@ -52,9 +53,9 @@ func (s *MapStats) UnmarshalBinary(data []byte) error {
 	if len(data) < 24 {
 		return model.ErrNotEnoughData
 	}
-	s.Bytes = atomic.NewUint64(model.ByteOrder.Uint64(data[0:8]))
-	s.Count = atomic.NewUint64(model.ByteOrder.Uint64(data[8:16]))
-	s.Lost = atomic.NewUint64(model.ByteOrder.Uint64(data[16:24]))
+	s.Bytes = atomic.NewUint64(native.Endian.Uint64(data[0:8]))
+	s.Count = atomic.NewUint64(native.Endian.Uint64(data[8:16]))
+	s.Lost = atomic.NewUint64(native.Endian.Uint64(data[16:24]))
 	return nil
 }
 

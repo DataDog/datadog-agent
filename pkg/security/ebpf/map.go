@@ -12,7 +12,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // BytesMapItem describes a raw table key or value
@@ -37,7 +37,7 @@ type Uint16MapItem uint16
 // MarshalBinary returns the binary representation of a Uint16MapItem
 func (i Uint16MapItem) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 2)
-	model.ByteOrder.PutUint16(b, uint16(i))
+	native.Endian.PutUint16(b, uint16(i))
 	return b, nil
 }
 
@@ -47,7 +47,7 @@ type Uint32MapItem uint32
 // MarshalBinary returns the binary representation of a Uint32MapItem
 func (i Uint32MapItem) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 4)
-	model.ByteOrder.PutUint32(b, uint32(i))
+	native.Endian.PutUint32(b, uint32(i))
 	return b, nil
 }
 
@@ -57,7 +57,7 @@ type Uint64MapItem uint64
 // MarshalBinary returns the binary representation of a Uint64MapItem
 func (i Uint64MapItem) MarshalBinary() ([]byte, error) {
 	b := make([]byte, 8)
-	model.ByteOrder.PutUint64(b, uint64(i))
+	native.Endian.PutUint64(b, uint64(i))
 	return b, nil
 }
 
@@ -75,7 +75,7 @@ func (i *StringMapItem) MarshalBinary() ([]byte, error) {
 	}
 
 	buffer := new(bytes.Buffer)
-	if err := binary.Write(buffer, model.ByteOrder, []byte(i.str)[0:n]); err != nil {
+	if err := binary.Write(buffer, native.Endian, []byte(i.str)[0:n]); err != nil {
 		return nil, err
 	}
 	rep := make([]byte, i.size)

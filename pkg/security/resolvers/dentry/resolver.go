@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 var (
@@ -448,11 +449,11 @@ func (dr *Resolver) requestResolve(op uint8, pathKey model.PathKey) (uint32, err
 
 	// create eRPC request
 	dr.erpcRequest.OP = op
-	model.ByteOrder.PutUint64(dr.erpcRequest.Data[0:8], pathKey.Inode)
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[8:12], pathKey.MountID)
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[12:16], pathKey.PathID)
+	native.Endian.PutUint64(dr.erpcRequest.Data[0:8], pathKey.Inode)
+	native.Endian.PutUint32(dr.erpcRequest.Data[8:12], pathKey.MountID)
+	native.Endian.PutUint32(dr.erpcRequest.Data[12:16], pathKey.PathID)
 	// 16-28 populated at start
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[28:32], challenge)
+	native.Endian.PutUint32(dr.erpcRequest.Data[28:32], challenge)
 
 	// if we don't try to access the segment, the eBPF program can't write to it ... (major page fault)
 	if dr.useBPFProgWriteUser {
@@ -510,11 +511,11 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool) (string, 
 		depth++
 
 		// parse the path_key_t structure
-		pathKey.Inode = model.ByteOrder.Uint64(dr.erpcSegment[i : i+8])
-		pathKey.MountID = model.ByteOrder.Uint32(dr.erpcSegment[i+8 : i+12])
+		pathKey.Inode = native.Endian.Uint64(dr.erpcSegment[i : i+8])
+		pathKey.MountID = native.Endian.Uint32(dr.erpcSegment[i+8 : i+12])
 
 		// check challenge
-		if challenge != model.ByteOrder.Uint32(dr.erpcSegment[i+12:i+16]) {
+		if challenge != native.Endian.Uint32(dr.erpcSegment[i+12:i+16]) {
 			if depth >= model.MaxPathDepth {
 				resolutionErr = errTruncatedParentsERPC
 				break
@@ -680,11 +681,11 @@ func (dr *Resolver) Start(manager *manager.Manager) error {
 		dr.erpcSegment = make([]byte, 7*4096)
 		dr.useBPFProgWriteUser = true
 
-		model.ByteOrder.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
+		native.Endian.PutUint64(dr.erpcRequest.Data[16:24], uint64(uintptr(unsafe.Pointer(&dr.erpcSegment[0]))))
 	}
 
 	dr.erpcSegmentSize = len(dr.erpcSegment)
-	model.ByteOrder.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
+	native.Endian.PutUint32(dr.erpcRequest.Data[24:28], uint32(dr.erpcSegmentSize))
 
 	return nil
 }
