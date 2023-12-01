@@ -17,6 +17,9 @@
                 },
                 "async": {
                     "type": "boolean"
+                },
+                "source": {
+                    "type": "string"
                 }
             },
             "required": [

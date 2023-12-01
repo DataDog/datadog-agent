@@ -36,6 +36,7 @@ type WindowsProbe struct {
 	statsdClient statsd.ClientInterface
 
 	// internals
+	event         *model.Event
 	ctx           context.Context
 	cancelFnc     context.CancelFunc
 	wg            sync.WaitGroup
@@ -77,8 +78,7 @@ func (p *WindowsProbe) Start() error {
 
 		for {
 			var pce *model.ProcessCacheEntry
-			ev := p.probe.zeroEvent()
-
+			ev := p.zeroEvent()
 			select {
 			case <-p.ctx.Done():
 				return
@@ -194,6 +194,11 @@ func NewWindowsProbe(probe *Probe, config *config.Config, opts Opts) (*WindowsPr
 
 	p.fieldHandlers = &FieldHandlers{resolvers: p.Resolvers}
 
+	p.event = p.NewEvent()
+
+	// be sure to zero the probe event before everything else
+	p.zeroEvent()
+
 	return p, nil
 }
 
@@ -247,6 +252,12 @@ func (p *WindowsProbe) GetEventTags(_ string) []string {
 	return nil
 }
 
+func (p *WindowsProbe) zeroEvent() *model.Event {
+	p.event.Zero()
+	p.event.FieldHandlers = p.fieldHandlers
+	return p.event
+}
+
 // NewProbe instantiates a new runtime security agent probe
 func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 	opts.normalize()
@@ -263,11 +274,6 @@ func NewProbe(config *config.Config, opts Opts) (*Probe, error) {
 		return nil, err
 	}
 	p.PlatformProbe = pp
-
-	p.event = p.PlatformProbe.NewEvent()
-
-	// be sure to zero the probe event before everything else
-	p.zeroEvent()
 
 	return p, nil
 }
