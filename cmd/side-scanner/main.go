@@ -458,8 +458,9 @@ func scanCmd(config scanConfig, sendData bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	eventForwarder := epforwarder.NewEventPlatformForwarder()
+	var eventForwarder epforwarder.EventPlatformForwarder
 	if sendData {
+		eventForwarder = epforwarder.NewEventPlatformForwarder()
 		eventForwarder.Start()
 		defer eventForwarder.Stop()
 	}
