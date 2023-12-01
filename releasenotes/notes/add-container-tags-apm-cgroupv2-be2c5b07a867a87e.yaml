@@ -1,0 +1,3 @@
+enhancements:
+  - |
+    APM now supports container tags for cgroup v2 without UDS.
