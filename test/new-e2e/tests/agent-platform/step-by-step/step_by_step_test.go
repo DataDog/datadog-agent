@@ -26,6 +26,7 @@ var platform = flag.String("platform", "", "platform to test")
 var cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
 var architecture = flag.String("arch", "", "architecture to test (x86_64, arm64))")
 var packageName = flag.String("packagename", "datadog-agent", "name of the package")
+var majorVersion = flag.String("major-version", "7", "major version to test (6, 7)")
 
 type stepByStepSuite struct {
 	e2e.Suite[e2e.VMEnv]
@@ -78,10 +79,15 @@ func TestStepByStepScript(t *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
 			slice := strings.Split(osVers, "-")
-			require.Equal(tt, len(slice), 2)
-			version, err := strconv.ParseFloat(slice[1], 64)
-			require.NoError(tt, err)
-			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version, agentMajorVersion: 7}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture)))
+			var version float64
+			if len(slice) == 2 {
+				version, err = strconv.ParseFloat(slice[1], 64)
+				require.NoError(tt, err)
+			} else {
+				version = 0
+			}
+			majVersion, _ := strconv.Atoi(*majorVersion)
+			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version, agentMajorVersion: majVersion}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture)))
 		})
 	}
 }
@@ -176,9 +182,10 @@ func StepByStepRhelTest(is *stepByStepSuite) {
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=%s\n"+
 		"gpgkey=%s://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public\n"+
-		"%s://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
-		"%s://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
+		"\t%s://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
+		"\t%s://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
 		yumrepo, repogpgcheck, protocol, protocol, protocol)
+	is.T().Log(fileContent)
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", fileContent)
 	require.NoError(is.T(), err)
 
@@ -205,8 +212,8 @@ func StepByStepSuseTest(is *stepByStepSuite) {
 		"gpgcheck=1\n"+
 		"repo_gpgcheck=1\n"+
 		"gpgkey=https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public\n"+
-		"https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
-		"https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
+		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
+		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public\n",
 		suserepo)
 	_, err = fileManager.WriteFile("/etc/zypp/repos.d/datadog.repo", fileContent)
 	require.NoError(is.T(), err)
