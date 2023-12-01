@@ -380,7 +380,7 @@ func TestServer(t *testing.T) {
 		fi.Start()
 		defer fi.Stop()
 
-		body := responseOverride{
+		body := api.ResponseOverride{
 			Endpoint:    "/totoro",
 			StatusCode:  200,
 			ContentType: "text/plain",

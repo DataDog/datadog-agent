@@ -402,14 +402,6 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 	})
 }
 
-// responseOverride is a hardcoded response for requests to the given endpoint
-type responseOverride struct {
-	Endpoint    string `json:"endpoint"`
-	StatusCode  int    `json:"status_code"`
-	ContentType string `json:"content_type"`
-	Body        []byte `json:"body"`
-}
-
 // handleConfigureOverride sets a hardcoded HTTP response for requests to a particular endpoint
 func (fi *Server) handleConfigureOverride(w http.ResponseWriter, req *http.Request) {
 	if req == nil {
@@ -430,7 +422,7 @@ func (fi *Server) handleConfigureOverride(w http.ResponseWriter, req *http.Reque
 		return
 	}
 
-	var payload responseOverride
+	var payload api.ResponseOverride
 	err := json.NewDecoder(req.Body).Decode(&payload)
 	if err != nil {
 		log.Printf("Error reading body: %v", err.Error())
