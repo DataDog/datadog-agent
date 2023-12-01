@@ -234,6 +234,7 @@ func scanCommand() *cobra.Command {
 		ScanType string
 		ARN      string
 		Hostname string
+		SendData bool
 		RawScan  string
 	}
 	cmd := &cobra.Command{
@@ -265,7 +266,7 @@ func scanCommand() *cobra.Command {
 					if err != nil {
 						return err
 					}
-					return scanCmd(*config)
+					return scanCmd(*config, cliArgs.SendData)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -279,7 +280,7 @@ func scanCommand() *cobra.Command {
 	cmd.Flags().StringVar(&cliArgs.ScanType, "scan-type", "", "scan type")
 	cmd.Flags().StringVar(&cliArgs.ARN, "arn", "", "arn to scan")
 	cmd.Flags().StringVar(&cliArgs.Hostname, "hostname", "", "scan hostname")
-	cmd.MarkFlagsRequiredTogether("arn", "raw-config-data")
+	cmd.Flags().BoolVar(&cliArgs.SendData, "send-data", false, "send the scanned payload over the network")
 	cmd.MarkFlagsRequiredTogether("arn", "scan-type", "hostname")
 
 	return cmd
@@ -448,9 +449,15 @@ func getDefaultRolesMapping() rolesMapping {
 	return parseRolesMapping(roles)
 }
 
-func scanCmd(config scanConfig) error {
+func scanCmd(config scanConfig, sendData bool) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
+
+	eventForwarder := epforwarder.NewEventPlatformForwarder()
+	if sendData {
+		eventForwarder.Start()
+		defer eventForwarder.Stop()
+	}
 
 	resultsCh := make(chan scanResult)
 	go func() {
@@ -460,6 +467,9 @@ func scanCmd(config scanConfig) error {
 			} else {
 				if result.sbom != nil {
 					fmt.Printf("scanning result %s (took %s): %s\n", result.scan, result.duration, prototext.Format(result.sbom))
+					if sendData {
+						sendSBOM(eventForwarder, result.sbom, "unknown")
+					}
 				}
 				if result.findings != nil {
 					for _, result := range result.findings.Results {
@@ -1173,10 +1183,18 @@ func launchScan(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 }
 
 func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
+	return sendSBOM(s.eventForwarder, entity, s.hostname)
+}
+
+func (s *sideScanner) sendFindings(findings *findings) error {
+	panic("not implemented")
+}
+
+func sendSBOM(eventForwarder epforwarder.EventPlatformForwarder, entity *sbommodel.SBOMEntity, hostname string) error {
 	sourceAgent := "side-scanning"
 	envVarEnv := pkgconfig.Datadog.GetString("env")
 
-	entity.DdTags = append(entity.DdTags, "sidescanner_host", s.hostname)
+	entity.DdTags = append(entity.DdTags, "sidescanner_host", hostname)
 
 	rawEvent, err := proto.Marshal(&sbommodel.SBOMPayload{
 		Version:  1,
@@ -1189,11 +1207,7 @@ func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
 	}
 
 	m := message.NewMessage(rawEvent, nil, "", 0)
-	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
-}
-
-func (s *sideScanner) sendFindings(findings *findings) error {
-	panic("not implemented")
+	return eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
 }
 
 func cloudResourceTagSpec(resourceType ec2types.ResourceType) []ec2types.TagSpecification {
@@ -1692,6 +1706,9 @@ func nextDeviceName() string {
 	} else {
 		deviceName.letter += 1
 	}
+	// TODO: more robust (use /dev/xvd?). Depending on the kernel block device
+	// modules, the devices attached may change. We need to handle these
+	// cases. See reference.
 	return fmt.Sprintf("/dev/sd%c", deviceName.letter)
 }
 
@@ -1998,6 +2015,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 			Device:     aws.String(device),
 		})
 		if err == nil {
+			log.Debugf("error attaching volume %q into device %q", volume.VolumeId, device)
 			break
 		}
 		if !sleepCtx(ctx, 1*time.Second) {
