@@ -9,7 +9,7 @@ ARCH=$4
 
 DD_AGENT_TESTING_DIR=/datadog-agent
 ROOT_DIR=kmt-deps
-DEPENDENCIES=$ROOT_DIR/$STACK/dependencies
+DEPENDENCIES=$(realpath $ROOT_DIR/$STACK/dependencies)
 ARCHIVE_NAME=dependencies-x86_64.tar.gz
 CLANG_BPF=$DD_AGENT_TESTING_DIR/test/kitchen/site-cookbooks/dd-system-probe-check/files/default/clang-bpf
 LLC_BPF=$DD_AGENT_TESTING_DIR/test/kitchen/site-cookbooks/dd-system-probe-check/files/default/llc-bpf

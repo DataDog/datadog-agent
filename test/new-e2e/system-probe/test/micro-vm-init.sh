@@ -18,7 +18,12 @@ fi
 code=0
 /test-runner -retry "${retry_count}" -packages-run-config "${pkgs_run_config_file}" || code=$?
 
-cp /job_env.txt /ci-visibility/junit/
+if [ ! -f "/job_env.txt" ]; then
+    echo "job_env.txt not found. Continuing without it."
+else
+    cp /job_env.txt /ci-visibility/junit/
+fi
+
 tar -C /ci-visibility/testjson -czvf /ci-visibility/testjson.tar.gz .
 tar -C /ci-visibility/junit -czvf /ci-visibility/junit.tar.gz .
 

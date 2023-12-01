@@ -3,27 +3,28 @@ def compiler_built(ctx):
     return res.ok
 
 
-def docker_exec(ctx, cmd, user="root"):
-    ctx.run(f"docker exec -u {user} -i kmt-compiler bash -c \"{cmd}\"")
-
+def docker_exec(ctx, cmd, user="compiler", verbose=True):
+    ctx.run(f"docker exec -u {user} -i kmt-compiler bash -c \"{cmd}\"", hide=(not verbose))
 
 def start_compiler(ctx):
     if not compiler_built(ctx):
         build_compiler(ctx)
 
-    if not compiler_running(ctx):
-        ctx.run(
-            "docker run -d --restart always --name kmt-compiler --mount type=bind,source=./,target=/datadog-agent kmt:compile sleep \"infinity\""
-        )
+    if compiler_running(ctx):
+        ctx.run("docker rm -f $(docker ps -aqf \"name=kmt-compiler\")")
+
+    ctx.run(
+        "docker run -d --restart always --name kmt-compiler --mount type=bind,source=./,target=/datadog-agent kmt:compile sleep \"infinity\""
+    )
 
     uid = ctx.run("getent passwd $USER | cut -d ':' -f 3").stdout.rstrip()
     gid = ctx.run("getent group $USER | cut -d ':' -f 3").stdout.rstrip()
-    docker_exec(ctx, f"getent group {gid} || groupadd -f -g {gid} compiler")
-    docker_exec(ctx, f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler")
-    docker_exec(ctx, f"chown {uid}:{gid} /datadog-agent && chown -R {uid}:{gid} /datadog-agent")
-    docker_exec(ctx, "apt install sudo")
-    docker_exec(ctx, "usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers")
-    docker_exec(ctx, f"install -d -m 0777 -o {uid} -g {uid} /go")
+    docker_exec(ctx, f"getent group {gid} || groupadd -f -g {gid} compiler", user="root")
+    docker_exec(ctx, f"getent passwd {uid} || useradd -m -u {uid} -g {gid} compiler", user="root")
+    docker_exec(ctx, f"chown {uid}:{gid} /datadog-agent && chown -R {uid}:{gid} /datadog-agent", user="root")
+    docker_exec(ctx, "apt install sudo", user="root")
+    docker_exec(ctx, "usermod -aG sudo compiler && echo 'compiler ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers", user="root")
+    docker_exec(ctx, f"install -d -m 0777 -o {uid} -g {uid} /go", user="root")
 
 
 def compiler_running(ctx):

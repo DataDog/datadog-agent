@@ -25,7 +25,8 @@ class Linux:
     packages_dir = os.path.join(kmt_dir, "kernel-packages")
     backup_dir = os.path.join(kmt_dir, "backups")
     libvirt_dir = os.path.join(kmt_dir, "libvirt")
-    shared_dir = os.path.join(kmt_dir, "vm-shared")
+    #shared_dir = os.path.join(kmt_dir, "vm-shared")
+    shared_dir = os.path.join("/", "opt", "kernel-version-testing")
     kheaders_dir = os.path.join(shared_dir, "kernel-headers")
 
     qemu_conf = os.path.join("/", "etc", "libvirt", "qemu.conf")

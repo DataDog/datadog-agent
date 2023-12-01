@@ -97,17 +97,20 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
         with os.fdopen(fd, 'w') as tmp:
             for f in to_download:
                 info(f"[+] {f} needs to be downloaded")
-                # remove this file
-                ctx.run(f"rm -f {os.path.join(rootfs_dir, f)}")
-                # download package entry
                 xz = ".xz" if f not in disks_to_download else ""
-                tmp.write(os.path.join(url_base, "master", f"{f}{xz}") + "\n")
+                filename = f"{f}{xz}"
+                sum_file = f"{f}.sum"
+                # remove this file and sum
+                ctx.run(f"rm -f {os.path.join(rootfs_dir, filename)}")
+                ctx.run(f"rm -f {os.path.join(rootfs_dir, sum_file)}")
+                # download package entry
+                tmp.write(os.path.join(url_base, "master", filename) + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
-                tmp.write(f" out={f}{xz}\n")
+                tmp.write(f" out={filename}\n")
                 # download sum entry
-                tmp.write(os.path.join(url_base, "master", f"{f}.sum") + "\n")
+                tmp.write(os.path.join(url_base, "master", f"{sum_file}") + "\n")
                 tmp.write(f" dir={rootfs_dir}\n")
-                tmp.write(f" out={f}.sum\n")
+                tmp.write(f" out={sum_file}\n")
             tmp.write("\n")
         ctx.run(f"cat {path}")
         res = ctx.run(f"aria2c -i {path} -j {len(to_download)}")
