@@ -158,7 +158,7 @@ func configRequestHandler(w http.ResponseWriter, r *http.Request, cfg cfgcomp.Co
 	switch subsection {
 	case "ha":
 		settings := make(map[string]interface{})
-		settings["ha"] = cfg.GetStringMap(subsection)
+		settings["ha"] = cfg.AllSettings().GetStringMap(subsection)
 		settings["site"] = cfg.GetString("site")
 		settings["api_key"] = cfg.GetString("api_key")
 		body, err = json.Marshal(settings)
