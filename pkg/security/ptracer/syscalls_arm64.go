@@ -42,6 +42,7 @@ var (
 	// PtracedSyscalls defines the list of syscall we want to ptrace
 	PtracedSyscalls = []string{
 		"openat",
+		"openat2",
 		"clone",
 		"execve",
 		"execveat",
