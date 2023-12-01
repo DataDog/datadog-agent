@@ -12,7 +12,7 @@ replace (
 )
 
 require (
-	github.com/DataDog/agent-payload/v5 v5.0.73
+	github.com/DataDog/agent-payload/v5 v5.0.101
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/test/fakeintake v0.50.0-rc.4
 	github.com/DataDog/datadog-api-client-go v1.16.0
