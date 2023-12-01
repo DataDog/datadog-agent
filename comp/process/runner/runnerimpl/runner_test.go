@@ -31,7 +31,7 @@ func TestRunnerLifecycle(t *testing.T) {
 		submitterimpl.MockModule(),
 		processcheckimpl.Module(),
 		hostinfoimpl.MockModule(),
-		core.MockBundle,
+		core.MockBundle(),
 	))
 }
 
@@ -55,7 +55,7 @@ func TestRunnerRealtime(t *testing.T) {
 			submitterimpl.MockModule(),
 			processcheckimpl.Module(),
 			hostinfoimpl.MockModule(),
-			core.MockBundle,
+			core.MockBundle(),
 		))
 		rtChan <- types.RTResponse{
 			{
@@ -88,7 +88,7 @@ func TestRunnerRealtime(t *testing.T) {
 			submitterimpl.MockModule(),
 			processcheckimpl.Module(),
 			hostinfoimpl.MockModule(),
-			core.MockBundle,
+			core.MockBundle(),
 		))
 
 		rtChan <- types.RTResponse{
@@ -117,7 +117,7 @@ func TestProvidedChecks(t *testing.T) {
 		processcheckimpl.MockModule(),
 		containercheckimpl.MockModule(),
 
-		core.MockBundle,
+		core.MockBundle(),
 	))
 	providedChecks := r.GetProvidedChecks()
 

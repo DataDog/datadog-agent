@@ -42,7 +42,9 @@ func MakeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 }
 
 // MockBundle defines the mock fx options for this bundle.
-var MockBundle = MakeMockBundle(
-	fx.Supply(log.Params{}),
-	log.MockModule(),
-)
+func MockBundle() fxutil.BundleOptions {
+	return MakeMockBundle(
+		fx.Supply(log.Params{}),
+		log.MockModule(),
+	)
+}

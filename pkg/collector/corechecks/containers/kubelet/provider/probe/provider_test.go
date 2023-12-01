@@ -261,7 +261,7 @@ func TestProvider_Provide(t *testing.T) {
 			var err error
 
 			store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-				core.MockBundle,
+				core.MockBundle(),
 				fx.Supply(context.Background()),
 				collectors.GetCatalog(),
 				fx.Supply(workloadmeta.NewParams()),

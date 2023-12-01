@@ -30,7 +30,7 @@ func TestBundleDependencies(t *testing.T) {
 		fx.Supply(mockCoreBundleParams),
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Provide(func() types.CheckComponent { return nil }),
-		core.MockBundle,
+		core.MockBundle(),
 	)
 }
 
@@ -61,7 +61,7 @@ func TestBundleOneShot(t *testing.T) {
 
 			mockCoreBundleParams,
 		),
-		core.MockBundle,
+		core.MockBundle(),
 		Bundle(),
 	)
 	require.NoError(t, err)

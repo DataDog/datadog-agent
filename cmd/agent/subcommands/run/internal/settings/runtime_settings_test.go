@@ -38,7 +38,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 	deps := fxutil.Test[testDeps](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(server.Params{
 			Serverless: false,

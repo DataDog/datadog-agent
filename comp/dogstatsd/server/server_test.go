@@ -46,7 +46,7 @@ func fulfillDeps(t testing.TB) serverDeps {
 
 func fulfillDepsWithConfigOverrideAndFeatures(t testing.TB, overrides map[string]interface{}, features []config.Feature) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		serverdebugimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{
 			Overrides: overrides,
@@ -64,7 +64,7 @@ func fulfillDepsWithConfigOverride(t testing.TB, overrides map[string]interface{
 
 func fulfillDepsWithConfigYaml(t testing.TB, yaml string) serverDeps {
 	return fxutil.Test[serverDeps](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		serverdebugimpl.MockModule(),
 		fx.Replace(configComponent.MockParams{
 			Params: configComponent.Params{ConfFilePath: yaml},

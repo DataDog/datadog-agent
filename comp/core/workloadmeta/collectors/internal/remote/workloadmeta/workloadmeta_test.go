@@ -145,7 +145,7 @@ func TestCollection(t *testing.T) {
 
 	// workloadmeta server
 	mockServerStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 	))
@@ -182,7 +182,7 @@ func TestCollection(t *testing.T) {
 
 	// workloadmeta client store
 	mockClientStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),

@@ -67,7 +67,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 
 	var err error
 	suite.store = fxutil.Test[workloadmeta.Component](suite.T(), fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{
 			Overrides: overrides,
 			Features:  []config.Feature{config.Docker},

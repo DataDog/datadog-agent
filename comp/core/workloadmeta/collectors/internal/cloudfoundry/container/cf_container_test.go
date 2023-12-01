@@ -17,7 +17,7 @@ import (
 
 func TestStartError(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
 	))
@@ -31,7 +31,7 @@ func TestStartError(t *testing.T) {
 
 func TestPull(t *testing.T) {
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
 	))

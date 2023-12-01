@@ -209,7 +209,7 @@ func TestStartError(t *testing.T) {
 	fakeGardenUtil := FakeGardenUtil{}
 
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
 	))
@@ -227,7 +227,7 @@ func TestPullNoContainers(t *testing.T) {
 	fakeGardenUtil := FakeGardenUtil{containers: nil}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
 	))
@@ -255,7 +255,7 @@ func TestPullActiveContainer(t *testing.T) {
 	}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
 	))
@@ -298,7 +298,7 @@ func TestPullStoppedContainer(t *testing.T) {
 	}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
 	))
@@ -341,7 +341,7 @@ func TestPullDetectsDeletedContainers(t *testing.T) {
 	}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
 	))
@@ -395,7 +395,7 @@ func TestPullAppNameWithDCA(t *testing.T) {
 	}
 	fakeDCAClient := FakeDCAClient{}
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
 	))
@@ -429,7 +429,7 @@ func TestPullNoAppNameWithoutDCA(t *testing.T) {
 	fakeDCAClient := FakeDCAClient{}
 
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
 	))
@@ -465,7 +465,7 @@ func TestPullAppNameWithGardenPropertiesWithoutDCA(t *testing.T) {
 	// We do not inject any collectors here; we instantiate
 	// and initialize it out-of-band below. That's OK.
 	workloadmetaStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
 	))

@@ -26,7 +26,7 @@ func TestExpvarServer(t *testing.T) {
 
 		Module(),
 		hostinfoimpl.MockModule(),
-		core.MockBundle,
+		core.MockBundle(),
 	))
 
 	assert.Eventually(t, func() bool {
@@ -49,7 +49,7 @@ func TestTelemetry(t *testing.T) {
 
 		Module(),
 		hostinfoimpl.MockModule(),
-		core.MockBundle,
+		core.MockBundle(),
 	))
 
 	assert.Eventually(t, func() bool {

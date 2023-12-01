@@ -20,7 +20,7 @@ import (
 func TestSubmitterLifecycle(t *testing.T) {
 	_ = fxutil.Test[submitter.Component](t, fx.Options(
 		hostinfoimpl.MockModule(),
-		core.MockBundle,
+		core.MockBundle(),
 		forwarders.MockModule(),
 		Module(),
 	))

@@ -19,6 +19,7 @@ func Bundle() fxutil.BundleOptions {
 }
 
 // MockBundle defines the mock fx options for this bundle.
-var MockBundle = fxutil.Bundle(
-	agent.MockModule(),
-)
+func MockBundle() fxutil.BundleOptions {
+	return fxutil.Bundle(
+		agent.MockModule())
+}

@@ -20,7 +20,7 @@ import (
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle,
 		comptraceconfig.Module(),
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(core.BundleParams{}),
 		fx.Supply(crashreport.WinCrashReporter{}),
 	)

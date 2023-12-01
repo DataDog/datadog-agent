@@ -26,7 +26,7 @@ import (
 
 func TestKubeletCollectorLinux(t *testing.T) {
 	metadataStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),
@@ -160,7 +160,7 @@ func TestKubeletCollectorLinux(t *testing.T) {
 
 func TestKubeletCollectorWindows(t *testing.T) {
 	metadataStore := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule(),

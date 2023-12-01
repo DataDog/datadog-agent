@@ -16,7 +16,7 @@ import (
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle(),
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Supply(defaultforwarder.Params{}),
 	)
 }

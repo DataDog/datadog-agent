@@ -19,7 +19,7 @@ import (
 
 func TestSetDefaultSender(t *testing.T) {
 	mock := fxutil.Test[Mock](t, MockModule(),
-		core.MockBundle,
+		core.MockBundle(),
 		defaultforwarder.MockModule())
 
 	sender := &mocksender.MockSender{}
