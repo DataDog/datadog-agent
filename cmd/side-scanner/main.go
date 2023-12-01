@@ -948,10 +948,10 @@ func nbdMountCmd(snapshotARN arn.ARN) error {
 	mountPoints, cleanupMount, err := mountDevice(ctx, nil, snapshotARN, device)
 	defer cleanupMount(context.TODO())
 	if err != nil {
-		return err
+		log.Errorf("error could not mount (device is still available on %q): %v", device, err)
+	} else {
+		fmt.Println(mountPoints)
 	}
-
-	fmt.Println(mountPoints)
 
 	select {
 	case <-time.After(60 * time.Minute):
