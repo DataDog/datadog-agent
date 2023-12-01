@@ -31,6 +31,10 @@ func (c *cgroupV1) Identifier() string {
 	return c.identifier
 }
 
+func (c *cgroupV1) Inode() uint64 {
+	return 0
+}
+
 func (c *cgroupV1) GetParent() (Cgroup, error) {
 	parentPath := filepath.Join(c.path, "/..")
 	return newCgroupV1(filepath.Base(parentPath), parentPath, c.mountPoints, c.pidMapper), nil

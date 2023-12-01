@@ -38,11 +38,12 @@ type Reader struct {
 	cgroups         map[string]Cgroup
 	cgroupsLock     sync.RWMutex
 	scrapeTimestmap time.Time
+
+	inodeMapper map[uint64]Cgroup
 }
 
 type readerImpl interface {
 	parseCgroups() (map[string]Cgroup, error)
-	cgroupByInode(uint64) (Cgroup, error)
 }
 
 // ReaderFilter allows to filter cgroups based on their path + folder name
@@ -113,7 +114,7 @@ func WithCgroupV1BaseController(controller string) ReaderOption {
 
 // NewReader returns a new cgroup reader with given options
 func NewReader(opts ...ReaderOption) (*Reader, error) {
-	r := &Reader{}
+	r := &Reader{inodeMapper: make(map[uint64]Cgroup)}
 	for _, opt := range opts {
 		opt(r)
 	}
@@ -177,6 +178,15 @@ func (r *Reader) ListCgroups() []Cgroup {
 	return cgroups
 }
 
+// CgroupByInode returns the cgroup for the given inode.
+func (r *Reader) CgroupByInode(inode uint64) (Cgroup, error) {
+	cgroup, ok := r.inodeMapper[inode]
+	if !ok {
+		return nil, fmt.Errorf("no cgroup found for inode %d", inode)
+	}
+	return cgroup, nil
+}
+
 // GetCgroup returns cgroup for a given id, or nil if not found.
 func (r *Reader) GetCgroup(id string) Cgroup {
 	r.cgroupsLock.RLock()
@@ -195,17 +205,20 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 		return nil
 	}
 
+	r.inodeMapper = make(map[uint64]Cgroup)
+
 	newCgroups, err := r.impl.parseCgroups()
 	if err != nil {
 		return err
 	}
 
+	for _, cg := range newCgroups {
+		if inode := cg.Inode(); inode > 2 {
+			r.inodeMapper[inode] = cg
+		}
+	}
+
 	r.scrapeTimestmap = time.Now()
 	r.cgroups = newCgroups
 	return nil
-}
-
-// CgroupByInode returns the cgroup identifier for a given inode
-func (r *Reader) CgroupByInode(inode uint64) (Cgroup, error) {
-	return r.impl.cgroupByInode(inode)
 }

@@ -28,7 +28,6 @@ type readerV2 struct {
 	cgroupControllers map[string]struct{}
 	filter            ReaderFilter
 	pidMapper         pidMapper
-	inodeMapper       map[uint64]Cgroup
 }
 
 func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter) (*readerV2, error) {
@@ -42,21 +41,10 @@ func newReaderV2(procPath, cgroupRoot string, filter ReaderFilter) (*readerV2, e
 		cgroupControllers: controllers,
 		filter:            filter,
 		pidMapper:         getPidMapper(procPath, cgroupRoot, "", filter),
-		inodeMapper:       make(map[uint64]Cgroup),
 	}, nil
 }
 
-// cgroupByInode returns the cgroup for the given inode.
-func (r *readerV2) cgroupByInode(inode uint64) (Cgroup, error) {
-	cgroup, ok := r.inodeMapper[inode]
-	if !ok {
-		return nil, fmt.Errorf("no cgroup found for inode %d", inode)
-	}
-	return cgroup, nil
-}
-
 // parseCgroups parses the cgroups from the cgroupRoot and returns a map of cgroup id to cgroup.
-// It also populates the inodeMapper.
 func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 	res := make(map[string]Cgroup)
 
@@ -76,9 +64,7 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 						log.Debugf("failed to retrieve cgroup id for %s: %s", fullPath, err)
 						return err
 					}
-					cgroup := newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
-					res[id] = cgroup
-					r.inodeMapper[inode] = cgroup
+					res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, inode, r.pidMapper)
 					if err != nil {
 						return err
 					}

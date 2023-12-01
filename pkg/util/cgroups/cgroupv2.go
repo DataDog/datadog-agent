@@ -8,7 +8,9 @@
 package cgroups
 
 import (
+	"os"
 	"path/filepath"
+	"syscall"
 )
 
 type cgroupV2 struct {
@@ -18,9 +20,10 @@ type cgroupV2 struct {
 	controllers  map[string]struct{}
 	fr           fileReader
 	pidMapper    pidMapper
+	inode        uint64
 }
 
-func newCgroupV2(identifier, cgroupRoot, relativePath string, controllers map[string]struct{}, pidMapper pidMapper) *cgroupV2 {
+func newCgroupV2(identifier, cgroupRoot, relativePath string, controllers map[string]struct{}, inode uint64, pidMapper pidMapper) *cgroupV2 {
 	return &cgroupV2{
 		identifier:   identifier,
 		cgroupRoot:   cgroupRoot,
@@ -35,9 +38,18 @@ func (c *cgroupV2) Identifier() string {
 	return c.identifier
 }
 
+func (c *cgroupV2) Inode() uint64 {
+	return c.inode
+}
+
 func (c *cgroupV2) GetParent() (Cgroup, error) {
 	parentPath := filepath.Join(c.relativePath, "/..")
-	return newCgroupV2(filepath.Base(parentPath), c.cgroupRoot, parentPath, c.controllers, c.pidMapper), nil
+	stat, err := os.Stat(parentPath)
+	if err != nil {
+		return nil, err
+	}
+	inode := stat.Sys().(*syscall.Stat_t).Ino
+	return newCgroupV2(filepath.Base(parentPath), c.cgroupRoot, parentPath, c.controllers, inode, c.pidMapper), nil
 }
 
 func (c *cgroupV2) controllerActivated(controller string) bool {

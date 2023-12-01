@@ -42,10 +42,6 @@ func newReaderV1(procPath string, mountPoints map[string]string, baseController 
 	return nil, &InvalidInputError{Desc: fmt.Sprintf("cannot create cgroup readerv1: %s controller not found", baseController)}
 }
 
-func (r *readerV1) cgroupByInode(uint64) (Cgroup, error) {
-	return nil, ErrIncompatibleCgroupVersion
-}
-
 func (r *readerV1) parseCgroups() (map[string]Cgroup, error) {
 	res := make(map[string]Cgroup)
 
