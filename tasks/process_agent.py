@@ -6,7 +6,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from .build_tags import get_build_tags
 from .flavor import AgentFlavor
 from .utils import REPO_PATH, bin_name, get_build_flags
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -55,14 +55,9 @@ def build(
         goenv["PATH"] += ":" + os.environ["PATH"]
     env.update(goenv)
 
-    build_include = (
-        get_default_build_tags(build="process-agent", arch=arch, flavor=flavor)
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+    build_tags = get_build_tags(
+        build="process-agent", arch=arch, flavor=flavor, build_include=build_include, build_exclude=build_exclude
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-
-    build_tags = get_build_tags(build_include, build_exclude)
 
     # TODO static option
     cmd = 'go build -mod={go_mod} {race_opt} {build_type} -tags "{go_build_tags}" '

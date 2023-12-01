@@ -16,7 +16,7 @@ import requests
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import UNIT_TEST_TAGS, get_default_build_tags
+from .build_tags import UNIT_TEST_TAGS, get_build_tags
 from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
@@ -556,7 +556,7 @@ def build_sysprobe_binary(
         python_runtimes=python_runtimes,
     )
 
-    build_tags = get_default_build_tags(build="system-probe", arch=arch)
+    build_tags = get_build_tags(build="system-probe", arch=arch)
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:

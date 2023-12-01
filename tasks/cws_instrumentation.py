@@ -7,7 +7,7 @@ import shutil
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_default_build_tags
+from .build_tags import get_build_tags
 from .system_probe import CURRENT_ARCH
 from .utils import (
     REPO_PATH,
@@ -54,7 +54,7 @@ def build(
     }
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(
+    build_tags += get_build_tags(
         build="cws-instrumentation"
     )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
     build_tags.append("netgo")

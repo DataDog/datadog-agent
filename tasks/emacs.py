@@ -5,7 +5,7 @@ Helpers for getting Emacs set up nicely
 """
 from invoke import task
 
-from .build_tags import build_tags, filter_incompatible_tags, get_build_tags, get_default_build_tags
+from .build_tags import build_tags, get_build_tags
 from .flavor import AgentFlavor
 
 
@@ -28,13 +28,9 @@ def set_buildtags(
         print(f'{", ".join(build_tags[flavor].keys())} \n')
         return
 
-    build_include = (
-        get_default_build_tags(build=target, arch=arch, flavor=flavor)
-        if build_include is None
-        else filter_incompatible_tags(build_include.split(","), arch=arch)
+    use_tags = get_build_tags(
+        build=target, arch=arch, flavor=flavor, build_include=build_include, build_exclude=build_exclude
     )
-    build_exclude = [] if build_exclude is None else build_exclude.split(",")
-    use_tags = get_build_tags(build_include, build_exclude)
 
     with open(".dir-locals.el", "w") as f:
         f.write(f'((go-mode . ((lsp-go-build-flags . ["-tags", "{",".join(use_tags)}"])\n')

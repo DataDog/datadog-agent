@@ -8,7 +8,7 @@ import tempfile
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_default_build_tags
+from .build_tags import get_build_tags
 from .flavor import AgentFlavor
 from .go import GOARCH_MAPPING, GOOS_MAPPING
 from .libs.common.color import color_message
@@ -107,9 +107,7 @@ def go_deps(ctx, baseline_ref=None, report_file=None):
                             depsfile = os.path.join(tmpdir, f"{target}-{branch_name}")
                             flavor = details.get("flavor", AgentFlavor.base)
                             build = details.get("build", binary)
-                            build_tags = get_default_build_tags(
-                                build=build, arch=arch, platform=platform, flavor=flavor
-                            )
+                            build_tags = get_build_tags(build=build, arch=arch, platform=platform, flavor=flavor)
                             env = {"GOOS": goos, "GOARCH": goarch}
                             ctx.run(f"{dep_cmd} -tags \"{' '.join(build_tags)}\" > {depsfile}", env=env)
         finally:

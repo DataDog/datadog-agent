@@ -16,7 +16,7 @@ from distutils.dir_util import copy_tree
 from invoke import task
 from invoke.exceptions import Exit, ParseError
 
-from .build_tags import filter_incompatible_tags, get_build_tags, get_default_build_tags
+from .build_tags import get_build_tags
 from .docker_tasks import pull_base_images
 from .flavor import AgentFlavor
 from .go import deps
@@ -162,15 +162,11 @@ def build(
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
-        build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
+        build_tags = get_build_tags(build="agent", arch=arch, flavor=flavor)
     else:
-        build_include = (
-            get_default_build_tags(build="agent", arch=arch, flavor=flavor)
-            if build_include is None
-            else filter_incompatible_tags(build_include.split(","), arch=arch)
+        build_tags = get_build_tags(
+            build="agent", arch=arch, flavor=flavor, build_include=build_include, build_exclude=build_exclude
         )
-        build_exclude = [] if build_exclude is None else build_exclude.split(",")
-        build_tags = get_build_tags(build_include, build_exclude)
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
@@ -483,7 +479,7 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
 def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_build_tags(build="test", arch=arch)),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }
@@ -519,7 +515,7 @@ def _windows_integration_tests(ctx, race=False, go_mod="mod", arch="x64"):
 def _linux_integration_tests(ctx, race=False, remote_docker=False, go_mod="mod", arch="x64"):
     test_args = {
         "go_mod": go_mod,
-        "go_build_tags": " ".join(get_default_build_tags(build="test", arch=arch)),
+        "go_build_tags": " ".join(get_build_tags(build="test", arch=arch)),
         "race_opt": "-race" if race else "",
         "exec_opts": "",
     }

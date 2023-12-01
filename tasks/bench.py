@@ -8,7 +8,7 @@ import sys
 
 from invoke import task
 
-from .build_tags import get_default_build_tags
+from .build_tags import get_build_tags
 from .utils import REPO_PATH, bin_name, get_git_branch_name
 
 # constants
@@ -20,7 +20,7 @@ def build_aggregator(ctx, rebuild=False, arch="x64"):
     """
     Build the Aggregator benchmarks.
     """
-    build_tags = get_default_build_tags(build="test", arch=arch)  # pass all the build flags
+    build_tags = get_build_tags(build="test", arch=arch)  # pass all the build flags
 
     ldflags = ""
     gcflags = ""
@@ -51,7 +51,7 @@ def build_dogstatsd(ctx, arch="x64"):
     """
     Build Dogstatsd benchmarks.
     """
-    build_tags = get_default_build_tags(build="test", arch=arch)  # pass all the build flags
+    build_tags = get_build_tags(build="test", arch=arch)  # pass all the build flags
 
     cmd = "go build -mod={go_mod} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/dogstatsd"
     args = {
@@ -68,7 +68,7 @@ def build_kubernetes_state(ctx, arch="x64"):
     """
     Build Kubernetes_State benchmarks.
     """
-    build_tags = get_default_build_tags(build="test", arch=arch)  # pass all the build flags
+    build_tags = get_build_tags(build="test", arch=arch)  # pass all the build flags
 
     cmd = "go build -mod={go_mod} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/kubernetes_state"
     args = {

@@ -21,7 +21,7 @@ from invoke import task
 from invoke.exceptions import Exit
 
 from .agent import integration_tests as agent_integration_tests
-from .build_tags import compute_build_tags_for_flavor
+from .build_tags import get_build_tags
 from .cluster_agent import integration_tests as dca_integration_tests
 from .dogstatsd import integration_tests as dsd_integration_tests
 from .flavor import AgentFlavor
@@ -596,7 +596,7 @@ def test(
     modules, flavors = process_input_args(module, targets, flavors)
 
     unit_tests_tags = {
-        f: compute_build_tags_for_flavor(
+        f: get_build_tags(
             flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
         )
         for f in flavors
@@ -728,9 +728,7 @@ def run_lint_go(
 
     linter_tags = {
         f: build_tags
-        or compute_build_tags_for_flavor(
-            flavor=f, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
-        )
+        or get_build_tags(flavor=f, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude)
         for f in flavors
     }
 
