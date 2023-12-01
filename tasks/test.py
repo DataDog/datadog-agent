@@ -297,7 +297,6 @@ def lint_flavor(
     modules: List[GoModule],
     flavor: AgentFlavor,
     build_tags: List[str],
-    arch: str,
     rtloader_root: bool,
     concurrency: int,
     timeout=None,
@@ -316,7 +315,6 @@ def lint_flavor(
                 targets=module.lint_targets,
                 rtloader_root=rtloader_root,
                 build_tags=build_tags,
-                arch=arch,
                 concurrency=concurrency,
                 timeout=timeout,
                 golangci_lint_kwargs=golangci_lint_kwargs,
@@ -562,7 +560,6 @@ def test(
     major_version='7',
     python_runtimes='3',
     timeout=180,
-    arch="x64",
     cache=True,
     test_run_name="",
     skip_linters=False,
@@ -597,7 +594,7 @@ def test(
 
     unit_tests_tags = {
         f: compute_build_tags_for_flavor(
-            flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
+            flavor=f, build="unit-tests", build_include=build_include, build_exclude=build_exclude
         )
         for f in flavors
     }
@@ -718,7 +715,6 @@ def run_lint_go(
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
-    arch="x64",
     cpus=None,
     timeout=None,
     golangci_lint_kwargs="",
@@ -729,7 +725,7 @@ def run_lint_go(
     linter_tags = {
         f: build_tags
         or compute_build_tags_for_flavor(
-            flavor=f, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
+            flavor=f, build=build, build_include=build_include, build_exclude=build_exclude
         )
         for f in flavors
     }
@@ -742,7 +738,6 @@ def run_lint_go(
             modules=modules,
             flavor=flavor,
             build_tags=build_tags,
-            arch=arch,
             rtloader_root=rtloader_root,
             concurrency=cpus,
             timeout=timeout,
@@ -764,7 +759,6 @@ def lint_go(
     build_include=None,
     build_exclude=None,
     rtloader_root=None,
-    arch="x64",
     cpus=None,
     timeout: int = None,
     golangci_lint_kwargs="",
@@ -807,7 +801,6 @@ def lint_go(
         build_include=build_include,
         build_exclude=build_exclude,
         rtloader_root=rtloader_root,
-        arch=arch,
         cpus=cpus,
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
