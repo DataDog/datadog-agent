@@ -157,26 +157,31 @@ func (c *cgroupIDProvider) resolveContainerIDFromEntityID(eid string) string {
 		return ""
 	}
 
-	cid, err := c.getCachedContainerID(
-		eid,
-		func() (string, error) {
-			err := c.reader.RefreshCgroups(readerCacheExpiration)
-			if err != nil {
-				log.Debugf("Failed to refresh cgroups: %v", err)
-				return "", err
-			}
-			cgroup, err := c.reader.CgroupByInode(inode)
-			if err != nil {
-				return "", err
-			}
-			return cgroup.Identifier(), nil
-		},
-	)
+	cid, err := c.getCachedContainerID(eid, func() (string, error) { return c.getCgroupByInode(inode) })
 	if err != nil {
-		log.Debugf("Could not get container ID from cgroupv2 inode: %d: %v\n", eid, err)
+		log.Debugf("Could not get container ID from cgroupv2 inode: %s: %v\n", eid, err)
 		return ""
 	}
 	return cid
+}
+
+// getCgroupByInode returns the container ID for the given cgroupv2 inode.
+// It refreshes cgroups only on cache miss
+func (c *cgroupIDProvider) getCgroupByInode(inode uint64) (string, error) {
+	cgroup, err := c.reader.CgroupByInode(inode)
+	if err != nil {
+		err := c.reader.RefreshCgroups(readerCacheExpiration)
+		if err != nil {
+			log.Debugf("Failed to refresh cgroups: %v", err)
+			return "", err
+		}
+		cgroup, err := c.reader.CgroupByInode(inode)
+		if err != nil {
+			return "", err
+		}
+		return cgroup.Identifier(), nil
+	}
+	return cgroup.Identifier(), nil
 }
 
 // resolveContainerIDFromContext returns the container ID for the given entity ID.
