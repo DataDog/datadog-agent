@@ -72,7 +72,12 @@ const (
 
 func main() {
 	// run the agent
-	fxutil.OneShot(runAgent)
+	err := fxutil.OneShot(runAgent)
+
+	if err != nil {
+		log.Error(err)
+		os.Exit(-1)
+	}
 }
 
 func runAgent() {
