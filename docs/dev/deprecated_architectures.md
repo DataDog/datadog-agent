@@ -1,0 +1,13 @@
+# Deprecated Architectures
+
+## Windows 32 bits
+
+There was a product request to release the Agent on Windows 32 bits but it never came to fruition.
+
+We hence removed all Windows 32 bits related code in [#21221](https://github.com/DataDog/datadog-agent/pull/21221). The PR:
+
+- Removes the `*_386.go` files,
+- Removes the windows 32 bits logic in `omnibus/config`,
+- Removes the go install for windows 32 bits in the `devenv/scripts/Install-DevEnv.ps1` script.
+
+We also removed the tooling arguments for invoke tasks in [#21240](https://github.com/DataDog/datadog-agent/pull/21240).
