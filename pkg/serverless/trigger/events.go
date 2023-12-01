@@ -84,7 +84,9 @@ type checker struct {
 }
 
 var (
-	unknownChecker   = new(checker)
+	unknownChecker = new(checker)
+	// TODO: refactor to store the last event type on the execution context
+	// instead of as a global
 	lastEventChecker = unknownChecker
 	eventCheckers    = []*checker{
 		{isAPIGatewayEvent, APIGatewayEvent},
