@@ -74,7 +74,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		}),
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
-		workloadmeta.Module,
+		workloadmeta.Module(),
 	))
 
 	tagger.SetDefaultTagger(local.NewTagger(suite.store))

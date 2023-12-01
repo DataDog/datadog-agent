@@ -15,5 +15,5 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
-	defaultforwarder.Module,
+	defaultforwarder.Module(),
 )

@@ -116,12 +116,12 @@ func setup() error {
 	fxApp, store, err = fxutil.TestApp[workloadmeta.Component](fx.Options(
 		fx.Supply(compcfg.NewAgentParams(
 			"", compcfg.WithConfigMissingOK(true))),
-		compcfg.Module,
+		compcfg.Module(),
 		fx.Supply(complog.ForOneShot("TEST", "info", false)),
-		complog.Module,
+		complog.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
-		workloadmeta.Module,
+		workloadmeta.Module(),
 	))
 	workloadmeta.SetGlobalStore(store)
 

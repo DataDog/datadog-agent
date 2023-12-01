@@ -167,9 +167,9 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 
 func getPlatformModules() fx.Option {
 	return fx.Options(
-		agentcrashdetectimpl.Module,
-		winregistryimpl.Module,
-		comptraceconfig.Module,
+		agentcrashdetectimpl.Module(),
+		winregistryimpl.Module(),
+		comptraceconfig.Module(),
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),

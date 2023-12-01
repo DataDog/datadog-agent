@@ -36,7 +36,7 @@ func TestRealConfig(t *testing.T) {
 			WithConfFilePath(dir),
 		)),
 		fx.Provide(func() secrets.Component { return secretsimpl.NewMockSecretResolver() }),
-		Module,
+		Module(),
 	))
 	require.Equal(t, "https://example.com", config.GetString("dd_url"))
 }

@@ -287,7 +287,7 @@ func getSharedFxOption() fx.Option {
 			path.DefaultJmxLogFile,
 			path.DefaultDogstatsDLogFile,
 		)),
-		flare.Module,
+		flare.Module(),
 		core.Bundle,
 		fx.Supply(dogstatsdServer.Params{
 			Serverless: false,
@@ -315,12 +315,12 @@ func getSharedFxOption() fx.Option {
 				InitHelper: common.GetWorkloadmetaInit(),
 			}
 		}),
-		workloadmeta.Module,
-		apiimpl.Module,
+		workloadmeta.Module(),
+		apiimpl.Module(),
 
 		dogstatsd.Bundle,
 		otelcol.Bundle,
-		rcclient.Module,
+		rcclient.Module(),
 
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
@@ -340,7 +340,7 @@ func getSharedFxOption() fx.Option {
 			})
 		}),
 		logs.Bundle,
-		langDetectionCl.Module,
+		langDetectionCl.Module(),
 		metadata.Bundle,
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
@@ -351,8 +351,8 @@ func getSharedFxOption() fx.Option {
 			opts.DogstatsdMaxMetricsTags = config.GetInt("dogstatsd_max_metrics_tags")
 			return demultiplexer.Params{Options: opts}
 		}),
-		demultiplexer.Module,
-		orchestratorForwarderImpl.Module,
+		demultiplexer.Module(),
+		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.

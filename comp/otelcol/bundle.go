@@ -16,5 +16,5 @@ import (
 
 // Bundle specifies the bundle for the OTLP ingest pipeline.
 var Bundle = fxutil.Bundle(
-	collector.Module,
+	collector.Module(),
 )

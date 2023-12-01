@@ -19,7 +19,7 @@ import (
 var MockBundle = fxutil.Bundle(
 	serverdebugimpl.MockModule,
 	server.MockModule,
-	replay.Module,
+	replay.Module(),
 )
 
 // MockClientBundle defines the mock fx options for this bundle.

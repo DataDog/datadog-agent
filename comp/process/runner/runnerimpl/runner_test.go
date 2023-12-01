@@ -27,9 +27,9 @@ func TestRunnerLifecycle(t *testing.T) {
 	_ = fxutil.Test[runner.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 
-		Module,
+		Module(),
 		submitterimpl.MockModule,
-		processcheckimpl.Module,
+		processcheckimpl.Module(),
 		hostinfoimpl.MockModule,
 		core.MockBundle,
 	))
@@ -51,9 +51,9 @@ func TestRunnerRealtime(t *testing.T) {
 				"process_config.disable_realtime_checks": false,
 			}}),
 
-			Module,
+			Module(),
 			submitterimpl.MockModule,
-			processcheckimpl.Module,
+			processcheckimpl.Module(),
 			hostinfoimpl.MockModule,
 			core.MockBundle,
 		))
@@ -84,9 +84,9 @@ func TestRunnerRealtime(t *testing.T) {
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
-			Module,
+			Module(),
 			submitterimpl.MockModule,
-			processcheckimpl.Module,
+			processcheckimpl.Module(),
 			hostinfoimpl.MockModule,
 			core.MockBundle,
 		))
@@ -109,7 +109,7 @@ func TestProvidedChecks(t *testing.T) {
 			core.BundleParams{},
 		),
 
-		Module,
+		Module(),
 		submitterimpl.MockModule,
 		hostinfoimpl.MockModule,
 

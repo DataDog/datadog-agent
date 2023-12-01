@@ -50,9 +50,10 @@ type Mock interface {
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newTrafficCapture),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newTrafficCapture))
+}
 
 // // MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(

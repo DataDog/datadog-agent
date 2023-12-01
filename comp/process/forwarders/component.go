@@ -23,9 +23,10 @@ type Component interface {
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newForwarders),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newForwarders))
+}
 
 var MockModule = fxutil.Component(
 	fx.Provide(newMockForwarders),

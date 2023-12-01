@@ -19,9 +19,9 @@ import (
 
 func TestBundleDependencies(t *testing.T) {
 	fxutil.TestBundle(t, Bundle,
-		demultiplexer.Module,
+		demultiplexer.Module(),
 		orchestratorForwarderImpl.MockModule,
-		defaultforwarder.Module,
+		defaultforwarder.Module(),
 		fx.Supply(demultiplexer.Params{}),
 		fx.Supply(defaultforwarder.Params{}),
 		core.MockBundle,

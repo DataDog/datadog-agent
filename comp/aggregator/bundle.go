@@ -15,5 +15,5 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
-	demultiplexer.Module,
+	demultiplexer.Module(),
 )

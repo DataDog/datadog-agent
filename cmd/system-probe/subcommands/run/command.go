@@ -73,10 +73,10 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
 				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-				config.Module,
-				telemetry.Module,
-				sysprobeconfigimpl.Module,
-				rcclient.Module,
+				config.Module(),
+				telemetry.Module(),
+				sysprobeconfigimpl.Module(),
+				rcclient.Module(),
 				// use system-probe config instead of agent config for logging
 				fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 					return log.NewLogger(lc, params, sysprobeconfig)
@@ -186,10 +186,10 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 			fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 			fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
 			fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
-			rcclient.Module,
-			config.Module,
-			telemetry.Module,
-			sysprobeconfigimpl.Module,
+			rcclient.Module(),
+			config.Module(),
+			telemetry.Module(),
+			sysprobeconfigimpl.Module(),
 			// use system-probe config instead of agent config for logging
 			fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
 				return log.NewLogger(lc, params, sysprobeconfig)

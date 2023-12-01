@@ -15,10 +15,10 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
-	client.Module,
+	client.Module(),
 )
 
 // MockBundle defines the fx options for this bundle.
 var MockBundle = fxutil.Bundle(
-	client.Module,
+	client.Module(),
 )

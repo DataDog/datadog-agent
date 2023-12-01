@@ -54,7 +54,7 @@ func TestRunnerCreation(t *testing.T) {
 		fx.Supply(lc),
 		log.MockModule,
 		config.MockModule,
-		Module,
+		Module(),
 		// Supplying our provider by using the helper function
 		fx.Supply(NewProvider(callback)),
 	)

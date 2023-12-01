@@ -65,9 +65,9 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
 		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath)),
-		secretsimpl.Module,
+		secretsimpl.Module(),
 		fx.Supply(secrets.NewEnabledParams()),
-		coreconfig.Module,
+		coreconfig.Module(),
 		fx.Provide(func() corelog.Params {
 			return corelog.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 		}),
@@ -78,8 +78,8 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 			AgentType:  workloadmeta.NodeAgent,
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
-		workloadmeta.Module,
-		statsd.Module,
+		workloadmeta.Module(),
+		statsd.Module(),
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
