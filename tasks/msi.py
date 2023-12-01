@@ -141,7 +141,6 @@ def sign_file(ctx, path, force=False):
 def _build(
     ctx,
     env,
-    arch='x64',
     configuration='Release',
     project='',
     vstudio_root=None,
@@ -180,7 +179,7 @@ def _build(
 
     # Construct build command line
     cmd = _get_vs_build_command(
-        f'cd {BUILD_SOURCE_DIR} && msbuild {project} /restore /p:Configuration={configuration} /p:Platform="{arch}"',
+        f'cd {BUILD_SOURCE_DIR} && msbuild {project} /restore /p:Configuration={configuration} /p:Platform="x64"',
         vstudio_root,
     )
     print(f"Build Command: {cmd}")
@@ -257,7 +256,6 @@ def build(
     _build(
         ctx,
         env,
-        arch=arch,
         configuration=configuration,
         vstudio_root=vstudio_root,
     )
@@ -313,7 +311,6 @@ def test(
     _build(
         ctx,
         env,
-        arch=arch,
         configuration=configuration,
         vstudio_root=vstudio_root,
     )

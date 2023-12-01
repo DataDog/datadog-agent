@@ -21,7 +21,7 @@ from .libs.common.color import color_message
 from .libs.ninja_syntax import NinjaWriter
 from .test import environ
 from .utils import REPO_PATH, bin_name, get_build_flags, get_gobin, get_version_numeric_only
-from .windows_resources import MESSAGESTRINGS_MC_PATH, arch_to_windres_target
+from .windows_resources import MESSAGESTRINGS_MC_PATH
 
 BIN_DIR = os.path.join(".", "bin", "system-probe")
 BIN_PATH = os.path.join(BIN_DIR, bin_name("system-probe"))
@@ -59,12 +59,12 @@ CLANG_VERSION_RUNTIME = "12.0.1"
 CLANG_VERSION_SYSTEM_PREFIX = "12.0"
 
 
-def ninja_define_windows_resources(ctx, nw, major_version, arch=CURRENT_ARCH):
+def ninja_define_windows_resources(ctx, nw, major_version):
     maj_ver, min_ver, patch_ver = get_version_numeric_only(ctx, major_version=major_version).split(".")
     nw.variable("maj_ver", maj_ver)
     nw.variable("min_ver", min_ver)
     nw.variable("patch_ver", patch_ver)
-    nw.variable("windrestarget", arch_to_windres_target(arch))
+    nw.variable("windrestarget", "pe-x86-64")
     nw.rule(name="windmc", command="windmc --target $windrestarget -r $rcdir -h $rcdir $in")
     nw.rule(
         name="windres",
