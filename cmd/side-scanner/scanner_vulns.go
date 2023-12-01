@@ -92,11 +92,11 @@ func launchScannerTrivyVM(ctx context.Context, scan *scanTask, ebsclient *ebs.Cl
 	return scanEBSSbomEntity(trivyReport, scan, duration)
 }
 
-func launchScannerTrivyLambda(ctx context.Context, scan *scanTask, ebsclient *ebs.Client, mountPoint string) (*sbommodel.SBOMEntity, error) {
+func launchScannerTrivyLambda(ctx context.Context, scan *scanTask, codePath string) (*sbommodel.SBOMEntity, error) {
 	startTime := time.Now()
 
 	trivyCache := newMemoryCache()
-	trivyArtifact, err := trivyartifactlocal.NewArtifact(mountPoint, trivyCache, artifact.Option{
+	trivyArtifact, err := trivyartifactlocal.NewArtifact(codePath, trivyCache, artifact.Option{
 		Offline:           true,
 		NoProgress:        true,
 		DisabledAnalyzers: []analyzer.Type{},

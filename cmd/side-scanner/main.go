@@ -1747,7 +1747,7 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	}
 
 	scanStartedAt := time.Now()
-	sbom, err := launchScannerTrivyLocal(ctx, scan, codePath)
+	sbom, err := launchScannerTrivyLambda(ctx, scan, codePath)
 	resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(scanStartedAt)}
 
 	scanDuration := time.Since(scanStartedAt)
