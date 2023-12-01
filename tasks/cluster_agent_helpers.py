@@ -13,7 +13,7 @@ from .utils import REPO_PATH, bin_name, get_build_flags, get_version
 def build_common(
     ctx,
     bin_path,
-    build_tags,
+    build,
     bin_suffix,
     rebuild,
     build_include,
@@ -28,7 +28,7 @@ def build_common(
     Build Cluster Agent
     """
 
-    build_tags = get_build_tags(arch=arch, build_include=build_include, build_exclude=build_exclude)
+    build_tags = get_build_tags(build=build, arch=arch, build_include=build_include, build_exclude=build_exclude)
 
     # We rely on the go libs embedded in the debian stretch image to build dynamically
     ldflags, gcflags, env = get_build_flags(ctx, static=False)

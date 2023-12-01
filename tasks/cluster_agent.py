@@ -45,7 +45,7 @@ def build(
     build_common(
         ctx,
         BIN_PATH,
-        get_build_tags(build="cluster-agent"),
+        "cluster-agent",
         "",
         rebuild,
         build_include,
