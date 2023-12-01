@@ -153,6 +153,11 @@ type (
 		duration time.Duration
 		findings *findings
 	}
+
+	ebsVolume struct {
+		Hostname string
+		ARN      arn.ARN
+	}
 )
 
 func (s scanTask) String() string {
@@ -568,10 +573,10 @@ func offlineCmd(poolSize int, regions []string, maxScans int, attachMode string)
 			if err != nil {
 				log.Errorf("could not scan region %q: %v", regionName, err)
 			}
-			for _, volumeARN := range volumesForRegion {
-				scan, err := newScanTask(string(ebsScanType), volumeARN.String(), "unknown", defaultActions, roles)
+			for _, volume := range volumesForRegion {
+				scan, err := newScanTask(string(ebsScanType), volume.ARN.String(), volume.Hostname, defaultActions, roles)
 				if err != nil {
-					log.Warnf("could not create scan for volume %s: %v", volumeARN, err)
+					log.Warnf("could not create scan for volume %s: %v", volume.ARN, err)
 				} else {
 					scans = append(scans, scan)
 				}
@@ -628,7 +633,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int, attachMode string)
 	return nil
 }
 
-func listEBSVolumesForRegion(ctx context.Context, accountID, regionName string, roles rolesMapping) (arns []arn.ARN, err error) {
+func listEBSVolumesForRegion(ctx context.Context, accountID, regionName string, roles rolesMapping) (volumes []ebsVolume, err error) {
 	cfg, awsstats, err := newAWSConfig(ctx, regionName, roles[accountID])
 	if err != nil {
 		return nil, err
@@ -678,7 +683,7 @@ func listEBSVolumesForRegion(ctx context.Context, accountID, regionName string, 
 					}
 					volumeARN := ec2ARN(regionName, accountID, ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
 					log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeARN, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
-					arns = append(arns, volumeARN)
+					volumes = append(volumes, ebsVolume{Hostname: *instance.InstanceId, ARN: volumeARN})
 				}
 			}
 		}
