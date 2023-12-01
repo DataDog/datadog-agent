@@ -7,9 +7,7 @@
 
 package cgroups
 
-import (
-	"path/filepath"
-)
+import "path/filepath"
 
 type cgroupV1 struct {
 	identifier  string
