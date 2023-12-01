@@ -293,6 +293,7 @@ func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
 
 // NewTracer returns a tracer
 func NewTracer(path string, args []string, opts Opts) (*Tracer, error) {
+
 	info, err := arch.GetInfo("")
 	if err != nil {
 		return nil, err
