@@ -15,7 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
-const ipc_server_name string = "IPC API Server"
+const ipcServerName string = "IPC API Server"
 
 var ipcListener net.Listener
 
@@ -29,8 +29,8 @@ func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config) (err error) {
 	configEndpointMux.Use(validateToken)
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(
-		"/config/",
-		http.StripPrefix("/config", configEndpointMux))
+		"/config/v1/",
+		http.StripPrefix("/config/v1", configEndpointMux))
 
 	ipcServer := &http.Server{
 		Addr:      ipcServerAddr,
@@ -38,11 +38,11 @@ func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config) (err error) {
 		TLSConfig: tlsConfig,
 	}
 
-	startServer(ipcListener, ipcServer, ipc_server_name)
+	startServer(ipcListener, ipcServer, ipcServerName)
 
 	return nil
 }
 
 func stopIPCServer() {
-	stopServer(ipcListener, ipc_server_name)
+	stopServer(ipcListener, ipcServerName)
 }

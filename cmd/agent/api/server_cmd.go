@@ -44,7 +44,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
-const cmd_server_name string = "CMD API Server"
+const cmdServerName string = "CMD API Server"
 
 var cmdListener net.Listener
 
@@ -150,7 +150,7 @@ func startCMDServer(
 		grpcutil.TimeoutHandlerFunc(cmdMux, time.Duration(config.Datadog.GetInt64("server_timeout"))*time.Second),
 	)
 
-	startServer(cmdListener, srv, cmd_server_name)
+	startServer(cmdListener, srv, cmdServerName)
 
 	return nil
 }
@@ -161,5 +161,5 @@ func ServerAddress() *net.TCPAddr {
 }
 
 func stopCMDServer() {
-	stopServer(cmdListener, cmd_server_name)
+	stopServer(cmdListener, cmdServerName)
 }
