@@ -15,6 +15,8 @@ import (
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -187,9 +189,14 @@ var (
 var errAllComponentsDisabled = errors.New("all security-agent component are disabled")
 var errNoAPIKeyConfigured = errors.New("no API key configured")
 
+var enableFeatures = []string{
+	"runtime_security_config.enabled",
+	"runtime_security_config.fim_enabled",
+}
+
 // RunAgent initialized resources and starts API server
-func RunAgent(ctx context.Context, log log.Component, config config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component) (err error) {
-	if err := util.SetupCoreDump(config); err != nil {
+func RunAgent(ctx context.Context, log log.Component, cfg config.Component, statsd statsd.Component, sysprobeconfig sysprobeconfig.Component, telemetry telemetry.Component, pidfilePath string, demultiplexer demultiplexer.Component) (err error) {
+	if err := util.SetupCoreDump(cfg); err != nil {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
@@ -202,8 +209,25 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		log.Infof("pid '%d' written to pid file '%s'", os.Getpid(), pidfilePath)
 	}
 
+	rcConfigPath := filepath.Join(config.DefaultConfPath, "enabled.d", "security-agent")
+	if rcConfigFile, err := os.Open(rcConfigPath); err == nil {
+		fmt.Printf("Reading rcConfigPath %s\n", rcConfigPath)
+		rcConfig := pkgconfig.NewConfig("security-agent-rc", "DD", strings.NewReplacer(".", "_"))
+		rcConfig.SetConfigType("yaml")
+		if err := rcConfig.ReadConfig(rcConfigFile); err != nil {
+			log.Errorf("failed to read config in %s: %s", rcConfigPath, err)
+		}
+
+		for _, feature := range enableFeatures {
+			fmt.Printf("Setting %s to %v\n", feature, rcConfig.Get(feature))
+			if value := rcConfig.Get(feature); value != nil {
+				pkgconfig.Datadog.SetWithoutSource(feature, value)
+			}
+		}
+	}
+
 	// Check if we have at least one component to start based on config
-	if !config.GetBool("compliance_config.enabled") && !config.GetBool("runtime_security_config.enabled") {
+	if !cfg.GetBool("compliance_config.enabled") && !cfg.GetBool("runtime_security_config.enabled") {
 		log.Infof("All security-agent components are deactivated, exiting")
 
 		// A sleep is necessary so that sysV doesn't think the agent has failed
@@ -213,7 +237,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		return errAllComponentsDisabled
 	}
 
-	if !config.IsSet("api_key") {
+	if !cfg.IsSet("api_key") {
 		log.Critical("No API key configured, exiting")
 
 		// A sleep is necessary so that sysV doesn't think the agent has failed
@@ -223,16 +247,16 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		return errNoAPIKeyConfigured
 	}
 
-	err = manager.ConfigureAutoExit(ctx, config)
+	err = manager.ConfigureAutoExit(ctx, cfg)
 	if err != nil {
 		log.Criticalf("Unable to configure auto-exit, err: %w", err)
 		return nil
 	}
 
 	// Setup expvar server
-	port := config.GetString("security_agent.expvar_port")
+	port := cfg.GetString("security_agent.expvar_port")
 	pkgconfig.Datadog.Set("expvar_port", port, model.SourceAgentRuntime)
-	if config.GetBool("telemetry.enabled") {
+	if cfg.GetBool("telemetry.enabled") {
 		http.Handle("/telemetry", telemetry.Handler())
 	}
 	expvarServer := &http.Server{
@@ -254,13 +278,13 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 
 	stopper = startstop.NewSerialStopper()
 
-	statsdClient, err := statsd.CreateForHostPort(pkgconfig.GetBindHost(), config.GetInt("dogstatsd_port"))
+	statsdClient, err := statsd.CreateForHostPort(pkgconfig.GetBindHost(), cfg.GetInt("dogstatsd_port"))
 	if err != nil {
 		return log.Criticalf("Error creating statsd Client: %s", err)
 	}
 
 	// Initialize the remote tagger
-	if config.GetBool("security_agent.remote_tagger") {
+	if cfg.GetBool("security_agent.remote_tagger") {
 		options, err := remote.NodeAgentOptions()
 		if err != nil {
 			log.Errorf("unable to configure the remote tagger: %s", err)
@@ -273,7 +297,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		}
 	}
 
-	complianceAgent, err := compliance.StartCompliance(log, config, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)
+	complianceAgent, err := compliance.StartCompliance(log, cfg, sysprobeconfig, hostnameDetected, stopper, statsdClient, demultiplexer)
 	if err != nil {
 		return err
 	}
@@ -283,7 +307,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 	}
 
 	// start runtime security agent
-	runtimeAgent, err := runtime.StartRuntimeSecurity(log, config, hostnameDetected, stopper, statsdClient, demultiplexer)
+	runtimeAgent, err := runtime.StartRuntimeSecurity(log, cfg, hostnameDetected, stopper, statsdClient, demultiplexer)
 	if err != nil {
 		return err
 	}
@@ -297,7 +321,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}
 
-	if err := setupInternalProfiling(config); err != nil {
+	if err := setupInternalProfiling(cfg); err != nil {
 		return log.Errorf("Error while setuping internal profiling, exiting: %v", err)
 	}
 
