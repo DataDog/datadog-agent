@@ -432,7 +432,6 @@ def ninja_generate(
     ninja_path,
     windows,
     major_version='7',
-    arch=CURRENT_ARCH,
     debug=False,
     strip_object_files=False,
     kernel_release=None,
@@ -445,10 +444,8 @@ def ninja_generate(
         nw = NinjaWriter(ninja_file, width=120)
 
         if windows:
-            if arch == "x86":
-                raise Exit(message="system probe not supported on x86")
 
-            ninja_define_windows_resources(ctx, nw, major_version, arch=arch)
+            ninja_define_windows_resources(ctx, nw, major_version)
             # messagestrings
             in_path = MESSAGESTRINGS_MC_PATH
             in_name = os.path.splitext(os.path.basename(in_path))[0]
@@ -488,7 +485,6 @@ def build(
     python_runtimes='3',
     go_mod="mod",
     windows=is_windows,
-    arch=CURRENT_ARCH,
     bundle_ebpf=False,
     kernel_release=None,
     debug=False,
@@ -503,7 +499,6 @@ def build(
         ctx,
         windows=windows,
         major_version=major_version,
-        arch=arch,
         kernel_release=kernel_release,
         debug=debug,
         strip_object_files=strip_object_files,
@@ -515,7 +510,6 @@ def build(
         major_version=major_version,
         python_runtimes=python_runtimes,
         bundle_ebpf=bundle_ebpf,
-        arch=arch,
         go_mod=go_mod,
         race=race,
         incremental_build=incremental_build,
@@ -527,12 +521,10 @@ def build(
 def clean(
     ctx,
     windows=is_windows,
-    arch=CURRENT_ARCH,
 ):
     clean_object_files(
         ctx,
         windows=windows,
-        arch=arch,
     )
     ctx.run("go clean -cache")
 
@@ -1183,7 +1175,6 @@ def run_ninja(
     explain=False,
     windows=is_windows,
     major_version='7',
-    arch=CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
@@ -1191,9 +1182,7 @@ def run_ninja(
 ):
     check_for_ninja(ctx)
     nf_path = os.path.join(ctx.cwd, 'system-probe.ninja')
-    ninja_generate(
-        ctx, nf_path, windows, major_version, arch, debug, strip_object_files, kernel_release, with_unit_test
-    )
+    ninja_generate(ctx, nf_path, windows, major_version, debug, strip_object_files, kernel_release, with_unit_test)
     explain_opt = "-d explain" if explain else ""
     if task:
         ctx.run(f"ninja {explain_opt} -f {nf_path} -t {task}")
@@ -1251,7 +1240,6 @@ def build_object_files(
     ctx,
     windows=is_windows,
     major_version='7',
-    arch=CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
@@ -1277,7 +1265,6 @@ def build_object_files(
         explain=True,
         windows=windows,
         major_version=major_version,
-        arch=arch,
         kernel_release=kernel_release,
         debug=debug,
         strip_object_files=strip_object_files,
@@ -1320,7 +1307,6 @@ def build_object_files(
 def build_cws_object_files(
     ctx,
     major_version='7',
-    arch=CURRENT_ARCH,
     kernel_release=None,
     debug=False,
     strip_object_files=False,
@@ -1330,7 +1316,6 @@ def build_cws_object_files(
         ctx,
         target="cws",
         major_version=major_version,
-        arch=arch,
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
@@ -1343,15 +1328,12 @@ def object_files(ctx, kernel_release=None, with_unit_test=False):
     build_object_files(ctx, kernel_release=kernel_release, with_unit_test=with_unit_test)
 
 
-def clean_object_files(
-    ctx, windows, major_version='7', arch=CURRENT_ARCH, kernel_release=None, debug=False, strip_object_files=False
-):
+def clean_object_files(ctx, windows, major_version='7', kernel_release=None, debug=False, strip_object_files=False):
     run_ninja(
         ctx,
         task="clean",
         windows=windows,
         major_version=major_version,
-        arch=arch,
         debug=debug,
         strip_object_files=strip_object_files,
         kernel_release=kernel_release,
