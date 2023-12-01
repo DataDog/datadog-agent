@@ -48,9 +48,19 @@ func TestInstallScript(t *testing.T) {
 		"centos":      ec2os.CentOS,
 		"amazonlinux": ec2os.AmazonLinuxOS,
 		"redhat":      ec2os.RedHatOS,
+		"rhel":        ec2os.RedHatOS,
+		"sles":        ec2os.SuseOS,
 		"windows":     ec2os.WindowsOS,
 		"fedora":      ec2os.FedoraOS,
 		"suse":        ec2os.SuseOS,
+		"rocky":       ec2os.RockyLinux,
+	}
+
+	var testOsType ec2os.Type
+	for osName, osType := range osMapping {
+		if strings.Contains(*osVersion, osName) {
+			testOsType = osType
+		}
 	}
 
 	archMapping := map[string]e2eOs.Architecture{
@@ -78,7 +88,7 @@ func TestInstallScript(t *testing.T) {
 			}
 		}
 
-		vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform]))
+		vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], testOsType))
 		if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 			vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
 		}
