@@ -30,6 +30,8 @@ const (
 	WorkloadSelectorResolved Event = iota
 	// CGroupDeleted is used to notify that a cgroup was deleted
 	CGroupDeleted
+	// CGroupCreated new croup created
+	CGroupCreated
 	// CGroupMaxEvent is used cap the event ID
 	CGroupMaxEvent
 )
@@ -136,6 +138,13 @@ func (cr *Resolver) AddPID(process *model.ProcessCacheEntry) {
 
 	// add the new CGroup to the cache
 	cr.workloads.Add(string(process.ContainerID), newCGroup)
+
+	// notify listeners
+	cr.listenersLock.Lock()
+	for _, l := range cr.listeners[CGroupCreated] {
+		l(newCGroup)
+	}
+	cr.listenersLock.Unlock()
 
 	// check the tags of this workload
 	cr.checkTags(newCGroup)
