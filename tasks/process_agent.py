@@ -36,15 +36,12 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        if arch == "x86":
-            env["GOARCH"] = "386"
 
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes)
         build_rc(
             ctx,
             "cmd/process-agent/windows_resources/process-agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/process-agent/rsrc.syso",
         )

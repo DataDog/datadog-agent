@@ -76,15 +76,12 @@ def build(
     ## build windows resources
     # generate windows resources
     if sys.platform == 'win32':
-        if arch == "x86":
-            env["GOARCH"] = "386"
 
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/security-agent/windows_resources/security-agent.rc",
-            arch=arch,
             vars=vars,
             out="cmd/security-agent/rsrc.syso",
         )

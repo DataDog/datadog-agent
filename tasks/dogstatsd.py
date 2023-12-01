@@ -51,15 +51,11 @@ def build(
 
     # generate windows resources
     if sys.platform == 'win32':
-        if arch == "x86":
-            env["GOARCH"] = "386"
-
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
+        build_messagetable(ctx)
+        vars = versioninfo_vars(ctx, major_version=major_version)
         build_rc(
             ctx,
             "cmd/dogstatsd/windows_resources/dogstatsd.rc",
-            arch=arch,
             vars=vars,
             out="cmd/dogstatsd/rsrc.syso",
         )
