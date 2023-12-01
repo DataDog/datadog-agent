@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -138,12 +139,13 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				forwarder.Bundle,
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				demultiplexer.Module,
+				orchestratorForwarderImpl.Module,
+				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
 				fx.Provide(func() demultiplexer.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 					opts := aggregator.DefaultAgentDemultiplexerOptions()
 					opts.FlushInterval = 0
 					opts.UseNoopEventPlatformForwarder = true
-					opts.UseNoopOrchestratorForwarder = true
 					return demultiplexer.Params{Options: opts}
 				}),
 			)
