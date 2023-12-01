@@ -22,6 +22,7 @@ suites:
           APIKEY=<%= api_key %>
       dd-agent-rspec:
         skip_windows_signing_test: &skip_windows_signing_test <%= ENV['SKIP_SIGNATURE_TEST'] || false %>
+        cws_included: &cws_included <%= ENV['WINDOWS_DDPROCMON_DRIVER'] || false %>
 
   - name: win-upgrade-rollback
     run_list:

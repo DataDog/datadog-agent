@@ -347,20 +347,11 @@ type UserSessionContext struct {
 	ID          uint64           `field:"-" json:"-"`
 	SessionType usersession.Type `field:"-" json:"-"`
 	Resolved    bool             `field:"-" json:"-"`
-	RawData     string           `field:"-" json:"-"`
-
 	// Kubernetes User Session context
 	K8SUsername string              `field:"k8s_username,handler:ResolveK8SUsername" json:"username,omitempty"` // SECLDoc[k8s_username] Definition:`Kubernetes username of the user that executed the process`
 	K8SUID      string              `field:"k8s_uid,handler:ResolveK8SUID" json:"uid,omitempty"`                // SECLDoc[k8s_uid] Definition:`Kubernetes UID of the user that executed the process`
 	K8SGroups   []string            `field:"k8s_groups,handler:ResolveK8SGroups" json:"groups,omitempty"`       // SECLDoc[k8s_groups] Definition:`Kubernetes groups of the user that executed the process`
-	K8SExtra    map[string][]string `field:"-" json:"extra,omitempty"`
-}
-
-// UserSessionKey describes the key to a user session
-type UserSessionKey struct {
-	ID      uint64
-	Cursor  byte
-	Padding [7]byte
+	K8SExtra    map[string][]string `json:"extra,omitempty"`
 }
 
 // MatchedRule contains the identification of one rule that has match

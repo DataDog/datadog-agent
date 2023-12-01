@@ -58,11 +58,4 @@ type Agent interface {
 	// Retries every 100 ms up to timeout.
 	// Returns error on failure.
 	waitForReadyTimeout(timeout time.Duration) error
-
-	// WaitAgentLogs waits for the agent log corresponding to the pattern
-	// agent-name can be: datadog-agent, system-probe, security-agent
-	// pattern: is the log that we are looking for
-	// Retries every 500 ms up to timeout.
-	// Returns error on failure.
-	WaitAgentLogs(agentName string, pattern string) error
 }

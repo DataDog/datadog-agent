@@ -200,6 +200,7 @@ new-e2e-agent-shared-components-dev:
 new-e2e-agent-shared-components-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
+  needs: ['deploy_deb_testing-a7_x64']
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
@@ -217,6 +218,7 @@ new-e2e-agent-subcommands-dev:
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
+  needs: ['deploy_deb_testing-a7_x64']
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
@@ -259,6 +261,16 @@ new-e2e-cws-dev:
   needs: []
   variables:
     TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
+  # Temporary, until we manage to stabilize those tests.
+  allow_failure: true
+
+new-e2e-cws-main:
+  extends: .new_e2e_template
+  rules: !reference [.on_main_and_no_skip_e2e]
+  variables:
+    TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
 
