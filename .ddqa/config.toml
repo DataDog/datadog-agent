@@ -265,3 +265,14 @@ jira_statuses = [
 ]
 github_team = "apm-onboarding"
 github_labels = ["team/apm-onboarding"]
+
+[teams."Agent Release Management"]
+jira_project = "AGNTR"
+jira_issue_type = "Task"
+jira_statuses = [
+  "To Do",
+  "In Progress",
+  "Done",
+]
+github_team = "agent-release-management"
+github_labels = ["team/agent-release-management"]

@@ -16,8 +16,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/dentry"
@@ -25,62 +25,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
 
-func validateResolution(t testing.TB, probe *sprobe.EBPFProbe, event *model.Event, testFile string, pathFnc func(model.PathKey, bool) (string, error), parentFnc func(model.PathKey) (model.PathKey, error), nameFnc func(model.PathKey) (string, error)) {
-	basename := path.Base(testFile)
-
-	// Force an eRPC resolution to refresh the entry with the last generation as lost events may have invalidated the entry
-	res, err := pathFnc(event.Open.File.PathKey, true)
-	assert.Nil(t, err)
-	assert.Equal(t, basename, path.Base(res))
-
-	// there is a potential race here as a lost event can occur between the two resolutions
-
-	// check that the path is now available from the cache
-	res, err = probe.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
-	assert.Nil(t, err)
-	assert.Equal(t, basename, path.Base(res))
-
-	kv, err := kernel.NewKernelVersion()
-	assert.Nil(t, err)
-
-	// Parent
-	expectedInode := getInode(t, path.Dir(testFile))
-
-	// the previous path resolution should habe filled the cache
-	pathKey, err := probe.Resolvers.DentryResolver.ResolveParentFromCache(event.Open.File.PathKey)
-	assert.Nil(t, err)
-	assert.NotZero(t, pathKey.Inode)
-
-	// on kernel < 5.0 the cache is populated with internal inode of overlayfs. The stat syscall returns the proper inode, that is why the inodes don't match.
-	if event.Open.File.Filesystem != model.OverlayFS || kv.Code > kernel.Kernel5_0 {
-		assert.Equal(t, expectedInode, pathKey.Inode)
-	}
-
-	parentKey, err := parentFnc(event.Open.File.PathKey)
-	assert.Nil(t, err)
-	assert.NotZero(t, parentKey.Inode)
-	assert.Equal(t, pathKey.Inode, parentKey.Inode)
-
-	// Basename
-	// the previous path resolution should have filled the cache
-	expectedName, err := probe.Resolvers.DentryResolver.ResolveNameFromCache(event.Open.File.PathKey)
-	assert.Nil(t, err)
-	assert.Equal(t, expectedName, basename)
-
-	expectedName, err = nameFnc(event.Open.File.PathKey)
-	assert.Nil(t, err)
-	assert.Equal(t, expectedName, basename)
-}
-
-func TestDentryResolutionERPC(t *testing.T) {
+func TestDentryPathERPC(t *testing.T) {
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
 		basename += "a"
 	}
 	rule := &rules.RuleDefinition{
-		ID:         "test_erpc_rule",
-		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/parent/%s" && open.flags & O_CREAT != 0`, basename),
+		ID:         "test_erpc_path_rule",
+		Expression: fmt.Sprintf(`open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`),
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
@@ -106,11 +59,27 @@ func TestDentryResolutionERPC(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	test.WaitSignal(t, func() error {
-		_, err = os.Create(testFile)
-		return err
+		file, err := os.OpenFile(testFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
+		if err != nil {
+			return err
+		}
+		file.Close()
+		return nil
 	}, func(event *model.Event, rule *rules.Rule) {
-		assertTriggeredRule(t, rule, "test_erpc_rule")
+		assertTriggeredRule(t, rule, "test_erpc_path_rule")
 
+		basename := path.Base(testFile)
+
+		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
+		assert.Nil(test.t, err)
+		assert.Equal(test.t, basename, path.Base(res))
+
+		// check that the path is now available from the cache
+		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
+		assert.Nil(test.t, err)
+		assert.Equal(test.t, basename, path.Base(res))
+
+		// check stats
 		test.eventMonitor.SendStats()
 
 		key := metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
@@ -118,24 +87,18 @@ func TestDentryResolutionERPC(t *testing.T) {
 
 		key = metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
 		assert.Empty(t, test.statsdClient.Get(key))
-
-		validateResolution(test.t, p, event, testFile,
-			p.Resolvers.DentryResolver.ResolveFromERPC,
-			p.Resolvers.DentryResolver.ResolveParentFromERPC,
-			p.Resolvers.DentryResolver.ResolveNameFromERPC,
-		)
 	})
 }
 
-func TestDentryResolutionMap(t *testing.T) {
+func TestDentryPathMap(t *testing.T) {
 	// generate a basename up to the current limit of the agent
 	var basename string
 	for i := 0; i < model.MaxSegmentLength; i++ {
 		basename += "a"
 	}
 	rule := &rules.RuleDefinition{
-		ID:         "test_map_rule",
-		Expression: fmt.Sprintf(`open.file.path == "{{.Root}}/parent/%s" && open.flags & O_CREAT != 0`, basename),
+		ID:         "test_map_path_rule",
+		Expression: fmt.Sprintf(`open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`),
 	}
 
 	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableERPCDentryResolution: true}))
@@ -153,106 +116,99 @@ func TestDentryResolutionMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(testFile)
 
 	dir := path.Dir(testFile)
 	if err := os.MkdirAll(dir, 0777); err != nil {
 		t.Fatalf("failed to create directory: %s", err)
 	}
-	defer os.Remove(dir)
+	defer os.RemoveAll(dir)
 
 	test.WaitSignal(t, func() error {
-		_, err := os.Create(testFile)
+		file, err := os.OpenFile(testFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
 		if err != nil {
 			return err
 		}
+		file.Close()
 		return nil
 	}, func(event *model.Event, rule *rules.Rule) {
-		assertTriggeredRule(t, rule, "test_map_rule")
+		assertTriggeredRule(t, rule, "test_map_path_rule")
 
+		basename := path.Base(testFile)
+
+		res, err := p.Resolvers.DentryResolver.Resolve(event.Open.File.PathKey, true)
+		assert.Nil(test.t, err)
+		assert.Equal(test.t, basename, path.Base(res))
+
+		// check that the path is now available from the cache
+		res, err = p.Resolvers.DentryResolver.ResolveFromCache(event.Open.File.PathKey)
+		assert.Nil(test.t, err)
+		assert.Equal(test.t, basename, path.Base(res))
+
+		// check stats
 		test.eventMonitor.SendStats()
 
-		key := metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
-		assert.NotEmpty(t, test.statsdClient.Get(key))
-
-		key = metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
+		key := metrics.MetricDentryResolverHits + ":" + metrics.ERPCTag
 		assert.Empty(t, test.statsdClient.Get(key))
 
-		validateResolution(test.t, p, event, testFile,
-			p.Resolvers.DentryResolver.ResolveFromMap,
-			p.Resolvers.DentryResolver.ResolveParentFromMap,
-			p.Resolvers.DentryResolver.ResolveNameFromMap,
-		)
+		key = metrics.MetricDentryResolverHits + ":" + metrics.KernelMapsTag
+		assert.NotEmpty(t, test.statsdClient.Get(key))
 	})
 }
 
-func BenchmarkERPCDentryResolutionSegment(b *testing.B) {
+func TestDentryName(t *testing.T) {
+	// generate a basename up to the current limit of the agent
+	var basename string
+	for i := 0; i < model.MaxSegmentLength; i++ {
+		basename += "a"
+	}
 	rule := &rules.RuleDefinition{
-		ID:         "test_rule",
-		Expression: `open.file.path == "{{.Root}}/aa/bb/cc/dd/ee" && open.flags & O_CREAT != 0`,
+		ID:         "test_dentry_name_rule",
+		Expression: fmt.Sprintf(`open.flags & (O_CREAT|O_NOCTTY|O_NOFOLLOW) != 0 && process.file.name == "testsuite"`),
 	}
 
-	test, err := newTestModule(b, nil, []*rules.RuleDefinition{rule}, withStaticOpts(testOpts{disableMapDentryResolution: true}))
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
-		b.Fatal(err)
+		t.Fatal(err)
 	}
 	defer test.Close()
 
 	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
 	if !ok {
-		b.Skip("not supported")
+		t.Skip("not supported")
 	}
 
-	testFile, _, err := test.Path("aa/bb/cc/dd/ee")
+	testFile, _, err := test.Path("parent/" + basename)
 	if err != nil {
-		b.Fatal(err)
+		t.Fatal(err)
 	}
-	_ = os.MkdirAll(path.Dir(testFile), 0755)
 
-	defer os.Remove(testFile)
+	dir := path.Dir(testFile)
+	if err := os.MkdirAll(dir, 0777); err != nil {
+		t.Fatalf("failed to create directory: %s", err)
+	}
+	defer os.RemoveAll(dir)
 
-	var pathKey model.PathKey
-
-	err = test.GetSignal(b, func() error {
-		fd, err := syscall.Open(testFile, syscall.O_CREAT, 0755)
+	test.WaitSignal(t, func() error {
+		file, err := os.OpenFile(testFile, os.O_CREATE|unix.O_NOCTTY|unix.O_NOFOLLOW, 0666)
 		if err != nil {
 			return err
 		}
-		return syscall.Close(fd)
-	}, func(event *model.Event, _ *rules.Rule) {
-		pathKey = event.Open.File.PathKey
+		file.Close()
+		return nil
+	}, func(event *model.Event, rule *rules.Rule) {
+		assertTriggeredRule(t, rule, "test_dentry_name_rule")
+
+		basename := path.Base(testFile)
+
+		// check that the path is now available from the cache
+		res := p.Resolvers.DentryResolver.ResolveName(event.Open.File.PathKey)
+		assert.Equal(test.t, basename, res)
+
+		// check that the path is now available from the cache
+		res, err = p.Resolvers.DentryResolver.ResolveNameFromCache(event.Open.File.PathKey)
+		assert.Nil(test.t, err)
+		assert.Equal(test.t, basename, path.Base(res))
 	})
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	// create a new dentry resolver to avoid concurrent map access errors
-	resolver, err := dentry.NewResolver(test.probe.Config.Probe, test.probe.StatsdClient, p.Erpc)
-	if err != nil {
-		b.Fatal(err)
-	}
-
-	if err := resolver.Start(p.Manager); err != nil {
-		b.Fatal(err)
-	}
-	name, err := resolver.ResolveNameFromERPC(pathKey)
-	if err != nil {
-		b.Fatal(err)
-	}
-	b.Log(name)
-
-	b.ResetTimer()
-	for n := 0; n < b.N; n++ {
-		name, err = resolver.ResolveNameFromERPC(pathKey)
-		if err != nil {
-			b.Fatal(err)
-		}
-		if len(name) == 0 || len(name) > 0 && name[0] == 0 {
-			b.Log("couldn't resolve segment")
-		}
-	}
-
-	test.Close()
 }
 
 func BenchmarkERPCDentryResolutionPath(b *testing.B) {

@@ -67,9 +67,14 @@
                     "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/debian-12-generic-arm64.qcow2.xz"
                 },
                 {
-                    "dir": "CentOS-7-aarch64-GenericCloud-2211.qcow2",
+                    "dir": "centos-7.9-arm64.qcow2",
                     "tag": "centos_79",
-                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/CentOS-7-aarch64-GenericCloud-2211.qcow2.xz"
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-7.9-arm64.qcow2.xz"
+                },
+                {
+                    "dir": "centos-8-arm64.qcow2",
+                    "tag": "centos_8",
+                    "image_source": "https://dd-agent-omnibus.s3.amazonaws.com/kernel-version-testing/rootfs/master/centos-8-arm64.qcow2.xz"
                 }
             ],
             "machine": "virt",
