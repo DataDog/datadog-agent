@@ -44,7 +44,7 @@ var checkDelay = telemetry.NewGauge(
 	"collector",
 	"check_delay",
 	[]string{"check_name"},
-	"Check Delay represents the delay in running a check in seconds.",
+	"Check delay measures time between the scheduled start time and when the check actually started.",
 )
 
 // Worker is an object that encapsulates the logic to manage a loop of processing
