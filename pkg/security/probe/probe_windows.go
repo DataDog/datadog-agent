@@ -75,12 +75,10 @@ func (p *WindowsProbe) Start() error {
 	go func() {
 		defer p.wg.Done()
 
-		var (
-			pce *model.ProcessCacheEntry
-		)
-
 		for {
+			var pce *model.ProcessCacheEntry
 			ev := p.probe.zeroEvent()
+
 			select {
 			case <-p.ctx.Done():
 				return
@@ -114,7 +112,7 @@ func (p *WindowsProbe) Start() error {
 				}
 				log.Infof("Received stop %v", stop)
 
-				pce := p.Resolvers.ProcessResolver.GetEntry(pid)
+				pce = p.Resolvers.ProcessResolver.GetEntry(pid)
 				defer p.Resolvers.ProcessResolver.DeleteEntry(pid, time.Now())
 
 				ev.Type = uint32(model.ExitEventType)
