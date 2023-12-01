@@ -75,9 +75,6 @@ if redhat? && !arm_target?
   excluded_packages.push(/^pydantic-core==/)
 end
 
-# _64_bit checks the kernel arch.  On windows, the builder is 64 bit
-# even when doing a 32 bit build.  Do a specific check for the 32 bit
-# build
 if arm_target?
   excluded_packages.push(/^orjson==/)
 end
