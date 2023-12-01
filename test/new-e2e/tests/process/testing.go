@@ -55,6 +55,12 @@ func assertRunningChecks(t *assert.CollectT, vm client.VM, checks []string, with
 func assertStressProcessCollected(
 	t *testing.T, payloads []*aggregator.ProcessPayload, withIOStats bool,
 ) {
+	defer func() {
+		if t.Failed() {
+			t.Logf("Payloads:\n%+v\n", payloads)
+		}
+	}()
+
 	var found, populated bool
 	for _, payload := range payloads {
 		for _, process := range payload.Processes {
@@ -99,6 +105,12 @@ func processHasIOStats(process *agentmodel.Process) bool {
 func assertStressProcessDiscoveryCollected(
 	t *testing.T, payloads []*aggregator.ProcessDiscoveryPayload,
 ) {
+	defer func() {
+		if t.Failed() {
+			t.Logf("Payloads:\n%+v\n", payloads)
+		}
+	}()
+
 	var found, populated bool
 	for _, payload := range payloads {
 		for _, disc := range payload.ProcessDiscoveries {
