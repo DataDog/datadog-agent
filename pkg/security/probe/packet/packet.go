@@ -39,11 +39,11 @@ const (
 // Manager is a manager for packet capture
 type Manager struct {
 	mu sync.Mutex
-	wg sync.WaitGroup
 
 	ctx                           context.Context
 	state                         state
 	stateChan                     chan state
+	stopChan                      chan struct{}
 	currentPacketFilterExpression string
 	eventStub                     *model.Event
 	onPacketEvent                 func(*model.Event)
@@ -63,6 +63,7 @@ func NewManager(ctx context.Context, eventStub *model.Event, onPacketEvent func(
 		ctx:              ctx,
 		state:            stateInit,
 		stateChan:        make(chan state),
+		stopChan:         make(chan struct{}),
 		onPacketEvent:    onPacketEvent,
 		eventStub:        eventStub,
 		pktCaptured:      atomic.NewUint64(0),
@@ -83,6 +84,7 @@ func (m *Manager) UpdatePacketFilter(filters []string) error {
 	m.stop()
 
 	if newFilterExpression == "" {
+		m.currentPacketFilterExpression = newFilterExpression
 		return nil
 	}
 
@@ -100,6 +102,7 @@ func (m *Manager) UpdatePacketFilter(filters []string) error {
 		return fmt.Errorf("failed to update packet filter: %w", err)
 	}
 
+	m.currentPacketFilterExpression = newFilterExpression
 	m.start(tpacket)
 	return nil
 }
@@ -113,57 +116,47 @@ func (m *Manager) Stop() {
 }
 
 func (m *Manager) start(tpacket *afpacket.TPacket) {
-	m.state = stateRunning
-	m.wg.Add(1)
 	packetSource := gopacket.NewPacketSource(tpacket, layers.LayerTypeEthernet)
 	packetSource.NoCopy = true
-	packetsChan := packetSource.Packets()
+	packetChan := packetSource.Packets()
 	go func() {
-		defer m.wg.Done()
-		defer tpacket.Close()
 		defer func() {
-			m.state = stateStopped
+			m.stateChan <- stateStopped
 		}()
+		defer tpacket.Close()
+		m.stateChan <- stateRunning
 
 		for {
 			select {
 			case <-m.ctx.Done():
 				return
-			case state := <-m.stateChan:
-				if state == stateStopped {
+			case <-m.stopChan:
+				return
+			case packet, ok := <-packetChan:
+				if !ok {
 					return
 				}
-			default:
-				select {
-				case state := <-m.stateChan:
-					if state == stateStopped {
-						return
-					}
-				case packet, ok := <-packetsChan:
-					if !ok {
-						return
-					}
 
-					metadata := packet.Metadata()
-					if metadata == nil {
-						continue
-					}
-
-					m.pktCaptured.Inc()
-					m.pktBytesCaptured.Add(uint64(metadata.CaptureInfo.Length))
-					m.eventStub.Timestamp = metadata.CaptureInfo.Timestamp
-					m.eventStub.Packet.Packet = packet
-					m.onPacketEvent(m.eventStub)
+				metadata := packet.Metadata()
+				if metadata == nil {
+					continue
 				}
+
+				m.pktCaptured.Inc()
+				m.pktBytesCaptured.Add(uint64(metadata.CaptureInfo.Length))
+				m.eventStub.Timestamp = metadata.CaptureInfo.Timestamp
+				m.eventStub.Packet.Packet = packet
+				m.onPacketEvent(m.eventStub)
 			}
 		}
 	}()
+	m.state = <-m.stateChan
 }
 
 func (m *Manager) stop() {
 	if m.state == stateRunning {
-		m.stateChan <- stateStopped
-		m.wg.Wait()
+		m.stopChan <- struct{}{}
+		m.state = <-m.stateChan
 	}
 }
 
