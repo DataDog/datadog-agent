@@ -40,6 +40,13 @@ var workerUtilization = telemetry.NewGauge(
 	"Worker utilization. It's a value between 0 and 1 that represents the share of time that the check runner worker is running checks",
 )
 
+var checkDelay = telemetry.NewGauge(
+	"collector",
+	"check_delay",
+	[]string{"check_name"},
+	"Check Delay represents the delay in running a check in seconds.",
+)
+
 // Worker is an object that encapsulates the logic to manage a loop of processing
 // checks over the provided `PendingCheckChan`
 type Worker struct {
@@ -147,6 +154,25 @@ func (w *Worker) Run() {
 		expvars.SetRunningStats(check.ID(), checkStartTime)
 
 		utilizationTracker.CheckStarted()
+
+		if checkStats, found := expvars.CheckStats(check.ID()); found {
+
+			// Calculate start time of previous execution
+			previousFinishDate := checkStats.LastSuccessDate
+			if previousFinishDate < checkStats.LastErrorDate {
+				previousFinishDate = checkStats.LastErrorDate
+			}
+
+			previousStartDate := previousFinishDate - (checkStats.LastExecutionTime / 1e3)
+
+			delay := time.Now().Unix() - previousStartDate - int64(check.Interval().Seconds())
+
+			if delay < 0 {
+				delay = 0
+			}
+
+			checkDelay.Set(float64(delay), check.String())
+		}
 
 		// Run the check
 		checkErr := check.Run()

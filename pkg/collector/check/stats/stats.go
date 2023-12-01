@@ -101,6 +101,7 @@ type Stats struct {
 	LastExecutionTime        int64     // most recent run duration, provided for convenience
 	LastSuccessDate          int64     // most recent successful execution date, unix timestamp in seconds
 	LastError                string    // error that occurred in the last run, if any
+	LastErrorDate            int64     // most recent failed execution date, unix timestamp in seconds
 	LastWarnings             []string  // warnings that occurred in the last run, if any
 	UpdateTimestamp          int64     // latest update to this instance, unix timestamp in seconds
 	m                        sync.Mutex
@@ -168,6 +169,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 			tlmRuns.Inc(cs.CheckName, runCheckFailureTag)
 		}
 		cs.LastError = err.Error()
+		cs.LastErrorDate = time.Now().Unix()
 	} else {
 		if cs.telemetry {
 			tlmRuns.Inc(cs.CheckName, runCheckSuccessTag)
