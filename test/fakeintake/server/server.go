@@ -47,6 +47,8 @@ type Server struct {
 	url      string
 
 	store *serverstore.Store
+
+	responseOverrides map[string]httpResponse
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
@@ -55,10 +57,11 @@ type Server struct {
 // If the port is 0, a port number is automatically chosen
 func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
-		urlMutex:  sync.RWMutex{},
-		clock:     clock.New(),
-		retention: 15 * time.Minute,
-		store:     serverstore.NewStore(),
+		urlMutex:          sync.RWMutex{},
+		clock:             clock.New(),
+		retention:         15 * time.Minute,
+		store:             serverstore.NewStore(),
+		responseOverrides: make(map[string]httpResponse),
 	}
 
 	registry := prometheus.NewRegistry()
@@ -76,6 +79,8 @@ func NewServer(options ...func(*Server)) *Server {
 	mux.HandleFunc("/fakeintake/health", fi.handleFakeHealth)
 	mux.HandleFunc("/fakeintake/routestats", fi.handleGetRouteStats)
 	mux.HandleFunc("/fakeintake/flushPayloads", fi.handleFlushPayloads)
+
+	mux.HandleFunc("/fakeintake/configure/override", fi.handleConfigureOverride)
 
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -293,7 +298,7 @@ func (fi *Server) handleDatadogRequest(w http.ResponseWriter, req *http.Request)
 		return
 	}
 
-	response := getResponseFromURLPath(req.URL.Path)
+	response := fi.getResponseFromURLPath(req.URL.Path)
 	writeHTTPResponse(w, response)
 }
 
@@ -394,5 +399,55 @@ func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) 
 		contentType: "application/json",
 		statusCode:  http.StatusOK,
 		body:        jsonResp,
+	})
+}
+
+// responseOverride is a hardcoded response for requests to the given endpoint
+type responseOverride struct {
+	Endpoint    string `json:"endpoint"`
+	StatusCode  int    `json:"status_code"`
+	ContentType string `json:"content_type"`
+	Body        []byte `json:"body"`
+}
+
+// handleConfigureOverride sets a hardcoded HTTP response for requests to a particular endpoint
+func (fi *Server) handleConfigureOverride(w http.ResponseWriter, req *http.Request) {
+	if req == nil {
+		response := buildErrorResponse(errors.New("invalid request, nil request"))
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	if req.Method != http.MethodPost {
+		response := buildErrorResponse(fmt.Errorf("invalid request method %s", req.Method))
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	if req.Body == nil {
+		response := buildErrorResponse(errors.New("invalid request, nil body"))
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	var payload responseOverride
+	err := json.NewDecoder(req.Body).Decode(&payload)
+	if err != nil {
+		log.Printf("Error reading body: %v", err.Error())
+		response := buildErrorResponse(err)
+		writeHTTPResponse(w, response)
+		return
+	}
+
+	log.Printf("Handling configureOverride request for endpoint %s", payload.Endpoint)
+
+	fi.responseOverrides[payload.Endpoint] = httpResponse{
+		statusCode:  payload.StatusCode,
+		contentType: payload.ContentType,
+		body:        payload.Body,
+	}
+
+	writeHTTPResponse(w, httpResponse{
+		statusCode: http.StatusOK,
 	})
 }

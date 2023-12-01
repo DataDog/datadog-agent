@@ -374,6 +374,84 @@ func TestServer(t *testing.T) {
 
 		fi.Stop()
 	})
+
+	t.Run("should accept response overrides", func(t *testing.T) {
+		fi := NewServer()
+		fi.Start()
+		defer fi.Stop()
+
+		body := responseOverride{
+			Endpoint:    "/totoro",
+			StatusCode:  200,
+			ContentType: "text/plain",
+			Body:        []byte("catbus"),
+		}
+		buf := new(bytes.Buffer)
+		err := json.NewEncoder(buf).Encode(body)
+		require.NoError(t, err, "Error encoding request body")
+
+		request, err := http.NewRequest(http.MethodPost, "/fakeintake/configure/override", buf)
+		require.NoError(t, err, "Error creating POST request")
+
+		response := httptest.NewRecorder()
+		fi.handleConfigureOverride(response, request)
+
+		expected := map[string]httpResponse{
+			"/totoro": {
+				statusCode:  200,
+				contentType: "text/plain",
+				body:        []byte("catbus"),
+			},
+		}
+		assert.Equal(t, expected, fi.responseOverrides)
+		assert.Equal(t, http.StatusOK, response.Code)
+	})
+
+	t.Run("should respond with overridden response for matching endpoint", func(t *testing.T) {
+		fi := NewServer()
+		fi.Start()
+		defer fi.Stop()
+
+		fi.responseOverrides["/totoro"] = httpResponse{
+			statusCode:  200,
+			contentType: "text/plain",
+			body:        []byte("catbus"),
+		}
+
+		request, err := http.NewRequest(
+			http.MethodPost, "/totoro", strings.NewReader("totoro|5|tag:valid,owner:mei"))
+		require.NoError(t, err, "Error creating request")
+
+		response := httptest.NewRecorder()
+		fi.handleDatadogRequest(response, request)
+
+		assert.Equal(t, http.StatusOK, response.Code)
+		assert.Equal(t, "text/plain", response.Header().Get("Content-Type"))
+		assert.Equal(t, []byte("catbus"), response.Body.Bytes())
+	})
+
+	t.Run("should respond with default response for non-matching endpoint", func(t *testing.T) {
+		fi := NewServer()
+		fi.Start()
+		defer fi.Stop()
+
+		fi.responseOverrides["/totoro"] = httpResponse{
+			statusCode:  200,
+			contentType: "text/plain",
+			body:        []byte("catbus"),
+		}
+
+		request, err := http.NewRequest(
+			http.MethodPost, "/kiki", strings.NewReader("kiki|4|tag:valid,owner:jiji"))
+		require.NoError(t, err, "Error creating request")
+
+		response := httptest.NewRecorder()
+		fi.handleDatadogRequest(response, request)
+
+		assert.Equal(t, http.StatusOK, response.Code)
+		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
+		assert.Equal(t, []byte(`{"errors":[]}`), response.Body.Bytes())
+	})
 }
 
 func postSomeFakePayloads(t *testing.T, fi *Server) {

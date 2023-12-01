@@ -45,12 +45,12 @@ func getConnectionsResponse() []byte {
 }
 
 // getResponseFromURLPath returns the appropriate response body to HTTP request sent to 'urlPath'
-func getResponseFromURLPath(urlPath string) httpResponse {
-	var defaultResponse = httpResponse{
+func (fi *Server) getResponseFromURLPath(urlPath string) httpResponse {
+	var defaultResponse = updateResponseFromData(httpResponse{
 		statusCode:  http.StatusOK,
 		contentType: "application/json",
 		data:        errorResponseBody{Errors: []string{}},
-	}
+	})
 	responses := map[string]httpResponse{
 		"/support/flare": {
 			statusCode:  http.StatusOK,
@@ -64,8 +64,10 @@ func getResponseFromURLPath(urlPath string) httpResponse {
 		},
 	}
 
-	if _, found := responses[urlPath]; !found {
-		return defaultResponse
+	if response, found := fi.responseOverrides[urlPath]; found {
+		return response
+	} else if response, found := responses[urlPath]; found {
+		return updateResponseFromData(response)
 	}
-	return updateResponseFromData(responses[urlPath])
+	return defaultResponse
 }
