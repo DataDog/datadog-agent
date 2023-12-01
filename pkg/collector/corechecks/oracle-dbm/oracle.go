@@ -316,6 +316,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	c.checkInterval = float64(c.config.InitConfig.MinCollectionInterval)
 
 	tags := make([]string, len(c.config.Tags))
+	copy(tags, c.config.Tags)
 
 	tags = append(tags, fmt.Sprintf("dbms:%s", common.IntegrationName), fmt.Sprintf("ddagentversion:%s", c.agentVersion))
 	tags = append(tags, fmt.Sprintf("dbm:%t", c.dbmEnabled))
@@ -331,7 +332,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 	if c.config.ServiceName != "" {
 		tags = append(tags, fmt.Sprintf("service:%s", c.config.ServiceName))
 	}
+	c.configTags = make([]string, len(tags))
 	copy(c.configTags, tags)
+	c.tags = make([]string, len(tags))
+	copy(c.tags, tags)
 
 	c.logPrompt = config.GetLogPrompt(c.config.InstanceConfig)
 

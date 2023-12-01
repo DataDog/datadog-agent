@@ -45,6 +45,7 @@ include:
   - /.gitlab/notify.yml
   - /.gitlab/kitchen_common/cleanup.yml
   - /.gitlab/kitchen_common/testing.yml
+  - /.gitlab/functional_test/common.yml
   - /.gitlab/benchmarks/benchmarks.yml
   - /.gitlab/benchmarks/macrobenchmarks.yml
   - /.gitlab/rc_kubernetes_deploy.yml
@@ -176,7 +177,7 @@ variables:
   # To use images from test-infra-definitions dev branches, set the SUFFIX variable to -dev
   # and check the job creating the image to make sure you have the right SHA prefix
   TEST_INFRA_DEFINITIONS_BUILDIMAGES_SUFFIX: ""
-  TEST_INFRA_DEFINITIONS_BUILDIMAGES: c8eaaee94472
+  TEST_INFRA_DEFINITIONS_BUILDIMAGES: a60850d5606e
   DATADOG_AGENT_BUILDERS: v22276738-b36b132
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -952,6 +953,7 @@ workflow:
         - test/kitchen/site-cookbooks/dd-system-probe-check/**/*
         - test/kitchen/test/integration/system-probe-test/**/*
         - test/kitchen/test/integration/win-sysprobe-test/**/*
+        - .gitlab/functional_test/system_probe_windows.yml
         - .gitlab/functional_test_sysprobe/system_probe.yml
         - .gitlab/kernel_version_testing/system_probe.yml
         - test/new-e2e/system-probe/**/*

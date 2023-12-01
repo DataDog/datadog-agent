@@ -245,6 +245,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("syslog_pem", "")
 	config.BindEnvAndSetDefault("syslog_key", "")
 	config.BindEnvAndSetDefault("syslog_tls_verify", true)
+	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("agent_ipc_host", "localhost")
@@ -259,7 +260,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnv("bind_host")
-	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
