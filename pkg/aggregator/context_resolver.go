@@ -8,6 +8,7 @@ package aggregator
 import (
 	"fmt"
 	"io"
+	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
@@ -29,6 +30,12 @@ type Context struct {
 	source     metrics.MetricSource
 }
 
+const (
+	// ContextSizeInBytes is the size of a context in bytes
+	// We count the size of the context key with the context.
+	ContextSizeInBytes = int(unsafe.Sizeof(Context{})) + int(unsafe.Sizeof(ckey.ContextKey(0)))
+)
+
 // Tags returns tags for the context.
 func (c *Context) Tags() tagset.CompositeTags {
 	return tagset.NewCompositeTags(c.taggerTags.Tags(), c.metricTags.Tags())
@@ -39,16 +46,38 @@ func (c *Context) release() {
 	c.metricTags.Release()
 }
 
+func (c *Context) SizeInBytes() int {
+	return ContextSizeInBytes
+}
+
+func (c *Context) DataSizeInBytes() int {
+	return len(c.Name) + len(c.Host) + c.taggerTags.DataSizeInBytes() + c.metricTags.DataSizeInBytes()
+}
+
 // contextResolver allows tracking and expiring contexts
+// TODO: we should try to separate contextResolvers per origin/listener to get better accounting.
 type contextResolver struct {
 	contextsByKey   map[ckey.ContextKey]*Context
 	countsByMtype   []uint64
+	bytesByMtype    []uint64
 	tagsCache       *tags.Store
 	keyGenerator    *ckey.KeyGenerator
 	taggerBuffer    *tagset.HashingTagsAccumulator
 	metricBuffer    *tagset.HashingTagsAccumulator
 	contextsLimiter *limiter.Limiter
 	tagsLimiter     *tags_limiter.Limiter
+}
+
+func (cr *contextResolver) SizeInBytes() int {
+	return ContextSizeInBytes*len(cr.contextsByKey) + int(unsafe.Sizeof(*cr))
+}
+
+func (cr *contextResolver) DataSizeInBytes() int {
+	size := 0
+	for _, cx := range cr.contextsByKey {
+		size += cx.DataSizeInBytes()
+	}
+	return size
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -60,6 +89,7 @@ func newContextResolver(cache *tags.Store, contextsLimiter *limiter.Limiter, tag
 	return &contextResolver{
 		contextsByKey:   make(map[ckey.ContextKey]*Context),
 		countsByMtype:   make([]uint64, metrics.NumMetricTypes),
+		bytesByMtype:    make([]uint64, metrics.NumMetricTypes),
 		tagsCache:       cache,
 		keyGenerator:    ckey.NewKeyGenerator(),
 		taggerBuffer:    tagset.NewHashingTagsAccumulator(),
@@ -83,7 +113,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		}
 
 		mtype := metricSampleContext.GetMetricType()
-		cr.contextsByKey[contextKey] = &Context{
+		context := &Context{
 			Name:       metricSampleContext.GetName(),
 			taggerTags: cr.tagsCache.Insert(taggerKey, cr.taggerBuffer),
 			metricTags: cr.tagsCache.Insert(metricKey, cr.metricBuffer),
@@ -92,7 +122,9 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			noIndex:    metricSampleContext.IsNoIndex(),
 			source:     metricSampleContext.GetSource(),
 		}
+		cr.contextsByKey[contextKey] = context
 		cr.countsByMtype[mtype]++
+		cr.bytesByMtype[mtype] += uint64(context.SizeInBytes())
 	}
 
 	return contextKey, true
@@ -120,6 +152,7 @@ func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 
 	if context != nil {
 		cr.countsByMtype[context.mtype]--
+		cr.bytesByMtype[context.mtype] -= uint64(context.SizeInBytes())
 		cr.contextsLimiter.Remove(context.taggerTags.Tags())
 		context.release()
 	}
@@ -217,6 +250,10 @@ func (cr *timestampContextResolver) countsByMtype() []uint64 {
 	return cr.resolver.countsByMtype
 }
 
+func (cr *timestampContextResolver) bytesByMtype() []uint64 {
+	return cr.resolver.bytesByMtype
+}
+
 func (cr *timestampContextResolver) get(key ckey.ContextKey) (*Context, bool) {
 	return cr.resolver.get(key)
 }
@@ -263,6 +300,21 @@ func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store) *c
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),
 	}
+}
+
+// length returns the number of contexts tracked by the resolver
+func (cr *countBasedContextResolver) length() int {
+	return cr.resolver.length()
+}
+
+// countsByMtype returns the number of contexts tracked by the resolver per metric type
+func (cr *countBasedContextResolver) countsByMtype() []uint64 {
+	return cr.resolver.countsByMtype
+}
+
+// bytesByMtype returns the number of bytes used by the contexts tracked by the resolver per metric type
+func (cr *countBasedContextResolver) bytesByMtype() []uint64 {
+	return cr.resolver.bytesByMtype
 }
 
 // trackContext returns the contextKey associated with the context of the metricSample and tracks that context

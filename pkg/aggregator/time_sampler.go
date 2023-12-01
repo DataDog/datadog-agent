@@ -238,19 +238,27 @@ func (s *TimeSampler) flush(timestamp float64, series metrics.SerieSink, sketche
 		})
 	s.lastCutOffTime = cutoffTime
 
+	s.updateMetrics()
+	s.sendTelemetry(timestamp, series)
+}
+
+func (s *TimeSampler) updateMetrics() {
 	totalContexts := s.contextResolver.length()
 	aggregatorDogstatsdContexts.Set(int64(totalContexts))
 	tlmDogstatsdContexts.Set(float64(totalContexts), s.idString)
 	tlmDogstatsdTimeBuckets.Set(float64(len(s.metricsByTimestamp)), s.idString)
 
-	byMtype := s.contextResolver.countsByMtype()
-	for i, count := range byMtype {
+	countByMtype := s.contextResolver.countsByMtype()
+	bytesByMtype := s.contextResolver.bytesByMtype()
+	for i := 0; i < int(metrics.NumMetricTypes); i++ {
+		count := countByMtype[i]
+		bytes := bytesByMtype[i]
 		mtype := metrics.MetricType(i).String()
+
 		aggregatorDogstatsdContextsByMtype[i].Set(int64(count))
 		tlmDogstatsdContextsByMtype.Set(float64(count), s.idString, mtype)
+		tlmDogstatsdContextsBytesByMtype.Set(float64(bytes), s.idString, mtype)
 	}
-
-	s.sendTelemetry(timestamp, series)
 }
 
 // flushContextMetrics flushes the contextMetrics inside contextMetricsFlusher, handles its errors,

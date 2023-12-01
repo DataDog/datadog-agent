@@ -45,6 +45,7 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 	_name := C.GoString(metricName)
 	_value := float64(value)
 	_hostname := C.GoString(hostname)
+	// TODO: use an interner here ?
 	_tags := cStringArrayToSlice(tags)
 	_flushFirstValue := bool(flushFirstValue)
 

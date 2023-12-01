@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
+	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -20,6 +21,7 @@ const checksSourceTypeName = "System"
 
 // CheckSampler aggregates metrics from one Check instance
 type CheckSampler struct {
+	id              checkid.ID
 	series          []*metrics.Serie
 	sketches        metrics.SketchSeriesList
 	contextResolver *countBasedContextResolver
@@ -30,7 +32,7 @@ type CheckSampler struct {
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
-func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout time.Duration, cache *tags.Store) *CheckSampler {
+func newCheckSampler(expirationCount int, expireMetrics bool, contextResolverMetrics bool, statefulTimeout time.Duration, cache *tags.Store, id checkid.ID) *CheckSampler {
 	return &CheckSampler{
 		series:          make([]*metrics.Serie, 0),
 		sketches:        make(metrics.SketchSeriesList, 0),
@@ -38,6 +40,7 @@ func newCheckSampler(expirationCount int, expireMetrics bool, statefulTimeout ti
 		metrics:         metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		sketchMap:       make(sketchMap),
 		lastBucketValue: make(map[ckey.ContextKey]int64),
+		id:              id,
 	}
 }
 
@@ -193,9 +196,49 @@ func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
 	sketches := cs.sketches
 	cs.sketches = make(metrics.SketchSeriesList, 0)
 
+	// update sampler metrics
+	cs.updateMetrics()
+
 	return series, sketches
 }
 
 func (cs *CheckSampler) release() {
+	cs.releaseMetrics()
 	cs.contextResolver.release()
+}
+
+func (cs *CheckSampler) releaseMetrics() {
+	idString := string(cs.id)
+	tlmChecksContexts.Delete(idString)
+	for i := 0; i < int(metrics.NumMetricTypes); i++ {
+		mtype := metrics.MetricType(i).String()
+		tlmChecksContextsByMtype.Delete(idString, mtype)
+		tlmChecksContextsBytesByMtype.Delete(idString, mtype)
+	}
+}
+
+func (cs *CheckSampler) updateMetrics() {
+	totalContexts := cs.contextResolver.length()
+	idString := string(cs.id)
+
+	tlmChecksContexts.Set(float64(totalContexts), idString)
+
+	countByMtype := cs.contextResolver.countsByMtype()
+	bytesByMtype := cs.contextResolver.bytesByMtype()
+	for i := 0; i < int(metrics.NumMetricTypes); i++ {
+		count := countByMtype[i]
+		bytes := bytesByMtype[i]
+		mtype := metrics.MetricType(i).String()
+
+		// To try to limit un-needed cardinality
+		gauge := tlmChecksContextsByMtype.WithValues(idString, mtype)
+		if gauge == nil && count == 0 {
+			continue
+		}
+		if gauge != nil && gauge.Get() == 0 && count == 0 {
+			continue
+		}
+		tlmChecksContextsByMtype.Set(float64(count), idString, mtype)
+		tlmChecksContextsBytesByMtype.Set(float64(bytes), idString, mtype)
+	}
 }

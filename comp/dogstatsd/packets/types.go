@@ -5,6 +5,8 @@
 
 package packets
 
+import "unsafe"
+
 // SourceType is the type of listener
 type SourceType int
 
@@ -36,3 +38,17 @@ type Packets []*Packet
 
 // NoOrigin is returned if origin detection is off or failed.
 const NoOrigin = ""
+
+const SizeOfPacket = unsafe.Sizeof(Packet{})
+
+func (p *Packet) SizeInBytes() int {
+	return int(SizeOfPacket) + len(p.Contents) + len(p.Buffer) + len(p.Origin) + len(p.ListenerID)
+}
+
+func (ps *Packets) SizeInBytes() int {
+	size := 0
+	for _, p := range *ps {
+		size += p.SizeInBytes()
+	}
+	return size
+}
