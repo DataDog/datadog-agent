@@ -12,10 +12,13 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/spf13/cobra"
 )
 
 func setDefaultCommandIfNonePresent(rootCmd *cobra.Command) {
+	flavor.SetFlavor(flavor.SystemProbe)
+
 	var subCommandNames []string
 	for _, command := range rootCmd.Commands() {
 		subCommandNames = append(subCommandNames, append(command.Aliases, command.Name())...)

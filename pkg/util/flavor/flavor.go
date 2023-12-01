@@ -27,6 +27,8 @@ const (
 	ProcessAgent = "process_agent"
 	// TraceAgent is the Trace Agent flavor
 	TraceAgent = "trace_agent"
+	// SystemProbe is the System Probe flavor
+	SystemProbe = "system_probe"
 )
 
 var agentFlavor = DefaultAgent
