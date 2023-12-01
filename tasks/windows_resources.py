@@ -7,6 +7,18 @@ from .utils import get_version_numeric_only, get_win_py_runtime_var
 MESSAGESTRINGS_MC_PATH = "pkg/util/winutil/messagestrings/messagestrings.mc"
 
 
+def arch_to_windres_target(
+    arch='x64',
+):
+    # Windows 32 bits is not supported.
+    # if arch == 'x86':
+    #     return 'pe-ie86'
+    if arch == 'x64':
+        return 'pe-x86-64'
+    else:
+        raise Exception(f"Unsupported architecture: {arch}")
+
+
 @task
 def build_messagetable(
     ctx,
@@ -14,7 +26,7 @@ def build_messagetable(
     """
     Build the header and resource for the MESSAGETABLE shared between agent binaries.
     """
-    windres_target = 'pe-x86-64'
+    windres_target = arch_to_windres_target()
 
     messagefile = MESSAGESTRINGS_MC_PATH
 
@@ -31,7 +43,7 @@ def build_rc(ctx, rc_file, vars=None, out=None):
     if vars is None:
         vars = {}
 
-    windres_target = 'pe-x86-64'
+    windres_target = arch_to_windres_target()
 
     if out is None:
         root = os.path.dirname(rc_file)
