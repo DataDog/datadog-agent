@@ -291,7 +291,7 @@ func runAgent() {
 
 	ta := serverlessDaemon.TraceAgent.Get()
 	if ta == nil {
-		log.Errorf("Unexpected nil instance of the trace-agent")
+		log.Error("Unexpected nil instance of the trace-agent")
 		return
 	}
 
