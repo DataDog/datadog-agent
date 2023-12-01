@@ -9,7 +9,7 @@ from collections import OrderedDict
 
 from invoke import task
 
-from .build_tags import build_tags, get_build_tags
+from .build_tags import get_build_tags
 from .flavor import AgentFlavor
 
 VSCODE_DIR = ".vscode"
@@ -31,11 +31,6 @@ def set_buildtags(
     Modifies vscode settings file for this project to include correct build tags
     """
     flavor = AgentFlavor[flavor]
-
-    if target not in build_tags[flavor]:
-        print("Must choose a valid target.  Valid targets are: \n")
-        print(f'{", ".join(build_tags[flavor].keys())} \n')
-        return
 
     use_tags = get_build_tags(
         build=target, arch=arch, flavor=flavor, build_include=build_include, build_exclude=build_exclude
@@ -70,10 +65,6 @@ def setup_devcontainer(
     Generate or Modify devcontainer settings file for this project.
     """
     flavor = AgentFlavor[flavor]
-    if target not in build_tags[flavor]:
-        print("Must choose a valid target.  Valid targets are: \n")
-        print(f'{", ".join(build_tags[flavor].keys())} \n')
-        return
 
     use_tags = get_build_tags(
         build=target, arch=arch, flavor=flavor, build_include=build_include, build_exclude=build_exclude
