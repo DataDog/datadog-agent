@@ -317,7 +317,9 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 
 	testProcessor.OnInvokeEnd(&endDetails)
 
-	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 2, len(spans))
+	completedInferredSpan := spans[1]
 	httpStatusCode := testProcessor.GetInferredSpan().Span.GetMeta()["http.status_code"]
 	peerService := testProcessor.GetInferredSpan().Span.GetMeta()["peer.service"]
 	assert.NotNil(t, httpStatusCode)
@@ -928,8 +930,9 @@ func TestTriggerTypesLifecycleEventForSNSSQS(t *testing.T) {
 		IsError:   false,
 	})
 
-	snsSpan := testProcessor.requestHandler.inferredSpans[1].Span
-	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+	snsSpan, sqsSpan := spans[1], spans[2]
 	// These IDs are B64 decoded from the snssqs.json event sample's _datadog MessageAttribute
 	expectedTraceID := uint64(1728904347387697031)
 	expectedParentID := uint64(353722510835624345)
@@ -972,8 +975,9 @@ func TestTriggerTypesLifecycleEventForSNSSQSNoDdContext(t *testing.T) {
 		IsError:   false,
 	})
 
-	snsSpan := testProcessor.requestHandler.inferredSpans[1].Span
-	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+	snsSpan, sqsSpan := spans[1], spans[2]
 	expectedTraceID := uint64(0)
 	expectedParentID := uint64(0)
 
@@ -1015,7 +1019,9 @@ func TestTriggerTypesLifecycleEventForSQSNoDdContext(t *testing.T) {
 		IsError:   false,
 	})
 
-	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 2, len(spans))
+	sqsSpan := spans[1]
 	expectedTraceID := uint64(0)
 	expectedParentID := uint64(0)
 
