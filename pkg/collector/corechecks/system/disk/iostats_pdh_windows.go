@@ -32,10 +32,14 @@ var (
 )
 
 const (
-	ERROR_SUCCESS        = 0
+	//nolint:revive // TODO(WINA) Fix revive linter
+	ERROR_SUCCESS = 0
+	//nolint:revive // TODO(WINA) Fix revive linter
 	ERROR_FILE_NOT_FOUND = 2
-	DRIVE_REMOVABLE      = 2
-	DRIVE_FIXED          = 3
+	//nolint:revive // TODO(WINA) Fix revive linter
+	DRIVE_REMOVABLE = 2
+	//nolint:revive // TODO(WINA) Fix revive linter
+	DRIVE_FIXED = 3
 )
 
 // IOCheck doesn't need additional fields

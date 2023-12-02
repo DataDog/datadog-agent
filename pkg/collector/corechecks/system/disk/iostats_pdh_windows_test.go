@@ -16,6 +16,7 @@ import (
 	pdhtest "github.com/DataDog/datadog-agent/pkg/util/pdhutil"
 )
 
+//nolint:revive // TODO(WINA) Fix revive linter
 func testGetDriveType(drive string) uintptr {
 	return DRIVE_FIXED
 }
