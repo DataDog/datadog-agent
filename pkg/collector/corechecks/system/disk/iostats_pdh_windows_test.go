@@ -41,6 +41,7 @@ func addDefaultQueryReturnValues() {
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(_Total)\\Current Disk Queue Length", 5.111)
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(C:)\\Current Disk Queue Length", 5.222)
 	pdhtest.SetQueryReturnValue("\\\\.\\LogicalDisk(HarddiskVolume1)\\Current Disk Queue Length", 5.333)
+	//nolint:gosimple // TODO(WINA) Fix gosimple linter
 	return
 }
 

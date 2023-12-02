@@ -69,6 +69,7 @@ func isDrive(instance string) bool {
 	instance += "\\"
 
 	r := pfnGetDriveType(instance)
+	//nolint:gosimple // TODO(WINA) Fix gosimple linter
 	if r != DRIVE_FIXED {
 		return false
 	}
