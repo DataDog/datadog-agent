@@ -192,6 +192,7 @@ func (f *telemetryCollector) SendStartupSuccess() {
 	}
 	ev := newOnboardingTelemetryPayload(f.cfg)
 	ev.Payload.EventName = "agent.startup.success"
+	//nolint:errcheck // TODO(TEL) Fix errcheck linter
 	f.sendEvent(&ev)
 }
 
@@ -218,6 +219,7 @@ func (f *telemetryCollector) SendStartupError(code int, err error) {
 	ev.Payload.EventName = "agent.startup.error"
 	ev.Payload.Error.Code = code
 	ev.Payload.Error.Message = err.Error()
+	//nolint:errcheck // TODO(TEL) Fix errcheck linter
 	f.sendEvent(&ev)
 }
 
