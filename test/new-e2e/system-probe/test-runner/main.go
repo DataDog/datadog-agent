@@ -5,6 +5,7 @@
 
 //go:build linux
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 package main
 
 import (
@@ -135,6 +136,7 @@ func buildCommandArgs(pkg string, xmlpath string, jsonpath string, file string, 
 
 // concatenateJsons combines all the test json output files into a single file.
 func concatenateJsons(indir, outdir string) error {
+	//nolint:revive // TODO(EBPF) Fix revive linter
 	testJsonFile := filepath.Join(outdir, "out.json")
 	matches, err := glob(indir, `.*\.json`, func(path string) bool { return true })
 	if err != nil {

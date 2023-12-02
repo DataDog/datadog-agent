@@ -18,6 +18,8 @@ import (
 )
 
 // This represent a symlink to a sealed ram-backed file
+//
+//nolint:revive // TODO(EBPF) Fix revive linter
 type ProtectedFile interface {
 	Close() error
 	Reader() io.Reader
@@ -30,6 +32,8 @@ type ramBackedFile struct {
 }
 
 // This function returns a sealed ram backed file
+//
+//nolint:revive // TODO(EBPF) Fix revive linter
 func NewProtectedFile(name, dir string, source io.Reader) (ProtectedFile, error) {
 	var err error
 
