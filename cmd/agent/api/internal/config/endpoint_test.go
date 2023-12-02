@@ -17,6 +17,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+type testCase struct {
+	authorized     bool
+	existing       bool
+	expectedStatus int
+}
+
 func testConfigValue(t *testing.T, server *httptest.Server, configName string, expectedStatus int) {
 	t.Helper()
 
@@ -54,18 +60,24 @@ func TestConfigEndpoint(t *testing.T) {
 		}
 	})
 
-	t.Run("authorized existing", func(t *testing.T) {
-		configName := "my.config.value"
-		cfg, server := getConfigServer(t, authorizedSet{configName: {}})
-		cfg.SetWithoutSource(configName, "some_value")
-		testConfigValue(t, server, configName, http.StatusOK)
-	})
-
-	t.Run("authorized missing", func(t *testing.T) {
-		configName := "my.config.value"
-		_, server := getConfigServer(t, authorizedSet{configName: {}})
-		testConfigValue(t, server, configName, http.StatusNotFound)
-	})
+	for _, testCase := range []testCase{
+		{true, true, http.StatusOK}, {true, false, http.StatusNotFound},
+		{false, true, http.StatusForbidden}, {false, false, http.StatusForbidden},
+	} {
+		testName := getTestCaseName(testCase.authorized, testCase.existing)
+		t.Run(testName, func(t *testing.T) {
+			configName := "my.config.value"
+			authorizedConfigPaths := authorizedSet{}
+			if testCase.authorized {
+				authorizedConfigPaths[configName] = struct{}{}
+			}
+			cfg, server := getConfigServer(t, authorizedConfigPaths)
+			if testCase.existing {
+				cfg.SetWithoutSource(configName, "some_value")
+			}
+			testConfigValue(t, server, configName, testCase.expectedStatus)
+		})
+	}
 
 	t.Run("authorized not marshallable", func(t *testing.T) {
 		configName := "my.config.value"
@@ -73,18 +85,19 @@ func TestConfigEndpoint(t *testing.T) {
 		cfg.SetWithoutSource(configName, make(chan int))
 		testConfigValue(t, server, "my.config.value", http.StatusInternalServerError)
 	})
+}
 
-	t.Run("unauthorized existing", func(t *testing.T) {
-		cfg, server := getConfigServer(t, authorizedSet{})
-		configName := "my.config.value"
-		cfg.SetWithoutSource(configName, "some_value")
-		testConfigValue(t, server, configName, http.StatusForbidden)
-	})
+func ternary(condition bool, trueValue, falseValue string) string {
+	if condition {
+		return trueValue
+	}
+	return falseValue
+}
 
-	t.Run("unauthorized missing", func(t *testing.T) {
-		_, server := getConfigServer(t, authorizedSet{})
-		testConfigValue(t, server, "my.config.value", http.StatusForbidden)
-	})
+func getTestCaseName(authorized, existing bool) string {
+	auth := ternary(authorized, "authorized", "unauthorized")
+	exist := ternary(existing, "existing", "missing")
+	return auth + " " + exist
 }
 
 func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (*config.MockConfig, *httptest.Server) {
