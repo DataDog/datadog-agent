@@ -126,6 +126,7 @@ func (olr *OverlappedReader) Read() error {
 				// the completion port was closed.  time to go home
 				return
 			}
+			//nolint:gosimple // TODO(WKIT) Fix gosimple linter
 			var buf *readbuffer
 			buf = (*readbuffer)(unsafe.Pointer(ol))
 			data := buf.data[:bytesRead]
