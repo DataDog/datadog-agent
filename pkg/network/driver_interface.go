@@ -198,6 +198,7 @@ func (di *DriverInterface) setupFlowHandle() error {
 }
 
 func (di *DriverInterface) setupClassification() error {
+	//nolint:gosimple // TODO(WKIT) Fix gosimple linter
 	if di.cfg.ProtocolClassificationEnabled == false {
 		log.Infof("Traffic classification not enabled")
 		return nil
