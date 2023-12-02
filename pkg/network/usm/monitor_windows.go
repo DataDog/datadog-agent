@@ -94,6 +94,7 @@ func (m *WindowsMonitor) Start() {
 		}
 	}()
 
+	//nolint:gosimple // TODO(USM) Fix gosimple linter
 	return
 }
 

@@ -178,6 +178,7 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 	r.telemetry.totalFiles.Set(int64(len(r.byID)))
 	r.telemetry.totalPIDs.Set(int64(len(r.byPID)))
 	log.Debugf("registering file %s path %s by pid %d", pathID.String(), path.HostPath, pid)
+	//nolint:gosimple // TODO(USM) Fix gosimple linter
 	return
 }
 

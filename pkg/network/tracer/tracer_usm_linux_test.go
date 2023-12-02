@@ -690,6 +690,7 @@ func (s *USMSuite) TestJavaInjection() {
 	// attributes to the `extras` map.
 	type testContext struct {
 		// A dynamic map that allows extending the context easily between phases of the test.
+		//nolint:unused // TODO(USM) Fix unused linter
 		extras map[string]interface{}
 	}
 
