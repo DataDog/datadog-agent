@@ -45,9 +45,13 @@ import (
 type TracerType int
 
 const (
+	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbePrebuilt TracerType = iota
+	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbeRuntimeCompiled
+	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeKProbeCORE
+	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeFentry
 )
 
@@ -87,26 +91,40 @@ const (
 	connTracerModuleName     = "network_tracer__ebpf"
 )
 
+//nolint:revive // TODO(NET) Fix revive linter
 var ConnTracerTelemetry = struct {
 	connections       telemetry.Gauge
 	tcpFailedConnects *prometheus.Desc
-	TcpSentMiscounts  *prometheus.Desc
+	//nolint:revive // TODO(NET) Fix revive linter
+	TcpSentMiscounts *prometheus.Desc
+	//nolint:revive // TODO(NET) Fix revive linter
 	unbatchedTcpClose *prometheus.Desc
+	//nolint:revive // TODO(NET) Fix revive linter
 	unbatchedUdpClose *prometheus.Desc
+	//nolint:revive // TODO(NET) Fix revive linter
 	UdpSendsProcessed *prometheus.Desc
-	UdpSendsMissed    *prometheus.Desc
-	UdpDroppedConns   *prometheus.Desc
-	PidCollisions     *nettelemetry.StatCounterWrapper
-	iterationDups     telemetry.Counter
-	iterationAborts   telemetry.Counter
+	//nolint:revive // TODO(NET) Fix revive linter
+	UdpSendsMissed *prometheus.Desc
+	//nolint:revive // TODO(NET) Fix revive linter
+	UdpDroppedConns *prometheus.Desc
+	PidCollisions   *nettelemetry.StatCounterWrapper
+	iterationDups   telemetry.Counter
+	iterationAborts telemetry.Counter
 
+	//nolint:revive // TODO(NET) Fix revive linter
 	lastTcpFailedConnects *atomic.Int64
-	LastTcpSentMiscounts  *atomic.Int64
+	//nolint:revive // TODO(NET) Fix revive linter
+	LastTcpSentMiscounts *atomic.Int64
+	//nolint:revive // TODO(NET) Fix revive linter
 	lastUnbatchedTcpClose *atomic.Int64
+	//nolint:revive // TODO(NET) Fix revive linter
 	lastUnbatchedUdpClose *atomic.Int64
+	//nolint:revive // TODO(NET) Fix revive linter
 	lastUdpSendsProcessed *atomic.Int64
-	lastUdpSendsMissed    *atomic.Int64
-	lastUdpDroppedConns   *atomic.Int64
+	//nolint:revive // TODO(NET) Fix revive linter
+	lastUdpSendsMissed *atomic.Int64
+	//nolint:revive // TODO(NET) Fix revive linter
+	lastUdpDroppedConns *atomic.Int64
 }{
 	telemetry.NewGauge(connTracerModuleName, "connections", []string{"ip_proto", "family"}, "Gauge measuring the number of active connections in the EBPF map"),
 	prometheus.NewDesc(connTracerModuleName+"__tcp_failed_connects", "Counter measuring the number of failed TCP connections in the EBPF map", nil, nil),
@@ -197,6 +215,7 @@ func NewTracer(config *config.Config, bpfTelemetry *nettelemetry.EBPFTelemetry) 
 	}
 	perfHandlerTCP := ddebpf.NewPerfHandler(closedChannelSize)
 	var m *manager.Manager
+	//nolint:revive // TODO(NET) Fix revive linter
 	var tracerType TracerType = TracerTypeFentry
 	var closeTracerFn func()
 	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, perfHandlerTCP, bpfTelemetry)

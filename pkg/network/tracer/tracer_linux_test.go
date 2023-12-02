@@ -1700,6 +1700,7 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	stats := ddebpf.GetProbeStats()
 	require.NotNil(t, stats)
 
+	//nolint:revive // TODO(NET) Fix revive linter
 	p_tcp_sendmsg, ok := stats["p_tcp_sendmsg_hits"]
 	require.True(t, ok)
 	fmt.Printf("p_tcp_sendmsg_hits = %d\n", p_tcp_sendmsg)

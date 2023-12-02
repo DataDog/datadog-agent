@@ -92,10 +92,12 @@ func runConntrackerTest(t *testing.T, name string, createFn func(*testing.T, *co
 	})
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func setupEBPFConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	return NewEBPFConntracker(cfg, nil)
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func setupNetlinkConntracker(t *testing.T, cfg *config.Config) (netlink.Conntracker, error) {
 	cfg.ConntrackMaxStateSize = 100
 	cfg.ConntrackRateLimit = 500
