@@ -256,6 +256,7 @@ func testOffsetGuess(t *testing.T) {
 	var c net.Conn
 	require.Eventually(t, func() bool {
 		c, err = net.Dial("tcp4", server.address)
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		if err == nil {
 			return true
 		}

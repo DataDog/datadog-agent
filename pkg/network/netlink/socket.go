@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+//nolint:staticcheck // TODO(NET) Fix staticcheck linter
 var _ netlink.Socket = &Socket{}
 var errNotImplemented = errors.New("not implemented")
 

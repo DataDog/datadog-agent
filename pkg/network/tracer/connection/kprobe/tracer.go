@@ -212,6 +212,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			return nil, nil, fmt.Errorf("error enabling protocol classifier: %w", err)
 		}
 
+		//nolint:ineffassign,staticcheck // TODO(NET) Fix ineffassign linter // TODO(NET) Fix staticcheck linter
 		undefinedProbes = append(undefinedProbes, protocolClassificationTailCalls[0].ProbeIdentificationPair)
 		mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, protocolClassificationTailCalls...)
 	} else {

@@ -108,6 +108,7 @@ type fieldValues struct {
 	sportFl6 uint16
 	dportFl6 uint16
 
+	//nolint:unused // TODO(NET) Fix unused linter
 	ctStatus uint32
 }
 
