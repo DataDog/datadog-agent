@@ -326,6 +326,7 @@ func (s *Service) Start(ctx context.Context) {
 	}()
 }
 
+//nolint:revive // TODO(RC) Fix revive linter
 func (s *Service) Stop() error {
 	if s.cancel != nil {
 		s.cancel()
@@ -507,6 +508,8 @@ func (s *Service) getRefreshInterval() (time.Duration, error) {
 }
 
 // ClientGetConfigs is the polling API called by tracers and agents to get the latest configurations
+//
+//nolint:revive // TODO(RC) Fix revive linter
 func (s *Service) ClientGetConfigs(ctx context.Context, request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 	s.Lock()
 	defer s.Unlock()
