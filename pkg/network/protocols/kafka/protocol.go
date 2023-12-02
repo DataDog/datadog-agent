@@ -37,6 +37,7 @@ const (
 	kafkaHeapMap                             = "kafka_heap"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 var Spec = &protocols.ProtocolSpec{
 	Factory: newKafkaProtocol,
 	Maps: []*manager.Map{

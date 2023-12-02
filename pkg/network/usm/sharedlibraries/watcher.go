@@ -41,6 +41,7 @@ func toBytes(l *libPath) []byte {
 	return l.Buf[:l.Len]
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 type Rule struct {
 	Re           *regexp.Regexp
 	RegisterCB   func(utils.FilePath) error
@@ -63,6 +64,7 @@ type Watcher struct {
 	libMatches *telemetry.Counter
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, rules ...Rule) (*Watcher, error) {
 	ebpfProgram := newEBPFProgram(cfg, bpfTelemetry)
 	err := ebpfProgram.Init()
@@ -85,6 +87,7 @@ func NewWatcher(cfg *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry, ru
 	}, nil
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (w *Watcher) Stop() {
 	if w == nil {
 		return

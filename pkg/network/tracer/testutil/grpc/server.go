@@ -253,10 +253,12 @@ func (s *Server) GetGRPCServer() *grpc.Server {
 	return s.grpcSrv
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (s *Server) Stop() {
 	s.grpcSrv.Stop()
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (s *Server) Run() {
 	go func() {
 		if err := s.grpcSrv.Serve(s.lis); err != nil {

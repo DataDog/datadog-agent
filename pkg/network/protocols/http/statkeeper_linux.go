@@ -11,6 +11,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 func getPathBufferSize(c *config.Config) int {
 	return int(BufferSize)
 }

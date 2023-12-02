@@ -70,6 +70,7 @@ func getCtx(extras map[string]interface{}) (*bun.DB, context.Context) {
 	return db, taskCtx
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunAlterQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -78,6 +79,7 @@ func RunAlterQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunCreateQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -86,6 +88,7 @@ func RunCreateQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunDeleteQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -94,6 +97,7 @@ func RunDeleteQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunDropQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -102,6 +106,7 @@ func RunDropQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunInsertQuery(t *testing.T, id int64, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -113,6 +118,7 @@ func RunInsertQuery(t *testing.T, id int64, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)
@@ -121,6 +127,7 @@ func RunSelectQuery(t *testing.T, extras map[string]interface{}) {
 	require.NoError(t, err)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunUpdateQuery(t *testing.T, extras map[string]interface{}) {
 	t.Helper()
 	db, ctx := getCtx(extras)

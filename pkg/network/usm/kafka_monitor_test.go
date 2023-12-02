@@ -65,8 +65,10 @@ type kafkaParsingTestAttributes struct {
 type kafkaParsingValidation struct {
 	expectedNumberOfProduceRequests int
 	expectedNumberOfFetchRequests   int
-	expectedApiVersionProduce       int
-	expectedApiVersionFetch         int
+	//nolint:revive // TODO(USM) Fix revive linter
+	expectedApiVersionProduce int
+	//nolint:revive // TODO(USM) Fix revive linter
+	expectedApiVersionFetch int
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {

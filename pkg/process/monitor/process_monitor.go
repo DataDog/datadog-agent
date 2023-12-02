@@ -5,6 +5,7 @@
 
 //go:build linux
 
+//nolint:revive // TODO(USM) Fix revive linter
 package monitor
 
 import (
@@ -108,6 +109,7 @@ type ProcessMonitor struct {
 	tel processMonitorTelemetry
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 type ProcessCallback func(pid uint32)
 
 // GetProcessMonitor create a monitor (only once) that register to netlink process events.

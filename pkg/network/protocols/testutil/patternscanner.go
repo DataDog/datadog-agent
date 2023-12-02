@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(USM) Fix revive linter
 package testutil
 
 import (
@@ -12,6 +13,7 @@ import (
 	"testing"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 type PatternScanner struct {
 	// The log pattern to match on
 	pattern *regexp.Regexp
@@ -52,6 +54,7 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 	return
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (ps *PatternScanner) PrintLogs(t testing.TB) {
 	t.Log(strings.Join(ps.buffers, ""))
 }

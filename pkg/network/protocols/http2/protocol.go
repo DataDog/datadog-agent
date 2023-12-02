@@ -67,6 +67,7 @@ const (
 	telemetryMap                     = "http2_telemetry"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 var Spec = &protocols.ProtocolSpec{
 	Factory: newHTTP2Protocol,
 	Maps: []*manager.Map{

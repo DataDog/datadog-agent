@@ -18,6 +18,7 @@ var prometheusDelta deltaCalculator
 var prometheusMux sync.Mutex
 var prometheusMetrics map[string]any
 
+//nolint:revive // TODO(USM) Fix revive linter
 func ReportPrometheus() {
 	prometheusMux.Lock()
 	defer prometheusMux.Unlock()

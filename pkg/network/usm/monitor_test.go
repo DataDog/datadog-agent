@@ -1137,6 +1137,7 @@ func isRequestIncludedOnce(allStats map[http.Key]*http.RequestStats, req *nethtt
 	return false, fmt.Errorf("expected to find 1 occurrence of %v, but found %d instead", req, occurrences)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func getHttpStats(t *testing.T, mon *Monitor) map[http.Key]*http.RequestStats {
 	t.Helper()
 

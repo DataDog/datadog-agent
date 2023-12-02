@@ -58,6 +58,7 @@ func (tx *EbpfTx) Incomplete() bool {
 	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Stream.Path_size == 0 || tx.Method() == http.MethodUnknown
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: tx.Tuple.Saddr_h,
@@ -69,6 +70,7 @@ func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	}
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) Method() http.Method {
 	switch tx.Stream.Request_method {
 	case GetValue:
@@ -80,6 +82,7 @@ func (tx *EbpfTx) Method() http.Method {
 	}
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) StatusCode() uint16 {
 	switch tx.Stream.Response_status_code {
 	case uint16(K200Value):
@@ -97,34 +100,43 @@ func (tx *EbpfTx) StatusCode() uint16 {
 	}
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) SetStatusCode(code uint16) {
 	tx.Stream.Response_status_code = code
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) ResponseLastSeen() uint64 {
 	return tx.Stream.Response_last_seen
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) SetResponseLastSeen(lastSeen uint64) {
 	tx.Stream.Response_last_seen = lastSeen
 
 }
+
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) RequestStarted() uint64 {
 	return tx.Stream.Request_started
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) SetRequestMethod(m http.Method) {
 	tx.Stream.Request_method = uint8(m)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) StaticTags() uint64 {
 	return 0
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) DynamicTags() []string {
 	return nil
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) String() string {
 	var output strings.Builder
 	output.WriteString("http2.ebpfTx{")

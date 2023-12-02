@@ -35,6 +35,7 @@ type USMConnectionData[K comparable, V any] struct {
 	claimed bool
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 type USMKeyValue[K comparable, V any] struct {
 	Key   K
 	Value V

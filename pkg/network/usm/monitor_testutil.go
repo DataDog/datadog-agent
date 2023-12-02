@@ -47,7 +47,7 @@ func (p *protocolMock) ConfigureOptions(m *manager.Manager, opts *manager.Option
 func (p *protocolMock) PreStart(mgr *manager.Manager) (err error) {
 	if p.spec.preStartFn != nil {
 		return p.spec.preStartFn(mgr)
-	} else {
+	} else { //nolint:revive // TODO(USM) Fix revive linter
 		return p.inner.PreStart(mgr)
 	}
 }
@@ -55,7 +55,7 @@ func (p *protocolMock) PreStart(mgr *manager.Manager) (err error) {
 func (p *protocolMock) PostStart(mgr *manager.Manager) error {
 	if p.spec.postStartFn != nil {
 		return p.spec.postStartFn(mgr)
-	} else {
+	} else { //nolint:revive // TODO(USM) Fix revive linter
 		return p.inner.PostStart(mgr)
 	}
 }

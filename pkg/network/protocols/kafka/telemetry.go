@@ -12,6 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 type Telemetry struct {
 	metricGroup *libtelemetry.MetricGroup
 
@@ -19,6 +20,7 @@ type Telemetry struct {
 	dropped   *libtelemetry.Counter // this happens when KafkaStatKeeper reaches capacity
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func NewTelemetry() *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup("usm.kafka", libtelemetry.OptStatsd)
 
@@ -30,10 +32,12 @@ func NewTelemetry() *Telemetry {
 	}
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (t *Telemetry) Count(_ *EbpfTx) {
 	t.totalHits.Add(1)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (t *Telemetry) Log() {
 	log.Debugf("kafka stats summary: %s", t.metricGroup.Summary())
 }

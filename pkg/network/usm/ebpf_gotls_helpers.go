@@ -305,6 +305,7 @@ func compositeLocation(
 				In_register: boolToBinary(true),
 				X_register:  int64(paramPiece.Register),
 			}
+			//nolint:revive // TODO(USM) Fix revive linter
 			currentLocation += 1
 		} else {
 			// If the parameter piece is longer than a word,
@@ -317,6 +318,7 @@ func compositeLocation(
 					In_register:  boolToBinary(false),
 					Stack_offset: paramPiece.StackOffset + currentOffset,
 				}
+				//nolint:revive // TODO(USM) Fix revive linter
 				currentLocation += 1
 				currentOffset += int64(arch.PointerSize())
 				if remainingLength >= int64(arch.PointerSize()) {

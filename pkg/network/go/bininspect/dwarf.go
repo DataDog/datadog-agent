@@ -5,6 +5,7 @@
 
 //go:build linux
 
+//nolint:revive // TODO(USM) Fix revive linter
 package bininspect
 
 import (

@@ -22,8 +22,11 @@ import (
 // The issue is described here https://bugs.openjdk.org/browse/JDK-8186709 see Kevin Walls comment
 // if java received a SIGQUIT and the JVM is not started yet, java will print 'quit (core dumped)'
 // SIGQUIT is sent as part of the hotspot protocol handshake
+//
+//nolint:revive // TODO(USM) Fix revive linter
 const MINIMUM_JAVA_AGE_TO_ATTACH_MS = 10000
 
+//nolint:revive // TODO(USM) Fix revive linter
 func injectAttach(pid int, agent string, args string, nsPid int, fsUid int, fsGid int) error {
 	h, err := NewHotspot(pid, nsPid)
 	if err != nil {
@@ -33,6 +36,7 @@ func injectAttach(pid int, agent string, args string, nsPid int, fsUid int, fsGi
 	return h.Attach(agent, args, fsUid, fsGid)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func InjectAgent(pid int, agent string, args string) error {
 	proc, err := process.NewProcess(int32(pid))
 	if err != nil {
@@ -52,6 +56,7 @@ func InjectAgent(pid int, agent string, args string) error {
 	fsUID, fsGID := int(uids[3]), int(gids[3])
 
 	ctime, _ := proc.CreateTime()
+	//nolint:revive // TODO(USM) Fix revive linter
 	age_ms := time.Now().UnixMilli() - ctime
 	if age_ms < MINIMUM_JAVA_AGE_TO_ATTACH_MS {
 		log.Debugf("java attach pid %d will be delayed by %d ms", pid, MINIMUM_JAVA_AGE_TO_ATTACH_MS-age_ms)

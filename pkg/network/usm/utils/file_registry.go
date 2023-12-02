@@ -62,6 +62,7 @@ type FilePath struct {
 	PID      uint32
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) {
 	// Use cwd of the process as root if the namespacedPath is relative
 	if namespacedPath[0] != '/' {
@@ -79,6 +80,7 @@ func NewFilePath(procRoot, namespacedPath string, pid uint32) (FilePath, error) 
 
 type callback func(FilePath) error
 
+//nolint:revive // TODO(USM) Fix revive linter
 func NewFileRegistry(programName string) *FileRegistry {
 	blocklistByID, err := simplelru.NewLRU[PathIdentifier, struct{}](2000, nil)
 	if err != nil {

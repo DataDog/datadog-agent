@@ -15,10 +15,13 @@ import (
 )
 
 const (
+	//nolint:revive // TODO(USM) Fix revive linter
 	User = "root"
+	//nolint:revive // TODO(USM) Fix revive linter
 	Pass = "password"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunServer(t testing.TB, serverAddress, serverPort string) error {
 	env := []string{
 		"MONGO_ADDR=" + serverAddress,

@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 type StatKeeper struct {
 	mux                         sync.Mutex
 	cfg                         *config.Config
@@ -37,6 +38,7 @@ type StatKeeper struct {
 	oversizedLogLimit *util.LogLimit
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 	// For now we're only enabling path quantization for HTTP/1 traffic
 	enableQuantization := c.EnableUSMQuantization && telemetry.protocol == "http"
@@ -56,6 +58,7 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 	}
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (h *StatKeeper) Process(tx Transaction) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
@@ -68,6 +71,7 @@ func (h *StatKeeper) Process(tx Transaction) {
 	h.add(tx)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	h.mux.Lock()
 	defer h.mux.Unlock()
@@ -81,6 +85,7 @@ func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
 }
