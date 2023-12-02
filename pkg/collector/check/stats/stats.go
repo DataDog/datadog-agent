@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package stats
 
 import (
@@ -113,6 +114,7 @@ type Stats struct {
 	telemetry                bool // do we want telemetry on this Check
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 type StatsCheck interface {
 	// String provides a printable version of the check name
 	String() string

@@ -46,6 +46,8 @@ const (
 )
 
 // PythonCheck represents a Python check, implements `Check` interface
+//
+//nolint:revive // TODO(AML) Fix revive linter
 type PythonCheck struct {
 	senderManager  sender.SenderManager
 	id             checkid.ID
@@ -188,6 +190,8 @@ func (c *PythonCheck) GetWarnings() []error {
 }
 
 // getPythonWarnings grabs the last warnings from the python check
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 	/**
 	This function is run with the GIL locked by runCheck
@@ -218,6 +222,8 @@ func (c *PythonCheck) getPythonWarnings(gstate *stickyLock) []error {
 }
 
 // Configure the Python check from YAML data
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (c *PythonCheck) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, data integration.Data, initConfig integration.Data, source string) error {
 	// Generate check ID
 	c.id = checkid.BuildID(c.String(), integrationConfigDigest, data, initConfig)

@@ -104,6 +104,8 @@ func newLimiter(limit, global int, expireCountInterval int, keyTagName string, t
 // getSenderId finds sender identifier given a set of origin detection tags.
 //
 // If the key tag is not found, returns empty string.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (l *Limiter) getSenderId(tags []string) string {
 	for _, t := range tags {
 		if strings.HasPrefix(t, l.keyTagName) {

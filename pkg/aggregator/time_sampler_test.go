@@ -47,6 +47,7 @@ func TestCalculateBucketStart(t *testing.T) {
 	assert.Equal(t, int64(123460), sampler.calculateBucketStart(123460.5))
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testBucketSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
@@ -81,6 +82,7 @@ func TestBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testBucketSampling)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testContextSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
@@ -148,6 +150,7 @@ func TestContextSampling(t *testing.T) {
 	testWithTagsStore(t, testContextSampling)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testCounterExpirySeconds(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
@@ -284,6 +287,7 @@ func TestCounterExpirySeconds(t *testing.T) {
 	testWithTagsStore(t, testCounterExpirySeconds)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testSketch(t *testing.T, store *tags.Store) {
 	const (
 		defaultBucketSize = 10
@@ -357,6 +361,7 @@ func TestSketch(t *testing.T) {
 	testWithTagsStore(t, testSketch)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testSketchBucketSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
@@ -403,6 +408,7 @@ func TestSketchBucketSampling(t *testing.T) {
 	testWithTagsStore(t, testSketchBucketSampling)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testSketchContextSampling(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
@@ -456,6 +462,7 @@ func TestSketchContextSampling(t *testing.T) {
 	testWithTagsStore(t, testSketchContextSampling)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testBucketSamplingWithSketchAndSeries(t *testing.T, store *tags.Store) {
 	sampler := testTimeSampler()
 
