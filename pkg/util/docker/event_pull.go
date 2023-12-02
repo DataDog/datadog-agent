@@ -137,7 +137,7 @@ func (d *DockerUtil) LatestContainerEvents(ctx context.Context, since time.Time,
 		case err := <-errorChan:
 			if err == io.EOF {
 				break
-			} else {
+			} else { //nolint:revive // TODO(CINT) Fix revive linter
 				return containerEvents, maxTimestamp, err
 			}
 		}

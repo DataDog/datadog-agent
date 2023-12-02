@@ -5,9 +5,12 @@
 
 //go:build !kubeapiserver
 
+//nolint:revive // TODO(CINT) Fix revive linter
 package admission
 
 // GetStatus returns status info for the secret and webhook controllers.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func GetStatus(apiCl interface{}) map[string]interface{} {
 	status := make(map[string]interface{})
 	status["Disabled"] = "The admission controller is not compiled-in"

@@ -80,6 +80,8 @@ type mockImage struct {
 }
 
 // Name is from the Image interface
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (i *mockImage) Size(ctx context.Context) (int64, error) {
 	return i.size, nil
 }
