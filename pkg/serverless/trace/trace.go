@@ -79,6 +79,8 @@ func (l *LoadConfig) Load() (*config.AgentConfig, error) {
 }
 
 // Start starts the agent
+//
+//nolint:revive // TODO(SERV) Fix revive linter
 func (s *ServerlessTraceAgent) Start(enabled bool, loadConfig Load, lambdaSpanChan chan<- *pb.Span, coldStartSpanId uint64) {
 	if enabled {
 		// Set the serverless config option which will be used to determine if
@@ -136,6 +138,7 @@ func (s *ServerlessTraceAgent) Stop() {
 	}
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (s *ServerlessTraceAgent) SetSpanModifier(fn func(*pb.TraceChunk, *pb.Span)) {
 	s.ta.ModifySpan = fn
 }
