@@ -22,6 +22,7 @@ import (
 const envClientIPHeader = "DD_TRACE_CLIENT_IP_HEADER"
 
 var (
+	//nolint:unused // TODO(ASM) Fix unused linter
 	clientIPHeader string
 
 	defaultIPHeaders = []string{
