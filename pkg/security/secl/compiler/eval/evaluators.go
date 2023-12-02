@@ -195,6 +195,8 @@ func (s *StringValuesEvaluator) Eval(ctx *Context) interface{} {
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (s *StringValuesEvaluator) IsDeterministicFor(field Field) bool {
 	return s.isDeterministic
 }
@@ -362,6 +364,8 @@ func (s *CIDRValuesEvaluator) Eval(ctx *Context) interface{} {
 }
 
 // IsDeterministicFor returns whether the evaluator is partial
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (s *CIDRValuesEvaluator) IsDeterministicFor(field Field) bool {
 	return s.isDeterministic
 }

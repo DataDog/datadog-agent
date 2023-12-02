@@ -97,10 +97,12 @@ func (a activityTreeInsertTestValidator) MatchesSelector(entry *model.ProcessCac
 	return entry.ContainerID == "123"
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (a activityTreeInsertTestValidator) IsEventTypeValid(evtType model.EventType) bool {
 	return true
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (a activityTreeInsertTestValidator) NewProcessNodeCallback(p *ProcessNode) {}
 
 // newExecTestEventWithAncestors returns a new exec test event with a process cache entry populated with the input list.

@@ -21,6 +21,7 @@ func parseMacro(macro string) (*Macro, error) {
 	return pc.ParseMacro(macro)
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func print(t *testing.T, i interface{}) {
 	b, err := json.MarshalIndent(i, "", "  ")
 	if err != nil {

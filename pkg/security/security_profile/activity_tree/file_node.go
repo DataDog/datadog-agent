@@ -155,7 +155,7 @@ func (fn *FileNode) InsertFileEvent(fileEvent *model.FileEvent, event *model.Eve
 				stats.FileNodes++
 			}
 			break
-		} else {
+		} else { //nolint:revive // TODO(SEC) Fix revive linter
 			newChild := NewFileNode(nil, nil, parent, generationType, "", resolvers)
 			if !dryRun {
 				currentFn.Children[parent] = newChild
