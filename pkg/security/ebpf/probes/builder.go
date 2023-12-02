@@ -21,6 +21,7 @@ type probeSelectorBuilder struct {
 
 type psbOption func(*probeSelectorBuilder)
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func kprobeOrFentry(funcName string, fentry bool, options ...psbOption) *manager.ProbeSelector {
 	psb := &probeSelectorBuilder{
 		uid: SecurityAgentUID,
@@ -38,6 +39,7 @@ func kprobeOrFentry(funcName string, fentry bool, options ...psbOption) *manager
 	}
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func kretprobeOrFexit(funcName string, fentry bool, options ...psbOption) *manager.ProbeSelector {
 	psb := &probeSelectorBuilder{
 		uid: SecurityAgentUID,

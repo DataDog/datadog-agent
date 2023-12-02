@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func getRuntimeCompiledPrograms(config *config.Config, useSyscallWrapper, useFentry, useRingBuffer bool, client statsd.ClientInterface) (bytecode.AssetReader, error) {
 	return nil, fmt.Errorf("runtime compilation unsupported")
 }

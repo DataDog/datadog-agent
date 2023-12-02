@@ -89,6 +89,8 @@ func (f *BTFConstantFetcher) runRequest(r constantRequest) {
 }
 
 // AppendSizeofRequest appends a sizeof request
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (f *BTFConstantFetcher) AppendSizeofRequest(id, typeName, headerName string) {
 	f.runRequest(constantRequest{
 		id:       id,
@@ -98,6 +100,8 @@ func (f *BTFConstantFetcher) AppendSizeofRequest(id, typeName, headerName string
 }
 
 // AppendOffsetofRequest appends an offset request
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (f *BTFConstantFetcher) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
 	f.runRequest(constantRequest{
 		id:        id,

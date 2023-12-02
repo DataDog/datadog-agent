@@ -22,6 +22,7 @@ func SliceToArray(src []byte, dst []byte) {
 // UnmarshalStringArray extract array of string for array of byte
 func UnmarshalStringArray(data []byte) ([]string, error) {
 	var result []string
+	//nolint:revive // TODO(SEC) Fix revive linter
 	len := uint32(len(data))
 
 	for i := uint32(0); i < len; {
