@@ -27,12 +27,15 @@ func getListener(address string) (net.Listener, error) {
 	return net.Listen("tcp", address)
 }
 
-// returns the host and host:port of the IPC server, and whether it is enabled
+// returns whether the IPC server is enabled, and if so its host and host:port
 func getIPCServerAddressPort() (string, string, bool) {
-	ipcServerHost := config.Datadog.GetString("agent_ipc_host")
 	ipcServerPort := config.Datadog.GetInt("agent_ipc_port")
-	ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
-	ipcServerEnabled := ipcServerPort != 0
+	if ipcServerPort == 0 {
+		return "", "", false
+	}
 
-	return ipcServerHost, ipcServerHostPort, ipcServerEnabled
+	ipcServerHost := config.Datadog.GetString("agent_ipc_host")
+	ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
+
+	return ipcServerHost, ipcServerHostPort, true
 }
