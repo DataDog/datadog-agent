@@ -5,6 +5,7 @@
 
 //go:build systemd
 
+//nolint:revive // TODO(AML) Fix revive linter
 package journald
 
 import (
