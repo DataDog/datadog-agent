@@ -127,11 +127,13 @@ func (r *RequestStat) initSketch() (err error) {
 	return
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 type RequestStats struct {
 	aggregateByStatusCode bool
 	Data                  map[uint16]*RequestStat
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	return &RequestStats{
 		aggregateByStatusCode: aggregateByStatusCode,
@@ -139,6 +141,7 @@ func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	}
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (r *RequestStats) NormalizeStatusCode(status uint16) uint16 {
 	if r.aggregateByStatusCode {
 		return status

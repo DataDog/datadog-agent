@@ -15,10 +15,13 @@ import (
 )
 
 const (
+	//nolint:revive // TODO(USM) Fix revive linter
 	User = "root"
+	//nolint:revive // TODO(USM) Fix revive linter
 	Pass = "root"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"MYSQL_ADDR=" + serverAddr,

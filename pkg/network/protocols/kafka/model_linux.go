@@ -9,6 +9,7 @@ package kafka
 
 import "github.com/DataDog/datadog-agent/pkg/network/types"
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: tx.Tup.Saddr_h,
@@ -20,10 +21,12 @@ func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	}
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) APIKey() uint16 {
 	return tx.Request_api_key
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (tx *EbpfTx) APIVersion() uint16 {
 	return tx.Request_api_version
 }

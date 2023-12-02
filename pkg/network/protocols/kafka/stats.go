@@ -11,8 +11,10 @@ import (
 )
 
 const (
+	//nolint:revive // TODO(USM) Fix revive linter
 	ProduceAPIKey = 0
-	FetchAPIKey   = 1
+	//nolint:revive // TODO(USM) Fix revive linter
+	FetchAPIKey = 1
 )
 
 // Key is an identifier for a group of Kafka transactions

@@ -23,6 +23,7 @@
 // Build information is available for the currently running binary in
 // runtime/debug.ReadBuildInfo.
 
+//nolint:revive // TODO(USM) Fix revive linter
 package binversion
 
 import (

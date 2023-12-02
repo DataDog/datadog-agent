@@ -5,6 +5,7 @@
 
 //go:build windows && npm
 
+//nolint:revive // TODO(USM) Fix revive linter
 package usm
 
 import (

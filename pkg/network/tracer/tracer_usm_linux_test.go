@@ -908,6 +908,8 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 
 // Test that we can capture HTTPS traffic from Go processes started after the
 // tracer.
+//
+//nolint:revive // TODO(USM) Fix revive linter
 func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
 	const (
 		serverPort          = "8443"
@@ -942,6 +944,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
 	const (
 		serverPort          = "8443"

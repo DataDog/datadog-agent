@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(USM) Fix revive linter
 package mysql
 
 import (
@@ -14,6 +15,7 @@ import (
 	mysqldriver "github.com/go-sql-driver/mysql"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 type Options struct {
 	ServerAddress string
 	Username      string
@@ -22,11 +24,13 @@ type Options struct {
 	Dialer        *net.Dialer
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 type Client struct {
 	DB     *sql.DB
 	dbName string
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func NewClient(opts Options) (*Client, error) {
 	user := opts.Username
 	if user == "" {
@@ -64,6 +68,7 @@ func NewClient(opts Options) (*Client, error) {
 	}, nil
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) CreateDB() error {
 	_, err := c.DB.Exec("CREATE DATABASE " + c.dbName)
 	if err != nil {
@@ -74,36 +79,43 @@ func (c *Client) CreateDB() error {
 	return err
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) DropDB() error {
 	_, err := c.DB.Exec("DROP DATABASE " + c.dbName)
 	return err
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) CreateTable() error {
 	_, err := c.DB.Exec("CREATE TABLE cities(id INT PRIMARY KEY AUTO_INCREMENT, name TEXT, population INT);")
 	return err
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) DropTable() error {
 	_, err := c.DB.Exec("DROP TABLE cities;")
 	return err
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) AlterTable() error {
 	_, err := c.DB.Exec("ALTER TABLE cities ADD creation_year INT;")
 	return err
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) InsertIntoTable(name string, population int) error {
 	_, err := c.DB.Exec("INSERT INTO cities(name, population) VALUES(?, ?);", name, population)
 	return err
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) DeleteFromTable(name string) error {
 	_, err := c.DB.Exec("DELETE from cities where name=?", name)
 	return err
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) SelectFromTable(name string) (int, error) {
 	row := c.DB.QueryRow("select * from cities where name=?;", name)
 	if err := row.Err(); err != nil {
@@ -118,11 +130,13 @@ func (c *Client) SelectFromTable(name string) (int, error) {
 	return population, nil
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) SelectAllFromTable() error {
 	_, err := c.DB.Query("select * from cities;")
 	return err
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) UpdateTable(srcName, newName string, newPopulation int) error {
 	_, err := c.DB.Exec("UPDATE cities set name=?, population=? where name=?;", newName, newPopulation, srcName)
 	return err

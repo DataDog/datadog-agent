@@ -13,6 +13,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"REDIS_ADDR=" + serverAddr,

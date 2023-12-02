@@ -16,31 +16,39 @@ import (
 )
 
 const (
+	//nolint:revive // TODO(USM) Fix revive linter
 	WriteGoTLSFunc = "crypto/tls.(*Conn).Write"
-	ReadGoTLSFunc  = "crypto/tls.(*Conn).Read"
+	//nolint:revive // TODO(USM) Fix revive linter
+	ReadGoTLSFunc = "crypto/tls.(*Conn).Read"
+	//nolint:revive // TODO(USM) Fix revive linter
 	CloseGoTLSFunc = "crypto/tls.(*Conn).Close"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 var StructOffsetTLSConn = FieldIdentifier{
 	StructName: "crypto/tls.Conn",
 	FieldName:  "conn",
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 var StructOffsetTCPConn = FieldIdentifier{
 	StructName: "net.TCPConn",
 	FieldName:  "conn",
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 var StructOffsetNetConnFd = FieldIdentifier{
 	StructName: "net.conn",
 	FieldName:  "fd",
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 var StructOffsetNetFdPfd = FieldIdentifier{
 	StructName: "net.netFD",
 	FieldName:  "pfd",
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 var StructOffsetPollFdSysfd = FieldIdentifier{
 	StructName: "internal/poll.FD",
 	FieldName:  "Sysfd",

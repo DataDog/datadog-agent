@@ -6,4 +6,6 @@
 //go:build !linux_bpf
 
 // On Windows/mac the package his empty, so having a dummy file to ensure the package is not invalid on Windows/mac.
+//
+//nolint:revive // TODO(USM) Fix revive linter
 package http2

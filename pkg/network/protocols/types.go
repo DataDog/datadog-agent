@@ -5,22 +5,35 @@
 
 package protocols
 
+//nolint:revive // TODO(USM) Fix revive linter
 type ProtocolType uint16
 
 const (
+	//nolint:revive // TODO(USM) Fix revive linter
 	Unknown ProtocolType = iota
+	//nolint:revive // TODO(USM) Fix revive linter
 	HTTP
+	//nolint:revive // TODO(USM) Fix revive linter
 	HTTP2
+	//nolint:revive // TODO(USM) Fix revive linter
 	Kafka
+	//nolint:revive // TODO(USM) Fix revive linter
 	TLS
+	//nolint:revive // TODO(USM) Fix revive linter
 	Mongo
+	//nolint:revive // TODO(USM) Fix revive linter
 	Postgres
+	//nolint:revive // TODO(USM) Fix revive linter
 	AMQP
+	//nolint:revive // TODO(USM) Fix revive linter
 	Redis
+	//nolint:revive // TODO(USM) Fix revive linter
 	MySQL
+	//nolint:revive // TODO(USM) Fix revive linter
 	GRPC
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (p ProtocolType) String() string {
 	switch p {
 	case Unknown:
@@ -51,12 +64,14 @@ func (p ProtocolType) String() string {
 	}
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 type Stack struct {
 	Api         ProtocolType
 	Application ProtocolType
 	Encryption  ProtocolType
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (s *Stack) MergeWith(other Stack) {
 	if s.Api == Unknown {
 		s.Api = other.Api
@@ -71,6 +86,7 @@ func (s *Stack) MergeWith(other Stack) {
 	}
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (s *Stack) Contains(proto ProtocolType) bool {
 	return s.Api == proto || s.Application == proto || s.Encryption == proto
 }

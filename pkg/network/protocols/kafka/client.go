@@ -5,6 +5,7 @@
 
 //go:build test
 
+//nolint:revive // TODO(USM) Fix revive linter
 package kafka
 
 import (
@@ -20,16 +21,19 @@ const (
 	defaultTimeout = time.Second * 10
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 type Options struct {
 	ServerAddress string
 	Dialer        *net.Dialer
 	CustomOptions []kgo.Opt
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 type Client struct {
 	Client *kgo.Client
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func NewClient(opts Options) (*Client, error) {
 	kafkaOptions := []kgo.Opt{kgo.SeedBrokers(opts.ServerAddress)}
 	kafkaOptions = append(kafkaOptions, opts.CustomOptions...)
@@ -52,6 +56,7 @@ func NewClient(opts Options) (*Client, error) {
 	}, nil
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) CreateTopic(topicName string) error {
 	adminClient := kadm.NewClient(c.Client)
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -60,6 +65,7 @@ func (c *Client) CreateTopic(topicName string) error {
 	return err
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (c *Client) DeleteTopic(topicName string) error {
 	adminClient := kadm.NewClient(c.Client)
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)

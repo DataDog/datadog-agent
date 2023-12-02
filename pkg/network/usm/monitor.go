@@ -31,8 +31,11 @@ import (
 type monitorState = string
 
 const (
-	Disabled   monitorState = "Disabled"
-	Running    monitorState = "Running"
+	//nolint:revive // TODO(USM) Fix revive linter
+	Disabled monitorState = "Disabled"
+	//nolint:revive // TODO(USM) Fix revive linter
+	Running monitorState = "Running"
+	//nolint:revive // TODO(USM) Fix revive linter
 	NotRunning monitorState = "Not Running"
 )
 
@@ -146,6 +149,7 @@ func (m *Monitor) Start() error {
 	return err
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (m *Monitor) GetUSMStats() map[string]interface{} {
 	response := map[string]interface{}{
 		"state": state,
@@ -161,6 +165,7 @@ func (m *Monitor) GetUSMStats() map[string]interface{} {
 	return response
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (m *Monitor) GetProtocolStats() map[protocols.ProtocolType]interface{} {
 	if m == nil {
 		return nil

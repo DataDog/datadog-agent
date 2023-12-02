@@ -5,6 +5,7 @@
 
 //go:build linux
 
+//nolint:revive // TODO(USM) Fix revive linter
 package java
 
 import (
@@ -287,6 +288,7 @@ func (h *Hotspot) commandWriteRead(cmd string, tailingNull bool) error {
 	}
 
 	if returnCommand != 0 {
+		//nolint:revive // TODO(USM) Fix revive linter
 		return fmt.Errorf("command sent to hotspot JVM '%s' return %d and return code %d, response text:\n%s\n", cmd, returnCommand, returnCode, responseText)
 	}
 	return nil

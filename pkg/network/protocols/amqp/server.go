@@ -15,10 +15,13 @@ import (
 )
 
 const (
+	//nolint:revive // TODO(USM) Fix revive linter
 	User = "guest"
+	//nolint:revive // TODO(USM) Fix revive linter
 	Pass = "guest"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"AMQP_ADDR=" + serverAddr,

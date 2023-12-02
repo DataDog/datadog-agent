@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(USM) Fix revive linter
 package postgres
 
 import (
@@ -13,6 +14,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 func RunServer(t testing.TB, serverAddr string, serverPort string) error {
 	t.Helper()
 

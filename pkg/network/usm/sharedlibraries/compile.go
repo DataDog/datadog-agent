@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+//nolint:revive // TODO(USM) Fix revive linter
 package sharedlibraries
 
 import (

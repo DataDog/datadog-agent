@@ -19,12 +19,15 @@ const (
 	layerEncryptionBit  = C.LAYER_ENCRYPTION_BIT
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 type DispatcherProgramType C.dispatcher_prog_t
 
 const (
+	//nolint:revive // TODO(USM) Fix revive linter
 	DispatcherKafkaProg DispatcherProgramType = C.DISPATCHER_KAFKA_PROG
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 type ProgramType C.protocol_prog_t
 
 const (
@@ -40,14 +43,17 @@ const (
 	ProgramKafka ProgramType = C.PROG_KAFKA
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 func Application(protoNum uint8) ProtocolType {
 	return toProtocolType(protoNum, layerApplicationBit)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func API(protoNum uint8) ProtocolType {
 	return toProtocolType(protoNum, layerAPIBit)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func Encryption(protoNum uint8) ProtocolType {
 	return toProtocolType(protoNum, layerEncryptionBit)
 }
