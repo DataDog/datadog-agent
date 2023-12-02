@@ -427,6 +427,7 @@ func (r *Resolver) OnWorkloadSelectorResolvedEvent(cgroup *cgroupModel.CacheEntr
 		}
 		r.queueWorkload(sbom)
 	}
+	//nolint:gosimple // TODO(SEC) Fix gosimple linter
 	return
 }
 

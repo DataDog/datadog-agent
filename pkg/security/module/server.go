@@ -61,15 +61,16 @@ type APIServer struct {
 	expiredEventsLock sync.RWMutex
 	expiredEvents     map[rules.RuleID]*atomic.Int64
 	expiredDumps      *atomic.Int64
-	limiter           *events.StdLimiter
-	statsdClient      statsd.ClientInterface
-	probe             *sprobe.Probe
-	queueLock         sync.Mutex
-	queue             []*pendingMsg
-	retention         time.Duration
-	cfg               *config.RuntimeSecurityConfig
-	selfTester        *selftests.SelfTester
-	cwsConsumer       *CWSConsumer
+	//nolint:unused // TODO(SEC) Fix unused linter
+	limiter      *events.StdLimiter
+	statsdClient statsd.ClientInterface
+	probe        *sprobe.Probe
+	queueLock    sync.Mutex
+	queue        []*pendingMsg
+	retention    time.Duration
+	cfg          *config.RuntimeSecurityConfig
+	selfTester   *selftests.SelfTester
+	cwsConsumer  *CWSConsumer
 
 	stopChan chan struct{}
 	stopper  startstop.Stopper
