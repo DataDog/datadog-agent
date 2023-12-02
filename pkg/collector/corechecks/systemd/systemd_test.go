@@ -57,6 +57,7 @@ func (s *mockSystemdStats) SystemState(conn *dbus.Conn) (*dbus.Property, error) 
 	return args.Get(0).(*dbus.Property), args.Error(1)
 }
 
+//nolint:revive // TODO(AI) Fix revive linter
 func (s *mockSystemdStats) CloseConn(c *dbus.Conn) {
 }
 
