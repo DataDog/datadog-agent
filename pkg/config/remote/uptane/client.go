@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(RC) Fix revive linter
 package uptane
 
 import (
@@ -46,8 +47,10 @@ type Client struct {
 	transactionalStore *transactionalStore
 }
 
+//nolint:revive // TODO(RC) Fix revive linter
 type ClientOption func(c *Client)
 
+//nolint:revive // TODO(RC) Fix revive linter
 func WithOrgIDCheck(orgID int64) ClientOption {
 	return func(c *Client) {
 		c.orgID = orgID
