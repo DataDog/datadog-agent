@@ -213,6 +213,10 @@ func (pm *ProcessMonitor) initCallbackRunner() {
 
 				// Trying to exit the goroutine as early as possible.
 				// This is essential because of how the Go select statement functions. if both cases evaluate to true, it will randomly choose between the two.
+
+				// In other words, when only the second select statement is present, and we set the callbackRunnerStopChannel, there's a 50% chance that the second case
+				// will be chosen due to the workings of the select mechanism in Go. This is why we introduced the first select statement,
+				// to attempt early termination of the goroutine (drawing inspiration from https://go101.org/article/channel-closing.html)
 				select {
 				case <-pm.callbackRunnerStopChannel:
 					log.Debugf("callback runner %d has completed its execution", callbackRunnerIndex)
