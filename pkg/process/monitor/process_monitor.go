@@ -160,6 +160,9 @@ func (pm *ProcessMonitor) handleProcessExec(pid uint32) {
 			continue
 		default:
 			log.Debug("can't send exec callback to callbackRunner, channel is full")
+			if log.ShouldLog(seelog.DebugLvl) {
+				log.Debug("can't send exec callback to callbackRunner, channel is full")
+			}
 		}
 	}
 }
@@ -177,6 +180,9 @@ func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 			continue
 		default:
 			log.Debug("can't send exit callback to callbackRunner, channel is full")
+			if log.ShouldLog(seelog.DebugLvl) {
+				log.Debug("can't send exit callback to callbackRunner, channel is full")
+			}
 		}
 	}
 }
