@@ -34,7 +34,7 @@ from .utils import (
     get_gopath,
     get_version,
 )
-from .windows_resources import build_messagetable, build_rc, versioninfo_vars
+from .windows_resources import build_windows_resources
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
@@ -79,14 +79,12 @@ def build(
         if arch == "x86":
             env["GOARCH"] = "386"
 
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
-        build_rc(
+        build_windows_resources(
             ctx,
-            "cmd/security-agent/windows_resources/security-agent.rc",
+            major_version=major_version,
             arch=arch,
-            vars=vars,
-            out="cmd/security-agent/rsrc.syso",
+            rc_in_file_path="cmd/security-agent/windows_resources/security-agent.rc",
+            rc_out_file_path="cmd/security-agent/rsrc.syso",
         )
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])

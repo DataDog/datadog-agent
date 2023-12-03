@@ -15,7 +15,7 @@ from .build_tags import filter_incompatible_tags, get_build_tags, get_default_bu
 from .flavor import AgentFlavor
 from .go import deps
 from .utils import REPO_PATH, bin_name, get_build_flags, get_root, get_version, load_release_versions
-from .windows_resources import build_messagetable, build_rc, versioninfo_vars
+from .windows_resources import build_windows_resources
 
 # constants
 DOGSTATSD_BIN_PATH = os.path.join(".", "bin", "dogstatsd")
@@ -54,14 +54,12 @@ def build(
         if arch == "x86":
             env["GOARCH"] = "386"
 
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, arch=arch)
-        build_rc(
+        build_windows_resources(
             ctx,
-            "cmd/dogstatsd/windows_resources/dogstatsd.rc",
+            major_version=major_version,
             arch=arch,
-            vars=vars,
-            out="cmd/dogstatsd/rsrc.syso",
+            rc_in_file_path="cmd/dogstatsd/windows_resources/dogstatsd.rc",
+            rc_out_file_path="cmd/dogstatsd/rsrc.syso",
         )
 
     if static:

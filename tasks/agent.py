@@ -37,7 +37,7 @@ from .utils import (
     load_release_versions,
     timed,
 )
-from .windows_resources import build_messagetable, build_rc, versioninfo_vars
+from .windows_resources import build_windows_resources
 
 # constants
 BIN_PATH = os.path.join(".", "bin", "agent")
@@ -150,14 +150,13 @@ def build(
         if arch == "x86":
             env["GOARCH"] = "386"
 
-        build_messagetable(ctx, arch=arch)
-        vars = versioninfo_vars(ctx, major_version=major_version, python_runtimes=python_runtimes, arch=arch)
-        build_rc(
+        build_windows_resources(
             ctx,
-            "cmd/agent/windows_resources/agent.rc",
+            major_version=major_version,
+            python_runtimes=python_runtimes,
             arch=arch,
-            vars=vars,
-            out="cmd/agent/rsrc.syso",
+            rc_in_file_path="cmd/agent/windows_resources/agent.rc",
+            rc_out_file_path="cmd/agent/rsrc.syso",
         )
 
     if flavor.is_iot():
