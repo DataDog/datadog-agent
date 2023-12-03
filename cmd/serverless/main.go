@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace"
 	"github.com/DataDog/datadog-agent/pkg/serverless/trace/inferredspan"
+	tracelog "github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -84,6 +85,8 @@ func main() {
 		log.Error(err)
 		os.Exit(-1)
 	}
+
+	tracelog.SetLogger(&corelogger{})
 
 	// handle SIGTERM signal
 	go handleSignals(serverlessDaemon, stopCh)
