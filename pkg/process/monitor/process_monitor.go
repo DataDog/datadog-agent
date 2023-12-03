@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cihub/seelog"
 	"github.com/vishvananda/netlink"
 	"go.uber.org/atomic"
 
@@ -56,6 +57,9 @@ type processMonitorTelemetry struct {
 	reinitFailed      *telemetry.Counter
 	processScanFailed *telemetry.Counter
 	callbackExecuted  *telemetry.Counter
+
+	processExecChannelIsFull *telemetry.Counter
+	processExitChannelIsFull *telemetry.Counter
 }
 
 func newProcessMonitorTelemetry() processMonitorTelemetry {
@@ -73,6 +77,9 @@ func newProcessMonitorTelemetry() processMonitorTelemetry {
 		reinitFailed:      metricGroup.NewCounter("reinit_failed"),
 		processScanFailed: metricGroup.NewCounter("process_scan_failed"),
 		callbackExecuted:  metricGroup.NewCounter("callback_executed"),
+
+		processExecChannelIsFull: metricGroup.NewCounter("process_exec_channel_is_full"),
+		processExitChannelIsFull: metricGroup.NewCounter("process_exit_channel_is_full"),
 	}
 }
 
@@ -159,7 +166,7 @@ func (pm *ProcessMonitor) handleProcessExec(pid uint32) {
 		case pm.callbackRunner <- func() { (*temporaryCallback)(pid) }:
 			continue
 		default:
-			log.Debug("can't send exec callback to callbackRunner, channel is full")
+			pm.tel.processExecChannelIsFull.Add(1)
 			if log.ShouldLog(seelog.DebugLvl) {
 				log.Debug("can't send exec callback to callbackRunner, channel is full")
 			}
@@ -179,7 +186,7 @@ func (pm *ProcessMonitor) handleProcessExit(pid uint32) {
 		case pm.callbackRunner <- func() { (*temporaryCallback)(pid) }:
 			continue
 		default:
-			log.Debug("can't send exit callback to callbackRunner, channel is full")
+			pm.tel.processExitChannelIsFull.Add(1)
 			if log.ShouldLog(seelog.DebugLvl) {
 				log.Debug("can't send exit callback to callbackRunner, channel is full")
 			}
