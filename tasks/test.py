@@ -160,23 +160,20 @@ def test_core(
     operation_name: str,
     command,
     skip_module_class: bool = False,
-    headless_mode: bool = False,
+    logger: callable = print,
 ):
     """
     Run the command function on each module of the modules list.
     """
     modules_results = []
-    if not headless_mode:
-        print(f"--- Flavor {flavor.name}: {operation_name}")
+    logger(f"--- Flavor {flavor.name}: {operation_name}")
     for module in modules:
         module_result = None
         if not skip_module_class:
             module_result = module_class(path=module.full_path())
-        if not headless_mode:
-            print(f"----- Module '{module.full_path()}'")
+        logger(f"----- Module '{module.full_path()}'")
         if not module.condition():
-            if not headless_mode:
-                print("----- Skipped")
+            logger("----- Skipped")
             continue
 
         command(modules_results, module, module_result)
@@ -302,7 +299,7 @@ def lint_flavor(
     concurrency: int,
     timeout=None,
     golangci_lint_kwargs: str = "",
-    headless_mode: bool = False,
+    logger: callable = print,
 ):
     """
     Runs linters for given flavor, build tags, and modules.
@@ -320,7 +317,7 @@ def lint_flavor(
                 concurrency=concurrency,
                 timeout=timeout,
                 golangci_lint_kwargs=golangci_lint_kwargs,
-                headless_mode=headless_mode,
+                logger=logger,
             )
             for lint_result in lint_results:
                 module_result.lint_outputs.append(lint_result)
@@ -328,7 +325,7 @@ def lint_flavor(
                     module_result.failed = True
         module_results.append(module_result)
 
-    return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command, headless_mode=headless_mode)
+    return test_core(modules, flavor, ModuleLintResult, "golangci_lint", command, logger=logger)
 
 
 def build_stdlib(
@@ -461,7 +458,7 @@ def codecov_flavor(
     return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
 
-def process_input_args(input_module, input_targets, input_flavors, headless_mode=False):
+def process_input_args(input_module, input_targets, input_flavors, logger: callable = print):
     """
     Takes the input module, targets and flavors arguments from inv test and inv codecov,
     sets default values for them & casts them to the expected types.
@@ -476,8 +473,7 @@ def process_input_args(input_module, input_targets, input_flavors, headless_mode
     elif isinstance(input_targets, str):
         modules = [GoModule(".", targets=input_targets.split(','))]
     else:
-        if not headless_mode:
-            print("Using default modules and targets")
+        logger("Using default modules and targets")
         modules = DEFAULT_MODULES.values()
 
     if not input_flavors:
@@ -722,9 +718,9 @@ def run_lint_go(
     cpus=None,
     timeout=None,
     golangci_lint_kwargs="",
-    headless_mode=False,
+    logger: callable = print,
 ):
-    modules, flavors = process_input_args(module, targets, flavors, headless_mode)
+    modules, flavors = process_input_args(module, targets, flavors, logger=logger)
 
     linter_tags = {
         f: build_tags
@@ -747,7 +743,7 @@ def run_lint_go(
             concurrency=cpus,
             timeout=timeout,
             golangci_lint_kwargs=golangci_lint_kwargs,
-            headless_mode=headless_mode,
+            logger=logger,
         )
 
     return modules_lint_results_per_flavor
@@ -768,7 +764,7 @@ def lint_go(
     cpus=None,
     timeout: int = None,
     golangci_lint_kwargs="",
-    headless_mode=False,
+    headless_mode: bool = False,
 ):
     """
     Run go linters on the given module and targets.
@@ -797,6 +793,14 @@ def lint_go(
     # }
     modules_results_per_phase = defaultdict(dict)
 
+    logger = print
+    if headless_mode:
+
+        def no_print(*args, **kwargs):
+            pass
+
+        logger = no_print
+
     modules_results_per_phase["lint"] = run_lint_go(
         ctx=ctx,
         module=module,
@@ -811,14 +815,13 @@ def lint_go(
         cpus=cpus,
         timeout=timeout,
         golangci_lint_kwargs=golangci_lint_kwargs,
-        headless_mode=headless_mode,
+        logger=logger,
     )
 
     success = process_module_results(modules_results_per_phase)
 
     if success:
-        if not headless_mode:
-            print(color_message("All linters passed", "green"))
+        logger(color_message("All linters passed", "green"))
     else:
         # Exit if any of the modules failed on any phase
         raise Exit(code=1)

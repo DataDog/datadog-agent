@@ -121,8 +121,8 @@ def get_build_flags(
     python_home_3=None,
     major_version='7',
     python_runtimes='3',
-    headless_mode=False,
     race=False,
+    logger: callable = print,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -172,10 +172,9 @@ def get_build_flags(
 
     # adding rtloader libs and headers to the env
     if rtloader_lib:
-        if not headless_mode:
-            print(
-                f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
-            )
+        logger(
+            f"--- Setting rtloader paths to lib:{','.join(rtloader_lib)} | header:{rtloader_headers} | common headers:{rtloader_common_headers}"
+        )
         env['DYLD_LIBRARY_PATH'] = os.environ.get('DYLD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # OSX
         env['LD_LIBRARY_PATH'] = os.environ.get('LD_LIBRARY_PATH', '') + f":{':'.join(rtloader_lib)}"  # linux
         env['CGO_LDFLAGS'] = os.environ.get('CGO_LDFLAGS', '') + f" -L{' -L '.join(rtloader_lib)}"

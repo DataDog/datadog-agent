@@ -7,6 +7,7 @@ import os
 import shutil
 import textwrap
 from pathlib import Path
+from typing import List, Union
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -30,17 +31,17 @@ GOARCH_MAPPING = {
 
 def run_golangci_lint(
     ctx,
-    module_path,
-    targets,
-    rtloader_root=None,
-    build_tags=None,
-    build="test",
-    arch="x64",
-    concurrency=None,
-    timeout=None,
-    verbose=False,
-    golangci_lint_kwargs="",
-    headless_mode: bool = False,
+    module_path: str,
+    targets: Union[str, List[str]],
+    rtloader_root: str = None,
+    build_tags: str = None,
+    build: str = "test",
+    arch: str = "x64",
+    concurrency: str = None,
+    timeout: int = None,
+    verbose: bool = False,
+    golangci_lint_kwargs: str = "",
+    logger: callable = print,
 ):
     if isinstance(targets, str):
         # when this function is called from the command line, targets are passed
@@ -54,13 +55,12 @@ def run_golangci_lint(
     # Always add `test` tags while linting as test files are also linted
     tags.extend(UNIT_TEST_TAGS)
 
-    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, headless_mode=headless_mode)
+    _, _, env = get_build_flags(ctx, rtloader_root=rtloader_root, logger=logger)
     verbosity = "-v" if verbose else ""
     # we split targets to avoid going over the memory limit from circleCI
     results = []
     for target in targets:
-        if not headless_mode:
-            print(f"running golangci on {target}")
+        logger(f"running golangci on {target}")
         concurrency_arg = "" if concurrency is None else f"--concurrency {concurrency}"
         tags_arg = " ".join(sorted(set(tags)))
         timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
