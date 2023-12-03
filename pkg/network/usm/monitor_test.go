@@ -846,17 +846,18 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 			// frames with EOS or RST frames, which leads into a flaking test. Therefore, we are asserting that the
 			// gotten number of EOS or RST frames is at least the number of expected EOS frames.
 			expectedEOSOrRST := tt.expectedTelemetry.End_of_stream + tt.expectedTelemetry.End_of_stream_rst
-			tt.expectedTelemetry.End_of_stream = 0
-			tt.expectedTelemetry.End_of_stream_rst = 0
 			var telemetry *usmhttp2.HTTP2Telemetry
 			assert.Eventually(t, func() bool {
 				telemetry, err = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry()
 				require.NoError(t, err)
 
-				sum := telemetry.End_of_stream + telemetry.End_of_stream_rst
-				telemetry.End_of_stream = 0
-				telemetry.End_of_stream_rst = 0
-				return reflect.DeepEqual(tt.expectedTelemetry, telemetry) && sum >= expectedEOSOrRST
+				return telemetry.Request_seen == tt.expectedTelemetry.Request_seen &&
+					telemetry.Response_seen == tt.expectedTelemetry.Response_seen &&
+					telemetry.Path_exceeds_frame == tt.expectedTelemetry.Path_exceeds_frame &&
+					telemetry.Exceeding_max_interesting_frames == tt.expectedTelemetry.Exceeding_max_interesting_frames &&
+					telemetry.Exceeding_max_frames_to_filter == tt.expectedTelemetry.Exceeding_max_frames_to_filter &&
+					telemetry.End_of_stream+telemetry.End_of_stream_rst >= expectedEOSOrRST &&
+					reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
