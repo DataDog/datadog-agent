@@ -669,7 +669,7 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 	startH2CServer(t)
 
 	expected := make(map[http.Key]captureRange)
-	// currently we have a bug with paths which are not Huffman encoded, therefor I am skipping them by string length 3.
+	// currently we have a bug with paths which are not Huffman encoded, therefor we are skipping them by string length 3.
 	for i := 3; i < 100; i++ {
 		expected[http.Key{
 			Path:   http.Path{Content: http.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i)))},
@@ -802,8 +802,6 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 							t.Logf("key: %v not found in res", key.Path.Content.Get())
 						}
 					}
-					//t.Logf("got: %#v\n", res)
-					//t.Logf("expcected: %#v", expected)
 					o, err := monitor.DumpMaps("http2_in_flight")
 					if err != nil {
 						t.Logf("failed dumping http2_in_flight: %s", err)
