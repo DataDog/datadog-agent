@@ -13,10 +13,12 @@ import (
 	"fmt"
 	"io"
 	stdlog "log"
+	"math/rand"
 	"mime"
 	"net"
 	"net/http"
 	"os"
+	"path"
 	"runtime"
 	"sort"
 	"strconv"
@@ -227,6 +229,15 @@ func (r *HTTPReceiver) Start() {
 			}
 		}()
 		log.Infof("Listening for traces on Windows pipe %q. Security descriptor is %q", pipepath, secdec)
+	}
+
+	if r.conf.Capture.Enabled {
+		if _, err := os.Stat(r.conf.Capture.Path); os.IsNotExist(err) {
+			if err := os.Mkdir(r.conf.Capture.Path, 0755); err != nil {
+				log.Warnf("Error creating capture directory: %v", err)
+				return
+			}
+		}
 	}
 
 	go func() {
@@ -480,7 +491,11 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		// routine can take a turn decoding a payload.
 		<-r.recvsem
 	}()
-
+	if r.conf.Capture.Enabled && capture.Load() {
+		if err := r.captureReq(v, req); err != nil {
+			log.Errorf("Error capturing request: %v", err)
+		}
+	}
 	start := time.Now()
 	tp, ranHook, err := decodeTracerPayload(v, req, ts, r.containerIDProvider)
 	defer func(err error) {
@@ -538,6 +553,24 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		ClientDroppedP0s:       droppedTracesFromHeader(req.Header, ts),
 	}
 	r.out <- payload
+}
+
+// captureReq dumps the request to a file for debugging purposes.
+func (r *HTTPReceiver) captureReq(v Version, req *http.Request) error {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return err
+	}
+	req.Body = apiutil.NewLimitedReader(io.NopCloser(bytes.NewReader(body)), r.conf.MaxRequestBytes)
+	name := fmt.Sprintf("%s-%s-%d-%d", req.Header.Get(header.Lang), v, time.Now().Unix(), rand.Intn(99999))
+	p := path.Join(r.conf.Capture.Path, name+".trace")
+	log.Debugf("Saving request body to %q", p)
+	if err := os.WriteFile(p, body, 0644); err != nil {
+		return err
+	}
+	p = path.Join(r.conf.Capture.Path, name+".headers")
+	log.Debugf("Saving request headers to %q", p)
+	return os.WriteFile(p, []byte(fmt.Sprintf("%v\n", req.Header)), 0644)
 }
 
 // runMetaHook runs the pb.MetaHook on all spans from traces.

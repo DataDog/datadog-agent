@@ -190,6 +190,10 @@ func setupAPM(config Config) {
 		}
 		return out
 	})
+
+	config.BindEnv("apm_config.capture.enabled", "DD_APM_CAPTURE_ENABLED")
+	config.BindEnv("apm_config.capture.path", "DD_APM_CAPTURE_PATH")
+	config.BindEnv("apm_config.capture.duration", "DD_APM_CAPTURE_DURATION")
 }
 
 func parseKVList(key string) func(string) interface{} {

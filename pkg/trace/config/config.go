@@ -264,6 +264,13 @@ type SymDBProxyConfig struct {
 	AdditionalEndpoints map[string][]string `json:"-"` // Never marshal this field
 }
 
+// CaptureConfig holds the configuration for the trace capture feature.
+type CaptureConfig struct {
+	Enabled  bool   `mapstructure:"enabled"`
+	Path     string `mapstructure:"path"`
+	Duration int    `mapstructure:"duration"` // in seconds
+}
+
 // AgentConfig handles the interpretation of the configuration (with default
 // behaviors) in one place. It is also a simple structure to share across all
 // the Agent components, with 100% safe and reliable values.
@@ -440,6 +447,9 @@ type AgentConfig struct {
 
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
+
+	// Capture holds the configuration for the trace capture feature.
+	Capture CaptureConfig
 
 	// Install Signature
 	InstallSignature InstallSignatureConfig

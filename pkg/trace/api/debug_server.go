@@ -16,11 +16,14 @@ import (
 	"net/http/pprof"
 	"runtime"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
+
+var capture atomic.Bool
 
 const (
 	defaultTimeout          = 5 * time.Second
@@ -77,6 +80,27 @@ func (ds *DebugServer) Stop() {
 
 func (ds *DebugServer) mux() *http.ServeMux {
 	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/capture", func(w http.ResponseWriter, r *http.Request) {
+		if !ds.conf.Capture.Enabled {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			w.Write([]byte("Capture is disabled."))
+			return
+		}
+		if capture.Load() {
+			w.WriteHeader(http.StatusConflict)
+			w.Write([]byte("Capture is already running."))
+			return
+		}
+		capture.Store(true)
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(fmt.Sprintf("Capture started and will run for %d seconds. Files will be saved in %s.", ds.conf.Capture.Duration, ds.conf.Capture.Path)))
+		go func() {
+			log.Infof("Starting capture...")
+			<-time.After(time.Duration(ds.conf.Capture.Duration) * time.Second)
+			capture.Store(false)
+			log.Info("Capture finished")
+		}()
+	})
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
 	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)

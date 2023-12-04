@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -614,6 +615,20 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.EVPProxy.MaxPayloadSize = core.GetInt64(k)
 	}
 	c.DebugServerPort = core.GetInt("apm_config.debug.port")
+	c.Capture.Enabled = core.GetBool("apm_config.capture.enabled")
+	if k := "apm_config.capture.path"; core.IsSet(k) {
+		c.Capture.Path = core.GetString("apm_config.capture.path")
+	} else {
+		c.Capture.Path = path.Join(core.GetString("run_path"), "trace_capture")
+	}
+	if k := "apm_config.capture.duration"; core.IsSet(k) {
+		c.Capture.Duration = core.GetInt("apm_config.capture.duration")
+	}
+	if c.Capture.Duration <= 0 || c.Capture.Duration > 30 {
+		// default is 5 seconds, max is 30 seconds
+		c.Capture.Duration = 5
+	}
+
 	return nil
 }
 
