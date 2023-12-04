@@ -18,13 +18,12 @@ Default: 3
 #>
 
 param(
-    [Parameter(Mandatory=$false)][string]$Architecture = 'x64',
     [Parameter(Mandatory=$false)][string]$PythonRuntimes = '3'
 )
 
 $ErrorActionPreference = "Stop"
 
-& inv -e rtloader.make --python-runtimes="$PythonRuntimes" --install-prefix="$(Get-Location)\dev" --cmake-options='-G \"Unix Makefiles\"' --arch $Architecture
+& inv -e rtloader.make --python-runtimes="$PythonRuntimes" --install-prefix="$(Get-Location)\dev" --cmake-options='-G \"Unix Makefiles\"'
 $err = $LASTEXITCODE
 Write-Host Build result is $err
 if($err -ne 0){

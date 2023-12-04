@@ -65,10 +65,10 @@ build do
       do_windows_sysprobe = "--windows-sysprobe"
     end
     command "inv -e rtloader.clean"
-    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\" --arch x64", :env => env
+    command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{windows_safe_path(python_2_embedded)}\" --cmake-options \"-G \\\"Unix Makefiles\\\"\"", :env => env
     command "mv rtloader/bin/*.dll  #{install_dir}/bin/agent/"
-    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded --arch x64" #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
-    command "inv -e systray.build --major-version #{major_version_arg} --rebuild --arch x64", env: env
+    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --embedded-path=#{install_dir}/embedded" #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env
+    command "inv -e systray.build --major-version #{major_version_arg} --rebuild", env: env
   else
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
@@ -107,7 +107,7 @@ build do
   block do
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
-    command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch x64 --flavor #{flavor_arg}", :env => env
+    command "invoke trace-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
 
     if windows_target?
       copy 'bin/trace-agent/trace-agent.exe', "#{install_dir}/bin/agent"
@@ -119,7 +119,7 @@ build do
   # Process agent
   if windows_target?
     # Build the process-agent with the correct go version for windows
-    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --arch x64 --flavor #{flavor_arg}", :env => env
+    command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
 
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
   else
