@@ -6,8 +6,8 @@
 package config
 
 func setupHAMR(config Config) {
-	config.BindEnv("ha.api_key", "DD_HA_API_KEY")
-	config.BindEnv("ha.site", "DD_HA_SITE")
-	config.BindEnvAndSetDefault("ha.enabled", false, "DD_HA_ENABLED")
-	config.BindEnvAndSetDefault("ha.failover", false, "DD_HA_FAILOVER")
+	config.BindEnv("ha.api_key")
+	config.BindEnv("ha.site")
+	config.BindEnvAndSetDefault("ha.enabled", false)
+	config.BindEnvAndSetDefault("ha.failover", false)
 }

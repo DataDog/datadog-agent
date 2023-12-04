@@ -158,9 +158,14 @@ func configRequestHandler(w http.ResponseWriter, r *http.Request, cfg cfgcomp.Co
 	switch subsection {
 	case "ha":
 		settings := make(map[string]interface{})
-		settings["ha"] = cfg.AllSettings().GetStringMap(subsection)
 		settings["site"] = cfg.GetString("site")
 		settings["api_key"] = cfg.GetString("api_key")
+		ha_settings := make(map[string]interface{})
+		ha_settings["api_key"] = cfg.GetString("ha.api_key")
+		ha_settings["site"] = cfg.GetString("ha.site")
+		ha_settings["enabled"] = cfg.GetString("ha.enabled")
+		ha_settings["failover"] = cfg.GetString("ha.failover")
+		settings["ha"] = ha_settings
 		body, err = json.Marshal(settings)
 	default:
 		settings := cfg.GetStringMap(subsection)
