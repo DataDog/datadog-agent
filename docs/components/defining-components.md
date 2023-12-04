@@ -1,6 +1,6 @@
 # Defining Components
 
-### You can use the invoke task `inv new-component comp/<bundleName>/<component>` to generate a scaffold for your new component.
+You can use the invoke task `inv new-component comp/<bundleName>/<component>` to generate a scaffold for your new component.
 
 Below is a description of the different folders and files of your component.
 
@@ -15,35 +15,20 @@ The package must have the following defined in:
     * `Component` -- The component interface.
       This is the interface that other components can reference when declaring the component as a dependency via `fx`.
       It can be an empty interface, if there is no need for any methods.
-  * `comp/<bundleName>/<component>/<component>impl/<component>.go      
+  * `comp/<bundleName>/<component>/<component>impl/<component>.go`
     * `Module` -- an `fx.Option` that can be included in the bundle's `Module` or an `fx.App` to make this component available. 
-      The `Module` is defined in a separate package from the component, allowing a package to just import the interface without having to import that entire implementation..
+      The `Module` is defined in a separate package from the component, allowing a package to import the interface without having to import the entire implementation.
       To assist with debugging, declare your Module using `fxutil.Component(options...)`.
 
 Components should not be nested; that is, no component's Go path should be a prefix of another component's Go path.
 
 ## Implementation
 
-The completed `comp/<bundleName>/<component>/component.go` looks like this:
+The Component interface and the `Module` definition are implemented in the file `comp/<bundleName>/<component>/<component>impl/<component>.go`.
 
-```go
-// Package foo ... (detailed doc comment for the component)
-package config
+The Module definition function **must** be private.
 
-// team: some-team-name
-
-// Component is the component type.
-type Component interface {
-	// Foo is ... (detailed doc comment)
-	Foo(key string) string
-}
-```
-
-The Component interface is implemented in the file ``comp/<bundleName>/<component>/<component>impl/<component>.go`. Also, the `Module` definition. 
-
-The Module defintion function **must** be private.
-
-The completed ``comp/<bundleName>/<component>/<component>impl/<component>.go` looks like this:
+The completed `comp/<bundleName>/<component>/<component>impl/<component>.go` looks like this:
 
 
 ```go
@@ -51,24 +36,24 @@ package config
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-    fx.Provide(newFoo),
+  fx.Provide(newFoo),
 )
 
-type foo {
-    foos []string
+type foo struct {
+  foos []string
 }
 
 type dependencies struct {
-    fx.In
+  fx.In
 
-    Log log.Component
-    Config config.Component
-    // ...
+  Log log.Component
+  Config config.Component
+  // ...
 }
 
 func newFoo(deps dependencies) Component { ...  }
 
-// Foo implements Component#Foo.
+// foo implements Component#Foo.
 func (f *foo) Foo(key string) string { ... }
 ```
 
@@ -102,15 +87,16 @@ package foo
 
 // Mock implements mock-specific methods.
 type Mock interface {
-    // Component methods are included in Mock.
-    Component
+  // Component methods are included in Mock.
+  Component
 
-    // AddedFoos returns the foos added by AddFoo calls on the mock implementation.
-    AddedFoos() []Foo
+  // AddedFoos returns the foos added by AddFoo calls on the mock implementation.
+  AddedFoos() []Foo
 }
 ```
 
 The `comp/<bundleName>/<component>/<component>impl/<component>_mock.go` looks like this:
+
 ```go
 //go:build test
 
@@ -118,7 +104,7 @@ package foo
 
 // MockModule defines the fx options for the mock component.
 var MockModule = fxutil.Component(
-    fx.Provide(newMockFoo),
+  fx.Provide(newMock),
 )
 ```
 
@@ -131,8 +117,8 @@ func (m *mock) Foo(key string) string { ... }
 // AddedFoos implements Mock#AddedFoos.
 func (m *mock) AddedFoos() []Foo { ... }
 
-func newMockFoo(deps dependencies) Component {
-    return &mock{ ... }
+func newMock(deps dependencies) Component {
+  return &mock{ ... }
 }
 ```
 
@@ -152,7 +138,7 @@ Documentation should include:
 * Precise information on when each method may be called.
   Can methods be called concurrently?
   Are some methods invalid before the component has started?
-  Such assumptions are difficult to verify, so where possible try to make every method callable concurrently, at all times.
+  Such assumptions are difficult to verify. Where possible, try to make every method callable concurrently, at all times.
 
 * Precise information about data ownership of passed values and returned values.
   Users can assume that any mutable value returned by a component will not be modified by the user or the component after it is returned.
