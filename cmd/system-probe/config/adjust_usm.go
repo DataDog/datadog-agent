@@ -52,8 +52,9 @@ func adjustUSM(cfg config.Config) {
 
 	if cfg.GetBool(smNS("process_service_inference", "enabled")) &&
 		!cfg.GetBool(smNS("enabled")) &&
-		!cfg.GetBool(dsmNS("enabled")) {
-		log.Info("universal service monitoring and data streams monitoring are disabled, disabling process service inference")
+		!cfg.GetBool(dsmNS("enabled")) &&
+		!cfg.GetBool(netNS("enabled")) {
+		log.Info("universal service monitoring, network monitoring and data streams monitoring are disabled, disabling process service inference")
 		cfg.Set(smNS("process_service_inference", "enabled"), false, model.SourceAgentRuntime)
 	}
 
