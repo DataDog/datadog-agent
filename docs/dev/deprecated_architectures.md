@@ -8,6 +8,6 @@ Datadog removed all 32-bit Windows related code in [#21221](https://github.com/D
 
 - Removes the `*_386.go` files.
 - Removes the windows 32 bits logic in `omnibus/config`.
-- Removes the go install for windows 32 bits in the `devenv/scripts/Install-DevEnv.ps1` script.
+- Removes the Golang install for 32-bit Windows in the `devenv/scripts/Install-DevEnv.ps1` script.
 
 We also removed the tooling arguments for invoke tasks in [#21240](https://github.com/DataDog/datadog-agent/pull/21240).
