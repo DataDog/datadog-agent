@@ -482,6 +482,9 @@ func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
 func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
 	err := c.configSources[SourceFile].ReadInConfig()
+	if err != nil {
+		log.Warnf("failed to read the file configuration for SourceFile Viper instance", err)
+	}
 	err = c.Viper.ReadInConfig()
 	c.Unlock()
 	return err
