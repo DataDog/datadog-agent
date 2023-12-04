@@ -47,9 +47,9 @@ mkdir  .\bin\agent
 
 # NG installer unit tests
 if ($Env:DEBUG_CUSTOMACTION) {
-    & inv -e msi.test --debug
+    & inv -e msi.test --arch=$archflag --debug
 } else {
-    & inv -e msi.test
+    & inv -e msi.test --arch=$archflag
 }
 $err = $LASTEXITCODE
 Write-Host Test result is $err
@@ -70,7 +70,7 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e test --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --cpus 8 --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\$test_output_file $Env:EXTRA_OPTS
+& inv -e test --junit-tar="$Env:JUNIT_TAR" --race --profile --rerun-fails=2 --cpus 8 --arch $archflag --python-runtimes="$Env:PY_RUNTIMES" --python-home-2=$Env:Python2_ROOT_DIR --python-home-3=$Env:Python3_ROOT_DIR --save-result-json C:\mnt\$test_output_file $Env:EXTRA_OPTS
 
 $err = $LASTEXITCODE
 Write-Host Test result is $err

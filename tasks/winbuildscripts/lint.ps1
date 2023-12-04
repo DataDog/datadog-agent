@@ -18,7 +18,7 @@ if ($Env:TARGET_ARCH -eq "x86") {
 }
 
 & inv -e deps
-& .\tasks\winbuildscripts\pre-go-build.ps1 -PythonRuntimes "$Env:PY_RUNTIMES"
+& .\tasks\winbuildscripts\pre-go-build.ps1 -Architecture "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
 
 & inv -e rtloader.format --raise-if-changed
 $err = $LASTEXITCODE
@@ -29,7 +29,7 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e lint-go
+& inv -e lint-go --arch $archflag
 
 $err = $LASTEXITCODE
 Write-Host Lint result is $err
