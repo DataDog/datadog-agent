@@ -70,3 +70,12 @@ func (suite *kindSuite) SetupSuite() {
 
 	suite.k8sSuite.SetupSuite()
 }
+
+func (suite *kindSuite) TearDownSuite() {
+	suite.k8sSuite.TearDownSuite()
+
+	ctx := context.Background()
+	stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
+	suite.Require().NoError(err)
+	suite.T().Log(dumpEKSClusterState(ctx, stackName))
+}
