@@ -7,7 +7,10 @@
 
 package cgroups
 
-import "path/filepath"
+import (
+	"fmt"
+	"path/filepath"
+)
 
 type cgroupV1 struct {
 	identifier  string
@@ -31,8 +34,8 @@ func (c *cgroupV1) Identifier() string {
 	return c.identifier
 }
 
-func (c *cgroupV1) Inode() uint64 {
-	return 0
+func (c *cgroupV1) Inode() (uint64, error) {
+	return 0, fmt.Errorf("not implemented")
 }
 
 func (c *cgroupV1) GetParent() (Cgroup, error) {

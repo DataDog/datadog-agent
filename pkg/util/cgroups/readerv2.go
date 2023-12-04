@@ -9,13 +9,10 @@ package cgroups
 
 import (
 	"fmt"
-	"os"
 	"path"
 	"path/filepath"
 	"strings"
-	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/karrick/godirwalk"
 )
 
@@ -59,12 +56,7 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 					if err != nil {
 						return err
 					}
-					inode, err := inodeForFile(fullPath)
-					if err != nil {
-						log.Debugf("failed to retrieve cgroup id for %s: %s", fullPath, err)
-						return err
-					}
-					res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, inode, r.pidMapper)
+					res[id] = newCgroupV2(id, r.cgroupRoot, relPath, r.cgroupControllers, r.pidMapper)
 					if err != nil {
 						return err
 					}
@@ -78,15 +70,6 @@ func (r *readerV2) parseCgroups() (map[string]Cgroup, error) {
 	})
 
 	return res, err
-}
-
-// inodeForFile returns the inode of the file at the given path and follows symlinks.
-func inodeForFile(path string) (uint64, error) {
-	stat, err := os.Stat(path)
-	if err != nil {
-		return 0, err
-	}
-	return stat.Sys().(*syscall.Stat_t).Ino, nil
 }
 
 func readCgroupControllers(cgroupRoot string) (map[string]struct{}, error) {

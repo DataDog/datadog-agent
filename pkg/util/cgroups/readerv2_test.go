@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestReaderV2(t *testing.T) {
@@ -29,19 +28,10 @@ func TestReaderV2(t *testing.T) {
 	}
 
 	// Create mock directories for paths and corresponding inodes.
-	inodes := make(map[string]uint64)
 	for _, p := range paths {
 		fullPath := filepath.Join(fakeFsPath, p)
 		assert.NoErrorf(t, os.MkdirAll(fullPath, 0o750), "impossible to create temp directory '%s'", fullPath)
-		// Retrieve and save the inode number to verify the inode<>cgroup mapping.
-		inode, err := inodeForFile(fullPath)
-		require.NoError(t, err)
-		inodes[p] = inode
 	}
-	podCgroupNode := "libpod_parent/libpod-6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2"
-	podInode, err := inodeForFile(filepath.Join(fakeFsPath, podCgroupNode))
-	require.NoError(t, err)
-	inodes[podCgroupNode] = podInode
 
 	assert.NoError(t, os.WriteFile(filepath.Join(fakeFsPath, "cgroup.controllers"), []byte("cpu io memory"), 0o640))
 
@@ -58,11 +48,24 @@ func TestReaderV2(t *testing.T) {
 
 	cgroups, err := r.parseCgroups()
 	assert.NoError(t, err)
-	assert.Empty(t, cmp.Diff(map[string]Cgroup{
-		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40": newCgroupV2("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40", fakeFsPath, paths[0], controllers, inodes[paths[0]], r.pidMapper),
-		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41": newCgroupV2("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41", fakeFsPath, paths[1], controllers, inodes[paths[1]], r.pidMapper),
-		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42": newCgroupV2("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42", fakeFsPath, paths[3], controllers, inodes[paths[3]], r.pidMapper),
-		"1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503": newCgroupV2("1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503", fakeFsPath, paths[5], controllers, inodes[paths[5]], r.pidMapper),
-		"6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2": newCgroupV2("6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2", fakeFsPath, podCgroupNode, controllers, inodes[podCgroupNode], r.pidMapper),
-	}, cgroups, cmp.AllowUnexported(cgroupV2{})))
+
+	expected := map[string]Cgroup{
+		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40": newCgroupV2("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc40", fakeFsPath, paths[0], controllers, r.pidMapper),
+		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41": newCgroupV2("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc41", fakeFsPath, paths[1], controllers, r.pidMapper),
+		"2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42": newCgroupV2("2327a2aec169e25cf05f2a901486b7463fdb513ae097fc0ae6a3ca94381ddc42", fakeFsPath, paths[3], controllers, r.pidMapper),
+		"1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503": newCgroupV2("1575e8b4a92a9c340a657f3df4ddc0f6a6305c200879f3898b26368ad019b503", fakeFsPath, paths[5], controllers, r.pidMapper),
+		"6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2": newCgroupV2("6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2", fakeFsPath, "libpod_parent/libpod-6dc3fdffbf66b1239d55e98da9aaa759ea51ed35d04eb09d19ebd78963aa26c2", controllers, r.pidMapper),
+	}
+
+	// Initialize Inodes
+	for i := range cgroups {
+		_, err := cgroups[i].Inode()
+		assert.NoError(t, err)
+	}
+	for _, cgroup := range expected {
+		_, err := cgroup.Inode()
+		assert.NoError(t, err)
+	}
+
+	assert.Empty(t, cmp.Diff(expected, cgroups, cmp.AllowUnexported(cgroupV2{})))
 }

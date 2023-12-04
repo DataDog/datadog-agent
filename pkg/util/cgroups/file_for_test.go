@@ -12,7 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 )
 
 // Return paths that look like Kubernetes cgroups
@@ -82,9 +81,7 @@ func (cfs *cgroupMemoryFS) createCgroupV1(id, path string) *cgroupV1 {
 
 // for cgroup v2 only
 func (cfs *cgroupMemoryFS) createCgroupV2(id, path string) *cgroupV2 {
-	stat, _ := os.Stat(path)
-	inode := stat.Sys().(*syscall.Stat_t).Ino
-	cg := newCgroupV2(id, cfs.rootPath, path, cfs.controllers, inode, nil)
+	cg := newCgroupV2(id, cfs.rootPath, path, cfs.controllers, nil)
 	cg.fr = cfs
 	return cg
 }

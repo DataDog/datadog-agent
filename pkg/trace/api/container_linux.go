@@ -26,6 +26,8 @@ import (
 const cgroupV1BaseController = "memory"
 
 // readerCacheExpiration determines the duration for which the cgroups data is cached in the cgroups reader.
+// This value needs to be large enough to reduce latency and I/O load.
+// It also needs to be small enough to catch the first traces of new containers.
 const readerCacheExpiration = 2 * time.Second
 
 type ucredKey struct{}
@@ -97,11 +99,6 @@ func NewIDProvider(procRoot string) IDProvider {
 	cgroupController := ""
 	if reader.CgroupVersion() == 1 {
 		cgroupController = cgroupV1BaseController // The 'memory' controller is used by the cgroupv1 utils in the agent to parse the procfs.
-	} else {
-		err := reader.RefreshCgroups(readerCacheExpiration)
-		if err != nil {
-			log.Debugf("Failed to refresh cgroups: %v", err)
-		}
 	}
 	c := NewCache(1 * time.Minute)
 	return &cgroupIDProvider{
@@ -156,7 +153,7 @@ func (c *cgroupIDProvider) resolveContainerIDFromEntityID(eid string) string {
 		return ""
 	}
 
-	cid, err := c.getCachedContainerID(eid, func() (string, error) { return c.getCgroupByInode(inode) })
+	cid, err := c.getCachedContainerID(eid, func() (string, error) { return c.getContainerIDByInode(inode) })
 	if err != nil {
 		log.Debugf("Could not get container ID from cgroupv2 inode: %s: %v\n", eid, err)
 		return ""
@@ -164,21 +161,11 @@ func (c *cgroupIDProvider) resolveContainerIDFromEntityID(eid string) string {
 	return cid
 }
 
-// getCgroupByInode returns the container ID for the given cgroupv2 inode.
-// It refreshes cgroups only on cache miss
-func (c *cgroupIDProvider) getCgroupByInode(inode uint64) (string, error) {
-	cgroup, err := c.reader.CgroupByInode(inode)
+// getContainerIDByInode returns the container ID for the given cgroup inode.
+func (c *cgroupIDProvider) getContainerIDByInode(inode uint64) (string, error) {
+	cgroup, err := c.reader.GetCgroupByInode(inode, readerCacheExpiration)
 	if err != nil {
-		err := c.reader.RefreshCgroups(readerCacheExpiration)
-		if err != nil {
-			log.Debugf("Failed to refresh cgroups: %v", err)
-			return "", err
-		}
-		cgroup, err := c.reader.CgroupByInode(inode)
-		if err != nil {
-			return "", err
-		}
-		return cgroup.Identifier(), nil
+		return "", err
 	}
 	return cgroup.Identifier(), nil
 }

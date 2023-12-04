@@ -7,7 +7,10 @@
 
 package cgroups
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // MockCgroup is a mock implementing the Cgroup interface
 type MockCgroup struct {
@@ -33,8 +36,11 @@ func (mc *MockCgroup) Identifier() string {
 }
 
 // Inode mock
-func (mc *MockCgroup) Inode() uint64 {
-	return mc.In
+func (mc *MockCgroup) Inode() (uint64, error) {
+	if mc.In <= 2 {
+		return 0, fmt.Errorf("invalid inode: %d", mc.In)
+	}
+	return mc.In, nil
 }
 
 // GetParent mock
