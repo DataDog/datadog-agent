@@ -24,7 +24,7 @@ type testCase struct {
 	expectedStatus int
 }
 
-func testConfigValue(t *testing.T, server *httptest.Server, configName string, expectedStatus int) {
+func testConfigValue(t *testing.T, cfg *config.MockConfig, server *httptest.Server, configName string, expectedStatus int) {
 	t.Helper()
 
 	resp, err := server.Client().Get(server.URL + "/" + configName)
@@ -44,7 +44,7 @@ func testConfigValue(t *testing.T, server *httptest.Server, configName string, e
 	err = json.Unmarshal(body, &configValue)
 	require.NoError(t, err)
 
-	require.EqualValues(t, config.Datadog.Get(configName), configValue)
+	require.EqualValues(t, cfg.Get(configName), configValue)
 }
 
 func TestConfigEndpoint(t *testing.T) {
@@ -57,7 +57,7 @@ func TestConfigEndpoint(t *testing.T) {
 			} else {
 				expectedStatus = http.StatusNotFound
 			}
-			testConfigValue(t, server, configName, expectedStatus)
+			testConfigValue(t, cfg, server, configName, expectedStatus)
 		}
 	})
 
@@ -77,7 +77,7 @@ func TestConfigEndpoint(t *testing.T) {
 			if testCase.existing {
 				cfg.SetWithoutSource(configName, "some_value")
 			}
-			testConfigValue(t, server, configName, testCase.expectedStatus)
+			testConfigValue(t, cfg, server, configName, testCase.expectedStatus)
 		})
 	}
 
@@ -85,7 +85,7 @@ func TestConfigEndpoint(t *testing.T) {
 		configName := "my.config.value"
 		cfg, server := getConfigServer(t, authorizedSet{configName: {}})
 		cfg.SetWithoutSource(configName, make(chan int))
-		testConfigValue(t, server, "my.config.value", http.StatusInternalServerError)
+		testConfigValue(t, cfg, server, "my.config.value", http.StatusInternalServerError)
 	})
 }
 
