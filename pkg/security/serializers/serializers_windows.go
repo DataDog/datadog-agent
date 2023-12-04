@@ -69,7 +69,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 		Pid:        ps.Pid,
 		PPid:       getUint32Pointer(&ps.PPid),
 		Executable: newFileSerializer(&ps.FileEvent, e),
-		CmdLine:    e.GetProcessCmdlineScrubbed(),
+		CmdLine:    e.FieldHandlers.ResolveProcessCmdLineScrubbed(e, ps),
 	}
 
 	if len(ps.ContainerID) != 0 {
