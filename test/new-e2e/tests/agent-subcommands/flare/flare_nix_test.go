@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 )
@@ -33,7 +34,7 @@ type linuxFlareSuite struct {
 
 func TestLinuxFlareSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &linuxFlareSuite{}, e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.UbuntuOS))))
+	e2e.Run(t, &linuxFlareSuite{}, e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.UbuntuOS)), e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer())))
 }
 
 func (v *linuxFlareSuite) TestFlareWithAllConfiguration() {

@@ -83,6 +83,8 @@
 /.gitlab/functional_test/security_agent.yml          @DataDog/agent-security @DataDog/agent-platform
 /.gitlab/functional_test/serverless.yml              @DataDog/serverless @DataDog/agent-platform
 /.gitlab/functional_test_cleanup.yml                 @DataDog/agent-security @DataDog/ebpf-platform @DataDog/agent-platform
+/.gitlab/functional_test/system_probe_windows.yml    @DataDog/agent-platform @DataDog/windows-kernel-integrations
+/.gitlab/functional_test/common.yml                  @DataDog/agent-platform @DataDog/windows-kernel-integrations @DataDog/ebpf-platform
 /.gitlab/functional_test_sysprobe/system_probe.yml   @DataDog/ebpf-platform @DataDog/agent-platform
 
 /.gitlab/integration_test/windows.yml                @DataDog/agent-platform @DataDog/windows-agent
@@ -148,6 +150,7 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/platform-integrations
 /cmd/cws-instrumentation/               @DataDog/agent-security
 /cmd/dogstatsd/                         @DataDog/agent-metrics-logs
+/cmd/otel-agent/                        @DataDog/opentelemetry
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
 /cmd/serverless-init/                   @DataDog/serverless
@@ -205,6 +208,7 @@
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
 /comp/aggregator @DataDog/agent-shared-components
+/comp/api @DataDog/agent-shared-components
 /comp/checks @DataDog/agent-shared-components
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
@@ -224,6 +228,7 @@
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/workloadmeta @DataDog/container-integrations
 /comp/dogstatsd/statsd @DataDog/agent-shared-components
+/comp/forwarder/orchestrator @DataDog/agent-metrics-logs
 # END COMPONENTS
 
 # pkg
@@ -232,6 +237,7 @@
 /pkg/aggregator/                        @DataDog/agent-metrics-logs
 /pkg/collector/                         @DataDog/agent-metrics-logs
 /pkg/cli/                               @DataDog/agent-shared-components
+/pkg/cli/subcommands/clusterchecks      @DataDog/container-integrations
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-metrics-logs @DataDog/agent-shared-components
@@ -297,6 +303,7 @@
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
+/pkg/config/env/ipc_address*            @DataDog/agent-shared-components
 /pkg/config/logs                        @Datadog/agent-shared-components @Datadog/agent-platform
 /pkg/config/logs/internal/seelog/seelog_config.go          @Datadog/agent-shared-components
 /pkg/config/process*.go                 @DataDog/processes
@@ -326,7 +333,6 @@
 /pkg/proto/datadog/languagedetection    @DataDog/processes
 /pkg/proto/datadog/process              @DataDog/processes
 /pkg/proto/datadog/trace                @DataDog/agent-apm
-/pkg/proto/pbgo/trace                   @DataDog/agent-apm
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/secrets/                           @DataDog/agent-shared-components
@@ -352,6 +358,8 @@
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/util/intern/                       @DataDog/ebpf-platform
+/pkg/util/crashreport/                  @DataDog/windows-kernel-integrations
+/pkg/util/pdhutil/                      @DataDog/windows-agent
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/logs/                              @DataDog/agent-metrics-logs
@@ -366,6 +374,11 @@
 /pkg/process/net/                       @DataDog/processes @DataDog/Networks
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
 /pkg/proto/pbgo/                        # do not notify anyone
+/pkg/proto/pbgo/trace                   @DataDog/agent-apm
+/pkg/proto/pbgo/languagedetection       @DataDog/agent-apm
+/pkg/proto/pbgo/process                 @DataDog/processes
+/pkg/proto/pbgo/core                    @DataDog/agent-shared-components
+/pkg/proto/pbgo/mocks/core              @DataDog/agent-shared-components
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/Networks
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
@@ -467,24 +480,25 @@
 /test/kitchen/test/integration/win-reinstall-option/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-repair/ @DataDog/windows-agent
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
-/test/fakeintake/                       @DataDog/agent-e2e-testing
-/test/new-e2e/                          @DataDog/agent-e2e-testing
-/test/new-e2e/language-detection        @DataDog/processes
-/test/new-e2e/system-probe              @DataDog/ebpf-platform
-/test/new-e2e/scenarios/system-probe    @DataDog/ebpf-platform
+/test/fakeintake/                             @DataDog/agent-e2e-testing
+/test/new-e2e/                                @DataDog/agent-e2e-testing
+/test/new-e2e/system-probe                    @DataDog/ebpf-platform
+/test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
-/test/new-e2e/tests/agent-subcommands   @DataDog/agent-shared-components
-/test/new-e2e/tests/containers          @DataDog/container-integrations
-/test/new-e2e/tests/language-detection  @DataDog/processes
-/test/new-e2e/tests/ndm                 @DataDog/network-device-monitoring
-/test/new-e2e/tests/npm                 @DataDog/Networks
-/test/new-e2e/tests/agent-platform      @DataDog/agent-platform
+/test/new-e2e/tests/agent-subcommands         @DataDog/agent-shared-components
+/test/new-e2e/tests/containers                @DataDog/container-integrations
+/test/new-e2e/tests/language-detection        @DataDog/processes
+/test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
+/test/new-e2e/tests/npm                       @DataDog/Networks
+/test/new-e2e/tests/process                   @DataDog/processes
+/test/new-e2e/tests/cws                       @DataDog/agent-security
+/test/new-e2e/tests/agent-platform            @DataDog/agent-platform
 /test/new-e2e/tests/agent-metric-logs   @DataDog/agent-metrics-logs
-/test/system/                           @DataDog/agent-shared-components
-/test/system/dogstatsd/                 @DataDog/agent-metrics-logs
-/test/benchmarks/apm_scripts/           @DataDog/agent-apm
-/test/regression/                       @DataDog/single-machine-performance
-/test/workload-checks/                  @DataDog/single-machine-performance
+/test/system/                                 @DataDog/agent-shared-components
+/test/system/dogstatsd/                       @DataDog/agent-metrics-logs
+/test/benchmarks/apm_scripts/                 @DataDog/agent-apm
+/test/regression/                             @DataDog/single-machine-performance
+/test/workload-checks/                        @DataDog/single-machine-performance
 /tools/                                 @DataDog/agent-platform
 /tools/ebpf/                            @DataDog/ebpf-platform
 /tools/gdb/                             @DataDog/agent-shared-components

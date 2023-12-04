@@ -8,7 +8,6 @@
 package serializers
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -209,7 +208,7 @@ func newExitEventSerializer(e *model.Event) *ExitEventSerializer {
 }
 
 // NewBaseEventSerializer creates a new event serializer based on the event type
-func NewBaseEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) *BaseEventSerializer {
+func NewBaseEventSerializer(event *model.Event) *BaseEventSerializer {
 	pc := event.ProcessContext
 
 	eventType := model.EventType(event.Type)
@@ -218,8 +217,8 @@ func NewBaseEventSerializer(event *model.Event, resolvers *resolvers.Resolvers) 
 		EventContextSerializer: EventContextSerializer{
 			Name: eventType.String(),
 		},
-		ProcessContextSerializer: newProcessContextSerializer(pc, event, resolvers),
-		Date:                     utils.NewEasyjsonTime(event.FieldHandlers.ResolveEventTime(event)),
+		ProcessContextSerializer: newProcessContextSerializer(pc, event),
+		Date:                     utils.NewEasyjsonTime(event.ResolveEventTime()),
 	}
 
 	if event.IsAnomalyDetectionEvent() && len(event.Rules) > 0 {
