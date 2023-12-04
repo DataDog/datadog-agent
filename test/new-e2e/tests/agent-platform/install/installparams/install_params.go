@@ -20,6 +20,7 @@ type Params struct {
 	MajorVersion string
 	Arch         string
 	Flavor       string
+	IsSuse       bool
 }
 
 // Option alias to a functional option changing a given Params instance
@@ -31,6 +32,7 @@ func NewParams(options ...Option) *Params {
 		PipelineID:   os.Getenv("CI_PIPELINE_ID"),
 		MajorVersion: "7",
 		Arch:         "x86_64",
+		IsSuse:       false,
 	}
 	return applyOption(p, options...)
 }
@@ -60,5 +62,12 @@ func WithArch(arch string) Option {
 func WithFlavor(flavor string) Option {
 	return func(p *Params) {
 		p.Flavor = flavor
+	}
+}
+
+// WithSuse specify if the agent is installed on a Suse system
+func WithSuse() Option {
+	return func(p *Params) {
+		p.IsSuse = true
 	}
 }
