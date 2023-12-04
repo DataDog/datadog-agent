@@ -87,6 +87,7 @@ func NewIDProvider(procRoot string) IDProvider {
 	}
 
 	reader, err := cgroups.NewReader(
+		cgroups.WithCgroupV1BaseController(cgroupV1BaseController),
 		cgroups.WithProcPath(procRoot),
 		cgroups.WithHostPrefix(hostPrefix),
 		cgroups.WithReaderFilter(cgroups.ContainerFilter), // Will parse the path in /proc/<pid>/cgroup to get the container ID.
