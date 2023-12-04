@@ -56,13 +56,6 @@ func TestInstallScript(t *testing.T) {
 		"rocky":       ec2os.RockyLinux,
 	}
 
-	var testOsType ec2os.Type
-	for osName, osType := range osMapping {
-		if strings.Contains(*osVersion, osName) {
-			testOsType = osType
-		}
-	}
-
 	archMapping := map[string]e2eOs.Architecture{
 		"x86_64": e2eOs.AMD64Arch,
 		"arm64":  e2eOs.ARM64Arch,
@@ -81,10 +74,16 @@ func TestInstallScript(t *testing.T) {
 	vmOpts := []ec2params.Option{}
 	for _, osVers := range osVersions {
 		osVers := osVers
-
 		if platformJSON[*platform][*architecture][osVers] == "" {
 			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
 			t.Fatalf("No image found for %s %s %s", *platform, *architecture, osVers)
+		}
+
+		var testOsType ec2os.Type
+		for osName, osType := range osMapping {
+			if strings.Contains(osVers, osName) {
+				testOsType = osType
+			}
 		}
 
 		cwsSupported := false
