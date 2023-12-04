@@ -31,7 +31,7 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 		testEnvVars = append(testEnvVars, "TESTING_YUM_URL=yumtesting.datad0g.com")
 		// yum testing repo
 		// TESTING_YUM_VERSION_PATH="testing/pipeline-xxxxx-ay/y"
-		testEnvVars = append(testEnvVars, fmt.Sprintf("TESTING_YUM_VERSION_PATH=testing/pipeline-%v-a%v/%v", params.PipelineID, params.MajorVersion, params.MajorVersion))
+		testEnvVars = append(testEnvVars, fmt.Sprintf(`TESTING_YUM_VERSION_PATH="testing/pipeline-%v-a%v/%v"`, params.PipelineID, params.MajorVersion, params.MajorVersion))
 		commandLine = strings.Join(testEnvVars, " ")
 	} else {
 		commandLine = fmt.Sprintf("DD_AGENT_MAJOR_VERSION=%s", params.MajorVersion)
