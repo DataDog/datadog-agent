@@ -4149,10 +4149,12 @@ api_key:
   ##
   ## Example:
   ## - conditions:
-  ##     service_name: exampleService
+  ##     command_line_regex: command_line_regex: "exampleService"
   ##   configuration:
-  ##     version: 1
   ##     service_language: dotnet
+  ##     dd_env: staging
+  ##     dd_service: exampleService
+  ##     dd_version: 1.2.3
   ##
   ## To learn about all the available service matching conditions & configuration options, visit
   ## https://docs.datadoghq.com/tracing/trace_collection/library_injection_local
