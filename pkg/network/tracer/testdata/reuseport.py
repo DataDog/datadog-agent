@@ -5,7 +5,10 @@ import random
 import socket
 import sys
 import time
+import multiprocessing
 
+# for synchronizing children and parent
+barrier = multiprocessing.Barrier(3)
 children = []
 port = random.randrange(32768, 65535)
 print(port)
@@ -14,23 +17,50 @@ for _ in count:
     child = os.fork()
     if child:
         children.append(child)
-    else:
-        s = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM, proto=socket.IPPROTO_UDP)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        s.bind(("localhost", port))
-        _, _, _, addr = s.recvmsg(1024)
-        s.sendto(b'bar', addr)
-        s.close()
-        sys.exit()
+        continue
 
-time.sleep(1)
+    # child
+    s = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM, proto=socket.IPPROTO_UDP)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(("localhost", port))
+    s.settimeout(2)
+    barrier.wait()
+    tries = 5
+    for t in range(tries):
+        try:
+            _, addr = s.recvfrom(1024)
+            print("child: received from " + str(addr))
+            s.sendto(b'bar', addr)
+            print("child: sent to " + str(addr))
+            break
+        except socket.timeout:
+            if t == tries-1:
+                raise
+            print("child: timed out, retrying")
 
+    s.close()
+    sys.exit()
+
+barrier.wait()
 conns = []
-for _x in count:
+print(children)
+for _ in count:
     c = socket.socket(family=socket.AF_INET, type=socket.SOCK_DGRAM, proto=socket.IPPROTO_UDP)
-    c.sendto(b'foobar', ("localhost", port))
-    c.recvmsg(1024)
+    c.settimeout(2)
+    tries = 5
+    for t in range(tries):
+        try:
+            c.sendto(b'foobar', ("localhost", port))
+            print("parent: sent")
+            _, addr = c.recvfrom(1024)
+            print("parent: received from " + str(addr))
+            break
+        except socket.timeout:
+            if t == tries-1:
+                raise
+            print("timed out, retrying")
+
     conns.append(c)
 
 for c in conns:
