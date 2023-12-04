@@ -6,7 +6,9 @@
 // Package util provides util type definitions and helper methods for the language detection client and handler
 package util
 
-import "regexp"
+import (
+	"regexp"
+)
 
 const (
 
@@ -20,4 +22,19 @@ var AnnotationRegex = regexp.MustCompile(`internal\.dd\.datadoghq\.com\/(init)?\
 // GetLanguageAnnotationKey returns the language annotation key for the specified container
 func GetLanguageAnnotationKey(containerName string) string {
 	return AnnotationPrefix + containerName + ".detected_langs"
+}
+
+// ExtractContainerFromAnnotationKey extracts container name from annotation key and indicates if it is an init container
+// if the annotation key is not a language annotation it returns an empty container name
+func ExtractContainerFromAnnotationKey(annotationKey string) (string, bool) {
+	matches := AnnotationRegex.FindStringSubmatch(annotationKey)
+	if len(matches) != 3 {
+		return "", false
+	}
+
+	containerName := matches[2]
+
+	isInitContainer := matches[1] != ""
+
+	return containerName, isInitContainer
 }

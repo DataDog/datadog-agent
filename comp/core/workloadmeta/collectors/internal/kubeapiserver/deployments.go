@@ -91,16 +91,14 @@ func (p deploymentParser) Parse(obj interface{}) workloadmeta.Entity {
 	containerLanguages := make(map[string][]languagemodels.Language)
 
 	for annotation, languages := range deployment.Annotations {
-		// find a match
-		matches := languagedetectionUtil.AnnotationRegex.FindStringSubmatch(annotation)
-		if len(matches) != 3 {
-			continue
-		}
-		// matches[1] matches "init"
-		if matches[1] != "" {
-			updateContainerLanguageMap(initContainerLanguages, matches[2], languages)
-		} else {
-			updateContainerLanguageMap(containerLanguages, matches[2], languages)
+
+		containerName, isInitContainer := languagedetectionUtil.ExtractContainerFromAnnotationKey(annotation)
+		if containerName != "" {
+			if isInitContainer {
+				updateContainerLanguageMap(initContainerLanguages, containerName, languages)
+			} else {
+				updateContainerLanguageMap(containerLanguages, containerName, languages)
+			}
 		}
 	}
 

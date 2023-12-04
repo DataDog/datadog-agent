@@ -43,20 +43,13 @@ func (containerslanguages ContainersLanguages) TotalLanguages() int {
 // ParseAnnotations updates the containers languages based on existing language annotations
 func (containerslanguages ContainersLanguages) ParseAnnotations(annotations map[string]string) {
 	for annotation, languages := range annotations {
-		// find a match
-		matches := AnnotationRegex.FindStringSubmatch(annotation)
-		if len(matches) != 3 {
-			continue
+		containerName, isInitContainer := ExtractContainerFromAnnotationKey(annotation)
+		if containerName != "" {
+			if isInitContainer {
+				containerName = fmt.Sprintf("init.%s", containerName)
+			}
+			containerslanguages.GetOrInitializeLanguageset(containerName).Parse(languages)
 		}
-
-		containerName := matches[2]
-
-		// matches[1] matches "init"
-		if matches[1] != "" {
-			containerName = fmt.Sprintf("init.%s", containerName)
-		}
-
-		containerslanguages.GetOrInitializeLanguageset(containerName).Parse(languages)
 	}
 }
 
