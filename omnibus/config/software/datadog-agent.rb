@@ -129,7 +129,6 @@ build do
 
   # System-probe
   if windows_target? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-    ## don't bother with system probe build on x86.
     command "invoke -e system-probe.build --windows"
     copy 'bin/system-probe/system-probe.exe', "#{install_dir}/bin/agent"
   elsif linux_target?
