@@ -315,6 +315,7 @@ func (d *dispatcher) rebalanceUsingUtilization(force bool) []types.RebalanceResp
 			checkID,
 			currentChecksDistribution.workersNeededForCheck(checkID),
 			currentChecksDistribution.runnerForCheck(checkID),
+			"",
 		)
 	}
 

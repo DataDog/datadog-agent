@@ -6,20 +6,24 @@
 package containers
 
 import (
+	"context"
 	"fmt"
 	"math"
 	"testing"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/process"
+	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -34,7 +38,13 @@ func TestGetContainers(t *testing.T) {
 	metricsProvider.RegisterConcreteCollector(provider.RuntimeNameGarden, metricsCollector)
 
 	// Workload meta + tagger
-	metadataProvider := workloadmeta.NewMockStore()
+	metadataProvider := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+		core.MockBundle,
+		fx.Supply(context.Background()),
+		fx.Supply(workloadmeta.NewParams()),
+		workloadmeta.MockModule,
+	))
+
 	fakeTagger := local.NewFakeTagger()
 	tagger.SetDefaultTagger(fakeTagger)
 	defer tagger.SetDefaultTagger(nil)
@@ -60,7 +70,7 @@ func TestGetContainers(t *testing.T) {
 	cID1Metrics.NetworkStats.Timestamp = testTime
 	cID1Metrics.PIDs = []int{1, 2, 3}
 	metricsCollector.SetContainerEntry("cID1", cID1Metrics)
-	metadataProvider.SetEntity(&workloadmeta.Container{
+	metadataProvider.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "cID1",
@@ -99,7 +109,7 @@ func TestGetContainers(t *testing.T) {
 	fakeTagger.SetTags(containers.BuildTaggerEntityName("cID1"), "fake", []string{"low:common"}, []string{"orch:orch1"}, []string{"id:container1"}, nil)
 
 	// cID2 not running
-	metadataProvider.SetEntity(&workloadmeta.Container{
+	metadataProvider.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "cID2",
@@ -107,7 +117,7 @@ func TestGetContainers(t *testing.T) {
 	})
 
 	// cID3 missing metrics, still reported
-	metadataProvider.SetEntity(&workloadmeta.Container{
+	metadataProvider.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "cID3",
@@ -143,7 +153,7 @@ func TestGetContainers(t *testing.T) {
 	cID4Metrics.NetworkStats.Timestamp = testTime
 	cID4Metrics.PIDs = []int{4, 5}
 	metricsCollector.SetContainerEntry("cID4", cID4Metrics)
-	metadataProvider.SetEntity(&workloadmeta.Container{
+	metadataProvider.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "cID4",
@@ -181,7 +191,7 @@ func TestGetContainers(t *testing.T) {
 	cID5Metrics.ContainerStats.Memory.WorkingSet = nil
 	cID5Metrics.ContainerStats.Memory.CommitBytes = pointer.Ptr(355.0)
 	metricsCollector.SetContainerEntry("cID5", cID5Metrics)
-	metadataProvider.SetEntity(&workloadmeta.Container{
+	metadataProvider.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "cID5",
@@ -210,7 +220,7 @@ func TestGetContainers(t *testing.T) {
 
 	// cID6 garden container missing tags
 	metricsCollector.SetContainerEntry("cID6", mock.GetFullSampleContainerEntry())
-	metadataProvider.SetEntity(&workloadmeta.Container{
+	metadataProvider.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "cID6",
@@ -242,7 +252,7 @@ func TestGetContainers(t *testing.T) {
 	cID7Metrics.NetworkStats.Timestamp = testTime
 	cID7Metrics.PIDs = []int{1, 2, 3}
 	metricsCollector.SetContainerEntry("cID7", cID7Metrics)
-	metadataProvider.SetEntity(&workloadmeta.KubernetesPod{
+	metadataProvider.Set(&workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
 			ID:   "pod7",
@@ -262,7 +272,7 @@ func TestGetContainers(t *testing.T) {
 			},
 		},
 	})
-	metadataProvider.SetEntity(&workloadmeta.Container{
+	metadataProvider.Set(&workloadmeta.Container{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainer,
 			ID:   "cID7",

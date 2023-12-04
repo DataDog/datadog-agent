@@ -58,6 +58,7 @@ int tracepoint__net__netif_receive_skb(struct pt_regs* ctx) {
     // because perf events can't be sent from socket filter programs
     http_batch_flush(ctx);
     http2_batch_flush(ctx);
+    terminated_http2_batch_flush(ctx);
     kafka_batch_flush(ctx);
     return 0;
 }

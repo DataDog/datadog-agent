@@ -42,7 +42,7 @@ func TestSecurityProfile(t *testing.T) {
 	outputDir := t.TempDir()
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             200,
 		activityDumpTracedCgroupsCount:      3,
@@ -54,7 +54,7 @@ func TestSecurityProfile(t *testing.T) {
 		enableSecurityProfile:               true,
 		securityProfileDir:                  outputDir,
 		securityProfileWatchDir:             true,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +224,7 @@ func TestAnomalyDetection(t *testing.T) {
 	outputDir := t.TempDir()
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -239,7 +239,7 @@ func TestAnomalyDetection(t *testing.T) {
 		anomalyDetectionMinimumStablePeriodExec: time.Second,
 		anomalyDetectionMinimumStablePeriodDNS:  time.Second,
 		anomalyDetectionWarmupPeriod:            time.Second,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -408,7 +408,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 	outputDir := t.TempDir()
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -424,7 +424,7 @@ func TestAnomalyDetectionWarmup(t *testing.T) {
 		anomalyDetectionMinimumStablePeriodDNS:  0,
 		anomalyDetectionWarmupPeriod:            3 * time.Second,
 		tagsResolver:                            NewFakeMonoResolver(),
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -578,7 +578,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 	os.MkdirAll(outputDir, 0755)
 	defer os.RemoveAll(outputDir)
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, testOpts{
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{}, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -592,7 +592,7 @@ func TestSecurityProfileReinsertionPeriod(t *testing.T) {
 		securityProfileWatchDir:                 true,
 		anomalyDetectionMinimumStablePeriodExec: 10 * time.Second,
 		anomalyDetectionMinimumStablePeriodDNS:  10 * time.Second,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -773,7 +773,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 			Expression: `dns.question.type == A && dns.question.name == "foo.bar"`,
 		},
 	}
-	test, err := newTestModule(t, nil, rulesDef, testOpts{
+	test, err := newTestModule(t, nil, rulesDef, withStaticOpts(testOpts{
 		enableActivityDump:                      true,
 		activityDumpRateLimiter:                 200,
 		activityDumpTracedCgroupsCount:          3,
@@ -787,7 +787,7 @@ func TestSecurityProfileAutoSuppression(t *testing.T) {
 		securityProfileWatchDir:                 true,
 		anomalyDetectionMinimumStablePeriodExec: reinsertPeriod,
 		anomalyDetectionMinimumStablePeriodDNS:  reinsertPeriod,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

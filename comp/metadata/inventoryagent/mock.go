@@ -17,4 +17,8 @@ func (m *inventoryagentMock) GetAsJSON() ([]byte, error) {
 	return []byte("{}"), nil
 }
 
+func (m *inventoryagentMock) Get() map[string]interface{} {
+	return nil
+}
+
 func (m *inventoryagentMock) Refresh() {}

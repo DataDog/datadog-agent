@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
@@ -120,6 +121,8 @@ func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Sketc
 		Interval:   s.interval,
 		Points:     points,
 		ContextKey: ck,
+		Source:     ctx.source,
+		NoIndex:    ctx.noIndex,
 	}
 
 	return ss
@@ -314,4 +317,8 @@ func (s *TimeSampler) sendTelemetry(timestamp float64, series metrics.SerieSink)
 	if config.Datadog.GetBool("telemetry.dogstatsd_limiter") {
 		s.contextResolver.sendLimiterTelemetry(timestamp, series, s.hostname, tags)
 	}
+}
+
+func (s *TimeSampler) dumpContexts(dest io.Writer) error {
+	return s.contextResolver.dumpContexts(dest)
 }

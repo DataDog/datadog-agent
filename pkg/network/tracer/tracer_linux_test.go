@@ -45,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
@@ -388,33 +387,52 @@ func (s *TracerSuite) TestConntrackExpiration() {
 
 	tr := setupTracer(t, testConfig())
 
-	// The random port is necessary to avoid flakiness in the test. Running the the test multiple
-	// times can fail if binding to the same port since Conntrack might not emit NEW events for the same tuple
-	rand.Seed(time.Now().UnixNano())
-	port := 5430 + rand.Intn(100)
-	server := NewTCPServerOnAddress(fmt.Sprintf("1.1.1.1:%d", port), func(c net.Conn) {
+	server := NewTCPServerOnAddress("1.1.1.1:0", func(c net.Conn) {
 		wg.Add(1)
 		defer wg.Done()
 		defer c.Close()
 
 		r := bufio.NewReader(c)
-		r.ReadBytes(byte('\n'))
+		for {
+			b, err := r.ReadBytes(byte('\n'))
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+				require.NoError(t, err)
+			}
+			if bytes.Equal(b, []byte("\n")) {
+				return
+			}
+		}
 	})
-	t.Cleanup(server.Shutdown)
 	require.NoError(t, server.Run())
+	t.Cleanup(server.Shutdown)
 
-	c, err := net.Dial("tcp", fmt.Sprintf("2.2.2.2:%d", port))
+	_, port, err := net.SplitHostPort(server.address)
+	require.NoError(t, err, "could not split server address %s", server.address)
+
+	c, err := net.Dial("tcp", "2.2.2.2:"+port)
 	require.NoError(t, err)
-	defer c.Close()
-	_, err = c.Write([]byte("ping"))
-	require.NoError(t, err)
+	t.Cleanup(func() {
+		c.Close()
+	})
 
 	var conn *network.ConnectionStats
-	require.Eventually(t, func() bool {
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		_, err = c.Write([]byte("ping\n"))
+		if !assert.NoError(collect, err, "error sending data to server") {
+			return
+		}
+
 		connections := getConnections(t, tr)
+		t.Log(connections) // for debugging failures
 		var ok bool
 		conn, ok = findConnection(c.LocalAddr(), c.RemoteAddr(), connections)
-		return ok && tr.conntracker.GetTranslationForConn(*conn) != nil
+		if !assert.True(collect, ok, "connection not found") {
+			return
+		}
+		assert.NotNil(collect, tr.conntracker.GetTranslationForConn(*conn), "connection does not have NAT translation")
 	}, 3*time.Second, 100*time.Millisecond, "failed to find connection translation")
 
 	// This will force the connection to be expired next time we call getConnections, but
@@ -1692,14 +1710,19 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 func (s *TracerSuite) TestBlockingReadCounts() {
 	t := s.T()
 	tr := setupTracer(t, testConfig())
+	ch := make(chan struct{})
 	server := NewTCPServer(func(c net.Conn) {
-		c.Write([]byte("foo"))
+		_, err := c.Write([]byte("foo"))
+		require.NoError(t, err, "error writing to client")
 		time.Sleep(time.Second)
-		c.Write([]byte("foo"))
+		_, err = c.Write([]byte("foo"))
+		require.NoError(t, err, "error writing to client")
+		<-ch
 	})
 
 	require.NoError(t, server.Run())
 	t.Cleanup(server.Shutdown)
+	t.Cleanup(func() { close(ch) })
 
 	c, err := net.DialTimeout("tcp", server.address, 5*time.Second)
 	require.NoError(t, err)
@@ -1899,11 +1922,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 	err := exec.Command(cmd[0], cmd[1:]...).Run()
 	require.NoError(t, err)
 
-	stats, err := tr.getStats(bpfMapStats)
-	require.NoError(t, err)
-
-	mapsTelemetry, ok := stats[telemetry.EBPFMapTelemetryNS].(map[string]interface{})
-	require.True(t, ok)
+	mapsTelemetry := tr.bpfTelemetry.GetMapsTelemetry()
 	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
 
 	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
@@ -1957,11 +1976,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
 	})
 
-	stats, err := tr.getStats(bpfHelperStats)
-	require.NoError(t, err)
-
-	helperTelemetry, ok := stats[telemetry.EBPFHelperTelemetryNS].(map[string]interface{})
-	require.True(t, ok)
+	helperTelemetry := tr.bpfTelemetry.GetHelpersTelemetry()
 	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
 
 	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})

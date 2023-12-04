@@ -6,8 +6,12 @@
 // Package helper implement interfaces to get some information that can be OS specific
 package helper
 
+import "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
+
 // Unix implement helper function for Unix distributions
 type Unix struct{}
+
+var _ common.Helper = (*Unix)(nil)
 
 // NewUnixHelper create a new instance of Unix helper
 func NewUnixHelper() *Unix { return &Unix{} }
@@ -20,3 +24,32 @@ func (u *Unix) GetConfigFolder() string { return "/etc/datadog-agent/" }
 
 // GetBinaryPath return the datadog-agent binary path
 func (u *Unix) GetBinaryPath() string { return "/usr/bin/datadog-agent" }
+
+// GetConfigFileName return the config file name
+func (u *Unix) GetConfigFileName() string { return "datadog.yaml" }
+
+// GetServiceName return the service name
+func (u *Unix) GetServiceName() string { return "datadog-agent" }
+
+// UnixDogstatsd implement helper function for Dogstatsd on Unix distributions
+type UnixDogstatsd struct{}
+
+var _ common.Helper = (*UnixDogstatsd)(nil)
+
+// NewUnixDogstatsdHelper create a new instance of Unix helper for dogstatsd
+func NewUnixDogstatsdHelper() *UnixDogstatsd { return &UnixDogstatsd{} }
+
+// GetInstallFolder return the install folder path
+func (u *UnixDogstatsd) GetInstallFolder() string { return "/opt/datadog-dogstatsd/" }
+
+// GetConfigFolder return the config folder path
+func (u *UnixDogstatsd) GetConfigFolder() string { return "/etc/datadog-dogstatsd/" }
+
+// GetBinaryPath return the datadog-agent binary path
+func (u *UnixDogstatsd) GetBinaryPath() string { return "/usr/bin/datadog-dogstatsd" }
+
+// GetConfigFileName return the config file name
+func (u *UnixDogstatsd) GetConfigFileName() string { return "dogstatsd.yaml" }
+
+// GetServiceName return the service name
+func (u *UnixDogstatsd) GetServiceName() string { return "datadog-dogstatsd" }

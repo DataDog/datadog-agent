@@ -66,7 +66,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 	tracelog.SetLogger(corelogger{})
 
 	// load proxy settings
-	setupProxy()
+	config.LoadProxyFromEnv(config.Datadog)
 
 	cloudService := cloudservice.GetCloudServiceType()
 
@@ -87,7 +87,7 @@ func setup() (cloudservice.CloudService, *log.Config, *trace.ServerlessTraceAgen
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	_, err := config.Load()
+	_, err := config.LoadWithoutSecret()
 	if err != nil {
 		logger.Debugf("Error loading config: %v\n", err)
 	}
@@ -138,8 +138,4 @@ func flushMetricsAgent(metricAgent *metrics.ServerlessMetricAgent) {
 	for range time.Tick(3 * time.Second) {
 		metricAgent.Flush()
 	}
-}
-
-func setupProxy() {
-	config.LoadProxyFromEnv(config.Datadog)
 }

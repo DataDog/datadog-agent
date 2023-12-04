@@ -132,8 +132,9 @@ func TestConvertFlowWithAdditionalFields(t *testing.T) {
 		NextHop:        []byte{10, 10, 10, 30},
 	},
 		AdditionalFields: map[string]any{
-			"bytes":        uint64(1000),
-			"custom_field": "test",
+			"bytes":             uint64(1000),
+			"custom_field":      "test",
+			"custom_byte_field": []byte{1, 2, 3, 4},
 		},
 	}
 	expectedFlow := common.Flow{
@@ -161,7 +162,7 @@ func TestConvertFlowWithAdditionalFields(t *testing.T) {
 		OutputInterface:  20,
 		Tos:              3,
 		NextHop:          []byte{10, 10, 10, 30},
-		AdditionalFields: map[string]any{"custom_field": "test"},
+		AdditionalFields: map[string]any{"custom_field": "test", "custom_byte_field": "01020304"},
 	}
 	actualFlow := ConvertFlowWithAdditionalFields(&srcFlow, "my-ns")
 	assert.Equal(t, expectedFlow, *actualFlow)

@@ -143,9 +143,9 @@ func TestServer(t *testing.T) {
 						"hostname":  "totoro",
 						"message":   "Hello, can you hear me",
 						"service":   "callme",
-						"source":    "Adele",
+						"ddsource":  "Adele",
 						"status":    "Info",
-						"tags":      []interface{}{"singer:adele"},
+						"ddtags":    "singer:adele",
 						"timestamp": float64(0)}},
 					Encoding: "gzip",
 				},
@@ -393,7 +393,7 @@ func postSomeFakePayloads(t *testing.T, fi *Server) {
 	fi.handleDatadogRequest(postResponse, request)
 }
 
-//go:embed fixture_test/log_bytes
+//go:embed fixtures/log_bytes
 var logBytes []byte
 
 func postSomeRealisticPayloads(t *testing.T, fi *Server) {

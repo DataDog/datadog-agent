@@ -18,9 +18,8 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/log"
-	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -50,12 +49,11 @@ func demuxOpts() aggregator.AgentDemultiplexerOptions {
 
 type deps struct {
 	fx.In
-	Log       log.Component
-	Forwarder defaultforwarder.Component
+	Demultiplexer demultiplexer.Mock
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, defaultforwarder.MockModule, config.MockModule, log.MockModule)
+	return fxutil.Test[deps](t, demultiplexer.MockModule, log.MockModule)
 }
 
 func Test_Run_simpleCase(t *testing.T) {
@@ -66,7 +64,7 @@ func Test_Run_simpleCase(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -346,7 +344,7 @@ func Test_Run_customIfSpeed(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -553,7 +551,7 @@ func TestProfile(t *testing.T) {
 	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	profile.SetConfdPathAndCleanProfiles()
 
@@ -1203,7 +1201,7 @@ community_string: public
 namespace: '%s'
 `, tt.name))
 			deps := createDeps(t)
-			senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+			senderManager := deps.Demultiplexer
 
 			err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 			assert.Nil(t, err)
@@ -1284,7 +1282,7 @@ func TestReportDeviceMetadataEvenOnProfileError(t *testing.T) {
 	timeNow = common.MockTimeNow
 
 	deps := createDeps(t)
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 	profile.SetConfdPathAndCleanProfiles()
 
 	sess := session.CreateMockSession()
@@ -1589,7 +1587,7 @@ tags:
 func TestReportDeviceMetadataWithFetchError(t *testing.T) {
 	timeNow = common.MockTimeNow
 	deps := createDeps(t)
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	profile.SetConfdPathAndCleanProfiles()
 
@@ -1703,7 +1701,7 @@ func TestDiscovery(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory}
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2043,7 +2041,7 @@ func TestDiscovery_CheckError(t *testing.T) {
 		return sess, nil
 	}
 	chk := Check{sessionFactory: sessionFactory, workerRunDeviceCheckErrors: atomic.NewUint64(0)}
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2121,7 +2119,7 @@ func TestDeviceIDAsHostname(t *testing.T) {
 	chk := Check{sessionFactory: sessionFactory}
 	coreconfig.Datadog.SetWithoutSource("hostname", "test-hostname")
 	coreconfig.Datadog.SetWithoutSource("tags", []string{"agent_tag1:val1", "agent_tag2:val2"})
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2312,7 +2310,7 @@ func TestDiscoveryDeviceIDAsHostname(t *testing.T) {
 	chk := Check{sessionFactory: sessionFactory}
 
 	coreconfig.Datadog.SetWithoutSource("hostname", "my-hostname")
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`
@@ -2516,7 +2514,7 @@ func TestCheckCancel(t *testing.T) {
 	}
 	chk := Check{sessionFactory: sessionFactory}
 
-	senderManager := aggregator.InitAndStartAgentDemultiplexer(deps.Log, deps.Forwarder, demuxOpts(), "")
+	senderManager := deps.Demultiplexer
 
 	// language=yaml
 	rawInstanceConfig := []byte(`

@@ -202,7 +202,7 @@ network_devices:
 								Field:       8,
 								Destination: "source.port",
 								Endian:      "",
-								Type:        "varint", // Ensure type is correctly overridden
+								Type:        "integer", // Ensure type is correctly overridden
 							},
 						},
 					},
