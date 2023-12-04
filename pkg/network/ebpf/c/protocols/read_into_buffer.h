@@ -37,7 +37,7 @@
         /* than the allowed max size. */                                                                            \
         const s64 read_size = left_payload < (blk_size) - 1 ? left_payload : (blk_size) - 1;                        \
         /* This check is essential, as certain kernel verifiers require it */                                       \
-        /* originally identified on kernel version 4.18.0-305 RHEL) */                                              \
+        /* originally identified on kernel version 4.18.0-305 RHEL */                                               \
         const u64 read_size_unsigned = read_size > 0 ? read_size : 0;                                               \
                                                                                                                     \
         /* Calculating the absolute size from the allocated buffer, that was left empty, again to please the */     \
