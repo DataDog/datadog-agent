@@ -481,7 +481,8 @@ func (c *safeConfig) UnmarshalExact(rawVal interface{}) error {
 // ReadInConfig wraps Viper for concurrent access
 func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
-	err := c.Viper.ReadInConfig()
+	err := c.configSources[SourceFile].ReadInConfig()
+	err = c.Viper.ReadInConfig()
 	c.Unlock()
 	return err
 }
@@ -610,6 +611,7 @@ func (c *safeConfig) SetConfigFile(in string) {
 	c.Lock()
 	defer c.Unlock()
 	c.Viper.SetConfigFile(in)
+	c.configSources[SourceFile].SetConfigFile(in)
 }
 
 // SetConfigType wraps Viper for concurrent access
