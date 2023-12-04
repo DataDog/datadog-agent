@@ -62,7 +62,7 @@ def cancel_pipelines_with_confirmation(gitlab, pipelines):
             print(f"Pipeline {color_message(pipeline['id'], 'bold')} will keep running.\n")
 
 
-def gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages):
+def gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages, force_cancel_jobs):
     """
     Gracefully cancel pipeline
     - Cancel all the jobs that did not start to run yet
@@ -73,8 +73,10 @@ def gracefully_cancel_pipeline(gitlab, pipeline, force_cancel_stages):
     jobs = gitlab.all_jobs(pipeline["id"])
 
     for job in jobs:
-        if job["stage"] in force_cancel_stages or (
-            job["status"] not in ["running", "canceled"] and "cleanup" not in job["name"]
+        if (
+            job["name"] in force_cancel_jobs
+            or job["stage"] in force_cancel_stages
+            or (job["status"] not in ["running", "canceled"] and "cleanup" not in job["name"])
         ):
             gitlab.cancel_job(job["id"])
 
