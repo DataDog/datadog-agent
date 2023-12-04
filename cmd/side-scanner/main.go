@@ -2057,7 +2057,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 			Device:     aws.String(device),
 		})
 		if err == nil {
-			log.Debugf("error attaching volume %q into device %q", volume.VolumeId, device)
+			log.Debugf("error attaching volume %q into device %q", *volume.VolumeId, device)
 			break
 		}
 		if !sleepCtx(ctx, 1*time.Second) {
