@@ -42,6 +42,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
+var capture atomic.Bool
+
 var bufferPool = sync.Pool{
 	New: func() interface{} {
 		return new(bytes.Buffer)

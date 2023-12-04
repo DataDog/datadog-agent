@@ -16,14 +16,11 @@ import (
 	"net/http/pprof"
 	"runtime"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 )
-
-var capture atomic.Bool
 
 const (
 	defaultTimeout          = 5 * time.Second
