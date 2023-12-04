@@ -426,9 +426,14 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 		return fmt.Errorf("could not init Remote Config client: %w", err)
 	}
 
+	findingsReporter, err := newFindingsReporter(hostname)
+	if err != nil {
+		return fmt.Errorf("could not init Findings Reporter: %w", err)
+	}
+
 	eventForwarder := epforwarder.NewEventPlatformForwarder()
 
-	scanner := newSideScanner(hostname, rcClient, eventForwarder, poolSize, allowedScanTypes)
+	scanner := newSideScanner(hostname, rcClient, eventForwarder, findingsReporter, poolSize, allowedScanTypes)
 	scanner.start(ctx)
 	return nil
 }
@@ -1044,6 +1049,7 @@ type sideScanner struct {
 	rcClient         *remote.Client
 	poolSize         int
 	eventForwarder   epforwarder.EventPlatformForwarder
+	findingsReporter *LogReporter
 	allowedScanTypes []string
 
 	scansCh           chan *scanTask
@@ -1052,12 +1058,13 @@ type sideScanner struct {
 	resultsCh         chan scanResult
 }
 
-func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epforwarder.EventPlatformForwarder, poolSize int, allowedScanTypes []string) *sideScanner {
+func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epforwarder.EventPlatformForwarder, findingsReporter *LogReporter, poolSize int, allowedScanTypes []string) *sideScanner {
 	return &sideScanner{
 		hostname:         hostname,
 		rcClient:         rcClient,
 		poolSize:         poolSize,
 		eventForwarder:   eventForwarder,
+		findingsReporter: findingsReporter,
 		allowedScanTypes: allowedScanTypes,
 
 		scansCh:         make(chan *scanTask),
@@ -1192,8 +1199,9 @@ func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
 	return sendSBOM(s.eventForwarder, entity, s.hostname)
 }
 
-func (s *sideScanner) sendFindings(findings *findings) error {
-	panic("not implemented")
+func (s *sideScanner) sendFindings(findings *findings) {
+	var tags []string // TODO: tags
+	s.findingsReporter.ReportEvent(findings, tags...)
 }
 
 func sendSBOM(eventForwarder epforwarder.EventPlatformForwarder, entity *sbommodel.SBOMEntity, hostname string) error {
