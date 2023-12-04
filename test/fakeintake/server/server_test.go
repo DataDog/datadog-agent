@@ -415,9 +415,29 @@ func TestServer(t *testing.T) {
 
 		expected := map[string]httpResponse{
 			"/totoro": {
-				statusCode:  200,
+				statusCode:  http.StatusOK,
 				contentType: "text/plain",
 				body:        []byte("catbus"),
+			},
+			"/support/flare": {
+				statusCode:  http.StatusOK,
+				contentType: "application/json",
+				data:        flareResponseBody{CaseID: 0, Error: ""},
+				body:        []byte("{}"),
+			},
+			"/api/v1/connections": {
+				statusCode:  http.StatusOK,
+				contentType: "application/x-protobuf",
+				data: []byte{
+					0x03, 0x00, 0x17, 0x02, 0xf7, 0x01, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x1a, 0x04, 0x08, 0x01, 0x10, 0x1e,
+				},
+				body: []byte{
+					0x03, 0x00, 0x17, 0x02, 0xf7, 0x01, 0x00, 0x00,
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+					0x1a, 0x04, 0x08, 0x01, 0x10, 0x1e,
+				},
 			},
 		}
 		assert.Equal(t, expected, fi.responseOverrides)
