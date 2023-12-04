@@ -95,7 +95,7 @@ func startClient(ctx context.Context, opts EBSBlockDeviceOptions) error {
 	addr := getSocketAddr(opts.DeviceName, opts.SnapshotARN)
 	conn, err := d.DialContext(ctx, "unix", addr)
 	if err != nil {
-		return fmt.Errorf("ebsblockdevice: could not dial %s: %v", addr)
+		return fmt.Errorf("ebsblockdevice: could not dial %s: %v", addr, err)
 	}
 	defer conn.Close()
 
@@ -195,7 +195,6 @@ type ebsBackend struct {
 
 	index map[int32]string
 	size  int64
-	lock  sync.Mutex
 }
 
 func newEBSBackend(ctx context.Context, ebsclient *ebs.Client, snapshotID string) (*ebsBackend, error) {
