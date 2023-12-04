@@ -8,9 +8,7 @@
 package cgroups
 
 import (
-	"os"
 	"path/filepath"
-	"syscall"
 )
 
 type cgroupV1 struct {
@@ -42,16 +40,8 @@ func (c *cgroupV1) Inode() uint64 {
 	if c.inode > 2 {
 		return c.inode
 	}
-
-	stat, err := os.Stat(c.pathFor(c.baseController, ""))
-	if err != nil {
-		return unknownInode
-	}
-	c.inode = stat.Sys().(*syscall.Stat_t).Ino
-	if c.inode > 2 {
-		return c.inode
-	}
-	return unknownInode
+	c.inode = inodeForPath(c.pathFor(c.baseController, ""))
+	return c.inode
 }
 
 func (c *cgroupV1) GetParent() (Cgroup, error) {
