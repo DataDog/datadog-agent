@@ -8,6 +8,7 @@
 package ebpfcheck
 
 import (
+	"runtime"
 	"unsafe"
 
 	"golang.org/x/sys/unix"
@@ -34,7 +35,23 @@ func ObjGetInfoByFd(attr *ObjGetInfoByFdAttr) error {
 	if errNo != 0 {
 		return errNo
 	}
+	runtime.KeepAlive(attr)
 	return nil
+}
+
+// ProgGetFdByIDAttr corresponds to the subset of `bpf_prog_attr` needed for BPF_PROG_GET_FD_BY_ID
+type ProgGetFdByIDAttr struct {
+	ID uint32
+}
+
+// ProgGetFdByID opens a file descriptor for the eBPF program corresponding to ID in attr
+func ProgGetFdByID(attr *ProgGetFdByIDAttr) (uint32, error) {
+	fd, _, errNo := unix.Syscall(unix.SYS_BPF, uintptr(unix.BPF_PROG_GET_FD_BY_ID), uintptr(unsafe.Pointer(attr)), unsafe.Sizeof(*attr))
+	if errNo != 0 {
+		return 0, errNo
+	}
+	runtime.KeepAlive(attr)
+	return uint32(fd), nil
 }
 
 // ProgInfo corresponds to kernel C type `bpf_prog_info`
