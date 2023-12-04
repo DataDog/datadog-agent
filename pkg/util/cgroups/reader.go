@@ -228,7 +228,7 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 	}
 
 	for _, cg := range newCgroups {
-		if inode, err := cg.Inode(); err != nil {
+		if inode := cg.Inode(); inode != unknownInode {
 			r.cgroupByInode[inode] = cg
 		}
 	}

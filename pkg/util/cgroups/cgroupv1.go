@@ -8,25 +8,29 @@
 package cgroups
 
 import (
-	"fmt"
+	"os"
 	"path/filepath"
+	"syscall"
 )
 
 type cgroupV1 struct {
-	identifier  string
-	mountPoints map[string]string
-	path        string
-	fr          fileReader
-	pidMapper   pidMapper
+	identifier     string
+	mountPoints    map[string]string
+	path           string
+	fr             fileReader
+	pidMapper      pidMapper
+	inode          uint64
+	baseController string
 }
 
-func newCgroupV1(identifier, path string, mountPoints map[string]string, pidMapper pidMapper) *cgroupV1 {
+func newCgroupV1(identifier, path, baseController string, mountPoints map[string]string, pidMapper pidMapper) *cgroupV1 {
 	return &cgroupV1{
-		identifier:  identifier,
-		mountPoints: mountPoints,
-		path:        path,
-		pidMapper:   pidMapper,
-		fr:          defaultFileReader,
+		identifier:     identifier,
+		mountPoints:    mountPoints,
+		path:           path,
+		pidMapper:      pidMapper,
+		fr:             defaultFileReader,
+		baseController: baseController,
 	}
 }
 
@@ -34,13 +38,25 @@ func (c *cgroupV1) Identifier() string {
 	return c.identifier
 }
 
-func (c *cgroupV1) Inode() (uint64, error) {
-	return 0, fmt.Errorf("not implemented")
+func (c *cgroupV1) Inode() uint64 {
+	if c.inode > 2 {
+		return c.inode
+	}
+
+	stat, err := os.Stat(c.pathFor(c.baseController, ""))
+	if err != nil {
+		return unknownInode
+	}
+	c.inode = stat.Sys().(*syscall.Stat_t).Ino
+	if c.inode > 2 {
+		return c.inode
+	}
+	return unknownInode
 }
 
 func (c *cgroupV1) GetParent() (Cgroup, error) {
 	parentPath := filepath.Join(c.path, "/..")
-	return newCgroupV1(filepath.Base(parentPath), parentPath, c.mountPoints, c.pidMapper), nil
+	return newCgroupV1(filepath.Base(parentPath), parentPath, c.baseController, c.mountPoints, c.pidMapper), nil
 }
 
 func (c *cgroupV1) controllerMounted(controller string) bool {

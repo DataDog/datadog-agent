@@ -8,7 +8,6 @@
 package cgroups
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -39,19 +38,19 @@ func (c *cgroupV2) Identifier() string {
 	return c.identifier
 }
 
-func (c *cgroupV2) Inode() (uint64, error) {
+func (c *cgroupV2) Inode() uint64 {
 	if c.inode > 2 {
-		return c.inode, nil
+		return c.inode
 	}
 	stat, err := os.Stat(filepath.Join(c.cgroupRoot, c.relativePath))
 	if err != nil {
-		return 0, err
+		return unknownInode
 	}
 	c.inode = stat.Sys().(*syscall.Stat_t).Ino
-	if c.inode <= 2 {
-		return 0, fmt.Errorf("invalid inode: %d", c.inode)
+	if c.inode > 2 {
+		return c.inode
 	}
-	return c.inode, nil
+	return unknownInode
 }
 
 func (c *cgroupV2) GetParent() (Cgroup, error) {

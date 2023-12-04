@@ -59,12 +59,12 @@ func TestReaderV2(t *testing.T) {
 
 	// Initialize Inodes
 	for i := range cgroups {
-		_, err := cgroups[i].Inode()
-		assert.NoError(t, err)
+		inode := cgroups[i].Inode()
+		assert.NotEqual(t, uint64(0), inode)
 	}
 	for _, cgroup := range expected {
-		_, err := cgroup.Inode()
-		assert.NoError(t, err)
+		inode := cgroup.Inode()
+		assert.NotEqual(t, uint64(0), inode)
 	}
 
 	assert.Empty(t, cmp.Diff(expected, cgroups, cmp.AllowUnexported(cgroupV2{})))

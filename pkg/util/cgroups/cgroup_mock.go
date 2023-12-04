@@ -8,7 +8,6 @@
 package cgroups
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -36,11 +35,8 @@ func (mc *MockCgroup) Identifier() string {
 }
 
 // Inode mock
-func (mc *MockCgroup) Inode() (uint64, error) {
-	if mc.In <= 2 {
-		return 0, fmt.Errorf("invalid inode: %d", mc.In)
-	}
-	return mc.In, nil
+func (mc *MockCgroup) Inode() uint64 {
+	return mc.In
 }
 
 // GetParent mock
