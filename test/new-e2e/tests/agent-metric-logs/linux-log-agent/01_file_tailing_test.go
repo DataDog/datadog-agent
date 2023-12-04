@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -43,7 +42,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 	s := &LinuxVMFakeintakeSuite{}
 	_, s.DevMode = os.LookupEnv("E2E_DEVMODE")
 
-	e2e.Run(t, s, logsExampleStackDef(), params.WithDevMode())
+	e2e.Run(t, s, logsExampleStackDef())
 }
 
 func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
@@ -91,7 +90,7 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 	if strings.TrimSpace(output) == "true" {
 		t.Logf("Permissions granted for new log file.")
 		// Generate log
-		generateLog(s, "hello-before-permission-world")
+		generateLog(s, "hello-before-permission-world", 1)
 
 		// Part 3: Check intake for new logs
 		checkLogs(s, "hello", "hello-before-permission-world", true)
@@ -104,7 +103,7 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 	assert.NoError(t, err, "Unable to adjust back to default permissions for the log file '/var/log/hello-world.log'.")
 	if strings.TrimSpace(output) == "true" {
 		t.Logf("Permissions reset to default.")
-		generateLog(s, "hello-after-permission-world")
+		generateLog(s, "hello-after-permission-world", 1)
 	}
 
 	// Grant log file permission and check intake for new logs
@@ -128,7 +127,7 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 		t.Logf("Read permissions revoked")
 		s.Env().VM.Execute("sudo service datadog-agent restart")
 
-		generateLog(s, "access-denied")
+		generateLog(s, "access-denied", 1)
 		// Check intake to see if new logs are not present
 		checkLogs(s, "hello", "access-denied", false)
 	}
@@ -140,7 +139,7 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 	// Part 6: Generate new logs and check the intake for new logs
 	if strings.TrimSpace(output) == "true" {
 		t.Logf("Permissions restored.")
-		generateLog(s, "access-granted")
+		generateLog(s, "access-granted", 1)
 		// Check intake to see if new logs are present
 		checkLogs(s, "hello", "access-granted", true)
 	}
@@ -166,7 +165,7 @@ func (s *LinuxVMFakeintakeSuite) LogRotation() {
 	if strings.TrimSpace(output) == "true" {
 		t.Logf("Permissions granted for new log file.")
 		// Generate new logs
-		generateLog(s, "hello-world-new-content")
+		generateLog(s, "hello-world-new-content", 1)
 
 		// Check intake for new logs
 		checkLogs(s, "hello", "hello-world-new-content", true)

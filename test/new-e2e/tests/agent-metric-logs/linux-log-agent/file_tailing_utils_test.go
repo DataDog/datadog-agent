@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// generateLog generates and verifies log contents.
-func generateLog(s *LinuxVMFakeintakeSuite, content string) {
+// generateLog generates x content with y reccurrence and verifies log contents.
+func generateLog(s *LinuxVMFakeintakeSuite, content string, recurrence int) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
 	t := s.T()
@@ -31,13 +31,13 @@ func generateLog(s *LinuxVMFakeintakeSuite, content string) {
 		os = "windows"
 		t.Log("Generating Windows log.")
 		logPath = "C:\\logs\\hello-world.log"
-		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content, 10), logPath)
+		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content+" ", recurrence), logPath)
 		checkCmd = fmt.Sprintf("Get-Content %s", logPath)
 	default: // Assuming Linux if not Windows.
 		os = "linux"
 		t.Log("Generating Linux log.")
 		logPath = "/var/log/hello-world.log"
-		cmd = fmt.Sprintf("echo '%s' | sudo tee -a %s", strings.Repeat(content+" ", 10), logPath)
+		cmd = fmt.Sprintf("echo '%s' | sudo tee -a %s", strings.Repeat(content+" ", recurrence), logPath)
 		checkCmd = fmt.Sprintf("sudo cat %s", logPath)
 	}
 
