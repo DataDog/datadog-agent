@@ -19,7 +19,7 @@ import (
 	"golang.org/x/net/bpf"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 )
 
 // CallbackType represents a callback type
@@ -156,7 +156,7 @@ func (t *Tracer) ReadArgStringArray(pid int, regs syscall.PtraceRegs, arg int) (
 			return result, err
 		}
 
-		ptr := model.ByteOrder.Uint64(data)
+		ptr := native.Endian.Uint64(data)
 		if ptr == 0 {
 			break
 		}
@@ -293,6 +293,7 @@ func traceFilterProg(opts Opts) (*syscall.SockFprog, error) {
 
 // NewTracer returns a tracer
 func NewTracer(path string, args []string, opts Opts) (*Tracer, error) {
+
 	info, err := arch.GetInfo("")
 	if err != nil {
 		return nil, err
