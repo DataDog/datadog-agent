@@ -11,15 +11,15 @@ import (
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComp "github.com/DataDog/datadog-agent/comp/core/log"
+	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/remote"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/replay"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/types"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
@@ -57,13 +57,6 @@ type TaggerClient struct {
 }
 
 var (
-	// globalTagger is the global tagger instance backing the global Tag functions
-	globalTagger *TaggerClient
-
-	// initOnce ensures that the global tagger is only initialized once.  It is reset every
-	// time the default tagger is set.
-	initOnce sync.Once
-
 	// ChecksCardinality defines the cardinality of tags we should send for check metrics
 	// this can still be overridden when calling get_tags in python checks.
 	ChecksCardinality collectors.TagCardinality
@@ -123,27 +116,25 @@ func newTaggerClient(deps dependencies) Component {
 		}
 	}
 	if deps.Params.IsGlobalTagger {
-		initOnce.Do(func() {
-			globalTagger = taggerClient
-			var err error
-			taggerClient.tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_detection_error",
-				nil, "Dogstatsd UDP origin detection error count")
-			checkCard := deps.Config.GetString("checks_tag_cardinality")
-			dsdCard := deps.Config.GetString("dogstatsd_tag_cardinality")
-			ChecksCardinality, err = collectors.StringToTagCardinality(checkCard)
-			if err != nil {
-				deps.Log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
-				ChecksCardinality = collectors.LowCardinality
-			}
-
-			DogstatsdCardinality, err = collectors.StringToTagCardinality(dsdCard)
-			if err != nil {
-				deps.Log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
-				DogstatsdCardinality = collectors.LowCardinality
-			}
-		})
+		SetGlobalTaggerClient(taggerClient)
 	}
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
+		var err error
+		taggerClient.tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_detection_error",
+			nil, "Dogstatsd UDP origin detection error count")
+		checkCard := deps.Config.GetString("checks_tag_cardinality")
+		dsdCard := deps.Config.GetString("dogstatsd_tag_cardinality")
+		ChecksCardinality, err = collectors.StringToTagCardinality(checkCard)
+		if err != nil {
+			deps.Log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
+			ChecksCardinality = collectors.LowCardinality
+		}
+
+		DogstatsdCardinality, err = collectors.StringToTagCardinality(dsdCard)
+		if err != nil {
+			deps.Log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
+			DogstatsdCardinality = collectors.LowCardinality
+		}
 		return taggerClient.Start(deps.Context)
 	}})
 	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
@@ -162,26 +153,10 @@ func (t *TaggerClient) Stop() error {
 	return t.defaultTagger.Stop()
 }
 
-// GetTaggerInstance returns the global Tagger instance
-func GetTaggerInstance() Component {
-	return globalTagger
-}
-
-// GetDefaultTagger returns the default Tagger in global instance
-// TODO(components) (tagger): stop using globals
-func GetDefaultTagger() Component {
-	if globalTagger == nil {
-		return nil
-	}
-	return globalTagger.defaultTagger
-}
-
-// GetDefaultTagger returns defaultTagger in injected tagger component
+// GetDefaultTagger returns the default Tagger in current instance
 func (t *TaggerClient) GetDefaultTagger() Component {
 	return t.defaultTagger
 }
-
-// GetCaptureTagger returns the capture Tagger in global instance
 
 // GetEntity returns the hash for the provided entity id.
 func (t *TaggerClient) GetEntity(entityID string) (*types.Entity, error) {

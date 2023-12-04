@@ -8,8 +8,8 @@ package collectors
 import (
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 
 	"github.com/stretchr/testify/assert"
 )

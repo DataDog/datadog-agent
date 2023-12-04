@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"sync"
 
-	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
-	"github.com/DataDog/datadog-agent/pkg/tagger/types"
+	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 

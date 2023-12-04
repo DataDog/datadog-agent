@@ -14,9 +14,9 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/DataDog/datadog-agent/pkg/tagger"
-	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	pbutils "github.com/DataDog/datadog-agent/pkg/util/proto"
@@ -92,7 +92,7 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 
 		// The remote tagger client has a timeout that closes the
 		// connection after 10 minutes of inactivity (implemented in
-		// pkg/tagger/remote/tagger.go) In order to avoid closing the
+		// comp/core/tagger/remote/tagger.go) In order to avoid closing the
 		// connection and having to open it again, the server will send
 		// an empty message after 9 minutes of inactivity. The goal is
 		// only to keep the connection alive without losing the

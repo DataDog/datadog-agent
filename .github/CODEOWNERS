@@ -350,7 +350,7 @@
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/serializer/                        @DataDog/agent-metrics-logs
-/pkg/tagger/                            @DataDog/container-integrations
+/comp/core/tagger/                            @DataDog/container-integrations
 /pkg/tagset/                            @DataDog/agent-shared-components
 /pkg/updater/                           @DataDog/fleet
 /pkg/util/                              @DataDog/agent-shared-components

@@ -11,18 +11,18 @@ import (
 	"fmt"
 	"sync"
 
+	tagger_api "github.com/DataDog/datadog-agent/comp/core/tagger/api"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tagstore"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
-	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // Tagger is the entry class for entity tagging. It hold the tagger collector,
 // memory store, and handles the query logic. One should use the package
-// methods in pkg/tagger to use the default Tagger instead of instantiating it
+// methods in comp/core/tagger to use the default Tagger instead of instantiating it
 // directly.
 type Tagger struct {
 	sync.RWMutex

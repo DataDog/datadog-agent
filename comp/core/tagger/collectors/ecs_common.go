@@ -8,8 +8,8 @@ package collectors
 import (
 	"strings"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 )
 
 func addResourceTags(t *utils.TagList, m map[string]string) {

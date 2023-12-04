@@ -31,7 +31,7 @@ type Params struct {
 }
 
 // NewTaggerType creates a Params struct with the default LocalTagger type
-func NewParams() Params {
+func NewTaggerParams() Params {
 	return Params{TaggerType: LocalTagger,
 		AgentType:      LocalTaggerAgent,
 		IsGlobalTagger: true}

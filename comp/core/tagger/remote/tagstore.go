@@ -8,10 +8,10 @@ package remote
 import (
 	"sync"
 
-	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/subscriber"
-	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/subscriber"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 )
 
