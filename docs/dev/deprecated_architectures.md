@@ -4,7 +4,7 @@
 
 There was a product request to release the Agent on Windows 32 bits but it never came to fruition.
 
-We hence removed all Windows 32 bits related code in [#21221](https://github.com/DataDog/datadog-agent/pull/21221). The PR:
+Datadog removed all 32-bit Windows related code in [#21221](https://github.com/DataDog/datadog-agent/pull/21221). The PR:
 
 - Removes the `*_386.go` files,
 - Removes the windows 32 bits logic in `omnibus/config`,
