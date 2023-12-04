@@ -400,6 +400,8 @@ func (c *SystemdCheck) submitPropertyMetricsAsGauge(sender sender.Sender, conn *
 		serviceProperties, err := c.stats.GetUnitTypeProperties(conn, unit.Name, dbusTypeMap[unitType])
 		if err != nil {
 			log.Warnf("Error getting detailed properties for unit %s", unit.Name)
+			log.Errorf("Error getting detailed properties for unit %s: %s", unit.Name, err)
+			log.Errorf("Error getting detailed properties for unit %s: %v", unit.Name, err)
 			return
 		}
 		for _, service := range metricConfigs[unitType] {
