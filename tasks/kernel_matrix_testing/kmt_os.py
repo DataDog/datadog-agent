@@ -5,7 +5,6 @@ from .tool import Exit
 
 def get_home_linux():
     return os.path.join("/", "/home", "kernel-version-testing")
-    #return os.path.join("/", "opt", "kernel-matrix-testing")
 
 def get_home_macos():
     return ""

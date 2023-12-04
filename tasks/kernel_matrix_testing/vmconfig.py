@@ -203,6 +203,11 @@ def get_custom_kernel_config(version, arch):
     if arch == local_arch:
         arch = arch_mapping[platform.machine()]
 
+    if arch == "x86_64":
+        console = "ttyS0"
+    else:
+        console = "ttyAMA0"
+
     if lte_414(version):
         extra_params = {"console": console, "systemd.unified_cgroup_hierarchy": "0"}
     else:
@@ -211,7 +216,7 @@ def get_custom_kernel_config(version, arch):
         }
 
     return {
-        "dir": f"kernel-{version}.{arch}.pkg",
+        "dir": f"kernel-v{version}.{arch}.pkg",
         "tag": version,
         "extra_params": extra_params,
     }
@@ -520,7 +525,7 @@ def build_normalized_vm_def_set(vms):
     return normalized_vms
 
 
-def gen_config(ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", memory="8192", new=False, ci=False):
+def gen_config_for_stack(ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", memory="8192", new=False, ci=False):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
         raise Exit(
