@@ -8,13 +8,13 @@ package logagent
 import (
 	_ "embed"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
 	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -42,7 +42,7 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 	s := &LinuxVMFakeintakeSuite{}
 	_, s.DevMode = os.LookupEnv("TESTS_E2E_DEVMODE")
 
-	e2e.Run(t, s, logsExampleStackDef(), params.WithDevMode())
+	e2e.Run(t, s, logsExampleStackDef())
 }
 
 func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
@@ -85,32 +85,44 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 	}, 5*time.Minute, 10*time.Second)
 
 	// Part 2: Adjust permissions of new log file
-	_, err := s.Env().VM.ExecuteWithError("sudo chmod 777 /var/log/hello-world.log")
+	output, err := s.Env().VM.ExecuteWithError("sudo chmod 777 /var/log/hello-world.log && echo true")
 	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	if strings.TrimSpace(output) == "true" {
+		t.Logf("Permissions granted for new log file.")
+		// Generate log
+		generateLog(s, "hello-world")
 
-	// Generate log
-	generateLog(s, "hello-world")
-
-	// Part 3: Check intake for new logs
-	checkLogs(s, "hello", "hello-world")
+		// Part 3: Check intake for new logs
+		checkLogs(s, "hello", "hello-world", true)
+	}
 }
 
 func (s *LinuxVMFakeintakeSuite) LogPermission() {
-
+	t := s.T()
 	// Part 4: Allow on only write permission to the log file so the agent cannot tail it
-	s.Env().VM.Execute("sudo chmod 666 /var/log/hello-world.log")
+	output, err := s.Env().VM.ExecuteWithError("sudo chmod -r /var/log/hello-world.log && echo true")
+	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	if strings.TrimSpace(output) == "true" {
+		t.Logf("Read permissions revoked")
+		s.Env().VM.Execute("sudo service datadog-agent restart")
 
-	generateLog(s, "access-denied")
-
-	// Check intake to see if new logs are not present
-	checkLogs(s, "hello", "access-denied")
+		generateLog(s, "access-denied")
+		// Check intake to see if new logs are not present
+		checkLogs(s, "hello", "access-denied", false)
+	}
 
 	// Part 5: Restore permissions
-	s.Env().VM.Execute("sudo chmod 777 /var/log/hello-world.log")
+	output, err = s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
+	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
 
 	// Part 6: Generate new logs and check the intake for new logs
-	generateLog(s, "access-granted")
-	checkLogs(s, "hello", "access-granted")
+	if strings.TrimSpace(output) == "true" {
+		t.Logf("Permissions restored.")
+		generateLog(s, "access-granted")
+		// Check intake to see if new logs are present
+		checkLogs(s, "hello", "access-granted", true)
+	}
+
 }
 
 func (s *LinuxVMFakeintakeSuite) LogRotation() {
@@ -125,11 +137,15 @@ func (s *LinuxVMFakeintakeSuite) LogRotation() {
 	assert.NoError(t, err, "Failed to find the old log file after rotation")
 
 	// Grant new log file permission
-	s.Env().VM.Execute("sudo chmod 777 /var/log/hello-world.log")
+	output, err := s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
+	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	if strings.TrimSpace(output) == "true" {
+		t.Logf("Permissions granted for new log file.")
+		// Generate new logs
+		generateLog(s, "hello-world-new-content")
 
-	// Generate new logs
-	generateLog(s, "hello-world-new-content")
+		// Check intake for new logs
+		checkLogs(s, "hello", "hello-world-new-content", true)
+	}
 
-	// Check intake for new logs
-	checkLogs(s, "hello", "hello-world-new-content")
 }

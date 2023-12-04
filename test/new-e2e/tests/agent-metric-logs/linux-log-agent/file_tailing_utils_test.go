@@ -6,10 +6,12 @@
 package logagent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	componentos "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/stretchr/testify/assert"
@@ -21,7 +23,6 @@ func generateLog(s *LinuxVMFakeintakeSuite, content string) {
 	var logPath, cmd, checkCmd string
 	t := s.T()
 
-	// Get OS type using the OSType from vm_client.go from e2e/client package
 	osType := s.Env().VM.GetOSType()
 	var os string
 
@@ -36,21 +37,31 @@ func generateLog(s *LinuxVMFakeintakeSuite, content string) {
 		os = "linux"
 		t.Log("Generating Linux log.")
 		logPath = "/var/log/hello-world.log"
-		cmd = fmt.Sprintf("echo %s > %s", strings.Repeat(content, 10), logPath)
-		checkCmd = fmt.Sprintf("cat %s", logPath)
+		cmd = fmt.Sprintf("echo '%s' | sudo tee -a %s", strings.Repeat(content+" ", 10), logPath)
+		checkCmd = fmt.Sprintf("sudo cat %s", logPath)
 	}
 
-	s.Env().VM.Execute(cmd)
-	output := s.Env().VM.Execute(checkCmd)
-	if strings.Contains(output, content) {
-		t.Logf("Finished generating %s log.", os)
-	}
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		// Generate the log content
+		output, err := s.Env().VM.ExecuteWithError(cmd)
+		if err != nil {
+			assert.FailNowf(t, "Having issue generating %s log with error: %s", os, output)
+		}
+		// Verify the log content locally
+		output, err = s.Env().VM.ExecuteWithError(checkCmd)
+		if err != nil {
+			assert.FailNowf(t, "Log content %s not found, instead received:: %s", content, output)
+		}
+		if strings.Contains(output, content) {
+			t.Logf("Finished generating %s log with content: '%s' \n", os, content)
+		}
+	}, 5*time.Minute, 10*time.Second)
 }
 
-// checkLogs checks and verifies logs inside the intake.
-func checkLogs(suite *LinuxVMFakeintakeSuite, service, content string) {
+// checkLogs verifies the presence or absence of logs in the intake based on the expectLogs flag.
+func checkLogs(suite *LinuxVMFakeintakeSuite, service, content string, expectLogs bool) {
 	client := suite.Env().Fakeintake
-
+	t := suite.T()
 	suite.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
@@ -66,18 +77,19 @@ func checkLogs(suite *LinuxVMFakeintakeSuite, service, content string) {
 				return
 			}
 
-			logs, err = client.FilterLogs(service, fi.WithMessageContaining(content))
+			logs, err = client.FilterLogs(service, fi.WithMessageMatching(content))
+			intakeLogs := logsToString(logs)
 			assert.NoErrorf(c, err, "Error found: %s", err)
-			assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', but received %v logs.", content, logs)
-		} else {
-			logs, err := client.FilterLogs(service)
-			if !assert.NoErrorf(c, err, "Error found: %s", err) {
-				return
-			}
-			assert.Emptyf(c, logs, "Expected no logs from service: %s with content: %s but found %", service, content)
-		}
-	}, 2*time.Minute, 1*time.Second)
 
+			if expectLogs {
+				t.Logf("Logs with content: '%s' service: %s found", content, names)
+				assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', but received %s logs.", content, intakeLogs)
+			} else {
+				t.Logf("No logs with content: '%s' service: %s found as expected", content, names)
+				assert.Empty(c, logs, "No logs with content: '%s' is expected to be found from service instead found: %s", content, intakeLogs)
+			}
+		}
+	}, 2*time.Minute, 10*time.Second)
 }
 
 // cleanUp cleans up any existing log files (only useful when running dev mode/local runs).
@@ -110,4 +122,31 @@ func (s *LinuxVMFakeintakeSuite) cleanUp() {
 			t.Log("Successfully cleaned up.")
 		}
 	}, 5*time.Minute, 10*time.Second)
+}
+
+// prettyPrintLog pretty prints a log entry.
+func prettyPrintLog(log *aggregator.Log) string {
+	// Unmarshal and re-marshal the message field for pretty printing
+	var messageObj map[string]interface{}
+	if err := json.Unmarshal([]byte(log.Message), &messageObj); err == nil {
+		prettyMessage, _ := json.MarshalIndent(messageObj, "", "  ")
+		log.Message = string(prettyMessage)
+	}
+
+	// Marshal the entire log entry
+	logStr, err := json.MarshalIndent(log, "", "  ")
+	if err != nil {
+		// Handle the error appropriately
+		return fmt.Sprintf("Error marshaling log: %v", err)
+	}
+	return string(logStr)
+}
+
+// logsToString converts a slice of logs to a string.
+func logsToString(logs []*aggregator.Log) string {
+	var logsStrings []string
+	for _, log := range logs {
+		logsStrings = append(logsStrings, prettyPrintLog(log))
+	}
+	return fmt.Sprintf("[%s]", strings.Join(logsStrings, ",\n"))
 }
