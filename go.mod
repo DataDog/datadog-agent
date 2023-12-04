@@ -621,8 +621,8 @@ require (
 	github.com/DataDog/go-libddwaf/v2 v2.2.0
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
-	github.com/aws/aws-sdk-go-v2/service/kms v1.22.2
-	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.21.6
+	github.com/aws/aws-sdk-go-v2/service/kms v1.26.3
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.24.0
 	github.com/cloudfoundry-community/go-cfclient/v2 v2.0.1-0.20230503155151-3d15366c5820
 	github.com/containerd/cgroups/v3 v3.0.2
 	github.com/containerd/typeurl/v2 v2.1.1
