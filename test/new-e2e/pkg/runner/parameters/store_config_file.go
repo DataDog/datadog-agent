@@ -18,6 +18,8 @@ import (
 //   aws:
 //     keyPairName: "totoro"
 //     publicKeyPath: "/home/totoro/.ssh/id_rsa.pub"
+//     privateKeyPath: "/home/totoro/.ssh/id_rsa"
+//     privateKeyPassphrase: "princess_mononoke"
 //   agent:
 //     apiKey: "00000000000000000000000000000000"=
 // stackParams:

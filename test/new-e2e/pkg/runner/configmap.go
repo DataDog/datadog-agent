@@ -109,10 +109,6 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	if err != nil {
 		return nil, err
 	}
-	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.PrivateKeyPassphrase, AWSPrivateKeyPassphrase)
-	if err != nil {
-		return nil, err
-	}
 	err = SetConfigMapFromParameter(profile.ParamStore(), cm, parameters.ExtraResourcesTags, InfraExtraResourcesTags)
 	if err != nil {
 		return nil, err
@@ -130,6 +126,11 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	if err != nil {
 		return nil, err
 	}
+	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.PrivateKeyPassphrase, AWSPrivateKeyPassphrase)
+	if err != nil {
+		return nil, err
+	}
+
 	// Merge with scenario variables
 	cm.Merge(scenarioConfig)
 
