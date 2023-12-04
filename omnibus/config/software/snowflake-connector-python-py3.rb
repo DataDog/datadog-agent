@@ -6,7 +6,7 @@
 # modify the wheel build.
 
 name "snowflake-connector-python-py3"
-default_version "3.4.0"
+default_version "3.5.0"
 
 dependency "pip3"
 
@@ -15,7 +15,7 @@ source :url => "https://github.com/snowflakedb/snowflake-connector-python/archiv
        # PyPI does provide checksums, but
        # 1. we can't find permalinks to source distributions
        # 2. we'll likely need to change our patch to work with a source distribution, we don't have time for that yet.
-       :sha256 => "0af8e463d2e558eadb0d75d683e2154acf3e10a74510cc06f93c7596ec82323b",
+       :sha256 => "6fb8cb4e001ddd0a6cc4007f70abe6034a53cba050f67a6a88094b0ae94826f3",
        :extract => :seven_zip
 
 relative_path "snowflake-connector-python-#{version}"

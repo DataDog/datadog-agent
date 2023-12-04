@@ -156,9 +156,11 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}()
 
-	if nettelemetry.EBPFTelemetrySupported() {
-		tr.bpfTelemetry = nettelemetry.NewEBPFTelemetry()
+	tr.bpfTelemetry = nettelemetry.NewEBPFTelemetry()
+	if tr.bpfTelemetry != nil {
 		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfTelemetry)
+	} else {
+		log.Debug("eBPF telemetry not supported")
 	}
 
 	tr.ebpfTracer, err = connection.NewTracer(cfg, tr.bpfTelemetry)
@@ -616,8 +618,6 @@ const (
 	stateStats
 	tracerStats
 	processCacheStats
-	bpfMapStats
-	bpfHelperStats
 	kafkaStats
 )
 
@@ -625,8 +625,6 @@ var allStats = []statsComp{
 	stateStats,
 	tracerStats,
 	httpStats,
-	bpfMapStats,
-	bpfHelperStats,
 }
 
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
@@ -650,10 +648,6 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["tracer"] = tracerStats
 		case httpStats:
 			ret["universal_service_monitoring"] = t.usmMonitor.GetUSMStats()
-		case bpfMapStats:
-			ret[nettelemetry.EBPFMapTelemetryNS] = t.bpfTelemetry.GetMapsTelemetry()
-		case bpfHelperStats:
-			ret[nettelemetry.EBPFHelperTelemetryNS] = t.bpfTelemetry.GetHelpersTelemetry()
 		}
 	}
 

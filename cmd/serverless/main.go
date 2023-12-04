@@ -114,32 +114,13 @@ func runAgent(serverlessDaemon daemon.Component) {
 		return
 	}
 
-	// api key reading
-	// ---------------
-
-	// API key reading priority:
-	// KMS > Secrets Manager > Plaintext API key
-	// If one is set but failing, the next will be tried
-
-	apikey.CheckForSingleAPIKey()
-
-	// Set secrets from the environment that are suffixed with
-	// KMS_ENCRYPTED or SECRET_ARN
-	apikey.SetSecretsFromEnv(os.Environ())
-
-	// validate that an apikey has been set, either by the env var, read from KMS or Secrets Manager.
-	// ---------------------------
-	if !config.Datadog.IsSet("api_key") {
-		// we're not reporting the error to AWS because we don't want the function
-		// execution to be stopped. TODO(remy): discuss with AWS if there is way
-		// of reporting non-critical init errors.
-		log.Error("No API key configured")
-	}
 	config.Datadog.SetConfigFile(datadogConfigPath)
 	// Load datadog.yaml file into the config, so that metricAgent can pick these configurations
 	if _, err := config.LoadWithoutSecret(); err != nil {
 		log.Errorf("Error happened when loading configuration from datadog.yaml for metric agent: %s", err)
 	}
+
+	apikey.HandleEnv()
 
 	// extension registration
 	serverlessID, functionArn, err := registration.RegisterExtension(extensionRegistrationRoute, extensionRegistrationTimeout)

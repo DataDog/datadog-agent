@@ -245,6 +245,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("syslog_pem", "")
 	config.BindEnvAndSetDefault("syslog_key", "")
 	config.BindEnvAndSetDefault("syslog_tls_verify", true)
+	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
@@ -257,7 +258,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnv("bind_host")
-	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
@@ -1797,7 +1797,7 @@ func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 
 // sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
 func sanitizeAPIKeyConfig(config Config, key string) {
-	if !config.IsKnown(key) {
+	if !config.IsKnown(key) || !config.IsSet(key) {
 		return
 	}
 	config.Set(key, strings.TrimSpace(config.GetString(key)), pkgconfigmodel.SourceAgentRuntime)
