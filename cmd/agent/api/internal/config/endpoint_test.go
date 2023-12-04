@@ -18,6 +18,7 @@ import (
 )
 
 type testCase struct {
+	name           string
 	authorized     bool
 	existing       bool
 	expectedStatus int
@@ -61,11 +62,12 @@ func TestConfigEndpoint(t *testing.T) {
 	})
 
 	for _, testCase := range []testCase{
-		{true, true, http.StatusOK}, {true, false, http.StatusNotFound},
-		{false, true, http.StatusForbidden}, {false, false, http.StatusForbidden},
+		{"authorized existing config", true, true, http.StatusOK},
+		{"authorized missing config", true, false, http.StatusNotFound},
+		{"unauthorized existing config", false, true, http.StatusForbidden},
+		{"unauthorized missing config", false, false, http.StatusForbidden},
 	} {
-		testName := getTestCaseName(testCase.authorized, testCase.existing)
-		t.Run(testName, func(t *testing.T) {
+		t.Run(testCase.name, func(t *testing.T) {
 			configName := "my.config.value"
 			authorizedConfigPaths := authorizedSet{}
 			if testCase.authorized {
@@ -85,19 +87,6 @@ func TestConfigEndpoint(t *testing.T) {
 		cfg.SetWithoutSource(configName, make(chan int))
 		testConfigValue(t, server, "my.config.value", http.StatusInternalServerError)
 	})
-}
-
-func ternary(condition bool, trueValue, falseValue string) string {
-	if condition {
-		return trueValue
-	}
-	return falseValue
-}
-
-func getTestCaseName(authorized, existing bool) string {
-	auth := ternary(authorized, "authorized", "unauthorized")
-	exist := ternary(existing, "existing", "missing")
-	return auth + " " + exist
 }
 
 func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (*config.MockConfig, *httptest.Server) {
