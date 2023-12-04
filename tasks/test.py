@@ -1284,21 +1284,22 @@ def send_unit_tests_stats(_, job_name):
     send_metrics(series)
 
 
-def parse_test_log(log_file):
+@task
+def parse_test_log(_, log_file):
     failed_tests = []
     n_test_executed = 0
     with open(log_file, "r") as f:
         for line in f:
             json_line = json.loads(line)
-            if json_line["Action"] == "fail" and "Test" in json_line:
+            if (
+                json_line["Action"] == "fail"
+                and "Test" in json_line
+                and f'{json_line["Package"]}/{json_line["Test"]}' not in failed_tests
+            ):
                 n_test_executed += 1
                 failed_tests.append(f'{json_line["Package"]}/{json_line["Test"]}')
             if json_line["Action"] == "pass" and "Test" in json_line:
                 n_test_executed += 1
                 if f'{json_line["Package"]}/{json_line["Test"]}' in failed_tests:
-                    failed_tests = [
-                        failed_test
-                        for failed_test in failed_tests
-                        if f'{json_line["Package"]}/{json_line["Test"]}' != failed_test
-                    ]
+                    failed_tests.remove(f'{json_line["Package"]}/{json_line["Test"]}')
     return failed_tests, n_test_executed
