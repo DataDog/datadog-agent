@@ -35,8 +35,14 @@ type stepByStepSuite struct {
 	cwsSupported      bool
 }
 
-func ExecuteWithoutError(cmd string, t *testing.T, client *common.TestClient) {
-	_, err := client.VMClient.ExecuteWithError(cmd)
+func ExecuteWithoutError(t *testing.T, client *common.TestClient, cmd string, args ...any) {
+	var finalCmd string
+	if len(args) > 0 {
+		finalCmd = fmt.Sprintf(cmd, args...)
+	} else {
+		finalCmd = cmd
+	}
+	_, err := client.VMClient.ExecuteWithError(finalCmd)
 	require.NoError(t, err)
 }
 
@@ -100,6 +106,14 @@ func (is *stepByStepSuite) TestStepByStep() {
 	} else if *platform == "suse" {
 		StepByStepSuseTest(is)
 	}
+
+}
+
+func CheckStepByStepAgentInstallation(is *stepByStepSuite, agentClient client.Agent, fileManager *filemanager.Unix, unixHelper *helpers.Unix) {
+	VMclient := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
+	common.CheckInstallation(is.T(), VMclient)
+	common.CheckAgentBehaviour(is.T(), VMclient)
+	common.CheckUninstallation(is.T(), VMclient, "datadog-agent")
 }
 
 func StepByStepDebianTest(is *stepByStepSuite) {
@@ -115,32 +129,29 @@ func StepByStepDebianTest(is *stepByStepSuite) {
 	VMclient := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
 
 	is.T().Run("create /usr/share keyring and source list", func(t *testing.T) {
-		ExecuteWithoutError("sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg", t, VMclient)
-		tmpCmd := fmt.Sprintf("deb %s %s %v", aptrepo, aptrepoDist, is.agentMajorVersion)
-		_, err = fileManager.WriteFile("/etc/apt/sources.list.d/datadog.list", tmpCmd)
+		ExecuteWithoutError(t, VMclient, "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
+		tmpFileContent := fmt.Sprintf("deb %s %s %v", aptrepo, aptrepoDist, is.agentMajorVersion)
+		_, err = fileManager.WriteFile("/etc/apt/sources.list.d/datadog.list", tmpFileContent)
 		require.NoError(t, err)
-		tmpCmd = fmt.Sprintf("sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring)
-		ExecuteWithoutError(tmpCmd, t, VMclient)
+		ExecuteWithoutError(t, VMclient, "sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring)
 		keys := []string{"DATADOG_APT_KEY_CURRENT.public", "DATADOG_APT_KEY_F14F620E.public", "DATADOG_APT_KEY_382E94DE.public"}
 		for _, key := range keys {
-			tmpCmd = fmt.Sprintf("sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key)
-			ExecuteWithoutError(tmpCmd, t, VMclient)
-			tmpCmd = fmt.Sprintf("sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring)
-			ExecuteWithoutError(tmpCmd, t, VMclient)
+			ExecuteWithoutError(t, VMclient, "sudo curl --retry 5 -o \"/tmp/%s\" \"https://keys.datadoghq.com/%s\"", key, key)
+			ExecuteWithoutError(t, VMclient, "sudo cat \"/tmp/%s\" | sudo gpg --import --batch --no-default-keyring --keyring \"%s\"", key, aptUsrShareKeyring)
 		}
 	})
 	if (*platform == "ubuntu" && is.osVersion < 16) || (*platform == "debian" && is.osVersion < 9) {
 		is.T().Run("create /etc/apt keyring", func(t *testing.T) {
-			tmpCmd := fmt.Sprintf("sudo cp %s %s", aptUsrShareKeyring, aptTrustedDKeyring)
-			ExecuteWithoutError(tmpCmd, t, VMclient)
+			ExecuteWithoutError(t, VMclient, "sudo cp %s %s", aptUsrShareKeyring, aptTrustedDKeyring)
 		})
 	}
 
 	is.T().Run("install debian", func(t *testing.T) {
-		ExecuteWithoutError("sudo apt-get update", t, VMclient)
-		tmpCmd := fmt.Sprintf("sudo apt-get install %s -y -q", *packageName)
-		ExecuteWithoutError(tmpCmd, is.T(), VMclient)
+		ExecuteWithoutError(t, VMclient, "sudo apt-get update")
+		ExecuteWithoutError(is.T(), VMclient, "sudo apt-get install %s -y -q", *packageName)
 	})
+
+	CheckStepByStepAgentInstallation(is, agentClient, fileManager, unixHelper)
 }
 
 func StepByStepRhelTest(is *stepByStepSuite) {
@@ -162,7 +173,7 @@ func StepByStepRhelTest(is *stepByStepSuite) {
 
 	if *platform == "centos" && is.cwsSupported {
 		is.T().Run("set SElinux to permissive mode to be able to start system-probe", func(t *testing.T) {
-			ExecuteWithoutError("setenforce 0", t, VMclient)
+			ExecuteWithoutError(t, VMclient, "setenforce 0")
 		})
 	}
 
@@ -190,10 +201,11 @@ func StepByStepRhelTest(is *stepByStepSuite) {
 	require.NoError(is.T(), err)
 
 	is.T().Run("install rhel", func(t *testing.T) {
-		ExecuteWithoutError("sudo yum makecache -y", t, VMclient)
-		tmpCmd := fmt.Sprintf("sudo yum install -y %s", *packageName)
-		ExecuteWithoutError(tmpCmd, t, VMclient)
+		ExecuteWithoutError(t, VMclient, "sudo yum makecache -y")
+		ExecuteWithoutError(t, VMclient, "sudo yum install -y %s", *packageName)
 	})
+
+	CheckStepByStepAgentInstallation(is, agentClient, fileManager, unixHelper)
 }
 
 func StepByStepSuseTest(is *stepByStepSuite) {
@@ -219,14 +231,15 @@ func StepByStepSuseTest(is *stepByStepSuite) {
 	require.NoError(is.T(), err)
 
 	is.T().Run("install suse", func(t *testing.T) {
-		ExecuteWithoutError("sudo curl -o /tmp/DATADOG_RPM_KEY_CURRENT.public https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public", t, VMclient)
-		ExecuteWithoutError("sudo rpm --import /tmp/DATADOG_RPM_KEY_CURRENT.public", t, VMclient)
-		ExecuteWithoutError("sudo curl -o /tmp/DATADOG_RPM_KEY_FD4BF915.public https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public", t, VMclient)
-		ExecuteWithoutError("sudo rpm --import /tmp/DATADOG_RPM_KEY_FD4BF915.public", t, VMclient)
-		ExecuteWithoutError("sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public", t, VMclient)
-		ExecuteWithoutError("sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public", t, VMclient)
-		ExecuteWithoutError("sudo zypper --non-interactive --no-gpg-checks refresh datadog", t, VMclient)
-		tmpCmd := fmt.Sprintf("sudo zypper --non-interactive install %s", *packageName)
-		ExecuteWithoutError(tmpCmd, t, VMclient)
+		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_CURRENT.public https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public")
+		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_CURRENT.public")
+		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_FD4BF915.public https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public")
+		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_FD4BF915.public")
+		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public")
+		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public")
+		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-gpg-checks refresh datadog")
+		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive install %s", *packageName)
 	})
+
+	CheckStepByStepAgentInstallation(is, agentClient, fileManager, unixHelper)
 }
