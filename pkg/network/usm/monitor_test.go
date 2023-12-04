@@ -67,8 +67,9 @@ const (
 )
 
 var (
-	emptyBody = []byte(nil)
-	kv        = kernel.MustHostVersion()
+	emptyBody    = []byte(nil)
+	kv           = kernel.MustHostVersion()
+	repeatedChar = strings.Repeat("a", 100)
 )
 
 func skipIfUSMNotSupported(t *testing.T) {
@@ -710,6 +711,27 @@ func (s *USMHTTP2Suite) TestSimpleHTTP2() {
 			expectedEndpoints: map[http.Key]captureRange{
 				{
 					Path:   http.Path{Content: http.Interner.GetString("/index.html")},
+					Method: http.MethodPost,
+				}: {
+					lower: 999,
+					upper: 1001,
+				},
+			},
+		},
+		{
+			name: " / path with repeated string",
+			runClients: func(t *testing.T, clientsCount int) {
+				clients := getClientsArray(t, clientsCount)
+				for i := 0; i < 1000; i++ {
+					client := clients[getClientsIndex(i, clientsCount)]
+					req, err := client.Post(http2SrvAddr+"/"+repeatedChar, "application/json", bytes.NewReader([]byte("test")))
+					require.NoError(t, err, "could not make request")
+					req.Body.Close()
+				}
+			},
+			expectedEndpoints: map[http.Key]captureRange{
+				{
+					Path:   http.Path{Content: http.Interner.GetString("/" + repeatedChar)},
 					Method: http.MethodPost,
 				}: {
 					lower: 999,
