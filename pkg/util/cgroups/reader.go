@@ -36,10 +36,9 @@ type Reader struct {
 	impl                   readerImpl
 
 	cgroups         map[string]Cgroup
+	cgroupByInode   map[uint64]Cgroup
 	cgroupsLock     sync.RWMutex
 	scrapeTimestmap time.Time
-
-	inodeMapper map[uint64]Cgroup
 }
 
 type readerImpl interface {
@@ -114,7 +113,7 @@ func WithCgroupV1BaseController(controller string) ReaderOption {
 
 // NewReader returns a new cgroup reader with given options
 func NewReader(opts ...ReaderOption) (*Reader, error) {
-	r := &Reader{inodeMapper: make(map[uint64]Cgroup)}
+	r := &Reader{cgroupByInode: make(map[uint64]Cgroup)}
 	for _, opt := range opts {
 		opt(r)
 	}
@@ -189,17 +188,24 @@ func (r *Reader) GetCgroup(id string) Cgroup {
 // GetCgroupByInode returns the cgroup for the given inode. It refreshes cgroups on cache miss if more than
 // minRefreshPeriod has elapsed since last refresh.
 func (r *Reader) GetCgroupByInode(inode uint64, minRefreshPeriod time.Duration) (Cgroup, error) {
-	cgroup, ok := r.inodeMapper[inode]
+	cgroup, err := r.getCgroupByInode(inode)
+	if err == nil {
+		return cgroup, nil
+	}
+
+	if err := r.RefreshCgroups(minRefreshPeriod); err != nil {
+		return nil, fmt.Errorf("failed to refresh cgroups: %v", err)
+	}
+
+	return r.getCgroupByInode(inode)
+}
+
+func (r *Reader) getCgroupByInode(inode uint64) (Cgroup, error) {
+	r.cgroupsLock.RLock()
+	defer r.cgroupsLock.RUnlock()
+	cgroup, ok := r.cgroupByInode[inode]
 	if !ok {
-		// Attempt to refresh cgroups if minRefreshPeriod has elapsed since last refresh
-		// and retry
-		if err := r.RefreshCgroups(minRefreshPeriod); err != nil {
-			return nil, fmt.Errorf("failed to refresh cgroups: %v", err)
-		}
-		cgroup, ok = r.inodeMapper[inode]
-		if !ok {
-			return nil, fmt.Errorf("no cgroup found for inode %d", inode)
-		}
+		return nil, fmt.Errorf("cgroup not found for inode %d", inode)
 	}
 	return cgroup, nil
 }
@@ -214,7 +220,7 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 		return nil
 	}
 
-	r.inodeMapper = make(map[uint64]Cgroup)
+	r.cgroupByInode = make(map[uint64]Cgroup)
 
 	newCgroups, err := r.impl.parseCgroups()
 	if err != nil {
@@ -223,7 +229,7 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 
 	for _, cg := range newCgroups {
 		if inode, err := cg.Inode(); err != nil {
-			r.inodeMapper[inode] = cg
+			r.cgroupByInode[inode] = cg
 		}
 	}
 
