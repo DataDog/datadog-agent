@@ -46,10 +46,12 @@ func (c *Context) release() {
 	c.metricTags.Release()
 }
 
+// SizeInBytes returns the size of the context in bytes
 func (c *Context) SizeInBytes() int {
 	return ContextSizeInBytes
 }
 
+// DataSizeInBytes returns the size of the context data in bytes
 func (c *Context) DataSizeInBytes() int {
 	return len(c.Name) + len(c.Host) + c.taggerTags.DataSizeInBytes() + c.metricTags.DataSizeInBytes()
 }

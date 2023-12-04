@@ -39,12 +39,15 @@ type Packets []*Packet
 // NoOrigin is returned if origin detection is off or failed.
 const NoOrigin = ""
 
+// SizeOfPacket is the size of a packet structure in bytes
 const SizeOfPacket = unsafe.Sizeof(Packet{})
 
+// SizeInBytes returns the size of the packet in bytes
 func (p *Packet) SizeInBytes() int {
 	return int(SizeOfPacket) + len(p.Contents) + len(p.Buffer) + len(p.Origin) + len(p.ListenerID)
 }
 
+// SizeInBytes returns the size of the packets in bytes
 func (ps *Packets) SizeInBytes() int {
 	size := 0
 	for _, p := range *ps {

@@ -16,8 +16,6 @@ var (
 	// tagging it with listener_id in case this changes later.
 	tlmChannelSize = telemetry.NewGauge("dogstatsd", "packets_channel_size",
 		[]string{}, "Number of packets in the packets channel")
-	tlmChannelQueuedPackets = telemetry.NewGauge("dogstatsd", "packets_channel_queued_packets",
-		[]string{"listener_id"}, "Number of packets in the packets channel")
 	tlmChannelSizePackets = telemetry.NewGauge("dogstatsd", "packets_channel_size_packets",
 		[]string{"listener_id"}, "Number of packets in the packets channel")
 	tlmChannelSizePacketsBytes = telemetry.NewGauge("dogstatsd", "packets_channel_size_packets_bytes",
@@ -61,11 +59,13 @@ func InitTelemetry(buckets []float64) {
 		buckets)
 }
 
+// TelemetryTrackPackets tracks the number of packets in the channel and the number of bytes
 func TelemetryTrackPackets(packets Packets, listenerId string) {
 	tlmChannelSizePackets.Add(float64(len(packets)), listenerId)
 	tlmChannelSizePacketsBytes.Add(float64(packets.SizeInBytes()), listenerId)
 }
 
+// TelemetryUntrackPackets untracks the number of packets in the channel and the number of bytes
 func TelemetryUntrackPackets(packets Packets) {
 	for _, packet := range packets {
 		tlmChannelSizePackets.Add(-1, packet.ListenerID)

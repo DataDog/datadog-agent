@@ -1,3 +1,8 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2023-present Datadog, Inc.
+
 package util
 
 import (
@@ -6,6 +11,7 @@ import (
 	"unsafe"
 )
 
+// HasSizeInBytes is an interface that can be implemented by any object that has a size in bytes
 type HasSizeInBytes interface {
 	// SiteInByte Return the size of the object in bytes (not including the size of its content)
 	SiteInByte() int
@@ -17,8 +23,11 @@ type HasSizeInBytes interface {
 // https://github.com/DmitriyVTitov/size
 
 const (
-	IntSize         = strconv.IntSize / 8
-	StringSize      = unsafe.Sizeof("")
+	// IntSize is the size of an int in bytes.
+	IntSize = strconv.IntSize / 8
+	// StringSize is the size of a string structure in bytes.
+	StringSize = unsafe.Sizeof("")
+	// StringSliceSice is the size of the string slice in bytes (not counting the size of the strings themselves).
 	StringSliceSice = unsafe.Sizeof([]string{})
 )
 
