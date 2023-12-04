@@ -8,4 +8,4 @@
 ---
 features:
   - |
-    Add `check_delay` metric in `agent` telemetry
+    Add ``check_delay`` metric in Agent telemetry
