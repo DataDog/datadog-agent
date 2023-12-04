@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 )
 
@@ -40,9 +41,9 @@ func logsExampleStackDef() *e2e.StackDefinition[e2e.FakeIntakeEnv] {
 // TestE2EVMFakeintakeSuite runs the E2E test suite for the log agent with a VM and fake intake.
 func TestE2EVMFakeintakeSuite(t *testing.T) {
 	s := &LinuxVMFakeintakeSuite{}
-	_, s.DevMode = os.LookupEnv("TESTS_E2E_DEVMODE")
+	_, s.DevMode = os.LookupEnv("E2E_DEVMODE")
 
-	e2e.Run(t, s, logsExampleStackDef())
+	e2e.Run(t, s, logsExampleStackDef(), params.WithDevMode())
 }
 
 func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
@@ -68,7 +69,7 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 	t := s.T()
 	fakeintake := s.Env().Fakeintake
 
-	// Create a new log file with permissionn inaccessable to the agent
+	// Create a new log file with permissionn inaccessible to the agent
 	s.Env().VM.Execute("sudo touch /var/log/hello-world.log")
 
 	// Part 1: Ensure no logs are present in fakeintake
@@ -79,26 +80,47 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 		}
 		// If logs are found, print their content for debugging
 		if !assert.Empty(c, logs, "Logs were found when none were expected.") {
-			cat, _ := s.Env().VM.ExecuteWithError("cat /var/log/hello-world.log")
+			cat, _ := s.Env().VM.ExecuteWithError("cat /var/log/hello-world.log && cat /var/log/hello-world-2.log")
 			t.Logf("Logs detected when none were expected: %v", cat)
 		}
-	}, 5*time.Minute, 10*time.Second)
+	}, 2*time.Minute, 10*time.Second)
 
-	// Part 2: Adjust permissions of new log file
-	output, err := s.Env().VM.ExecuteWithError("sudo chmod 777 /var/log/hello-world.log && echo true")
+	// Part 2: Adjust permissions of new log file before log generation
+	output, err := s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
 	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
 	if strings.TrimSpace(output) == "true" {
 		t.Logf("Permissions granted for new log file.")
 		// Generate log
-		generateLog(s, "hello-world")
+		generateLog(s, "hello-before-permission-world")
 
 		// Part 3: Check intake for new logs
-		checkLogs(s, "hello", "hello-world", true)
+		checkLogs(s, "hello", "hello-before-permission-world", true)
+	}
+
+	// Part 3: Adjust permissions of new log file after log generation
+
+	// Restore permissions to default and generate log
+	output, err = s.Env().VM.ExecuteWithError("sudo chmod 644 /var/log/hello-world.log && echo true")
+	assert.NoError(t, err, "Unable to adjust back to default permissions for the log file '/var/log/hello-world.log'.")
+	if strings.TrimSpace(output) == "true" {
+		t.Logf("Permissions reset to default.")
+		generateLog(s, "hello-after-permission-world")
+	}
+
+	// Grant log file permission and check intake for new logs
+	output, err = s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
+	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	if strings.TrimSpace(output) == "true" {
+		t.Logf("Permissions granted for log file.")
+		checkLogs(s, "hello", "hello-after-permission-world", true)
 	}
 }
 
 func (s *LinuxVMFakeintakeSuite) LogPermission() {
 	t := s.T()
+	logPath := "/var/log/hello-world.log"
+	checkLogFilePresence(s, logPath)
+
 	// Part 4: Allow on only write permission to the log file so the agent cannot tail it
 	output, err := s.Env().VM.ExecuteWithError("sudo chmod -r /var/log/hello-world.log && echo true")
 	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
@@ -127,9 +149,11 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 
 func (s *LinuxVMFakeintakeSuite) LogRotation() {
 	t := s.T()
+	logPath := "/var/log/hello-world.log"
+	checkLogFilePresence(s, logPath)
 
 	// Part 7: Rotate the log file and check if the agent is tailing the new log file.
-	// Rotate the log file
+	// Delete and Recreate file rotation
 	s.Env().VM.Execute("sudo mv /var/log/hello-world.log /var/log/hello-world.log.old && sudo touch /var/log/hello-world.log")
 
 	// Verify the old log file's existence after rotation

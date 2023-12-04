@@ -55,7 +55,28 @@ func generateLog(s *LinuxVMFakeintakeSuite, content string) {
 		if strings.Contains(output, content) {
 			t.Logf("Finished generating %s log with content: '%s' \n", os, content)
 		}
-	}, 5*time.Minute, 10*time.Second)
+	}, 2*time.Minute, 10*time.Second)
+}
+
+// checkLogFile verifies the presence or absence of a log file path
+func checkLogFilePresence(s *LinuxVMFakeintakeSuite, logPath string) {
+	t := s.T()
+	osType := s.Env().VM.GetOSType()
+
+	switch osType {
+	case componentos.WindowsType:
+		checkCmd := fmt.Sprintf("Get-Content %s", logPath)
+		_, err := s.Env().VM.ExecuteWithError(checkCmd)
+		if err != nil {
+			assert.FailNow(t, "Log File not found")
+		}
+	default: // Assuming Linux if not Windows.
+		checkCmd := fmt.Sprintf("sudo cat %s", logPath)
+		_, err := s.Env().VM.ExecuteWithError(checkCmd)
+		if err != nil {
+			assert.FailNow(t, "Log File not found")
+		}
+	}
 }
 
 // checkLogs verifies the presence or absence of logs in the intake based on the expectLogs flag.
@@ -95,33 +116,35 @@ func checkLogs(suite *LinuxVMFakeintakeSuite, service, content string, expectLog
 // cleanUp cleans up any existing log files (only useful when running dev mode/local runs).
 func (s *LinuxVMFakeintakeSuite) cleanUp() {
 	t := s.T()
-	osType := s.Env().VM.GetOSType()
-	var os string
-
 	var checkCmd string
 
-	switch osType {
-	default: // default is linux
-		os = "linux"
-		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log")
-		s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log.old")
-		checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
-	case componentos.WindowsType:
-		os = "windows"
-		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
-		s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
-		checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
+	if s.DevMode == true {
+		osType := s.Env().VM.GetOSType()
+
+		switch osType {
+		default: // default is linux
+			s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log")
+			s.Env().VM.Execute("sudo rm -f /var/log/hello-world.log.old")
+			checkCmd = "ls /var/log/hello-world.log /var/log/hello-world.log.old 2>/dev/null || echo 'Files do not exist'"
+		case componentos.WindowsType:
+			s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log) { Remove-Item -Path C:\\logs\\hello-world.log -Force }")
+			s.Env().VM.Execute("if (Test-Path C:\\logs\\hello-world.log.old) { Remove-Item -Path C:\\logs\\hello-world.log.old -Force }")
+			checkCmd = "if (Test-Path C:\\logs\\hello-world.log) { Get-ChildItem -Path C:\\logs\\hello-world.log } elseif (Test-Path C:\\logs\\hello-world.log.old) { Get-ChildItem -Path C:\\logs\\hello-world.log.old } else { Write-Output 'Files do not exist' }"
+		}
+
+		s.EventuallyWithT(func(c *assert.CollectT) {
+
+			output, err := s.Env().VM.ExecuteWithError(checkCmd)
+			if assert.NoErrorf(c, err, "Having issue cleaning up log files, retrying... %s", output) {
+				t.Log("Successfully cleaned up log files.")
+			}
+		}, 1*time.Minute, 10*time.Second)
 	}
 
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
-		assert.NoErrorf(c, err, "Having issue flushing server and resetting aggregators, retrying...")
-
-		output, err := s.Env().VM.ExecuteWithError(checkCmd)
-		if assert.NoErrorf(c, err, "Having issue cleaning log %s files, retrying... %s", os, output) {
-			t.Log("Successfully cleaned up.")
-		}
-	}, 5*time.Minute, 10*time.Second)
+	err := s.Env().Fakeintake.FlushServerAndResetAggregators()
+	if assert.NoErrorf(t, err, "Having issue flushing server and resetting aggregators, retrying...") {
+		t.Log("Successfully flushed server and reset aggregators.")
+	}
 }
 
 // prettyPrintLog pretty prints a log entry.
