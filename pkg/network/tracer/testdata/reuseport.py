@@ -4,7 +4,6 @@ import os
 import random
 import socket
 import sys
-import time
 import multiprocessing
 
 # for synchronizing children and parent
@@ -35,7 +34,7 @@ for _ in count:
             print("child: sent to " + str(addr))
             break
         except socket.timeout:
-            if t == tries-1:
+            if t == tries - 1:
                 raise
             print("child: timed out, retrying")
 
@@ -57,9 +56,11 @@ for _ in count:
             print("parent: received from " + str(addr))
             break
         except socket.timeout:
-            if t == tries-1:
-                raise
-            print("timed out, retrying")
+            if t == tries - 1:
+                print("parent: timed out")
+                break
+
+            print("parent: timed out, retrying")
 
     conns.append(c)
 
