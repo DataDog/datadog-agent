@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/Microsoft/go-winio"
+	winio "github.com/Microsoft/go-winio"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"

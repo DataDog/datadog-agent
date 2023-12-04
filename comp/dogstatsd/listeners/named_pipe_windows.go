@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
-	_ "github.com/Microsoft/go-winio"
+	winio "github.com/Microsoft/go-winio"
 )
 
 var namedPipeTelemetry = newListenerTelemetry("named_pipe", "Named Pipe")
