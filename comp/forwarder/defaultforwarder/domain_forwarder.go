@@ -216,7 +216,6 @@ func (f *domainForwarder) Start() error {
 		go f.scheduleConnectionResets()
 	}
 
-	f.pointCountTelemetry.Start()
 	f.internalState = Started
 	return nil
 }
@@ -231,8 +230,6 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 		f.log.Warnf("the forwarder is already stopped")
 		return
 	}
-
-	f.pointCountTelemetry.Stop()
 
 	if f.connectionResetInterval != 0 {
 		f.stopConnectionReset <- true

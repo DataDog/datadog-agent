@@ -21,8 +21,5 @@ func NewSimpleCounter(subsystem, name, help string) SimpleCounter {
 
 // NewSimpleCounterWithOpts creates a new SimpleCounter.
 func NewSimpleCounterWithOpts(subsystem, name, help string, opts Options) SimpleCounter {
-	compatOpts := telemetryComponent.Options{
-		NoDoubleUnderscoreSep: opts.NoDoubleUnderscoreSep,
-	}
-	return telemetryComponent.GetCompatComponent().NewSimpleCounterWithOpts(subsystem, name, help, compatOpts)
+	return telemetryComponent.GetCompatComponent().NewSimpleCounterWithOpts(subsystem, name, help, telemetryComponent.Options(opts))
 }

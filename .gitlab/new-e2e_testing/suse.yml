@@ -15,7 +15,7 @@
     E2E_OSVERS: "sles-12,sles-15"
     E2E_CWS_SUPPORTED_OSVERS: "sles-12,sles-15"
     E2E_BRANCH_OSVERS: "sles-15"
-  needs: ["deploy_deb_testing-a6_x64"]
+  needs: ["deploy_suse_rpm_testing_x64-a6"]
 
 .new-e2e_suse_a7_x86_64:
   variables:
@@ -23,7 +23,7 @@
     E2E_OSVERS: "sles-12,sles-15"
     E2E_CWS_SUPPORTED_OSVERS: "sles-12,sles-15"
     E2E_BRANCH_OSVERS: "sles-15"
-  needs: ["deploy_deb_testing-a7_x64"]
+  needs: ["deploy_suse_rpm_testing_x64-a7"]
 
 .new-e2e_suse_a7_arm64:
   variables:
@@ -31,7 +31,7 @@
     E2E_OSVERS: "sles-15"
     E2E_CWS_SUPPORTED_OSVERS: "sles-15"
     E2E_BRANCH_OSVERS: "sles-15"
-  needs: ["deploy_deb_testing-a7_arm64"]
+  needs: ["deploy_suse_rpm_testing_arm64-a7"]
 
 new-e2e-agent-platform-install-script-suse-a6-x86_64:
   stage: kitchen_testing

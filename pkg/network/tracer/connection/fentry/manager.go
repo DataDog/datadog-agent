@@ -11,12 +11,11 @@ import (
 	"os"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
-	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
-	manager "github.com/DataDog/ebpf-manager"
+	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
-func initManager(mgr *manager.Manager, config *config.Config, closedHandler *ebpf.PerfHandler) {
+func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler) {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},

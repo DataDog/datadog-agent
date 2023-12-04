@@ -1797,7 +1797,7 @@ func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 
 // sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
 func sanitizeAPIKeyConfig(config Config, key string) {
-	if !config.IsKnown(key) {
+	if !config.IsKnown(key) || !config.IsSet(key) {
 		return
 	}
 	config.Set(key, strings.TrimSpace(config.GetString(key)), pkgconfigmodel.SourceAgentRuntime)
