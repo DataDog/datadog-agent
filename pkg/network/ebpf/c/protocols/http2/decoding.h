@@ -770,7 +770,7 @@ int socket__http2_frames_parser(struct __sk_buff *skb) {
 
     http2_telemetry_t *http2_tel = bpf_map_lookup_elem(&http2_telemetry, &zero);
     if (http2_tel == NULL) {
-        return 0;
+        goto delete_iteration;
     }
 
     http2_frame_with_offset *frames_array = tail_call_state->frames_array;
