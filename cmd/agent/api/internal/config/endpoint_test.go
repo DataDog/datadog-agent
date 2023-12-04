@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -24,12 +25,23 @@ type testCase struct {
 	expectedStatus int
 }
 
-func testConfigValue(t *testing.T, cfg *config.MockConfig, server *httptest.Server, configName string, expectedStatus int) {
+type expvals struct {
+	Success      map[string]int `json:"success"`
+	Failed       map[string]int `json:"failed"`
+	Unauthorized map[string]int `json:"unauthorized"`
+	Unset        map[string]int `json:"unset"`
+}
+
+func testConfigValue(t *testing.T, configEndpoint *configEndpoint, server *httptest.Server, configName string, expectedStatus int) {
 	t.Helper()
 
+	beforeVars := getExpvals(t, configEndpoint)
 	resp, err := server.Client().Get(server.URL + "/" + configName)
 	require.NoError(t, err)
 	defer resp.Body.Close()
+
+	afterVars := getExpvals(t, configEndpoint)
+	checkExpvars(t, beforeVars, afterVars, configName, expectedStatus)
 
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
@@ -44,12 +56,12 @@ func testConfigValue(t *testing.T, cfg *config.MockConfig, server *httptest.Serv
 	err = json.Unmarshal(body, &configValue)
 	require.NoError(t, err)
 
-	require.EqualValues(t, cfg.Get(configName), configValue)
+	require.EqualValues(t, configEndpoint.cfg.Get(configName), configValue)
 }
 
 func TestConfigEndpoint(t *testing.T) {
 	t.Run("core_config", func(t *testing.T) {
-		cfg, server := getConfigServer(t, authorizedConfigPathsCore)
+		cfg, server, configEndpoint := getConfigServer(t, authorizedConfigPathsCore)
 		for configName := range authorizedConfigPathsCore {
 			var expectedStatus int
 			if cfg.IsSet(configName) {
@@ -57,7 +69,7 @@ func TestConfigEndpoint(t *testing.T) {
 			} else {
 				expectedStatus = http.StatusNotFound
 			}
-			testConfigValue(t, cfg, server, configName, expectedStatus)
+			testConfigValue(t, configEndpoint, server, configName, expectedStatus)
 		}
 	})
 
@@ -73,29 +85,62 @@ func TestConfigEndpoint(t *testing.T) {
 			if testCase.authorized {
 				authorizedConfigPaths[configName] = struct{}{}
 			}
-			cfg, server := getConfigServer(t, authorizedConfigPaths)
+			cfg, server, configEndpoint := getConfigServer(t, authorizedConfigPaths)
 			if testCase.existing {
 				cfg.SetWithoutSource(configName, "some_value")
 			}
-			testConfigValue(t, cfg, server, configName, testCase.expectedStatus)
+			testConfigValue(t, configEndpoint, server, configName, testCase.expectedStatus)
 		})
 	}
 
 	t.Run("authorized_not_marshallable", func(t *testing.T) {
 		configName := "my.config.value"
-		cfg, server := getConfigServer(t, authorizedSet{configName: {}})
+		cfg, server, configEndpoint := getConfigServer(t, authorizedSet{configName: {}})
 		cfg.SetWithoutSource(configName, make(chan int))
-		testConfigValue(t, cfg, server, "my.config.value", http.StatusInternalServerError)
+		testConfigValue(t, configEndpoint, server, configName, http.StatusInternalServerError)
 	})
 }
 
-func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (*config.MockConfig, *httptest.Server) {
+func checkExpvars(t *testing.T, beforeVars, afterVars expvals, configName string, expectedStatus int) {
+	t.Helper()
+
+	switch expectedStatus {
+	case http.StatusOK:
+		beforeVars.Success[configName]++
+	case http.StatusNotFound:
+		beforeVars.Unset[configName]++
+	case http.StatusForbidden:
+		beforeVars.Unauthorized[configName]++
+	case http.StatusInternalServerError:
+		beforeVars.Failed[configName]++
+	default:
+		t.Fatalf("unexpected status: %d", expectedStatus)
+	}
+
+	require.EqualValues(t, beforeVars, afterVars)
+}
+
+func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (*config.MockConfig, *httptest.Server, *configEndpoint) {
 	t.Helper()
 
 	cfg := config.Mock(t)
-	configEndpointMux := GetConfigEndpointMux(cfg, authorizedConfigPaths, t.Name())
+	configEndpointMux, configEndpoint := getConfigEndpoint(cfg, authorizedConfigPaths, t.Name())
 	server := httptest.NewServer(configEndpointMux)
 	t.Cleanup(server.Close)
 
-	return cfg, server
+	return cfg, server, configEndpoint
+}
+
+func getExpvals(t *testing.T, configEndpoint *configEndpoint) expvals {
+	t.Helper()
+
+	vars := expvals{}
+	// error on unknown fields
+	dec := json.NewDecoder(strings.NewReader(configEndpoint.expvars.String()))
+	dec.DisallowUnknownFields()
+	err := dec.Decode(&vars)
+	require.NoError(t, err)
+	require.False(t, dec.More())
+
+	return vars
 }

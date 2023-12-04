@@ -29,6 +29,7 @@ type configEndpoint struct {
 	authorizedConfigPaths authorizedSet
 
 	// runtime metrics about the config endpoint usage
+	expvars            *expvar.Map
 	successExpvar      expvar.Map
 	unauthorizedExpvar expvar.Map
 	unsetExpvar        expvar.Map
@@ -58,19 +59,25 @@ func GetConfigEndpointMuxCore() *gorilla.Router {
 // GetConfigEndpointMux builds and returns the mux for the config endpoint, with the given config,
 // authorized paths, and expvar namespace
 func GetConfigEndpointMux(cfg config.Reader, authorizedConfigPaths authorizedSet, expvarNamespace string) *gorilla.Router {
+	mux, _ := getConfigEndpoint(cfg, authorizedConfigPaths, expvarNamespace)
+	return mux
+}
+
+// getConfigEndpoint builds and returns the mux and the endpoint state.
+func getConfigEndpoint(cfg config.Reader, authorizedConfigPaths authorizedSet, expvarNamespace string) (*gorilla.Router, *configEndpoint) {
 	configEndpoint := &configEndpoint{
 		cfg:                   cfg,
 		authorizedConfigPaths: authorizedConfigPaths,
+		expvars:               expvar.NewMap(expvarNamespace + "_config_endpoint"),
 	}
 
-	expvars := expvar.NewMap(expvarNamespace + "_config_endpoint")
 	for name, expv := range map[string]*expvar.Map{
 		"success":      &configEndpoint.successExpvar,
 		"unauthorized": &configEndpoint.unauthorizedExpvar,
 		"unset":        &configEndpoint.unsetExpvar,
 		"failed":       &configEndpoint.failedExpvar,
 	} {
-		expvars.Set(name, expv)
+		configEndpoint.expvars.Set(name, expv)
 	}
 
 	configEndpointHandler := http.HandlerFunc(configEndpoint.serveHTTP)
@@ -78,7 +85,7 @@ func GetConfigEndpointMux(cfg config.Reader, authorizedConfigPaths authorizedSet
 	configEndpointMux.HandleFunc("/", configEndpointHandler).Methods("GET")
 	configEndpointMux.HandleFunc("/{path}", configEndpointHandler).Methods("GET")
 
-	return configEndpointMux
+	return configEndpointMux, configEndpoint
 }
 
 // returns the marshalled JSON value of the config path requested
