@@ -60,9 +60,9 @@ func InitTelemetry(buckets []float64) {
 }
 
 // TelemetryTrackPackets tracks the number of packets in the channel and the number of bytes
-func TelemetryTrackPackets(packets Packets, listenerId string) {
-	tlmChannelSizePackets.Add(float64(len(packets)), listenerId)
-	tlmChannelSizePacketsBytes.Add(float64(packets.SizeInBytes()), listenerId)
+func TelemetryTrackPackets(packets Packets, listenerID string) {
+	tlmChannelSizePackets.Add(float64(len(packets)), listenerID)
+	tlmChannelSizePacketsBytes.Add(float64(packets.SizeInBytes()), listenerID)
 }
 
 // TelemetryUntrackPackets untracks the number of packets in the channel and the number of bytes

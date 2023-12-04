@@ -31,7 +31,7 @@ const (
 	StringSliceSice = unsafe.Sizeof([]string{})
 )
 
-// SizeOfInt returns the size of a string structure in bytes.
+// SizeOfString returns the size of a string structure in bytes.
 func SizeOfString() int {
 	return int(StringSize)
 }
