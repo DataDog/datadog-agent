@@ -52,9 +52,21 @@ namespace Datadog.CustomActions.Native
     [Flags]
     public enum ServiceAccess
     {
+        // specific access rights
+        SERVICE_QUERY_CONFIG = 0x0001,
+        SERVICE_QUERY_STATUS = 0x0004,
+        SERVICE_ENUMERATE_DEPENDENTS = 0x0008,
         SERVICE_START = 0x0010,
         SERVICE_STOP = 0x0020,
-        SERVICE_ALL_ACCESS = 0xF01FF,
+        SERVICE_INTERROGATE = 0x0080,
+
+        // standard access rights
+        READ_CONTROL = 0x20000,
+
+        STANDARD_RIGHTS_READ = READ_CONTROL,
+        GENERIC_READ = STANDARD_RIGHTS_READ | SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS | SERVICE_INTERROGATE | SERVICE_ENUMERATE_DEPENDENTS,
+
+        SERVICE_ALL_ACCESS = 0xF01FF
     }
 
     public class Win32NativeMethods : INativeMethods

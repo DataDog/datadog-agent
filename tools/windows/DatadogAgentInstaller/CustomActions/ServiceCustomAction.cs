@@ -229,7 +229,7 @@ namespace Datadog.CustomActions
                 if (!ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
                 {
                     securityDescriptor.DiscretionaryAcl.AddAccess(AccessControlType.Allow, ddAgentUserSID,
-                        (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP),
+                        (int)(ServiceAccess.SERVICE_START | ServiceAccess.SERVICE_STOP | ServiceAccess.GENERIC_READ),
                         InheritanceFlags.None, PropagationFlags.None);
                 }
 
