@@ -128,11 +128,7 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 	unixHelper := helpers.NewUnixHelper()
 	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
 
-	installParams := []installparams.Option{installparams.WithArch(*architecture), installparams.WithFlavor(flavor), installparams.WithMajorVersion(*majorVersion)}
-	if *platform == "suse" {
-		installParams = append(installParams, installparams.WithSuse())
-	}
-	install.Unix(is.T(), client, installParams...)
+	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(flavor), installparams.WithMajorVersion(*majorVersion))
 
 	common.CheckInstallation(is.T(), client)
 	common.CheckAgentBehaviour(is.T(), client)
