@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -219,6 +220,12 @@ func (k *Probe) getProgramStats(stats *model.EBPFStats) error {
 			log.Debugf("error getting program fd prog_id=%d: %s", progid, err)
 			continue
 		}
+		defer func() {
+			err := syscall.Close(int(fd))
+			if err != nil {
+				log.Debugf("error closing fd %d: %s", fd, err)
+			}
+		}()
 
 		var info ProgInfo
 		if err := ProgObjInfo(fd, &info); err != nil {
