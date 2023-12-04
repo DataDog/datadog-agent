@@ -199,10 +199,6 @@ def get_custom_kernel_config(version, arch):
     if arch == local_arch:
         arch = arch_mapping[platform.machine()]
 
-def get_custom_kernel_config(version, arch):
-    if arch == local_arch:
-        arch = arch_mapping[platform.machine()]
-
     if arch == "x86_64":
         console = "ttyS0"
     else:
@@ -221,11 +217,13 @@ def get_custom_kernel_config(version, arch):
         "extra_params": extra_params,
     }
 
+
 def xz_suffix_removed(path):
     if path.endswith(".xz"):
         return path[: -len(".xz")]
 
     return path
+
 
 # This function derives the configuration for each
 # unique kernel or distribution from the normalized vm-def.
@@ -242,11 +240,7 @@ def get_kernel_config(platforms, recipe, version, arch):
     kernel_path = platforms[arch][version]
     kernel_name = xz_suffix_removed(os.path.basename(kernel_path))
 
-    return {
-        "tag": version,
-        "image_source": os.path.join(url_base, kernel_path),
-        "dir": kernel_name
-    }
+    return {"tag": version, "image_source": os.path.join(url_base, kernel_path), "dir": kernel_name}
 
 
 def vmset_exists(vm_config, tags):
@@ -359,7 +353,6 @@ def add_machine_type(vmconfig_template, vmset):
             return
 
         vmset["machine"] = template["machine"]
-
 
 
 def add_disks(vmconfig_template, vmset):
@@ -512,6 +505,7 @@ def ls_to_int(ls):
 
     return int_ls
 
+
 def build_normalized_vm_def_set(vms):
     vm_types = vms.split(',')
     if len(vm_types) == 0:
@@ -525,7 +519,9 @@ def build_normalized_vm_def_set(vms):
     return normalized_vms
 
 
-def gen_config_for_stack(ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", memory="8192", new=False, ci=False):
+def gen_config_for_stack(
+    ctx, stack=None, vms="", sets="", init_stack=False, vcpu="4", memory="8192", new=False, ci=False
+):
     stack = check_and_get_stack(stack)
     if not stack_exists(stack) and not init_stack:
         raise Exit(

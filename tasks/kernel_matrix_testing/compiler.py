@@ -6,6 +6,7 @@ def compiler_built(ctx):
 def docker_exec(ctx, cmd, user="compiler", verbose=True):
     ctx.run(f"docker exec -u {user} -i kmt-compiler bash -c \"{cmd}\"", hide=(not verbose))
 
+
 def start_compiler(ctx):
     if not compiler_built(ctx):
         build_compiler(ctx)
@@ -33,9 +34,8 @@ def compiler_running(ctx):
         return res.stdout.rstrip() != ""
     return False
 
+
 def build_compiler(ctx):
     ctx.run("docker rm -f $(docker ps -aqf \"name=kmt-compiler\")", warn=True, hide=True)
     ctx.run("docker image rm kmt:compile", warn=True, hide=True)
     ctx.run("cd ../datadog-agent-buildimages && docker build -f system-probe_x64/Dockerfile -t kmt:compile .")
-
-

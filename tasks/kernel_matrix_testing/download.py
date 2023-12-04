@@ -5,7 +5,6 @@ import platform
 import tempfile
 from glob import glob
 
-from .kmt_os import get_kmt_os
 from .tool import Exit, debug, info, warn
 
 try:
@@ -42,6 +41,7 @@ def requires_update(url_base, rootfs_dir, image):
         return True
     return False
 
+
 def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
     with open(platforms_file) as f:
         platforms = json.load(f)
@@ -50,7 +50,6 @@ def download_rootfs(ctx, rootfs_dir, backup_dir, revert=False):
         vmconfig_template = json.load(f)
 
     url_base = platforms["url_base"]
-    kmt_os = get_kmt_os()
 
     arch = arch_mapping[platform.machine()]
     to_download = list()

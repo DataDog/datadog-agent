@@ -6,21 +6,21 @@ from glob import glob
 from invoke import task
 
 from .kernel_matrix_testing import stacks, vmconfig
-from .kernel_matrix_testing.download import revert_kernel_packages, revert_rootfs, update_kernel_packages, update_rootfs, arch_mapping
-from .kernel_matrix_testing.init_kmt import (
-    check_and_get_stack,
-    init_kernel_matrix_testing_system,
+from .kernel_matrix_testing.command import CommandRunner
+from .kernel_matrix_testing.compiler import build_compiler as build_cc
+from .kernel_matrix_testing.compiler import compiler_running, docker_exec
+from .kernel_matrix_testing.compiler import start_compiler as start_cc
+from .kernel_matrix_testing.download import (
+    arch_mapping,
+    revert_kernel_packages,
+    revert_rootfs,
+    update_kernel_packages,
+    update_rootfs,
 )
+from .kernel_matrix_testing.init_kmt import check_and_get_stack, init_kernel_matrix_testing_system
 from .kernel_matrix_testing.kmt_os import get_kmt_os
 from .kernel_matrix_testing.tool import Exit, ask, info, warn
 from .system_probe import EMBEDDED_SHARE_DIR
-from .kernel_matrix_testing.compiler import (
-    build_compiler as build_cc,
-    start_compiler as start_cc,
-    docker_exec,
-    compiler_running,
-)
-from .kernel_matrix_testing.command import CommandRunner
 
 try:
     from tabulate import tabulate
@@ -133,13 +133,16 @@ def revert_resources(ctx):
 
     info("[+] Reverted successfully")
 
+
 @task
 def build_compiler(ctx):
     build_cc(ctx)
 
+
 @task
 def start_compiler(ctx):
     start_cc(ctx)
+
 
 class LibvirtDomain:
     def __init__(self, arch, version):
@@ -148,6 +151,7 @@ class LibvirtDomain:
         self.name = ""
         self.ip = ""
         self.runner = None
+
 
 def get_domain_name_and_ip(stack, version, arch):
     stack_outputs = f"{get_kmt_os().stacks_dir}/{stack}/stack.output"
@@ -189,17 +193,9 @@ def get_instance_ip(stack, arch):
                 info(f"[*] Instance {name} has ip {ip}")
                 return ip
 
-def ssh_key_to_path(ssh_key):
-    ssh_key_path = ""
-    if ssh_key != "":
-        ssh_key.rstrip(".pem")
-        ssh_key_path = stacks.find_ssh_key(ssh_key)
-
-    return ssh_key_path
-
 
 @task
-def sync(ctx, vms, stack=None, ssh_key=""):
+def sync(ctx, vms, stack=None, ssh_key="", verbose=False):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -239,10 +235,12 @@ def download_gotestsum(ctx):
 
     ctx.run(f"cp kmt-deps/tools/gotestsum {fgotestsum}")
 
+
 def full_arch(arch):
     if arch == "local":
         return arch_mapping[platform.machine()]
     return arch
+
 
 @task
 def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, packages="", verbose=False):
@@ -297,6 +295,7 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
     for d in domains:
         d.runner.run_cmd(f"bash /micro-vm-init.sh {retry} {' '.join(args)}", verbose=True)
 
+
 @task
 def build(ctx, vms, stack=None, ssh_key="", rebuild_deps=False, verbose=False):
     stack = check_and_get_stack(stack)
@@ -325,6 +324,7 @@ def build(ctx, vms, stack=None, ssh_key="", rebuild_deps=False, verbose=False):
         d.runner.sync_source(f"kmt-deps/{stack}/shared.tar", "/")
         d.runner.run_cmd("tar xf /shared.tar -C /")
         info(f"[+] system-probe built for {d.name}")
+
 
 @task
 def clean(ctx, stack=None, container=False, image=False):

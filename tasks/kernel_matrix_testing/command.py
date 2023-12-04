@@ -1,8 +1,10 @@
 import platform
 
-from .tool import Exit, ask, info, warn, error
 from .download import arch_mapping
 from .kmt_os import get_kmt_os
+from .stacks import find_ssh_key
+from .tool import Exit, error, info
+
 
 class CommandRunner:
     def __init__(self, ctx, local, vm, remote_ip, remote_ssh_key, log_debug):
@@ -19,7 +21,7 @@ class CommandRunner:
         if self.vm.arch == "local":
             res = run_cmd_local(self.ctx, cmd, self.vm.ip, log_debug)
         else:
-            res = run_cmd_remote(ctx, cmd, self.remote_ip, self.vm.ip, self.remote_ssh_key, log_debug)
+            res = run_cmd_remote(self.ctx, cmd, self.remote_ip, self.vm.ip, self.remote_ssh_key, log_debug)
 
         if not res.ok:
             error(f"[-] Failed: {self.vm.ip} -> {cmd}")
@@ -35,11 +37,13 @@ class CommandRunner:
             if self.remote_ssh_key == "" or self.remote_ip == "":
                 raise Exit("remote ssh key and remote ip are required to run command on remote VMs")
             self.run_cmd(
-                f"scp -o StrictHostKeyChecking=no -i {self.remote_ssh_key} kmt-deps/{stack}/dependencies-{self.vm.arch}.tar.gz ubuntu@{self.remote_ip}:/opt/kernel-version-testing/", False
+                f"scp -o StrictHostKeyChecking=no -i {self.remote_ssh_key} kmt-deps/{stack}/dependencies-{self.vm.arch}.tar.gz ubuntu@{self.remote_ip}:/opt/kernel-version-testing/",
+                False,
             )
 
     def sync_source(self, source, target):
         sync_source(self.ctx, source, target, self.remote_ip, self.remote_ssh_key, self.vm.ip, self.vm.arch)
+
 
 def sync_source(ctx, source, target, instance_ip, ssh_key, ip, arch):
     kmt_dir = get_kmt_os().kmt_dir
@@ -59,18 +63,23 @@ def sync_source(ctx, source, target, instance_ip, ssh_key, ip, arch):
         raise Exit(f"Unsupported arch {arch}")
 
 
-
 def run_cmd_local(ctx, cmd, ip, log_debug):
     return ctx.run(
-        f"ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{ip} '{cmd}'", warn=True, hide=(not log_debug),
+        f"ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{ip} '{cmd}'",
+        warn=True,
+        hide=(not log_debug),
     )
+
 
 def run_cmd_remote(ctx, cmd, remote_ip, ip, ssh_key, log_debug):
     if ssh_key == "" or remote_ip == "":
         raise Exit("remote ssh key and remote ip are required to run command on remote VMs")
     return ctx.run(
-        f"ssh -o StrictHostKeyChecking=no -i {ssh_key} ubuntu@{remote_ip} \"ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{ip} '{cmd}'\"", warn=True, hide=(not log_debug),
+        f"ssh -o StrictHostKeyChecking=no -i {ssh_key} ubuntu@{remote_ip} \"ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{ip} '{cmd}'\"",
+        warn=True,
+        hide=(not log_debug),
     )
+
 
 def print_failed(output):
     out = list()
@@ -78,10 +87,11 @@ def print_failed(output):
         out.append(f"\t{line}")
     error('\n'.join(out))
 
+
 def ssh_key_to_path(ssh_key):
     ssh_key_path = ""
     if ssh_key != "":
         ssh_key.rstrip(".pem")
-        ssh_key_path = stacks.find_ssh_key(ssh_key)
+        ssh_key_path = find_ssh_key(ssh_key)
 
     return ssh_key_path
