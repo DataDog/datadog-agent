@@ -1366,10 +1366,11 @@ func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, 
 		if snapshotARN.Resource != "" {
 			log.Debugf("deleting snapshot %q for volume %q", snapshotARN, volumeARN)
 			// do not use context here: we want to force snapshot deletion
+			_, snapshotID, _ := getARNResource(snapshotARN)
 			if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-				SnapshotId: &snapshotARN.Resource,
+				SnapshotId: &snapshotID,
 			}); err != nil {
-				log.Warnf("could not delete snapshot %s: %v", snapshotARN.Resource, err)
+				log.Warnf("could not delete snapshot %s: %v", snapshotID, err)
 			}
 		}
 	}
