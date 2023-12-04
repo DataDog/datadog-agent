@@ -2,7 +2,7 @@
 
 ## 32-bit Windows
 
-There was a product request to release the Agent on Windows 32 bits but it never came to fruition.
+There was a product request to release the Agent on 32-bit Windows, but it never came to fruition.
 
 Datadog removed all 32-bit Windows related code in [#21221](https://github.com/DataDog/datadog-agent/pull/21221). The PR:
 
