@@ -24,7 +24,6 @@ from . import (
     package,
     pipeline,
     process_agent,
-    pylauncher,
     release,
     rtloader,
     security_agent,
@@ -138,7 +137,6 @@ ns.add_collection(msi)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
-ns.add_collection(pylauncher)
 ns.add_collection(selinux)
 ns.add_collection(systray)
 ns.add_collection(release)
