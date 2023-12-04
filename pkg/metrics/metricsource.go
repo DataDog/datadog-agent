@@ -32,6 +32,7 @@ const (
 	MetricSourceWeblogic
 
 	// Core Checks
+	MetricSourceAgentTelemetry
 	MetricSourceContainer
 	MetricSourceContainerd
 	MetricSourceCri
@@ -152,6 +153,8 @@ func (ms MetricSource) String() string {
 		return "network"
 	case MetricSourceSnmp:
 		return "snmp"
+	case MetricSourceAgentTelemetry:
+		return "agent_telemetry"
 	default:
 		return "<unknown>"
 
@@ -215,6 +218,8 @@ func CoreCheckToMetricSource(name string) MetricSource {
 		return MetricSourceNetwork
 	case "snmp":
 		return MetricSourceSnmp
+	case "telemetry":
+		return MetricSourceAgentTelemetry
 	default:
 		return MetricSourceUnknown
 	}
