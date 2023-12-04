@@ -60,7 +60,7 @@ type UDSListener struct {
 	packetBufferFlushTimeout time.Duration
 	telemetryWithListenerID  bool
 
-	listenWg sync.WaitGroup
+	listenWg *sync.WaitGroup
 }
 
 // CloseFunction is a function that closes a connection
@@ -140,6 +140,7 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		packetBufferSize:             uint(cfg.GetInt("dogstatsd_packet_buffer_size")),
 		packetBufferFlushTimeout:     cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
 		telemetryWithListenerID:      cfg.GetBool("dogstatsd_telemetry_enabled_listener_id"),
+		listenWg:                     &sync.WaitGroup{},
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
