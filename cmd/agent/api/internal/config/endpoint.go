@@ -43,7 +43,10 @@ func (c *configEndpoint) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(statusCode)
-	_, _ = w.Write(body)
+	_, err = w.Write(body)
+	if err != nil {
+		log.Warnf("config endpoint: could not write response body: %v", err)
+	}
 }
 
 // GetConfigEndpointMuxCore builds and returns the mux for the config endpoint with default values
