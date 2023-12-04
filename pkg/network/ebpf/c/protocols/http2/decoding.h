@@ -157,6 +157,7 @@ static __always_inline void update_path_size_telemetry(http2_telemetry_t *http2_
 // dynamic table, and will skip headers that are not path headers.
 static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_t *skb_info, http2_header_t *headers_to_process, __u64 index, __u64 global_dynamic_counter, __u8 *interesting_headers_counter, http2_telemetry_t *http2_tel) {
     __u64 str_len = 0;
+    // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
     if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len)) {
         return false;
     }
@@ -165,6 +166,7 @@ static __always_inline bool parse_field_literal(struct __sk_buff *skb, skb_info_
     if (index == 0) {
         skb_info->data_off += str_len;
         str_len = 0;
+        // String length supposed to be represented with at least 7 bits representation -https://datatracker.ietf.org/doc/html/rfc7541#section-5.2
         if (!read_hpack_int(skb, skb_info, MAX_7_BITS, &str_len)) {
             return false;
         }
