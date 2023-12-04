@@ -9,9 +9,6 @@ package cgroups
 
 import "fmt"
 
-// ErrIncompatibleCgroupVersion is returned when a method is not implemented for the given cgroup version
-var ErrIncompatibleCgroupVersion = fmt.Errorf("incompatible cgroup version")
-
 // InvalidInputError is returned when an input parameter has an invalid value (typically, passing a nil pointer)
 type InvalidInputError struct {
 	Desc string
