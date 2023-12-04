@@ -59,6 +59,51 @@ const (
 	MetricSourceDisk
 	MetricSourceNetwork
 	MetricSourceSnmp
+
+	// OpenTelemetry
+	MetricSourceOTLP
+	MetricSourceOTelActiveDirectoryDSReceiver
+	MetricSourceOTelAerospikeReceiver
+	MetricSourceOTelApacheReceiver
+	MetricSourceOTelApacheSparkReceiver
+	MetricSourceOTelAzureMonitorReceiver
+	MetricSourceOTelBigIPReceiver
+	MetricSourceOTelChronyReceiver
+	MetricSourceOTelCouchDBReceiver
+	MetricSourceOTelDockerStatsReceiver
+	MetricSourceOTelElasticsearchReceiver
+	MetricSourceOTelExpVarReceiver
+	MetricSourceOTelFileStatsReceiver
+	MetricSourceOTelFlinkMetricsReceiver
+	MetricSourceOTelGitProviderReceiver
+	MetricSourceOTelHAProxyReceiver
+	MetricSourceOTelHostMetricsReceiver
+	MetricSourceOTelHTTPCheckReceiver
+	MetricSourceOTelIISReceiver
+	MetricSourceOTelK8SClusterReceiver
+	MetricSourceOTelKafkaMetricsReceiver
+	MetricSourceOTelKubeletStatsReceiver
+	MetricSourceOTelMemcachedReceiver
+	MetricSourceOTelMongoDBAtlasReceiver
+	MetricSourceOTelMongoDBReceiver
+	MetricSourceOTelMySQLReceiver
+	MetricSourceOTelNginxReceiver
+	MetricSourceOTelNSXTReceiver
+	MetricSourceOTelOracleDBReceiver
+	MetricSourceOTelPostgreSQLReceiver
+	MetricSourceOTelPrometheusReceiver
+	MetricSourceOTelRabbitMQReceiver
+	MetricSourceOTelRedisReceiver
+	MetricSourceOTelRiakReceiver
+	MetricSourceOTelSAPHANAReceiver
+	MetricSourceOTelSNMPReceiver
+	MetricSourceOTelSnowflakeReceiver
+	MetricSourceOTelSplunkEnterpriseReceiver
+	MetricSourceOTelSQLServerReceiver
+	MetricSourceOTelSSHCheckReceiver
+	MetricSourceOTelStatsDReceiver
+	MetricSourceOTelVCenterReceiver
+	MetricSourceOTelZookeeperReceiver
 )
 
 // String returns a string representation of MetricSource
@@ -152,6 +197,92 @@ func (ms MetricSource) String() string {
 		return "network"
 	case MetricSourceSnmp:
 		return "snmp"
+	case MetricSourceOTLP:
+		return "otlp"
+	case MetricSourceOTelActiveDirectoryDSReceiver:
+		return "otlp-activedirectoryds"
+	case MetricSourceOTelAerospikeReceiver:
+		return "otlp-aerospike"
+	case MetricSourceOTelApacheReceiver:
+		return "otlp-apache"
+	case MetricSourceOTelApacheSparkReceiver:
+		return "otlp-apache-spark"
+	case MetricSourceOTelAzureMonitorReceiver:
+		return "otlp-azure-monitor"
+	case MetricSourceOTelBigIPReceiver:
+		return "otlp-bigip"
+	case MetricSourceOTelChronyReceiver:
+		return "otlp-chrony"
+	case MetricSourceOTelCouchDBReceiver:
+		return "otlp-couchdb"
+	case MetricSourceOTelDockerStatsReceiver:
+		return "otlp-docker-stats"
+	case MetricSourceOTelElasticsearchReceiver:
+		return "otlp-elasticsearch"
+	case MetricSourceOTelExpVarReceiver:
+		return "otlp-expvar"
+	case MetricSourceOTelFileStatsReceiver:
+		return "otlp-file-stats"
+	case MetricSourceOTelFlinkMetricsReceiver:
+		return "otlp-flink-metrics"
+	case MetricSourceOTelGitProviderReceiver:
+		return "otlp-git-provider"
+	case MetricSourceOTelHAProxyReceiver:
+		return "otlp-haproxy"
+	case MetricSourceOTelHostMetricsReceiver:
+		return "otlp-host-metrics"
+	case MetricSourceOTelHTTPCheckReceiver:
+		return "otlp-http-check"
+	case MetricSourceOTelIISReceiver:
+		return "otlp-iis"
+	case MetricSourceOTelK8SClusterReceiver:
+		return "otlp-k8s-cluster"
+	case MetricSourceOTelKafkaMetricsReceiver:
+		return "otlp-kafka-metrics"
+	case MetricSourceOTelKubeletStatsReceiver:
+		return "otlp-kubelet-stats"
+	case MetricSourceOTelMemcachedReceiver:
+		return "otlp-memcached"
+	case MetricSourceOTelMongoDBAtlasReceiver:
+		return "otlp-mongodb-atlas"
+	case MetricSourceOTelMongoDBReceiver:
+		return "otlp-mongodb"
+	case MetricSourceOTelMySQLReceiver:
+		return "otlp-mysql"
+	case MetricSourceOTelNginxReceiver:
+		return "otlp-nginx"
+	case MetricSourceOTelNSXTReceiver:
+		return "otlp-nsxt"
+	case MetricSourceOTelOracleDBReceiver:
+		return "otlp-oracle-db"
+	case MetricSourceOTelPostgreSQLReceiver:
+		return "otlp-postgresql"
+	case MetricSourceOTelPrometheusReceiver:
+		return "otlp-prometheus"
+	case MetricSourceOTelRabbitMQReceiver:
+		return "otlp-rabbitmq"
+	case MetricSourceOTelRedisReceiver:
+		return "otlp-redis"
+	case MetricSourceOTelRiakReceiver:
+		return "otlp-riak"
+	case MetricSourceOTelSAPHANAReceiver:
+		return "otlp-sap-hana"
+	case MetricSourceOTelSNMPReceiver:
+		return "otlp-snmp"
+	case MetricSourceOTelSnowflakeReceiver:
+		return "otlp-snowflake"
+	case MetricSourceOTelSplunkEnterpriseReceiver:
+		return "otlp-splunk-enterprise"
+	case MetricSourceOTelSQLServerReceiver:
+		return "otlp-sql-server"
+	case MetricSourceOTelSSHCheckReceiver:
+		return "otlp-ssh-check"
+	case MetricSourceOTelStatsDReceiver:
+		return "otlp-statsd"
+	case MetricSourceOTelVCenterReceiver:
+		return "otlp-vcenter"
+	case MetricSourceOTelZookeeperReceiver:
+		return "otlp-zookeeper"
 	default:
 		return "<unknown>"
 

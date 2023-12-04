@@ -73,11 +73,105 @@ func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
 	c.apmstats = append(c.apmstats, body)
 }
 
+func originServiceToMetricsSource(service otlpmetrics.OriginService) metrics.MetricSource {
+	switch service {
+	case otlpmetrics.OriginServiceUnknown:
+		return metrics.MetricSourceOTLP
+	case otlpmetrics.OriginServiceActiveDirectoryDSReceiver:
+		return metrics.MetricSourceOTelActiveDirectoryDSReceiver
+	case otlpmetrics.OriginServiceAerospikeReceiver:
+		return metrics.MetricSourceOTelAerospikeReceiver
+	case otlpmetrics.OriginServiceApacheReceiver:
+		return metrics.MetricSourceOTelApacheReceiver
+	case otlpmetrics.OriginServiceApacheSparkReceiver:
+		return metrics.MetricSourceOTelApacheSparkReceiver
+	case otlpmetrics.OriginServiceAzureMonitorReceiver:
+		return metrics.MetricSourceOTelAzureMonitorReceiver
+	case otlpmetrics.OriginServiceBigIPReceiver:
+		return metrics.MetricSourceOTelBigIPReceiver
+	case otlpmetrics.OriginServiceChronyReceiver:
+		return metrics.MetricSourceOTelChronyReceiver
+	case otlpmetrics.OriginServiceCouchDBReceiver:
+		return metrics.MetricSourceOTelCouchDBReceiver
+	case otlpmetrics.OriginServiceDockerStatsReceiver:
+		return metrics.MetricSourceOTelDockerStatsReceiver
+	case otlpmetrics.OriginServiceElasticsearchReceiver:
+		return metrics.MetricSourceOTelElasticsearchReceiver
+	case otlpmetrics.OriginServiceExpVarReceiver:
+		return metrics.MetricSourceOTelExpVarReceiver
+	case otlpmetrics.OriginServiceFileStatsReceiver:
+		return metrics.MetricSourceOTelFileStatsReceiver
+	case otlpmetrics.OriginServiceFlinkMetricsReceiver:
+		return metrics.MetricSourceOTelFlinkMetricsReceiver
+	case otlpmetrics.OriginServiceGitProviderReceiver:
+		return metrics.MetricSourceOTelGitProviderReceiver
+	case otlpmetrics.OriginServiceHAProxyReceiver:
+		return metrics.MetricSourceOTelHAProxyReceiver
+	case otlpmetrics.OriginServiceHostMetricsReceiver:
+		return metrics.MetricSourceOTelHostMetricsReceiver
+	case otlpmetrics.OriginServiceHTTPCheckReceiver:
+		return metrics.MetricSourceOTelHTTPCheckReceiver
+	case otlpmetrics.OriginServiceIISReceiver:
+		return metrics.MetricSourceOTelIISReceiver
+	case otlpmetrics.OriginServiceK8SClusterReceiver:
+		return metrics.MetricSourceOTelK8SClusterReceiver
+	case otlpmetrics.OriginServiceKafkaMetricsReceiver:
+		return metrics.MetricSourceOTelKafkaMetricsReceiver
+	case otlpmetrics.OriginServiceKubeletStatsReceiver:
+		return metrics.MetricSourceOTelKubeletStatsReceiver
+	case otlpmetrics.OriginServiceMemcachedReceiver:
+		return metrics.MetricSourceOTelMemcachedReceiver
+	case otlpmetrics.OriginServiceMongoDBAtlasReceiver:
+		return metrics.MetricSourceOTelMongoDBAtlasReceiver
+	case otlpmetrics.OriginServiceMongoDBReceiver:
+		return metrics.MetricSourceOTelMongoDBReceiver
+	case otlpmetrics.OriginServiceMySQLReceiver:
+		return metrics.MetricSourceOTelMySQLReceiver
+	case otlpmetrics.OriginServiceNginxReceiver:
+		return metrics.MetricSourceOTelNginxReceiver
+	case otlpmetrics.OriginServiceNSXTReceiver:
+		return metrics.MetricSourceOTelNSXTReceiver
+	case otlpmetrics.OriginServiceOracleDBReceiver:
+		return metrics.MetricSourceOTelOracleDBReceiver
+	case otlpmetrics.OriginServicePostgreSQLReceiver:
+		return metrics.MetricSourceOTelPostgreSQLReceiver
+	case otlpmetrics.OriginServicePrometheusReceiver:
+		return metrics.MetricSourceOTelPrometheusReceiver
+	case otlpmetrics.OriginServiceRabbitMQReceiver:
+		return metrics.MetricSourceOTelRabbitMQReceiver
+	case otlpmetrics.OriginServiceRedisReceiver:
+		return metrics.MetricSourceOTelRedisReceiver
+	case otlpmetrics.OriginServiceRiakReceiver:
+		return metrics.MetricSourceOTelRiakReceiver
+	case otlpmetrics.OriginServiceSAPHANAReceiver:
+		return metrics.MetricSourceOTelSAPHANAReceiver
+	case otlpmetrics.OriginServiceSNMPReceiver:
+		return metrics.MetricSourceOTelSNMPReceiver
+	case otlpmetrics.OriginServiceSnowflakeReceiver:
+		return metrics.MetricSourceOTelSnowflakeReceiver
+	case otlpmetrics.OriginServiceSplunkEnterpriseReceiver:
+		return metrics.MetricSourceOTelSplunkEnterpriseReceiver
+	case otlpmetrics.OriginServiceSQLServerReceiver:
+		return metrics.MetricSourceOTelSQLServerReceiver
+	case otlpmetrics.OriginServiceSSHCheckReceiver:
+		return metrics.MetricSourceOTelSSHCheckReceiver
+	case otlpmetrics.OriginServiceStatsDReceiver:
+		return metrics.MetricSourceOTelStatsDReceiver
+	case otlpmetrics.OriginServiceVCenterReceiver:
+		return metrics.MetricSourceOTelVCenterReceiver
+	case otlpmetrics.OriginServiceZookeeperReceiver:
+		return metrics.MetricSourceOTelZookeeperReceiver
+	}
+
+	return metrics.MetricSourceOTLP
+}
+
 func (c *serializerConsumer) ConsumeSketch(_ context.Context, dimensions *otlpmetrics.Dimensions, ts uint64, qsketch *quantile.Sketch) {
 	c.sketches = append(c.sketches, &metrics.SketchSeries{
 		Name:     dimensions.Name(),
 		Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
 		Host:     dimensions.Host(),
+		Source:   originServiceToMetricsSource(dimensions.OriginService()),
 		Interval: 0, // OTLP metrics do not have an interval.
 		Points: []metrics.SketchPoint{{
 			Ts:     int64(ts / 1e9),
@@ -104,6 +198,7 @@ func (c *serializerConsumer) ConsumeTimeSeries(ctx context.Context, dimensions *
 			Tags:     tagset.CompositeTagsFromSlice(c.enrichedTags(dimensions)),
 			Host:     dimensions.Host(),
 			MType:    apiTypeFromTranslatorType(typ),
+			Source:   originServiceToMetricsSource(dimensions.OriginService()),
 			Interval: 0, // OTLP metrics do not have an interval.
 		},
 	)
