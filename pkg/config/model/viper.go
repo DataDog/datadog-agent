@@ -483,7 +483,7 @@ func (c *safeConfig) ReadInConfig() error {
 	c.Lock()
 	err := c.configSources[SourceFile].ReadInConfig()
 	if err != nil {
-		log.Warnf("failed to read the file configuration for SourceFile Viper instance", err)
+		log.Warnf("failed to read the file configuration for SourceFile Viper instance: %s", err)
 	}
 	err = c.Viper.ReadInConfig()
 	c.Unlock()
