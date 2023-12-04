@@ -48,10 +48,16 @@ func NewVMClient(t *testing.T, connection *utils.Connection, osType componentos.
 		}
 	}
 
+	privateKeyPassphrase, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPassphrase, "")
+	if err != nil {
+		return nil, err
+	}
+
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),
 		privateSSHKey,
+		[]byte(privateKeyPassphrase),
 		2*time.Second, 5)
 	return &VMClient{
 		client: client,

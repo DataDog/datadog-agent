@@ -38,10 +38,12 @@ type ConfigParams struct {
 
 // AWS instance contains AWS related parameters
 type AWS struct {
-	Account       string `yaml:"account"`
-	KeyPairName   string `yaml:"keyPairName"`
-	PublicKeyPath string `yaml:"publicKeyPath"`
-	TeamTag       string `yaml:"teamTag"`
+	Account              string `yaml:"account"`
+	KeyPairName          string `yaml:"keyPairName"`
+	PublicKeyPath        string `yaml:"publicKeyPath"`
+	PrivateKeyPath       string `yaml:"privateKeyPath"`
+	PrivateKeyPassphrase string `yaml:"privateKeyPassphrase"`
+	TeamTag              string `yaml:"teamTag"`
 }
 
 // Agent instance contains agent related parameters
@@ -103,6 +105,10 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.AWS.KeyPairName
 	case PublicKeyPath:
 		value = s.config.ConfigParams.AWS.PublicKeyPath
+	case PrivateKeyPath:
+		value = s.config.ConfigParams.AWS.PrivateKeyPath
+	case PrivateKeyPassphrase:
+		value = s.config.ConfigParams.AWS.PrivateKeyPassphrase
 	case StackParameters:
 		value = s.stackParamsJSON
 	case Environments:

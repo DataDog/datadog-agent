@@ -19,6 +19,8 @@ const (
 	ExtraResourcesTags StoreKey = "extra_resources_tags"
 	// KeyPairName config file parameter name
 	KeyPairName StoreKey = "key_pair_name"
+	// PrivateKeyPassphrase config file parameter name
+	PrivateKeyPassphrase StoreKey = "private_key_passphrase"
 	// PrivateKeyPath config file parameter name
 	PrivateKeyPath StoreKey = "private_key_path"
 	// Profile config file parameter name
