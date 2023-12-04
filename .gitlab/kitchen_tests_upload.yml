@@ -3,12 +3,10 @@ kitchen_tests_upload_common:
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/datadog-ci-uploader$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["arch:amd64"]
   allow_failure: true
-  when: always
+  rules:
+    - !reference [.except_mergequeue]
+    - when: always
   dependencies:
-    - kitchen_amazonlinux_install_script_agent-a6_arm64
-    - kitchen_amazonlinux_install_script_agent-a6_x64
-    - kitchen_amazonlinux_install_script_agent-a7_arm64
-    - kitchen_amazonlinux_install_script_agent-a7_x64
     - kitchen_centos_fips_install_script_agent-a6
     - kitchen_centos_fips_install_script_agent-a7
     - kitchen_centos_fips_install_script_dogstatsd-a7
@@ -17,10 +15,6 @@ kitchen_tests_upload_common:
     - kitchen_centos_fips_upgrade6_agent-a7
     - kitchen_centos_fips_upgrade7_agent-a7
     - kitchen_centos_fips_upgrade7_iot_agent-a7
-    - kitchen_centos_install_script_agent-a6
-    - kitchen_centos_install_script_agent-a7
-    - kitchen_centos_install_script_dogstatsd-a7
-    - kitchen_centos_install_script_iot_agent-a7
     - kitchen_centos_process_agent-a7
     - kitchen_centos_upgrade5_agent-a6
     - kitchen_centos_upgrade5_agent-a7
@@ -30,10 +24,7 @@ kitchen_tests_upload_common:
     - kitchen_centos_upgrade7_iot_agent-a7
     - kitchen_debian_install_script_agent-a6_arm64
     - kitchen_debian_install_script_agent-a6_x64
-    - kitchen_debian_install_script_dogstatsd-a7
     - kitchen_debian_install_script_heroku_agent-a6
-    - kitchen_debian_install_script_heroku_agent-a7
-    - kitchen_debian_install_script_iot_agent-a7
     - kitchen_debian_process_agent-a7
     - kitchen_debian_upgrade5_agent-a6
     - kitchen_debian_upgrade5_agent-a7
@@ -41,21 +32,16 @@ kitchen_tests_upload_common:
     - kitchen_debian_upgrade6_agent-a7
     - kitchen_debian_upgrade7_agent-a7
     - kitchen_debian_upgrade7_iot_agent-a7
-    - kitchen_suse_install_script_agent-a6
-    - kitchen_suse_install_script_agent-a7
-    - kitchen_suse_install_script_dogstatsd-a7
-    - kitchen_suse_install_script_iot_agent-a7
-    - kitchen_suse_process_agent-a7
-    - kitchen_suse_upgrade6_agent-a6
-    - kitchen_suse_upgrade6_agent-a7
-    - kitchen_suse_upgrade7_agent-a7
-    - kitchen_suse_upgrade7_iot_agent-a7
-    - kitchen_ubuntu_install_script_agent-a6_arm64
-    - kitchen_ubuntu_install_script_agent-a6_x64
-    - kitchen_ubuntu_install_script_agent-a7_arm64
-    - kitchen_ubuntu_install_script_agent-a7_x64
-    - kitchen_ubuntu_install_script_dogstatsd-a7
-    - kitchen_ubuntu_install_script_iot_agent-a7
+    - kitchen_suse_install_script_agent_x64-a6
+    - kitchen_suse_install_script_agent_x64-a7
+    - kitchen_suse_install_script_dogstatsd_x64-a7
+    - kitchen_suse_install_script_iot_agent_x64-a7
+    - kitchen_suse_install_script_agent_arm64-a7
+    - kitchen_suse_process_agent_x64-a7
+    - kitchen_suse_upgrade6_agent_x64-a6
+    - kitchen_suse_upgrade6_agent_x64-a7
+    - kitchen_suse_upgrade7_agent_x64-a7
+    - kitchen_suse_upgrade7_iot_agent_x64-a7
     - kitchen_ubuntu_process_agent-a7
     - kitchen_ubuntu_upgrade5_agent-a6
     - kitchen_ubuntu_upgrade5_agent-a7

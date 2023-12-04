@@ -45,8 +45,20 @@ def create_stack(ctx, stack=None):
         "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
     }
 )
-def gen_config(ctx, stack=None, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
-    vmconfig.gen_config(ctx, stack, vms, init_stack, vcpu, memory, new)
+def gen_config(
+    ctx,
+    stack=None,
+    vms="",
+    sets="",
+    init_stack=False,
+    vcpu="4",
+    memory="8192",
+    new=False,
+    ci=False,
+    arch="",
+    output_file="vmconfig.json",
+):
+    vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
 
 
 @task
@@ -374,7 +386,7 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
     run_cmd_vms(
         ctx,
         stack,
-        f"bash /micro-vm-init.sh {retry} {platform.machine()} {' '.join(args)}",
+        f"bash /micro-vm-init.sh {retry} {' '.join(args)}",
         target_vms,
         "",
         allow_fail=True,

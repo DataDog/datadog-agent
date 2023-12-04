@@ -23,11 +23,12 @@ import (
 
 	"gopkg.in/yaml.v2"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/defaults"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/secrets"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
+
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -126,15 +127,6 @@ var (
 
 // List of integrations allowed to be configured by RC by default
 var defaultAllowedRCIntegrations = []string{}
-
-// PrometheusScrapeChecksTransformer unmarshals a prometheus check.
-func PrometheusScrapeChecksTransformer(in string) interface{} {
-	var promChecks []*types.PrometheusCheck
-	if err := json.Unmarshal([]byte(in), &promChecks); err != nil {
-		log.Warnf(`"prometheus_scrape.checks" can not be parsed: %v`, err)
-	}
-	return promChecks
-}
 
 // ConfigurationProviders helps unmarshalling `config_providers` config param
 type ConfigurationProviders struct {
@@ -253,6 +245,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("syslog_pem", "")
 	config.BindEnvAndSetDefault("syslog_key", "")
 	config.BindEnvAndSetDefault("syslog_tls_verify", true)
+	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
@@ -265,7 +258,6 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("check_runners", int64(4))
 	config.BindEnvAndSetDefault("auth_token_file_path", "")
 	config.BindEnv("bind_host")
-	config.BindEnvAndSetDefault("ipc_address", "localhost")
 	config.BindEnvAndSetDefault("health_port", int64(0))
 	config.BindEnvAndSetDefault("disable_py3_validation", false)
 	config.BindEnvAndSetDefault("python_version", DefaultPython)
@@ -368,8 +360,8 @@ func InitConfig(config Config) {
 	// secrets backend
 	config.BindEnvAndSetDefault("secret_backend_command", "")
 	config.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	config.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSizeDefault)
-	config.BindEnvAndSetDefault("secret_backend_timeout", secrets.SecretBackendTimeoutDefault)
+	config.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
+	config.BindEnvAndSetDefault("secret_backend_timeout", 0)
 	config.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	config.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 	config.BindEnvAndSetDefault("secret_backend_remove_trailing_line_break", false)
@@ -670,8 +662,7 @@ func InitConfig(config Config) {
 	config.BindEnvAndSetDefault("prometheus_scrape.enabled", false)           // Enables the prometheus config provider
 	config.BindEnvAndSetDefault("prometheus_scrape.service_endpoints", false) // Enables Service Endpoints checks in the prometheus config provider
 	config.BindEnv("prometheus_scrape.checks")                                // Defines any extra prometheus/openmetrics check configurations to be handled by the prometheus config provider
-	config.SetEnvKeyTransformer("prometheus_scrape.checks", PrometheusScrapeChecksTransformer)
-	config.BindEnvAndSetDefault("prometheus_scrape.version", 1) // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
+	config.BindEnvAndSetDefault("prometheus_scrape.version", 1)               // Version of the openmetrics check to be scheduled by the Prometheus auto-discovery
 
 	// Network Devices Monitoring
 	bindEnvAndSetLogsConfigKeys(config, "network_devices.metadata.")
@@ -1383,14 +1374,14 @@ func LoadProxyFromEnv(config Config) {
 	}
 }
 
-// Load reads configs files and initializes the config module
-func Load() (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", true, SystemProbe.GetEnvVars())
-}
-
 // LoadWithoutSecret reads configs files, initializes the config module without decrypting any secrets
 func LoadWithoutSecret() (*Warnings, error) {
-	return LoadDatadogCustom(Datadog, "datadog.yaml", false, SystemProbe.GetEnvVars())
+	return LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), SystemProbe.GetEnvVars())
+}
+
+// LoadWithSecret reads config files and initializes config with decrypted secrets
+func LoadWithSecret(secretResolver secrets.Component) (*Warnings, error) {
+	return LoadDatadogCustom(Datadog, "datadog.yaml", optional.NewOption[secrets.Component](secretResolver), SystemProbe.GetEnvVars())
 }
 
 // Merge will merge additional configuration into an existing configuration
@@ -1546,7 +1537,7 @@ func checkConflictingOptions(config Config) error {
 }
 
 // LoadDatadogCustom loads the datadog config in the given config
-func LoadDatadogCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadDatadogCustom(config Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*Warnings, error) {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -1556,7 +1547,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	warnings, err := LoadCustom(config, origin, loadSecret, additionalKnownEnvVars)
+	warnings, err := LoadCustom(config, origin, secretResolver, additionalKnownEnvVars)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -1591,7 +1582,7 @@ func LoadDatadogCustom(config Config, origin string, loadSecret bool, additional
 }
 
 // LoadCustom reads config into the provided config object
-func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEnvVars []string) (*Warnings, error) {
+func LoadCustom(config Config, origin string, secretResolver optional.Option[secrets.Component], additionalKnownEnvVars []string) (*Warnings, error) {
 	warnings := Warnings{}
 
 	if err := config.ReadInConfig(); err != nil {
@@ -1620,8 +1611,9 @@ func LoadCustom(config Config, origin string, loadSecret bool, additionalKnownEn
 	// We resolve proxy setting before secrets. This allows setting secrets through DD_PROXY_* env variables
 	LoadProxyFromEnv(config)
 
-	if loadSecret {
-		if err := ResolveSecrets(config, origin); err != nil {
+	if secretResolver.IsSet() {
+		resolver, _ := secretResolver.Get()
+		if err := ResolveSecrets(config, resolver, origin); err != nil {
 			return &warnings, err
 		}
 	}
@@ -1761,10 +1753,10 @@ func setupFipsLogsConfig(config Config, configPrefix string, url string) {
 // ResolveSecrets merges all the secret values from origin into config. Secret values
 // are identified by a value of the form "ENC[key]" where key is the secret key.
 // See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
-func ResolveSecrets(config Config, origin string) error {
+func ResolveSecrets(config Config, secretResolver secrets.Component, origin string) error {
 	// We have to init the secrets package before we can use it to decrypt
 	// anything.
-	secrets.Init(
+	secretResolver.Configure(
 		config.GetString("secret_backend_command"),
 		config.GetStringSlice("secret_backend_arguments"),
 		config.GetInt("secret_backend_timeout"),
@@ -1783,7 +1775,7 @@ func ResolveSecrets(config Config, origin string) error {
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		finalYamlConf, err := secrets.Decrypt(yamlConf, origin)
+		finalYamlConf, err := secretResolver.Decrypt(yamlConf, origin)
 		if err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
 		}
@@ -1805,7 +1797,7 @@ func EnvVarAreSetAndNotEqual(lhsName string, rhsName string) bool {
 
 // sanitizeAPIKeyConfig strips newlines and other control characters from a given key.
 func sanitizeAPIKeyConfig(config Config, key string) {
-	if !config.IsKnown(key) {
+	if !config.IsKnown(key) || !config.IsSet(key) {
 		return
 	}
 	config.Set(key, strings.TrimSpace(config.GetString(key)), pkgconfigmodel.SourceAgentRuntime)

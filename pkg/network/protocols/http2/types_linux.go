@@ -4,7 +4,10 @@
 package http2
 
 const (
-	maxHTTP2Path = 0xa0
+	maxHTTP2Path     = 0xa0
+	http2PathBuckets = 0x7
+
+	HTTP2TerminatedBatchSize = 0x50
 )
 
 type connTuple = struct {
@@ -45,6 +48,16 @@ type http2Stream struct {
 type EbpfTx struct {
 	Tuple  connTuple
 	Stream http2Stream
+}
+type HTTP2Telemetry struct {
+	Request_seen                     uint64
+	Response_seen                    uint64
+	End_of_stream                    uint64
+	End_of_stream_rst                uint64
+	Path_exceeds_frame               uint64
+	Exceeding_max_interesting_frames uint64
+	Exceeding_max_frames_to_filter   uint64
+	Path_size_bucket                 [8]uint64
 }
 
 type StaticTableEnumValue = uint8

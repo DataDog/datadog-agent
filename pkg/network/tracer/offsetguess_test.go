@@ -61,7 +61,6 @@ const (
 	offsetSkBuffHead
 	offsetCtOrigin
 	offsetCtReply
-	offsetCtStatus
 	offsetCtNetns
 	offsetCtIno
 	offsetMax
@@ -117,8 +116,6 @@ func (o offsetT) String() string {
 		return "offset_ct_origin"
 	case offsetCtReply:
 		return "offset_ct_reply"
-	case offsetCtStatus:
-		return "offset_ct_status"
 	case offsetCtNetns:
 		return "offset_ct_netns"
 	case offsetCtIno:
@@ -208,8 +205,6 @@ func testOffsetGuess(t *testing.T) {
 			consts[offsetCtOrigin] = value
 		case "offset_ct_reply":
 			consts[offsetCtReply] = value
-		case "offset_ct_status":
-			consts[offsetCtStatus] = value
 		case "offset_ct_netns":
 			consts[offsetCtNetns] = value
 		case "offset_ct_ino":

@@ -37,8 +37,8 @@ cp $TEST2JSON $GO_BIN
 mkdir junit testjson pkgjson
 cp $DD_AGENT_TESTING_DIR/test/new-e2e/system-probe/test/micro-vm-init.sh ./
 
-GOOS=linux go build -o ./test-runner $DD_AGENT_TESTING_DIR/test/new-e2e/system-probe/test-runner/main.go
-GOOS=linux go build -o ./test-json-review $DD_AGENT_TESTING_DIR/test/new-e2e/system-probe/test-json-review/main.go
+pushd "${DD_AGENT_TESTING_DIR}/test/new-e2e/system-probe/test-runner" && GOOS=linux go build -o "${DEPENDENCIES}/test-runner" && popd
+pushd "${DD_AGENT_TESTING_DIR}/test/new-e2e/system-probe/test-json-review" && GOOS=linux go build -o "${DEPENDENCIES}/test-json-review" && popd
 
 popd
 

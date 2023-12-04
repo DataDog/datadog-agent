@@ -23,12 +23,16 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 	"github.com/benbjohnson/clock"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Server struct {
@@ -56,12 +60,32 @@ func NewServer(options ...func(*Server)) *Server {
 		store:     serverstore.NewStore(),
 	}
 
+	registry := prometheus.NewRegistry()
+
+	registry.MustRegister(
+		collectors.NewBuildInfoCollector(),
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		fi.store.NbPayloads,
+	)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", fi.handleDatadogRequest)
-	mux.HandleFunc("/fakeintake/payloads/", fi.handleGetPayloads)
-	mux.HandleFunc("/fakeintake/health/", fi.handleFakeHealth)
-	mux.HandleFunc("/fakeintake/routestats/", fi.handleGetRouteStats)
-	mux.HandleFunc("/fakeintake/flushPayloads/", fi.handleFlushPayloads)
+	mux.HandleFunc("/fakeintake/payloads", fi.handleGetPayloads)
+	mux.HandleFunc("/fakeintake/health", fi.handleFakeHealth)
+	mux.HandleFunc("/fakeintake/routestats", fi.handleGetRouteStats)
+	mux.HandleFunc("/fakeintake/flushPayloads", fi.handleFlushPayloads)
+
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+		Registry:          registry,
+	}))
 
 	fi.server = http.Server{
 		Handler: mux,

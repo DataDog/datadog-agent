@@ -1,5 +1,5 @@
 {
-	"commit": "931182883b442cee5d122852b2eff13b32d5d061",
+	"commit": "b6b3f8186864ec31c48168c1cc1bce70aac65da0",
 	"constants": [
 		{
 			"binprm_file_offset": 168,
@@ -14137,6 +14137,20 @@
 			"distrib": "ol",
 			"version": "7",
 			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.105.1.0.1.el7.x86_64",
+			"cindex": 82
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "3.10.0-1160.105.1.0.2.el7.x86_64",
+			"cindex": 82
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
 			"uname_release": "3.10.0-1160.11.1.0.1.el7.x86_64",
 			"cindex": 82
 		},
@@ -18429,6 +18443,13 @@
 			"version": "7",
 			"arch": "x86_64",
 			"uname_release": "4.14.35-2047.532.2.el7uek.x86_64",
+			"cindex": 86
+		},
+		{
+			"distrib": "ol",
+			"version": "7",
+			"arch": "x86_64",
+			"uname_release": "4.14.35-2047.532.3.el7uek.x86_64",
 			"cindex": 86
 		},
 		{

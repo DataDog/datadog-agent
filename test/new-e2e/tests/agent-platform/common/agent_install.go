@@ -19,7 +19,7 @@ func CheckInstallation(t *testing.T, client *TestClient) {
 
 	t.Run("example config file", func(tt *testing.T) {
 
-		exampleFilePath := client.Helper.GetConfigFolder() + "datadog.yaml.example"
+		exampleFilePath := client.Helper.GetConfigFolder() + fmt.Sprintf("%s.example", client.Helper.GetConfigFileName())
 
 		_, err := client.FileManager.FileExists(exampleFilePath)
 		require.NoError(tt, err, "Example config file should be present")
@@ -46,7 +46,7 @@ func CheckInstallation(t *testing.T, client *TestClient) {
 func CheckInstallationInstallScript(t *testing.T, client *TestClient) {
 
 	t.Run("site config attribute", func(tt *testing.T) {
-		configFilePath := client.Helper.GetConfigFolder() + "datadog.yaml"
+		configFilePath := client.Helper.GetConfigFolder() + client.Helper.GetConfigFileName()
 
 		var configYAML map[string]any
 		config, err := client.FileManager.ReadFile(configFilePath)
@@ -78,15 +78,15 @@ func CheckInstallationInstallScript(t *testing.T, client *TestClient) {
 }
 
 // CheckUninstallation runs check to see if the agent uninstall properly
-func CheckUninstallation(t *testing.T, client *TestClient) {
+func CheckUninstallation(t *testing.T, client *TestClient, packageName string) {
 
 	t.Run("remove the agent", func(tt *testing.T) {
-		_, err := client.PkgManager.Remove("datadog-agent")
+		_, err := client.PkgManager.Remove(packageName)
 		require.NoError(tt, err, "should uninstall the agent")
 	})
 
 	t.Run("no agent process running", func(tt *testing.T) {
-		agentProcesses := []string{"datadog-agent", "system-probe", "security-agent"}
+		agentProcesses := []string{client.Helper.GetServiceName(), "system-probe", "security-agent"}
 		for _, process := range agentProcesses {
 			_, err := client.VMClient.ExecuteWithError(fmt.Sprintf("pgrep -f %s", process))
 			require.Error(tt, err, fmt.Sprintf("process %s should not be running", process))

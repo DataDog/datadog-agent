@@ -72,7 +72,7 @@ var errors = []handledError{
 		errorType:   ec2StateChangeTimeoutError,
 		errorString: "timeout while waiting for state to become 'running'",
 		metric:      "ec2-timeout-state-change",
-		action:      emitMetric,
+		action:      retryStack | emitMetric,
 	},
 }
 

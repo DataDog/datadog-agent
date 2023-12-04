@@ -55,6 +55,10 @@ type UDSListener struct {
 	transport string
 
 	dogstatsdMemBasedRateLimiter bool
+
+	packetBufferSize         uint
+	packetBufferFlushTimeout time.Duration
+	telemetryWithListenerID  bool
 }
 
 // CloseFunction is a function that closes a connection
@@ -131,6 +135,9 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		dogstatsdMemBasedRateLimiter: cfg.GetBool("dogstatsd_mem_based_rate_limiter.enabled"),
 		config:                       cfg,
 		transport:                    transport,
+		packetBufferSize:             uint(cfg.GetInt("dogstatsd_packet_buffer_size")),
+		packetBufferFlushTimeout:     cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
+		telemetryWithListenerID:      cfg.GetBool("dogstatsd_telemetry_enabled_listener_id"),
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
@@ -149,13 +156,15 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFunction) error {
 	listenerID := l.getListenerID(conn)
 	tlmListenerID := listenerID
-	if !l.config.GetBool("dogstatsd_telemetry_enabled_listener_id") {
-		tlmListenerID = ""
+	telemetryWithFullListenerID := l.telemetryWithListenerID
+	if !telemetryWithFullListenerID {
+		// In case we don't want the full listener id, we only keep the transport.
+		tlmListenerID = "uds-" + conn.LocalAddr().Network()
 	}
 
 	packetsBuffer := packets.NewBuffer(
-		uint(l.config.GetInt("dogstatsd_packet_buffer_size")),
-		l.config.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
+		l.packetBufferSize,
+		l.packetBufferFlushTimeout,
 		l.packetOut,
 		tlmListenerID,
 	)
@@ -163,7 +172,9 @@ func (l *UDSListener) handleConnection(conn *net.UnixConn, closeFunc CloseFuncti
 	defer func() {
 		_ = closeFunc(conn)
 		packetsBuffer.Close()
-		l.clearTelemetry(tlmListenerID)
+		if telemetryWithFullListenerID {
+			l.clearTelemetry(tlmListenerID)
+		}
 		tlmUDSConnections.Dec(tlmListenerID, l.transport)
 	}()
 
