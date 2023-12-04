@@ -97,6 +97,9 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = {"clusterchecks", "kubeapiserver", "orchestrator", "zlib", "ec2", "gce"}
 
+# CLUSTER_AGENT_INTEGRATION_TESTS_TAGS lists the tags that have to be added to run cluster-agent integration tests
+CLUSTER_AGENT_INTEGRATION_TESTS_TAGS = CLUSTER_AGENT_TAGS.union({"docker", "test"})
+
 # CLUSTER_AGENT_CLOUDFOUNDRY_TAGS lists the tags needed when building the cloudfoundry cluster-agent
 CLUSTER_AGENT_CLOUDFOUNDRY_TAGS = {"clusterchecks"}
 
@@ -166,6 +169,7 @@ build_tags = {
         # Build setups
         "agent": AGENT_TAGS,
         "cluster-agent": CLUSTER_AGENT_TAGS,
+        "cluster-agent-integration-tests": CLUSTER_AGENT_INTEGRATION_TESTS_TAGS,
         "cluster-agent-cloudfoundry": CLUSTER_AGENT_CLOUDFOUNDRY_TAGS,
         "cws-instrumentation": set(),  # FIXME(CWS): Is this intended?
         "dogstatsd": DOGSTATSD_TAGS,

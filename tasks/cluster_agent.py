@@ -97,10 +97,9 @@ def integration_tests(ctx, install_deps=False, race=False, remote_docker=False, 
     if install_deps:
         deps(ctx)
 
-    # We need docker for the kubeapiserver integration tests
-    tags = get_build_tags(build="cluster-agent") + ["docker", "test"]
+    tags = get_build_tags(build="cluster-agent-integration-tests")
 
-    go_build_tags = " ".join(get_build_tags(tags, []))
+    go_build_tags = " ".join(tags)
     race_opt = "-race" if race else ""
     exec_opts = ""
 
