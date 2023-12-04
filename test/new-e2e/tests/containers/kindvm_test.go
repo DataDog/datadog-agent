@@ -77,5 +77,5 @@ func (suite *kindSuite) TearDownSuite() {
 	ctx := context.Background()
 	stackName, err := infra.GetStackManager().GetPulumiStackName("kind-cluster")
 	suite.Require().NoError(err)
-	suite.T().Log(dumpEKSClusterState(ctx, stackName))
+	suite.T().Log(dumpKindClusterState(ctx, stackName))
 }
