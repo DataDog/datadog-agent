@@ -31,7 +31,6 @@ func NewParams(options ...Option) *Params {
 		PipelineID:   os.Getenv("CI_PIPELINE_ID"),
 		MajorVersion: "7",
 		Arch:         "x86_64",
-		IsSuse:       false,
 	}
 	return applyOption(p, options...)
 }
