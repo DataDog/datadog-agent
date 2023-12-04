@@ -1296,6 +1296,9 @@ def parse_test_log(log_file):
             if json_line["Action"] == "pass" and "Test" in json_line:
                 n_test_executed += 1
                 if f'{json_line["Package"]}/{json_line["Test"]}' in failed_tests:
-                    failed_tests.remove(f'{json_line["Package"]}/{json_line["Test"]}')
-
+                    failed_tests = [
+                        failed_test
+                        for failed_test in failed_tests
+                        if f'{json_line["Package"]}/{json_line["Test"]}' != failed_test
+                    ]
     return failed_tests, n_test_executed
