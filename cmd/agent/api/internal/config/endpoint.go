@@ -51,9 +51,9 @@ func GetConfigEndpointMux(cfg config.Reader) *gorilla.Router {
 	return getConfigEndpointMux(cfg, authorizedConfigPaths)
 }
 
-func getConfigEndpointMux(cfg config.Reader, allowedConfigPaths map[string]struct{}) *gorilla.Router {
+func getConfigEndpointMux(cfg config.Reader, authorizedConfigPaths authorizedSet) *gorilla.Router {
 	configEndpointHandler := func(w http.ResponseWriter, r *http.Request) {
-		body, statusCode, err := getConfigValueAsJSON(cfg, r, allowedConfigPaths)
+		body, statusCode, err := getConfigValueAsJSON(cfg, r, authorizedConfigPaths)
 		if err != nil {
 			http.Error(w, err.Error(), statusCode)
 			return
@@ -72,11 +72,11 @@ func getConfigEndpointMux(cfg config.Reader, allowedConfigPaths map[string]struc
 
 // returns the marshalled JSON value of the config path requested
 // or an error and http status code in case of failure
-func getConfigValueAsJSON(cfg config.Reader, r *http.Request, allowedConfigPaths map[string]struct{}) ([]byte, int, error) {
+func getConfigValueAsJSON(cfg config.Reader, r *http.Request, authorizedConfigPaths authorizedSet) ([]byte, int, error) {
 	vars := gorilla.Vars(r)
 	path := vars["path"]
 
-	if _, ok := allowedConfigPaths[path]; !ok {
+	if _, ok := authorizedConfigPaths[path]; !ok {
 		unauthorizedExpvar.Add(path, 1)
 		log.Warnf("config endpoint received a request from '%s' for config '%s' which is not allowed", r.RemoteAddr, path)
 		return nil, http.StatusForbidden, fmt.Errorf("querying config value '%s' is not allowed", path)
