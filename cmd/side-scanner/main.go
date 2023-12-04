@@ -117,8 +117,18 @@ var defaultActions = []string{
 type (
 	rolesMapping map[string]*arn.ARN
 
-	findings struct {
-		Results []yaraResult
+	finding struct {
+		AgentVersion string      `json:"agent_version,omitempty"`
+		RuleID       string      `json:"agent_rule_id,omitempty"`
+		RuleVersion  int         `json:"agent_rule_version,omitempty"`
+		FrameworkID  string      `json:"agent_framework_id,omitempty"`
+		Evaluator    string      `json:"evaluator,omitempty"`
+		ExpireAt     *time.Time  `json:"expire_at,omitempty"`
+		Result       string      `json:"result,omitempty"`
+		ResourceType string      `json:"resource_type,omitempty"`
+		ResourceID   string      `json:"resource_id,omitempty"`
+		Tags         []string    `json:"tags"`
+		Data         interface{} `json:"data"`
 	}
 
 	scanConfigRaw struct {
@@ -151,7 +161,7 @@ type (
 		err      error
 		sbom     *sbommodel.SBOMEntity
 		duration time.Duration
-		findings *findings
+		findings []*finding
 	}
 
 	ebsVolume struct {
@@ -426,7 +436,7 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 		return fmt.Errorf("could not init Remote Config client: %w", err)
 	}
 
-	findingsReporter, err := newFindingsReporter(hostname)
+	findingsReporter, err := newFindingsReporter()
 	if err != nil {
 		return fmt.Errorf("could not init Findings Reporter: %w", err)
 	}
@@ -464,10 +474,17 @@ func scanCmd(config scanConfig, sendData bool) error {
 	defer stop()
 
 	var eventForwarder epforwarder.EventPlatformForwarder
+	var findingsReporter *LogReporter
 	if sendData {
 		eventForwarder = epforwarder.NewEventPlatformForwarder()
 		eventForwarder.Start()
 		defer eventForwarder.Stop()
+
+		var err error
+		findingsReporter, err = newFindingsReporter()
+		if err != nil {
+			return err
+		}
 	}
 
 	resultsCh := make(chan scanResult)
@@ -477,14 +494,16 @@ func scanCmd(config scanConfig, sendData bool) error {
 				log.Errorf("error scanning task %s: %s", result.scan, result.err)
 			} else {
 				if result.sbom != nil {
-					fmt.Printf("scanning result %s (took %s): %s\n", result.scan, result.duration, prototext.Format(result.sbom))
+					fmt.Printf("scanning SBOM result %s (took %s): %s\n", result.scan, result.duration, prototext.Format(result.sbom))
 					if sendData {
 						sendSBOM(eventForwarder, result.sbom, "unknown")
 					}
 				}
 				if result.findings != nil {
-					for _, result := range result.findings.Results {
-						fmt.Printf("found %s in %s\n", result.Rule, result.File)
+					b, _ := json.MarshalIndent(result.findings, "", "  ")
+					fmt.Printf("scanning findings result %s (took %s): %s\n", result.scan, result.duration, string(b))
+					if sendData {
+						findingsReporter.ReportEvent(result.findings)
 					}
 				}
 			}
@@ -1199,9 +1218,8 @@ func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
 	return sendSBOM(s.eventForwarder, entity, s.hostname)
 }
 
-func (s *sideScanner) sendFindings(findings *findings) {
-	var tags []string // TODO: tags
-	s.findingsReporter.ReportEvent(findings, tags...)
+func (s *sideScanner) sendFindings(findings []*finding) {
+	sendFindings(s.findingsReporter, findings)
 }
 
 func sendSBOM(eventForwarder epforwarder.EventPlatformForwarder, entity *sbommodel.SBOMEntity, hostname string) error {
@@ -1222,6 +1240,16 @@ func sendSBOM(eventForwarder epforwarder.EventPlatformForwarder, entity *sbommod
 
 	m := message.NewMessage(rawEvent, nil, "", 0)
 	return eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
+}
+
+func sendFindings(findingsReporter *LogReporter, findings []*finding) {
+	var tags []string // TODO: tags
+	expireAt := time.Now().Add(24 * time.Hour)
+	for _, finding := range findings {
+		finding.ExpireAt = &expireAt
+		finding.AgentVersion = version.AgentVersion
+		findingsReporter.ReportEvent(finding, tags...)
+	}
 }
 
 func cloudResourceTagSpec(resourceType ec2types.ResourceType) []ec2types.TagSpecification {

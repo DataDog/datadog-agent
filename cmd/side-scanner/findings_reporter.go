@@ -3,12 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/logs/auditor"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	logshttp "github.com/DataDog/datadog-agent/pkg/logs/client/http"
@@ -27,10 +25,9 @@ type LogReporter struct {
 	dstcontext       *client.DestinationsContext
 	auditor          *auditor.RegistryAuditor
 	pipelineProvider pipeline.Provider
-	tags             []string
 }
 
-func newFindingsReporter(hostname string) (*LogReporter, error) {
+func newFindingsReporter() (*LogReporter, error) {
 	const intakeTrackType = "compliance"
 	const sourceName = "compliance-agent"
 	const sourceType = "compliance"
@@ -73,17 +70,7 @@ func newFindingsReporter(hostname string) (*LogReporter, error) {
 	)
 	logChan := pipelineProvider.NextPipelineChan()
 
-	tags := []string{
-		fmt.Sprintf("host:%s", hostname),
-	}
-
 	// merge tags from config
-	for _, tag := range configUtils.GetConfiguredTags(coreconfig.Datadog, true) {
-		if strings.HasPrefix(tag, "host") {
-			continue
-		}
-		tags = append(tags, tag)
-	}
 
 	reporter := &LogReporter{
 		logSource:        logSource,
@@ -92,7 +79,6 @@ func newFindingsReporter(hostname string) (*LogReporter, error) {
 		dstcontext:       dstcontext,
 		auditor:          auditor,
 		pipelineProvider: pipelineProvider,
-		tags:             tags,
 	}
 
 	return reporter, nil
@@ -110,9 +96,8 @@ func (r *LogReporter) ReportEvent(event interface{}, tags ...string) {
 		log.Errorf("failed to serialize compliance event: %v", err)
 		return
 	}
-	tags = append(tags, r.tags...)
 	origin := message.NewOrigin(r.logSource)
-	origin.SetTags(r.tags)
+	origin.SetTags(tags)
 	msg := message.NewMessage(buf, origin, message.StatusInfo, time.Now().UnixNano())
 	r.logChan <- msg
 }
