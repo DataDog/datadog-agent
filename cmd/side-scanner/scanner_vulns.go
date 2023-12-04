@@ -81,6 +81,9 @@ func launchScannerTrivyVM(ctx context.Context, scan *scanTask, ebsclient *ebs.Cl
 		OnlyDirs:          []string{"etc", "var/lib/dpkg", "var/lib/rpm", "lib/apk"},
 		AWSRegion:         scan.ARN.Region,
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	trivyArtifactEBS := trivyArtifact.(*vm.EBS)
 	trivyArtifactEBS.SetEBS(EBSClientWithWalk{ebsclient})
