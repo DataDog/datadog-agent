@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Microsoft/go-winio"
+	_ "github.com/Microsoft/go-winio"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -138,7 +138,7 @@ func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
 		packetOut:         packetOut,
 	}
 
-	go listenerTest.Listen()
+	listenerTest.Listen()
 	return listenerTest
 }
 

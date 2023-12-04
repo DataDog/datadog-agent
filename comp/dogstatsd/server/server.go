@@ -475,7 +475,7 @@ func (s *server) handleMessages() {
 	}
 
 	for _, l := range s.listeners {
-		go l.Listen()
+		l.Listen()
 	}
 
 	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()
