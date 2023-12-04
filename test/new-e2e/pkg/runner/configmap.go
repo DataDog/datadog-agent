@@ -36,8 +36,8 @@ const (
 	AWSPublicKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDinfraDefaultPublicKeyPath
 	// AWSPrivateKeyPath pulumi config paramater name
 	AWSPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPath
-	// AWSPrivateKeyPassphrase pulumi config paramater name
-	AWSPrivateKeyPassphrase = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPassword
+	// AWSPrivateKeyPassword pulumi config paramater name
+	AWSPrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPassword
 )
 
 // ConfigMap type alias to auto.ConfigMap
@@ -126,7 +126,7 @@ func BuildStackParameters(profile Profile, scenarioConfig ConfigMap) (ConfigMap,
 	if err != nil {
 		return nil, err
 	}
-	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.PrivateKeyPassphrase, AWSPrivateKeyPassphrase)
+	err = SetConfigMapFromSecret(profile.SecretStore(), cm, parameters.PrivateKeyPassword, AWSPrivateKeyPassword)
 	if err != nil {
 		return nil, err
 	}

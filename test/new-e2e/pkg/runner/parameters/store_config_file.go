@@ -19,7 +19,7 @@ import (
 //     keyPairName: "totoro"
 //     publicKeyPath: "/home/totoro/.ssh/id_rsa.pub"
 //     privateKeyPath: "/home/totoro/.ssh/id_rsa"
-//     privateKeyPassphrase: "princess_mononoke"
+//     privateKeyPassword: "princess_mononoke"
 //   agent:
 //     apiKey: "00000000000000000000000000000000"=
 // stackParams:
@@ -40,12 +40,12 @@ type ConfigParams struct {
 
 // AWS instance contains AWS related parameters
 type AWS struct {
-	Account              string `yaml:"account"`
-	KeyPairName          string `yaml:"keyPairName"`
-	PublicKeyPath        string `yaml:"publicKeyPath"`
-	PrivateKeyPath       string `yaml:"privateKeyPath"`
-	PrivateKeyPassphrase string `yaml:"privateKeyPassphrase"`
-	TeamTag              string `yaml:"teamTag"`
+	Account            string `yaml:"account"`
+	KeyPairName        string `yaml:"keyPairName"`
+	PublicKeyPath      string `yaml:"publicKeyPath"`
+	PrivateKeyPath     string `yaml:"privateKeyPath"`
+	PrivateKeyPassword string `yaml:"privateKeyPassword"`
+	TeamTag            string `yaml:"teamTag"`
 }
 
 // Agent instance contains agent related parameters
@@ -109,8 +109,8 @@ func (s configFileValueStore) get(key StoreKey) (string, error) {
 		value = s.config.ConfigParams.AWS.PublicKeyPath
 	case PrivateKeyPath:
 		value = s.config.ConfigParams.AWS.PrivateKeyPath
-	case PrivateKeyPassphrase:
-		value = s.config.ConfigParams.AWS.PrivateKeyPassphrase
+	case PrivateKeyPassword:
+		value = s.config.ConfigParams.AWS.PrivateKeyPassword
 	case StackParameters:
 		value = s.stackParamsJSON
 	case Environments:

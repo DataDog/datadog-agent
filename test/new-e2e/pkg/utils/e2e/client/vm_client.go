@@ -48,7 +48,7 @@ func NewVMClient(t *testing.T, connection *utils.Connection, osType componentos.
 		}
 	}
 
-	privateKeyPassphrase, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassphrase, "")
+	privateKeyPassphrase, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
 	if err != nil {
 		return nil, err
 	}
