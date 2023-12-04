@@ -36,12 +36,15 @@
         /* The maximum that we can read is (blk_size) - 1. Checking (to please the verifier) that we read no more */\
         /* than the allowed max size. */                                                                            \
         const s64 read_size = left_payload < (blk_size) - 1 ? left_payload : (blk_size) - 1;                        \
+        /* This check is essential, as certain kernel verifiers require it */                                       \
+        /* originally identified on kernel version 4.18.0-305 RHEL) */                                              \
+        const u64 read_size_unsigned = read_size > 0 ? read_size : 0;                                               \
                                                                                                                     \
         /* Calculating the absolute size from the allocated buffer, that was left empty, again to please the */     \
         /* verifier so it can be assured we are not exceeding the memory limits. */                                 \
         const s64 left_buffer = (s64)(total_size) < (s64)(i*(blk_size)) ? 0 : total_size - i*(blk_size);            \
-        if (read_size <= left_buffer) {                                                                             \
-            bpf_skb_load_bytes_with_telemetry(skb, offset, buffer, read_size);                                      \
+        if (read_size_unsigned > 0 && read_size_unsigned <= left_buffer) {                                          \
+            bpf_skb_load_bytes_with_telemetry(skb, offset, buffer, read_size_unsigned);                             \
         }                                                                                                           \
         return;                                                                                                     \
     }                                                                                                               \
