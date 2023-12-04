@@ -23,6 +23,7 @@ func newMockStats(updateTimestamp, lastExecutionTime int64, interval time.Durati
 }
 
 func TestCalculateCheckDelay(t *testing.T) {
+	mockNow := time.Now()
 
 	tests := []struct {
 		name          string
@@ -45,19 +46,24 @@ func TestCalculateCheckDelay(t *testing.T) {
 		},
 		{
 			name:         "Regular Running Delayed Check",
-			prevRunStats: newMockStats(time.Now().Add(-16*time.Second).Unix(), 17*1000, 15*time.Second),
+			prevRunStats: newMockStats(mockNow.Add(-16*time.Second).Unix(), 17*1000, 15*time.Second),
+			delay:        18, // Check ran 33 seconds after the previous run started
+		},
+		{
+			name:         "Regular Running Delayed Check With Execution Time In Decimal Seconds ",
+			prevRunStats: newMockStats(mockNow.Add(-16*time.Second).Unix(), 17.32*1000, 15*time.Second),
 			delay:        18, // Check ran 33 seconds after the previous run started
 		},
 		{
 			name:         "Recovery from delay",
-			prevRunStats: newMockStats(time.Now().Add(-6*time.Second).Unix(), 1*1000, 15*time.Second),
+			prevRunStats: newMockStats(mockNow.Add(-6*time.Second).Unix(), 1*1000, 15*time.Second),
 			delay:        0,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.delay, calculateCheckDelay(tt.prevRunStats, tt.execTime))
+			assert.Equal(t, tt.delay, calculateCheckDelay(mockNow, tt.prevRunStats, tt.execTime))
 		})
 	}
 }

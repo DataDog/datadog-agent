@@ -154,7 +154,7 @@ func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats S
 	cs.m.Lock()
 	defer cs.m.Unlock()
 
-	cs.LastDelay = calculateCheckDelay(cs, t)
+	cs.LastDelay = calculateCheckDelay(time.Now(), cs, t)
 	if cs.telemetry {
 		tlmCheckDelay.Set(float64(cs.LastDelay), cs.CheckName)
 	}
