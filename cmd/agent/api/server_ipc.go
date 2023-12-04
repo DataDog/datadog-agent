@@ -25,7 +25,7 @@ func startIPCServer(ipcServerAddr string, tlsConfig *tls.Config) (err error) {
 		return err
 	}
 
-	configEndpointMux := configendpoint.GetConfigEndpointMux(config.Datadog)
+	configEndpointMux := configendpoint.GetConfigEndpointMuxCore()
 	configEndpointMux.Use(validateToken)
 	ipcMux := http.NewServeMux()
 	ipcMux.Handle(

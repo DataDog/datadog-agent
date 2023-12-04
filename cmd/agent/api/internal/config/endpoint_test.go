@@ -48,9 +48,9 @@ func testConfigValue(t *testing.T, server *httptest.Server, configName string, e
 }
 
 func TestConfigEndpoint(t *testing.T) {
-	t.Run("real allowed default", func(t *testing.T) {
-		cfg, server := getConfigServer(t, authorizedConfigPaths)
-		for configName := range authorizedConfigPaths {
+	t.Run("core_config", func(t *testing.T) {
+		cfg, server := getConfigServer(t, authorizedConfigPathsCore)
+		for configName := range authorizedConfigPathsCore {
 			var expectedStatus int
 			if cfg.IsSet(configName) {
 				expectedStatus = http.StatusOK
@@ -62,10 +62,10 @@ func TestConfigEndpoint(t *testing.T) {
 	})
 
 	for _, testCase := range []testCase{
-		{"authorized existing config", true, true, http.StatusOK},
-		{"authorized missing config", true, false, http.StatusNotFound},
-		{"unauthorized existing config", false, true, http.StatusForbidden},
-		{"unauthorized missing config", false, false, http.StatusForbidden},
+		{"authorized_existing_config", true, true, http.StatusOK},
+		{"authorized_missing_config", true, false, http.StatusNotFound},
+		{"unauthorized_existing_config", false, true, http.StatusForbidden},
+		{"unauthorized_missing_config", false, false, http.StatusForbidden},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			configName := "my.config.value"
@@ -81,7 +81,7 @@ func TestConfigEndpoint(t *testing.T) {
 		})
 	}
 
-	t.Run("authorized not marshallable", func(t *testing.T) {
+	t.Run("authorized_not_marshallable", func(t *testing.T) {
 		configName := "my.config.value"
 		cfg, server := getConfigServer(t, authorizedSet{configName: {}})
 		cfg.SetWithoutSource(configName, make(chan int))
@@ -93,7 +93,7 @@ func getConfigServer(t *testing.T, authorizedConfigPaths map[string]struct{}) (*
 	t.Helper()
 
 	cfg := config.Mock(t)
-	configEndpointMux := getConfigEndpointMux(cfg, authorizedConfigPaths)
+	configEndpointMux := GetConfigEndpointMux(cfg, authorizedConfigPaths, t.Name())
 	server := httptest.NewServer(configEndpointMux)
 	t.Cleanup(server.Close)
 
