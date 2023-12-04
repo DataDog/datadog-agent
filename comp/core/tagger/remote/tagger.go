@@ -21,6 +21,7 @@ import (
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/metadata"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
@@ -69,17 +70,17 @@ type Options struct {
 }
 
 // NodeAgentOptions returns the tagger options used in the node agent.
-func NodeAgentOptions() (Options, error) {
+func NodeAgentOptions(config configComponent.Component) (Options, error) {
 	return Options{
-		Target:       fmt.Sprintf(":%v", config.Datadog.GetInt("cmd_port")),
+		Target:       fmt.Sprintf(":%v", config.GetInt("cmd_port")),
 		TokenFetcher: security.FetchAuthToken,
 	}, nil
 }
 
 // CLCRunnerOptions returns the tagger options used in the CLC Runner.
-func CLCRunnerOptions() (Options, error) {
+func CLCRunnerOptions(config configComponent.Component) (Options, error) {
 	opts := Options{
-		Disabled: !config.Datadog.GetBool("clc_runner_remote_tagger_enabled"),
+		Disabled: !config.GetBool("clc_runner_remote_tagger_enabled"),
 	}
 
 	if !opts.Disabled {
@@ -105,9 +106,9 @@ func NewTagger(options Options) *Tagger {
 	}
 }
 
-// Init initializes the connection to the remote tagger and starts watching for
+// Start creates the connection to the remote tagger and starts watching for
 // events.
-func (t *Tagger) Init(ctx context.Context) error {
+func (t *Tagger) Start(ctx context.Context) error {
 	t.telemetryTicker = time.NewTicker(1 * time.Minute)
 
 	t.ctx, t.cancel = context.WithCancel(ctx)

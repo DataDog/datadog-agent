@@ -64,8 +64,8 @@ func (f *FakeTagger) SetError(entity string, cardinality collectors.TagCardinali
 
 // Tagger interface
 
-// Init not implemented in fake tagger
-func (f *FakeTagger) Init(context.Context) error {
+// Start not implemented in fake tagger
+func (f *FakeTagger) Start(ctx context.Context) error {
 	return nil
 }
 

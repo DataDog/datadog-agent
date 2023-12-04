@@ -10,8 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 

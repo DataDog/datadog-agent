@@ -6,9 +6,8 @@
 // Package tagger implements the Tagger component. The Tagger is the central
 // source of truth for client-side entity tagging. It runs Collectors that
 // detect entities and collect their tags. Tags are then stored in memory (by
-// the TagStore) and can be queried by the tagger.Tag() method. Calling once
-// tagger.Init() after the config package is ready is needed to enable
-// collection.
+// the TagStore) and can be queried by the tagger.Tag() method.
+
 package tagger
 
 import (
@@ -18,20 +17,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"go.uber.org/fx"
 )
 
-// Tagger is an interface for transparent access to both localTagger and
-// remoteTagger.
-type Tagger interface {
-	Init(context.Context) error
+type Component interface {
+	Start(ctx context.Context) error
 	Stop() error
-
 	Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 	AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error
 	Standard(entity string) ([]string, error)
 	List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse
 	GetEntity(entityID string) (*types.Entity, error)
-
 	Subscribe(cardinality collectors.TagCardinality) chan []types.EntityEvent
 	Unsubscribe(ch chan []types.EntityEvent)
 }
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newTagger),
+)

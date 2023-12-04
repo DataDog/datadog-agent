@@ -27,7 +27,7 @@ func TestTagBuilder(t *testing.T) {
 		workloadmeta.MockModuleV2(),
 	))
 	tagger := NewTagger(store)
-	tagger.Init(context.Background())
+	tagger.Start(context.Background())
 	defer tagger.Stop()
 
 	tagger.tagStore.ProcessTagInfo([]*collectors.TagInfo{

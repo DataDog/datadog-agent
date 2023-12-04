@@ -12,13 +12,12 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
-	"github.com/DataDog/datadog-agent/pkg/tagset"
-
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagger/tagstore"
 	"github.com/DataDog/datadog-agent/pkg/tagger/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
 // Tagger is the entry class for entity tagging. It hold the tagger collector,
@@ -36,9 +35,8 @@ type Tagger struct {
 	cancel context.CancelFunc
 }
 
-// NewTagger returns an allocated tagger. You still have to run Init() once the
-// config package is ready. You are probably looking for tagger.Tag() using
-// the global instance instead of creating your own.
+// NewTagger returns an allocated tagger. You are probably looking for
+// tagger.Tag() using the global instance instead of creating your own.
 func NewTagger(workloadStore workloadmeta.Component) *Tagger {
 	return &Tagger{
 		tagStore:      tagstore.NewTagStore(),
@@ -46,10 +44,10 @@ func NewTagger(workloadStore workloadmeta.Component) *Tagger {
 	}
 }
 
-// Init goes through a catalog and tries to detect which are relevant
+// Start goes through a catalog and tries to detect which are relevant
 // for this host. It then starts the collection logic and is ready for
 // requests.
-func (t *Tagger) Init(ctx context.Context) error {
+func (t *Tagger) Start(ctx context.Context) error {
 	t.ctx, t.cancel = context.WithCancel(ctx)
 
 	t.collector = collectors.NewWorkloadMetaCollector(

@@ -7,14 +7,17 @@ package tagger
 
 import (
 	"context"
-	"errors"
 	"sync"
 
+	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
+	logComp "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/remote"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/replay"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
-	"github.com/DataDog/datadog-agent/pkg/config"
 	tagger_api "github.com/DataDog/datadog-agent/pkg/tagger/api"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
-	"github.com/DataDog/datadog-agent/pkg/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
@@ -22,24 +25,31 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"go.uber.org/fx"
 )
+
+type dependencies struct {
+	fx.In
+
+	Lc      fx.Lifecycle
+	Config  configComponent.Component
+	Log     logComp.Component
+	Context context.Context
+	wmeta   workloadmeta.Component
+	Params  Params
+}
 
 var (
 	// defaultTagger is the shared tagger instance backing the global Tag and Init functions
-	defaultTagger Tagger
-
-	// initOnce ensures that the default tagger is only initialized once.  It is reset every
-	// time the default tagger is set.
-	initOnce sync.Once
-
-	// initErr is the error from intializing the default tagger
-	initErr error
+	// TODO(components) (tagger): defaultTagger is a legacy global variable to be eliminated
+	defaultTagger Component
 )
 
 // captureTagger is a tagger instance that contains a tagger that will contain the tagger
 // state when replaying a capture scenario
+// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
 var (
-	captureTagger Tagger
+	captureTagger Component
 	mux           sync.RWMutex
 )
 
@@ -58,39 +68,65 @@ var DogstatsdCardinality collectors.TagCardinality
 var tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_detection_error",
 	nil, "Dogstatsd UDP origin detection error count")
 
-// Init must be called once config is available, call it in your cmd
-func Init(ctx context.Context) error {
-	initOnce.Do(func() {
+// newTagger returns a Component based on provided params, once it is provided,
+// fx will cache the component which is effectively a singleton instance, cached by fx.
+// TODO(components) (tagger): defaultTagger is a legacy global variable but still in use, to be eliminated
+// it should be deprecated and removed
+func newTagger(deps dependencies) Component {
+	switch deps.Params.TaggerType {
+	case RemoteTagger:
+		if deps.Params.AgentType == CLCRunnerRemoteTaggerAgent {
+			options, err := remote.CLCRunnerOptions(deps.Config)
+			if err != nil {
+				deps.Log.Errorf("unable to deps.Configure the remote tagger: %s", err)
+				defaultTagger = local.NewFakeTagger()
+			} else if options.Disabled {
+				deps.Log.Errorf("remote tagger is disabled in clc runner.")
+				defaultTagger = local.NewFakeTagger()
+			} else {
+				defaultTagger = remote.NewTagger(options)
+			}
+		} else { // if  deps.Params.AgentType == NodeRemoteTaggerAgent
+			options, _ := remote.NodeAgentOptions(deps.Config)
+			defaultTagger = remote.NewTagger(options)
+		}
+	case LocalTagger:
+		defaultTagger = local.NewTagger(deps.wmeta)
+	case FakeTagger:
+		// all binaries are expected to provide their own tagger at startup. we
+		// provide a fake tagger for testing purposes, as calling the global
+		// tagger without proper initialization is very common there.
+		defaultTagger = local.NewFakeTagger()
+	}
+	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 		var err error
-		checkCard := config.Datadog.GetString("checks_tag_cardinality")
-		dsdCard := config.Datadog.GetString("dogstatsd_tag_cardinality")
-
+		checkCard := deps.Config.GetString("checks_tag_cardinality")
+		dsdCard := deps.Config.GetString("dogstatsd_tag_cardinality")
 		ChecksCardinality, err = collectors.StringToTagCardinality(checkCard)
 		if err != nil {
-			log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
+			deps.Log.Warnf("failed to parse check tag cardinality, defaulting to low. Error: %s", err)
 			ChecksCardinality = collectors.LowCardinality
 		}
 
 		DogstatsdCardinality, err = collectors.StringToTagCardinality(dsdCard)
 		if err != nil {
-			log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
+			deps.Log.Warnf("failed to parse dogstatsd tag cardinality, defaulting to low. Error: %s", err)
 			DogstatsdCardinality = collectors.LowCardinality
 		}
-
-		if defaultTagger == nil {
-			initErr = errors.New("tagger has not been set")
-			return
-		}
-
-		initErr = defaultTagger.Init(ctx)
-	})
-
-	return initErr
+		defaultTagger.Start(deps.Context)
+		return nil
+	}})
+	deps.Lc.Append(fx.Hook{OnStop: func(context.Context) error {
+		defaultTagger.Stop()
+		return nil
+	}})
+	return defaultTagger
 }
 
 // GetEntity returns the hash for the provided entity id.
 func GetEntity(entityID string) (*types.Entity, error) {
 	mux.RLock()
+	// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
 	if captureTagger != nil {
 		entity, err := captureTagger.GetEntity(entityID)
 		if err == nil && entity != nil {
@@ -109,6 +145,7 @@ func GetEntity(entityID string) (*types.Entity, error) {
 func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
 	// TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
+	// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
 	if captureTagger != nil {
 		tags, err := captureTagger.Tag(entity, cardinality)
 		if err == nil && len(tags) > 0 {
@@ -117,7 +154,7 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 		}
 	}
 	mux.RUnlock()
-
+	// TODO(components) (tagger): defaultTagger is a legacy global variable to be eliminated
 	return defaultTagger.Tag(entity, cardinality)
 }
 
@@ -128,6 +165,7 @@ func Tag(entity string, cardinality collectors.TagCardinality) ([]string, error)
 func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	// TODO: defer unlock once performance overhead of defer is negligible
 	mux.RLock()
+	// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
 	if captureTagger != nil {
 		err := captureTagger.AccumulateTagsFor(entity, cardinality, tb)
 		if err == nil {
@@ -136,7 +174,7 @@ func AccumulateTagsFor(entity string, cardinality collectors.TagCardinality, tb 
 		}
 	}
 	mux.RUnlock()
-
+	// TODO(components) (tagger): defaultTagger is a legacy global variable to be eliminated
 	return defaultTagger.AccumulateTagsFor(entity, cardinality, tb)
 }
 
@@ -154,6 +192,7 @@ func GetEntityHash(entity string, cardinality collectors.TagCardinality) string 
 // standard tags (env, version, service) from cache or sources.
 func StandardTags(entity string) ([]string, error) {
 	mux.RLock()
+	// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
 	if captureTagger != nil {
 		tags, err := captureTagger.Standard(entity)
 		if err == nil && len(tags) > 0 {
@@ -162,7 +201,7 @@ func StandardTags(entity string) ([]string, error) {
 		}
 	}
 	mux.RUnlock()
-
+	// TODO(components) (tagger): defaultTagger is a legacy global variable to be eliminated
 	return defaultTagger.Standard(entity)
 }
 
@@ -186,6 +225,7 @@ func AgentTags(cardinality collectors.TagCardinality) ([]string, error) {
 // agent.
 func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
 	mux.RLock()
+	// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
 	if captureTagger != nil {
 		tags, err := captureTagger.Tag(collectors.GlobalEntityID, cardinality)
 		if err == nil && len(tags) > 0 {
@@ -194,7 +234,7 @@ func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
 		}
 	}
 	mux.RUnlock()
-
+	// TODO(components) (tagger): defaultTagger is a legacy global variable to be eliminated
 	return defaultTagger.Tag(collectors.GlobalEntityID, cardinality)
 }
 
@@ -202,6 +242,7 @@ func GlobalTags(cardinality collectors.TagCardinality) ([]string, error) {
 // from the agent and appends them to the TagsAccumulator
 func globalTagBuilder(cardinality collectors.TagCardinality, tb tagset.TagsAccumulator) error {
 	mux.RLock()
+	// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
 	if captureTagger != nil {
 		err := captureTagger.AccumulateTagsFor(collectors.GlobalEntityID, cardinality, tb)
 
@@ -211,7 +252,7 @@ func globalTagBuilder(cardinality collectors.TagCardinality, tb tagset.TagsAccum
 		}
 	}
 	mux.RUnlock()
-
+	// TODO(components) (tagger): defaultTagger is a legacy global variable to be eliminated
 	return defaultTagger.AccumulateTagsFor(collectors.GlobalEntityID, cardinality, tb)
 }
 
@@ -225,39 +266,27 @@ func List(cardinality collectors.TagCardinality) tagger_api.TaggerListResponse {
 	return defaultTagger.List(cardinality)
 }
 
-// SetDefaultTagger sets the global Tagger instance
-func SetDefaultTagger(tagger Tagger) {
-	// reset initOnce so that this new tagger's Init(..) will get called
-	initOnce = sync.Once{}
-	defaultTagger = tagger
-}
-
 // GetDefaultTagger returns the global Tagger instance
-func GetDefaultTagger() Tagger {
+// TODO(components) (tagger): defaultTagger is a legacy global variable to be eliminated
+func GetDefaultTagger() Component {
 	return defaultTagger
 }
 
-// SetCaptureTagger sets the tagger to be used when replaying a capture
-func SetCaptureTagger(tagger Tagger) {
+// NewCaptureTagger sets the tagger to be used when replaying a capture
+func NewCaptureTagger() Component {
 	mux.Lock()
 	defer mux.Unlock()
-
-	captureTagger = tagger
+	// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
+	captureTagger = replay.NewTagger()
+	return captureTagger
 }
 
 // ResetCaptureTagger resets the capture tagger to nil
 func ResetCaptureTagger() {
 	mux.Lock()
 	defer mux.Unlock()
-
+	// TODO(components) (tagger): captureTagger is a legacy global variable to be eliminated
 	captureTagger = nil
-}
-
-func init() {
-	// all binaries are expected to provide their own tagger at startup. we
-	// provide a fake tagger on init for testing purposes, as calling
-	// the global tagger without proper initialization is very common there.
-	SetDefaultTagger(local.NewFakeTagger())
 }
 
 // EnrichTags extends a tag list with origin detection tags
