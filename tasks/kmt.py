@@ -198,30 +198,6 @@ def ssh_key_to_path(ssh_key):
     return ssh_key_path
 
 
-def sync_source(ctx, domains, source, target, ssh_key):
-    ssh_key_path = ssh_key_to_path(ssh_key)
-    kmt_dir = get_kmt_os().kmt_dir
-
-    for d in domains:
-        arch = d.arch
-        ip = d.ip
-        vm_copy = f"rsync -e \\\"ssh -o StrictHostKeyChecking=no -i {kmt_dir}/ddvm_rsa\\\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:{target}"
-        if arch == "local":
-            ctx.run(
-                f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {kmt_dir}/ddvm_rsa\" -p --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{ip}:{target}"
-            )
-        elif arch == "x86_64" or arch == "arm64":
-            instance_ip = get_instance_ip(stack, arch)
-            ctx.run(
-                f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {ssh_key_path}\" -p --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance_ip}:/home/ubuntu/datadog-agent"
-            )
-            ctx.run(
-                f"ssh -i {ssh_key_path} -o StrictHostKeyChecking=no ubuntu@{instance_ip} \"cd /home/ubuntu/datadog-agent && {vm_copy}\""
-            )
-        else:
-            raise Exit(f"Unsupported arch {arch}")
-
-
 @task
 def sync(ctx, vms, stack=None, ssh_key=""):
     stack = check_and_get_stack(stack)
@@ -240,7 +216,8 @@ def sync(ctx, vms, stack=None, ssh_key=""):
 
     info("[*] Beginning sync...")
 
-    sync_source(ctx, domains, "./", "/datadog-agent", ssh_key)
+    for d in domains:
+        d.runner.sync_source("./", "/datadog-agent")
 
 
 TOOLS_PATH = '/datadog-agent/internal/tools'
@@ -258,7 +235,6 @@ def download_gotestsum(ctx):
     docker_exec(
         ctx,
         f"cd {TOOLS_PATH} && go install {GOTESTSUM} && cp /go/bin/gotestsum /datadog-agent/kmt-deps/tools/",
-        user="compiler",
     )
 
     ctx.run(f"cp kmt-deps/tools/gotestsum {fgotestsum}")
@@ -289,25 +265,19 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, pac
     docker_exec(
         ctx,
         f"cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.kitchen-prepare --ci --packages={packages}",
-        user="compiler",
     )
     if rebuild_deps or not os.path.isfile(f"kmt-deps/{stack}/dependencies-{arch}.tar.gz"):
         docker_exec(
             ctx,
             f"cd /datadog-agent && ./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
-            user="compiler",
         )
         for d in domains:
             d.runner.copy_files(stack, f"kmt-deps/{stack}/dependencies-{full_arch(d.arch)}.tar.gz")
             d.runner.run_cmd(f"/root/fetch_dependencies.sh {platform.machine()}", allow_fail=True, verbose=True)
-
-    sync_source(
-        ctx,
-        domains,
-        "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg",
-        "/opt/system-probe-tests",
-        ssh_key,
-    )
+            d.runner.sync_source(
+                "./test/kitchen/site-cookbooks/dd-system-probe-check/files/default/tests/pkg",
+                "/opt/system-probe-tests",
+            )
 
 
 @task
@@ -341,7 +311,6 @@ def build(ctx, vms, stack=None, ssh_key="", rebuild_deps=False, verbose=False):
         docker_exec(
             ctx,
             f"cd /datadog-agent && ./test/new-e2e/system-probe/test/setup-microvm-deps.sh {stack} {os.getuid()} {os.getgid()} {platform.machine()}",
-            user="compiler",
         )
         for d in domains:
             d.runner.copy_files(stack, f"kmt-deps/{stack}/dependencies-{full_arch(d.arch)}.tar.gz")
@@ -351,9 +320,9 @@ def build(ctx, vms, stack=None, ssh_key="", rebuild_deps=False, verbose=False):
         ctx, "cd /datadog-agent && git config --global --add safe.directory /datadog-agent && inv -e system-probe.build"
     )
     docker_exec(ctx, f"tar cf /datadog-agent/kmt-deps/{stack}/shared.tar {EMBEDDED_SHARE_DIR}")
-    sync_source(ctx, domains, "./bin/system-probe", "/root", ssh_key)
-    sync_source(ctx, domains, f"kmt-deps/{stack}/shared.tar", "/", ssh_key)
     for d in domains:
+        d.runner.sync_source("./bin/system-probe", "/root")
+        d.runner.sync_source(f"kmt-deps/{stack}/shared.tar", "/")
         d.runner.run_cmd("tar xf /shared.tar -C /")
         info(f"[+] system-probe built for {d.name}")
 

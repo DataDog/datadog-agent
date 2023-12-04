@@ -38,6 +38,28 @@ class CommandRunner:
                 f"scp -o StrictHostKeyChecking=no -i {self.remote_ssh_key} kmt-deps/{stack}/dependencies-{self.vm.arch}.tar.gz ubuntu@{self.remote_ip}:/opt/kernel-version-testing/", False
             )
 
+    def sync_source(self, source, target):
+        sync_source(self.ctx, source, target, self.remote_ip, self.remote_ssh_key, self.vm.ip, self.vm.arch)
+
+def sync_source(ctx, source, target, instance_ip, ssh_key, ip, arch):
+    kmt_dir = get_kmt_os().kmt_dir
+    vm_copy = f"rsync -e \\\"ssh -o StrictHostKeyChecking=no -i {kmt_dir}/ddvm_rsa\\\" --chmod=F644 --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' ./ root@{ip}:{target}"
+    if arch == "local":
+        ctx.run(
+            f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {kmt_dir}/ddvm_rsa\" -p --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' {source} root@{ip}:{target}"
+        )
+    elif arch == "x86_64" or arch == "arm64":
+        ctx.run(
+            f"rsync -e \"ssh -o StrictHostKeyChecking=no -i {ssh_key}\" -p --chown=root:root -rt --exclude='.git*' --filter=':- .gitignore' {source} ubuntu@{instance_ip}:/home/ubuntu/datadog-agent"
+        )
+        ctx.run(
+            f"ssh -i {ssh_key} -o StrictHostKeyChecking=no ubuntu@{instance_ip} \"cd /home/ubuntu/datadog-agent && {vm_copy}\""
+        )
+    else:
+        raise Exit(f"Unsupported arch {arch}")
+
+
+
 def run_cmd_local(ctx, cmd, ip, log_debug):
     return ctx.run(
         f"ssh -o StrictHostKeyChecking=no -i /home/kernel-version-testing/ddvm_rsa root@{ip} '{cmd}'", warn=True, hide=(not log_debug),
