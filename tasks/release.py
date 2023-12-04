@@ -3,6 +3,7 @@ Release helper tasks
 """
 
 import json
+import os
 import re
 import sys
 from collections import OrderedDict
@@ -18,7 +19,7 @@ from .libs.common.gitlab import Gitlab, get_gitlab_token
 from .libs.common.user_interactions import yes_no_question
 from .libs.version import Version
 from .modules import DEFAULT_MODULES
-from .pipeline import run
+from .pipeline import edit_schedule, run
 from .utils import (
     DEFAULT_BRANCH,
     GITHUB_REPO_NAME,
@@ -34,6 +35,9 @@ from .utils import (
 # - X.Y.Z-devel
 # - vX.Y(.Z) (security-agent-policies repo)
 VERSION_RE = re.compile(r'(v)?(\d+)[.](\d+)([.](\d+))?(-devel)?(-rc\.(\d+))?')
+
+# Regex matching rc version tag format like 7.50.0-rc.1
+RC_VERSION_RE = re.compile(r'\d+[.]\d+[.]\d+-rc\.\d+')
 
 UNFREEZE_REPO_AGENT = "datadog-agent"
 UNFREEZE_REPOS = [UNFREEZE_REPO_AGENT, "omnibus-software", "omnibus-ruby", "datadog-agent-macos-build"]
@@ -772,9 +776,13 @@ def __get_force_option(force: bool) -> str:
     return force_option
 
 
-def __tag_single_module(ctx, module, agent_version, commit, push, force_option):
+def __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel):
     """Tag a given module."""
     for tag in module.tag(agent_version):
+
+        if devel:
+            tag += "-devel"
+
         ok = try_git_command(
             ctx,
             f"git tag -m {tag} {tag} {commit}{force_option}",
@@ -789,7 +797,7 @@ def __tag_single_module(ctx, module, agent_version, commit, push, force_option):
 
 
 @task
-def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
+def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False, devel=False):
     """
     Create tags for Go nested modules for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
@@ -798,6 +806,7 @@ def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     * --verify checks for correctness on the Agent version (on by default).
     * --push will push the tags to the origin remote (on by default).
     * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
+    * --devel will create -devel tags (used after creation of the release branch)
 
     Examples:
     inv -e release.tag-modules 7.27.0                 # Create tags and push them to origin
@@ -812,13 +821,13 @@ def tag_modules(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     for module in DEFAULT_MODULES.values():
         # Skip main module; this is tagged at tag_version via __tag_single_module.
         if module.should_tag and module.path != ".":
-            __tag_single_module(ctx, module, agent_version, commit, push, force_option)
+            __tag_single_module(ctx, module, agent_version, commit, push, force_option, devel)
 
     print(f"Created module tags for version {agent_version}")
 
 
 @task
-def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
+def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False, devel=False):
     """
     Create tags for a given Datadog Agent version.
     The version should be given as an Agent 7 version.
@@ -827,6 +836,7 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
     * --verify checks for correctness on the Agent version (on by default).
     * --push will push the tags to the origin remote (on by default).
     * --force will allow the task to overwrite existing tags. Needed to move existing tags (off by default).
+    * --devel will create -devel tags (used after creation of the release branch)
 
     Examples:
     inv -e release.tag-version 7.27.0                 # Create tags and push them to origin
@@ -838,8 +848,14 @@ def tag_version(ctx, agent_version, commit="HEAD", verify=True, push=True, force
 
     # Always tag the main module
     force_option = __get_force_option(force)
-    __tag_single_module(ctx, DEFAULT_MODULES["."], agent_version, commit, push, force_option)
+    __tag_single_module(ctx, DEFAULT_MODULES["."], agent_version, commit, push, force_option, devel)
     print(f"Created tags for version {agent_version}")
+
+
+@task
+def tag_devel(ctx, agent_version, commit="HEAD", verify=True, push=True, force=False):
+    tag_version(ctx, agent_version, commit, verify, push, force, devel=True)
+    tag_modules(ctx, agent_version, commit, verify, push, force, devel=True)
 
 
 def current_version(ctx, major_version) -> Version:
@@ -1346,18 +1362,10 @@ def unfreeze(ctx, base_directory="~/dd", major_versions="6,7", upstream="origin"
         create_and_update_release_branch(ctx, repo, release_branch, base_directory=base_directory, upstream=upstream)
 
 
-@task
-def update_last_stable(_, major_versions="6,7"):
+def _update_last_stable(_, version, major_versions="6,7"):
     """
     Updates the last_release field(s) of release.json
     """
-    gh = GithubAPI('datadog/datadog-agent')
-    latest_release = gh.latest_release()
-    match = VERSION_RE.search(latest_release)
-    if not match:
-        raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
-    version = _create_version_from_match(match)
-
     release_json = _load_release_json()
     list_major_versions = parse_major_versions(major_versions)
     # If the release isn't a RC, update the last stable release field
@@ -1365,6 +1373,24 @@ def update_last_stable(_, major_versions="6,7"):
         version.major = major
         release_json['last_stable'][str(major)] = str(version)
     _save_release_json(release_json)
+
+
+@task
+def cleanup(ctx):
+    """
+    Perform the post release cleanup steps
+    Currently this:
+      - Updates the scheduled nightly pipeline to target the new stable branch
+      - Updates the release.json last_stable fields
+    """
+    gh = GithubAPI('datadog/datadog-agent')
+    latest_release = gh.latest_release()
+    match = VERSION_RE.search(latest_release)
+    if not match:
+        raise Exit(f'Unexpected version fetched from github {latest_release}', code=1)
+    version = _create_version_from_match(match)
+    _update_last_stable(ctx, version)
+    edit_schedule(ctx, 2555, ref=version.branch())
 
 
 @task
@@ -1378,3 +1404,82 @@ def check_omnibus_branches(_):
         if omnibus_software_version != 'master' and not version_re.match(omnibus_software_version):
             raise Exit(code=1, message=f'omnibus-software version [{omnibus_software_version}] is not mergeable')
     return True
+
+
+@task
+def update_build_links(_ctx, new_version):
+    """
+    Updates Agent release candidates build links on https://datadoghq.atlassian.net/wiki/spaces/agent/pages/2889876360/Build+links
+
+    new_version - should be given as an Agent 7 RC version, ie. '7.50.0-rc.1' format.
+
+    Notes:
+    Attlasian credentials are required to be available as ATLASSIAN_USERNAME and ATLASSIAN_PASSWORD as environment variables.
+    ATLASSIAN_USERNAME is typically an email address.
+    ATLASSIAN_PASSWORD is a token. See: https://id.atlassian.com/manage-profile/security/api-tokens
+    """
+    from atlassian import Confluence
+    from atlassian.confluence import ApiError
+
+    BUILD_LINKS_PAGE_ID = 2889876360
+
+    match = RC_VERSION_RE.match(new_version)
+    if not match:
+        raise Exit(
+            color_message(
+                f"{new_version} is not a valid Agent RC version number/tag. \nCorrect example: 7.50.0-rc.1",
+                "red",
+            ),
+            code=1,
+        )
+
+    username = os.getenv("ATLASSIAN_USERNAME")
+    password = os.getenv("ATLASSIAN_PASSWORD")
+
+    if username is None or password is None:
+        raise Exit(
+            color_message(
+                "No Atlassian credentials provided. Run inv --help update-build-links for more details.",
+                "red",
+            ),
+            code=1,
+        )
+
+    confluence = Confluence(url="https://datadoghq.atlassian.net/", username=username, password=password)
+
+    content = confluence.get_page_by_id(page_id=BUILD_LINKS_PAGE_ID, expand="body.storage")
+
+    title = content["title"]
+    current_version = title[-11:]
+    body = content["body"]["storage"]["value"]
+
+    title = title.replace(current_version, new_version)
+
+    patterns = _create_build_links_patterns(current_version, new_version)
+
+    for key in patterns:
+        body = body.replace(key, patterns[key])
+
+    try:
+        confluence.update_page(BUILD_LINKS_PAGE_ID, title, body=body)
+    except ApiError as e:
+        raise Exit(
+            color_message(
+                f"Failed to update confluence page. Reason: {e.reason}",
+                "red",
+            ),
+            code=1,
+        )
+
+
+def _create_build_links_patterns(current_version, new_version):
+    patterns = {}
+
+    current_minor_version = current_version[1:]
+    new_minor_version = new_version[1:]
+
+    patterns[current_minor_version] = new_minor_version
+    patterns[current_minor_version.replace("rc.", "rc-")] = new_minor_version.replace("rc.", "rc-")
+    patterns[current_minor_version.replace("-rc", "~rc")] = new_minor_version.replace("-rc", "~rc")
+
+    return patterns

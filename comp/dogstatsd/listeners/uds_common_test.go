@@ -11,15 +11,17 @@ package listeners
 
 import (
 	"encoding/binary"
-	"golang.org/x/net/nettest"
 	"net"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
+	"golang.org/x/net/nettest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
 )
@@ -104,11 +106,13 @@ func testStartStopUDSListener(t *testing.T, listenerFactory udsListenerFactory, 
 	assert.NotNil(t, s)
 
 	go s.Listen()
+
 	conn, err := net.Dial(transport, socketPath)
 	assert.Nil(t, err)
 	conn.Close()
 
 	s.Stop()
+
 	_, err = net.Dial(transport, socketPath)
 	assert.NotNil(t, err)
 }

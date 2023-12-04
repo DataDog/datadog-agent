@@ -30,16 +30,16 @@ const (
 
 // logEvent struct defines the extra attributes that are sent along with the log message
 type logEvent struct {
-	keyPath   string `yaml:"key_path"`
-	eventType string `yaml:"event_type"`
+	KeyPath   string `yaml:"key_path"`
+	EventType string `yaml:"event_type"`
 
 	// process_id, process_name and thread_id will be coming in a future version.
 }
 
 type valueChangedLogEvent struct {
 	logEvent
-	oldValue interface{} `yaml:"old_value"`
-	newValue interface{} `yaml:"new_value"`
+	OldValue interface{} `yaml:"old_value"`
+	NewValue interface{} `yaml:"new_value"`
 }
 
 func (i *integrationLogsRegistryDelegate) sendLog(status string, payload message.BasicStructuredContent) {
@@ -83,10 +83,10 @@ func (i *integrationLogsRegistryDelegate) processValue(valueName, originalVal st
 			log = fmt.Sprintf("value %s = '%v'", keyName, val)
 		}
 		i.sendLog("info", getPayload[valueChangedLogEvent](log, func(e *valueChangedLogEvent) {
-			e.keyPath = keyName
-			e.eventType = eventType
-			e.oldValue = nil
-			e.newValue = val
+			e.KeyPath = keyName
+			e.EventType = eventType
+			e.OldValue = nil
+			e.NewValue = val
 		}))
 		i.valueMap[keyName] = val
 	} else if cachedVal != val {
@@ -97,10 +97,10 @@ func (i *integrationLogsRegistryDelegate) processValue(valueName, originalVal st
 			log = fmt.Sprintf("value %s changed from '%v' to '%v'", keyName, cachedVal, val)
 		}
 		i.sendLog("info", getPayload[valueChangedLogEvent](log, func(e *valueChangedLogEvent) {
-			e.keyPath = keyName
-			e.eventType = eventType
-			e.oldValue = cachedVal
-			e.newValue = val
+			e.KeyPath = keyName
+			e.EventType = eventType
+			e.OldValue = cachedVal
+			e.NewValue = val
 		}))
 		i.valueMap[keyName] = val
 	}
@@ -123,10 +123,10 @@ func (i *integrationLogsRegistryDelegate) onMissing(valueName string, regKeyCfg 
 	cachedVal, ok := i.valueMap[keyName]
 	if ok {
 		i.sendLog("info", getPayload[valueChangedLogEvent](fmt.Sprintf("value %s ('%v') was deleted", keyName, cachedVal), func(e *valueChangedLogEvent) {
-			e.keyPath = keyName
-			e.eventType = keyDeleted
-			e.oldValue = cachedVal
-			e.newValue = nil
+			e.KeyPath = keyName
+			e.EventType = keyDeleted
+			e.OldValue = cachedVal
+			e.NewValue = nil
 		}))
 		delete(i.valueMap, keyName)
 	}

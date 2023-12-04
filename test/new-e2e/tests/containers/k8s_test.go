@@ -218,10 +218,15 @@ func (suite *k8sSuite) TestVersion() {
 					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)
 					if suite.Equalf(2, len(match), "'Commit' not found in the output of `agent version`.") {
-						if len(GitCommit) == 10 && len(match[1]) == 7 {
-							suite.Equalf(GitCommit[:7], match[1], "Agent isn’t running the expected version")
-						} else {
-							suite.Equalf(GitCommit, match[1], "Agent isn’t running the expected version")
+						if suite.Greaterf(len(GitCommit), 6, "Couldn’t guess the expected version of the agent.") &&
+							suite.Greaterf(len(match[1]), 6, "Couldn’t find the version of the agent.") {
+
+							size2compare := len(GitCommit)
+							if len(match[1]) < size2compare {
+								size2compare = len(match[1])
+							}
+
+							suite.Equalf(GitCommit[:size2compare], match[1][:size2compare], "Agent isn’t running the expected version")
 						}
 					}
 				}

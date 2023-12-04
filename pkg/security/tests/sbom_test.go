@@ -15,6 +15,7 @@ import (
 
 	"github.com/avast/retry-go/v4"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 )
@@ -33,6 +34,11 @@ func TestSBOM(t *testing.T) {
 	}
 	defer test.Close()
 
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
+
 	dockerWrapper, err := newDockerCmdWrapper(test.Root(), test.Root(), "ubuntu")
 	if err != nil {
 		t.Skip("Skipping sbom tests: Docker not available")
@@ -43,7 +49,7 @@ func TestSBOM(t *testing.T) {
 	dockerWrapper.Run(t, "package-rule", func(t *testing.T, kind wrapperType, cmdFunc func(bin string, args, env []string) *exec.Cmd) {
 		test.WaitSignal(t, func() error {
 			retry.Do(func() error {
-				sbom := test.probe.GetResolvers().SBOMResolver.GetWorkload(dockerWrapper.containerID)
+				sbom := p.Resolvers.SBOMResolver.GetWorkload(dockerWrapper.containerID)
 				if sbom == nil {
 					return fmt.Errorf("failed to find SBOM for '%s'", dockerWrapper.containerID)
 				}

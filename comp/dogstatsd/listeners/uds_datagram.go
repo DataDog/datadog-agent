@@ -76,6 +76,5 @@ func (l *UDSDatagramListener) Stop() {
 	if err != nil {
 		log.Errorf("dogstatsd-uds: error closing connection: %s", err)
 	}
-	// FIXME close all currently running connections.
 	l.UDSListener.Stop()
 }
