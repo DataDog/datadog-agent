@@ -381,10 +381,10 @@ def test_flavor(
 
     def command(test_results, module, module_result):
         with ctx.cd(module.full_path()):
+            final_packages = ' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets)
+            final_cmd = cmd.format(packages=final_packages, **args)
             res = ctx.run(
-                cmd.format(
-                    packages=' '.join(f"{t}/..." if not t.endswith("/...") else t for t in module.targets), **args
-                ),
+                final_cmd,
                 env=env,
                 out_stream=test_profiler,
                 warn=True,
@@ -617,8 +617,8 @@ def test(
 
     race_opt = "-race" if race else ""
     # atomic is quite expensive but it's the only way to run both the coverage and the race detector at the same time without getting false positives from the cover counter
-    covermode_opt = "-covermode=" + ("atomic" if race else "count") if coverage else ""
-    build_cpus_opt = f"-p {cpus}" if cpus else ""
+    covermode = "-covermode=" + ("atomic" if race else "count") if coverage else ""
+    build_cpus = f"-p {cpus}" if cpus else ""
 
     coverprofile = f"-coverprofile={PROFILE_COV}" if coverage else ""
 
@@ -632,17 +632,22 @@ def test(
 
     test_run_arg = f"-run {test_run_name}" if test_run_name else ""
 
-    stdlib_build_cmd = 'go build {verbose} -mod={go_mod} -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    stdlib_build_cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} std cmd'
-    cmd = 'gotestsum {junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages="{packages}" -- {verbose} -mod={go_mod} -vet=off -timeout {timeout}s -tags "{go_build_tags}" -gcflags="{gcflags}" '
-    cmd += '-ldflags="{ldflags}" {build_cpus} {race_opt} -short {covermode_opt} {coverprofile} {nocache} {test_run_arg}'
+    gobuild_flags = (
+        "-mod={go_mod} -tags \"{go_build_tags}\" -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {build_cpus} {race_opt}"
+    )
+    gotestsum_flags = "{junit_file_flag} {json_flag} --format pkgname {rerun_fails} --packages=\"{packages}\""
+    gotest_flags = "{verbose} -timeout {timeout}s -short {covermode} {coverprofile} {test_run_arg}"
+    govet_flags = "-vet=off"
+
+    stdlib_build_cmd = 'go build {verbose} {gobuild_flags} std cmd'
+    cmd = f'gotestsum {gotestsum_flags} {gobuild_flags} {govet_flags} {gotest_flags} {nocache}'
     args = {
         "go_mod": go_mod,
         "gcflags": gcflags,
         "ldflags": ldflags,
         "race_opt": race_opt,
-        "build_cpus": build_cpus_opt,
-        "covermode_opt": covermode_opt,
+        "build_cpus": build_cpus,
+        "covermode": covermode,
         "coverprofile": coverprofile,
         "test_run_arg": test_run_arg,
         "timeout": int(timeout),
