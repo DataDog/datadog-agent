@@ -49,7 +49,7 @@ type summary struct {
 func getDiagnoseOutput(v *agentDiagnoseSuite, commandArgs ...client.AgentArgsOption) string {
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		assert.NoError(c, v.Env().Fakeintake.Client.GetServerHealth())
-	}, 5*time.Minute, 20*time.Second)
+	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 
 	return v.Env().Agent.Diagnose(commandArgs...)
 }
