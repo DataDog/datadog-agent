@@ -25,10 +25,21 @@ const (
 type Params struct {
 	TaggerType TaggerType
 	AgentType  TaggerAgentType
+	// if true, a global tagger is instantiated for the agent
+	// TODO(components) (tagger): remove this once we can pass component to every caller functions
+	IsGlobalTagger bool
 }
 
 // NewTaggerType creates a Params struct with the default LocalTagger type
 func NewParams() Params {
 	return Params{TaggerType: LocalTagger,
-		AgentType: LocalTaggerAgent}
+		AgentType:      LocalTaggerAgent,
+		IsGlobalTagger: true}
+}
+
+// NewFakeTaggerParams creates a Params struct with the FakeTagger type and for testing purposes
+func NewFakeTaggerParams() Params {
+	return Params{TaggerType: FakeTagger,
+		AgentType:      LocalTaggerAgent,
+		IsGlobalTagger: false}
 }

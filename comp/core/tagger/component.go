@@ -35,5 +35,5 @@ type Component interface {
 
 // Module defines the fx options for this component.
 var Module = fxutil.Component(
-	fx.Provide(newTagger),
+	fx.Provide(newTaggerClient),
 )
