@@ -375,6 +375,23 @@ func TestServer(t *testing.T) {
 		fi.Stop()
 	})
 
+	t.Run("should respond with custom response to /support/flare", func(t *testing.T) {
+		fi := NewServer()
+		fi.Start()
+		defer fi.Stop()
+
+		request, err := http.NewRequest(
+			http.MethodPost, "/support/flare", strings.NewReader("totoro|5|tag:valid,owner:mei"))
+		require.NoError(t, err, "Error creating request")
+
+		response := httptest.NewRecorder()
+		fi.handleDatadogRequest(response, request)
+
+		assert.Equal(t, http.StatusOK, response.Code)
+		assert.Equal(t, "application/json", response.Header().Get("Content-Type"))
+		assert.Equal(t, `{}`, response.Body.String())
+	})
+
 	t.Run("should accept response overrides", func(t *testing.T) {
 		fi := NewServer()
 		fi.Start()

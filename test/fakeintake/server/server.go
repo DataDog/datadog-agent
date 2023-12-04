@@ -48,7 +48,8 @@ type Server struct {
 
 	store *serverstore.Store
 
-	responseOverrides map[string]httpResponse
+	responseOverridesMutex sync.RWMutex
+	responseOverrides      map[string]httpResponse
 }
 
 // NewServer creates a new fake intake server and starts it on localhost:port
@@ -57,11 +58,12 @@ type Server struct {
 // If the port is 0, a port number is automatically chosen
 func NewServer(options ...func(*Server)) *Server {
 	fi := &Server{
-		urlMutex:          sync.RWMutex{},
-		clock:             clock.New(),
-		retention:         15 * time.Minute,
-		store:             serverstore.NewStore(),
-		responseOverrides: make(map[string]httpResponse),
+		urlMutex:               sync.RWMutex{},
+		clock:                  clock.New(),
+		retention:              15 * time.Minute,
+		store:                  serverstore.NewStore(),
+		responseOverridesMutex: sync.RWMutex{},
+		responseOverrides:      newResponseOverrides(),
 	}
 
 	registry := prometheus.NewRegistry()
@@ -433,13 +435,28 @@ func (fi *Server) handleConfigureOverride(w http.ResponseWriter, req *http.Reque
 
 	log.Printf("Handling configureOverride request for endpoint %s", payload.Endpoint)
 
+	fi.responseOverridesMutex.Lock()
 	fi.responseOverrides[payload.Endpoint] = httpResponse{
 		statusCode:  payload.StatusCode,
 		contentType: payload.ContentType,
 		body:        payload.Body,
 	}
+	fi.responseOverridesMutex.Unlock()
 
 	writeHTTPResponse(w, httpResponse{
 		statusCode: http.StatusOK,
 	})
+}
+
+// getResponseFromURLPath returns the HTTP response for a given URL path, or the default response if
+// no override exists
+func (fi *Server) getResponseFromURLPath(path string) httpResponse {
+	fi.responseOverridesMutex.RLock()
+	defer fi.responseOverridesMutex.RUnlock()
+
+	if resp, ok := fi.responseOverrides[path]; ok {
+		return resp
+	}
+
+	return defaultResponse
 }

@@ -21,6 +21,12 @@ type flareResponseBody struct {
 	Error  string `json:"error,omitempty"`
 }
 
+var defaultResponse = updateResponseFromData(httpResponse{
+	statusCode:  http.StatusOK,
+	contentType: "application/json",
+	data:        errorResponseBody{Errors: []string{}},
+})
+
 func getConnectionsResponse() []byte {
 	clStatus := &agentmodel.CollectorStatus{
 		ActiveClients: 1,
@@ -44,30 +50,19 @@ func getConnectionsResponse() []byte {
 	return out
 }
 
-// getResponseFromURLPath returns the appropriate response body to HTTP request sent to 'urlPath'
-func (fi *Server) getResponseFromURLPath(urlPath string) httpResponse {
-	var defaultResponse = updateResponseFromData(httpResponse{
-		statusCode:  http.StatusOK,
-		contentType: "application/json",
-		data:        errorResponseBody{Errors: []string{}},
-	})
-	responses := map[string]httpResponse{
-		"/support/flare": {
+// newResponseOverrides creates and returns a map of URL paths to HTTP responses populated with
+// static custom response overrides
+func newResponseOverrides() map[string]httpResponse {
+	return map[string]httpResponse{
+		"/support/flare": updateResponseFromData(httpResponse{
 			statusCode:  http.StatusOK,
 			contentType: "application/json",
 			data:        flareResponseBody{CaseID: 0, Error: ""},
-		},
-		"/api/v1/connections": {
+		}),
+		"/api/v1/connections": updateResponseFromData(httpResponse{
 			statusCode:  http.StatusOK,
 			contentType: "application/x-protobuf",
 			data:        getConnectionsResponse(),
-		},
+		}),
 	}
-
-	if response, found := fi.responseOverrides[urlPath]; found {
-		return response
-	} else if response, found := responses[urlPath]; found {
-		return updateResponseFromData(response)
-	}
-	return defaultResponse
 }
