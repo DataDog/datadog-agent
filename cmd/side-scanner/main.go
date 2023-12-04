@@ -485,6 +485,7 @@ func scanCmd(config scanConfig, sendData bool) error {
 		if err != nil {
 			return err
 		}
+		defer findingsReporter.Stop()
 	}
 
 	resultsCh := make(chan scanResult)
@@ -503,7 +504,7 @@ func scanCmd(config scanConfig, sendData bool) error {
 					b, _ := json.MarshalIndent(result.findings, "", "  ")
 					fmt.Printf("scanning findings result %s (took %s): %s\n", result.scan, result.duration, string(b))
 					if sendData {
-						findingsReporter.ReportEvent(result.findings)
+						sendFindings(findingsReporter, result.findings)
 					}
 				}
 			}
