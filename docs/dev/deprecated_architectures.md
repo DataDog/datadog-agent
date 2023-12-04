@@ -1,6 +1,6 @@
 # Deprecated Architectures
 
-## Windows 32 bits
+## 32-bit Windows
 
 There was a product request to release the Agent on Windows 32 bits but it never came to fruition.
 
