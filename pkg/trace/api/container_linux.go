@@ -121,7 +121,7 @@ type cgroupIDProvider struct {
 // GetContainerID returns the container ID in the http.Header,
 // otherwise looks for a PID in the ctx which is used to search cgroups for a container ID.
 func (c *cgroupIDProvider) GetContainerID(ctx context.Context, h http.Header) string {
-	// Retrieve the container-id from Datadog-Container-Id header
+	// Retrieve the container-id from Datadog-Container-ID header
 	if id := h.Get(header.ContainerID); id != "" {
 		return id
 	}
@@ -145,7 +145,7 @@ func (c *cgroupIDProvider) resolveContainerIDFromEntityID(eid string) string {
 		return eid[4:]
 	}
 	// The entityID can contain the cgroupv2 node inode
-	if !strings.HasPrefix(eid, "in-") || c.reader.CgroupVersion() != 2 {
+	if !strings.HasPrefix(eid, "in-") {
 		return ""
 	}
 	inode, err := strconv.ParseUint(eid[3:], 10, 64)
