@@ -96,18 +96,18 @@ type scanType string
 
 const (
 	ebsScanType    scanType = "ebs-volume"
-	lambdaScanType          = "lambda"
+	lambdaScanType scanType = "lambda"
 )
 
 type scanAction string
 
 const (
 	malware scanAction = "malware"
-	vulns              = "vulns"
+	vulns   scanAction = "vulns"
 
 	volumeAttach string = "volume-attach"
-	nbdAttach           = "nbd-attach"
-	noAttach            = "no-attach"
+	nbdAttach    string = "nbd-attach"
+	noAttach     string = "no-attach"
 )
 
 var defaultActions = []string{
@@ -313,7 +313,7 @@ func offlineCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans, globalParams.attachMode)
+					return offlineCmd(cliArgs.poolSize, cliArgs.regions, cliArgs.maxScans)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -497,7 +497,9 @@ func scanCmd(config scanConfig, sendData bool) error {
 				if result.sbom != nil {
 					fmt.Printf("scanning SBOM result %s (took %s): %s\n", result.scan, result.duration, prototext.Format(result.sbom))
 					if sendData {
-						sendSBOM(eventForwarder, result.sbom, "unknown")
+						if err := sendSBOM(eventForwarder, result.sbom, "unknown"); err != nil {
+							log.Errorf("failed to send SBOM: %v", err)
+						}
 					}
 				}
 				if result.findings != nil {
@@ -520,7 +522,7 @@ func scanCmd(config scanConfig, sendData bool) error {
 	return nil
 }
 
-func offlineCmd(poolSize int, regions []string, maxScans int, attachMode string) error {
+func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	defer statsd.Flush()
@@ -816,7 +818,10 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) err
 			fmt.Printf("getting block %d\n", *block.BlockIndex)
 			for i := blockIndex; i < *block.BlockIndex; i++ {
 				fmt.Printf("zero filling")
-				io.Copy(w, bytes.NewReader(nullBuffer))
+				_, err := io.Copy(w, bytes.NewReader(nullBuffer))
+				if err != nil {
+					return err
+				}
 			}
 			blockOutput, err := ebsclient.GetSnapshotBlock(ctx, &ebs.GetSnapshotBlockInput{
 				BlockIndex: block.BlockIndex,
@@ -933,7 +938,7 @@ func attachCmd() error {
 		if err != nil {
 			return err
 		}
-		mountPoints, cleanupMount, err := mountDevice(ctx, scan, localSnapshotARN, device)
+		mountPoints, cleanupMount, err := mountDevice(ctx, localSnapshotARN, device)
 		cleanups = append(cleanups, cleanupMount)
 		if err != nil {
 			return err
@@ -970,7 +975,7 @@ func nbdMountCmd(snapshotARN arn.ARN) error {
 		return err
 	}
 
-	mountPoints, cleanupMount, err := mountDevice(ctx, nil, snapshotARN, device)
+	mountPoints, cleanupMount, err := mountDevice(ctx, snapshotARN, device)
 	defer cleanupMount(context.TODO())
 	if err != nil {
 		log.Errorf("error could not mount (device is still available on %q): %v", device, err)
@@ -1114,17 +1119,25 @@ func (s *sideScanner) start(ctx context.Context) {
 	go func() {
 		for result := range s.resultsCh {
 			if result.err != nil {
-				statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(result.scan), 1.0)
+				if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(result.scan), 1.0); err != nil {
+					log.Warnf("failed to send metric: %w", err)
+				}
 			} else {
 				if result.sbom != nil {
 					if hasResults(result.sbom) {
 						log.Debugf("scan %s finished successfully (took %s)", result.scan, result.duration)
-						statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0)
+						if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0); err != nil {
+							log.Warnf("failed to send metric: %w", err)
+						}
 					} else {
 						log.Debugf("scan %s finished successfully without results (took %s)", result.scan, result.duration)
-						statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagNoResult(result.scan), 1.0)
+						if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagNoResult(result.scan), 1.0); err != nil {
+							log.Warnf("failed to send metric: %w", err)
+						}
 					}
-					s.sendSBOM(result.sbom)
+					if err := s.sendSBOM(result.sbom); err != nil {
+						log.Errorf("failed to send SBOM: %w", err)
+					}
 				}
 				if result.findings != nil {
 					log.Debugf("sending findings for scan %s", result.scan)
@@ -1198,10 +1211,14 @@ func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan *scanTas
 }
 
 func launchScan(ctx context.Context, scan *scanTask, resultsCh chan scanResult) (err error) {
-	statsd.Count("datadog.sidescanner.scans.started", 1.0, tagScan(scan), 1.0)
+	if err := statsd.Count("datadog.sidescanner.scans.started", 1.0, tagScan(scan), 1.0); err != nil {
+		log.Warnf("failed to send metric: %w", err)
+	}
 	defer func() {
 		if err != nil {
-			statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(scan), 1.0)
+			if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(scan), 1.0); err != nil {
+				log.Warnf("failed to send metric: %w", err)
+			}
 		}
 	}()
 
@@ -1255,7 +1272,7 @@ func sendFindings(findingsReporter *LogReporter, findings []*finding) {
 
 func cloudResourceTagSpec(resourceType ec2types.ResourceType) []ec2types.TagSpecification {
 	return []ec2types.TagSpecification{
-		ec2types.TagSpecification{
+		{
 			ResourceType: resourceType,
 			Tags: []ec2types.Tag{
 				{Key: aws.String("ddsource"), Value: aws.String("datadog-side-scanner")},
@@ -1349,14 +1366,18 @@ func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, 
 		if snapshotARN.Resource != "" {
 			log.Debugf("deleting snapshot %q for volume %q", snapshotARN, volumeARN)
 			// do not use context here: we want to force snapshot deletion
-			ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+			if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
 				SnapshotId: &snapshotARN.Resource,
-			})
+			}); err != nil {
+				log.Warnf("could not delete snapshot %s: %v", snapshotARN.Resource, err)
+			}
 		}
 	}
 
 	snapshotStartedAt := time.Now()
-	statsd.Count("datadog.sidescanner.snapshots.started", 1.0, tagScan(scan), 1.0)
+	if err := statsd.Count("datadog.sidescanner.snapshots.started", 1.0, tagScan(scan), 1.0); err != nil {
+		log.Warnf("failed to send metric: %w", err)
+	}
 	log.Debugf("starting volume snapshotting %q", volumeARN)
 
 	retries := 0
@@ -1399,7 +1420,9 @@ retry:
 		} else {
 			tags = tagFailure(scan)
 		}
-		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tags, 1.0)
+		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tags, 1.0); err != nil {
+			log.Warnf("failed to send metric: %w", err)
+		}
 		return
 	}
 
@@ -1413,11 +1436,17 @@ retry:
 
 	if err == nil {
 		snapshotDuration := time.Since(snapshotStartedAt)
-		log.Debugf("volume snapshotting of %q finished sucessfully %q (took %s)", volumeARN, snapshotID, snapshotDuration)
-		statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tagScan(scan), 1.0)
-		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(scan), 1.0)
+		log.Debugf("volume snapshotting of %q finished successfully %q (took %s)", volumeARN, snapshotID, snapshotDuration)
+		if err := statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+			log.Warnf("failed to send metric: %w", err)
+		}
+		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(scan), 1.0); err != nil {
+			log.Warnf("failed to send metric: %w", err)
+		}
 	} else {
-		statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(scan), 1.0)
+		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(scan), 1.0); err != nil {
+			log.Warnf("failed to send metric: %w", err)
+		}
 	}
 
 	return
@@ -1436,19 +1465,19 @@ func tagScan(scan *scanTask) []string {
 }
 
 func tagNoResult(scan *scanTask) []string {
-	return append(tagScan(scan), fmt.Sprint("status:noresult"))
+	return append(tagScan(scan), "status:noresult")
 }
 
 func tagNotFound(scan *scanTask) []string {
-	return append(tagScan(scan), fmt.Sprint("status:notfound"))
+	return append(tagScan(scan), "status:notfound")
 }
 
 func tagFailure(scan *scanTask) []string {
-	return append(tagScan(scan), fmt.Sprint("status:failure"))
+	return append(tagScan(scan), "status:failure")
 }
 
 func tagSuccess(scan *scanTask) []string {
-	return append(tagScan(scan), fmt.Sprint("status:success"))
+	return append(tagScan(scan), "status:success")
 }
 
 type awsClientStats struct {
@@ -1465,21 +1494,29 @@ func (rt *awsClientStats) SendStats() {
 	totalec2 := 0
 	totalebs := 0
 	for action, value := range rt.ec2stats {
-		statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ec2", action), 1.0)
+		if err := statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ec2", action), 1.0); err != nil {
+			log.Warnf("failed to send metric: %w", err)
+		}
 		totalec2 += int(value)
 	}
 	for action, value := range rt.ebsstats {
-		statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ebs", action), 1.0)
+		if err := statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ebs", action), 1.0); err != nil {
+			log.Warnf("failed to send metric: %w", err)
+		}
 		totalebs += int(value)
 	}
-	statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(totalec2), rt.tags("ec2"), 1.0)
-	statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(totalebs), rt.tags("ebs"), 1.0)
+	if err := statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(totalec2), rt.tags("ec2"), 1.0); err != nil {
+		log.Warnf("failed to send metric: %w", err)
+	}
+	if err := statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(totalebs), rt.tags("ebs"), 1.0); err != nil {
+		log.Warnf("failed to send metric: %w", err)
+	}
 
 	rt.ec2stats = nil
 	rt.ebsstats = nil
 }
 
-func (ty *awsClientStats) tags(serviceName string, actions ...string) []string {
+func (rt *awsClientStats) tags(serviceName string, actions ...string) []string {
 	tags := []string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
 		fmt.Sprintf("aws_service:%s", serviceName),
@@ -1510,7 +1547,7 @@ func (rt *awsClientStats) recordStats(req *http.Request) error {
 	case strings.HasPrefix(req.URL.Host, "ebs."):
 		if ebsGetBlockReg.MatchString(req.URL.Path) {
 			// https://ebs.us-east-1.amazonaws.com/snapshots/snap-0d136ea9e1e8767ea/blocks/X/
-			rt.ebsstats["getblock"] += 1
+			rt.ebsstats["getblock"]++
 		}
 
 	// EC2
@@ -1682,9 +1719,9 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(scanStartedAt)}
 	}
 
-	// TODO: remove this check once we definitly move to nbd mounting
+	// TODO: remove this check once we definitely move to nbd mounting
 	if device != "" {
-		mountPoints, cleanupMount, err := mountDevice(ctx, scan, localSnapshotARN, device)
+		mountPoints, cleanupMount, err := mountDevice(ctx, localSnapshotARN, device)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
@@ -1712,7 +1749,9 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	}
 
 	scanDuration := time.Since(scanStartedAt)
-	statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0)
+	if err := statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+		log.Warnf("failed to send metric: %w", err)
+	}
 
 	return nil
 }
@@ -1788,12 +1827,16 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 	resultsCh <- scanResult{err: err, scan: scan, sbom: sbom, duration: time.Since(scanStartedAt)}
 
 	scanDuration := time.Since(scanStartedAt)
-	statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0)
+	if err := statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+		log.Warnf("failed to send metric: %w", err)
+	}
 	return nil
 }
 
 func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePath string, err error) {
-	statsd.Count("datadog.sidescanner.functions.started", 1.0, tagScan(scan), 1.0)
+	if err := statsd.Count("datadog.sidescanner.functions.started", 1.0, tagScan(scan), 1.0); err != nil {
+		log.Warnf("failed to send metric: %w", err)
+	}
 	defer func() {
 		if err != nil {
 			var isResourceNotFoundError bool
@@ -1807,9 +1850,13 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 			} else {
 				tags = tagFailure(scan)
 			}
-			statsd.Count("datadog.sidescanner.functions.finished", 1.0, tags, 1.0)
+			if err := statsd.Count("datadog.sidescanner.functions.finished", 1.0, tags, 1.0); err != nil {
+				log.Warnf("failed to send metric: %w", err)
+			}
 		} else {
-			statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagSuccess(scan), 1.0)
+			if err := statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagSuccess(scan), 1.0); err != nil {
+				log.Warnf("failed to send metric: %w", err)
+			}
 		}
 	}()
 
@@ -1879,8 +1926,10 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 	}
 
 	functionDuration := time.Since(functionStartedAt)
-	log.Debugf("function retrieved sucessfully %q (took %s)", scan.ARN, functionDuration)
-	statsd.Histogram("datadog.sidescanner.functions.duration", float64(functionDuration.Milliseconds()), tagScan(scan), 1.0)
+	log.Debugf("function retrieved successfully %q (took %s)", scan.ARN, functionDuration)
+	if err := statsd.Histogram("datadog.sidescanner.functions.duration", float64(functionDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
+		log.Warnf("failed to send metric: %w", err)
+	}
 	return codePath, nil
 }
 
@@ -1972,9 +2021,11 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 		pushCleanup(func(ctx context.Context) {
 			log.Debugf("deleting snapshot %q", *copySnapshot.SnapshotId)
 			// do not use context here: we want to force snapshot deletion
-			remoteEC2Client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
+			if _, err := remoteEC2Client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
 				SnapshotId: copySnapshot.SnapshotId,
-			})
+			}); err != nil {
+				log.Warnf("could not delete snapshot %s: %v", copySnapshot.SnapshotId, err)
+			}
 		})
 		log.Debugf("waiting for copy of snapshot %q into %q as %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
 		waiter := ec2.NewSnapshotCompletedWaiter(remoteEC2Client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
@@ -2027,10 +2078,12 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 	pushCleanup(func(ctx context.Context) {
 		// do not use context here: we want to force deletion
 		log.Debugf("detaching volume %q", *volume.VolumeId)
-		locaEC2Client.DetachVolume(ctx, &ec2.DetachVolumeInput{
+		if _, err := locaEC2Client.DetachVolume(ctx, &ec2.DetachVolumeInput{
 			Force:    aws.Bool(true),
 			VolumeId: volume.VolumeId,
-		})
+		}); err != nil {
+			log.Warnf("could not detach volume %s", *volume.VolumeId)
+		}
 		var errd error
 		for i := 0; i < 50; i++ {
 			if !sleepCtx(ctx, 1*time.Second) {
@@ -2073,7 +2126,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 	return
 }
 
-func mountDevice(ctx context.Context, scan *scanTask, snapshotARN arn.ARN, device string) (mountPoints []string, cleanupMount func(context.Context), err error) {
+func mountDevice(ctx context.Context, snapshotARN arn.ARN, device string) (mountPoints []string, cleanupMount func(context.Context), err error) {
 	var cleanups []func(context.Context)
 	pushCleanup := func(cleanup func(context.Context)) {
 		cleanups = append(cleanups, cleanup)
