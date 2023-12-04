@@ -209,7 +209,15 @@ func StepByStepRhelTest(is *stepByStepSuite) {
 }
 
 func StepByStepSuseTest(is *stepByStepSuite) {
-	var suserepo = ""
+	var arch string
+	if *architecture == "arm64" {
+		arch = "aarch64"
+	} else {
+		arch = *architecture
+	}
+
+	var suseRepo = fmt.Sprintf("http://yumtesting.datad0g.com/suse/testing/pipeline-%s-a%d/%d/%s/",
+		os.Getenv("CI_PIPELINE_ID"), is.agentMajorVersion, is.agentMajorVersion, arch)
 	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
 	unixHelper := helpers.NewUnixHelper()
 	vm := is.Env().VM.(*client.PulumiStackVM)
@@ -226,7 +234,7 @@ func StepByStepSuseTest(is *stepByStepSuite) {
 		"gpgkey=https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public\n"+
 		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
 		"	    https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public\n",
-		suserepo)
+		suseRepo)
 	_, err = fileManager.WriteFile("/etc/zypp/repos.d/datadog.repo", fileContent)
 	require.NoError(is.T(), err)
 
