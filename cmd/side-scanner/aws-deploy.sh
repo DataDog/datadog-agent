@@ -6,7 +6,7 @@
 #   STACK_OWNER=$(whoami) aws-vault exec sso-sandbox-account-admin -- ./side-scanner-deploy.sh
 #
 #     export DD_SIDESCANNER_IP="XXX.XXX.XXX.XXX"
-#     ssh -i ec2-user@$DD_SIDESCANNER_IP
+#     ssh -i ubuntu@$DD_SIDESCANNER_IP
 #
 
 set -e
@@ -40,12 +40,12 @@ BASEDIR=$(dirname "$0")
 STACK_NAME="DatadogSideScanner-${STACK_OWNER}"
 STACK_AWS_REGION="us-east-1"
 STACK_PUBLIC_KEY=$(cat "$HOME/.ssh/sidescanner.pub")
-STACK_INSTALL_SH=$(base64 -w 0 < "${BASEDIR}/install.sh")
+STACK_INSTALL_SH=$(base64 -w 0 < "${BASEDIR}/userdata.sh")
 STACK_USER_DATA=$(cat <<EOF | base64 -w 0
 #!/bin/bash
-echo "$STACK_INSTALL_SH" | base64 -d > install.sh
-chmod +x install.sh
-DD_API_KEY="$STACK_API_KEY" ./install.sh "${STACK_OWNER}"
+echo "$STACK_INSTALL_SH" | base64 -d > userdata.sh
+chmod +x userdata.sh
+DD_API_KEY="$STACK_API_KEY" ./userdata.sh "${STACK_OWNER}"
 EOF
 )
 STACK_TEMPLATE=$(cat <<EOF
@@ -55,7 +55,7 @@ Description: Create an EC2 instance in an isolated VPC for Datadog SideScanner
 Parameters:
   DatadogSideScannerAMIId:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
-    Default: '/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64'
+    Default: '/aws/service/canonical/ubuntu/server/22.04/stable/current/arm64/hvm/ebs-gp2/ami-id'
 
   DatadogSideScannerInstanceType:
     Type: String
@@ -178,7 +178,7 @@ then
 
   echo "stack creation successful | launched instance: ${INSTANCE_ID}."
   echo "export STACK_INSTANCE_IP=\"${STACK_INSTANCE_IP}\""
-  echo "ssh -i ~/.ssh/sidescanner ec2-user@\$STACK_INSTANCE_IP"
+  echo "ssh -i ~/.ssh/sidescanner ubuntu@\$STACK_INSTANCE_IP"
 else
   printf "\n"
   echo "Stack creation failed. Check the AWS CloudFormation console for details."
