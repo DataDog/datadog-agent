@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"golang.org/x/exp/slices"
+	"golang.org/x/time/rate"
 
 	// DataDog agent: config stuffs
 	commonpath "github.com/DataDog/datadog-agent/cmd/agent/common/path"
@@ -108,6 +109,14 @@ const (
 	volumeAttach string = "volume-attach"
 	nbdAttach    string = "nbd-attach"
 	noAttach     string = "no-attach"
+)
+
+type resourceType string
+
+const (
+	resourceTypeVolume   = "volume"
+	resourceTypeSnapshot = "snapshot"
+	resourceTypeFunction = "function"
 )
 
 var defaultActions = []string{
@@ -359,7 +368,7 @@ func mountCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(
 				func(_ complog.Component, _ compconfig.Component) error {
-					snapshotARN, err := arn.Parse(args[0])
+					snapshotARN, err := parseARN(args[0])
 					if err != nil {
 						return err
 					}
@@ -443,7 +452,11 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 
 	eventForwarder := epforwarder.NewEventPlatformForwarder()
 
-	scanner := newSideScanner(hostname, rcClient, eventForwarder, findingsReporter, poolSize, allowedScanTypes)
+	const defaultEC2Rate = 20.0
+	const defaultEBSRAte = 50.0
+	limits := newAWSLimits(defaultEC2Rate, defaultEBSRAte)
+
+	scanner := newSideScanner(hostname, rcClient, eventForwarder, findingsReporter, limits, poolSize, allowedScanTypes)
 	scanner.start(ctx)
 	return nil
 }
@@ -454,7 +467,7 @@ func parseRolesMapping(roles []string) rolesMapping {
 	}
 	rolesMapping := make(rolesMapping, len(roles))
 	for _, role := range roles {
-		roleARN, err := arn.Parse(role)
+		roleARN, err := parseARN(role)
 		if err != nil {
 			log.Warnf("side_scanner.default_roles: bad role %q", role)
 			continue
@@ -709,7 +722,7 @@ func listEBSVolumesForRegion(ctx context.Context, accountID, regionName string, 
 						// Exclude Windows.
 						continue
 					}
-					volumeARN := ec2ARN(regionName, accountID, ec2types.ResourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
+					volumeARN := ec2ARN(regionName, accountID, resourceTypeVolume, *blockDeviceMapping.Ebs.VolumeId)
 					log.Debugf("%s %s %s %s %s", regionName, *instance.InstanceId, volumeARN, *blockDeviceMapping.DeviceName, *instance.PlatformDetails)
 					volumes = append(volumes, ebsVolume{Hostname: *instance.InstanceId, ARN: volumeARN})
 				}
@@ -815,9 +828,7 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) err
 		}
 		size = *blocks.VolumeSize << 30
 		for _, block := range blocks.Blocks {
-			fmt.Printf("getting block %d\n", *block.BlockIndex)
 			for i := blockIndex; i < *block.BlockIndex; i++ {
-				fmt.Printf("zero filling")
 				_, err := io.Copy(w, bytes.NewReader(nullBuffer))
 				if err != nil {
 					return err
@@ -838,7 +849,6 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) err
 			}
 			blockOutput.BlockData.Close()
 			n += copied
-			fmt.Printf("copied %d\n", n)
 			blockIndex = *block.BlockIndex + 1
 		}
 		listSnapshotsInput.NextToken = blocks.NextToken
@@ -847,7 +857,6 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) err
 		}
 	}
 	for n < size {
-		fmt.Printf("zero filling")
 		w, err := io.Copy(w, bytes.NewReader(nullBuffer))
 		if err != nil {
 			return err
@@ -873,9 +882,9 @@ func attachCmd() error {
 		lineNumber++
 		line := scanner.Text()
 		fmt.Println(lineNumber, line)
-		arn, err := arn.Parse(line)
+		arn, err := parseARN(line)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "bad arn resource %q on line %d\n", line, lineNumber)
+			fmt.Fprintf(os.Stderr, "%s (line %d)\n", err, lineNumber)
 		} else {
 			arns = append(arns, arn)
 		}
@@ -914,20 +923,20 @@ func attachCmd() error {
 			return err
 		}
 
-		resourceType, resourceID, ok := getARNResource(resourceARN)
-		if !ok {
-			return fmt.Errorf("bad arn resource %q", resourceARN.String())
+		resourceType, resourceID, err := getARNResource(resourceARN)
+		if err != nil {
+			return err
 		}
 		var snapshotARN arn.ARN
 		switch resourceType {
-		case ec2types.ResourceTypeVolume:
+		case resourceTypeVolume:
 			var cleanupSnapshot func(context.Context)
 			snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, scan, ec2client, resourceARN)
 			cleanups = append(cleanups, cleanupSnapshot)
 			if err != nil {
 				return err
 			}
-		case ec2types.ResourceTypeSnapshot:
+		case resourceTypeSnapshot:
 			snapshotARN = resourceARN
 		default:
 			return fmt.Errorf("unsupport resource type %q", resourceType)
@@ -995,14 +1004,24 @@ func newScanTask(t string, resourceARN, hostname string, actions []string, roles
 	// precisly the ARN resource type/id
 	var scan scanTask
 	var err error
-	scan.ARN, err = arn.Parse(resourceARN)
+	scan.ARN, err = parseARN(resourceARN)
 	if err != nil {
-		return nil, fmt.Errorf("bad or empty arn %q: %w", resourceARN, err)
+		return nil, err
+	}
+	resourceType, _, err := getARNResource(scan.ARN)
+	if err != nil {
+		return nil, err
 	}
 	switch t {
 	case string(ebsScanType):
+		if resourceType != resourceTypeSnapshot && resourceType != resourceTypeVolume {
+			return nil, fmt.Errorf("malformed scan task: unexpected type %q", t)
+		}
 		scan.Type = ebsScanType
 	case string(lambdaScanType):
+		if resourceType != resourceTypeFunction {
+			return nil, fmt.Errorf("malformed scan task: unexpected type %q", t)
+		}
 		scan.Type = lambdaScanType
 	default:
 		return nil, fmt.Errorf("unknown scan type %q", t)
@@ -1058,14 +1077,54 @@ func unmarshalConfig(b []byte) (*scanConfig, error) {
 	return &config, nil
 }
 
-func getARNResource(arn arn.ARN) (resourceType ec2types.ResourceType, resourceID string, ok bool) {
-	switch {
-	case strings.HasPrefix(arn.Resource, "volume/"):
-		resourceType, resourceID = ec2types.ResourceTypeVolume, strings.TrimPrefix(arn.Resource, "volume/")
-	case strings.HasPrefix(arn.Resource, "snapshot/"):
-		resourceType, resourceID = ec2types.ResourceTypeSnapshot, strings.TrimPrefix(arn.Resource, "snapshot/")
+func parseARN(s string) (arn.ARN, error) {
+	a, err := arn.Parse(s)
+	if err != nil {
+		return arn.ARN{}, err
 	}
-	ok = resourceType != "" && resourceID != ""
+	_, _, err = getARNResource(a)
+	if err != nil {
+		return arn.ARN{}, err
+	}
+	return a, nil
+}
+
+var resourceIDReg = regexp.MustCompile("^[a-f0-9]+$")
+
+func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, err error) {
+	if arn.Partition != "aws" {
+		return
+	}
+	switch {
+	case arn.Service == "ec2" && strings.HasPrefix(arn.Resource, "volume/"):
+		resourceType, resourceID = resourceTypeVolume, strings.TrimPrefix(arn.Resource, "volume/")
+		if !strings.HasPrefix(resourceID, "vol-") {
+			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
+			return
+		}
+		if !resourceIDReg.MatchString(strings.TrimPrefix(resourceID, "vol-")) {
+			err = fmt.Errorf("bad arn %q: resource ID has wrong format", arn)
+			return
+		}
+	case arn.Service == "ec2" && strings.HasPrefix(arn.Resource, "snapshot/"):
+		resourceType, resourceID = resourceTypeSnapshot, strings.TrimPrefix(arn.Resource, "snapshot/")
+		if !strings.HasPrefix(resourceID, "snap-") {
+			err = fmt.Errorf("bad arn %q: resource ID has wrong prefix", arn)
+			return
+		}
+		if !resourceIDReg.MatchString(strings.TrimPrefix(resourceID, "snap-")) {
+			err = fmt.Errorf("bad arn %q: resource ID has wrong format", arn)
+			return
+		}
+	case arn.Service == "lambda" && strings.HasPrefix(arn.Resource, "function:"):
+		resourceType, resourceID = resourceTypeFunction, strings.TrimPrefix(arn.Resource, "function:")
+		if sep := strings.Index(resourceID, ":"); sep > 0 {
+			resourceID = resourceID[:sep]
+		}
+	default:
+		err = fmt.Errorf("bad arn %q: unexpected resource type", arn)
+		return
+	}
 	return
 }
 
@@ -1076,6 +1135,7 @@ type sideScanner struct {
 	eventForwarder   epforwarder.EventPlatformForwarder
 	findingsReporter *LogReporter
 	allowedScanTypes []string
+	limits           *awsLimits
 
 	scansCh           chan *scanTask
 	scansInProgress   map[interface{}]struct{}
@@ -1083,7 +1143,7 @@ type sideScanner struct {
 	resultsCh         chan scanResult
 }
 
-func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epforwarder.EventPlatformForwarder, findingsReporter *LogReporter, poolSize int, allowedScanTypes []string) *sideScanner {
+func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epforwarder.EventPlatformForwarder, findingsReporter *LogReporter, limits *awsLimits, poolSize int, allowedScanTypes []string) *sideScanner {
 	return &sideScanner{
 		hostname:         hostname,
 		rcClient:         rcClient,
@@ -1091,6 +1151,7 @@ func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epf
 		eventForwarder:   eventForwarder,
 		findingsReporter: findingsReporter,
 		allowedScanTypes: allowedScanTypes,
+		limits:           limits,
 
 		scansCh:         make(chan *scanTask),
 		scansInProgress: make(map[interface{}]struct{}),
@@ -1120,23 +1181,23 @@ func (s *sideScanner) start(ctx context.Context) {
 		for result := range s.resultsCh {
 			if result.err != nil {
 				if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(result.scan), 1.0); err != nil {
-					log.Warnf("failed to send metric: %w", err)
+					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
 				if result.sbom != nil {
 					if hasResults(result.sbom) {
 						log.Debugf("scan %s finished successfully (took %s)", result.scan, result.duration)
 						if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0); err != nil {
-							log.Warnf("failed to send metric: %w", err)
+							log.Warnf("failed to send metric: %v", err)
 						}
 					} else {
 						log.Debugf("scan %s finished successfully without results (took %s)", result.scan, result.duration)
 						if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagNoResult(result.scan), 1.0); err != nil {
-							log.Warnf("failed to send metric: %w", err)
+							log.Warnf("failed to send metric: %v", err)
 						}
 					}
 					if err := s.sendSBOM(result.sbom); err != nil {
-						log.Errorf("failed to send SBOM: %w", err)
+						log.Errorf("failed to send SBOM: %v", err)
 					}
 				}
 				if result.findings != nil {
@@ -1156,9 +1217,16 @@ func (s *sideScanner) start(ctx context.Context) {
 					done <- struct{}{}
 					return
 				case scan := <-s.scansCh:
-					if err := s.launchScanAndSendResult(ctx, scan); err != nil {
+					s.scansInProgressMu.Lock()
+					s.scansInProgress[scan] = struct{}{}
+					s.scansInProgressMu.Unlock()
+					ctx := withAWSLimits(ctx, s.limits)
+					if err := launchScan(ctx, scan, s.resultsCh); err != nil {
 						log.Errorf("error scanning task %s: %s", scan, err)
 					}
+					s.scansInProgressMu.Lock()
+					delete(s.scansInProgress, scan)
+					s.scansInProgressMu.Unlock()
 				}
 			}
 		}()
@@ -1174,7 +1242,7 @@ func (s *sideScanner) pushOrSkipScan(ctx context.Context, rawConfig state.RawCon
 	log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
 	config, err := unmarshalConfig(rawConfig.Config)
 	if err != nil {
-		log.Errorf("could not parse side-scanner task: %w", err)
+		log.Errorf("could not parse side-scanner task: %v", err)
 		return
 	}
 	for _, scan := range config.Tasks {
@@ -1196,28 +1264,14 @@ func (s *sideScanner) pushOrSkipScan(ctx context.Context, rawConfig state.RawCon
 	}
 }
 
-func (s *sideScanner) launchScanAndSendResult(ctx context.Context, scan *scanTask) error {
-	s.scansInProgressMu.Lock()
-	s.scansInProgress[scan] = struct{}{}
-	s.scansInProgressMu.Unlock()
-
-	defer func() {
-		s.scansInProgressMu.Lock()
-		delete(s.scansInProgress, scan)
-		s.scansInProgressMu.Unlock()
-	}()
-
-	return launchScan(ctx, scan, s.resultsCh)
-}
-
 func launchScan(ctx context.Context, scan *scanTask, resultsCh chan scanResult) (err error) {
 	if err := statsd.Count("datadog.sidescanner.scans.started", 1.0, tagScan(scan), 1.0); err != nil {
-		log.Warnf("failed to send metric: %w", err)
+		log.Warnf("failed to send metric: %v", err)
 	}
 	defer func() {
 		if err != nil {
 			if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(scan), 1.0); err != nil {
-				log.Warnf("failed to send metric: %w", err)
+				log.Warnf("failed to send metric: %v", err)
 			}
 		}
 	}()
@@ -1270,10 +1324,10 @@ func sendFindings(findingsReporter *LogReporter, findings []*finding) {
 	}
 }
 
-func cloudResourceTagSpec(resourceType ec2types.ResourceType) []ec2types.TagSpecification {
+func cloudResourceTagSpec(resourceType resourceType) []ec2types.TagSpecification {
 	return []ec2types.TagSpecification{
 		{
-			ResourceType: resourceType,
+			ResourceType: ec2types.ResourceType(resourceType),
 			Tags: []ec2types.Tag{
 				{Key: aws.String("ddsource"), Value: aws.String("datadog-side-scanner")},
 			},
@@ -1292,8 +1346,8 @@ func cloudResourceTagFilters() []ec2types.Filter {
 	}
 }
 
-func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client) (map[ec2types.ResourceType][]string, error) {
-	toBeDeleted := make(map[ec2types.ResourceType][]string)
+func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client) (map[resourceType][]string, error) {
+	toBeDeleted := make(map[resourceType][]string)
 	var nextToken *string
 	for {
 		volumes, err := ec2client.DescribeVolumes(ctx, &ec2.DescribeVolumesInput{
@@ -1306,7 +1360,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client) (map[ec
 		for i := range volumes.Volumes {
 			if volumes.Volumes[i].State == ec2types.VolumeStateAvailable {
 				volumeID := *volumes.Volumes[i].VolumeId
-				toBeDeleted[ec2types.ResourceTypeVolume] = append(toBeDeleted[ec2types.ResourceTypeVolume], volumeID)
+				toBeDeleted[resourceTypeVolume] = append(toBeDeleted[resourceTypeVolume], volumeID)
 			}
 		}
 		nextToken = volumes.NextToken
@@ -1325,7 +1379,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client) (map[ec
 		for i := range snapshots.Snapshots {
 			if snapshots.Snapshots[i].State == ec2types.SnapshotStateCompleted {
 				snapshotID := *snapshots.Snapshots[i].SnapshotId
-				toBeDeleted[ec2types.ResourceTypeSnapshot] = append(toBeDeleted[ec2types.ResourceTypeSnapshot], snapshotID)
+				toBeDeleted[resourceTypeSnapshot] = append(toBeDeleted[resourceTypeSnapshot], snapshotID)
 			}
 		}
 		nextToken = snapshots.NextToken
@@ -1336,7 +1390,7 @@ func listResourcesForCleanup(ctx context.Context, ec2client *ec2.Client) (map[ec
 	return toBeDeleted, nil
 }
 
-func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDeleted map[ec2types.ResourceType][]string) {
+func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDeleted map[resourceType][]string) {
 	for resourceType, resources := range toBeDeleted {
 		for _, resourceID := range resources {
 			if err := ctx.Err(); err != nil {
@@ -1345,11 +1399,11 @@ func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDelet
 			log.Infof("cleaning up resource %s/%s", resourceType, resourceID)
 			var err error
 			switch resourceType {
-			case ec2types.ResourceTypeSnapshot:
+			case resourceTypeSnapshot:
 				_, err = ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
 					SnapshotId: aws.String(resourceID),
 				})
-			case ec2types.ResourceTypeVolume:
+			case resourceTypeVolume:
 				_, err = ec2client.DeleteVolume(ctx, &ec2.DeleteVolumeInput{
 					VolumeId: aws.String(resourceID),
 				})
@@ -1377,7 +1431,7 @@ func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, 
 
 	snapshotStartedAt := time.Now()
 	if err := statsd.Count("datadog.sidescanner.snapshots.started", 1.0, tagScan(scan), 1.0); err != nil {
-		log.Warnf("failed to send metric: %w", err)
+		log.Warnf("failed to send metric: %v", err)
 	}
 	log.Debugf("starting volume snapshotting %q", volumeARN)
 
@@ -1386,7 +1440,7 @@ retry:
 	_, volumeID, _ := getARNResource(volumeARN)
 	result, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
 		VolumeId:          aws.String(volumeID),
-		TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeSnapshot),
+		TagSpecifications: cloudResourceTagSpec(resourceTypeSnapshot),
 	})
 	if err != nil {
 		var aerr smithy.APIError
@@ -1422,13 +1476,13 @@ retry:
 			tags = tagFailure(scan)
 		}
 		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tags, 1.0); err != nil {
-			log.Warnf("failed to send metric: %w", err)
+			log.Warnf("failed to send metric: %v", err)
 		}
 		return
 	}
 
 	snapshotID := *result.SnapshotId
-	snapshotARN = ec2ARN(volumeARN.Region, volumeARN.AccountID, ec2types.ResourceTypeSnapshot, snapshotID)
+	snapshotARN = ec2ARN(volumeARN.Region, volumeARN.AccountID, resourceTypeSnapshot, snapshotID)
 
 	waiter := ec2.NewSnapshotCompletedWaiter(ec2client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
 		scwo.MinDelay = 1 * time.Second
@@ -1439,14 +1493,14 @@ retry:
 		snapshotDuration := time.Since(snapshotStartedAt)
 		log.Debugf("volume snapshotting of %q finished successfully %q (took %s)", volumeARN, snapshotID, snapshotDuration)
 		if err := statsd.Histogram("datadog.sidescanner.snapshots.duration", float64(snapshotDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
-			log.Warnf("failed to send metric: %w", err)
+			log.Warnf("failed to send metric: %v", err)
 		}
 		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagSuccess(scan), 1.0); err != nil {
-			log.Warnf("failed to send metric: %w", err)
+			log.Warnf("failed to send metric: %v", err)
 		}
 	} else {
 		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(scan), 1.0); err != nil {
-			log.Warnf("failed to send metric: %w", err)
+			log.Warnf("failed to send metric: %v", err)
 		}
 	}
 
@@ -1483,9 +1537,14 @@ func tagSuccess(scan *scanTask) []string {
 
 type awsClientStats struct {
 	transport *http.Transport
+	region    string
+	accountID string
 	statsMu   sync.Mutex
-	ec2stats  map[string]float64
-	ebsstats  map[string]float64
+
+	ec2stats map[string]float64
+	ebsstats map[string]float64
+
+	limits *awsLimits
 }
 
 func (rt *awsClientStats) SendStats() {
@@ -1496,21 +1555,21 @@ func (rt *awsClientStats) SendStats() {
 	totalebs := 0
 	for action, value := range rt.ec2stats {
 		if err := statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ec2", action), 1.0); err != nil {
-			log.Warnf("failed to send metric: %w", err)
+			log.Warnf("failed to send metric: %v", err)
 		}
 		totalec2 += int(value)
 	}
 	for action, value := range rt.ebsstats {
 		if err := statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ebs", action), 1.0); err != nil {
-			log.Warnf("failed to send metric: %w", err)
+			log.Warnf("failed to send metric: %v", err)
 		}
 		totalebs += int(value)
 	}
 	if err := statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(totalec2), rt.tags("ec2"), 1.0); err != nil {
-		log.Warnf("failed to send metric: %w", err)
+		log.Warnf("failed to send metric: %v", err)
 	}
 	if err := statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(totalebs), rt.tags("ebs"), 1.0); err != nil {
-		log.Warnf("failed to send metric: %w", err)
+		log.Warnf("failed to send metric: %v", err)
 	}
 
 	rt.ec2stats = nil
@@ -1529,10 +1588,49 @@ func (rt *awsClientStats) tags(serviceName string, actions ...string) []string {
 }
 
 var (
-	ebsGetBlockReg = regexp.MustCompile("/snapshots/(snap-[a-z0-9]+)/blocks/([0-9]+)")
+	ebsGetBlockReg   = regexp.MustCompile("^/snapshots/(snap-[a-f0-9]+)/blocks/([0-9]+)$")
+	ebsListBlocksReg = regexp.MustCompile("^/snapshots/(snap-[a-f0-9]+)/blocks$")
 )
 
-func (rt *awsClientStats) recordStats(req *http.Request) error {
+func (rt *awsClientStats) getAction(req *http.Request) (service, action string, error error) {
+	host := req.URL.Host
+	fmt.Println(req.Method, req.URL.Path, host)
+	switch {
+	// EBS (ebs.(region.)?amazonaws.com)
+	case strings.HasPrefix(host, "ebs.") && strings.HasSuffix(host, ".amazonaws.com"):
+		if req.Method == http.MethodGet && ebsGetBlockReg.MatchString(req.URL.Path) {
+			return "ebs", "getblock", nil
+		}
+		if req.Method == http.MethodGet && ebsListBlocksReg.MatchString(req.URL.Path) {
+			return "ebs", "listblocks", nil
+		}
+
+	// EC2 (ec2.(region.)?amazonaws.com): https://docs.aws.amazon.com/AWSEC2/latest/APIReference/Using_Endpoints.html
+	case strings.HasPrefix(host, "ec2.") && strings.HasSuffix(host, ".amazonaws.com"):
+		if req.Method == http.MethodPost && req.Body != nil {
+			body, err := io.ReadAll(req.Body)
+			if err != nil {
+				return
+			}
+			form, err := url.ParseQuery(string(body))
+			if err == nil {
+				if action := form.Get("Action"); action != "" {
+					return "ec2", action, nil
+				}
+			}
+			req.Body = io.NopCloser(bytes.NewReader(body))
+		} else if req.Method == http.MethodGet {
+			form := req.URL.Query()
+			if action := form.Get("Action"); action != "" {
+				return "ec2", action, nil
+			}
+		}
+	}
+
+	return "", "", nil
+}
+
+func (rt *awsClientStats) recordStats(service, action string) {
 	rt.statsMu.Lock()
 	defer rt.statsMu.Unlock()
 
@@ -1543,43 +1641,30 @@ func (rt *awsClientStats) recordStats(req *http.Request) error {
 		rt.ebsstats = make(map[string]float64, 0)
 	}
 
-	switch {
-	// EBS
-	case strings.HasPrefix(req.URL.Host, "ebs."):
-		if ebsGetBlockReg.MatchString(req.URL.Path) {
-			// https://ebs.us-east-1.amazonaws.com/snapshots/snap-0d136ea9e1e8767ea/blocks/X/
-			rt.ebsstats["getblock"]++
-		}
-
-	// EC2
-	case req.URL.Host == "ec2.amazonaws.com":
-		if req.Method == http.MethodPost && req.Body != nil {
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				return err
-			}
-			form, err := url.ParseQuery(string(body))
-			if err == nil {
-				if action := form.Get("Action"); action != "" {
-					rt.ec2stats[action] += 1.0
-				}
-			}
-			req.Body = io.NopCloser(bytes.NewReader(body))
-		} else if req.Method == http.MethodGet {
-			form := req.URL.Query()
-			if action := form.Get("Action"); action != "" {
-				rt.ec2stats[action] += 1.0
-			}
-		}
+	switch service {
+	case "ec2":
+		rt.ec2stats[action]++
+	case "ebs":
+		rt.ebsstats[action]++
 	}
-
-	return nil
 }
 
 func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
-	if err := rt.recordStats(req); err != nil {
+	service, action, err := rt.getAction(req)
+	if err != nil {
 		return nil, err
 	}
+	limiter := rt.limits.getLimiter(rt.accountID, rt.region, service, action)
+	if limiter != nil {
+		r := limiter.Reserve()
+		if !r.OK() {
+			panic("unexpected limiter with a zero burst")
+		}
+		if delay := r.Delay(); delay > 0 {
+			sleepCtx(req.Context(), delay)
+		}
+	}
+	rt.recordStats(service, action)
 	resp, err := rt.transport.RoundTrip(req)
 	if err != nil {
 		return nil, err
@@ -1589,6 +1674,8 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 
 func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws.Config, *awsClientStats, error) {
 	awsstats := &awsClientStats{
+		region: region,
+		limits: getAWSLimit(ctx),
 		transport: &http.Transport{
 			IdleConnTimeout: 10 * time.Second,
 			MaxIdleConns:    10,
@@ -1606,6 +1693,8 @@ func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws
 		return aws.Config{}, nil, err
 	}
 	if assumedRole != nil {
+		awsstats.accountID = assumedRole.Resource
+
 		stsclient := sts.NewFromConfig(cfg)
 		stsassume := stscreds.NewAssumeRoleProvider(stsclient, assumedRole.String())
 		cfg.Credentials = aws.NewCredentialsCache(stsassume)
@@ -1633,9 +1722,9 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 }
 
 func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) error {
-	resourceType, _, ok := getARNResource(scan.ARN)
-	if !ok {
-		return fmt.Errorf("ebs-volume: bad or missing ARN: %s", scan.ARN)
+	resourceType, _, err := getARNResource(scan.ARN)
+	if err != nil {
+		return err
 	}
 	if scan.Hostname == "" {
 		return fmt.Errorf("ebs-volume: missing hostname")
@@ -1657,7 +1746,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 
 	var snapshotARN arn.ARN
 	switch resourceType {
-	case ec2types.ResourceTypeVolume:
+	case resourceTypeVolume:
 		var cleanupSnapshot func(context.Context)
 		snapshotARN, cleanupSnapshot, err = createSnapshot(ctx, scan, ec2client, scan.ARN)
 		defer func() {
@@ -1668,7 +1757,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		if err != nil {
 			return err
 		}
-	case ec2types.ResourceTypeSnapshot:
+	case resourceTypeSnapshot:
 		snapshotARN = scan.ARN
 	default:
 		return fmt.Errorf("ebs-volume: bad arn %q", scan.ARN)
@@ -1751,7 +1840,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 
 	scanDuration := time.Since(scanStartedAt)
 	if err := statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
-		log.Warnf("failed to send metric: %w", err)
+		log.Warnf("failed to send metric: %v", err)
 	}
 
 	return nil
@@ -1787,7 +1876,7 @@ func nextDeviceName() string {
 	if deviceName.letter == 0 || deviceName.letter == 'p' {
 		deviceName.letter = 'f'
 	} else {
-		deviceName.letter += 1
+		deviceName.letter++
 	}
 	// TODO: more robust (use /dev/xvd?). Depending on the kernel block device
 	// modules, the devices attached may change. We need to handle these
@@ -1829,14 +1918,14 @@ func scanLambda(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 
 	scanDuration := time.Since(scanStartedAt)
 	if err := statsd.Histogram("datadog.sidescanner.scans.duration", float64(scanDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
-		log.Warnf("failed to send metric: %w", err)
+		log.Warnf("failed to send metric: %v", err)
 	}
 	return nil
 }
 
 func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePath string, err error) {
 	if err := statsd.Count("datadog.sidescanner.functions.started", 1.0, tagScan(scan), 1.0); err != nil {
-		log.Warnf("failed to send metric: %w", err)
+		log.Warnf("failed to send metric: %v", err)
 	}
 	defer func() {
 		if err != nil {
@@ -1852,11 +1941,11 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 				tags = tagFailure(scan)
 			}
 			if err := statsd.Count("datadog.sidescanner.functions.finished", 1.0, tags, 1.0); err != nil {
-				log.Warnf("failed to send metric: %w", err)
+				log.Warnf("failed to send metric: %v", err)
 			}
 		} else {
 			if err := statsd.Count("datadog.sidescanner.functions.finished", 1.0, tagSuccess(scan), 1.0); err != nil {
-				log.Warnf("failed to send metric: %w", err)
+				log.Warnf("failed to send metric: %v", err)
 			}
 		}
 	}()
@@ -1929,7 +2018,7 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 	functionDuration := time.Since(functionStartedAt)
 	log.Debugf("function retrieved successfully %q (took %s)", scan.ARN, functionDuration)
 	if err := statsd.Histogram("datadog.sidescanner.functions.duration", float64(functionDuration.Milliseconds()), tagScan(scan), 1.0); err != nil {
-		log.Warnf("failed to send metric: %w", err)
+		log.Warnf("failed to send metric: %v", err)
 	}
 	return codePath, nil
 }
@@ -1985,8 +2074,11 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 		}
 	}
 
-	resourceType, snapshotID, ok := getARNResource(snapshotARN)
-	if !ok || resourceType != ec2types.ResourceTypeSnapshot {
+	resourceType, snapshotID, err := getARNResource(snapshotARN)
+	if err != nil {
+		return
+	}
+	if resourceType != resourceTypeSnapshot {
 		err = fmt.Errorf("expected ARN for a snapshot: %s", snapshotARN.String())
 		return
 	}
@@ -2007,13 +2099,12 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 
 	if snapshotARN.Region != self.Region {
 		log.Debugf("copying snapshot %q into %q", snapshotARN, self.Region)
-		_, snapshotID, _ := getARNResource(snapshotARN)
 		var copySnapshot *ec2.CopySnapshotOutput
 		copySnapshot, err = remoteEC2Client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
 			SourceRegion: aws.String(snapshotARN.Region),
 			// DestinationRegion: aws.String(self.Region): automatically filled by SDK
 			SourceSnapshotId:  aws.String(snapshotID),
-			TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeSnapshot),
+			TagSpecifications: cloudResourceTagSpec(resourceTypeSnapshot),
 		})
 		if err != nil {
 			err = fmt.Errorf("could not copy snapshot %q to %q: %w", snapshotARN, self.Region, err)
@@ -2021,11 +2112,10 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 		}
 		pushCleanup(func(ctx context.Context) {
 			log.Debugf("deleting snapshot %q", *copySnapshot.SnapshotId)
-			// do not use context here: we want to force snapshot deletion
 			if _, err := remoteEC2Client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
 				SnapshotId: copySnapshot.SnapshotId,
 			}); err != nil {
-				log.Warnf("could not delete snapshot %s: %v", copySnapshot.SnapshotId, err)
+				log.Warnf("could not delete snapshot %s: %v", *copySnapshot.SnapshotId, err)
 			}
 		})
 		log.Debugf("waiting for copy of snapshot %q into %q as %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
@@ -2038,7 +2128,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 			return
 		}
 		log.Debugf("successfully copied snapshot %q into %q: %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
-		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, ec2types.ResourceTypeSnapshot, *copySnapshot.SnapshotId)
+		localSnapshotARN = ec2ARN(self.Region, snapshotARN.AccountID, resourceTypeSnapshot, *copySnapshot.SnapshotId)
 	} else {
 		localSnapshotARN = snapshotARN
 	}
@@ -2070,7 +2160,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 		VolumeType:        ec2types.VolumeTypeGp2,
 		AvailabilityZone:  aws.String(self.AvailabilityZone),
 		SnapshotId:        aws.String(localSnapshotID),
-		TagSpecifications: cloudResourceTagSpec(ec2types.ResourceTypeVolume),
+		TagSpecifications: cloudResourceTagSpec(resourceTypeVolume),
 	})
 	if err != nil {
 		err = fmt.Errorf("could not create volume from snapshot: %s", err)
@@ -2245,7 +2335,7 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 	}
 }
 
-func ec2ARN(region, accountID string, resourceType ec2types.ResourceType, resourceID string) arn.ARN {
+func ec2ARN(region, accountID string, resourceType resourceType, resourceID string) arn.ARN {
 	return arn.ARN{
 		Partition: "aws",
 		Service:   "ec2",
@@ -2258,4 +2348,65 @@ func ec2ARN(region, accountID string, resourceType ec2types.ResourceType, resour
 func hasResults(results *sbommodel.SBOMEntity) bool {
 	bom := results.GetCyclonedx()
 	return len(bom.Components) > 0 || len(bom.Dependencies) > 0 || len(bom.Vulnerabilities) > 0
+}
+
+const defaultAWSRate = 20.0
+
+type awsLimits struct {
+	ebsRate    rate.Limit
+	ec2Rate    rate.Limit
+	limitersMu sync.Mutex
+	limiters   map[string]*rate.Limiter
+}
+
+func newAWSLimits(ec2Rate, ebsRate rate.Limit) *awsLimits {
+	return &awsLimits{
+		ec2Rate:  ec2Rate,
+		ebsRate:  ebsRate,
+		limiters: make(map[string]*rate.Limiter),
+	}
+}
+
+var keyRateLimits = struct{}{}
+
+func withAWSLimits(ctx context.Context, limits *awsLimits) context.Context {
+	return context.WithValue(ctx, keyRateLimits, limits)
+}
+
+func getAWSLimit(ctx context.Context) *awsLimits {
+	limits := ctx.Value(keyRateLimits)
+	if limits == nil {
+		return newAWSLimits(rate.Inf, rate.Inf)
+	}
+	return limits.(*awsLimits)
+}
+
+func (l *awsLimits) getLimiter(accountID, region, service, action string) *rate.Limiter {
+	key := accountID + region + service
+	l.limitersMu.Lock()
+	defer l.limitersMu.Unlock()
+	ll, ok := l.limiters[key]
+	if !ok {
+		switch service {
+		case "ec2":
+			if l.ec2Rate > 0.0 {
+				switch {
+				// reference: https://docs.aws.amazon.com/AWSEC2/latest/APIReference/throttling.html#throttling-limits
+				case strings.HasPrefix(action, "Describe"), strings.HasPrefix(action, "Get"):
+					ll = rate.NewLimiter(l.ec2Rate, 1)
+				default:
+					ll = rate.NewLimiter(l.ec2Rate/4.0, 1)
+				}
+			}
+		case "ebs":
+			if l.ec2Rate > 0.0 {
+				ll = rate.NewLimiter(l.ebsRate, 1)
+			}
+		}
+		if ll == nil {
+			ll = rate.NewLimiter(defaultAWSRate, 1)
+		}
+		l.limiters[key] = ll
+	}
+	return ll
 }
