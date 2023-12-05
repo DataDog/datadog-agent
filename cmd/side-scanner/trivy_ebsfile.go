@@ -7,10 +7,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
 
+// EBSClientWithWalk represents an EBS client with walker.
 type EBSClientWithWalk struct {
 	*ebs.Client
 }
 
+// WalkSnapshotBlocks method walks though snapshot blocks.
 func (e EBSClientWithWalk) WalkSnapshotBlocks(ctx context.Context, input *ebs.ListSnapshotBlocksInput, table map[int32]string) (*ebs.ListSnapshotBlocksOutput, map[int32]string, error) {
 	for {
 		output, err := e.ListSnapshotBlocks(ctx, input)

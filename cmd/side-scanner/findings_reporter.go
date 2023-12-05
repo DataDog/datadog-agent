@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// LogReporter is responsible for sending compliance logs to Datadog backends.
 type LogReporter struct {
 	logSource        *sources.LogSource
 	logChan          chan *message.Message
@@ -84,12 +85,14 @@ func newFindingsReporter() (*LogReporter, error) {
 	return reporter, nil
 }
 
+// Stop stops the LogReporter.
 func (r *LogReporter) Stop() {
 	r.dstcontext.Stop()
 	r.auditor.Stop()
 	r.pipelineProvider.Stop()
 }
 
+// ReportEvent reports event.
 func (r *LogReporter) ReportEvent(event interface{}, tags ...string) {
 	buf, err := json.Marshal(event)
 	if err != nil {
