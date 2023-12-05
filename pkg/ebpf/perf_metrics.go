@@ -97,7 +97,7 @@ func (p *perfUsageCollector) Collect(metrics chan<- prometheus.Metric) {
 
 			count := float64(usage[cpu])
 			p.usage.WithLabelValues(mapName, mapType, cpuString).Set(count)
-			p.usagePct.WithLabelValues().Set(100 * (count / size))
+			p.usagePct.WithLabelValues(mapName, mapType, cpuString).Set(100 * (count / size))
 			p.size.WithLabelValues(mapName, mapType, cpuString).Set(size)
 			p.lost.WithLabelValues(mapName, mapType, cpuString).Add(float64(lost[cpu]))
 		}
@@ -114,7 +114,7 @@ func (p *perfUsageCollector) Collect(metrics chan<- prometheus.Metric) {
 		cpuString := "0"
 		count := float64(usage)
 		p.usage.WithLabelValues(mapName, mapType, cpuString).Set(count)
-		p.usagePct.WithLabelValues().Set(100 * (count / size))
+		p.usagePct.WithLabelValues(mapName, mapType, cpuString).Set(100 * (count / size))
 		p.size.WithLabelValues(mapName, mapType, cpuString).Set(size)
 	}
 
