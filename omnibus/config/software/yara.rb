@@ -10,6 +10,8 @@ license "BSD-3-Clause"
 license_file "COPYING"
 skip_transitive_dependency_licensing true
 
+dependency "file"
+
 version("4.3.2") { source sha256: "a9587a813dc00ac8cdcfd6646d7f1c172f730cda8046ce849dfea7d3f6600b15" }
 
 ship_source_offer true
