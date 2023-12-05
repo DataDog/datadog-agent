@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
+
 	//nolint:revive // TODO(DBM) Fix revive linter
 	_ "github.com/godror/godror"
 	go_version "github.com/hashicorp/go-version"
@@ -166,15 +167,6 @@ func (c *Check) Run() error {
 		c.connection = conn
 	}
 
-	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
-
-	if dbInstanceIntervalExpired {
-		err := sendDbInstanceMetadata(c)
-		if err != nil {
-			return fmt.Errorf("%s failed to send db instance metadata %w", c.logPrompt, err)
-		}
-	}
-
 	metricIntervalExpired := checkIntervalExpired(&c.metricLastRun, c.config.MetricCollectionInterval)
 
 	if metricIntervalExpired {
@@ -226,6 +218,15 @@ func (c *Check) Run() error {
 			if err != nil {
 				log.Errorf("%s failed to execute custom queries %s", c.logPrompt, err)
 			}
+		}
+	}
+
+	dbInstanceIntervalExpired := checkIntervalExpired(&c.dbInstanceLastRun, 1800)
+
+	if dbInstanceIntervalExpired {
+		err := sendDbInstanceMetadata(c)
+		if err != nil {
+			return fmt.Errorf("%s failed to send db instance metadata %w", c.logPrompt, err)
 		}
 	}
 

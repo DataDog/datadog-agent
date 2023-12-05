@@ -36,8 +36,6 @@ type dbInstanceEvent struct {
 }
 
 func sendDbInstanceMetadata(c *Check) error {
-	configTags := make([]string, len(c.config.Tags))
-	copy(configTags, c.config.Tags)
 	m := dbInstanceMetadata{
 		Dbm:            true,
 		ConnectionHost: config.GetConnectData(c.config.InstanceConfig),
@@ -49,7 +47,7 @@ func sendDbInstanceMetadata(c *Check) error {
 		Kind:               "database_instance",
 		CollectionInterval: c.config.InstanceConfig.DatabaseInstanceCollectionInterval,
 		DbmsVersion:        c.dbVersion,
-		Tags:               configTags,
+		Tags:               c.tags,
 		Timestamp:          float64(time.Now().UnixMilli()),
 		Metadata:           m,
 	}
