@@ -22,6 +22,9 @@ build do
     'GOPATH' => gopath.to_path,
     'PATH' => "#{gopath.to_path}/bin:#{ENV['PATH']}",
   }
+  unless windows_target?
+    env["CGO_CFLAGS"] = "-I. -I#{install_dir}/embedded/include"
+  end
 
   unless ENV["OMNIBUS_GOMODCACHE"].nil? || ENV["OMNIBUS_GOMODCACHE"].empty?
     gomodcache = Pathname.new(ENV["OMNIBUS_GOMODCACHE"])
@@ -29,7 +32,7 @@ build do
   end
 
   # include embedded path (mostly for `pkg-config` binary)
-  env = with_embedded_path(env)
+  env = with_standard_compiler_flags(with_embedded_path(env))
 
   if windows_target?
     major_version_arg = "%MAJOR_VERSION%"
