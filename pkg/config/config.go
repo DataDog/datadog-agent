@@ -1674,7 +1674,7 @@ func setupFipsEndpoints(config Config) error {
 		networkDevicesNetflow      = 15 // 14 is reserved for compliance (#20230)
 	)
 
-	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
+	localAddress, err := IsLocalAddress(config.GetString("fips.local_address"))
 	if err != nil {
 		return fmt.Errorf("fips.local_address: %s", err)
 	}
@@ -1862,13 +1862,6 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 		cloudProviderFromConfig,
 		cloudProviderName)
 	return false
-}
-
-var isLocalAddress = pkgconfigenv.IsLocalAddress
-
-// GetIPCAddress returns the IPC address or an error if the address is not local
-func GetIPCAddress() (string, error) {
-	return pkgconfigenv.GetIPCAddress(Datadog)
 }
 
 // pathExists returns true if the given path exists

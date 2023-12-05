@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package env
+package config
 
 import (
 	"fmt"
@@ -38,7 +38,11 @@ func IsLocalAddress(address string) (string, error) {
 }
 
 // GetIPCAddress returns the IPC address or an error if the address is not local
-func GetIPCAddress(cfg pkgconfigmodel.Reader) (string, error) {
+func GetIPCAddress() (string, error) {
+	return getIPCAddress(Datadog)
+}
+
+func getIPCAddress(cfg pkgconfigmodel.Reader) (string, error) {
 	var key string
 	// ipc_address is deprecated in favor of cmd_host, but we still need to support it
 	// if it is set, use it, otherwise use cmd_host
