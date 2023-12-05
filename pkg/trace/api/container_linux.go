@@ -150,13 +150,13 @@ func (c *cgroupIDProvider) resolveContainerIDFromEntityID(eid string) string {
 	}
 	inode, err := strconv.ParseUint(eid[3:], 10, 64)
 	if err != nil {
-		log.Debugf("Could not parse cgroupv2 inode: %s: %v\n", eid, err)
+		log.Debugf("Could not parse cgroupv2 inode: %s: %v", eid, err)
 		return ""
 	}
 
 	cid, err := c.getCachedContainerID(eid, func() (string, error) { return c.getContainerIDByInode(inode) })
 	if err != nil {
-		log.Debugf("Could not get container ID from cgroupv2 inode: %s: %v\n", eid, err)
+		log.Debugf("Could not get container ID from cgroupv2 inode: %s: %v", eid, err)
 		return ""
 	}
 	return cid
