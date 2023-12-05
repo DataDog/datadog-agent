@@ -496,11 +496,8 @@ func scanCmd(config scanConfig) error {
 	}
 	sidescanner.printResults = true
 	go func() {
-		select {
-		case <-ctx.Done():
-			return
-		case sidescanner.configsCh <- &config:
-		}
+		sidescanner.configsCh <- &config
+		sidescanner.configsCh <- nil
 	}()
 	sidescanner.start(ctx)
 	return nil
@@ -611,6 +608,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 		}
 
 		sidescanner.configsCh <- &scanConfig{Type: awsScan, Tasks: scans, Roles: roles}
+		sidescanner.configsCh <- nil
 	}()
 
 	sidescanner.start(ctx)
@@ -1140,21 +1138,7 @@ func (s *sideScanner) start(ctx context.Context) {
 	s.eventForwarder.Start()
 	defer s.eventForwarder.Stop()
 
-	go func() {
-		for config := range s.configsCh {
-			for _, scan := range config.Tasks {
-				if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
-					continue
-				}
-				select {
-				case <-ctx.Done():
-					return
-				case s.scansCh <- scan:
-				}
-			}
-		}
-	}()
-
+	done := make(chan struct{})
 	go func() {
 		for result := range s.resultsCh {
 			if result.err != nil {
@@ -1194,17 +1178,22 @@ func (s *sideScanner) start(ctx context.Context) {
 				}
 			}
 		}
+		done <- struct{}{}
 	}()
 
-	done := make(chan struct{})
 	for i := 0; i < s.poolSize; i++ {
 		go func() {
+			defer func() {
+				done <- struct{}{}
+			}()
 			for {
 				select {
 				case <-ctx.Done():
-					done <- struct{}{}
 					return
-				case scan := <-s.scansCh:
+				case scan, ok := <-s.scansCh:
+					if !ok {
+						return
+					}
 					if err := s.launchScan(ctx, scan); err != nil {
 						log.Errorf("error scanning task %s: %s", scan, err)
 					}
@@ -1212,12 +1201,29 @@ func (s *sideScanner) start(ctx context.Context) {
 			}
 		}()
 	}
+
+	for config := range s.configsCh {
+		if config == nil { // nil config signals the end of the configs
+			break
+		}
+		for _, scan := range config.Tasks {
+			if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
+				continue
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case s.scansCh <- scan:
+			}
+		}
+	}
+	close(s.scansCh)
 	for i := 0; i < s.poolSize; i++ {
 		<-done
 	}
 	close(s.resultsCh)
+	<-done // waiting for done in range resultsCh goroutine
 	close(s.configsCh)
-	<-ctx.Done()
 }
 
 func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error) {
