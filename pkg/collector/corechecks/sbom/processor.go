@@ -207,7 +207,6 @@ func (p *processor) processHostRefresh() {
 			InUse:              true,
 			GeneratedAt:        timestamppb.New(result.CreatedAt),
 			GenerationDuration: convertDuration(result.Duration),
-			Hash:               result.Report.ID(),
 		}
 
 		if result.Error != nil {
@@ -234,6 +233,7 @@ func (p *processor) processHostRefresh() {
 					}
 				}
 
+				sbom.Hash = result.Report.ID()
 				p.hostCache = result.Report.ID()
 				p.hostLastFullSBOM = result.CreatedAt
 			}
