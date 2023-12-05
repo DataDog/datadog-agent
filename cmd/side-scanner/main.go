@@ -75,7 +75,10 @@ import (
 )
 
 const (
-	maxSnapshotRetries = 3
+	maxSnapshotRetries  = 3
+	defaultWorkersCount = 40
+	defaultEC2Rate      = 20.0
+	defaultEBSRAte      = 50.0
 )
 
 var statsd *ddgostatsd.Client
@@ -254,7 +257,7 @@ func runCommand() *cobra.Command {
 		},
 	}
 	runCmd.Flags().StringVarP(&runParams.pidfilePath, "pidfile", "p", "", "path to the pidfile")
-	runCmd.Flags().IntVar(&runParams.poolSize, "workers", 40, "number of scans running in parallel")
+	runCmd.Flags().IntVar(&runParams.poolSize, "workers", defaultWorkersCount, "number of scans running in parallel")
 	runCmd.Flags().StringSliceVar(&runParams.allowedScanTypes, "allowed-scans-type", nil, "lists of allowed scan types (ebs-volume, lambda)")
 	return runCmd
 }
@@ -337,7 +340,7 @@ func offlineCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().IntVarP(&cliArgs.poolSize, "workers", "", 40, "number of scans running in parallel")
+	cmd.Flags().IntVarP(&cliArgs.poolSize, "workers", "", defaultWorkersCount, "number of scans running in parallel")
 	cmd.Flags().StringSliceVarP(&cliArgs.regions, "regions", "", nil, "list of regions to scan (default to all regions)")
 	cmd.Flags().IntVarP(&cliArgs.maxScans, "max-scans", "", 0, "maximum number of scans to perform")
 
@@ -445,8 +448,6 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
 
-	const defaultEC2Rate = 20.0
-	const defaultEBSRAte = 50.0
 	limits := newAWSLimits(defaultEC2Rate, defaultEBSRAte)
 
 	scanner, err := newSideScanner(hostname, limits, poolSize, allowedScanTypes)
@@ -488,7 +489,7 @@ func scanCmd(config scanConfig) error {
 	if err != nil {
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
-	var limits *awsLimits // TODO
+	limits := newAWSLimits(defaultEC2Rate, defaultEBSRAte)
 	sidescanner, err := newSideScanner(hostname, limits, 1, nil)
 	if err != nil {
 		return fmt.Errorf("could not initialize side-scanner: %w", err)
@@ -572,7 +573,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 		}
 	}
 
-	var limits *awsLimits // TODO
+	limits := newAWSLimits(defaultEC2Rate, defaultEBSRAte)
 	sidescanner, err := newSideScanner(hostname, limits, poolSize, nil)
 	if err != nil {
 		return fmt.Errorf("could not initialize side-scanner: %w", err)
