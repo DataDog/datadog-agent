@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(RC) Fix revive linter
+// Package uptane contains the logic needed to perform the Uptane verification
+// checks against stored TUF metadata and the associated config files.
 package uptane
 
 import (
@@ -47,10 +48,11 @@ type Client struct {
 	transactionalStore *transactionalStore
 }
 
-//nolint:revive // TODO(RC) Fix revive linter
+// ClientOption allows changing a runtime configuration of a `Client`
 type ClientOption func(c *Client)
 
-//nolint:revive // TODO(RC) Fix revive linter
+// WithOrgIDCheck sets the orgID that the uptane client should enforce for
+// incoming config updates
 func WithOrgIDCheck(orgID int64) ClientOption {
 	return func(c *Client) {
 		c.orgID = orgID

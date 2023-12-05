@@ -54,8 +54,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{remoteConfigCmd}
 }
 
-//nolint:revive // TODO(RC) Fix revive linter
-func state(cliParams *cliParams, config config.Component) error {
+func state(_ *cliParams, config config.Component) error {
 	if !pkgconfig.IsRemoteConfigEnabled(config) {
 		return fmt.Errorf("Remote configuration is not enabled")
 	}
@@ -66,9 +65,9 @@ func state(cliParams *cliParams, config config.Component) error {
 	if err != nil {
 		return fmt.Errorf("Couldn't get auth token: %v", err)
 	}
-	//nolint:revive // TODO(RC) Fix revive linter
-	ctx, close := context.WithCancel(context.Background())
-	defer close()
+
+	ctx, closeFn := context.WithCancel(context.Background())
+	defer closeFn()
 	md := metadata.MD{
 		"authorization": []string{fmt.Sprintf("Bearer %s", token)},
 	}

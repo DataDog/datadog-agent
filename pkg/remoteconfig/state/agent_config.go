@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//nolint:revive // TODO(RC) Fix revive linter
 package state
 
 import (
