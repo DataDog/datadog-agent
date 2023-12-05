@@ -43,6 +43,12 @@ func TestExtractContainerFromAnnotationKey(t *testing.T) {
 			containerName:   "some-container-name",
 			isInitContainer: true,
 		},
+		{
+			name:            "Language annotation for non-init container whose name starts with init",
+			annotationKey:   "internal.dd.datadoghq.com/initializer.detected_langs",
+			containerName:   "initializer",
+			isInitContainer: false,
+		},
 	}
 
 	for _, tt := range tests {
