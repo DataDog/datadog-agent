@@ -11,12 +11,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"go.uber.org/atomic"
 	"google.golang.org/grpc"
 
@@ -70,16 +73,17 @@ var NetworkTracer = module.Factory{
 			startTelemetryReporter(cfg, done)
 		}
 
-		return &networkTracer{tracer: t, done: done}, err
+		return &networkTracer{tracer: t, done: done, maxConnsPerMessage: cfg.MaxConnsPerMessage}, err
 	},
 }
 
 var _ module.Module = &networkTracer{}
 
 type networkTracer struct {
-	tracer       *tracer.Tracer
-	done         chan struct{}
-	restartTimer *time.Timer
+	tracer             *tracer.Tracer
+	done               chan struct{}
+	restartTimer       *time.Timer
+	maxConnsPerMessage int
 }
 
 func (nt *networkTracer) GetStats() map[string]interface{} {
@@ -89,6 +93,62 @@ func (nt *networkTracer) GetStats() map[string]interface{} {
 
 // RegisterGRPC register system probe grpc server
 func (nt *networkTracer) RegisterGRPC(_ grpc.ServiceRegistrar) error {
+	return nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func (nt *networkTracer) StreamConnections(runCounter *atomic.Uint64, reqID, contentType string, c *websocket.Conn) error {
+	start := time.Now()
+	cs, err := nt.tracer.GetActiveConnections(reqID)
+	if err != nil {
+		return fmt.Errorf("unable to get connections: %s", err)
+	}
+	defer network.Reclaim(cs)
+
+	marshaler := encoding.GetMarshaler(contentType)
+	connectionsModeler := encoding.NewConnectionsModeler(cs)
+	connectionsModeler.SetBatchCount(int(math.Ceil(float64(len(cs.Conns)) / float64(nt.maxConnsPerMessage))))
+	if nt.restartTimer != nil {
+		nt.restartTimer.Reset(inactivityRestartDuration)
+	}
+	logRequests(reqID, "/ws-connections", runCounter.Inc(), len(cs.Conns), start)
+	log.Debugf("[grpc] the total number of connections we see is %d", len(cs.Conns))
+
+	if err := c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("%d", len(cs.Conns)))); err != nil {
+		log.Error(err)
+	}
+
+	// As long as there are connections, we divide them into batches and subsequently send all the batches
+	// via a gRPC stream to the process agent. The size of each batch is determined by the value of maxConnsPerMessage.
+	for len(cs.Conns) > 0 {
+		finalBatchSize := min(nt.maxConnsPerMessage, len(cs.Conns))
+
+		rest := cs.Conns[finalBatchSize:]
+		cs.Conns = cs.Conns[:finalBatchSize]
+
+		w, err := c.NextWriter(websocket.BinaryMessage)
+		if err != nil {
+			return fmt.Errorf("unable to create WS writer due to: %s", err)
+		}
+
+		if err := marshaler.Marshal(cs, w, connectionsModeler); err != nil {
+			_ = w.Close()
+			return fmt.Errorf("unable to marshal payload due to: %s", err)
+		}
+
+		cs.Conns = rest
+		_ = w.Close()
+	}
+
+	if err := c.WriteMessage(websocket.BinaryMessage, nil); err != nil {
+		log.Error(err)
+	}
 	return nil
 }
 
@@ -113,7 +173,27 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			nt.restartTimer.Reset(inactivityRestartDuration)
 		}
 		count := runCounter.Inc()
-		logRequests(id, count, len(cs.Conns), start)
+		logRequests(id, "/connections", count, len(cs.Conns), start)
+	}))
+
+	upgrader := websocket.Upgrader{
+		WriteBufferPool:   &sync.Pool{},
+		EnableCompression: true,
+	}
+	httpMux.HandleFunc("/ws-connections", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
+		c, err := upgrader.Upgrade(w, req, nil)
+		if err != nil {
+			log.Errorf("unable to upgrade connection to WS: %s", err)
+			w.WriteHeader(500)
+			return
+		}
+		defer c.Close()
+
+		if err := nt.StreamConnections(runCounter, getClientID(req), req.Header.Get("Accept"), c); err != nil {
+			log.Errorf("unable to stream connections: %s", err)
+			w.WriteHeader(500)
+			return
+		}
 	}))
 
 	httpMux.HandleFunc("/register", utils.WithConcurrencyLimit(utils.DefaultMaxConcurrentRequests, func(w http.ResponseWriter, req *http.Request) {
@@ -274,9 +354,9 @@ func (nt *networkTracer) Close() {
 	nt.tracer.Stop()
 }
 
-func logRequests(client string, count uint64, connectionsCount int, start time.Time) {
-	args := []interface{}{client, count, connectionsCount, time.Since(start)}
-	msg := "Got request on /connections?client_id=%s (count: %d): retrieved %d connections in %s"
+func logRequests(client, endpoint string, count uint64, connectionsCount int, start time.Time) {
+	args := []interface{}{endpoint, client, count, connectionsCount, time.Since(start)}
+	msg := "Got request on %s?client_id=%s (count: %d): retrieved %d connections in %s"
 	switch {
 	case count <= 5, count%20 == 0:
 		log.Infof(msg, args...)

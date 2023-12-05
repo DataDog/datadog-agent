@@ -25,7 +25,7 @@ func (protoSerializer) Marshal(conns *network.Connections, writer io.Writer, con
 }
 
 func (protoSerializer) Unmarshal(blob []byte) (*model.Connections, error) {
-	conns := new(model.Connections)
+	conns := connsPool.Get().(*model.Connections)
 	if err := proto.Unmarshal(blob, conns); err != nil {
 		return nil, err
 	}

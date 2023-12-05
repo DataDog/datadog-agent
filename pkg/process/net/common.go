@@ -19,6 +19,7 @@ import (
 	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/gorilla/websocket"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -282,4 +283,16 @@ func (r *RemoteSysProbeUtil) init() error {
 		return fmt.Errorf("remote tracer status check failed: socket %s, url: %s, status code: %d", r.path, statsURL, resp.StatusCode)
 	}
 	return nil
+}
+
+// GetSystemProbeWSDialer returns ws dialer.
+func GetSystemProbeWSDialer(path string) *websocket.Dialer {
+	return &websocket.Dialer{
+		NetDialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+			return net.Dial(netType, path)
+		},
+		Proxy:             http.ProxyFromEnvironment,
+		HandshakeTimeout:  time.Second,
+		EnableCompression: true,
+	}
 }

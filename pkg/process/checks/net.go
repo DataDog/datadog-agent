@@ -8,16 +8,22 @@ package checks
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
 	"sort"
+	"strconv"
 	"time"
 
-	model "github.com/DataDog/agent-payload/v5/process"
+	"github.com/cihub/seelog"
 
+	model "github.com/DataDog/agent-payload/v5/process"
 	sysconfig "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
+	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
 	"github.com/DataDog/datadog-agent/pkg/process/metadata/parser"
 	"github.com/DataDog/datadog-agent/pkg/process/net"
 	"github.com/DataDog/datadog-agent/pkg/process/net/resolver"
@@ -134,18 +140,31 @@ func (c *ConnectionsCheck) ShouldSaveLastRun() bool { return false }
 func (c *ConnectionsCheck) Run(nextGroupID func() int32, _ *RunOptions) (RunResult, error) {
 	start := time.Now()
 
-	conns, err := c.getConnections()
-	if err != nil {
-		// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
-		if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
-			return nil, nil
+	var err error
+	var conns *model.Connections
+	// Pulling all connections
+	if c.syscfg.GRPCServerEnabled {
+		conns, err = c.getConnectionsWS()
+		if err != nil {
+			// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
+			if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
+				return nil, nil
+			}
+			return nil, err
 		}
-		return nil, err
+	} else {
+		conns, err = c.getConnections()
+		if err != nil {
+			// If the tracer is not initialized, or still not initialized, then we want to exit without error'ing
+			if err == ebpf.ErrNotImplemented || err == ErrTracerStillNotInitialized {
+				return nil, nil
+			}
+			return nil, err
+		}
 	}
 
 	// Filter out (in-place) connection data associated with docker-proxy
-	err = c.processData.Fetch()
-	if err != nil {
+	if err := c.processData.Fetch(); err != nil {
 		log.Warnf("error collecting processes for filter and extraction: %s", err)
 	} else {
 		c.dockerFilter.Filter(conns)
@@ -174,6 +193,113 @@ func (c *ConnectionsCheck) getConnections() (*model.Connections, error) {
 		return nil, ErrTracerStillNotInitialized
 	}
 	return tu.GetConnections(c.tracerClientID)
+}
+
+type MyBuffer struct {
+	buf []byte
+}
+
+func NewMyBuffer() *MyBuffer {
+	return &MyBuffer{buf: make([]byte, 0, 512)}
+}
+
+// ReadAll based of io.ReadAll, but sharing the buffer between calls to gain memory improvement.
+func (mb *MyBuffer) ReadAll(r io.Reader) error {
+	for {
+		if len(mb.buf) == cap(mb.buf) {
+			// Add more capacity (let append pick how much).
+			mb.buf = append(mb.buf, 0)[:len(mb.buf)]
+		}
+		n, err := r.Read(mb.buf[len(mb.buf):cap(mb.buf)])
+		mb.buf = mb.buf[:len(mb.buf)+n]
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			return err
+		}
+	}
+}
+
+func (mb *MyBuffer) Reset() {
+	mb.buf = mb.buf[:0]
+}
+
+func (c *ConnectionsCheck) getConnectionsWS() (*model.Connections, error) {
+	urrl := fmt.Sprintf("ws://unix/%s/ws-connections?client_id=%s", string(sysconfig.NetworkTracerModule), c.tracerClientID)
+	header := http.Header{}
+	header.Set("Accept", "application/protobuf")
+	conn, _, err := net.GetSystemProbeWSDialer(c.syscfg.SocketAddress).Dial(urrl, header)
+	if err != nil {
+		// handle error
+		return nil, err
+	}
+	defer conn.Close()
+
+	unmarshaler := netEncoding.GetUnmarshaler(netEncoding.ContentTypeProtobuf)
+
+	_, res, err := conn.ReadMessage()
+	if err != nil {
+		return nil, fmt.Errorf("unable to get response from grpc server due to: %v", err)
+	}
+
+	csLen, err := strconv.Atoi(string(res))
+	if err != nil {
+		return nil, fmt.Errorf("unable to convert first message to connections count: %v", err)
+	}
+
+	outcome := new(model.Connections)
+	outcome.Conns = make([]*model.Connection, 0, csLen)
+	log.Debugf("[grpc] the size of all of the connection is: %d", csLen)
+
+	mb := NewMyBuffer()
+
+	for {
+		currentStreamStartTime := time.Now()
+		_, r, err := conn.NextReader()
+		if err != nil {
+			return nil, fmt.Errorf("unable to get reader for next message: %v", err)
+		}
+		if err := mb.ReadAll(r); err != nil {
+			return nil, fmt.Errorf("unable to read message: %v", err)
+		}
+
+		// We send in the tracer an empty message.
+		if len(mb.buf) == 0 {
+			break
+		}
+
+		batch, err := unmarshaler.Unmarshal(mb.buf)
+		if err != nil {
+			return nil, fmt.Errorf("unable to unmarshal response due to: %v", err)
+		}
+		if log.ShouldLog(seelog.DebugLvl) {
+			log.Debugf("[grpc] received %d connections in a batch (%v)", len(batch.Conns), time.Since(currentStreamStartTime))
+		}
+
+		if len(batch.Conns) > 0 {
+			outcome.Conns = append(outcome.Conns, batch.Conns...)
+		}
+
+		if batch.AgentConfiguration != nil {
+			log.Debugf("[grpc] got unique batch")
+			// All other fields are being sent in a single (last) chunk, so we have to just copy them.
+			outcome.Dns = batch.Dns
+			outcome.ConnTelemetry = batch.ConnTelemetry
+			outcome.Domains = batch.Domains
+			outcome.Routes = batch.Routes
+			outcome.CompilationTelemetryByAsset = batch.CompilationTelemetryByAsset
+			outcome.AgentConfiguration = batch.AgentConfiguration
+			outcome.Tags = batch.Tags
+			outcome.ConnTelemetryMap = batch.ConnTelemetryMap
+			outcome.KernelHeaderFetchResult = batch.KernelHeaderFetchResult
+			outcome.CORETelemetryByAsset = batch.CORETelemetryByAsset
+			outcome.PrebuiltEBPFAssets = batch.PrebuiltEBPFAssets
+		}
+		netEncoding.ConnsToPool(batch)
+		mb.Reset()
+	}
+	return outcome, nil
 }
 
 func (c *ConnectionsCheck) notifyProcessConnRates(config config.Reader, conns *model.Connections) {
