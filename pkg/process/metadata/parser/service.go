@@ -64,7 +64,7 @@ type WindowsServiceInfo struct {
 func NewServiceExtractor(sysProbeConfig ddconfig.Reader) *ServiceExtractor {
 	var (
 		enabled               = sysProbeConfig.GetBool("system_probe_config.process_service_inference.enabled")
-		useWindowsServiceName = sysProbeConfig.GetBool("service_monitoring_config.process_service_inference.use_windows_service_name")
+		useWindowsServiceName = sysProbeConfig.GetBool("system_probe_config.process_service_inference.use_windows_service_name")
 	)
 	return &ServiceExtractor{
 		enabled:               enabled,

@@ -88,7 +88,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 	t.Run("disabled", func(t *testing.T) {
 		cfg := ddconfig.MockSystemProbe(t)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
-		cfg.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", false)
+		cfg.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", false)
 
 		se, mockSCM := makeServiceExtractor(t, cfg)
 
@@ -99,7 +99,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 
 	t.Run("enabled", func(t *testing.T) {
 		cfg := ddconfig.MockSystemProbe(t)
-		cfg.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+		cfg.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", true)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 
 		se, mockSCM := makeServiceExtractor(t, cfg)
@@ -113,7 +113,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 
 	t.Run("enabled, multiple results", func(t *testing.T) {
 		cfg := ddconfig.MockSystemProbe(t)
-		cfg.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+		cfg.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", true)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 
 		se, mockSCM := makeServiceExtractor(t, cfg)
@@ -127,7 +127,7 @@ func TestWindowsExtractServiceWithSCMReader(t *testing.T) {
 
 	t.Run("fallback_to_parsing", func(t *testing.T) {
 		cfg := ddconfig.MockSystemProbe(t)
-		cfg.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", true)
+		cfg.SetWithoutSource("system_probe_config.process_service_inference.use_windows_service_name", true)
 		cfg.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 
 		se, mockSCM := makeServiceExtractor(t, cfg)
