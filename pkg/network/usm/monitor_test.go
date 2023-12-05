@@ -888,7 +888,6 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 				}
 				if telemetry.Response_seen != tt.expectedTelemetry.Response_seen {
 					return false
-
 				}
 				if telemetry.Path_exceeds_frame != tt.expectedTelemetry.Path_exceeds_frame {
 					return false
@@ -899,7 +898,7 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 				if telemetry.Exceeding_max_frames_to_filter != tt.expectedTelemetry.Exceeding_max_frames_to_filter {
 					return false
 				}
-				if expectedEOSOrRST < telemetry.End_of_stream+telemetry.End_of_stream_rst {
+				if telemetry.End_of_stream+telemetry.End_of_stream_rst < expectedEOSOrRST {
 					return false
 				}
 				return reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
