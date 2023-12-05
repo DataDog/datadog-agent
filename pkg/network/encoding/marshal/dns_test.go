@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package encoding
+package marshal
 
 import (
 	"bytes"
@@ -11,13 +11,14 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/gogo/protobuf/proto"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 )
@@ -60,7 +61,7 @@ func TestFormatConnectionDNS(t *testing.T) {
 		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
 		config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", false)
 
-		ipc := make(ipCache)
+		ipc := make(marshal.ipCache)
 		formatter := newDNSFormatter(payload, ipc)
 		in := payload.Conns[0]
 
@@ -90,7 +91,7 @@ func TestFormatConnectionDNS(t *testing.T) {
 		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
 		config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", true)
 
-		ipc := make(ipCache)
+		ipc := make(marshal.ipCache)
 		formatter := newDNSFormatter(payload, ipc)
 		in := payload.Conns[0]
 
@@ -167,7 +168,7 @@ func TestDNSPIDCollision(t *testing.T) {
 	config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
 	config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", false)
 
-	ipc := make(ipCache)
+	ipc := make(marshal.ipCache)
 	formatter := newDNSFormatter(payload, ipc)
 
 	streamer := NewProtoTestStreamer[*model.Connection]()

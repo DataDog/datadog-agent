@@ -11,6 +11,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -22,7 +23,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
+	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"
@@ -45,8 +46,9 @@ const (
 )
 
 var (
-	globalUtil     *RemoteSysProbeUtil
-	globalUtilOnce sync.Once
+	globalUtil        *RemoteSysProbeUtil
+	globalUtilOnce    sync.Once
+	ErrNotImplemented = errors.New("system-probe unsupported")
 )
 
 var _ SysProbeUtil = &RemoteSysProbeUtil{}

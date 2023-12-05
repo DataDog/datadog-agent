@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package encoding
+package marshal
 
 import (
 	"fmt"
@@ -364,7 +364,7 @@ func (s *KafkaSuite) TestKafkaSerializationWithLocalhostTraffic() {
 				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
 				DataStreamsAggregations: kafkaOutBlob,
 				RouteIdx:                -1,
-				Protocol:                formatProtocolStack(protocols.Stack{}, 0),
+				Protocol:                encoding.formatProtocolStack(protocols.Stack{}, 0),
 				Pid:                     1,
 			},
 			{
@@ -372,7 +372,7 @@ func (s *KafkaSuite) TestKafkaSerializationWithLocalhostTraffic() {
 				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
 				DataStreamsAggregations: kafkaOutBlob,
 				RouteIdx:                -1,
-				Protocol:                formatProtocolStack(protocols.Stack{}, 0),
+				Protocol:                encoding.formatProtocolStack(protocols.Stack{}, 0),
 				Pid:                     2,
 			},
 		},
@@ -382,7 +382,7 @@ func (s *KafkaSuite) TestKafkaSerializationWithLocalhostTraffic() {
 		},
 	}
 
-	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
+	blobWriter := encoding.getBlobWriter(t, assert.New(t), in, "application/protobuf")
 
 	unmarshaler := GetUnmarshaler("application/protobuf")
 	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())

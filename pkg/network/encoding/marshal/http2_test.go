@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package encoding
+package marshal
 
 import (
 	"runtime"
@@ -14,10 +14,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/stretchr/testify/suite"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/suite"
 )
 
 type HTTP2Suite struct {
@@ -135,8 +136,8 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	http2ReqStats := http.NewRequestStats(aggregateByStatusCode)
 
 	http2ReqStats.AddRequest(100, 12.5, 0, nil)
-	http2ReqStats.AddRequest(100, 12.5, tagGnuTLS, nil)
-	http2ReqStats.AddRequest(405, 3.5, tagOpenSSL, nil)
+	http2ReqStats.AddRequest(100, 12.5, encoding.tagGnuTLS, nil)
+	http2ReqStats.AddRequest(405, 3.5, encoding.tagOpenSSL, nil)
 	http2ReqStats.AddRequest(405, 3.5, 0, nil)
 
 	// Verify the latency data is correct prior to serialization
@@ -183,7 +184,7 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
 	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
 
-	assert.Equal(t, tagGnuTLS|tagOpenSSL, tags)
+	assert.Equal(t, encoding.tagGnuTLS|encoding.tagOpenSSL, tags)
 
 	// Deserialize the encoded latency information & confirm it is correct
 	statsByResponseStatus := endpointAggregations[0].StatsByStatusCode

@@ -5,15 +5,16 @@
 
 //go:build windows
 
-package encoding
+package marshal
 
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestUSMLookup(t *testing.T) {

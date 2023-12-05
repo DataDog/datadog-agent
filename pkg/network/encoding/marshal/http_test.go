@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package encoding
+package marshal
 
 import (
 	"fmt"
@@ -127,8 +127,8 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	httpReqStats := http.NewRequestStats(aggregateByStatusCode)
 
 	httpReqStats.AddRequest(100, 12.5, 0, nil)
-	httpReqStats.AddRequest(100, 12.5, tagGnuTLS, nil)
-	httpReqStats.AddRequest(405, 3.5, tagOpenSSL, nil)
+	httpReqStats.AddRequest(100, 12.5, encoding.tagGnuTLS, nil)
+	httpReqStats.AddRequest(405, 3.5, encoding.tagOpenSSL, nil)
 	httpReqStats.AddRequest(405, 3.5, 0, nil)
 
 	// Verify the latency data is correct prior to serialization
@@ -175,7 +175,7 @@ func testFormatHTTPStatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
 	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
 
-	assert.Equal(t, tagGnuTLS|tagOpenSSL, tags)
+	assert.Equal(t, encoding.tagGnuTLS|encoding.tagOpenSSL, tags)
 
 	// Deserialize the encoded latency information & confirm it is correct
 	statsByResponseStatus := endpointAggregations[0].StatsByStatusCode

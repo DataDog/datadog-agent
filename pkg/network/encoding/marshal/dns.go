@@ -4,7 +4,7 @@
 // Copyright 2016-present Datadog, Inc.
 
 //nolint:revive // TODO(NET) Fix revive linter
-package encoding
+package marshal
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"

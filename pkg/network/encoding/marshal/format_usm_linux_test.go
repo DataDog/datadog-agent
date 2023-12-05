@@ -5,7 +5,7 @@
 
 //go:build linux
 
-package encoding
+package marshal
 
 import (
 	"testing"
@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 )
@@ -69,7 +70,7 @@ func TestFormatTLSProtocols(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, formatProtocolStack(tt.protocol, tt.staticTags), "formatProtocol(%v)", tt.protocol)
+			assert.Equalf(t, tt.want, FormatProtocolStack(tt.protocol, tt.staticTags), "formatProtocol(%v)", tt.protocol)
 		})
 	}
 }
