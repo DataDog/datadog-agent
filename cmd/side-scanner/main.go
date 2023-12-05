@@ -1223,7 +1223,6 @@ func (s *sideScanner) start(ctx context.Context) {
 	}
 	close(s.resultsCh)
 	<-done // waiting for done in range resultsCh goroutine
-	close(s.configsCh)
 }
 
 func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error) {
