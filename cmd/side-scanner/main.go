@@ -1,3 +1,4 @@
+// Package main implements the side-scanner command.
 package main
 
 import (
