@@ -1139,10 +1139,8 @@ type sideScanner struct {
 	allowedScanTypes []string
 	limits           *awsLimits
 
-	scansCh           chan *scanTask
-	scansInProgress   map[interface{}]struct{}
-	scansInProgressMu sync.RWMutex
-	resultsCh         chan scanResult
+	scansCh   chan *scanTask
+	resultsCh chan scanResult
 }
 
 func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epforwarder.EventPlatformForwarder, findingsReporter *LogReporter, limits *awsLimits, poolSize int, allowedScanTypes []string) *sideScanner {
@@ -1155,9 +1153,8 @@ func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epf
 		allowedScanTypes: allowedScanTypes,
 		limits:           limits,
 
-		scansCh:         make(chan *scanTask),
-		scansInProgress: make(map[interface{}]struct{}),
-		resultsCh:       make(chan scanResult),
+		scansCh:   make(chan *scanTask),
+		resultsCh: make(chan scanResult),
 	}
 }
 
@@ -1175,7 +1172,22 @@ func (s *sideScanner) start(ctx context.Context) {
 	s.rcClient.Subscribe(state.ProductCSMSideScanning, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
-			s.pushOrSkipScan(ctx, rawConfig)
+			log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
+			config, err := unmarshalConfig(rawConfig.Config)
+			if err != nil {
+				log.Errorf("could not parse side-scanner task: %v", err)
+				return
+			}
+			for _, scan := range config.Tasks {
+				if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
+					continue
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case s.scansCh <- scan:
+				}
+			}
 		}
 	})
 
@@ -1222,16 +1234,10 @@ func (s *sideScanner) start(ctx context.Context) {
 					done <- struct{}{}
 					return
 				case scan := <-s.scansCh:
-					s.scansInProgressMu.Lock()
-					s.scansInProgress[scan] = struct{}{}
-					s.scansInProgressMu.Unlock()
 					ctx := withAWSLimits(ctx, s.limits)
 					if err := launchScan(ctx, scan, s.resultsCh); err != nil {
 						log.Errorf("error scanning task %s: %s", scan, err)
 					}
-					s.scansInProgressMu.Lock()
-					delete(s.scansInProgress, scan)
-					s.scansInProgressMu.Unlock()
 				}
 			}
 		}()
@@ -1241,32 +1247,6 @@ func (s *sideScanner) start(ctx context.Context) {
 	}
 	close(s.resultsCh)
 	<-ctx.Done()
-}
-
-func (s *sideScanner) pushOrSkipScan(ctx context.Context, rawConfig state.RawConfig) {
-	log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
-	config, err := unmarshalConfig(rawConfig.Config)
-	if err != nil {
-		log.Errorf("could not parse side-scanner task: %v", err)
-		return
-	}
-	for _, scan := range config.Tasks {
-		if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
-			continue
-		}
-		s.scansInProgressMu.RLock()
-		if _, ok := s.scansInProgress[scan]; ok {
-			log.Debugf("scan in progress %s; skipping", scan)
-			s.scansInProgressMu.RUnlock()
-		} else {
-			s.scansInProgressMu.RUnlock()
-			select {
-			case <-ctx.Done():
-				return
-			case s.scansCh <- scan:
-			}
-		}
-	}
 }
 
 func launchScan(ctx context.Context, scan *scanTask, resultsCh chan scanResult) (err error) {
