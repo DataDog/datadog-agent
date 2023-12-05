@@ -4149,7 +4149,7 @@ api_key:
   ##
   ## Example:
   ## - conditions:
-  ##     command_line_regex: command_line_regex: "exampleService"
+  ##     command_line_regex: executable_name.exe
   ##   configuration:
   ##     service_language: dotnet
   ##     dd_env: staging
