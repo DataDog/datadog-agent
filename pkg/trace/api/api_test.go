@@ -13,8 +13,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1053,4 +1055,49 @@ func msgpTraces(t *testing.T, traces pb.Traces) []byte {
 		t.Fatal(err)
 	}
 	return bts
+}
+
+func TestCaptureReq(t *testing.T) {
+	conf := newTestReceiverConfig()
+	conf.Capture.Enabled = true
+	tdir := t.TempDir()
+	conf.Capture.Path = tdir
+	r := newTestReceiverFromConfig(conf)
+
+	body := bytes.NewBufferString("request body!")
+	req, err := http.NewRequest("Post", "url", body)
+	require.NoError(t, err)
+	req.Header.Set(header.Lang, "lang")
+	err = r.captureReq("testVersion", req)
+	require.NoError(t, err)
+
+	// check that the files were created
+	files, err := os.ReadDir(tdir)
+	require.NoError(t, err)
+	headers, trace := false, false
+	for _, f := range files {
+		if !headers && strings.HasSuffix(f.Name(), ".headers") {
+			headers = true
+			b, err := os.ReadFile(filepath.Join(tdir, f.Name()))
+			require.NoError(t, err)
+			assert.Equal(t, "map[Datadog-Meta-Lang:[lang]]\n", string(b))
+		}
+		if !trace && strings.HasSuffix(f.Name(), ".trace") {
+			trace = true
+			b, err := os.ReadFile(filepath.Join(tdir, f.Name()))
+			require.NoError(t, err)
+			assert.Equal(t, "request body!", string(b))
+		}
+		if headers && trace {
+			break
+		}
+	}
+	assert.True(t, headers)
+	assert.True(t, trace)
+
+	// check that the request is still usable
+	b, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "request body!", string(b))
+	assert.Equal(t, "lang", req.Header.Get(header.Lang))
 }
