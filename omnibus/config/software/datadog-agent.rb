@@ -21,7 +21,7 @@ relative_path 'src/github.com/DataDog/datadog-agent'
 build do
   license :project_license
 
-  standalone_agents = ["trace-agent"]
+  bundled_agents = ["process-agent", "security-agent", "system-probe"]
 
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
@@ -76,8 +76,8 @@ build do
     command "inv -e rtloader.clean"
     command "inv -e rtloader.make --python-runtimes #{py_runtimes_arg} --install-prefix \"#{install_dir}/embedded\" --cmake-options '-DCMAKE_CXX_FLAGS:=\"-D_GLIBCXX_USE_CXX11_ABI=0 -I#{install_dir}/embedded/include\" -DCMAKE_C_FLAGS:=\"-I#{install_dir}/embedded/include\" -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_FIND_FRAMEWORK:STRING=NEVER'", :env => env
     command "inv -e rtloader.install"
-    excludes = standalone_agents.map { |k| "--exclude #{k}" }.join(" ")
-    command "inv -e allinone.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{excludes}", env: env
+    bundle_arg = bundled_agents.map { |k| "--bundle #{k}" }.join(" ")
+    command "inv -e agent.build --exclude-rtloader --python-runtimes #{py_runtimes_arg} --major-version #{major_version_arg} --rebuild --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --python-home-2=#{install_dir}/embedded --python-home-3=#{install_dir}/embedded --flavor #{flavor_arg} #{bundle_arg}", env: env
   end
 
   if osx_target?
@@ -101,7 +101,6 @@ build do
 
   unless windows_target?
     copy 'bin/agent', "#{install_dir}/bin/"
-    copy 'bin/allinone/allinone', "#{install_dir}/bin/agent/agent"
   else
     copy 'bin/agent/ddtray.exe', "#{install_dir}/bin/agent"
     copy 'bin/agent/agent.exe', "#{install_dir}/bin/agent"
@@ -109,7 +108,7 @@ build do
     mkdir Omnibus::Config.package_dir() unless Dir.exists?(Omnibus::Config.package_dir())
   end
 
-  if windows_target? or standalone_agents.include? "trace-agent"
+  if windows_target? or (not bundled_agents.include? "trace-agent")
     # defer compilation step in a block to allow getting the project's build version, which is populated
     # only once the software that the project takes its version from (i.e. `datadog-agent`) has finished building
     platform = windows_arch_i386? ? "x86" : "x64"
@@ -132,7 +131,7 @@ build do
 
     copy 'bin/process-agent/process-agent.exe', "#{install_dir}/bin/agent"
   else
-    if standalone_agents.include? "process-agent"
+    if not bundled_agents.include? "process-agent"
       command "invoke -e process-agent.build --python-runtimes #{py_runtimes_arg} --install-path=#{install_dir} --major-version #{major_version_arg} --flavor #{flavor_arg}", :env => env
       copy 'bin/process-agent/process-agent', "#{install_dir}/embedded/bin"
     else
@@ -150,7 +149,7 @@ build do
       end
     end
   elsif linux_target?
-    if standalone_agents.include? "system-probe"
+    if not bundled_agents.include? "system-probe"
       command "invoke -e system-probe.build-sysprobe-binary --install-path=#{install_dir}"
       copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
     else
@@ -167,8 +166,8 @@ build do
   # Security agent
   unless heroku_target?
     if not windows_target? or (ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?)
-      if not linux_target? or standalone_agents.include? "security-agent"
-        command "invoke -e security-agent.build  --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
+      if not linux_target? or (not bundled_agents.include? "security-agent")
+        command "invoke -e security-agent.build --install-path=#{install_dir} --major-version #{major_version_arg}", :env => env
         if windows_target?
           copy 'bin/security-agent/security-agent.exe', "#{install_dir}/bin/agent"
         else

@@ -5,16 +5,44 @@
 
 //go:build !windows
 
+// Main package for the agent binary
 package main
 
 import (
+	"fmt"
 	"os"
+	"path"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands"
 	"github.com/DataDog/datadog-agent/cmd/internal/runcmd"
+	"github.com/spf13/cobra"
 )
 
+func init() {
+	registerAgent(func() *cobra.Command {
+		return command.MakeCommand(subcommands.AgentSubcommands())
+	}, "agent", "datadog-agent")
+}
+
+var agents = map[string]func() *cobra.Command{}
+
+func registerAgent(getCommand func() *cobra.Command, names ...string) {
+	for _, name := range names {
+		agents[name] = getCommand
+	}
+}
+
 func main() {
-	os.Exit(runcmd.Run(command.MakeCommand(subcommands.AgentSubcommands())))
+	executable := path.Base(os.Args[0])
+	process := strings.TrimSuffix(executable, path.Ext(executable))
+
+	if agentCmdBuilder := agents[process]; agentCmdBuilder != nil {
+		rootCmd := agentCmdBuilder()
+		os.Exit(runcmd.Run(rootCmd))
+	}
+
+	fmt.Fprintf(os.Stderr, "'%s' is an incorrect invocation of the Datadog Agent\n", process)
+	os.Exit(1)
 }

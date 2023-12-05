@@ -5,6 +5,7 @@
 
 //go:build windows
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 package main
 
 import (

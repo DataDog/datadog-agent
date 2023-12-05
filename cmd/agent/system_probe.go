@@ -3,9 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && !no_system_probe
+//go:build !windows && bundle_system_probe
 
-// Main package for the allinone binary
+// Main package for the agent binary
 package main
 
 import (

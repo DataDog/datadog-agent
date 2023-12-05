@@ -28,17 +28,22 @@ from .libs.common.utils import (
     load_release_versions,
     timed,
 )
-from .process_agent import build as process_agent_build
 from .rtloader import clean as rtloader_clean
 from .rtloader import install as rtloader_install
 from .rtloader import make as rtloader_make
 from .ssm import get_pfx_pass, get_signing_cert
-from .trace_agent import build as trace_agent_build
 from .windows_resources import build_messagetable, build_rc, versioninfo_vars
 
 # constants
-BIN_PATH = os.path.join(".", "bin", "agent")
+BIN_DIR = os.path.join(".", "bin")
+BIN_PATH = os.path.join(BIN_DIR, "agent")
 AGENT_TAG = "datadog/agent:master"
+
+BUNDLED_AGENTS = {
+    # system-probe requires a working compilation environment for eBPF so we do not
+    # enable it by default but we enable it in the released artifacts.
+    AgentFlavor.base: ["process-agent", "trace-agent", "security-agent"],
+}
 
 AGENT_CORECHECKS = [
     "container",
@@ -95,7 +100,7 @@ CACHED_WHEEL_FULL_PATH_PATTERN = CACHED_WHEEL_DIRECTORY_PATTERN + CACHED_WHEEL_F
 LAST_DIRECTORY_COMMIT_PATTERN = "git -C {integrations_dir} rev-list -1 HEAD {integration}"
 
 
-@task
+@task(iterable=['bundle'])
 def build(
     ctx,
     rebuild=False,
@@ -117,6 +122,7 @@ def build(
     go_mod="mod",
     windows_sysprobe=False,
     cmake_options='',
+    bundle=None,
 ):
     """
     Build the agent. If the bits to include in the build are not specified,
@@ -144,6 +150,7 @@ def build(
         python_runtimes=python_runtimes,
     )
 
+    bundled_agents = ["agent"]
     if sys.platform == 'win32':
         # Important for x-compiling
         env["CGO_ENABLED"] = "1"
@@ -160,34 +167,65 @@ def build(
             vars=vars,
             out="cmd/agent/rsrc.syso",
         )
+    else:
+        bundled_agents += bundle or BUNDLED_AGENTS.get(flavor, [])
 
     if flavor.is_iot():
         # Iot mode overrides whatever passed through `--build-exclude` and `--build-include`
         build_tags = get_default_build_tags(build="agent", arch=arch, flavor=flavor)
     else:
-        build_include = (
-            get_default_build_tags(build="agent", arch=arch, flavor=flavor)
-            if build_include is None
-            else filter_incompatible_tags(build_include.split(","), arch=arch)
-        )
-        build_exclude = [] if build_exclude is None else build_exclude.split(",")
-        build_tags = get_build_tags(build_include, build_exclude)
+        all_tags = set()
+        if development and "system-probe" in bundled_agents:
+            all_tags.add("ebpf_bindata")
+
+        for build in bundled_agents:
+            all_tags.add("bundle_" + build.replace("-", "_"))
+            include_tags = (
+                get_default_build_tags(build=build, arch=arch, flavor=flavor)
+                if build_include is None
+                else filter_incompatible_tags(build_include.split(","), arch=arch)
+            )
+
+            exclude_tags = [] if build_exclude is None else build_exclude.split(",")
+            build_tags = get_build_tags(include_tags, exclude_tags)
+
+            all_tags |= set(build_tags)
+        build_tags = list(all_tags)
 
     cmd = "go build -mod={go_mod} {race_opt} {build_type} -tags \"{go_build_tags}\" "
 
+    agent_bin = os.path.join(BIN_PATH, bin_name("agent"))
     cmd += "-o {agent_bin} -gcflags=\"{gcflags}\" -ldflags=\"{ldflags}\" {REPO_PATH}/cmd/{flavor}"
     args = {
         "go_mod": go_mod,
         "race_opt": "-race" if race else "",
         "build_type": "-a" if rebuild else "",
         "go_build_tags": " ".join(build_tags),
-        "agent_bin": os.path.join(BIN_PATH, bin_name("agent")),
+        "agent_bin": agent_bin,
         "gcflags": gcflags,
         "ldflags": ldflags,
         "REPO_PATH": REPO_PATH,
         "flavor": "iot-agent" if flavor.is_iot() else "agent",
     }
     ctx.run(cmd.format(**args), env=env)
+
+    for build in bundled_agents:
+        if build == "agent":
+            continue
+
+        bundled_agent_dir = os.path.join(BIN_DIR, build)
+        bundled_agent_bin = os.path.join(bundled_agent_dir, bin_name(build))
+        allinone_bin = os.path.relpath(agent_bin, bundled_agent_dir)
+
+        if os.path.exists(bundled_agent_bin):
+            if os.path.islink(bundled_agent_bin) and os.readlink(bundled_agent_bin) == allinone_bin:
+                continue
+            os.unlink(bundled_agent_bin)
+
+        if not os.path.exists(os.path.dirname(bundled_agent_bin)):
+            os.mkdir(os.path.dirname(bundled_agent_bin))
+
+        os.symlink(allinone_bin, bundled_agent_bin)
 
     render_config(
         ctx,
@@ -217,6 +255,8 @@ def render_config(ctx, env, flavor, python_runtimes, skip_assets, build_tags, de
     # On Linux and MacOS, render the system-probe configuration file template
     if sys.platform != 'win32' or windows_sysprobe:
         generate_config(ctx, build_type="system-probe", output_file="./cmd/agent/dist/system-probe.yaml", env=env)
+
+    generate_config(ctx, build_type="security-agent", output_file="./cmd/agent/dist/security-agent.yaml", env=env)
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
@@ -251,6 +291,8 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
     if sys.platform.startswith('linux') or windows_sysprobe:
         shutil.copy("./cmd/agent/dist/system-probe.yaml", os.path.join(dist_folder, "system-probe.yaml"))
     shutil.copy("./cmd/agent/dist/datadog.yaml", os.path.join(dist_folder, "datadog.yaml"))
+
+    shutil.copy("./cmd/agent/dist/security-agent.yaml", os.path.join(dist_folder, "security-agent.yaml"))
 
     for check in AGENT_CORECHECKS if not flavor.is_iot() else IOT_AGENT_CORECHECKS:
         check_dir = os.path.join(dist_folder, f"conf.d/{check}.d/")
@@ -415,9 +457,9 @@ def hacky_dev_image_build(
             f'perl -0777 -pe \'s|{extracted_python_dir}(/opt/datadog-agent/embedded/lib/python\\d+\\.\\d+/../..)|substr $1."\\0"x length$&,0,length$&|e or die "pattern not found"\' -i dev/lib/libdatadog-agent-three.so'
         )
         if process_agent:
-            process_agent_build(ctx)
+            ctx.run("inv process-agent.build")
         if trace_agent:
-            trace_agent_build(ctx)
+            ctx.run("inv trace-agent.build")
 
     copy_extra_agents = ""
     if process_agent:
