@@ -21,6 +21,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
 
+type connTag = uint64
+
+// ConnTag constant must be the same for all platform
+const (
+	tagGnuTLS  connTag = 0x01 // network.ConnTagGnuTLS
+	tagOpenSSL connTag = 0x02 // network.ConnTagOpenSSL
+	tagTLS     connTag = 0x10 // network.ConnTagTLS
+)
+
 type HTTP2Suite struct {
 	suite.Suite
 }
@@ -136,8 +145,8 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	http2ReqStats := http.NewRequestStats(aggregateByStatusCode)
 
 	http2ReqStats.AddRequest(100, 12.5, 0, nil)
-	http2ReqStats.AddRequest(100, 12.5, encoding.tagGnuTLS, nil)
-	http2ReqStats.AddRequest(405, 3.5, encoding.tagOpenSSL, nil)
+	http2ReqStats.AddRequest(100, 12.5, tagGnuTLS, nil)
+	http2ReqStats.AddRequest(405, 3.5, tagOpenSSL, nil)
 	http2ReqStats.AddRequest(405, 3.5, 0, nil)
 
 	// Verify the latency data is correct prior to serialization
@@ -184,7 +193,7 @@ func testFormatHTTP2StatsByPath(t *testing.T, aggregateByStatusCode bool) {
 	assert.Equal(t, "/testpath", endpointAggregations[0].Path)
 	assert.Equal(t, model.HTTPMethod_Get, endpointAggregations[0].Method)
 
-	assert.Equal(t, encoding.tagGnuTLS|encoding.tagOpenSSL, tags)
+	assert.Equal(t, tagGnuTLS|tagOpenSSL, tags)
 
 	// Deserialize the encoded latency information & confirm it is correct
 	statsByResponseStatus := endpointAggregations[0].StatsByStatusCode

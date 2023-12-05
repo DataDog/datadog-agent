@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/kafka"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -941,4 +942,101 @@ func TestUSMPayloadTelemetry(t *testing.T) {
 	payloadTelemetry := result.ConnTelemetryMap
 	assert.Equal(t, int64(10), payloadTelemetry["usm.http.total_hits"])
 	assert.NotContains(t, payloadTelemetry, "foobar")
+}
+
+func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
+	var (
+		clientPort = uint16(52800)
+		serverPort = uint16(8080)
+		localhost  = util.AddressFromString("127.0.0.1")
+	)
+
+	connections := []network.ConnectionStats{
+		{
+			Source: localhost,
+			SPort:  clientPort,
+			Dest:   localhost,
+			DPort:  serverPort,
+			Pid:    1,
+		},
+		{
+			Source: localhost,
+			SPort:  serverPort,
+			Dest:   localhost,
+			DPort:  clientPort,
+			Pid:    2,
+		},
+	}
+
+	const topicName = "TopicName"
+	const apiVersion2 = 1
+	kafkaKey := kafka.NewKey(
+		localhost,
+		localhost,
+		clientPort,
+		serverPort,
+		topicName,
+		kafka.FetchAPIKey,
+		apiVersion2,
+	)
+
+	in := &network.Connections{
+		BufferedData: network.BufferedData{
+			Conns: connections,
+		},
+		Kafka: map[kafka.Key]*kafka.RequestStat{
+			kafkaKey: {
+				Count: 10,
+			},
+		},
+	}
+
+	kafkaOut := &model.DataStreamsAggregations{
+		KafkaAggregations: []*model.KafkaAggregation{
+			{
+				Header: &model.KafkaRequestHeader{
+					RequestType:    kafka.FetchAPIKey,
+					RequestVersion: apiVersion2,
+				},
+				Topic: topicName,
+				Count: 10,
+			},
+		},
+	}
+
+	kafkaOutBlob, err := proto.Marshal(kafkaOut)
+	require.NoError(t, err)
+
+	out := &model.Connections{
+		Conns: []*model.Connection{
+			{
+				Laddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				DataStreamsAggregations: kafkaOutBlob,
+				RouteIdx:                -1,
+				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Pid:                     1,
+			},
+			{
+				Laddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(serverPort)},
+				Raddr:                   &model.Addr{Ip: "127.0.0.1", Port: int32(clientPort)},
+				DataStreamsAggregations: kafkaOutBlob,
+				RouteIdx:                -1,
+				Protocol:                marshal.FormatProtocolStack(protocols.Stack{}, 0),
+				Pid:                     2,
+			},
+		},
+		AgentConfiguration: &model.AgentConfiguration{
+			NpmEnabled: false,
+			UsmEnabled: false,
+		},
+	}
+
+	blobWriter := getBlobWriter(t, assert.New(t), in, "application/protobuf")
+
+	unmarshaler := unmarshal.GetUnmarshaler("application/protobuf")
+	result, err := unmarshaler.Unmarshal(blobWriter.Bytes())
+	require.NoError(t, err)
+
+	require.Equal(t, out, result)
 }

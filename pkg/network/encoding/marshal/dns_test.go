@@ -61,7 +61,7 @@ func TestFormatConnectionDNS(t *testing.T) {
 		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
 		config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", false)
 
-		ipc := make(marshal.ipCache)
+		ipc := make(ipCache)
 		formatter := newDNSFormatter(payload, ipc)
 		in := payload.Conns[0]
 
@@ -91,7 +91,7 @@ func TestFormatConnectionDNS(t *testing.T) {
 		config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
 		config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", true)
 
-		ipc := make(marshal.ipCache)
+		ipc := make(ipCache)
 		formatter := newDNSFormatter(payload, ipc)
 		in := payload.Conns[0]
 
@@ -168,7 +168,7 @@ func TestDNSPIDCollision(t *testing.T) {
 	config.SystemProbe.SetWithoutSource("system_probe_config.collect_dns_domains", true)
 	config.SystemProbe.SetWithoutSource("network_config.enable_dns_by_querytype", false)
 
-	ipc := make(marshal.ipCache)
+	ipc := make(ipCache)
 	formatter := newDNSFormatter(payload, ipc)
 
 	streamer := NewProtoTestStreamer[*model.Connection]()
