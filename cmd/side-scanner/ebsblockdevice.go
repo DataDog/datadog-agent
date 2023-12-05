@@ -321,7 +321,7 @@ func (b *ebsBackend) init() error {
 	}
 }
 
-func (b *ebsBackend) WriteAt(p []byte, off int64) (n int, err error) {
+func (b *ebsBackend) WriteAt(_ []byte, _ int64) (n int, err error) {
 	panic("ebsblockdevice: read-only file system")
 }
 
