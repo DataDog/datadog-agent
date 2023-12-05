@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
+import multiprocessing
 import os
 import random
 import socket
 import sys
-import multiprocessing
 
 # for synchronizing children and parent
 barrier = multiprocessing.Barrier(3)
