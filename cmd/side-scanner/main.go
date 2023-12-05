@@ -780,6 +780,7 @@ func cleanupCmd(region string, dryRun bool) error {
 	return nil
 }
 
+//nolint:unused
 func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) error {
 	defaultCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(snapshotARN.Region))
 	if err != nil {
@@ -1001,7 +1002,7 @@ func nbdMountCmd(snapshotARN arn.ARN) error {
 
 func newScanTask(t string, resourceARN, hostname string, actions []string, roles rolesMapping) (*scanTask, error) {
 	// TODO(jinroh): proper input sanitization here where we validate more
-	// precisly the ARN resource type/id
+	// precisely the ARN resource type/id
 	var scan scanTask
 	var err error
 	scan.ARN, err = parseARN(resourceARN)
@@ -1202,6 +1203,9 @@ func (s *sideScanner) start(ctx context.Context) {
 				}
 				if result.findings != nil {
 					log.Debugf("sending findings for scan %s", result.scan)
+					if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagSuccess(result.scan), 1.0); err != nil {
+						log.Warnf("failed to send metric: %v", err)
+					}
 					s.sendFindings(result.findings)
 				}
 			}
