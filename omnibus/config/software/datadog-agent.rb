@@ -261,6 +261,10 @@ build do
         dest: "#{install_dir}/scripts/datadog-agent-security.service",
         mode: 0644,
         vars: { install_dir: install_dir, etc_dir: etc_dir }
+    erb source: "systemd.side-scanner.service.erb",
+        dest: "#{install_dir}/scripts/datadog-side-scanner.service",
+        mode: 0644,
+        vars: { install_dir: install_dir, etc_dir: etc_dir }
   end
 
   if osx_target?
