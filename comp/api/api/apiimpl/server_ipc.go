@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package api
+package apiimpl
 
 import (
 	"crypto/tls"
@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	configendpoint "github.com/DataDog/datadog-agent/cmd/agent/api/internal/config"
+	configendpoint "github.com/DataDog/datadog-agent/comp/api/api/apiimpl/internal/config"
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
