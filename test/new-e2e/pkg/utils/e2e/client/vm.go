@@ -41,7 +41,7 @@ type VM interface {
 	// if path is a symbolic link, the FileInfo structure describes the symbolic link.
 	Lstat(path string) (fs.FileInfo, error)
 
-	// MkDirAll creates the specified directory along with any necessary parents.
+	// MkdirAll creates the specified directory along with any necessary parents.
 	// If the path is already a directory, does nothing and returns nil.
 	// Otherwise returns an error if any.
 	MkdirAll(path string) error

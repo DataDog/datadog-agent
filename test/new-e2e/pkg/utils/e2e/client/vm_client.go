@@ -130,7 +130,7 @@ func (vmClient *VMClient) Lstat(path string) (fs.FileInfo, error) {
 	return clients.Lstat(vmClient.client, path)
 }
 
-// MkDirAll creates the specified directory along with any necessary parents.
+// MkdirAll creates the specified directory along with any necessary parents.
 // If the path is already a directory, does nothing and returns nil.
 // Otherwise returns an error if any.
 func (vmClient *VMClient) MkdirAll(path string) error {
