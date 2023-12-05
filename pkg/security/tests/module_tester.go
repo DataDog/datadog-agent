@@ -581,7 +581,7 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 			prevPPID = ppid
 		}
 
-		// test that consecutive ancestors have deduplicated args
+		// check that parent/child ancestors have deduplicated args
 		args, ok := pce["args"].([]interface{})
 		if ok && len(args) > 0 {
 			if pid != prevPID && prevArgs != nil {
