@@ -980,14 +980,17 @@ func TestGetPropertyBool(t *testing.T) {
 	}
 }
 
+//nolint:unused // TODO(AI) Fix unused linter
 type mockCollector struct {
 	Checks []check.Info
 }
 
+//nolint:unused // TODO(AI) Fix unused linter
 func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 	fn(m.Checks)
 }
 
+//nolint:unused // TODO(AI) Fix unused linter
 func (m mockCollector) GetChecks() []check.Check {
 	return nil
 }
