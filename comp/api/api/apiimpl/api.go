@@ -60,7 +60,7 @@ func (server *apiServer) StartServer(
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
 ) error {
-	return apiPackage.StartServer(configService,
+	return apiPackage.StartServers(configService,
 		flare,
 		dogstatsdServer,
 		capture,
@@ -79,7 +79,7 @@ func (server *apiServer) StartServer(
 // StopServer closes the connection and the server
 // stops listening to new commands.
 func (server *apiServer) StopServer() {
-	apiPackage.StopServer()
+	apiPackage.StopServers()
 }
 
 // ServerAddress returns the server address.
