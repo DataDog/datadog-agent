@@ -11,7 +11,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -48,9 +47,6 @@ const (
 var (
 	globalUtil     *RemoteSysProbeUtil
 	globalUtilOnce sync.Once
-
-	// ErrNotImplemented is an error used when system-probe is attempted to be accessed on an unsupported OS
-	ErrNotImplemented = errors.New("system-probe unsupported")
 )
 
 var _ SysProbeUtil = &RemoteSysProbeUtil{}
