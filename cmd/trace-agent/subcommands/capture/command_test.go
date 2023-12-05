@@ -9,8 +9,10 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"gotest.tools/assert"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
+	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -21,7 +23,7 @@ func TestCaptureCommand(t *testing.T) {
 		})},
 		[]string{"capture"},
 		capture,
-		func() {
-			// Test no panic
+		func(config config.Component) {
+			assert.Assert(t, config.Object() != nil)
 		})
 }

@@ -860,6 +860,29 @@ func TestClientDropP0s(t *testing.T) {
 	assert.Equal(t, p.ClientDroppedP0s, int64(153))
 }
 
+func TestCaptureTrace(t *testing.T) {
+	c := newTestReceiverConfig()
+	c.DebugServerPort = 5012
+	c.Capture.Enabled = true
+	c.Capture.Path = "./capture_trace"
+	c.Capture.Duration = 10
+
+	s := NewDebugServer(c)
+	s.Start()
+	defer s.Stop()
+
+	resp, err := http.Get("http://127.0.0.1:5012/debug/capture")
+	assert.NoError(t, err)
+
+	assert.EqualValues(t, resp.StatusCode, http.StatusOK)
+	slurp, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.EqualValues(t, string(slurp), "Capture started and will run for 10 seconds. Files will be saved in ./capture_trace.")
+	defer resp.Body.Close()
+}
+
 func BenchmarkHandleTracesFromOneApp(b *testing.B) {
 	assert := assert.New(b)
 	// prepare the payload

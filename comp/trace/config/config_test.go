@@ -628,6 +628,50 @@ func TestDisableLoggingConfig(t *testing.T) {
 	assert.Equal(t, "", cfg.LogFilePath)
 }
 
+func TestCaptureConfig(t *testing.T) {
+
+	t.Run("config", func(t *testing.T) {
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/capture.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+
+		assert.True(t, cfg.Capture.Enabled)
+		assert.Equal(t, "./capture_trace", cfg.Capture.Path)
+		assert.Equal(t, 10, cfg.Capture.Duration)
+	})
+
+	t.Run("fallback", func(t *testing.T) {
+		overrides := map[string]interface{}{
+			"capture.duration": "60", // default is 5 seconds, max is 30 seconds
+		}
+		config := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/capture.yaml"},
+				SetupConfig: true,
+				Overrides:   overrides,
+			}),
+			MockModule,
+		))
+		cfg := config.Object()
+
+		require.NotNil(t, cfg)
+
+		assert.True(t, cfg.Capture.Enabled)
+		assert.Equal(t, "./capture_trace", cfg.Capture.Path)
+		assert.Equal(t, 5, cfg.Capture.Duration) // Fallback to default value 5 seconds
+	})
+
+}
+
 func TestFullYamlConfig(t *testing.T) {
 
 	config := fxutil.Test[Component](t, fx.Options(
