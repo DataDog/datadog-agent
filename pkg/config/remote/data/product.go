@@ -24,9 +24,11 @@ const (
 	// ProductAgentTask is to receive agent task instruction, like a flare
 	ProductAgentTask Product = "AGENT_TASK"
 	// ProductAgentConfig is to receive agent configurations, like the log level
-	ProductAgentConfig = "AGENT_CONFIG"
+	ProductAgentConfig Product = "AGENT_CONFIG"
 	// ProductAgentIntegrations is to receive integrations to schedule
-	ProductAgentIntegrations = "AGENT_INTEGRATIONS"
+	ProductAgentIntegrations Product = "AGENT_INTEGRATIONS"
+	// ProductDebug to be removed
+	ProductDebug Product = "DEBUG"
 )
 
 // ProductListToString converts a product list to string list

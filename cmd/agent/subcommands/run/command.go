@@ -80,6 +80,7 @@ import (
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	"github.com/DataDog/datadog-agent/pkg/integrations"
 	adScheduler "github.com/DataDog/datadog-agent/pkg/logs/schedulers/ad"
 	pkgMetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -499,6 +500,7 @@ func startAgent(
 		} else {
 			// Subscribe to `AGENT_TASK` product
 			rcclient.SubscribeAgentTask()
+			rcclient.Subscribe(data.ProductDebug, integrations.IntegrationsInstallCallback)
 
 			if pkgconfig.Datadog.GetBool("remote_configuration.agent_integrations.enabled") {
 				// Spin up the config provider to schedule integrations through remote-config
