@@ -25,7 +25,7 @@ build do
 
   env["CC"] = "/opt/gcc-#{ENV['GCC_VERSION']}/bin/gcc"
 
-  command "sed -i /EXTRA_test_rules_DEPENDENCIES/d Makefile.am"
+  command "sed -i.bak /EXTRA_test_rules_DEPENDENCIES/d Makefile.am"
   command "./bootstrap.sh "
 
   configure_options = [
