@@ -230,6 +230,7 @@ func (e *ebpfProgram) Close() error {
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
+	ddebpf.UnregisterTelemetry(e.Manager.Manager)
 	return e.Stop(manager.CleanAll)
 }
 

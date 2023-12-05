@@ -113,6 +113,7 @@ func (e *ebpfProgram) GetPerfHandler() *ddebpf.PerfHandler {
 }
 
 func (e *ebpfProgram) Stop() {
+	ddebpf.UnregisterTelemetry(e.Manager.Manager)
 	e.Manager.Stop(manager.CleanAll) //nolint:errcheck
 	e.perfHandler.Stop()
 }

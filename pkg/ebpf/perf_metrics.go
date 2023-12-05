@@ -14,6 +14,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/exp/slices"
 )
 
 var (
@@ -155,4 +156,23 @@ func (p *perfUsageCollector) registerRingBuffer(rb *manager.RingBuffer) {
 	p.mtx.Lock()
 	defer p.mtx.Unlock()
 	p.ringBuffers = append(p.ringBuffers, rb)
+}
+
+// UnregisterTelemetry unregisters the PerfMap and RingBuffers from telemetry
+func UnregisterTelemetry(m *manager.Manager) {
+	if perfCollector == nil {
+		return
+	}
+	perfCollector.unregisterTelemetry(m)
+}
+
+func (p *perfUsageCollector) unregisterTelemetry(m *manager.Manager) {
+	p.mtx.Lock()
+	defer p.mtx.Unlock()
+	p.perfMaps = slices.DeleteFunc(p.perfMaps, func(perfMap *manager.PerfMap) bool {
+		return slices.Contains(m.PerfMaps, perfMap)
+	})
+	p.ringBuffers = slices.DeleteFunc(p.ringBuffers, func(ringBuf *manager.RingBuffer) bool {
+		return slices.Contains(m.RingBuffers, ringBuf)
+	})
 }
