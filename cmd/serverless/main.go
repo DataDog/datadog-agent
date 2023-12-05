@@ -337,6 +337,7 @@ func runAgent() {
 
 	// block here until we receive a stop signal
 	<-stopCh
+	//nolint:gosimple // TODO(SERV) Fix gosimple linter
 	return
 }
 
