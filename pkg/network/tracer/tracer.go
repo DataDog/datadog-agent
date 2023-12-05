@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/DataDog/ebpf-manager/tracefs"
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"go.uber.org/atomic"
@@ -39,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/ebpf-manager/tracefs"
 )
 
 const defaultUDPConnTimeoutNanoSeconds = uint64(time.Duration(120) * time.Second)
@@ -188,7 +188,7 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 			return nil, fmt.Errorf("could not initialize event monitoring: %w", err)
 		}
 
-		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked, defaultFilteredEnvs); err != nil {
+		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
 		coretelemetry.GetCompatComponent().RegisterCollector(tr.processCache)
@@ -326,23 +326,18 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 		log.Tracef("got process cache entry for pid %d: %+v", c.Pid, p)
 	}
 
-	if c.Tags == nil {
-		c.Tags = make(map[string]struct{}, 3)
-	}
-
-	addTag := func(k, v string) {
-		if v == "" {
-			return
+	if len(p.Tags) > 0 {
+		if c.Tags == nil {
+			c.Tags = make(map[string]struct{}, len(p.Tags))
 		}
-		c.Tags[k+":"+v] = struct{}{}
+
+		for _, t := range p.Tags {
+			c.Tags[t.Get().(string)] = struct{}{}
+		}
 	}
 
-	addTag("env", p.Env("DD_ENV"))
-	addTag("version", p.Env("DD_VERSION"))
-	addTag("service", p.Env("DD_SERVICE"))
-
-	containerID := p.ContainerID.Get().(string)
-	if containerID != "" {
+	if p.ContainerID != nil {
+		containerID := p.ContainerID.Get().(string)
 		c.ContainerID = &containerID
 	}
 }
