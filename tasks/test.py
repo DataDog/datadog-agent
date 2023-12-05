@@ -796,7 +796,7 @@ def lint_go(
     logger = print
     if headless_mode:
 
-        def no_print(*args, **kwargs):
+        def no_print(*_, **__):
             pass
 
         logger = no_print
