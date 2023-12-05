@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"io"
 	"net"
+	"sync"
 	"time"
 
 	"go.uber.org/atomic"
