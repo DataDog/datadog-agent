@@ -291,7 +291,7 @@ func scanCommand() *cobra.Command {
 					if err != nil {
 						return err
 					}
-					return scanCmd(*config, cliArgs.SendData)
+					return scanCmd(*config)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
 				fx.Supply(complog.ForDaemon("SIDESCANNER", "log_file", pkgconfig.DefaultSideScannerLogFile)),
@@ -305,7 +305,6 @@ func scanCommand() *cobra.Command {
 	cmd.Flags().StringVar(&cliArgs.ScanType, "scan-type", "", "scan type")
 	cmd.Flags().StringVar(&cliArgs.ARN, "arn", "", "arn to scan")
 	cmd.Flags().StringVar(&cliArgs.Hostname, "hostname", "", "scan hostname")
-	cmd.Flags().BoolVar(&cliArgs.SendData, "send-data", false, "send the scanned payload over the network")
 	cmd.MarkFlagsRequiredTogether("arn", "scan-type", "hostname")
 
 	return cmd
@@ -441,23 +440,17 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
 
-	rcClient, err := remote.NewUnverifiedGRPCClient("sidescanner", version.AgentVersion, nil, 100*time.Millisecond)
-	if err != nil {
-		return fmt.Errorf("could not init Remote Config client: %w", err)
-	}
-
-	findingsReporter, err := newFindingsReporter()
-	if err != nil {
-		return fmt.Errorf("could not init Findings Reporter: %w", err)
-	}
-
-	eventForwarder := epforwarder.NewEventPlatformForwarder()
-
 	const defaultEC2Rate = 20.0
 	const defaultEBSRAte = 50.0
 	limits := newAWSLimits(defaultEC2Rate, defaultEBSRAte)
 
-	scanner := newSideScanner(hostname, rcClient, eventForwarder, findingsReporter, limits, poolSize, allowedScanTypes)
+	scanner, err := newSideScanner(hostname, limits, poolSize, allowedScanTypes)
+	if err != nil {
+		return fmt.Errorf("could not initialize side-scanner: %w", err)
+	}
+	if err := scanner.acceptRemoteConfig(ctx); err != nil {
+		return fmt.Errorf("could not accept configs from Remote Config: %w", err)
+	}
 	scanner.start(ctx)
 	return nil
 }
@@ -483,56 +476,27 @@ func getDefaultRolesMapping() rolesMapping {
 	return parseRolesMapping(roles)
 }
 
-func scanCmd(config scanConfig, sendData bool) error {
+func scanCmd(config scanConfig) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
-
-	var eventForwarder epforwarder.EventPlatformForwarder
-	var findingsReporter *LogReporter
-	if sendData {
-		eventForwarder = epforwarder.NewEventPlatformForwarder()
-		eventForwarder.Start()
-		defer eventForwarder.Stop()
-
-		var err error
-		findingsReporter, err = newFindingsReporter()
-		if err != nil {
-			return err
-		}
-		defer findingsReporter.Stop()
+	hostname, err := utils.GetHostnameWithContext(ctx)
+	if err != nil {
+		return fmt.Errorf("could not fetch hostname: %w", err)
 	}
-
-	resultsCh := make(chan scanResult)
+	var limits *awsLimits // TODO
+	sidescanner, err := newSideScanner(hostname, limits, 1, nil)
+	if err != nil {
+		return fmt.Errorf("could not initialize side-scanner: %w", err)
+	}
+	sidescanner.printResults = true
 	go func() {
-		for result := range resultsCh {
-			if result.err != nil {
-				log.Errorf("error scanning task %s: %s", result.scan, result.err)
-			} else {
-				if result.sbom != nil {
-					fmt.Printf("scanning SBOM result %s (took %s): %s\n", result.scan, result.duration, prototext.Format(result.sbom))
-					if sendData {
-						if err := sendSBOM(eventForwarder, result.sbom, "unknown"); err != nil {
-							log.Errorf("failed to send SBOM: %v", err)
-						}
-					}
-				}
-				if result.findings != nil {
-					b, _ := json.MarshalIndent(result.findings, "", "  ")
-					fmt.Printf("scanning findings result %s (took %s): %s\n", result.scan, result.duration, string(b))
-					if sendData {
-						sendFindings(findingsReporter, result.findings)
-					}
-				}
-			}
+		select {
+		case <-ctx.Done():
+			return
+		case sidescanner.configsCh <- &config:
 		}
 	}()
-
-	for _, scan := range config.Tasks {
-		if err := launchScan(ctx, scan, resultsCh); err != nil {
-			log.Errorf("error setting up the scan of %s: %v", scan, err)
-		}
-	}
-	close(resultsCh)
+	sidescanner.start(ctx)
 	return nil
 }
 
@@ -540,6 +504,11 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	defer statsd.Flush()
+
+	hostname, err := utils.GetHostnameWithContext(ctx)
+	if err != nil {
+		return fmt.Errorf("could not fetch hostname: %w", err)
+	}
 
 	// Retrieve instance’s region.
 	defaultCfg, err := config.LoadDefaultConfig(ctx)
@@ -598,10 +567,14 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 		}
 	}
 
-	scansCh := make(chan *scanTask)
+	var limits *awsLimits // TODO
+	sidescanner, err := newSideScanner(hostname, limits, poolSize, nil)
+	if err != nil {
+		return fmt.Errorf("could not initialize side-scanner: %w", err)
+	}
 
+	ctx, cancel := context.WithCancel(ctx)
 	go func() {
-		defer close(scansCh)
 		scans := make([]*scanTask, 0)
 
 		for _, regionName := range allRegions {
@@ -614,6 +587,8 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 			volumesForRegion, err := listEBSVolumesForRegion(ctx, *identity.Account, regionName, roles)
 			if err != nil {
 				log.Errorf("could not scan region %q: %v", regionName, err)
+				cancel()
+				return
 			}
 			for _, volume := range volumesForRegion {
 				scan, err := newScanTask(string(ebsScanType), volume.ARN.String(), volume.Hostname, defaultActions, roles)
@@ -629,49 +604,10 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 			scans = scans[:maxScans]
 		}
 
-		for _, scan := range scans {
-			scansCh <- scan
-		}
+		sidescanner.configsCh <- &scanConfig{Type: awsScan, Tasks: scans, Roles: roles}
 	}()
 
-	done := make(chan struct{})
-	resultsCh := make(chan scanResult)
-
-	go func() {
-		for result := range resultsCh {
-			if result.err != nil {
-				log.Warnf("scan %s finished with error: %v", result.scan, result.err)
-			} else {
-				log.Infof("scan %s finished successfully (took %s)", result.scan, result.duration)
-			}
-		}
-	}()
-
-	for i := 0; i < poolSize; i++ {
-		go func() {
-			defer func() {
-				done <- struct{}{}
-			}()
-			for {
-				select {
-				case <-ctx.Done():
-					return
-				case scan, ok := <-scansCh:
-					if !ok {
-						return
-					}
-					err := launchScan(ctx, scan, resultsCh)
-					if err != nil {
-						log.Errorf("error setting up scan for task %s: %s", scan, err)
-					}
-				}
-			}
-		}()
-	}
-	for i := 0; i < poolSize; i++ {
-		<-done
-	}
-	close(resultsCh)
+	sidescanner.start(ctx)
 	return nil
 }
 
@@ -1132,44 +1068,48 @@ func getARNResource(arn arn.ARN) (resourceType resourceType, resourceID string, 
 
 type sideScanner struct {
 	hostname         string
-	rcClient         *remote.Client
 	poolSize         int
 	eventForwarder   epforwarder.EventPlatformForwarder
 	findingsReporter *LogReporter
 	allowedScanTypes []string
 	limits           *awsLimits
+	printResults     bool
 
+	configsCh chan *scanConfig
 	scansCh   chan *scanTask
 	resultsCh chan scanResult
 }
 
-func newSideScanner(hostname string, rcClient *remote.Client, eventForwarder epforwarder.EventPlatformForwarder, findingsReporter *LogReporter, limits *awsLimits, poolSize int, allowedScanTypes []string) *sideScanner {
+func newSideScanner(hostname string, limits *awsLimits, poolSize int, allowedScanTypes []string) (*sideScanner, error) {
+	eventForwarder := epforwarder.NewEventPlatformForwarder()
+	findingsReporter, err := newFindingsReporter()
+	if err != nil {
+		return nil, err
+	}
 	return &sideScanner{
 		hostname:         hostname,
-		rcClient:         rcClient,
 		poolSize:         poolSize,
 		eventForwarder:   eventForwarder,
 		findingsReporter: findingsReporter,
 		allowedScanTypes: allowedScanTypes,
 		limits:           limits,
 
+		configsCh: make(chan *scanConfig),
 		scansCh:   make(chan *scanTask),
 		resultsCh: make(chan scanResult),
-	}
+	}, nil
 }
 
-func (s *sideScanner) start(ctx context.Context) {
-	log.Infof("starting side-scanner main loop with %d scan workers", s.poolSize)
-	defer log.Infof("stopped side-scanner main loop")
-
-	s.eventForwarder.Start()
-	defer s.eventForwarder.Stop()
-
-	s.rcClient.Start()
-	defer s.rcClient.Close()
+func (s *sideScanner) acceptRemoteConfig(ctx context.Context) error {
+	rcClient, err := remote.NewUnverifiedGRPCClient("sidescanner", version.AgentVersion, nil, 100*time.Millisecond)
+	if err != nil {
+		return fmt.Errorf("could not init Remote Config client: %w", err)
+	}
 
 	log.Infof("subscribing to remote-config")
-	s.rcClient.Subscribe(state.ProductCSMSideScanning, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
+	rcClient.Start()
+	rcClient.Subscribe(state.ProductCSMSideScanning, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
+		defer rcClient.Close()
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
 			log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
@@ -1178,6 +1118,24 @@ func (s *sideScanner) start(ctx context.Context) {
 				log.Errorf("could not parse side-scanner task: %v", err)
 				return
 			}
+			select {
+			case <-ctx.Done():
+				return
+			case s.configsCh <- config:
+			}
+		}
+	})
+	return nil
+}
+func (s *sideScanner) start(ctx context.Context) {
+	log.Infof("starting side-scanner main loop with %d scan workers", s.poolSize)
+	defer log.Infof("stopped side-scanner main loop")
+
+	s.eventForwarder.Start()
+	defer s.eventForwarder.Stop()
+
+	go func() {
+		for config := range s.configsCh {
 			for _, scan := range config.Tasks {
 				if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
 					continue
@@ -1189,7 +1147,7 @@ func (s *sideScanner) start(ctx context.Context) {
 				}
 			}
 		}
-	})
+	}()
 
 	go func() {
 		for result := range s.resultsCh {
@@ -1213,6 +1171,9 @@ func (s *sideScanner) start(ctx context.Context) {
 					if err := s.sendSBOM(result.sbom); err != nil {
 						log.Errorf("failed to send SBOM: %v", err)
 					}
+					if s.printResults {
+						fmt.Printf("scanning SBOM result %s (took %s): %s\n", result.scan, result.duration, prototext.Format(result.sbom))
+					}
 				}
 				if result.findings != nil {
 					log.Debugf("sending findings for scan %s", result.scan)
@@ -1220,6 +1181,10 @@ func (s *sideScanner) start(ctx context.Context) {
 						log.Warnf("failed to send metric: %v", err)
 					}
 					s.sendFindings(result.findings)
+					if s.printResults {
+						b, _ := json.MarshalIndent(result.findings, "", "  ")
+						fmt.Printf("scanning findings result %s (took %s): %s\n", result.scan, result.duration, string(b))
+					}
 				}
 			}
 		}
@@ -1234,8 +1199,7 @@ func (s *sideScanner) start(ctx context.Context) {
 					done <- struct{}{}
 					return
 				case scan := <-s.scansCh:
-					ctx := withAWSLimits(ctx, s.limits)
-					if err := launchScan(ctx, scan, s.resultsCh); err != nil {
+					if err := s.launchScan(ctx, scan); err != nil {
 						log.Errorf("error scanning task %s: %s", scan, err)
 					}
 				}
@@ -1246,10 +1210,11 @@ func (s *sideScanner) start(ctx context.Context) {
 		<-done
 	}
 	close(s.resultsCh)
+	close(s.configsCh)
 	<-ctx.Done()
 }
 
-func launchScan(ctx context.Context, scan *scanTask, resultsCh chan scanResult) (err error) {
+func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error) {
 	if err := statsd.Count("datadog.sidescanner.scans.started", 1.0, tagScan(scan), 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
@@ -1261,29 +1226,22 @@ func launchScan(ctx context.Context, scan *scanTask, resultsCh chan scanResult) 
 		}
 	}()
 
+	ctx = withAWSLimits(ctx, s.limits)
 	switch scan.Type {
 	case ebsScanType:
-		return scanEBS(ctx, scan, resultsCh)
+		return scanEBS(ctx, scan, s.resultsCh)
 	case lambdaScanType:
-		return scanLambda(ctx, scan, resultsCh)
+		return scanLambda(ctx, scan, s.resultsCh)
 	default:
 		return fmt.Errorf("unknown scan type: %s", scan.Type)
 	}
 }
 
 func (s *sideScanner) sendSBOM(entity *sbommodel.SBOMEntity) error {
-	return sendSBOM(s.eventForwarder, entity, s.hostname)
-}
-
-func (s *sideScanner) sendFindings(findings []*finding) {
-	sendFindings(s.findingsReporter, findings)
-}
-
-func sendSBOM(eventForwarder epforwarder.EventPlatformForwarder, entity *sbommodel.SBOMEntity, hostname string) error {
 	sourceAgent := "side-scanning"
 	envVarEnv := pkgconfig.Datadog.GetString("env")
 
-	entity.DdTags = append(entity.DdTags, "sidescanner_host", hostname)
+	entity.DdTags = append(entity.DdTags, "sidescanner_host", s.hostname)
 
 	rawEvent, err := proto.Marshal(&sbommodel.SBOMPayload{
 		Version:  1,
@@ -1296,16 +1254,16 @@ func sendSBOM(eventForwarder epforwarder.EventPlatformForwarder, entity *sbommod
 	}
 
 	m := message.NewMessage(rawEvent, nil, "", 0)
-	return eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
+	return s.eventForwarder.SendEventPlatformEvent(m, epforwarder.EventTypeContainerSBOM)
 }
 
-func sendFindings(findingsReporter *LogReporter, findings []*finding) {
+func (s *sideScanner) sendFindings(findings []*finding) {
 	var tags []string // TODO: tags
 	expireAt := time.Now().Add(24 * time.Hour)
 	for _, finding := range findings {
 		finding.ExpireAt = &expireAt
 		finding.AgentVersion = version.AgentVersion
-		findingsReporter.ReportEvent(finding, tags...)
+		s.findingsReporter.ReportEvent(finding, tags...)
 	}
 }
 
@@ -1579,7 +1537,6 @@ var (
 
 func (rt *awsClientStats) getAction(req *http.Request) (service, action string, error error) {
 	host := req.URL.Host
-	fmt.Println(req.Method, req.URL.Path, host)
 	switch {
 	// EBS (ebs.(region.)?amazonaws.com)
 	case strings.HasPrefix(host, "ebs.") && strings.HasSuffix(host, ".amazonaws.com"):
@@ -2355,7 +2312,10 @@ func newAWSLimits(ec2Rate, ebsRate rate.Limit) *awsLimits {
 var keyRateLimits = struct{}{}
 
 func withAWSLimits(ctx context.Context, limits *awsLimits) context.Context {
-	return context.WithValue(ctx, keyRateLimits, limits)
+	if limits != nil {
+		return context.WithValue(ctx, keyRateLimits, limits)
+	}
+	return ctx
 }
 
 func getAWSLimit(ctx context.Context) *awsLimits {
