@@ -122,7 +122,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockConfig := ddconfig.MockSystemProbe(t)
-			mockConfig.SetWithoutSource("service_monitoring_config.process_service_inference.enabled", true)
+			mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", true)
 			mockConfig.SetWithoutSource("service_monitoring_config.process_service_inference.use_windows_service_name", true)
 
 			proc := procutil.Process{
@@ -140,7 +140,7 @@ func TestExtractServiceMetadata(t *testing.T) {
 
 func TestExtractServiceMetadataDisabled(t *testing.T) {
 	mockConfig := ddconfig.Mock(t)
-	mockConfig.SetWithoutSource("service_monitoring_config.process_service_inference.enabled", false)
+	mockConfig.SetWithoutSource("system_probe_config.process_service_inference.enabled", false)
 
 	proc := procutil.Process{
 		Pid:     1,
