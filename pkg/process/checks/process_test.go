@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/process/procutil"
@@ -78,9 +77,13 @@ func mockContainerProvider(t *testing.T) proccontainers.ContainerProvider {
 		workloadmeta.MockModule(),
 	))
 
-	fakeTagger := local.NewFakeTagger()
-	tagger.SetDefaultTagger(fakeTagger)
-	defer tagger.SetDefaultTagger(nil)
+	_ = fxutil.Test[tagger.Component](t,
+		core.MockBundle,
+		fx.Supply(tagger.NewFakeTaggerParams()),
+		fx.Provide(func() context.Context { return context.TODO() }),
+		tagger.Module,
+	)
+	defer tagger.ResetGlobalTaggerClient(nil)
 
 	// Finally, container provider
 	filter, err := containers.GetPauseContainerFilter()

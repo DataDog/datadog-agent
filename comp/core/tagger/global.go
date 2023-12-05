@@ -99,14 +99,6 @@ func GetTaggerInstance() Component {
 	return globalTagger
 }
 
-// GetDefaultTagger returns the default Tagger in global instance
-func GetDefaultTagger() Component {
-	if globalTagger == nil {
-		return nil
-	}
-	return globalTagger.GetDefaultTagger()
-}
-
 func SetNewCaptureTagger() {
 	if globalTagger != nil {
 		globalTagger.SetNewCaptureTagger()
@@ -123,4 +115,15 @@ func EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string
 	if globalTagger != nil {
 		globalTagger.EnrichTags(tb, udsOrigin, clientOrigin, cardinalityName)
 	}
+}
+
+// GetDefaultTagger returns the default Tagger in gvien instance
+func GetDefaultTagger(taggerClient Component) Component {
+	if taggerClient == nil {
+		return nil
+	}
+	if v, ok := taggerClient.(*TaggerClient); ok {
+		return v.defaultTagger
+	}
+	return nil
 }

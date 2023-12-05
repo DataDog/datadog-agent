@@ -115,9 +115,7 @@ func newTaggerClient(deps dependencies) Component {
 			captureTagger: nil,
 		}
 	}
-	if deps.Params.IsGlobalTagger {
-		SetGlobalTaggerClient(taggerClient)
-	}
+	SetGlobalTaggerClient(taggerClient)
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 		var err error
 		taggerClient.tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_detection_error",

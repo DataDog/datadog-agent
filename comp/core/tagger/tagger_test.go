@@ -64,17 +64,16 @@ func Test_taggerCardinality(t *testing.T) {
 }
 
 func TestEnrichTagsOrchestrator(t *testing.T) {
-	deps := fxutil.Test[dependencies](t, fx.Options(
+	taggerClient := fxutil.Test[Component](t,
 		core.MockBundle,
 		fx.Supply(NewFakeTaggerParams()),
 		fx.Provide(func() context.Context { return context.TODO() }),
-	))
-
-	taggerClient := newTaggerClient(deps).(*TaggerClient)
-	fakeTagger := taggerClient.GetDefaultTagger().(*local.FakeTagger)
+		Module,
+	)
+	fakeTagger := GetDefaultTagger(taggerClient).(*local.FakeTagger)
+	defer ResetGlobalTaggerClient(nil)
 	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
-
 	tb := tagset.NewHashingTagsAccumulator()
-	taggerClient.EnrichTags(tb, "foo", "", "orchestrator")
+	EnrichTags(tb, "foo", "", "orchestrator")
 	assert.Equal(t, []string{"lowTag", "orchTag"}, tb.Get())
 }
