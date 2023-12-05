@@ -883,15 +883,27 @@ func (s *USMHTTP2Suite) TestHTTP2KernelTelemetry() {
 			assert.Eventually(t, func() bool {
 				telemetry, err = usmhttp2.Spec.Instance.(*usmhttp2.Protocol).GetHTTP2KernelTelemetry()
 				require.NoError(t, err)
-				require.Equal(t, telemetry.Request_seen, tt.expectedTelemetry.Request_seen)
-				require.Equal(t, telemetry.Response_seen, tt.expectedTelemetry.Response_seen)
-				require.Equal(t, telemetry.Path_exceeds_frame, tt.expectedTelemetry.Path_exceeds_frame)
-				require.Equal(t, telemetry.Exceeding_max_interesting_frames, tt.expectedTelemetry.Exceeding_max_interesting_frames)
-				require.Equal(t, telemetry.Exceeding_max_frames_to_filter, tt.expectedTelemetry.Exceeding_max_frames_to_filter)
-				require.GreaterOrEqual(t, telemetry.End_of_stream+telemetry.End_of_stream_rst, expectedEOSOrRST)
-				require.True(t, reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket))
+				if telemetry.Request_seen != tt.expectedTelemetry.Request_seen {
+					return false
+				}
+				if telemetry.Response_seen != tt.expectedTelemetry.Response_seen {
+					return false
 
-				return true
+				}
+				if telemetry.Path_exceeds_frame != tt.expectedTelemetry.Path_exceeds_frame {
+					return false
+				}
+				if telemetry.Exceeding_max_interesting_frames != tt.expectedTelemetry.Exceeding_max_interesting_frames {
+					return false
+				}
+				if telemetry.Exceeding_max_frames_to_filter != tt.expectedTelemetry.Exceeding_max_frames_to_filter {
+					return false
+				}
+				if expectedEOSOrRST < telemetry.End_of_stream+telemetry.End_of_stream_rst {
+					return false
+				}
+				return reflect.DeepEqual(telemetry.Path_size_bucket, tt.expectedTelemetry.Path_size_bucket)
+
 			}, time.Second*5, time.Millisecond*100)
 			if t.Failed() {
 				t.Logf("expected telemetry: %+v;\ngot: %+v", tt.expectedTelemetry, telemetry)
