@@ -45,7 +45,6 @@ excluded_folders = [
 excluded_packages = Array.new
 
 # We build these manually
-excluded_packages.push(/^snowflake-connector-python==/)
 excluded_packages.push(/^confluent-kafka==/)
 
 if suse_target?
@@ -181,10 +180,6 @@ build do
       {
         "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
         "OPENSSL_DIR" => "#{install_dir}/embedded/",
-        # We have a manually installed dependency (snowflake connector) that already installed cryptography (but without the flags)
-        # We force reinstall it from source to be sure we use the flag
-        "PIP_NO_CACHE_DIR" => "off",
-        "PIP_FORCE_REINSTALL" => "1",
       }
     )
   end
