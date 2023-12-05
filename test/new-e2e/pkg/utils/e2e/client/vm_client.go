@@ -34,7 +34,7 @@ type VMClient struct {
 func NewVMClient(t *testing.T, connection *utils.Connection, osType componentos.Type) (*VMClient, error) {
 	t.Logf("connecting to remote VM at %s:%s", connection.User, connection.Host)
 
-	var privateSSHKey []byte
+	var privateSSHKey, privateKeyPassphraseBytes []byte
 
 	privateKeyPath, err := runner.GetProfile().ParamStore().GetWithDefault(parameters.PrivateKeyPath, "")
 	if err != nil {
@@ -48,10 +48,19 @@ func NewVMClient(t *testing.T, connection *utils.Connection, osType componentos.
 		}
 	}
 
+	privateKeyPassphrase, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
+	if err != nil {
+		return nil, err
+	}
+	if privateKeyPassphrase != "" {
+		privateKeyPassphraseBytes = []byte(privateKeyPassphrase)
+	}
+
 	client, _, err := clients.GetSSHClient(
 		connection.User,
 		fmt.Sprintf("%s:%d", connection.Host, 22),
 		privateSSHKey,
+		privateKeyPassphraseBytes,
 		2*time.Second, 5)
 	return &VMClient{
 		client: client,
