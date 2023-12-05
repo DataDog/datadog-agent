@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -119,12 +120,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				}),
 				// setup workloadmeta
 				collectors.GetCatalog(),
-				fx.Supply(workloadmeta.Params{
-					InitHelper: common.GetWorkloadmetaInit(),
-					AgentType:  workloadmeta.ClusterAgent,
-				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
+				fx.Supply(workloadmeta.NewParams()),
 				fx.Supply(context.Background()),
 				workloadmeta.Module(),
+				fx.Provide(func(config config.Component) tagger.Params {
+					if pkgconfig.IsCLCRunner() {
+						return tagger.Params{TaggerAgentType: tagger.CLCRunnerRemoteTaggerAgent}
+					}
+					return tagger.Params{TaggerAgentType: tagger.LocalTaggerAgent}
+				}),
+				tagger.Module(),
 			)
 		},
 	}

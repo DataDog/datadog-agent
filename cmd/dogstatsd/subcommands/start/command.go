@@ -17,7 +17,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -130,7 +129,6 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 
 			return workloadmeta.Params{
 				AgentType:  catalog,
-				InitHelper: common.GetWorkloadmetaInit(),
 				NoInstance: !instantiate,
 			}
 		}),
@@ -139,6 +137,13 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		secretsimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
+		fx.Provide(func(config config.Component) tagger.Params {
+			if pkgconfig.IsCLCRunner() {
+				return tagger.Params{TaggerAgentType: tagger.CLCRunnerRemoteTaggerAgent}
+			}
+			return tagger.Params{TaggerAgentType: tagger.LocalTaggerAgent}
+		}),
+		tagger.Module(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {

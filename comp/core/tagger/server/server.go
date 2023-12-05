@@ -29,13 +29,13 @@ const (
 
 // Server is a grpc server that streams tagger entities
 type Server struct {
-	tagger tagger.Tagger
+	taggerComponent tagger.Component
 }
 
 // NewServer returns a new Server
-func NewServer(t tagger.Tagger) *Server {
+func NewServer(t tagger.Component) *Server {
 	return &Server{
-		tagger: t,
+		taggerComponent: t,
 	}
 }
 
@@ -53,9 +53,8 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 	// these filters will be introduced when we implement a container
 	// metadata service that can receive them as is from the tagger.
 
-	t := tagger.GetDefaultTagger()
-	eventCh := t.Subscribe(cardinality)
-	defer t.Unsubscribe(eventCh)
+	eventCh := s.taggerComponent.Subscribe(cardinality)
+	defer s.taggerComponent.Unsubscribe(eventCh)
 
 	ticker := time.NewTicker(streamKeepAliveInterval)
 	defer ticker.Stop()
@@ -128,7 +127,7 @@ func (s *Server) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntityReques
 		return nil, err
 	}
 
-	tags, err := tagger.Tag(entityID, cardinality)
+	tags, err := s.taggerComponent.Tag(entityID, cardinality)
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "%s", err)
 	}

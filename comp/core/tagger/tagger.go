@@ -66,42 +66,42 @@ var (
 	DogstatsdCardinality collectors.TagCardinality
 )
 
+var _ Component = (*TaggerClient)(nil)
+
 // newTaggerClient returns a Component based on provided params, once it is provided,
 // fx will cache the component which is effectively a singleton instance, cached by fx.
 // TODO(components) (tagger): global is a legacy global variable but still in use, to be eliminated
 // it should be deprecated and removed
 func newTaggerClient(deps dependencies) Component {
 	var taggerClient *TaggerClient
-	switch deps.Params.TaggerType {
-	case RemoteTagger:
-		if deps.Params.AgentType == CLCRunnerRemoteTaggerAgent {
-			options, err := remote.CLCRunnerOptions(deps.Config)
-			if err != nil {
-				deps.Log.Errorf("unable to deps.Configure the remote tagger: %s", err)
-				taggerClient = &TaggerClient{
-					defaultTagger: local.NewFakeTagger(),
-					captureTagger: nil,
-				}
-			} else if options.Disabled {
-				deps.Log.Errorf("remote tagger is disabled in clc runner.")
-				taggerClient = &TaggerClient{
-					defaultTagger: local.NewFakeTagger(),
-					captureTagger: nil,
-				}
-			} else {
-				taggerClient = &TaggerClient{
-					defaultTagger: remote.NewTagger(options),
-					captureTagger: nil,
-				}
+	switch deps.Params.TaggerAgentType {
+	case CLCRunnerRemoteTaggerAgent:
+		options, err := remote.CLCRunnerOptions(deps.Config)
+		if err != nil {
+			deps.Log.Errorf("unable to deps.Configure the remote tagger: %s", err)
+			taggerClient = &TaggerClient{
+				defaultTagger: local.NewFakeTagger(),
+				captureTagger: nil,
 			}
-		} else { // if  deps.Params.AgentType == NodeRemoteTaggerAgent
-			options, _ := remote.NodeAgentOptions(deps.Config)
+		} else if options.Disabled {
+			deps.Log.Errorf("remote tagger is disabled in clc runner.")
+			taggerClient = &TaggerClient{
+				defaultTagger: local.NewFakeTagger(),
+				captureTagger: nil,
+			}
+		} else {
 			taggerClient = &TaggerClient{
 				defaultTagger: remote.NewTagger(options),
 				captureTagger: nil,
 			}
 		}
-	case LocalTagger:
+	case NodeRemoteTaggerAgent:
+		options, _ := remote.NodeAgentOptions(deps.Config)
+		taggerClient = &TaggerClient{
+			defaultTagger: remote.NewTagger(options),
+			captureTagger: nil,
+		}
+	case LocalTaggerAgent:
 		taggerClient = &TaggerClient{
 			defaultTagger: local.NewTagger(deps.Wmeta),
 			captureTagger: nil,

@@ -48,6 +48,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
@@ -278,12 +279,31 @@ func getSharedFxOption() fx.Option {
 		// workloadmeta setup
 		collectors.GetCatalog(),
 		fx.Provide(defaults.DefaultParams),
+		fx.Provide(func(config config.Component) workloadmeta.Params {
+			var agentType workloadmeta.AgentType
+			if flavor.GetFlavor() == flavor.ClusterAgent {
+				agentType = workloadmeta.ClusterAgent
+			} else {
+				agentType = workloadmeta.NodeAgent
+			}
+
+			return workloadmeta.Params{
+				AgentType: agentType,
+			}
+		}),
 		workloadmeta.Module(),
 		apiimpl.Module(),
 
 		dogstatsd.Bundle(),
 		otelcol.Bundle(),
 		rcclient.Module(),
+		fx.Provide(func(config config.Component) tagger.Params {
+			if pkgconfig.IsCLCRunner() {
+				return tagger.Params{TaggerAgentType: tagger.CLCRunnerRemoteTaggerAgent}
+			}
+			return tagger.Params{TaggerAgentType: tagger.LocalTaggerAgent}
+		}),
+		tagger.Module(),
 
 		// TODO: (components) - some parts of the agent (such as the logs agent) implicitly depend on the global state
 		// set up by LoadComponents. In order for components to use lifecycle hooks that also depend on this global state, we
