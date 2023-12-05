@@ -46,8 +46,10 @@ const (
 )
 
 var (
-	globalUtil        *RemoteSysProbeUtil
-	globalUtilOnce    sync.Once
+	globalUtil     *RemoteSysProbeUtil
+	globalUtilOnce sync.Once
+
+	// ErrNotImplemented is an error used when system-probe is attempted to be accessed on an unsupported OS
 	ErrNotImplemented = errors.New("system-probe unsupported")
 )
 
