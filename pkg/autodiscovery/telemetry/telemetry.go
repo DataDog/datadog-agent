@@ -44,12 +44,12 @@ var (
 		commonOpts,
 	)
 
-	// Errors tracks the number of AD errors found by AD providers.
+	// Errors tracks the current number of AD configs with errors by AD providers.
 	Errors = telemetry.NewGaugeWithOpts(
 		subsystem,
 		"errors",
 		[]string{"provider"},
-		"Number of Autodiscovery errors by provider.",
+		"Current number of Autodiscovery configs with errors by provider.",
 		commonOpts,
 	)
 

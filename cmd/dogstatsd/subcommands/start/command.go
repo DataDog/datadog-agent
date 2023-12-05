@@ -16,14 +16,20 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
@@ -39,8 +45,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 type CLIParams struct {
@@ -51,6 +57,7 @@ type DogstatsdComponents struct {
 	DogstatsdServer dogstatsdServer.Component
 	DogstatsdStats  *http.Server
 	MetaScheduler   *pkgmetadata.Scheduler
+	WorkloadMeta    workloadmeta.Component
 }
 
 const (
@@ -94,10 +101,10 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		fx.Supply(config.NewParams(
 			defaultConfPath,
 			config.WithConfFilePath(cliParams.confPath),
-			config.WithConfigLoadSecrets(true),
 			config.WithConfigMissingOK(true),
 			config.WithConfigName("dogstatsd")),
 		),
+		fx.Supply(secrets.NewEnabledParams()),
 		fx.Supply(logComponent.ForDaemon(string(loggerName), "log_file", params.DefaultLogFile)),
 		config.Module,
 		logComponent.Module,
@@ -107,7 +114,23 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		dogstatsd.Bundle,
 		forwarder.Bundle,
 		fx.Provide(defaultforwarder.NewParams),
+		// workloadmeta setup
+		collectors.GetCatalog(),
+		fx.Provide(func(config config.Component) workloadmeta.Params {
+			catalog := workloadmeta.NodeAgent
+			instantiate := config.GetBool("dogstatsd_origin_detection")
+
+			return workloadmeta.Params{
+				AgentType:  catalog,
+				InitHelper: common.GetWorkloadmetaInit(),
+				NoInstance: !instantiate,
+			}
+		}),
+		workloadmeta.OptionalModule,
 		demultiplexer.Module,
+		secretsimpl.Module,
+		orchestratorForwarderImpl.Module,
+		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
 		// already migrated components to request it.
 		fx.Provide(func(demuxInstance demultiplexer.Component) serializer.MetricSerializer {
@@ -115,7 +138,6 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		}),
 		fx.Provide(func(config config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
-			opts.UseOrchestratorForwarder = false
 			opts.UseEventPlatformForwarder = false
 			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
 			return demultiplexer.Params{Options: opts, ContinueOnMissingHostname: true}
@@ -125,12 +147,14 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, demultiplexer demultiplexer.Component, metadataRunner runner.Component, hostComp host.Component) error { //nolint:revive // TODO fix revive unusued-parameter
+func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, wmeta optional.Option[workloadmeta.Component], demultiplexer demultiplexer.Component, metadataRunner runner.Component, hostComp host.Component) error { //nolint:revive // TODO fix revive unusued-parameter
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
+	w, _ := wmeta.Get()
 	components := &DogstatsdComponents{
 		DogstatsdServer: server,
+		WorkloadMeta:    w,
 	}
 	defer StopAgent(cancel, components)
 
@@ -221,11 +245,9 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	}
 
 	// container tagging initialisation if origin detection is on
-	if config.GetBool("dogstatsd_origin_detection") {
-		store := workloadmeta.CreateGlobalStore(workloadmeta.NodeAgentCatalog)
-		store.Start(ctx)
+	if config.GetBool("dogstatsd_origin_detection") && components.WorkloadMeta != nil {
 
-		tagger.SetDefaultTagger(local.NewTagger(store))
+		tagger.SetDefaultTagger(local.NewTagger(components.WorkloadMeta))
 		if err := tagger.Init(ctx); err != nil {
 			log.Errorf("failed to start the tagger: %s", err)
 		}

@@ -18,12 +18,12 @@ from . import (
     epforwarder,
     github_tasks,
     kmt,
+    modules,
     msi,
     new_e2e_tests,
     package,
     pipeline,
     process_agent,
-    pylauncher,
     release,
     rtloader,
     security_agent,
@@ -68,6 +68,7 @@ from .test import (
     lint_python,
     lint_releasenote,
     lint_teamassignment,
+    send_unit_tests_stats,
     test,
 )
 from .update_go import go_version, update_go
@@ -116,8 +117,10 @@ ns.add_task(junit_macos_repack)
 ns.add_task(fuzz)
 ns.add_task(go_fix)
 ns.add_task(build_messagetable)
+ns.add_task(modules.go_work)
 
 ns.add_task(get_modified_packages)
+ns.add_task(send_unit_tests_stats)
 
 # add namespaced tasks to the root
 ns.add_collection(agent)
@@ -134,7 +137,6 @@ ns.add_collection(msi)
 ns.add_collection(github_tasks, "github")
 ns.add_collection(package)
 ns.add_collection(pipeline)
-ns.add_collection(pylauncher)
 ns.add_collection(selinux)
 ns.add_collection(systray)
 ns.add_collection(release)

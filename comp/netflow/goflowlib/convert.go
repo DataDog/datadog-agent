@@ -8,6 +8,7 @@
 package goflowlib
 
 import (
+	"encoding/hex"
 	flowpb "github.com/netsampler/goflow2/pb"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
@@ -69,77 +70,93 @@ func convertFlowType(flowType flowpb.FlowMessage_FlowType) common.FlowType {
 }
 
 func applyAdditionalFields(flow *common.Flow, additionalFields common.AdditionalFields) {
+	if additionalFields == nil {
+		return
+	}
+
+	processedFields := make(common.AdditionalFields)
 	for destination, fieldValue := range additionalFields {
 		applied := applyAdditionalField(flow, destination, fieldValue)
-		if applied {
-			// We replaced a field of common.Flow with an additional field, no need to keep it in the map
-			delete(additionalFields, destination)
+		if !applied {
+			// Additional field need to be stored in the new map
+			if field, ok := fieldValue.([]byte); ok {
+				// Write []byte as hex string for readability
+				processedFields[destination] = bytesToHexString(field)
+			} else {
+				processedFields[destination] = fieldValue
+			}
 		}
 	}
-	flow.AdditionalFields = additionalFields
+	flow.AdditionalFields = processedFields
 }
 
 func applyAdditionalField(flow *common.Flow, destination string, fieldValue any) bool {
 	// Make sure FlowFieldsTypes includes the type of the following fields
 	switch destination {
 	case "direction":
-		setValue(&flow.Direction, fieldValue)
+		setInt(&flow.Direction, fieldValue)
 	case "start":
-		setValue(&flow.StartTimestamp, fieldValue)
+		setInt(&flow.StartTimestamp, fieldValue)
 	case "end":
-		setValue(&flow.EndTimestamp, fieldValue)
+		setInt(&flow.EndTimestamp, fieldValue)
 	case "bytes":
-		setValue(&flow.Bytes, fieldValue)
+		setInt(&flow.Bytes, fieldValue)
 	case "packets":
-		setValue(&flow.Packets, fieldValue)
+		setInt(&flow.Packets, fieldValue)
 	case "ether_type":
-		setValue(&flow.EtherType, fieldValue)
+		setInt(&flow.EtherType, fieldValue)
 	case "ip_protocol":
-		setValue(&flow.IPProtocol, fieldValue)
+		setInt(&flow.IPProtocol, fieldValue)
 	case "exporter.ip":
-		setValue(&flow.ExporterAddr, fieldValue)
+		setBytes(&flow.ExporterAddr, fieldValue)
 	case "source.ip":
-		setValue(&flow.SrcAddr, fieldValue)
+		setBytes(&flow.SrcAddr, fieldValue)
 	case "source.port":
 		var port uint64
-		setValue(&port, fieldValue)
+		setInt(&port, fieldValue)
 		flow.SrcPort = int32(port)
 	case "source.mac":
-		setValue(&flow.SrcMac, fieldValue)
+		setInt(&flow.SrcMac, fieldValue)
 	case "source.mask":
-		setValue(&flow.SrcMask, fieldValue)
+		setInt(&flow.SrcMask, fieldValue)
 	case "destination.ip":
-		setValue(&flow.DstAddr, fieldValue)
+		setBytes(&flow.DstAddr, fieldValue)
 	case "destination.port":
 		var port uint64
-		setValue(&port, fieldValue)
+		setInt(&port, fieldValue)
 		flow.DstPort = int32(port)
 	case "destination.mac":
-		setValue(&flow.DstMac, fieldValue)
+		setInt(&flow.DstMac, fieldValue)
 	case "destination.mask":
-		setValue(&flow.DstMask, fieldValue)
+		setInt(&flow.DstMask, fieldValue)
 	case "ingress.interface":
-		setValue(&flow.InputInterface, fieldValue)
+		setInt(&flow.InputInterface, fieldValue)
 	case "egress.interface":
-		setValue(&flow.OutputInterface, fieldValue)
+		setInt(&flow.OutputInterface, fieldValue)
 	case "tcp_flags":
-		setValue(&flow.TCPFlags, fieldValue)
+		setInt(&flow.TCPFlags, fieldValue)
 	case "next_hop.ip":
-		setValue(&flow.NextHop, fieldValue)
+		setBytes(&flow.NextHop, fieldValue)
 	case "tos":
-		setValue(&flow.Tos, fieldValue)
+		setInt(&flow.Tos, fieldValue)
 	default:
 		return false
 	}
 	return true
 }
 
-type flowFieldsTypes interface {
-	uint64 | uint32 | []byte
+func setInt[T uint64 | uint32](field *T, value any) {
+	if v, ok := value.(uint64); ok {
+		*field = T(v)
+	}
 }
 
-func setValue[T flowFieldsTypes](field *T, value any) {
-	if v, ok := value.(T); ok {
+func setBytes(field *[]byte, value any) {
+	if v, ok := value.([]byte); ok {
 		*field = v
 	}
+}
+
+func bytesToHexString(value []byte) string {
+	return hex.EncodeToString(value)
 }

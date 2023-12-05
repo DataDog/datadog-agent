@@ -37,6 +37,12 @@ const (
 // sources list the known sources, following the order of hierarchy between them
 var sources = []Source{SourceDefault, SourceUnknown, SourceFile, SourceEnvVar, SourceAgentRuntime, SourceRC, SourceCLI}
 
+// ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
+type ValueWithSource struct {
+	Source Source
+	Value  interface{}
+}
+
 // String casts Source into a string
 func (s Source) String() string {
 	// Safeguard: if we don't know the Source, we assume SourceDefault
@@ -209,6 +215,18 @@ func (c *safeConfig) Get(key string) interface{} {
 		log.Warnf("failed to get configuration value for key %q: %s", key, err)
 	}
 	return val
+}
+
+// GetAllSources returns the value of a key for each source
+func (c *safeConfig) GetAllSources(key string) []ValueWithSource {
+	vals := make([]ValueWithSource, len(sources))
+	for i, source := range sources {
+		vals[i] = ValueWithSource{
+			Source: source,
+			Value:  c.configSources[source].Get(key),
+		}
+	}
+	return vals
 }
 
 // GetString wraps Viper for concurrent access
@@ -492,6 +510,14 @@ func (c *safeConfig) MergeConfigOverride(in io.Reader) error {
 	c.Lock()
 	defer c.Unlock()
 	return c.Viper.MergeConfigOverride(in)
+}
+
+// MergeConfigMap merges the configuration from the map given with an existing config.
+// Note that the map given may be modified.
+func (c *safeConfig) MergeConfigMap(cfg map[string]any) error {
+	c.Lock()
+	defer c.Unlock()
+	return c.Viper.MergeConfigMap(cfg)
 }
 
 // AllSettings wraps Viper for concurrent access

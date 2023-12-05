@@ -26,7 +26,7 @@ func RunServerOpenssl(t *testing.T, serverPort string, clientCount int, args ...
 
 	t.Helper()
 	dir, _ := testutil.CurDir()
-	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("ACCEPT"), protocolsUtils.DefaultTimeout)
+	return protocolsUtils.RunDockerServer(t, "openssl-server", dir+"/testdata/docker-compose.yml", env, regexp.MustCompile("ACCEPT"), protocolsUtils.DefaultTimeout, 3)
 }
 
 // RunClientOpenssl launches an openssl client.

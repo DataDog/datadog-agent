@@ -21,8 +21,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/comp/logs"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/otelcol"
@@ -64,12 +66,15 @@ func main() {
 		logs.Bundle,
 		fx.Supply(
 			core.BundleParams{
-				ConfigParams: config.NewAgentParamsWithSecrets(*cfgPath),
+				ConfigParams: config.NewAgentParams(*cfgPath),
+				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    corelog.ForOneShot(loggerName, "debug", true),
 			},
 		),
 		fx.Provide(newForwarderParams),
 		demultiplexer.Module,
+		orchestratorForwarderImpl.Module,
+		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		fx.Provide(newSerializer),
 		fx.Provide(func(cfg config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()

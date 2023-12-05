@@ -211,6 +211,7 @@ def run(
     deploy=False,
     all_builds=True,
     kitchen_tests=True,
+    rc_k8s_deployments=False,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -311,6 +312,7 @@ def run(
             deploy=deploy,
             all_builds=all_builds,
             kitchen_tests=kitchen_tests,
+            rc_k8s_deployments=rc_k8s_deployments,
         )
     except FilteredOutException:
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
@@ -891,7 +893,7 @@ def update_circleci_config(file_path, image_tag, test_version):
     """
     Override variables in .gitlab-ci.yml file
     """
-    image_name = "datadog/agent-buildimages-circleci-runner"
+    image_name = "gcr.io/datadoghq/agent-circleci-runner"
     with open(file_path, "r") as circle:
         circle_ci = circle.read()
     match = re.search(rf"({image_name}(_test_only)?):([a-zA-Z0-9_-]+)\n", circle_ci)

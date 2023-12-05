@@ -20,7 +20,6 @@ from .kernel_matrix_testing.init_kmt import (
 )
 from .kernel_matrix_testing.tool import Exit, ask, info, warn
 from .system_probe import EMBEDDED_SHARE_DIR
-from .update_go import _get_repo_go_version
 
 try:
     from tabulate import tabulate
@@ -46,8 +45,20 @@ def create_stack(ctx, stack=None):
         "init-stack": "Automatically initialize stack if not present. Equivalent to calling 'inv -e kmt.create-stack [--stack=<stack>]'",
     }
 )
-def gen_config(ctx, stack=None, vms="", init_stack=False, vcpu="4", memory="8192", new=False):
-    vmconfig.gen_config(ctx, stack, vms, init_stack, vcpu, memory, new)
+def gen_config(
+    ctx,
+    stack=None,
+    vms="",
+    sets="",
+    init_stack=False,
+    vcpu="4",
+    memory="8192",
+    new=False,
+    ci=False,
+    arch="",
+    output_file="vmconfig.json",
+):
+    vmconfig.gen_config(ctx, stack, vms, sets, init_stack, vcpu, memory, new, ci, arch, output_file)
 
 
 @task
@@ -77,7 +88,7 @@ def stack(ctx, stack=None):
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
 
-    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.outputs")
+    ctx.run(f"cat {KMT_STACKS_DIR}/{stack}/stack.output")
 
 
 @task
@@ -119,7 +130,7 @@ def revert_resources(ctx):
 
 
 def get_vm_ip(stack, version, arch):
-    with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
+    with open(f"{KMT_STACKS_DIR}/{stack}/stack.output", 'r') as f:
         entries = f.readlines()
         for entry in entries:
             match = re.search(f"^.+{arch}-{version}.+\\s+.+$", entry.strip('\n'))
@@ -147,7 +158,7 @@ def build_target_set(stack, vms, ssh_key):
 
 
 def get_instance_ip(stack, arch):
-    with open(f"{KMT_STACKS_DIR}/{stack}/stack.outputs", 'r') as f:
+    with open(f"{KMT_STACKS_DIR}/{stack}/stack.output", 'r') as f:
         entries = f.readlines()
         for entry in entries:
             if f"{arch}-instance-ip" in entry.split(' ')[0]:
@@ -360,10 +371,7 @@ def prepare(ctx, vms, stack=None, arch=None, ssh_key="", rebuild_deps=False, pac
 
 
 @task
-def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key="", go_version=None):
-    if not go_version:
-        go_version = _get_repo_go_version()
-
+def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=False, ssh_key=""):
     stack = check_and_get_stack(stack)
     if not stacks.stack_exists(stack):
         raise Exit(f"Stack {stack} does not exist. Please create with 'inv kmt.stack-create --stack=<name>'")
@@ -378,7 +386,7 @@ def test(ctx, vms, stack=None, packages="", run=None, retry=2, rebuild_deps=Fals
     run_cmd_vms(
         ctx,
         stack,
-        f"bash /micro-vm-init.sh {go_version} {retry} {platform.machine()} {' '.join(args)}",
+        f"bash /micro-vm-init.sh {retry} {' '.join(args)}",
         target_vms,
         "",
         allow_fail=True,

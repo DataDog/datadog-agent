@@ -21,8 +21,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	hostMetadataUtils "github.com/DataDog/datadog-agent/comp/metadata/host/utils"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/comp/process/apiserver"
@@ -45,10 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
-
-	// register all workloadmeta collectors
-	_ "github.com/DataDog/datadog-agent/pkg/workloadmeta/collectors"
 )
 
 const (
@@ -107,9 +106,10 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 
 		Logger logComponent.Component
 
-		Checks []types.CheckComponent `group:"check"`
-		Syscfg sysprobeconfig.Component
-		Config config.Component
+		Checks       []types.CheckComponent `group:"check"`
+		Syscfg       sysprobeconfig.Component
+		Config       config.Component
+		WorkloadMeta workloadmeta.Component
 	}
 	app := fx.New(
 		fx.Supply(
@@ -117,7 +117,8 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(
 					sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
 				),
-				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    command.DaemonLogParams,
 			},
 		),
@@ -132,6 +133,20 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 
 		// Provide remote config client module
 		rcclient.Module,
+
+		// Provide the corresponding workloadmeta Params to configure the catalog
+		collectors.GetCatalog(),
+		fx.Provide(func(c config.Component) workloadmeta.Params {
+			var catalog workloadmeta.AgentType
+
+			if c.GetBool("process_config.remote_workloadmeta") {
+				catalog = workloadmeta.Remote
+			} else {
+				catalog = workloadmeta.ProcessAgent
+			}
+
+			return workloadmeta.Params{AgentType: catalog}
+		}),
 
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
@@ -219,9 +234,10 @@ type miscDeps struct {
 	fx.In
 	Lc fx.Lifecycle
 
-	Config   config.Component
-	Syscfg   sysprobeconfig.Component
-	HostInfo hostinfo.Component
+	Config       config.Component
+	Syscfg       sysprobeconfig.Component
+	HostInfo     hostinfo.Component
+	WorkloadMeta workloadmeta.Component
 }
 
 // initMisc initializes modules that cannot, or have not yet been componetized.
@@ -237,15 +253,6 @@ func initMisc(deps miscDeps) error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	// Setup workloadmeta
-	var workloadmetaCollectors workloadmeta.CollectorCatalog
-	if deps.Config.GetBool("process_config.remote_workloadmeta") {
-		workloadmetaCollectors = workloadmeta.RemoteCatalog
-	} else {
-		workloadmetaCollectors = workloadmeta.NodeAgentCatalog
-	}
-	store := workloadmeta.CreateGlobalStore(workloadmetaCollectors)
-
 	// Setup remote tagger
 	var t tagger.Tagger
 	if deps.Config.GetBool("process_config.remote_tagger") {
@@ -256,17 +263,18 @@ func initMisc(deps miscDeps) error {
 			t = remote.NewTagger(options)
 		}
 	} else {
-		t = local.NewTagger(store)
+		t = local.NewTagger(deps.WorkloadMeta)
 	}
 	tagger.SetDefaultTagger(t)
 
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
 
+	// TODO(components): still unclear how the initialization of workoadmeta
+	//                   store and tagger should be performed.
 	// appCtx is a context that cancels when the OnStop hook is called
 	appCtx, stopApp := context.WithCancel(context.Background())
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(startCtx context.Context) error {
-			store.Start(appCtx)
 
 			err := tagger.Init(startCtx)
 			if err != nil {
@@ -280,7 +288,7 @@ func initMisc(deps miscDeps) error {
 			}
 
 			if collector.Enabled(deps.Config) {
-				err := processCollectionServer.Start(appCtx, store)
+				err := processCollectionServer.Start(appCtx, deps.WorkloadMeta)
 				if err != nil {
 					return err
 				}

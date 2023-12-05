@@ -65,8 +65,6 @@ k8s-e2e-tags-7:
   - export DATADOG_AGENT_API_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_api_key --with-decryption --query "Parameter.Value" --out text)
   - export DATADOG_AGENT_APP_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_app_key --with-decryption --query "Parameter.Value" --out text)
   - export DATADOG_AGENT_RC_KEY=$(aws ssm get-parameter --region us-east-1 --name ci.datadog-agent.e2e_tests_rc_key --with-decryption --query "Parameter.Value" --out text)
-  # workaround until CWS is able to support 6.4 kernel correctly
-  - export AMI=ami-083a735d0245929cd
 
 k8s-e2e-cws-dev:
   extends: .k8s_e2e_template
@@ -202,6 +200,7 @@ new-e2e-agent-shared-components-dev:
 new-e2e-agent-shared-components-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
+  needs: ['deploy_deb_testing-a7_x64']
   variables:
     TARGETS: ./tests/agent-shared-components
     TEAM: agent-shared-components
@@ -219,6 +218,7 @@ new-e2e-agent-subcommands-dev:
 new-e2e-agent-subcommands-main:
   extends: .new_e2e_template
   rules: !reference [.on_main_and_no_skip_e2e]
+  needs: ['deploy_deb_testing-a7_x64']
   variables:
     TARGETS: ./tests/agent-subcommands
     TEAM: agent-shared-components
@@ -254,6 +254,40 @@ new-e2e-npm-main:
     TARGETS: ./tests/npm
   # Temporary, until we manage to stabilize those tests.
   allow_failure: true
+
+new-e2e-cws-dev:
+  extends: .new_e2e_template
+  rules: !reference [.on_dev_branch_manual]
+  needs: []
+  variables:
+    TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
+  # Temporary, until we manage to stabilize those tests.
+  allow_failure: true
+
+new-e2e-cws-main:
+  extends: .new_e2e_template
+  rules: !reference [.on_main_and_no_skip_e2e]
+  variables:
+    TARGETS: ./tests/cws
+    TEAM: csm-threats-agent
+  # Temporary, until we manage to stabilize those tests.
+  allow_failure: true
+
+new-e2e-process-dev:
+  extends: .new_e2e_template
+  rules: !reference [.on_dev_branch_manual]
+  needs: []
+  variables:
+    TARGETS: ./tests/process
+    TEAM: processes
+
+new-e2e-process-main:
+  extends: .new_e2e_template
+  rules: !reference [.on_main_and_no_skip_e2e]
+  variables:
+    TARGETS: ./tests/process
+    TEAM: processes
 
 #   ^    If you create a new job here that extends `.new_e2e_template`,
 #  /!\   do not forget to add it in the `dependencies` statement of the

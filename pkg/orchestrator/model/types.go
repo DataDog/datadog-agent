@@ -8,8 +8,9 @@ package orchestrator
 import (
 	"strings"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/patrickmn/go-cache"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // NodeType represents a kind of resource used by a container orchestrator.
@@ -21,9 +22,11 @@ var CheckName = "orchestrator"
 // ExtraLogContext is used to add check name into log context
 var ExtraLogContext = []interface{}{"check", CheckName}
 
+// NoExpiration maps to go-cache corresponding value
+const NoExpiration = cache.NoExpiration
+
+// The order of this list should be consistent with https://github.com/DataDog/agent-payload/blob/master/proto/process/agent.proto#L647-L673
 const (
-	// NoExpiration maps to go-cache corresponding value
-	NoExpiration = cache.NoExpiration
 	// K8sUnsetType represents a Kubernetes unset type
 	K8sUnsetType NodeType = iota
 	// K8sPod represents a Kubernetes Pod

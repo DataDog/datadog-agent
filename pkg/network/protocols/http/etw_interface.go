@@ -22,6 +22,7 @@ type EtwInterface struct {
 	eventLoopWG        sync.WaitGroup
 	captureHTTP        bool
 	captureHTTPS       bool
+	requestSize        int64
 }
 
 func NewEtwInterface(c *config.Config) *EtwInterface {
@@ -30,6 +31,7 @@ func NewEtwInterface(c *config.Config) *EtwInterface {
 		DataChannel:        make(chan []WinHttpTransaction),
 		captureHTTPS:       c.EnableNativeTLSMonitoring,
 		captureHTTP:        c.EnableHTTPMonitoring,
+		requestSize:        c.HTTPMaxRequestFragment,
 	}
 }
 

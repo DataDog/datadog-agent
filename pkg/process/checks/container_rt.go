@@ -37,7 +37,7 @@ type RTContainerCheck struct {
 }
 
 // Init initializes a RTContainerCheck instance.
-func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo) error {
+func (r *RTContainerCheck) Init(_ *SysProbeConfig, hostInfo *HostInfo, _ bool) error {
 	r.maxBatchSize = getMaxBatchSize(r.config)
 	r.hostInfo = hostInfo
 	r.containerProvider = proccontainers.GetSharedContainerProvider()

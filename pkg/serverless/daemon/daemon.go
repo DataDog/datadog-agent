@@ -59,8 +59,8 @@ type Daemon struct {
 	// through configuration.
 	useAdaptiveFlush bool
 
-	// stopped represents whether the Daemon has been stopped
-	stopped bool
+	// Stopped represents whether the Daemon has been Stopped
+	Stopped bool
 
 	// LambdaLibraryDetected represents whether the Datadog Lambda Library was detected in the environment
 	LambdaLibraryDetected bool
@@ -308,11 +308,11 @@ func (d *Daemon) Stop() {
 	// Can't shut down before starting
 	// If the DogStatsD daemon isn't ready, wait for it.
 
-	if d.stopped {
+	if d.Stopped {
 		log.Debug("Daemon.Stop() was called, but Daemon was already stopped")
 		return
 	}
-	d.stopped = true
+	d.Stopped = true
 
 	// Wait for any remaining logs to arrive via the logs API before shutting down the HTTP server
 	log.Debug("Waiting to shut down HTTP server")

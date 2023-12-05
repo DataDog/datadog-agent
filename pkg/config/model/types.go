@@ -42,6 +42,7 @@ type Reader interface {
 	GetProxies() *Proxy
 
 	GetSource(key string) Source
+	GetAllSources(key string) []ValueWithSource
 
 	ConfigFileUsed() string
 
@@ -116,6 +117,7 @@ type Loader interface {
 	ReadConfig(in io.Reader) error
 	MergeConfig(in io.Reader) error
 	MergeConfigOverride(in io.Reader) error
+	MergeConfigMap(cfg map[string]any) error
 
 	AddConfigPath(in string)
 	SetConfigName(in string)

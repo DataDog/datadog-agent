@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -33,11 +34,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 // SetupHandlers adds the specific handlers for cluster agent endpoints
-func SetupHandlers(r *mux.Router, senderManager sender.DiagnoseSenderManager) {
+func SetupHandlers(r *mux.Router, wmeta workloadmeta.Component, senderManager sender.DiagnoseSenderManager) {
 	r.HandleFunc("/version", getVersion).Methods("GET")
 	r.HandleFunc("/hostname", getHostname).Methods("GET")
 	r.HandleFunc("/flare", func(w http.ResponseWriter, r *http.Request) { makeFlare(w, r, senderManager) }).Methods("POST")
@@ -50,7 +50,9 @@ func SetupHandlers(r *mux.Router, senderManager sender.DiagnoseSenderManager) {
 	r.HandleFunc("/config/{setting}", settingshttp.Server.GetValue).Methods("GET")
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 	r.HandleFunc("/tagger-list", getTaggerList).Methods("GET")
-	r.HandleFunc("/workload-list", getWorkloadList).Methods("GET")
+	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
+		getWorkloadList(w, r, wmeta)
+	}).Methods("GET")
 }
 
 func getStatus(w http.ResponseWriter, r *http.Request) {
@@ -201,7 +203,7 @@ func getTaggerList(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonTags)
 }
 
-func getWorkloadList(w http.ResponseWriter, r *http.Request) {
+func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	verbose := false
 	params := r.URL.Query()
 	if v, ok := params["verbose"]; ok {
@@ -210,7 +212,7 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	response := workloadmeta.GetGlobalStore().Dump(verbose)
+	response := wmeta.Dump(verbose)
 	jsonDump, err := json.Marshal(response)
 	if err != nil {
 		setJSONError(w, log.Errorf("Unable to marshal workload list response: %v", err), 500)
