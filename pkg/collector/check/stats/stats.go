@@ -48,6 +48,10 @@ var (
 		[]string{"check_name"}, "Histogram buckets count")
 	tlmExecutionTime = telemetry.NewGauge("checks", "execution_time",
 		[]string{"check_name"}, "Check execution time")
+	tlmCheckDelay = telemetry.NewGauge("checks",
+		"delay",
+		[]string{"check_name"},
+		"Check start time delay relative to the previous check run")
 )
 
 // SenderStats contains statistics showing the count of various types of telemetry sent by a check sender
@@ -83,6 +87,7 @@ type Stats struct {
 	CheckVersion             string
 	CheckConfigSource        string
 	CheckID                  checkid.ID
+	Interval                 time.Duration
 	TotalRuns                uint64
 	TotalErrors              uint64
 	TotalWarnings            uint64
@@ -101,6 +106,7 @@ type Stats struct {
 	LastExecutionTime        int64     // most recent run duration, provided for convenience
 	LastSuccessDate          int64     // most recent successful execution date, unix timestamp in seconds
 	LastError                string    // error that occurred in the last run, if any
+	LastDelay                int64     // most recent check start time delay relative to the previous check run, in seconds
 	LastWarnings             []string  // warnings that occurred in the last run, if any
 	UpdateTimestamp          int64     // latest update to this instance, unix timestamp in seconds
 	m                        sync.Mutex
@@ -114,6 +120,8 @@ type StatsCheck interface {
 	ID() checkid.ID
 	// Version returns the version of the check if available
 	Version() string
+	//Interval returns the interval time for the check
+	Interval() time.Duration
 	// ConfigSource returns the configuration source of the check
 	ConfigSource() string
 }
@@ -125,6 +133,7 @@ func NewStats(c StatsCheck) *Stats {
 		CheckName:                c.String(),
 		CheckVersion:             c.Version(),
 		CheckConfigSource:        c.ConfigSource(),
+		Interval:                 c.Interval(),
 		telemetry:                utils.IsCheckTelemetryEnabled(c.String()),
 		EventPlatformEvents:      make(map[string]int64),
 		TotalEventPlatformEvents: make(map[string]int64),
@@ -144,6 +153,11 @@ func NewStats(c StatsCheck) *Stats {
 func (cs *Stats) Add(t time.Duration, err error, warnings []error, metricStats SenderStats) {
 	cs.m.Lock()
 	defer cs.m.Unlock()
+
+	cs.LastDelay = calculateCheckDelay(time.Now(), cs, t)
+	if cs.telemetry {
+		tlmCheckDelay.Set(float64(cs.LastDelay), cs.CheckName)
+	}
 
 	// store execution times in Milliseconds
 	tms := t.Nanoseconds() / 1e6

@@ -42,7 +42,12 @@ func Unix(t *testing.T, client *common.TestClient, options ...installparams.Opti
 	}
 
 	t.Run("Installing the agent", func(tt *testing.T) {
-		cmd := fmt.Sprintf(`DD_API_KEY="aaaaaaaaaa" %v DD_SITE="datadoghq.eu" bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh)"`, commandLine, params.MajorVersion)
+		downdloadCmd := fmt.Sprintf(`curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
+
+		_, err := client.ExecuteWithRetry(downdloadCmd)
+		require.NoError(tt, err, "failed to download install script from S3: ", err)
+
+		cmd := fmt.Sprintf(`DD_API_KEY="aaaaaaaaaa" %v DD_SITE="datadoghq.eu" bash installscript.sh`, commandLine)
 		output, err := client.VMClient.ExecuteWithError(cmd)
 		tt.Log(output)
 		require.NoError(tt, err, "agent installation should not return any error: ", err)

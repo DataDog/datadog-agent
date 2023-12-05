@@ -15,9 +15,9 @@ import (
 
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/metadata/externalhost"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	"github.com/DataDog/datadog-agent/pkg/persistentcache"
 	"github.com/DataDog/datadog-agent/pkg/util"
@@ -174,7 +174,9 @@ func SetCheckMetadata(checkID, name, value *C.char) {
 	key := C.GoString(name)
 	val := C.GoString(value)
 
-	inventories.SetCheckMetadata(cid, key, val)
+	if inv, err := check.GetInventoryChecksContext(); err == nil {
+		inv.Set(cid, key, val)
+	}
 }
 
 // WritePersistentCache stores a value for one check instance

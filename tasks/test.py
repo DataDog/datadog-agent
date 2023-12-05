@@ -609,7 +609,6 @@ def test(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        race=race,
     )
 
     # Use stdout if no profile is set
