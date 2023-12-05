@@ -105,7 +105,7 @@ func testStartStopUDSListener(t *testing.T, listenerFactory udsListenerFactory, 
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
-	go s.Listen()
+	s.Listen()
 
 	conn, err := net.Dial(transport, socketPath)
 	assert.Nil(t, err)
@@ -134,7 +134,7 @@ func testUDSReceive(t *testing.T, listenerFactory udsListenerFactory, transport 
 	assert.Nil(t, err)
 	assert.NotNil(t, s)
 
-	go s.Listen()
+	s.Listen()
 	defer s.Stop()
 	conn, err := net.Dial(transport, socketPath)
 	assert.Nil(t, err)

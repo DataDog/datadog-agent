@@ -59,6 +59,8 @@ type UDSListener struct {
 	packetBufferSize         uint
 	packetBufferFlushTimeout time.Duration
 	telemetryWithListenerID  bool
+
+	listenWg *sync.WaitGroup
 }
 
 // CloseFunction is a function that closes a connection
@@ -138,6 +140,7 @@ func NewUDSListener(packetOut chan packets.Packets, sharedPacketPoolManager *pac
 		packetBufferSize:             uint(cfg.GetInt("dogstatsd_packet_buffer_size")),
 		packetBufferFlushTimeout:     cfg.GetDuration("dogstatsd_packet_buffer_flush_timeout"),
 		telemetryWithListenerID:      cfg.GetBool("dogstatsd_telemetry_enabled_listener_id"),
+		listenWg:                     &sync.WaitGroup{},
 	}
 
 	// Init the oob buffer pool if origin detection is enabled
@@ -369,6 +372,7 @@ func (l *UDSListener) getListenerID(conn *net.UnixConn) string {
 // Stop closes the UDS connection and stops listening
 func (l *UDSListener) Stop() {
 	// Socket cleanup on exit is not necessary as sockets are automatically removed by go.
+	l.listenWg.Wait()
 }
 
 func (l *UDSListener) clearTelemetry(id string) {
