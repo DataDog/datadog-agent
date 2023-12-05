@@ -1560,13 +1560,13 @@ func (rt *awsClientStats) getAction(req *http.Request) (service, action string, 
 			if err != nil {
 				return
 			}
+			req.Body = io.NopCloser(bytes.NewReader(body))
 			form, err := url.ParseQuery(string(body))
 			if err == nil {
 				if action := form.Get("Action"); action != "" {
 					return "ec2", action, nil
 				}
 			}
-			req.Body = io.NopCloser(bytes.NewReader(body))
 		} else if req.Method == http.MethodGet {
 			form := req.URL.Query()
 			if action := form.Get("Action"); action != "" {
