@@ -24,6 +24,7 @@ type vmSuite struct {
 	e2e.Suite[e2e.VMEnv]
 }
 
+// TestVMSuite runs tests for the VM interface to ensure its implementation is correct.
 func TestVMSuite(t *testing.T) {
 	suiteParams := make([]func(*params.Params), 0)
 	if *devMode {
@@ -90,6 +91,10 @@ func (v *vmSuite) TestFileOperations() {
 	exists, err = vm.FileExists(testFilePath)
 	v.Require().NoError(err)
 	v.Require().False(exists)
+
+	// Removing the file again should return an error
+	err = vm.Remove(testFilePath)
+	v.Require().ErrorIs(err, fs.ErrNotExist)
 }
 
 func (v *vmSuite) TestDirectoryOperations() {
@@ -124,11 +129,36 @@ func (v *vmSuite) TestDirectoryOperations() {
 	v.Require().NoError(err)
 	v.Require().True(fileInfo.IsDir())
 
-	// Remove the directory
+	// Removing non-empty directory should return an error
+	err = vm.Remove(testDirPath)
+	v.Require().Error(err)
+
+	// Removing empty directory should not return an error
+	err = vm.Remove(testSubDirPath)
+	v.Require().NoError(err)
+
+	// Sub directory should no longer exist
+	_, err = vm.Lstat(testSubDirPath)
+	v.Require().ErrorIs(err, fs.ErrNotExist)
+
+	// Create the sub directory again
+	err = vm.MkdirAll(testSubDirPath)
+	v.Require().NoError(err)
+
+	// Should create subdir
+	fileInfo, err = vm.Lstat(testSubDirPath)
+	v.Require().NoError(err)
+	v.Require().True(fileInfo.IsDir())
+
+	// Remove the directory tree
 	err = vm.RemoveAll(testDirPath)
 	v.Require().NoError(err)
 
 	// Directory should no longer exist
 	_, err = vm.Lstat(testDirPath)
+	v.Require().ErrorIs(err, fs.ErrNotExist)
+
+	// Removing the directory again should return an error
+	err = vm.Remove(testDirPath)
 	v.Require().ErrorIs(err, fs.ErrNotExist)
 }
