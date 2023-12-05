@@ -22,6 +22,7 @@ func generateLog(s *LinuxVMFakeintakeSuite, content string, recurrence int) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
 	t := s.T()
+	t.Helper()
 
 	osType := s.Env().VM.GetOSType()
 	var os string
@@ -80,10 +81,11 @@ func checkLogFilePresence(s *LinuxVMFakeintakeSuite, logPath string) {
 }
 
 // checkLogs verifies the presence or absence of logs in the intake based on the expectLogs flag.
-func checkLogs(suite *LinuxVMFakeintakeSuite, service, content string, expectLogs bool) {
-	client := suite.Env().Fakeintake
-	t := suite.T()
-	suite.EventuallyWithT(func(c *assert.CollectT) {
+func checkLogs(s *LinuxVMFakeintakeSuite, service, content string, expectLogs bool) {
+	client := s.Env().Fakeintake
+	t := s.T()
+	t.Helper()
+	s.EventuallyWithT(func(c *assert.CollectT) {
 		names, err := client.GetLogServiceNames()
 		if !assert.NoErrorf(c, err, "Error found: %s", err) {
 			return
