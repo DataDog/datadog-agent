@@ -945,6 +945,9 @@ func TestUSMPayloadTelemetry(t *testing.T) {
 }
 
 func TestKafkaSerializationWithLocalhostTraffic(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("the feature is only supported on linux.")
+	}
 	var (
 		clientPort = uint16(52800)
 		serverPort = uint16(8080)
