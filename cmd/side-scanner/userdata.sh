@@ -12,7 +12,6 @@ fi
 echo "sidescanning-${SCANNER_NAME}" > /etc/hostname
 
 # Install the agent
-dnf install -y libxcrypt-compat
 DD_API_KEY="${DD_API_KEY}" DD_SITE="datad0g.com" DD_HOSTNAME="sidescanning-${SCANNER_NAME}" bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"
 
 # Patch agent configuration
