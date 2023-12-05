@@ -11,9 +11,12 @@ package probe
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"path/filepath"
+	"sync"
 
+	"github.com/vmihailenco/msgpack/v5"
 	"google.golang.org/grpc"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
@@ -25,11 +28,19 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
+	"github.com/DataDog/datadog-agent/pkg/util/native"
 	"github.com/DataDog/datadog-go/v5/statsd"
 )
 
+type client struct {
+	conn  net.Conn
+	probe *EBPFLessProbe
+}
+
 // EBPFLessProbe defines an eBPF less probe
 type EBPFLessProbe struct {
+	sync.Mutex
+
 	Resolvers *resolvers.EBPFLessResolvers
 
 	// Constants and configuration
@@ -38,17 +49,17 @@ type EBPFLessProbe struct {
 	statsdClient statsd.ClientInterface
 
 	// internals
-	ebpfless.UnimplementedSyscallMsgStreamServer
 	server        *grpc.Server
 	seqNum        uint64
 	probe         *Probe
 	ctx           context.Context
 	cancelFnc     context.CancelFunc
 	fieldHandlers *EBPFLessFieldHandlers
+	buf           []byte
+	clients       map[net.Conn]*client
 }
 
-// SendSyscallMsg handles gRPC messages
-func (p *EBPFLessProbe) SendSyscallMsg(_ context.Context, syscallMsg *ebpfless.SyscallMsg) (*ebpfless.Response, error) {
+func (p *EBPFLessProbe) handleSyscallMsg(syscallMsg *ebpfless.SyscallMsg) error {
 	if p.seqNum != syscallMsg.SeqNum {
 		seclog.Errorf("communication out of sync %d vs %d", p.seqNum, syscallMsg.SeqNum)
 	}
@@ -71,7 +82,7 @@ func (p *EBPFLessProbe) SendSyscallMsg(_ context.Context, syscallMsg *ebpfless.S
 		event.Open.Flags = syscallMsg.Open.Flags
 		event.Open.Mode = syscallMsg.Open.Mode
 	default:
-		return &ebpfless.Response{}, nil
+		return nil
 	}
 
 	// container context
@@ -91,7 +102,7 @@ func (p *EBPFLessProbe) SendSyscallMsg(_ context.Context, syscallMsg *ebpfless.S
 
 	p.DispatchEvent(event)
 
-	return &ebpfless.Response{}, nil
+	return nil
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -125,20 +136,114 @@ func (p *EBPFLessProbe) Stop() {
 
 // Close the probe
 func (p *EBPFLessProbe) Close() error {
+	p.Lock()
+	defer p.Unlock()
+
+	for conn := range p.clients {
+		conn.Close()
+		delete(p.clients, conn)
+	}
+
 	return nil
+}
+
+func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.SyscallMsg) error {
+	sizeBuf := make([]byte, 4)
+
+	len, err := conn.Read(sizeBuf)
+	if err != nil {
+		return err
+	}
+
+	if len < 4 {
+		// TODO return EOF
+		return errors.New("not enough data")
+	}
+
+	size := native.Endian.Uint32(sizeBuf)
+	if size > 64*1024 {
+		return errors.New("data overflow the max size")
+	}
+
+	if cap(p.buf) < int(size) {
+		p.buf = make([]byte, size)
+	}
+
+	len, err = conn.Read(p.buf)
+	if err != nil {
+		return err
+	}
+
+	return msgpack.Unmarshal(p.buf[0:len], msg)
+}
+
+func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan ebpfless.SyscallMsg) {
+	client := &client{
+		conn:  conn,
+		probe: p,
+	}
+
+	p.Lock()
+	p.clients[conn] = client
+	p.Unlock()
+
+	seclog.Debugf("new connection from: %v", conn.RemoteAddr())
+
+	go func() {
+		var msg ebpfless.SyscallMsg
+		for {
+			if err := p.readMsg(conn, &msg); err != nil {
+				seclog.Warnf("error while reading message: %v", err)
+
+				p.Lock()
+				delete(p.clients, conn)
+				p.Unlock()
+
+				return
+			}
+
+			fmt.Printf("MSG: %+v\n", msg)
+
+			ch <- msg
+
+		}
+	}()
 }
 
 // Start the probe
 func (p *EBPFLessProbe) Start() error {
 	family, address := config.GetFamilyAddress(p.config.RuntimeSecurity.EBPFLessSocket)
+	_ = family
 
-	conn, err := net.Listen(family, address)
+	tcpAddr, err := net.ResolveTCPAddr("tcp4", address)
 	if err != nil {
 		return err
 	}
 
+	// Start listening for TCP connections on the given address
+	listener, err := net.ListenTCP("tcp", tcpAddr)
+	if err != nil {
+		return err
+	}
+
+	ch := make(chan ebpfless.SyscallMsg, 100)
+
 	go func() {
-		_ = p.server.Serve(conn)
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				seclog.Errorf("unable to accept new connection")
+				continue
+			}
+
+			p.handleNewClient(conn, ch)
+		}
+	}()
+
+	go func() {
+		for msg := range ch {
+			p.handleSyscallMsg(&msg)
+		}
 	}()
 
 	seclog.Infof("starting listening for ebpf less events on : %s", p.config.RuntimeSecurity.EBPFLessSocket)
@@ -146,7 +251,7 @@ func (p *EBPFLessProbe) Start() error {
 	return nil
 }
 
-// Snapshot the already exsisting entities
+// Snapshot the already existing entities
 func (p *EBPFLessProbe) Snapshot() error {
 	return nil
 }
@@ -226,9 +331,9 @@ func NewEBPFLessProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFLess
 		server:       grpc.NewServer(grpcOpts...),
 		ctx:          ctx,
 		cancelFnc:    cancelFnc,
+		buf:          make([]byte, 4096),
+		clients:      make(map[net.Conn]*client),
 	}
-
-	ebpfless.RegisterSyscallMsgStreamServer(p.server, p)
 
 	resolversOpts := resolvers.Opts{
 		TagsResolver: opts.TagsResolver,
