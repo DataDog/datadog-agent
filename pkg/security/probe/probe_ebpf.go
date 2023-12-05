@@ -1613,14 +1613,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		)
 	}
 
-	if useRingBuffers {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-			manager.ConstantEditor{
-				Name:  "use_ring_buffer",
-				Value: utils.BoolTouint64(true),
-			},
-		)
-	}
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  "use_ring_buffer",
+			Value: utils.BoolTouint64(useRingBuffers),
+		},
+	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
