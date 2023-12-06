@@ -5,35 +5,35 @@
 
 package protocols
 
-//nolint:revive // TODO(USM) Fix revive linter
+// ProtocolType is an enum of supported protocols
 type ProtocolType uint16
 
 const (
-	//nolint:revive // TODO(USM) Fix revive linter
+	// Unknown is the default value, protocol was not detected
 	Unknown ProtocolType = iota
-	//nolint:revive // TODO(USM) Fix revive linter
+	// HTTP protocol
 	HTTP
-	//nolint:revive // TODO(USM) Fix revive linter
+	// HTTP2 protocol
 	HTTP2
-	//nolint:revive // TODO(USM) Fix revive linter
+	// Kafka protocol
 	Kafka
-	//nolint:revive // TODO(USM) Fix revive linter
+	// TLS protocol
 	TLS
-	//nolint:revive // TODO(USM) Fix revive linter
+	// Mongo protocol
 	Mongo
-	//nolint:revive // TODO(USM) Fix revive linter
+	// Postgres protocol
 	Postgres
-	//nolint:revive // TODO(USM) Fix revive linter
+	// AMQP protocol
 	AMQP
-	//nolint:revive // TODO(USM) Fix revive linter
+	// Redis protocol
 	Redis
-	//nolint:revive // TODO(USM) Fix revive linter
+	// MySQL protocol
 	MySQL
-	//nolint:revive // TODO(USM) Fix revive linter
+	// GRPC protocol
 	GRPC
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// String returns the string representation of the protocol
 func (p ProtocolType) String() string {
 	switch p {
 	case Unknown:
@@ -64,17 +64,17 @@ func (p ProtocolType) String() string {
 	}
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Stack is a set of protocols detected on a connection
 type Stack struct {
-	Api         ProtocolType
+	API         ProtocolType
 	Application ProtocolType
 	Encryption  ProtocolType
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// MergeWith merges the other stack into the current one
 func (s *Stack) MergeWith(other Stack) {
-	if s.Api == Unknown {
-		s.Api = other.Api
+	if s.API == Unknown {
+		s.API = other.API
 	}
 
 	if s.Application == Unknown {
@@ -86,12 +86,12 @@ func (s *Stack) MergeWith(other Stack) {
 	}
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Contains returns true if the stack contains the given protocol
 func (s *Stack) Contains(proto ProtocolType) bool {
-	return s.Api == proto || s.Application == proto || s.Encryption == proto
+	return s.API == proto || s.Application == proto || s.Encryption == proto
 }
 
 // IsUnknown returns true if all protocol types are `Unknown`
 func (s *Stack) IsUnknown() bool {
-	return s.Api == Unknown && s.Application == Unknown && s.Encryption == Unknown
+	return s.API == Unknown && s.Application == Unknown && s.Encryption == Unknown
 }
