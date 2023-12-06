@@ -44,22 +44,26 @@ func (c *serializerConsumer) enrichedTags(dimensions *otlpmetrics.Dimensions) []
 	enrichedTags := make([]string, 0, len(c.extraTags)+len(dimensions.Tags()))
 	enrichedTags = append(enrichedTags, c.extraTags...)
 	enrichedTags = append(enrichedTags, dimensions.Tags()...)
-
-	entityTags, err := tagger.Tag(dimensions.OriginID(), c.cardinality)
-	if err != nil {
-		log.Tracef("Cannot get tags for entity %s: %s", dimensions.OriginID(), err)
-	} else {
-		enrichedTags = append(enrichedTags, entityTags...)
-	}
-
-	globalTags, err := tagger.GlobalTags(c.cardinality)
+	ctags, err := TaggerTags(dimensions.OriginID(), c.cardinality)
 	if err != nil {
 		log.Trace(err.Error())
-	} else {
-		enrichedTags = append(enrichedTags, globalTags...)
 	}
+	return append(enrichedTags, ctags...)
+}
 
-	return enrichedTags
+func TaggerTags(cid string, card collectors.TagCardinality) ([]string, error) {
+	tags := []string{}
+	if etags, err := tagger.Tag(cid, card); err != nil {
+		return tags, fmt.Errorf("Cannot get tags for entity %s: %w", cid, err)
+	} else {
+		tags = append(tags, etags...)
+	}
+	if gtags, err := tagger.GlobalTags(card); err != nil {
+		return tags, err
+	} else {
+		tags = append(tags, gtags...)
+	}
+	return tags, nil
 }
 
 func (c *serializerConsumer) ConsumeAPMStats(ss *pb.ClientStatsPayload) {
