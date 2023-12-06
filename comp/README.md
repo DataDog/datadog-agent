@@ -290,7 +290,7 @@ supported Datadog intakes.
 
 *Datadog Team*: remote-config
 
-
+Package remoteconfig defines the fx options for the Bundle
 
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 

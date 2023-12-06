@@ -3,23 +3,23 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//nolint:revive // TODO(RC) Fix revive linter
+// Package apmsampling contains data types related to APM_SAMPLING config
 package apmsampling
 
-//nolint:revive // TODO(RC) Fix revive linter
+// SamplerConfig represents a sampling configuration
 type SamplerConfig struct {
 	AllEnvs SamplerEnvConfig `json:"all_envs"`
 	ByEnv   []EnvAndConfig   `json:"by_env"`
 }
 
-//nolint:revive // TODO(RC) Fix revive linter
+// SamplerEnvConfig contains the configuration for all environments
 type SamplerEnvConfig struct {
 	PrioritySamplerTargetTPS *float64 `json:"priority_sampler_target_TPS"`
 	ErrorsSamplerTargetTPS   *float64 `json:"errors_sampler_target_TPS"`
 	RareSamplerEnabled       *bool    `json:"rare_sampler_enabled"`
 }
 
-//nolint:revive // TODO(RC) Fix revive linter
+// EnvAndConfig breaks down configuration by environment
 type EnvAndConfig struct {
 	Env    string           `json:"env"`
 	Config SamplerEnvConfig `json:"config"`
