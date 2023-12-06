@@ -49,11 +49,14 @@ type ASMFeaturesConfig struct {
 	Metadata Metadata
 }
 
-// ASMFeaturesData describes the enabled state of ASM features
+// ASMFeaturesData describes the state of ASM and some of its features
 type ASMFeaturesData struct {
 	ASM struct {
 		Enabled bool `json:"enabled"`
 	} `json:"asm"`
+	APISecurity struct {
+		RequestSampleRate float64 `json:"request_sample_rate"`
+	} `json:"api_security"`
 }
 
 func parseASMFeaturesConfig(data []byte, metadata Metadata) (ASMFeaturesConfig, error) {
