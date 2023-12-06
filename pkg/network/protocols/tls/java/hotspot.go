@@ -5,7 +5,7 @@
 
 //go:build linux
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package java contains implementation for JavaTLS support.
 package java
 
 import (
@@ -288,8 +288,7 @@ func (h *Hotspot) commandWriteRead(cmd string, tailingNull bool) error {
 	}
 
 	if returnCommand != 0 {
-		//nolint:revive // TODO(USM) Fix revive linter
-		return fmt.Errorf("command sent to hotspot JVM '%s' return %d and return code %d, response text:\n%s\n", cmd, returnCommand, returnCode, responseText)
+		return fmt.Errorf("command sent to hotspot JVM %q return %d and return code %d, response text:\n%s", cmd, returnCommand, returnCode, responseText)
 	}
 	return nil
 }

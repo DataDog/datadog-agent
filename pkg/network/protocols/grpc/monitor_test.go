@@ -297,8 +297,7 @@ func (s *USMgRPCSuite) TestSimpleGRPCScenarios() {
 				ctxWithHeaders := context.Background()
 				headers := make(map[string]string, 20)
 				for i := 1; i <= 20; i++ {
-					//nolint:gosimple // TODO(USM) Fix gosimple linter
-					headers[fmt.Sprintf("header-%d", i)] = fmt.Sprintf("value")
+					headers[fmt.Sprintf("header-%d", i)] = "value"
 				}
 				md := metadata.New(headers)
 				ctxWithHeaders = metadata.NewOutgoingContext(ctxWithHeaders, md)
