@@ -130,6 +130,8 @@ func TestGetEventType(t *testing.T) {
 		parsedEventType := GetEventType(jsonPayload)
 
 		assert.Equal(t, expectedEventType, parsedEventType, fmt.Sprintf("%v\n", testFile))
+
+		lastEventChecker = unknownChecker // reset event check cache
 	}
 }
 
