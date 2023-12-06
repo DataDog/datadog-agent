@@ -27,8 +27,8 @@ type SnmpwalkRunner struct {
 	sender   sender.Sender
 }
 
-// NewRemoteConfigSNMPProfilesManager creates a new SnmpwalkRunner.
-func NewRemoteConfigSNMPProfilesManager(sender sender.Sender) *SnmpwalkRunner {
+// NewSnmpwalkRunner creates a new SnmpwalkRunner.
+func NewSnmpwalkRunner(sender sender.Sender) *SnmpwalkRunner {
 	return &SnmpwalkRunner{
 		upToDate: false,
 		sender:   sender,
