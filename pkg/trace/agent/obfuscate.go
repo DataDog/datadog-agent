@@ -12,7 +12,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 )
 
 const (
@@ -28,68 +28,74 @@ const (
 	textNonParsable = "Non-parsable SQL query"
 )
 
-func (a *Agent) obfuscateSpan(span *pb.Span) {
+func (a *Agent) obfuscateSpan(span tracerpayload.Span) {
 	o := a.obfuscator
-	switch span.Type {
+	switch span.Type() {
 	case "sql", "cassandra":
-		if span.Resource == "" {
+		if span.Resource() == "" {
 			return
 		}
-		oq, err := o.ObfuscateSQLString(span.Resource)
+		oq, err := o.ObfuscateSQLString(span.Resource())
 		if err != nil {
 			// we have an error, discard the SQL to avoid polluting user resources.
 			log.Debugf("Error parsing SQL query: %v. Resource: %q", err, span.Resource)
-			span.Resource = textNonParsable
-			traceutil.SetMeta(span, tagSQLQuery, textNonParsable)
+			span.SetResource(textNonParsable)
+			span.SetMeta(tagSQLQuery, textNonParsable)
 			return
 		}
 
-		span.Resource = oq.Query
+		span.SetResource(oq.Query)
 		if len(oq.Metadata.TablesCSV) > 0 {
-			traceutil.SetMeta(span, "sql.tables", oq.Metadata.TablesCSV)
+			span.SetMeta("sql.tables", oq.Metadata.TablesCSV)
 		}
-		traceutil.SetMeta(span, tagSQLQuery, oq.Query)
+		span.SetMeta(tagSQLQuery, oq.Query)
 	case "redis":
-		span.Resource = o.QuantizeRedisString(span.Resource)
+		span.SetResource(o.QuantizeRedisString(span.Resource()))
 		if a.conf.Obfuscation.Redis.Enabled {
-			if span.Meta == nil || span.Meta[tagRedisRawCommand] == "" {
+			// todo: got rid of some checks here
+			raw, rawFound := span.Meta(tagRedisRawCommand)
+			if !rawFound || raw == "" {
 				return
 			}
 			if a.conf.Obfuscation.Redis.RemoveAllArgs {
-				span.Meta[tagRedisRawCommand] = o.RemoveAllRedisArgs(span.Meta[tagRedisRawCommand])
+				span.SetMeta(tagRedisRawCommand, o.RemoveAllRedisArgs(raw))
 				return
 			}
-			span.Meta[tagRedisRawCommand] = o.ObfuscateRedisString(span.Meta[tagRedisRawCommand])
+			span.SetMeta(tagRedisRawCommand, o.ObfuscateRedisString(raw))
 		}
 	case "memcached":
 		if !a.conf.Obfuscation.Memcached.Enabled {
 			return
 		}
-		if span.Meta == nil || span.Meta[tagMemcachedCommand] == "" {
+		raw, rawFound := span.Meta(tagMemcachedCommand)
+		if !rawFound || raw == "" {
 			return
 		}
-		span.Meta[tagMemcachedCommand] = o.ObfuscateMemcachedString(span.Meta[tagMemcachedCommand])
+		span.SetMeta(tagMemcachedCommand, o.ObfuscateMemcachedString(raw))
 	case "web", "http":
-		if span.Meta == nil || span.Meta[tagHTTPURL] == "" {
+		raw, rawFound := span.Meta(tagHTTPURL)
+		if !rawFound || raw == "" {
 			return
 		}
-		span.Meta[tagHTTPURL] = o.ObfuscateURLString(span.Meta[tagHTTPURL])
+		span.SetMeta(tagHTTPURL, o.ObfuscateURLString(raw))
 	case "mongodb":
 		if !a.conf.Obfuscation.Mongo.Enabled {
 			return
 		}
-		if span.Meta == nil || span.Meta[tagMongoDBQuery] == "" {
+		raw, rawFound := span.Meta(tagMongoDBQuery)
+		if !rawFound || raw == "" {
 			return
 		}
-		span.Meta[tagMongoDBQuery] = o.ObfuscateMongoDBString(span.Meta[tagMongoDBQuery])
+		span.SetMeta(tagMongoDBQuery, o.ObfuscateMongoDBString(raw))
 	case "elasticsearch":
 		if !a.conf.Obfuscation.ES.Enabled {
 			return
 		}
-		if span.Meta == nil || span.Meta[tagElasticBody] == "" {
+		raw, rawFound := span.Meta(tagElasticBody)
+		if !rawFound || raw == "" {
 			return
 		}
-		span.Meta[tagElasticBody] = o.ObfuscateElasticSearchString(span.Meta[tagElasticBody])
+		span.SetMeta(tagElasticBody, o.ObfuscateElasticSearchString(raw))
 	}
 }
 

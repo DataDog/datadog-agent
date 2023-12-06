@@ -6,8 +6,8 @@
 package api
 
 import (
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 )
 
 // Payload specifies information about a set of traces received by the API.
@@ -17,7 +17,7 @@ type Payload struct {
 	Source *info.TagStats
 
 	// TracerPayload holds the incoming payload from the tracer.
-	TracerPayload *pb.TracerPayload
+	TracerPayload tracerpayload.Generic
 
 	// ClientComputedTopLevel specifies that the client has already marked top-level
 	// spans.
@@ -31,22 +31,22 @@ type Payload struct {
 	ClientDroppedP0s int64
 }
 
-// Chunks returns chunks in TracerPayload
-func (p *Payload) Chunks() []*pb.TraceChunk {
-	return p.TracerPayload.Chunks
-}
-
-// Chunk returns a chunk in TracerPayload by its index
-func (p *Payload) Chunk(i int) *pb.TraceChunk {
-	return p.TracerPayload.Chunks[i]
-}
-
-// RemoveChunk removes a chunk in TracerPayload by its index
-func (p *Payload) RemoveChunk(i int) {
-	p.TracerPayload.RemoveChunk(i)
-}
-
-// ReplaceChunk replaces a chunk in TracerPayload at a given index
-func (p *Payload) ReplaceChunk(i int, chunk *pb.TraceChunk) {
-	p.TracerPayload.Chunks[i] = chunk
-}
+//// Chunks returns chunks in TracerPayload
+//func (p *Payload) Chunks() []tracerpayload.TraceChunk {
+//	return p.TracerPayload.Chunks()
+//}
+//
+//// Chunk returns a chunk in TracerPayload by its index
+//func (p *Payload) Chunk(i int) tracerpayload.TraceChunk {
+//	return p.TracerPayload.Chunks()[i]
+//}
+//
+//// RemoveChunk removes a chunk in TracerPayload by its index
+//func (p *Payload) RemoveChunk(i int) {
+//	p.TracerPayload.RemoveChunk(i)
+//}
+//
+//// ReplaceChunk replaces a chunk in TracerPayload at a given index
+//func (p *Payload) ReplaceChunk(i int, chunk *pb.TraceChunk) {
+//	p.TracerPayload.Chunks()[i] = chunk
+//}

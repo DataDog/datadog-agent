@@ -11,6 +11,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 )
 
 // Blacklister holds a list of regular expressions which will match resources
@@ -20,9 +21,9 @@ type Blacklister struct {
 }
 
 // Allows returns true if the Blacklister permits this span.
-func (f *Blacklister) Allows(span *pb.Span) bool {
+func (f *Blacklister) Allows(span tracerpayload.Span) bool {
 	for _, entry := range f.list {
-		if entry.MatchString(span.Resource) {
+		if entry.MatchString(span.Resource()) {
 			return false
 		}
 	}

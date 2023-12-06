@@ -5,12 +5,14 @@
 
 package traceutil
 
-import pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+import (
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
+)
 
 // ProcessedTrace represents a trace being processed in the agent.
 type ProcessedTrace struct {
-	TraceChunk             *pb.TraceChunk
-	Root                   *pb.Span
+	TraceChunk             tracerpayload.TraceChunk
+	Root                   tracerpayload.Span
 	TracerEnv              string
 	AppVersion             string
 	TracerHostname         string
@@ -31,19 +33,20 @@ type ProcessedTrace struct {
 //
 //	pt2 := pt.Clone()
 //	pt2.TraceChunk.Spans[0] = &pb.Span{} // This will be visible in pt.
-func (pt *ProcessedTrace) Clone() *ProcessedTrace {
-	if pt == nil {
-		return nil
-	}
-	ptClone := new(ProcessedTrace)
-	*ptClone = *pt
-	if pt.TraceChunk != nil {
-		c := pt.TraceChunk.ShallowCopy()
-		ptClone.TraceChunk = c
-	}
-	if pt.Root != nil {
-		r := pt.Root.ShallowCopy()
-		ptClone.Root = r
-	}
-	return ptClone
-}
+// todo: can we delete this
+//func (pt *ProcessedTrace) Clone() *ProcessedTrace {
+//	if pt == nil {
+//		return nil
+//	}
+//	ptClone := new(ProcessedTrace)
+//	*ptClone = *pt
+//	if pt.TraceChunk != nil {
+//		c := pt.TraceChunk.ShallowCopy()
+//		ptClone.TraceChunk = c
+//	}
+//	if pt.Root != nil {
+//		r := pt.Root.ShallowCopy()
+//		ptClone.Root = r
+//	}
+//	return ptClone
+//}

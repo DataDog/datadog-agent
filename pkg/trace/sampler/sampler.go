@@ -10,6 +10,7 @@ import (
 	"math"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -79,37 +80,37 @@ func SampleByRate(traceID uint64, rate float64) bool {
 
 // GetSamplingPriority returns the value of the sampling priority metric set on this span and a boolean indicating if
 // such a metric was actually found or not.
-func GetSamplingPriority(t *pb.TraceChunk) (SamplingPriority, bool) {
-	if t.Priority == int32(PriorityNone) {
+func GetSamplingPriority(t tracerpayload.TraceChunk) (SamplingPriority, bool) {
+	if t.Priority() == int32(PriorityNone) {
 		return 0, false
 	}
-	return SamplingPriority(t.Priority), true
+	return SamplingPriority(t.Priority()), true
 }
 
 // GetGlobalRate gets the cumulative sample rate of the trace to which this span belongs to.
-func GetGlobalRate(s *pb.Span) float64 {
+func GetGlobalRate(s tracerpayload.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateGlobal, 1.0)
 }
 
 // GetClientRate gets the rate at which the trace this span belongs to was sampled by the tracer.
 // NOTE: This defaults to 1 if no rate is stored.
-func GetClientRate(s *pb.Span) float64 {
+func GetClientRate(s tracerpayload.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateClient, 1.0)
 }
 
 // SetClientRate sets the rate at which the trace this span belongs to was sampled by the tracer.
-func SetClientRate(s *pb.Span, rate float64) {
+func SetClientRate(s tracerpayload.Span, rate float64) {
 	if rate < 1 {
-		setMetric(s, KeySamplingRateClient, rate)
+		s.SetMetrics(KeySamplingRateClient, rate)
 	} else {
 		// We assume missing value is 1 to save bandwidth (check getter).
-		delete(s.Metrics, KeySamplingRateClient)
+		s.DeleteMetric(KeySamplingRateClient)
 	}
 }
 
 // GetPreSampleRate returns the rate at which the trace this span belongs to was sampled by the agent's presampler.
 // NOTE: This defaults to 1 if no rate is stored.
-func GetPreSampleRate(s *pb.Span) float64 {
+func GetPreSampleRate(s tracerpayload.Span) float64 {
 	return getMetricDefault(s, KeySamplingRatePreSampler, 1.0)
 }
 
@@ -125,7 +126,7 @@ func SetPreSampleRate(s *pb.Span, rate float64) {
 
 // GetEventExtractionRate gets the rate at which the trace from which we extracted this event was sampled at the tracer.
 // This defaults to 1 if no rate is stored.
-func GetEventExtractionRate(s *pb.Span) float64 {
+func GetEventExtractionRate(s tracerpayload.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateEventExtraction, 1.0)
 }
 
@@ -140,7 +141,7 @@ func SetEventExtractionRate(s *pb.Span, rate float64) {
 }
 
 // GetMaxEPSRate gets the rate at which this event was sampled by the max eps event sampler.
-func GetMaxEPSRate(s *pb.Span) float64 {
+func GetMaxEPSRate(s tracerpayload.Span) float64 {
 	return getMetricDefault(s, KeySamplingRateMaxEPSSampler, 1.0)
 }
 
@@ -160,7 +161,7 @@ func SetAnalyzedSpan(s *pb.Span) {
 }
 
 // IsAnalyzedSpan checks if a span is analyzed
-func IsAnalyzedSpan(s *pb.Span) bool {
+func IsAnalyzedSpan(s tracerpayload.Span) bool {
 	v, _ := getMetric(s, KeyAnalyzedSpans)
 	return v == 1
 }
@@ -180,16 +181,16 @@ func weightRoot(s *pb.Span) float32 {
 	return float32(1.0 / (preSamplerRate * clientRate))
 }
 
-func getMetric(s *pb.Span, k string) (float64, bool) {
-	if s.Metrics == nil {
-		return 0, false
-	}
-	val, ok := s.Metrics[k]
+func getMetric(s tracerpayload.Span, k string) (float64, bool) {
+	//if s.Metrics == nil {
+	//	return 0, false
+	//}
+	val, ok := s.Metrics(k)
 	return val, ok
 }
 
 // getMetricDefault gets a value in the span Metrics map or default if no value is stored there.
-func getMetricDefault(s *pb.Span, k string, def float64) float64 {
+func getMetricDefault(s tracerpayload.Span, k string, def float64) float64 {
 	if val, ok := getMetric(s, k); ok {
 		return val
 	}

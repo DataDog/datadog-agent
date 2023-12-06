@@ -6,51 +6,44 @@
 package agent
 
 import (
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // Truncate checks that the span resource, meta and metrics are within the max length
 // and modifies them if they are not
-func (a *Agent) Truncate(s *pb.Span) {
-	r, ok := a.TruncateResource(s.Resource)
+func (a *Agent) Truncate(s tracerpayload.Span) {
+	r, ok := a.TruncateResource(s.Resource())
 	if !ok {
 		log.Debugf("span.truncate: truncated `Resource` (max %d chars): %s", a.conf.MaxResourceLen, s.Resource)
 	}
-	s.Resource = r
+	s.SetResource(r)
 
 	// Error - Nothing to do
 	// Optional data, Meta & Metrics can be nil
 	// Soft fail on those
-	for k, v := range s.Meta {
+	s.ForMeta(func(k string, v string) (string, string, bool) {
 		modified := false
-
 		if len(k) > MaxMetaKeyLen {
 			log.Debugf("span.truncate: truncating `Meta` key (max %d chars): %s", MaxMetaKeyLen, k)
-			delete(s.Meta, k)
 			k = traceutil.TruncateUTF8(k, MaxMetaKeyLen) + "..."
 			modified = true
 		}
-
 		if len(v) > MaxMetaValLen {
 			v = traceutil.TruncateUTF8(v, MaxMetaValLen) + "..."
 			modified = true
 		}
-
-		if modified {
-			s.Meta[k] = v
-		}
-	}
-	for k, v := range s.Metrics {
+		return k, v, modified
+	})
+	s.ForMetrics(func(k string, v float64) (string, float64, bool) {
 		if len(k) > MaxMetricsKeyLen {
 			log.Debugf("span.truncate: truncating `Metrics` key (max %d chars): %s", MaxMetricsKeyLen, k)
-			delete(s.Metrics, k)
 			k = traceutil.TruncateUTF8(k, MaxMetricsKeyLen) + "..."
-
-			s.Metrics[k] = v
+			return k, v, true
 		}
-	}
+		return k, v, false
+	})
 }
 
 const (

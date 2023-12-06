@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 )
 
 // pathTraces is the target host API path for delivering traces.
@@ -40,7 +41,7 @@ type samplerEnabledReader interface {
 // SampledChunks represents the result of a trace sampling operation.
 type SampledChunks struct {
 	// TracerPayload contains all the chunks that were sampled as part of processing a payload.
-	TracerPayload *pb.TracerPayload
+	TracerPayload tracerpayload.Generic
 	// Size represents the approximated message size in bytes.
 	Size int
 	// SpanCount specifies the number of spans that were sampled as part of a trace inside the TracerPayload.
@@ -72,8 +73,8 @@ type TraceWriter struct {
 	tick         time.Duration  // flush frequency
 	agentVersion string
 
-	tracerPayloads []*pb.TracerPayload // tracer payloads buffered
-	bufferedSize   int                 // estimated buffer size
+	tracerPayloads []tracerpayload.Generic // tracer payloads buffered
+	bufferedSize   int                     // estimated buffer size
 
 	// syncMode reports whether the writer should flush on its own or only when FlushSync is called
 	syncMode  bool
@@ -197,7 +198,7 @@ func (w *TraceWriter) FlushSync() error {
 
 func (w *TraceWriter) addSpans(pkg *SampledChunks) {
 	w.stats.Spans.Add(pkg.SpanCount)
-	w.stats.Traces.Add(int64(len(pkg.TracerPayload.Chunks)))
+	w.stats.Traces.Add(int64(pkg.TracerPayload.NumChunks()))
 	w.stats.Events.Add(pkg.EventCount)
 
 	size := pkg.Size
@@ -205,7 +206,7 @@ func (w *TraceWriter) addSpans(pkg *SampledChunks) {
 		// reached maximum allowed buffered size
 		w.flush()
 	}
-	if len(pkg.TracerPayload.Chunks) > 0 {
+	if pkg.TracerPayload.NumChunks() > 0 {
 		log.Tracef("Writer: handling new tracer payload with %d spans: %v", pkg.SpanCount, pkg.TracerPayload)
 		w.tracerPayloads = append(w.tracerPayloads, pkg.TracerPayload)
 	}
@@ -228,7 +229,7 @@ outer:
 
 func (w *TraceWriter) resetBuffer() {
 	w.bufferedSize = 0
-	w.tracerPayloads = make([]*pb.TracerPayload, 0, len(w.tracerPayloads))
+	w.tracerPayloads = make([]tracerpayload.Generic, 0, len(w.tracerPayloads))
 }
 
 const headerLanguages = "X-Datadog-Reported-Languages"
@@ -243,6 +244,11 @@ func (w *TraceWriter) flush() {
 	defer w.resetBuffer()
 
 	log.Debugf("Serializing %d tracer payloads.", len(w.tracerPayloads))
+	//TODO: this stinks to have to loop every payload, can we get around this
+	pbTps := make([]*pb.TracerPayload, len(w.tracerPayloads))
+	for i, tp := range w.tracerPayloads {
+		pbTps[i] = tp.ToPb()
+	}
 	p := pb.AgentPayload{
 		AgentVersion:       w.agentVersion,
 		HostName:           w.hostname,
@@ -250,7 +256,7 @@ func (w *TraceWriter) flush() {
 		TargetTPS:          w.prioritySampler.GetTargetTPS(),
 		ErrorTPS:           w.errorsSampler.GetTargetTPS(),
 		RareSamplerEnabled: w.rareSampler.IsEnabled(),
-		TracerPayloads:     w.tracerPayloads,
+		TracerPayloads:     pbTps,
 	}
 	log.Debugf("Reported agent rates: target_tps=%v errors_tps=%v rare_sampling=%v", p.TargetTPS, p.ErrorTPS, p.RareSamplerEnabled)
 

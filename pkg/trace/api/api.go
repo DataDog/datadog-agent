@@ -37,6 +37,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
 
@@ -354,19 +355,20 @@ func (r *HTTPReceiver) tagStats(v Version, httpHeader http.Header) *info.TagStat
 // - tp is the decoded payload
 // - ranHook reports whether the decoder was able to run the pb.MetaHook
 // - err is the first error encountered
-func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDProvider IDProvider) (tp *pb.TracerPayload, ranHook bool, err error) {
+func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDProvider IDProvider) (tp tracerpayload.Generic, ranHook bool, err error) {
 	switch v {
 	case v01:
 		var spans []*pb.Span
 		if err = json.NewDecoder(req.Body).Decode(&spans); err != nil {
 			return nil, false, err
 		}
-		return &pb.TracerPayload{
+		return &tracerpayload.ProtoWrapped{TP: &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
 			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromSpans(spans),
 			TracerVersion:   ts.TracerVersion,
+		},
 		}, false, nil
 	case v05:
 		buf := getBuffer()
@@ -376,13 +378,13 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDPro
 		}
 		var traces pb.Traces
 		err = traces.UnmarshalMsgDictionary(buf.Bytes())
-		return &pb.TracerPayload{
+		return &tracerpayload.ProtoWrapped{TP: &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
 			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
-		}, true, err
+		}}, true, err
 	case V07:
 		buf := getBuffer()
 		defer putBuffer(buf)
@@ -391,19 +393,19 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDPro
 		}
 		var tracerPayload pb.TracerPayload
 		_, err = tracerPayload.UnmarshalMsg(buf.Bytes())
-		return &tracerPayload, true, err
+		return &tracerpayload.ProtoWrapped{TP: &tracerPayload}, true, err
 	default:
 		var traces pb.Traces
 		if ranHook, err = decodeRequest(req, &traces); err != nil {
 			return nil, false, err
 		}
-		return &pb.TracerPayload{
+		return &tracerpayload.ProtoWrapped{TP: &pb.TracerPayload{
 			LanguageName:    ts.Lang,
 			LanguageVersion: ts.LangVersion,
 			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
 			Chunks:          traceChunksFromTraces(traces),
 			TracerVersion:   ts.TracerVersion,
-		}, ranHook, nil
+		}}, ranHook, nil
 	}
 }
 
@@ -482,7 +484,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	}()
 
 	start := time.Now()
-	tp, ranHook, err := decodeTracerPayload(v, req, ts, r.containerIDProvider)
+	tp, _, err := decodeTracerPayload(v, req, ts, r.containerIDProvider)
 	defer func(err error) {
 		tags := append(ts.AsTags(), fmt.Sprintf("success:%v", err == nil))
 		metrics.Histogram("datadog.trace_agent.receiver.serve_traces_ms", float64(time.Since(start))/float64(time.Millisecond), tags, 1)
@@ -504,30 +506,28 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 		log.Errorf("Cannot decode %s traces payload: %v", v, err)
 		return
 	}
-	if !ranHook {
-		// The decoder of this request did not run the pb.MetaHook. The user is either using
-		// a deprecated endpoint or Content-Type, or, a new decoder was implemented and the
-		// the hook was not added.
-		log.Debug("Decoded the request without running pb.MetaHook. If this is a newly implemented endpoint, please make sure to run it!")
-		if _, ok := pb.MetaHook(); ok {
-			log.Warn("Received request on deprecated API endpoint or Content-Type. Performance is degraded. If you think this is an error, please contact support with this message.")
-			runMetaHook(tp.Chunks)
-		}
-	}
+	// TODO: deal with this
+	//if !ranHook {
+	//	// The decoder of this request did not run the pb.MetaHook. The user is either using
+	//	// a deprecated endpoint or Content-Type, or, a new decoder was implemented and the
+	//	// the hook was not added.
+	//	log.Debug("Decoded the request without running pb.MetaHook. If this is a newly implemented endpoint, please make sure to run it!")
+	//	if _, ok := pb.MetaHook(); ok {
+	//		log.Warn("Received request on deprecated API endpoint or Content-Type. Performance is degraded. If you think this is an error, please contact support with this message.")
+	//		runMetaHook(tp.Chunks)
+	//	}
+	//}
 	if n, ok := r.replyOK(req, v, w); ok {
 		tags := append(ts.AsTags(), "endpoint:traces_"+string(v))
 		metrics.Histogram("datadog.trace_agent.receiver.rate_response_bytes", float64(n), tags, 1)
 	}
 
-	ts.TracesReceived.Add(int64(len(tp.Chunks)))
+	ts.TracesReceived.Add(int64(tp.NumChunks()))
 	ts.TracesBytes.Add(req.Body.(*apiutil.LimitedReader).Count)
 	ts.PayloadAccepted.Inc()
 
-	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID); ctags != "" {
-		if tp.Tags == nil {
-			tp.Tags = make(map[string]string)
-		}
-		tp.Tags[tagContainersTags] = ctags
+	if ctags := getContainerTags(r.conf.ContainerTags, tp.ContainerID()); ctags != "" {
+		tp.SetTag(tagContainersTags, ctags)
 	}
 
 	payload := &Payload{
@@ -540,22 +540,23 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	r.out <- payload
 }
 
-// runMetaHook runs the pb.MetaHook on all spans from traces.
-func runMetaHook(chunks []*pb.TraceChunk) {
-	hook, ok := pb.MetaHook()
-	if !ok {
-		return
-	}
-	for _, chunk := range chunks {
-		for _, span := range chunk.Spans {
-			for k, v := range span.Meta {
-				if newv := hook(k, v); newv != v {
-					span.Meta[k] = newv
-				}
-			}
-		}
-	}
-}
+//
+//// runMetaHook runs the pb.MetaHook on all spans from traces.
+//func runMetaHook(chunks []*pb.TraceChunk) {
+//	hook, ok := pb.MetaHook()
+//	if !ok {
+//		return
+//	}
+//	for _, chunk := range chunks {
+//		for _, span := range chunk.Spans {
+//			for k, v := range span.Meta {
+//				if newv := hook(k, v); newv != v {
+//					span.Meta[k] = newv
+//				}
+//			}
+//		}
+//	}
+//}
 
 func droppedTracesFromHeader(h http.Header, ts *info.TagStats) int64 {
 	var dropped int64

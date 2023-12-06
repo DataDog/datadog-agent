@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/info"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -39,16 +40,16 @@ var (
 
 // normalize makes sure a Span is properly initialized and encloses the minimum required info, returning error if it
 // is invalid beyond repair
-func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
-	if s.TraceID == 0 {
+func (a *Agent) normalize(ts *info.TagStats, s tracerpayload.Span) error {
+	if s.TraceID() == 0 {
 		ts.TracesDropped.TraceIDZero.Inc()
 		return fmt.Errorf("TraceID is zero (reason:trace_id_zero): %s", s)
 	}
-	if s.SpanID == 0 {
+	if s.SpanID() == 0 {
 		ts.TracesDropped.SpanIDZero.Inc()
 		return fmt.Errorf("SpanID is zero (reason:span_id_zero): %s", s)
 	}
-	svc, err := traceutil.NormalizeService(s.Service, ts.Lang)
+	svc, err := traceutil.NormalizeService(s.Service(), ts.Lang)
 	switch err {
 	case traceutil.ErrEmpty:
 		ts.SpansMalformed.ServiceEmpty.Inc()
@@ -60,9 +61,9 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		ts.SpansMalformed.ServiceInvalid.Inc()
 		log.Debugf("Fixing malformed trace. Service is invalid (reason:service_invalid), replacing invalid span.service=%s with fallback span.service=%s: %s", s.Service, svc, s)
 	}
-	s.Service = svc
+	s.SetService(svc)
 
-	pSvc, ok := s.Meta[peerServiceKey]
+	pSvc, ok := s.Meta(peerServiceKey)
 	if ok {
 		ps, err := traceutil.NormalizePeerService(pSvc)
 		switch err {
@@ -77,7 +78,7 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 				log.Debugf("Unexpected error in peer.service normalization from original value (%s) to new value (%s): %s", pSvc, ps, err)
 			}
 		}
-		s.Meta[peerServiceKey] = ps
+		s.SetMeta(peerServiceKey, ps)
 	}
 
 	if a.conf.HasFeature("component2name") {
@@ -87,11 +88,12 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		// Opentracing operation name is many times invalid as a Datadog operation name (e.g. "/")
 		// and in Datadog terms it's the resource. Here, we aim to make the component the
 		// operation name to provide a better product experience.
-		if v, ok := s.Meta["component"]; ok {
-			s.Name = v
+		if v, ok := s.Meta("component"); ok {
+			s.SetName(v)
 		}
 	}
-	s.Name, err = traceutil.NormalizeName(s.Name)
+	newName, err := traceutil.NormalizeName(s.Name())
+	s.SetName(newName)
 	switch err {
 	case traceutil.ErrEmpty:
 		ts.SpansMalformed.SpanNameEmpty.Inc()
@@ -104,10 +106,10 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 		log.Debugf("Fixing malformed trace. Name is invalid (reason:span_name_invalid), setting span.name=%s: %s", s.Name, s)
 	}
 
-	if s.Resource == "" {
+	if s.Resource() == "" {
 		ts.SpansMalformed.ResourceEmpty.Inc()
 		log.Debugf("Fixing malformed trace. Resource is empty (reason:resource_empty), setting span.resource=%s: %s", s.Name, s)
-		s.Resource = s.Name
+		s.SetResource(s.Name())
 	}
 
 	// ParentID, TraceID and SpanID set in the client could be the same
@@ -115,47 +117,47 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 	// with the Zipkin implementation. Furthermore, as described in the PR
 	// https://github.com/openzipkin/zipkin/pull/851 the constraint that the
 	// root span's ``trace id = span id`` has been removed
-	if s.ParentID == s.TraceID && s.ParentID == s.SpanID {
-		s.ParentID = 0
+	if s.ParentID() == s.TraceID() && s.ParentID() == s.SpanID() {
+		s.SetParentID(0)
 		log.Debugf("span.normalize: `ParentID`, `TraceID` and `SpanID` are the same; `ParentID` set to 0: %d", s.TraceID)
 	}
 
 	// Start & Duration as nanoseconds timestamps
 	// if s.Start is very little, less than year 2000 probably a unit issue so discard
 	// (or it is "le bug de l'an 2000")
-	if s.Duration < 0 {
+	if s.Duration() < 0 {
 		ts.SpansMalformed.InvalidDuration.Inc()
 		log.Debugf("Fixing malformed trace. Duration is invalid (reason:invalid_duration), setting span.duration=0: %s", s)
-		s.Duration = 0
+		s.SetDuration(0)
 	}
-	if s.Duration > math.MaxInt64-s.Start {
+	if s.Duration() > math.MaxInt64-s.Start() {
 		ts.SpansMalformed.InvalidDuration.Inc()
 		log.Debugf("Fixing malformed trace. Duration is too large and causes overflow (reason:invalid_duration), setting span.duration=0: %s", s)
-		s.Duration = 0
+		s.SetDuration(0)
 	}
-	if s.Start < Year2000NanosecTS {
+	if s.Start() < Year2000NanosecTS {
 		ts.SpansMalformed.InvalidStartDate.Inc()
 		log.Debugf("Fixing malformed trace. Start date is invalid (reason:invalid_start_date), setting span.start=time.now(): %s", s)
 		now := time.Now().UnixNano()
-		s.Start = now - s.Duration
-		if s.Start < 0 {
-			s.Start = now
+		s.SetStart(now - s.Duration())
+		if s.Start() < 0 {
+			s.SetStart(now)
 		}
 	}
 
-	if len(s.Type) > MaxTypeLen {
+	if len(s.Type()) > MaxTypeLen {
 		ts.SpansMalformed.TypeTruncate.Inc()
 		log.Debugf("Fixing malformed trace. Type is too long (reason:type_truncate), truncating span.type to length=%d: %s", MaxTypeLen, s)
-		s.Type = traceutil.TruncateUTF8(s.Type, MaxTypeLen)
+		s.SetType(traceutil.TruncateUTF8(s.Type(), MaxTypeLen))
 	}
-	if env, ok := s.Meta["env"]; ok {
-		s.Meta["env"] = traceutil.NormalizeTag(env)
+	if env, ok := s.Meta("env"); ok {
+		s.SetMeta("env", traceutil.NormalizeTag(env))
 	}
-	if sc, ok := s.Meta["http.status_code"]; ok {
+	if sc, ok := s.Meta("http.status_code"); ok {
 		if !isValidStatusCode(sc) {
 			ts.SpansMalformed.InvalidHTTPStatusCode.Inc()
 			log.Debugf("Fixing malformed trace. HTTP status code is invalid (reason:invalid_http_status_code), dropping invalid http.status_code=%s: %s", sc, s)
-			delete(s.Meta, "http.status_code")
+			s.DeleteMeta("http.status_code")
 		}
 	}
 	return nil
@@ -164,24 +166,30 @@ func (a *Agent) normalize(ts *info.TagStats, s *pb.Span) error {
 // setChunkAttributesFromRoot takes a trace chunk and from the root span
 // * populates Origin field if it wasn't populated
 // * populates Priority field if it wasn't populated
-func setChunkAttributesFromRoot(chunk *pb.TraceChunk, root *pb.Span) {
+func setChunkAttributesFromRoot(chunk tracerpayload.TraceChunk, root tracerpayload.Span) {
 	// check if priority is already populated
-	if chunk.Priority == int32(sampler.PriorityNone) {
+	if chunk.Priority() == int32(sampler.PriorityNone) {
 		// Older tracers set sampling priority in the root span.
-		if p, ok := root.Metrics[tagSamplingPriority]; ok {
-			chunk.Priority = int32(p)
+		if p, ok := root.Metrics(tagSamplingPriority); ok {
+			chunk.SetPriority(int32(p))
 		} else {
-			for _, s := range chunk.Spans {
-				if p, ok := s.Metrics[tagSamplingPriority]; ok {
-					chunk.Priority = int32(p)
+			for i := 0; i < chunk.NumSpans(); i++ {
+				s := chunk.Span(i)
+				if p, ok := s.Metrics(tagSamplingPriority); ok {
+					chunk.SetPriority(int32(p))
 					break
 				}
 			}
 		}
 	}
-	if chunk.Origin == "" && root.Meta != nil {
+	if chunk.Origin() == "" && root.Meta != nil {
 		// Older tracers set origin in the root span.
-		chunk.Origin = root.Meta[tagOrigin]
+		o, ok := root.Meta(tagOrigin)
+		if !ok {
+			// TODO: we panic'd here before but probably shouldn't have
+			panic("There must be an origin on the root span!")
+		}
+		chunk.SetOrigin(o)
 	}
 }
 
@@ -193,34 +201,36 @@ func setChunkAttributesFromRoot(chunk *pb.TraceChunk, root *pb.Span) {
 // * return the normalized trace and an error:
 //   - nil if the trace can be accepted
 //   - a reason tag explaining the reason the traces failed normalization
-func (a *Agent) normalizeTrace(ts *info.TagStats, t pb.Trace) error {
-	if len(t) == 0 {
+func (a *Agent) normalizeTrace(ts *info.TagStats, tc tracerpayload.TraceChunk) error {
+	if tc.NumSpans() == 0 {
 		ts.TracesDropped.EmptyTrace.Inc()
 		return errors.New("trace is empty (reason:empty_trace)")
 	}
 
 	spanIDs := make(map[uint64]struct{})
-	firstSpan := t[0]
+	firstSpan := tc.Span(0)
 
-	for _, span := range t {
+	for i := 0; i < tc.NumSpans(); i++ {
+		span := tc.Span(i)
 		if span == nil {
 			continue
 		}
 		if firstSpan == nil {
 			firstSpan = span
 		}
-		if span.TraceID != firstSpan.TraceID {
+
+		if span.TraceID() != firstSpan.TraceID() {
 			ts.TracesDropped.ForeignSpan.Inc()
 			return fmt.Errorf("trace has foreign span (reason:foreign_span): %s", span)
 		}
 		if err := a.normalize(ts, span); err != nil {
 			return err
 		}
-		if _, ok := spanIDs[span.SpanID]; ok {
+		if _, ok := spanIDs[span.SpanID()]; ok {
 			ts.SpansMalformed.DuplicateSpanID.Inc()
 			log.Debugf("Found malformed trace with duplicate span ID (reason:duplicate_span_id): %s", span)
 		}
-		spanIDs[span.SpanID] = struct{}{}
+		spanIDs[span.SpanID()] = struct{}{}
 	}
 
 	return nil

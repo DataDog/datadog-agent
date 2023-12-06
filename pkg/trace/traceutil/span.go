@@ -11,6 +11,7 @@ import (
 	"github.com/tinylib/msgp/msgp"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 )
 
 const (
@@ -30,9 +31,9 @@ func HasTopLevel(s *pb.Span) bool {
 }
 
 // UpdateTracerTopLevel sets _top_level tag on spans flagged by the tracer
-func UpdateTracerTopLevel(s *pb.Span) {
-	if s.Metrics[tracerTopLevelKey] == 1 {
-		SetMetric(s, topLevelKey, 1)
+func UpdateTracerTopLevel(s tracerpayload.Span) {
+	if tk, ok := s.Metrics(tracerTopLevelKey); ok && tk == 1 {
+		s.SetMetrics(topLevelKey, 1)
 	}
 }
 
@@ -51,17 +52,17 @@ func IsPartialSnapshot(s *pb.Span) bool {
 }
 
 // SetTopLevel sets the top-level attribute of the span.
-func SetTopLevel(s *pb.Span, topLevel bool) {
+func SetTopLevel(s tracerpayload.Span, topLevel bool) {
 	if !topLevel {
-		if s.Metrics == nil {
-			return
-		}
-		delete(s.Metrics, topLevelKey)
+		//if s.Metrics == nil {
+		//	return
+		//}
+		s.DeleteMetric(topLevelKey)
 		return
 	}
 	// Setting the metrics value, so that code downstream in the pipeline
 	// can identify this as top-level without recomputing everything.
-	SetMetric(s, topLevelKey, 1)
+	s.SetMetrics(topLevelKey, 1)
 }
 
 // SetMetric sets the metric at key to the val on the span s.
