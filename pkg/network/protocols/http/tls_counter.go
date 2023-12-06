@@ -11,7 +11,7 @@ import (
 	libtelemetry "github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
 )
 
-// A TLSCounter is a TLS aware counter, it has a plain counter and a counter for each TLS library.
+// TLSCounter is a TLS aware counter, it has a plain counter and a counter for each TLS library
 type TLSCounter struct {
 	counterPlain   *libtelemetry.Counter
 	counterGnuTLS  *libtelemetry.Counter
@@ -20,6 +20,7 @@ type TLSCounter struct {
 	counterGoTLS   *libtelemetry.Counter
 }
 
+// NewTLSCounter creates and return a new TLSCounter
 func NewTLSCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tags ...string) *TLSCounter {
 	return &TLSCounter{
 		counterPlain:   metricGroup.NewCounter(metricName, append(tags, "encrypted:false")...),
