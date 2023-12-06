@@ -29,10 +29,10 @@ class Linux:
 
     qemu_conf = os.path.join("/", "etc", "libvirt", "qemu.conf")
 
-    def restart_libvirtd(ctx, sudo):
+    def restart_libvirtd(self, ctx, sudo):
         ctx.run(f"{sudo} systemctl restart libvirtd.service")
 
-    def assert_user_in_docker_group(ctx):
+    def assert_user_in_docker_group(self, ctx):
         ctx.run("cat /proc/$$/status | grep '^Groups:' | grep $(cat /etc/group | grep 'docker:' | cut -d ':' -f 3)")
 
 
