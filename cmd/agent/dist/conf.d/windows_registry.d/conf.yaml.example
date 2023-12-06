@@ -67,7 +67,6 @@ instances:
     ##   #   registry_values:
     ##   #     Start:
     ##   #       name: start
-
     #
     registry_keys:
       HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\wuauserv:
