@@ -13,6 +13,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,11 +55,31 @@ type OTLPReceiver struct {
 	out         chan<- *Payload     // the outgoing payload channel
 	conf        *config.AgentConfig // receiver config
 	cidProvider IDProvider          // container ID provider
+
+	// recvsem is a semaphore that controls the number goroutines that can
+	// be simultaneously deserializing incoming payloads.
+	// It is important to control this in order to prevent decoding incoming
+	// payloads faster than we can process them, and buffering them, resulting
+	// in memory limit issues.
+	recvsem chan struct{}
 }
 
 // NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
 func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig) *OTLPReceiver {
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewIDProvider(cfg.ContainerProcRoot)}
+	semcount := cfg.Decoders
+	if semcount == 0 {
+		semcount = runtime.GOMAXPROCS(0) / 2
+		if semcount == 0 {
+			semcount = 1
+		}
+	}
+	log.Infof("OTLPReceiver configured with %d decoders and a timeout of %dms", semcount, cfg.DecoderTimeout)
+	return &OTLPReceiver{
+		out:         out,
+		conf:        cfg,
+		cidProvider: NewIDProvider(cfg.ContainerProcRoot),
+		recvsem:     make(chan struct{}, semcount),
+	}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -94,6 +115,23 @@ func (o *OTLPReceiver) Stop() {
 // Export implements ptraceotlp.Server
 func (o *OTLPReceiver) Export(ctx context.Context, in ptraceotlp.ExportRequest) (ptraceotlp.ExportResponse, error) {
 	defer timing.Since("datadog.trace_agent.otlp.process_grpc_request_ms", time.Now())
+
+	select {
+	// Wait for the semaphore to become available, allowing the handler to
+	// decode its payload.
+	// Afer the configured timeout, respond without ingesting the payload,
+	// and sending the configured status.
+	case o.recvsem <- struct{}{}:
+	case <-time.After(time.Duration(o.conf.DecoderTimeout) * time.Millisecond):
+		// this payload can not be accepted
+		return ptraceotlp.NewExportResponse(), fmt.Errorf("Too Many Requests.")
+	}
+	defer func() {
+		// Signal the semaphore that we are done decoding, so another handler
+		// routine can take a turn decoding a payload.
+		<-o.recvsem
+	}()
+
 	md, _ := metadata.FromIncomingContext(ctx)
 	metrics.Count("datadog.trace_agent.otlp.payload", 1, tagsFromHeaders(http.Header(md)), 1)
 	o.processRequest(ctx, http.Header(md), in)
@@ -299,12 +337,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 			tagContainersTags: payloadTags.String(),
 		}
 	}
-	select {
-	case o.out <- &p:
-		// success
-	default:
-		log.Warn("Payload in channel full. Dropped 1 payload.")
-	}
+	o.out <- &p
 	return src
 }
 
