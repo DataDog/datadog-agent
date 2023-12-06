@@ -56,10 +56,21 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	_ = sender
 	server.logger.Infof("[SNMPWALK] Starting Snmpwalk Server")
 
+	runner := fetch.NewSnmpwalkRunner(sender)
+
+	ticker := time.NewTicker(10 * time.Second)
+	quit := make(chan struct{})
 	go func() {
-		time.Sleep(10 * time.Second)
-		runner := fetch.NewSnmpwalkRunner(sender)
-		runner.Callback()
+		for {
+			select {
+			case <-ticker.C:
+				server.logger.Infof("[SNMPWALK] Ticker")
+				runner.Callback()
+			case <-quit:
+				ticker.Stop()
+				return
+			}
+		}
 	}()
 
 	globalServerMu.Lock()

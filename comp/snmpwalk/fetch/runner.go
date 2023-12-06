@@ -51,6 +51,7 @@ func (rc *SnmpwalkRunner) Callback() {
 
 	for _, config := range snmpConfigList {
 		ipaddr := config.IPAddress
+		log.Infof("[SNMP RUNNER] ipaddr: %s", ipaddr)
 		if ipaddr == "127.0.0.50" {
 			log.Infof("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
 
