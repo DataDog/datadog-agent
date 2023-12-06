@@ -15,13 +15,13 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(USM) Fix revive linter
+	// User is the user to use for authentication
 	User = "guest"
-	//nolint:revive // TODO(USM) Fix revive linter
+	// Pass is the password to use for authentication
 	Pass = "guest"
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// RunServer runs an amqp server in a docker container
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"AMQP_ADDR=" + serverAddr,
