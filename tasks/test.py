@@ -487,7 +487,7 @@ def process_input_args(input_module, input_targets, input_flavor, headless_mode=
     return modules, flavor
 
 
-def process_module_results(flavor: str, module_results: List[ModuleResult]):
+def process_module_results(flavor: AgentFlavor, module_results: List[ModuleResult]):
     """
     Prints failures in module results, and returns False if at least one module failed.
     """
@@ -657,7 +657,7 @@ def test(
         # print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
 
-    success = process_module_results(test_results)
+    success = process_module_results(flavor=flavor, module_results=test_results)
 
     if success:
         print(color_message("All tests passed", "green"))
@@ -756,7 +756,7 @@ def lint_go(
         headless_mode=headless_mode,
     )
 
-    success = process_module_results(lint_results)
+    success = process_module_results(flavor=flavor, module_results=lint_results)
 
     if success:
         if not headless_mode:
