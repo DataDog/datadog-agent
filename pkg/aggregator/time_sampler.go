@@ -113,7 +113,11 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 }
 
 func (s *TimeSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
-	ctx, _ := s.contextResolver.get(ck)
+	ctx, ok := s.contextResolver.get(ck)
+	if !ok {
+		return nil
+	}
+
 	ss := &metrics.SketchSeries{
 		Name:       ctx.Name,
 		Tags:       ctx.Tags(),
@@ -219,7 +223,12 @@ func (s *TimeSampler) flushSketches(cutoffTime int64, sketchesSink metrics.Sketc
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		sketchesSink.Append(s.newSketchSeries(ck, points))
+		ss := s.newSketchSeries(ck, points)
+		if ss == nil {
+			log.Errorf("TimeSampler #%d Ignoring all metrics on context key '%v': inconsistent context resolver state: the context is not tracked", s.id, ck)
+			continue
+		}
+		sketchesSink.Append(ss)
 	}
 }
 

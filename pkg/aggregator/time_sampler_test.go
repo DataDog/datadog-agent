@@ -522,6 +522,32 @@ func TestBucketSamplingWithSketchAndSeries(t *testing.T) {
 	testWithTagsStore(t, testBucketSamplingWithSketchAndSeries)
 }
 
+func TestFlushMissingContext(t *testing.T) {
+	sampler := testTimeSampler()
+	sampler.sample(&metrics.MetricSample{
+		Name:       "test.gauge",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		SampleRate: 1,
+	}, 1000)
+	sampler.sample(&metrics.MetricSample{
+		Name:       "test.sketch",
+		Value:      1,
+		Mtype:      metrics.DistributionType,
+		SampleRate: 1,
+	}, 1000)
+
+	// Simulate a sutation where contexts are expired prematurely.
+	sampler.contextResolver.expireContexts(10000, nil)
+
+	assert.Len(t, sampler.contextResolver.resolver.contextsByKey, 0)
+
+	metrics, sketches := flushSerie(sampler, 1100)
+
+	assert.Len(t, metrics, 0)
+	assert.Len(t, sketches, 0)
+}
+
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nil, nil, "host")
 
