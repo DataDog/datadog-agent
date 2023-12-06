@@ -19,9 +19,10 @@ import (
 )
 
 type integrationUpgrade struct {
-	Name    string `json:"name"`
-	ID      string `json:"id"`
-	Version string `json:"version"`
+	Name           string `json:"name"`
+	ID             string `json:"id"`
+	Version        string `json:"version"`
+	RootLayoutType string `json:"root_layout_type"`
 }
 
 const (
@@ -37,6 +38,7 @@ except PackageNotFoundError:
 
 var (
 	pep440VersionStringRe = regexp.MustCompile(`^(?P<release>\d+\.\d+\.\d+)(?:(?P<preReleaseType>[a-zA-Z]+)(?P<preReleaseNumber>\d+)?)?$`) // e.g. 1.3.4b1, simplified form of: https://www.python.org/dev/peps/pep-0440
+	yamlFileNameRe        = regexp.MustCompile(`[\w_]+\.yaml.*`)
 )
 
 func IntegrationsInstallCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
@@ -68,10 +70,20 @@ func IntegrationsInstallCallback(updates map[string]state.RawConfig, applyStateC
 
 		log.Infof("Received integration upgrade for %s: %s", upgrade.Name, upgrade.Version)
 
+		// Check the in-toto layout is valid
+		if upgrade.RootLayoutType != "core" && upgrade.RootLayoutType != "extras" {
+			log.Errorf("Unexpected root layout type: %s", upgrade.RootLayoutType)
+			applyStateCallback(configPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: fmt.Sprintf("Unexpected root layout type: %s", upgrade.RootLayoutType),
+			})
+			continue
+		}
+
 		// Check the version
 		versionToInstall, err := semver.NewVersion(strings.TrimSpace(upgrade.Version))
 		if err != nil {
-			log.Errorf("[RCM] Unexpected error while parsing integration version: %s", err)
+			log.Errorf("Unexpected error while parsing integration version: %s", err)
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
@@ -82,7 +94,7 @@ func IntegrationsInstallCallback(updates map[string]state.RawConfig, applyStateC
 		// Get current version of the integration
 		currentVersion, found, err := installedVersion(upgrade.Name)
 		if err != nil {
-			log.Errorf("[RCM] Unexpected error while getting installed version: %s", err)
+			log.Errorf("Unexpected error while getting installed version: %s", err)
 			applyStateCallback(configPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
@@ -97,8 +109,8 @@ func IntegrationsInstallCallback(updates map[string]state.RawConfig, applyStateC
 		}
 		// TODO: check "requirements-agent-release.txt" for min allowed version
 
-		// Download the wheel. Only supports core integration for now.
-		wheelPath, err := downloadWheel(upgrade.Name, semverToPEP440(versionToInstall), "core")
+		// Download the wheel
+		wheelPath, err := downloadWheel(upgrade.Name, semverToPEP440(versionToInstall), upgrade.RootLayoutType)
 		if err != nil {
 			log.Errorf("Unexpected error while downloading wheel: %s", err)
 			applyStateCallback(configPath, state.ApplyStatus{
@@ -141,6 +153,16 @@ func IntegrationsInstallCallback(updates map[string]state.RawConfig, applyStateC
 			continue
 		}
 
+		// Move configuration files
+		if err := moveConfigurationFilesOf(upgrade.Name); err != nil {
+			log.Errorf("error moving configuration files %s: %v", wheelPath, err)
+			applyStateCallback(configPath, state.ApplyStatus{
+				State: state.ApplyStateError,
+				Error: err.Error(),
+			})
+			continue
+		}
+
 		// Mark it as ack
 		applyStateCallback(configPath, state.ApplyStatus{
 			State: state.ApplyStateAcknowledged,
@@ -150,7 +172,8 @@ func IntegrationsInstallCallback(updates map[string]state.RawConfig, applyStateC
 
 func getCommandPython() (string, error) {
 	rootDir, _ := executable.Folder()
-	pyPath := filepath.Join(rootDir, filepath.Join("embedded", "bin", fmt.Sprintf("%s%s", "python", "3")))
+	pyPath := filepath.Join(rootDir, "..", "..", "venv3", "bin", "python")
+	// pyPath := filepath.Join(rootDir, filepath.Join("embedded", "bin", fmt.Sprintf("%s%s", "python", "3")))
 
 	if _, err := os.Stat(pyPath); err != nil {
 		if os.IsNotExist(err) {
@@ -391,4 +414,85 @@ func installedVersion(integration string) (*semver.Version, bool, error) {
 	}
 
 	return version, true, nil
+}
+
+func getIntegrationName(packageName string) string {
+	switch packageName {
+	case "datadog-checks-base":
+		return "base"
+	case "datadog-checks-downloader":
+		return "downloader"
+	case "datadog-go-metro":
+		return "go-metro"
+	default:
+		return strings.TrimSpace(strings.Replace(strings.TrimPrefix(packageName, "datadog-"), "-", "_", -1))
+	}
+}
+
+func moveConfigurationFilesOf(integration string) error {
+	confFolder := config.Datadog.GetString("confd_path")
+	check := getIntegrationName(integration)
+	confFileDest := filepath.Join(confFolder, fmt.Sprintf("%s.d", check))
+	if err := os.MkdirAll(confFileDest, os.ModeDir|0755); err != nil {
+		return err
+	}
+
+	rootDir, _ := executable.Folder()
+	// TODO: use the embedded python
+	relChecksPath := filepath.Join(rootDir, "..", "..", "venv3", "lib", "python3.8", "site-packages", "datadog_checks", check, "data")
+	// relChecksPath, err := getRelChecksPath(cliParams)
+	// confFileSrc := filepath.Join(rootDir, relChecksPath, check, "data")
+
+	return moveConfigurationFiles(relChecksPath, confFileDest)
+}
+
+func moveConfigurationFiles(srcFolder string, dstFolder string) error {
+	files, err := os.ReadDir(srcFolder)
+	if err != nil {
+		return err
+	}
+
+	errorMsg := ""
+	for _, file := range files {
+		filename := file.Name()
+
+		// Copy SNMP profiles
+		if filename == "profiles" {
+			profileDest := filepath.Join(dstFolder, "profiles")
+			if err = os.MkdirAll(profileDest, 0755); err != nil {
+				errorMsg = fmt.Sprintf("%s\nError creating directory for SNMP profiles %s: %v", errorMsg, profileDest, err)
+				continue
+			}
+			profileSrc := filepath.Join(srcFolder, "profiles")
+			if err = moveConfigurationFiles(profileSrc, profileDest); err != nil {
+				errorMsg = fmt.Sprintf("%s\nError moving SNMP profiles from %s to %s: %v", errorMsg, profileSrc, profileDest, err)
+				continue
+			}
+			continue
+		}
+
+		// Replace existing file
+		if !yamlFileNameRe.MatchString(filename) {
+			continue
+		}
+		src := filepath.Join(srcFolder, filename)
+		dst := filepath.Join(dstFolder, filename)
+		srcContent, err := os.ReadFile(src)
+		if err != nil {
+			errorMsg = fmt.Sprintf("%s\nError reading configuration file %s: %v", errorMsg, src, err)
+			continue
+		}
+		err = os.WriteFile(dst, srcContent, 0644)
+		if err != nil {
+			errorMsg = fmt.Sprintf("%s\nError writing configuration file %s: %v", errorMsg, dst, err)
+			continue
+		}
+		log.Infof(
+			"Successfully copied configuration file %s", filename,
+		)
+	}
+	if errorMsg != "" {
+		return fmt.Errorf(errorMsg)
+	}
+	return nil
 }
