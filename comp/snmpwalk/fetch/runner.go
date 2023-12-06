@@ -11,8 +11,10 @@ import (
 	"fmt"
 	"github.com/DataDog/datadog-agent/comp/snmpwalk/fetch/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
+	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -24,21 +26,59 @@ import (
 
 // SnmpwalkRunner receives configuration from remote-config
 type SnmpwalkRunner struct {
-	upToDate bool
-	sender   sender.Sender
+	upToDate         bool
+	sender           sender.Sender
+	jobs             chan SnmpwalkJob
+	stop             chan bool
+	prevSnmpwalkTime map[string]time.Time
+}
+
+// SnmpwalkJob ...
+type SnmpwalkJob struct {
+	namespace string
+	tags      []string
+	config    snmpparse.SNMPConfig
 }
 
 // NewSnmpwalkRunner creates a new SnmpwalkRunner.
 func NewSnmpwalkRunner(sender sender.Sender) *SnmpwalkRunner {
-	return &SnmpwalkRunner{
+	snmpwalk := &SnmpwalkRunner{
 		upToDate: false,
 		sender:   sender,
+	}
+	workers := pkgconfig.Datadog.GetInt("network_devices.snmpwalk.workers")
+	if workers == 0 {
+		workers = 10
+	}
+	log.Infof("[NewSnmpwalkRunner] Workers: %d", workers)
+
+	jobs := make(chan SnmpwalkJob)
+	for w := 0; w < workers; w++ {
+		go worker(snmpwalk, jobs, w)
+	}
+
+	snmpwalk.jobs = jobs
+	return snmpwalk
+}
+
+// Don't make it a method, to be overridden in tests
+var worker = func(l *SnmpwalkRunner, jobs <-chan SnmpwalkJob, workerId int) {
+	for {
+		select {
+		// TODO: IMPL STOP
+		case <-l.stop:
+			log.Info("Stopping SNMP worker")
+			return
+		case job := <-jobs:
+			log.Infof("[worker %d] Handling IP %s", workerId, job.config.IPAddress)
+			l.snmpwalkOneDevice(job.config, job.namespace, job.tags)
+		}
 	}
 }
 
 // Callback is when profiles updates are available (rc product NDM_DEVICE_PROFILES_CUSTOM)
 func (rc *SnmpwalkRunner) Callback() {
-	globalStart := time.Now()
+	//globalStart := time.Now()
 	log.Info("[SNMP RUNNER] SNMP RUNNER")
 
 	// TODO: Do not collect snmp-listener configs
@@ -61,33 +101,49 @@ func (rc *SnmpwalkRunner) Callback() {
 		"agent_host:" + hname,
 	}
 	namespace := "default"
+
 	for _, config := range snmpConfigList {
-		ipaddr := config.IPAddress
-		if ipaddr == "" {
-			log.Infof("[SNMP RUNNER] Missing IP Addr: %v", config)
-			continue
+		//rc.snmpwalkOneDevice(config, namespace, commonTags)
+		rc.jobs <- SnmpwalkJob{
+			namespace: namespace,
+			tags:      commonTags,
+			config:    config,
 		}
-
-		log.Infof("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
-
-		localStart := time.Now()
-		fetchStrategy := useGetNext
-		oidsCollectedCount := rc.collectDeviceOIDs(config, fetchStrategy)
-		duration := time.Since(localStart)
-
-		devTags := []string{
-			"namespace:" + namespace, // TODO: FIX ME
-			"device_ip:" + ipaddr,
-			"device_id:" + namespace + ":" + ipaddr,
-			"snmp_command:" + string(fetchStrategy),
-		}
-		for _, tag := range commonTags {
-			devTags = append(devTags, tag)
-		}
-		rc.sender.Gauge("datadog.snmpwalk.device.duration", duration.Seconds(), "", devTags)
-		rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", devTags)
 	}
-	rc.sender.Gauge("datadog.snmpwalk.total.duration", time.Since(globalStart).Seconds(), "", commonTags)
+	//rc.sender.Gauge("datadog.snmpwalk.total.duration", time.Since(globalStart).Seconds(), "", commonTags)
+}
+
+func (rc *SnmpwalkRunner) snmpwalkOneDevice(config parse.SNMPConfig, namespace string, commonTags []string) {
+	ipaddr := config.IPAddress
+	if ipaddr == "" {
+		log.Infof("[SNMP RUNNER] Missing IP Addr: %v", config)
+		return
+	}
+
+	log.Infof("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
+
+	localStart := time.Now()
+	fetchStrategy := useGetNext
+	oidsCollectedCount := rc.collectDeviceOIDs(config, fetchStrategy)
+	duration := time.Since(localStart)
+	deviceId := namespace + ":" + ipaddr
+	devTags := []string{
+		"namespace:" + namespace, // TODO: FIX ME
+		"device_ip:" + ipaddr,
+		"device_id:" + deviceId,
+		"snmp_command:" + string(fetchStrategy),
+	}
+	for _, tag := range commonTags {
+		devTags = append(devTags, tag)
+	}
+	rc.sender.Gauge("datadog.snmpwalk.device.duration", duration.Seconds(), "", devTags)
+	rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", devTags)
+
+	if prevTime, ok := rc.prevSnmpwalkTime[deviceId]; ok { // TODO: check config instanceId instead?
+		rc.sender.Gauge("datadog.snmpwalk.device.interval", time.Since(prevTime).Seconds(), "", devTags)
+	}
+	rc.prevSnmpwalkTime[deviceId] = localStart
+
 	rc.sender.Commit()
 }
 
@@ -142,6 +198,11 @@ func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig, fetchStrate
 		}
 	}
 	return len(deviceOIDs)
+}
+
+// Stop queues a shutdown of SNMPListener
+func (rc *SnmpwalkRunner) Stop() {
+	rc.stop <- true
 }
 
 func buildDeviceScanMetadata(deviceId string, oidsValues []gosnmp.SnmpPDU) []metadata.DeviceOid {

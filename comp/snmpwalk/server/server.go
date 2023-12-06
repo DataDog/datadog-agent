@@ -47,16 +47,17 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 		return nil, err
 	}
 
+	runner := fetch.NewSnmpwalkRunner(sender)
+
 	server := &Server{
 		config: conf,
 		logger: deps.Logger,
+		runner: runner,
 	}
 
 	// TODO: USE SENDER
 	_ = sender
 	server.logger.Infof("[SNMPWALK] Starting Snmpwalk Server")
-
-	runner := fetch.NewSnmpwalkRunner(sender)
 
 	ticker := time.NewTicker(10 * time.Second)
 	quit := make(chan struct{})
@@ -100,6 +101,7 @@ type Server struct {
 	config  *nfconfig.SnmpwalkConfig
 	logger  log.Component
 	running bool
+	runner  *fetch.SnmpwalkRunner
 }
 
 // Start starts the server running
@@ -118,6 +120,8 @@ func (s *Server) Stop() {
 	if !s.running {
 		return
 	}
+
+	s.runner.Stop()
 
 	s.running = false
 }
