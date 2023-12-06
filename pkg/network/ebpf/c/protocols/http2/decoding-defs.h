@@ -5,7 +5,7 @@
 
 #include "protocols/http2/defs.h"
 
-#define HTTP2_FRAMES_PER_TAIL_CALL 9
+#define HTTP2_FRAMES_PER_TAIL_CALL 7
 // Maximum number of frames to be processed in a single TCP packet. That's also the number of tail calls we'll have.
 // NOTE: we may need to revisit this const if we need to capture more connections.
 #define HTTP2_MAX_FRAMES_ITERATIONS 120
@@ -22,6 +22,15 @@
 // Maximum size for the path buffer.
 #define HTTP2_MAX_PATH_LEN 160
 
+// Maximum size for the path buffer for telemetry.
+#define HTTP2_TELEMETRY_MAX_PATH_LEN 120
+
+// The amount of buckets we have for the path size telemetry.
+#define HTTP2_TELEMETRY_PATH_BUCKETS 7
+
+// The size of each bucket we have for the path size telemetry.
+#define HTTP2_TELEMETRY_PATH_BUCKETS_SIZE 10
+
 // The maximum index which may be in the static table.
 #define MAX_STATIC_TABLE_INDEX 61
 
@@ -30,6 +39,10 @@
 
 // Http2 max batch size.
 #define HTTP2_BATCH_SIZE 17
+
+// The max number of events we can have in a single page in the batch_events array.
+// See more details in the comments of the USM_EVENTS_INIT.
+#define HTTP2_TERMINATED_BATCH_SIZE 80
 
 // MAX_6_BITS represents the maximum number that can be represented with 6 bits or less.
 // 1 << 6 - 1
@@ -133,5 +146,25 @@ typedef struct {
     __u32 header_length;
     char buf[HTTP2_FRAME_HEADER_SIZE];
 } frame_header_remainder_t;
+
+// http2_telemetry_t is used to hold the HTTP/2 kernel telemetry.
+// request_seen                         Count of HTTP/2 requests seen
+// response_seen                        Count of HTTP/2 responses seen
+// end_of_stream                        Count of END STREAM flag seen
+// end_of_stream_rst                    Count of RST flags seen
+// path_exceeds_frame                   Count of times we couldn't retrieve the path due to reaching the end of the frame.
+// exceeding_max_interesting_frames		Count of times we reached the max number of frames per iteration.
+// exceeding_max_frames_to_filter		Count of times we have left with more frames to filter than the max number of frames to filter.
+// path_size_bucket                     Count of path sizes and divided into buckets.
+typedef struct {
+    __u64 request_seen;
+    __u64 response_seen;
+    __u64 end_of_stream;
+    __u64 end_of_stream_rst;
+    __u64 path_exceeds_frame;
+    __u64 exceeding_max_interesting_frames;
+    __u64 exceeding_max_frames_to_filter;
+    __u64 path_size_bucket[HTTP2_TELEMETRY_PATH_BUCKETS+1];
+} http2_telemetry_t;
 
 #endif

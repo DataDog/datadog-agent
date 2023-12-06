@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package main
 
 import (
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -116,7 +118,8 @@ func runApp(ctx context.Context, globalParams *command.GlobalParams) error {
 				SysprobeConfigParams: sysprobeconfigimpl.NewParams(
 					sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
 				),
-				ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+				ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+				SecretParams: secrets.NewEnabledParams(),
 				LogParams:    command.DaemonLogParams,
 			},
 		),

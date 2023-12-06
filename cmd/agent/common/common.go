@@ -29,7 +29,7 @@ var (
 	AC *autodiscovery.AutoConfig
 
 	// Coll is the global collector instance
-	Coll *collector.Collector
+	Coll collector.Collector
 
 	// ExpvarServer is the global expvar server
 	ExpvarServer *http.Server
@@ -51,6 +51,8 @@ func GetPythonPaths() []string {
 }
 
 // GetVersion returns the version of the agent in a http response json
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func GetVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, _ := version.Agent()

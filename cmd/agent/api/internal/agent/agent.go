@@ -9,28 +9,36 @@
 package agent
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"os"
+	"path"
 	"sort"
 	"time"
 
+	"github.com/DataDog/zstd"
 	"github.com/gorilla/mux"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -40,8 +48,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/gohai"
 	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -64,6 +70,10 @@ func SetupHandlers(
 	senderManager sender.DiagnoseSenderManager,
 	hostMetadata host.Component,
 	invAgent inventoryagent.Component,
+	demux demultiplexer.Component,
+	invHost inventoryhost.Component,
+	secretResolver secrets.Component,
+	invChecks inventorychecks.Component,
 ) *mux.Router {
 
 	r.HandleFunc("/version", common.GetVersion).Methods("GET")
@@ -87,10 +97,15 @@ func SetupHandlers(
 	r.HandleFunc("/workload-list", func(w http.ResponseWriter, r *http.Request) {
 		getWorkloadList(w, r, wmeta)
 	}).Methods("GET")
-	r.HandleFunc("/secrets", secretInfo).Methods("GET")
-	r.HandleFunc("/metadata/{payload}", func(w http.ResponseWriter, r *http.Request) { metadataPayload(w, r, hostMetadata, invAgent) }).Methods("GET")
+	r.HandleFunc("/secrets", func(w http.ResponseWriter, r *http.Request) { secretInfo(w, r, secretResolver) }).Methods("GET")
+	r.HandleFunc("/metadata/gohai", metadataPayloadGohai).Methods("GET")
+	r.HandleFunc("/metadata/v5", func(w http.ResponseWriter, r *http.Request) { metadataPayloadV5(w, r, hostMetadata) }).Methods("GET")
+	r.HandleFunc("/metadata/inventory-checks", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvChecks(w, r, invChecks) }).Methods("GET")
+	r.HandleFunc("/metadata/inventory-agent", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvAgent(w, r, invAgent) }).Methods("GET")
+	r.HandleFunc("/metadata/inventory-host", func(w http.ResponseWriter, r *http.Request) { metadataPayloadInvHost(w, r, invHost) }).Methods("GET")
 	r.HandleFunc("/diagnose", func(w http.ResponseWriter, r *http.Request) { getDiagnose(w, r, senderManager) }).Methods("POST")
 
+	r.HandleFunc("/dogstatsd-contexts-dump", func(w http.ResponseWriter, r *http.Request) { dumpDogstatsdContexts(w, r, demux) }).Methods("POST")
 	// Some agent subcommands do not provide these dependencies (such as JMX)
 	if server != nil && serverDebug != nil {
 		r.HandleFunc("/dogstatsd-stats", func(w http.ResponseWriter, r *http.Request) { getDogstatsdStats(w, r, server, serverDebug) }).Methods("GET")
@@ -109,6 +124,7 @@ func setJSONError(w http.ResponseWriter, err error, errorCode int) {
 	http.Error(w, string(body), errorCode)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func stopAgent(w http.ResponseWriter, r *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
@@ -345,6 +361,7 @@ func getFormattedStatus(w http.ResponseWriter, _ *http.Request, invAgent invento
 	w.Write(s)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func getHealth(w http.ResponseWriter, r *http.Request) {
 	h := health.GetReady()
 
@@ -362,10 +379,12 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonHealth)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func getCSRFToken(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(gui.CsrfToken))
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	var response response.ConfigCheckResponse
 
@@ -393,6 +412,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonConfig)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
 	// query at the highest cardinality between checks and dogstatsd cardinalities
 	cardinality := collectors.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
@@ -425,62 +445,68 @@ func getWorkloadList(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	w.Write(jsonDump)
 }
 
-func secretInfo(w http.ResponseWriter, r *http.Request) {
-	secrets.GetDebugInfo(w)
+func secretInfo(w http.ResponseWriter, _ *http.Request, secretResolver secrets.Component) {
+	secretResolver.GetDebugInfo(w)
 }
 
-func metadataPayload(w http.ResponseWriter, r *http.Request, hostMetadataComp host.Component, invAgent inventoryagent.Component) {
-	vars := mux.Vars(r)
-	payloadType := vars["payload"]
-
-	var scrubbed []byte
-	var err error
-
-	switch payloadType {
-	case "v5":
-		jsonPayload, err := hostMetadataComp.GetPayloadAsJSON(context.Background())
-		if err != nil {
-			setJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
-			return
-		}
-
-		scrubbed, err = scrubber.ScrubBytes(jsonPayload)
-		if err != nil {
-			setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
-			return
-		}
-	case "gohai":
-		payload := gohai.GetPayloadWithProcesses(config.IsContainerized())
-		jsonPayload, err := json.MarshalIndent(payload, "", "  ")
-		if err != nil {
-			setJSONError(w, log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
-			return
-		}
-
-		scrubbed, err = scrubber.ScrubBytes(jsonPayload)
-		if err != nil {
-			setJSONError(w, log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
-			return
-		}
-	case "inventory":
-		// GetLastPayload already return scrubbed data
-		scrubbed, err = inventories.GetLastPayload()
-		if err != nil {
-			setJSONError(w, err, 500)
-			return
-		}
-	case "inventory-agent":
-		// GetLastPayload already return scrubbed data
-		scrubbed, err = invAgent.GetAsJSON()
-		if err != nil {
-			setJSONError(w, err, 500)
-			return
-		}
-	default:
-		setJSONError(w, log.Errorf("Unknown metadata payload requested: %s", payloadType), 500)
+func metadataPayloadV5(w http.ResponseWriter, _ *http.Request, hostMetadataComp host.Component) {
+	jsonPayload, err := hostMetadataComp.GetPayloadAsJSON(context.Background())
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to marshal v5 metadata payload: %s", err), 500)
 		return
 	}
 
+	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to scrub metadata payload: %s", err), 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
+func metadataPayloadGohai(w http.ResponseWriter, _ *http.Request) {
+	payload := gohai.GetPayloadWithProcesses(config.IsContainerized())
+	jsonPayload, err := json.MarshalIndent(payload, "", "  ")
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to marshal gohai metadata payload: %s", err), 500)
+		return
+	}
+
+	scrubbed, err := scrubber.ScrubBytes(jsonPayload)
+	if err != nil {
+		setJSONError(w, log.Errorf("Unable to scrub gohai metadata payload: %s", err), 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
+func metadataPayloadInvChecks(w http.ResponseWriter, _ *http.Request, invChecks inventorychecks.Component) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := invChecks.GetAsJSON()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
+func metadataPayloadInvAgent(w http.ResponseWriter, _ *http.Request, invAgent inventoryagent.Component) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := invAgent.GetAsJSON()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
+	w.Write(scrubbed)
+}
+
+func metadataPayloadInvHost(w http.ResponseWriter, _ *http.Request, invHost inventoryhost.Component) {
+	// GetAsJSON already return scrubbed data
+	scrubbed, err := invHost.GetAsJSON()
+	if err != nil {
+		setJSONError(w, err, 500)
+		return
+	}
 	w.Write(scrubbed)
 }
 
@@ -535,4 +561,47 @@ func max(a, b int) int {
 // GetConnection returns the connection for the request
 func GetConnection(r *http.Request) net.Conn {
 	return r.Context().Value(grpc.ConnContextKey).(net.Conn)
+}
+
+func dumpDogstatsdContexts(w http.ResponseWriter, _ *http.Request, demux demultiplexer.Component) {
+	if demux == nil {
+		setJSONError(w, log.Errorf("Unable to stream dogstatsd contexts, demultiplexer is not initialized"), 404)
+		return
+	}
+
+	path, err := dumpDogstatsdContextsImpl(demux)
+	if err != nil {
+		setJSONError(w, log.Errorf("Failed to create dogstatsd contexts dump: %v", err), 500)
+		return
+	}
+
+	resp, err := json.Marshal(path)
+	if err != nil {
+		setJSONError(w, log.Errorf("Failed to serialize response: %v", err), 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(resp)
+}
+
+func dumpDogstatsdContextsImpl(demux demultiplexer.Component) (string, error) {
+	path := path.Join(config.Datadog.GetString("run_path"), "dogstatsd_contexts.json.zstd")
+
+	f, err := os.Create(path)
+	if err != nil {
+		return "", err
+	}
+
+	c := zstd.NewWriter(f)
+
+	w := bufio.NewWriter(c)
+
+	for _, err := range []error{demux.DumpDogstatsdContexts(w), w.Flush(), c.Close(), f.Close()} {
+		if err != nil {
+			return "", err
+		}
+	}
+
+	return path, nil
 }

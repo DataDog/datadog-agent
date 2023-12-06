@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 package run
 
 import (
@@ -12,12 +14,14 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
-	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	corelog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
+	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
@@ -62,12 +66,13 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
-		fx.Supply(coreconfig.NewAgentParamsWithSecrets(cliParams.ConfPath)),
+		fx.Supply(coreconfig.NewAgentParams(cliParams.ConfPath)),
+		secretsimpl.Module,
+		fx.Supply(secrets.NewEnabledParams()),
 		coreconfig.Module,
 		fx.Provide(func() corelog.Params {
-			p := corelog.ForDaemon("TRACE", "apm_config.log_file", path.DefaultLogFile)
-			return p
-		}), // fx.Supply(ctx) fails with a missing type error.
+			return corelog.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+		}),
 		corelog.TraceModule,
 		// setup workloadmeta
 		collectors.GetCatalog(),
@@ -76,6 +81,7 @@ func runFx(ctx context.Context, cliParams *RunParams, defaultConfPath string) er
 			InitHelper: common.GetWorkloadmetaInit(),
 		}),
 		workloadmeta.Module,
+		statsd.Module,
 		fx.Invoke(func(_ config.Component) {}),
 		// Required to avoid cyclic imports.
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),

@@ -32,7 +32,7 @@ type protocol struct {
 	cfg            *config.Config
 	telemetry      *Telemetry
 	statkeeper     *StatKeeper
-	mapCleaner     *ddebpf.MapCleaner
+	mapCleaner     *ddebpf.MapCleaner[netebpf.ConnTuple, EbpfTx]
 	eventsConsumer *events.Consumer
 }
 
@@ -44,8 +44,9 @@ const (
 	eventStream            = "http"
 )
 
+// Spec is the protocol spec for the HTTP protocol.
 var Spec = &protocols.ProtocolSpec{
-	Factory: newHttpProtocol,
+	Factory: newHTTPProtocol,
 	Maps: []*manager.Map{
 		{Name: inFlightMap},
 	},
@@ -74,7 +75,8 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
+// newHTTPProtocol returns a new HTTP protocol.
+func newHTTPProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableHTTPMonitoring {
 		return nil, nil
 	}
@@ -175,24 +177,19 @@ func (p *protocol) setupMapCleaner(mgr *manager.Manager) {
 		log.Errorf("error getting http_in_flight map: %s", err)
 		return
 	}
-	mapCleaner, err := ddebpf.NewMapCleaner(httpMap, new(netebpf.ConnTuple), new(EbpfTx))
+	mapCleaner, err := ddebpf.NewMapCleaner[netebpf.ConnTuple, EbpfTx](httpMap, 1024)
 	if err != nil {
 		log.Errorf("error creating map cleaner: %s", err)
 		return
 	}
 
 	ttl := p.cfg.HTTPIdleConnectionTTL.Nanoseconds()
-	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, func(now int64, key, val interface{}) bool {
-		httpTxn, ok := val.(*EbpfTx)
-		if !ok {
-			return false
-		}
-
-		if updated := int64(httpTxn.Response_last_seen); updated > 0 {
+	mapCleaner.Clean(p.cfg.HTTPMapCleanerInterval, nil, nil, func(now int64, key netebpf.ConnTuple, val EbpfTx) bool {
+		if updated := int64(val.Response_last_seen); updated > 0 {
 			return (now - updated) > ttl
 		}
 
-		started := int64(httpTxn.Request_started)
+		started := int64(val.Request_started)
 		return started > 0 && (now-started) > ttl
 	})
 

@@ -85,7 +85,7 @@ spec:
               runtime:
                 enabled: true
                 network:
-                  enabled: true
+                  enabled: false
 
             confd:
               memory.yaml: |

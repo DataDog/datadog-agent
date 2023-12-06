@@ -9,8 +9,10 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/scheduler"
@@ -45,6 +47,15 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 			t = local.NewTagger(wm)
 		}
 
+		// SBOM scanner needs to be called here as initialization is required prior to the
+		// catalog getting instantiated and initialized.
+		sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
+		if err != nil {
+			log.Errorf("failed to create SBOM scanner: %s", err)
+		} else if sbomScanner != nil {
+			sbomScanner.Start(ctx)
+		}
+
 		tagger.SetDefaultTagger(t)
 		if err := tagger.Init(ctx); err != nil {
 			e = fmt.Errorf("failed to start the tagger: %s", err)
@@ -54,9 +65,26 @@ func GetWorkloadmetaInit() workloadmeta.InitHelper {
 	})
 }
 
+var (
+	collectorOnce sync.Once
+)
+
+// LoadCollector instantiate the collector and init the global state 'Coll'.
+//
+// LoadCollector will initialize the collector only once even if called multiple time. Some command still rely on
+// LoadComponents while other setup the collector on their own.
+func LoadCollector(senderManager sender.SenderManager) collector.Collector {
+	collectorOnce.Do(func() {
+		// create the Collector instance and start all the components
+		// NOTICE: this will also setup the Python environment, if available
+		Coll = collector.NewCollector(senderManager, GetPythonPaths()...)
+	})
+	return Coll
+}
+
 // LoadComponents configures several common Agent components:
 // tagger, collector, scheduler and autodiscovery
-func LoadComponents(ctx context.Context, senderManager sender.SenderManager, confdPath string) {
+func LoadComponents(senderManager sender.SenderManager, secretResolver secrets.Component, confdPath string) {
 
 	confSearchPaths := []string{
 		confdPath,
@@ -71,17 +99,7 @@ func LoadComponents(ctx context.Context, senderManager sender.SenderManager, con
 	// No big concern here, but be sure to understand there is an implicit
 	// assumption about the initializtion of the tagger prior to being here.
 	// because of subscription to metadata store.
-	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler())
+	AC = setupAutoDiscovery(confSearchPaths, scheduler.NewMetaScheduler(), secretResolver)
 
-	sbomScanner, err := scanner.CreateGlobalScanner(config.Datadog)
-	if err != nil {
-		log.Errorf("failed to create SBOM scanner: %s", err)
-	} else if sbomScanner != nil {
-		sbomScanner.Start(ctx)
-	}
-
-	// create the Collector instance and start all the components
-	// NOTICE: this will also setup the Python environment, if available
-	Coll = collector.NewCollector(senderManager, GetPythonPaths()...)
-
+	LoadCollector(senderManager)
 }

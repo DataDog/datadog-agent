@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -44,7 +45,8 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
+					SecretParams: secrets.NewEnabledParams(),
 					LogParams:    log.ForOneShot("CORE", "off", true)}),
 				core.Bundle,
 			)
@@ -55,6 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{configCheckCommand}
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func run(config config.Component, cliParams *cliParams) error {
 	var b bytes.Buffer
 	color.Output = &b

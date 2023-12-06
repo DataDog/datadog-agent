@@ -17,8 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
+	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 func unsetEnvForTest(t *testing.T, env string) {
@@ -429,11 +431,12 @@ func TestProxy(t *testing.T) {
 			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
+			resolver := secretsimpl.NewMock()
 			if c.setup != nil {
 				c.setup(t, config)
 			}
 
-			_, err := LoadCustom(config, "unit_test", true, nil)
+			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -643,18 +646,6 @@ network_devices:
 `
 	config = SetupConfFromYAML(datadogYaml)
 	assert.Equal(t, "dev", config.GetString("network_devices.namespace"))
-}
-
-func TestPrometheusScrapeChecksTransformer(t *testing.T) {
-	input := `[{"configurations":[{"timeout":5,"send_distribution_buckets":true}],"autodiscovery":{"kubernetes_container_names":["my-app"],"kubernetes_annotations":{"include":{"custom_label":"true"}}}}]`
-	expected := []*types.PrometheusCheck{
-		{
-			Instances: []*types.OpenmetricsInstance{{Timeout: 5, DistributionBuckets: true}},
-			AD:        &types.ADConfig{KubeContainerNames: []string{"my-app"}, KubeAnnotations: &types.InclExcl{Incl: map[string]string{"custom_label": "true"}}},
-		},
-	}
-
-	assert.EqualValues(t, PrometheusScrapeChecksTransformer(input), expected)
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -1058,7 +1049,7 @@ func TestProxyLoadedFromEnvVars(t *testing.T) {
 	t.Setenv("DD_PROXY_HTTPS", proxyHTTPS)
 
 	Datadog = conf
-	Load()
+	LoadWithoutSecret()
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")
@@ -1079,7 +1070,7 @@ func TestProxyLoadedFromConfigFile(t *testing.T) {
 
 	conf.AddConfigPath(tempDir)
 	Datadog = conf
-	Load()
+	LoadWithoutSecret()
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")
@@ -1105,7 +1096,7 @@ func TestProxyLoadedFromConfigFileAndEnvVars(t *testing.T) {
 
 	conf.AddConfigPath(tempDir)
 	Datadog = conf
-	Load()
+	LoadWithoutSecret()
 
 	proxyHTTPConfig := conf.GetString("proxy.http")
 	proxyHTTPSConfig := conf.GetString("proxy.https")

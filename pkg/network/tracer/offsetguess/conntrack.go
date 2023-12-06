@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+//nolint:revive // TODO(NET) Fix revive linter
 package offsetguess
 
 import (
@@ -38,6 +39,7 @@ type conntrackOffsetGuesser struct {
 	udpv6Enabled uint64
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func NewConntrackOffsetGuesser(cfg *config.Config) (OffsetGuesser, error) {
 	consts, err := TracerOffsets.Offsets(cfg)
 	if err != nil {
@@ -92,6 +94,7 @@ func (c *conntrackOffsetGuesser) Close() {
 	}
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (c *conntrackOffsetGuesser) Probes(cfg *config.Config) (map[probes.ProbeFuncName]struct{}, error) {
 	p := map[probes.ProbeFuncName]struct{}{}
 	enableProbe(p, probes.ConntrackHashInsert)
@@ -102,7 +105,6 @@ func (c *conntrackOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 	return []manager.ConstantEditor{
 		{Name: "offset_ct_origin", Value: c.status.Offset_origin},
 		{Name: "offset_ct_reply", Value: c.status.Offset_reply},
-		{Name: "offset_ct_status", Value: c.status.Offset_status},
 		{Name: "offset_ct_netns", Value: c.status.Offset_netns},
 		{Name: "offset_ct_ino", Value: c.status.Offset_ino},
 		{Name: "tcpv6_enabled", Value: c.tcpv6Enabled},
@@ -113,6 +115,8 @@ func (c *conntrackOffsetGuesser) getConstantEditors() []manager.ConstantEditor {
 // checkAndUpdateCurrentOffset checks the value for the current offset stored
 // in the eBPF map against the expected value, incrementing the offset if it
 // doesn't match, or going to the next field to guess if it does
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expected *fieldValues, maxRetries *int, threshold uint64) error {
 	// get the updated map value so we can check if the current offset is
 	// the right one
@@ -154,25 +158,11 @@ func (c *conntrackOffsetGuesser) checkAndUpdateCurrentOffset(mp *ebpf.Map, expec
 		}
 
 		if c.status.Saddr == expected.daddr {
-			c.logAndAdvance(c.status.Offset_reply, GuessCtStatus)
+			c.logAndAdvance(c.status.Offset_reply, GuessCtNet)
 			break
 		}
 		c.status.Offset_reply++
 		c.status.Offset_reply, _ = skipOverlaps(c.status.Offset_reply, c.nfConnRanges())
-	case GuessCtStatus:
-		c.status.Offset_status, overlapped = skipOverlaps(c.status.Offset_status, c.nfConnRanges())
-		if overlapped {
-			// adjusted offset from eBPF overlapped with another field, we need to check new offset
-			break
-		}
-
-		if c.status.Status == expected.ctStatus {
-			c.status.Offset_netns = c.status.Offset_status + 1
-			c.logAndAdvance(c.status.Offset_status, GuessCtNet)
-			break
-		}
-		c.status.Offset_status++
-		c.status.Offset_status, _ = skipOverlaps(c.status.Offset_status, c.nfConnRanges())
 	case GuessCtNet:
 		c.status.Offset_netns, overlapped = skipOverlaps(c.status.Offset_netns, c.nfConnRanges())
 		if overlapped {
@@ -390,9 +380,6 @@ func (e *conntrackEventGenerator) populateUDPExpectedValues(expected *fieldValue
 
 	expected.saddr = saddr
 	expected.daddr = daddr
-	// IPS_CONFIRMED | IPS_SRC_NAT_DONE | IPS_DST_NAT_DONE
-	// see https://elixir.bootlin.com/linux/v5.19.17/source/include/uapi/linux/netfilter/nf_conntrack_common.h#L42
-	expected.ctStatus = 0x188
 	expected.netns, err = kernel.GetCurrentIno()
 	if err != nil {
 		return err

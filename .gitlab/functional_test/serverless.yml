@@ -1,5 +1,8 @@
 serverless_cold_start_performance-deb_x64:
   stage: functional_test
+  rules:
+    - !reference [.except_mergequeue]
+    - when: on_success
   image: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
   tags: ["runner:docker"]
   needs: ["go_deps", "build_serverless-deb_x64"]

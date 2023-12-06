@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(ASC) Fix revive linter
 package status
 
 import (
@@ -30,7 +31,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	logsStatus "github.com/DataDog/datadog-agent/pkg/logs/status"
 	"github.com/DataDog/datadog-agent/pkg/snmp/traps"
+	"github.com/DataDog/datadog-agent/pkg/status/apm"
 	"github.com/DataDog/datadog-agent/pkg/status/collector"
+	"github.com/DataDog/datadog-agent/pkg/status/jmx"
+	"github.com/DataDog/datadog-agent/pkg/status/otlp"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -58,12 +62,11 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 	stats["python_version"] = strings.Split(pythonVersion, " ")[0]
 	stats["hostinfo"] = hostMetadataUtils.GetInformation()
 
-	stats["JMXStatus"] = GetJMXStatus()
-	stats["JMXStartupError"] = GetJMXStartupError()
+	jmx.PopulateStatus(stats)
 
 	stats["logsStats"] = logsStatus.Get(verbose)
 
-	stats["otlp"] = GetOTLPStatus()
+	otlp.PopulateStatus(stats)
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
@@ -72,7 +75,7 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 		stats["endpointsInfos"] = nil
 	}
 
-	if config.Datadog.GetBool("cluster_agent.enabled") {
+	if config.Datadog.GetBool("cluster_agent.enabled") || config.Datadog.GetBool("cluster_checks.enabled") {
 		stats["clusterAgentStatus"] = getDCAStatus()
 	}
 
@@ -81,6 +84,7 @@ func GetStatus(verbose bool, invAgent inventoryagent.Component) (map[string]inte
 	}
 
 	stats["processAgentStatus"] = GetProcessAgentStatus()
+	stats["apmStats"] = apm.GetAPMStatus()
 
 	if !config.Datadog.GetBool("no_proxy_nonexact_match") {
 		stats["TransportWarnings"] = httputils.GetNumberOfWarnings() > 0
@@ -132,7 +136,9 @@ func GetDCAStatus(verbose bool) (map[string]interface{}, error) {
 	stats["config"] = getDCAPartialConfig()
 	stats["leaderelection"] = getLeaderElectionDetails()
 
-	stats["logsStats"] = logsStatus.Get(verbose)
+	if config.Datadog.GetBool("compliance_config.enabled") {
+		stats["logsStats"] = logsStatus.Get(verbose)
+	}
 
 	endpointsInfos, err := getEndpointsInfos()
 	if endpointsInfos != nil && err == nil {
@@ -246,10 +252,6 @@ func getPartialConfig() map[string]string {
 	conf["fips_local_address"] = config.Datadog.GetString("fips.local_address")
 	conf["fips_port_range_start"] = config.Datadog.GetString("fips.port_range_start")
 
-	forwarderStorageMaxSizeInBytes := config.Datadog.GetInt("forwarder_storage_max_size_in_bytes")
-	if forwarderStorageMaxSizeInBytes > 0 {
-		conf["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)
-	}
 	return conf
 }
 
@@ -322,6 +324,10 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 	forwarderStatsJSON := []byte(expvar.Get("forwarder").String())
 	forwarderStats := make(map[string]interface{})
 	json.Unmarshal(forwarderStatsJSON, &forwarderStats) //nolint:errcheck
+	forwarderStorageMaxSizeInBytes := config.Datadog.GetInt("forwarder_storage_max_size_in_bytes")
+	if forwarderStorageMaxSizeInBytes > 0 {
+		forwarderStats["forwarder_storage_max_size_in_bytes"] = strconv.Itoa(forwarderStorageMaxSizeInBytes)
+	}
 	stats["forwarderStats"] = forwarderStats
 
 	collector.PopulateStatus(stats)
@@ -376,9 +382,13 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 		stats["agent_metadata"] = map[string]string{}
 	}
 
-	stats["snmpTrapsStats"] = traps.GetStatus()
+	if traps.IsEnabled(config.Datadog) {
+		stats["snmpTrapsStats"] = traps.GetStatus()
+	}
 
-	stats["netflowStats"] = netflowServer.GetStatus()
+	if netflowServer.IsEnabled() {
+		stats["netflowStats"] = netflowServer.GetStatus()
+	}
 
 	complianceVar := expvar.Get("compliance")
 	if complianceVar != nil {

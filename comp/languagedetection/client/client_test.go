@@ -784,6 +784,20 @@ func TestRun(t *testing.T) {
 		},
 	}
 
+	container3 := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			ID:   "python-cont-id3",
+			Kind: workloadmeta.KindContainer,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "python-cont-name3",
+		},
+		Owner: &workloadmeta.EntityID{
+			ID:   "python-pod-id3",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+	}
+
 	pod1 := &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
 			ID:   "nginx-pod-id1",
@@ -832,6 +846,30 @@ func TestRun(t *testing.T) {
 		},
 	}
 
+	pod3 := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			ID:   "python-pod-id3",
+			Kind: workloadmeta.KindKubernetesPod,
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "python-pod-name3",
+			Namespace: "python-pod-namespace3",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{
+				ID:   "python-cont-id3",
+				Name: "python-cont-name3",
+			},
+		},
+		Owners: []workloadmeta.KubernetesPodOwner{
+			{
+				ID:   "python-replicaset-id3",
+				Name: "python-replicaset-name3",
+				Kind: "replicaset",
+			},
+		},
+	}
+
 	process1 := &workloadmeta.Process{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindProcess,
@@ -841,17 +879,6 @@ func TestRun(t *testing.T) {
 			Name: "java",
 		},
 		ContainerID: "nginx-cont-id1",
-	}
-
-	processWithoutPod := &workloadmeta.Process{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindProcess,
-			ID:   "1234",
-		},
-		Language: &languagemodels.Language{
-			Name: "java",
-		},
-		ContainerID: "unknown-container",
 	}
 
 	process2 := &workloadmeta.Process{
@@ -865,16 +892,27 @@ func TestRun(t *testing.T) {
 		ContainerID: "nginx-cont-id2",
 	}
 
+	process3 := &workloadmeta.Process{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindProcess,
+			ID:   "1234",
+		},
+		Language: &languagemodels.Language{
+			Name: "python",
+		},
+		ContainerID: "python-cont-id3",
+	}
+
 	collectorEvents1 := []workloadmeta.CollectorEvent{
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
-			Entity: pod1,
+			Entity: container1,
 		},
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
-			Entity: container1,
+			Entity: pod1,
 		},
 		{
 			Type:   workloadmeta.EventTypeSet,
@@ -884,7 +922,13 @@ func TestRun(t *testing.T) {
 		{
 			Type:   workloadmeta.EventTypeSet,
 			Source: workloadmeta.SourceAll,
-			Entity: processWithoutPod,
+			Entity: container1,
+		},
+		// Process 3 set event is here received before the set event of container 3 and pod 3
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: process3,
 		},
 	}
 
@@ -926,6 +970,18 @@ func TestRun(t *testing.T) {
 			Source: workloadmeta.SourceAll,
 			Entity: process2,
 		},
+		// Now we receive the set events of container 3 and pod 3.
+		// This should lead to retrying processing the process set event
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: container3,
+		},
+		{
+			Type:   workloadmeta.EventTypeSet,
+			Source: workloadmeta.SourceAll,
+			Entity: pod3,
+		},
 	}
 
 	client.store.Notify(collectorEvents2)
@@ -957,6 +1013,19 @@ func TestRun(t *testing.T) {
 				Kind: "replicaset",
 			},
 		},
+		"python-pod-name3": {
+			namespace: "python-pod-namespace3",
+			containerInfo: langUtil.ContainersLanguages{
+				"python-cont-name3": {
+					"python": {},
+				},
+			},
+			ownerRef: &workloadmeta.KubernetesPodOwner{
+				ID:   "python-replicaset-id3",
+				Name: "python-replicaset-name3",
+				Kind: "replicaset",
+			},
+		},
 	}
 
 	// the periodic flush mechanism should send the entire data every 100ms
@@ -974,6 +1043,11 @@ func TestRun(t *testing.T) {
 			Type:   workloadmeta.EventTypeUnset,
 			Source: workloadmeta.SourceAll,
 			Entity: pod2,
+		},
+		{
+			Type:   workloadmeta.EventTypeUnset,
+			Source: workloadmeta.SourceAll,
+			Entity: pod3,
 		},
 	}
 

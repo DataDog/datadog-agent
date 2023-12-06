@@ -16,11 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 const LoggerName config.LoggerName = "PROCESS"
 
 // DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
@@ -140,9 +142,11 @@ func SetHostMountEnv(logger logComponent.Component) {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
-		ConfigParams:         configComponent.NewAgentParamsWithSecrets(globalParams.ConfFilePath),
+		ConfigParams:         configComponent.NewAgentParams(globalParams.ConfFilePath),
+		SecretParams:         secrets.NewEnabledParams(),
 		SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 		LogParams:            logComponent.ForOneShot(string(LoggerName), "info", true),
 	}

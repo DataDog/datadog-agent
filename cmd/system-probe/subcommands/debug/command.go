@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 package debug
 
 import (
@@ -47,7 +48,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(debugRuntime,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true)),
+					ConfigParams:         config.NewAgentParams("", config.WithConfigMissingOK(true)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath)),
 					LogParams:            log.ForOneShot("SYS-PROBE", "off", false),
 				}),

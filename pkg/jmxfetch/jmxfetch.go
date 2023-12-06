@@ -5,6 +5,7 @@
 
 //go:build jmx
 
+//nolint:revive // TODO(AML) Fix revive linter
 package jmxfetch
 
 import (
@@ -24,8 +25,8 @@ import (
 	api "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	jmxStatus "github.com/DataDog/datadog-agent/pkg/status/jmx"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -129,8 +130,8 @@ func (j *JMXFetch) Monitor() {
 		if !limiter.canRestart(time.Now()) {
 			msg := fmt.Sprintf("Too many JMXFetch restarts (%v) in time interval (%vs) - giving up", limiter.maxRestarts, limiter.interval)
 			log.Errorf(msg)
-			s := status.JMXStartupError{LastError: msg, Timestamp: time.Now().Unix()}
-			status.SetJMXStartupError(s)
+			s := jmxStatus.StartupError{LastError: msg, Timestamp: time.Now().Unix()}
+			jmxStatus.SetStartupError(s)
 			return
 		}
 
@@ -268,7 +269,10 @@ func (j *JMXFetch) Start(manage bool) error {
 		jmxLogLevel = "INFO"
 	}
 
-	ipcHost := config.Datadog.GetString("cmd_host")
+	ipcHost, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
 	ipcPort := config.Datadog.GetInt("cmd_port")
 	if j.IPCHost != "" {
 		ipcHost = j.IPCHost

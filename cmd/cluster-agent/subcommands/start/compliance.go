@@ -83,18 +83,18 @@ func startCompliance(senderManager sender.SenderManager, stopper startstop.Stopp
 	configDir := coreconfig.Datadog.GetString("compliance_config.dir")
 	checkInterval := coreconfig.Datadog.GetDuration("compliance_config.check_interval")
 
-	reporter, err := compliance.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		return err
+	}
+
+	reporter, err := compliance.NewLogReporter(hname, stopper, "compliance-agent", "compliance", runPath, endpoints, ctx)
 	if err != nil {
 		return err
 	}
 
 	runner := runner.NewRunner(senderManager)
 	stopper.Add(runner)
-
-	hname, err := hostname.Get(context.TODO())
-	if err != nil {
-		return err
-	}
 
 	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
 		ConfigDir:     configDir,

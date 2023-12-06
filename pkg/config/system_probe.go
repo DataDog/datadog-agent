@@ -13,7 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -97,8 +96,8 @@ func InitSystemProbeConfig(cfg Config) {
 	// secrets backend
 	cfg.BindEnvAndSetDefault("secret_backend_command", "")
 	cfg.BindEnvAndSetDefault("secret_backend_arguments", []string{})
-	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", secrets.SecretBackendOutputMaxSizeDefault)
-	cfg.BindEnvAndSetDefault("secret_backend_timeout", secrets.SecretBackendTimeoutDefault)
+	cfg.BindEnvAndSetDefault("secret_backend_output_max_size", 0)
+	cfg.BindEnvAndSetDefault("secret_backend_timeout", 0)
 	cfg.BindEnvAndSetDefault("secret_backend_command_allow_group_exec_perm", false)
 	cfg.BindEnvAndSetDefault("secret_backend_skip_checks", false)
 
@@ -280,6 +279,8 @@ func InitSystemProbeConfig(cfg Config) {
 	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "enabled"), false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
 	cfg.BindEnvAndSetDefault(join(smNS, "process_service_inference", "use_windows_service_name"), true, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
 
+	cfg.BindEnvAndSetDefault(join(smNS, "http2_dynamic_table_map_cleaner_interval_seconds"), 30)
+
 	// Default value (300) is set in `adjustUSM`, to avoid having "deprecation warning", due to the default value.
 	cfg.BindEnv(join(spNS, "http_map_cleaner_interval_in_s"))
 	cfg.BindEnv(join(smNS, "http_map_cleaner_interval_in_s"))
@@ -293,7 +294,7 @@ func InitSystemProbeConfig(cfg Config) {
 
 	// event monitoring
 	cfg.BindEnvAndSetDefault(join(evNS, "process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_PROCESS_ENABLED")
-	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "enabled"), false, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
+	cfg.BindEnvAndSetDefault(join(evNS, "network_process", "enabled"), true, "DD_SYSTEM_PROBE_EVENT_MONITORING_NETWORK_PROCESS_ENABLED")
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "enable_kernel_filters"), true)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "flush_discarder_window"), 3)
 	eventMonitorBindEnvAndSetDefault(cfg, join(evNS, "pid_cache_size"), 10000)

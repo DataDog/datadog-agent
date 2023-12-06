@@ -61,7 +61,6 @@ const (
 	offsetSkBuffHead
 	offsetCtOrigin
 	offsetCtReply
-	offsetCtStatus
 	offsetCtNetns
 	offsetCtIno
 	offsetMax
@@ -117,8 +116,6 @@ func (o offsetT) String() string {
 		return "offset_ct_origin"
 	case offsetCtReply:
 		return "offset_ct_reply"
-	case offsetCtStatus:
-		return "offset_ct_status"
 	case offsetCtNetns:
 		return "offset_ct_netns"
 	case offsetCtIno:
@@ -208,8 +205,6 @@ func testOffsetGuess(t *testing.T) {
 			consts[offsetCtOrigin] = value
 		case "offset_ct_reply":
 			consts[offsetCtReply] = value
-		case "offset_ct_status":
-			consts[offsetCtStatus] = value
 		case "offset_ct_netns":
 			consts[offsetCtNetns] = value
 		case "offset_ct_ino":
@@ -261,6 +256,7 @@ func testOffsetGuess(t *testing.T) {
 	var c net.Conn
 	require.Eventually(t, func() bool {
 		c, err = net.Dial("tcp4", server.address)
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		if err == nil {
 			return true
 		}
@@ -296,6 +292,7 @@ func testOffsetGuess(t *testing.T) {
 		}
 
 		var offset uint64
+		//nolint:revive // TODO(NET) Fix revive linter
 		var name offsetT = o
 		require.NoError(t, mp.Lookup(unsafe.Pointer(&name), unsafe.Pointer(&offset)))
 		assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)

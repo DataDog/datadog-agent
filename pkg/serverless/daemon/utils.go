@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+//nolint:revive // TODO(SERV) Fix revive linter
 const LocalTestEnvVar = "DD_LOCAL_TEST"
 
 // waitWithTimeout waits for a WaitGroup with a specified max timeout.

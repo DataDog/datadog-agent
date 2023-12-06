@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -56,7 +57,7 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 	return decryptedEnvVars
 }
 
-// SetSecretsFromEnv - The agent is going to get any environment variables ending with _KMS_ENCRYPTED and _SECRET_ARN,
+// setSecretsFromEnv - The agent is going to get any environment variables ending with _KMS_ENCRYPTED and _SECRET_ARN,
 // get the contents of the environment variable, and query SM/KMS to retrieve the value. This allows us
 // to read arbitrarily encrypted environment variables and use the decrypted version in the extension.
 // Right now, this feature is used for dual shipping, since customers need to set DD_LOGS_CONFIGURATION
@@ -64,8 +65,32 @@ func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc)
 // or DD_LOGS_CONFIGURATION_KMS_ENCRYPTED, which will get converted in the extension to a plaintext
 // DD_LOGS_CONFIGURATION, and will have dual shipping enabled without exposing
 // their API key in plaintext through environment variables.
-func SetSecretsFromEnv(envVars []string) {
+func setSecretsFromEnv(envVars []string) {
 	for envKey, envVal := range getSecretEnvVars(envVars, readAPIKeyFromKMS, readAPIKeyFromSecretsManager) {
-		os.Setenv(envKey, envVal)
+		os.Setenv(envKey, strings.TrimSpace(envVal))
+	}
+}
+
+// HandleEnv sets the API key from environment variables
+func HandleEnv() {
+	// API key reading
+	// ---------------
+
+	// API key reading priority:
+	// Plaintext > KMS > Secrets Manager
+	// If an API key is set but failing, the next will be tried
+
+	checkForSingleAPIKey()
+
+	// Set API key from DD_KMS_API_KEY environment variable or environment variables suffixed with KMS_ENCRYPTED or SECRET_ARN
+	setSecretsFromEnv(os.Environ())
+
+	// Validate that an API key has been set, either by DD_API_KEY or read from KMS or Secrets Manager
+	// ---------------------------
+	if !config.Datadog.IsSet("api_key") {
+		// we're not reporting the error to AWS because we don't want the function
+		// execution to be stopped. TODO(remy): discuss with AWS if there is way
+		// of reporting non-critical init errors.
+		log.Error("No API key configured")
 	}
 }

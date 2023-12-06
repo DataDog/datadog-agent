@@ -13,6 +13,8 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/yaml.v2"
 
+	"github.com/DataDog/datadog-agent/pkg/config"
+	//nolint:revive // TODO(ASC) Fix revive linter
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -25,6 +27,7 @@ var Server = struct {
 	GetFullDatadogConfig     func(...string) http.HandlerFunc
 	GetFullSystemProbeConfig func(...string) http.HandlerFunc
 	GetValue                 http.HandlerFunc
+	GetValueWithSources      http.HandlerFunc
 	SetValue                 http.HandlerFunc
 	ListConfigurable         http.HandlerFunc
 }{
@@ -129,7 +132,13 @@ func getConfigValue(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	body, err := json.Marshal(map[string]interface{}{"value": val})
+
+	resp := map[string]interface{}{"value": val}
+	if r.URL.Query().Get("sources") == "true" {
+		resp["sources_value"] = config.Datadog.GetAllSources(setting)
+	}
+
+	body, err := json.Marshal(resp)
 	if err != nil {
 		log.Errorf("Unable to marshal runtime setting value response: %s", err)
 		body, _ := json.Marshal(map[string]string{"error": err.Error()})

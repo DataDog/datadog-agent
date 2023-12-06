@@ -15,8 +15,10 @@ import (
 
 	"github.com/DataDog/viper"
 
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	aconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 // ModuleName is a typed alias for string, used only for module names
@@ -91,16 +93,17 @@ func newSysprobeConfig(configPath string) (*Config, error) {
 		aconfig.SystemProbe.AddConfigPath(defaultConfigDir)
 	}
 	// load the configuration
-	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", false, aconfig.Datadog.GetEnvVars())
+	_, err := aconfig.LoadCustom(aconfig.SystemProbe, "system-probe", optional.NewNoneOption[secrets.Component](), aconfig.Datadog.GetEnvVars())
 	if err != nil {
 		var e viper.ConfigFileNotFoundError
+		//nolint:revive // TODO(EBPF) Fix revive linter
 		if errors.As(err, &e) || errors.Is(err, os.ErrNotExist) {
 			// do nothing, we can ignore a missing system-probe.yaml config file
 		} else if errors.Is(err, fs.ErrPermission) {
 			// special-case permission-denied with a clearer error message
 			if runtime.GOOS == "windows" {
 				return nil, fmt.Errorf(`cannot access the system-probe config file (%w); try running the command in an Administrator shell"`, err)
-			} else {
+			} else { //nolint:revive // TODO(EBPF) Fix revive linter
 				return nil, fmt.Errorf("cannot access the system-probe config file (%w); try running the command under the same user as the Datadog Agent", err)
 			}
 		} else {
@@ -199,7 +202,7 @@ func SetupOptionalDatadogConfigWithDir(configDir, configFile string) error {
 		aconfig.Datadog.SetConfigFile(configFile)
 	}
 	// load the configuration
-	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", false, aconfig.SystemProbe.GetEnvVars())
+	_, err := aconfig.LoadDatadogCustom(aconfig.Datadog, "datadog.yaml", optional.NewNoneOption[secrets.Component](), aconfig.SystemProbe.GetEnvVars())
 	// If `!failOnMissingFile`, do not issue an error if we cannot find the default config file.
 	var e viper.ConfigFileNotFoundError
 	if err != nil && !errors.As(err, &e) {
