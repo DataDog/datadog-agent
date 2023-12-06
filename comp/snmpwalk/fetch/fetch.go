@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package fetch todo
 package fetch
 
 import (
@@ -22,7 +23,8 @@ const (
 	useGetNext fetchStrategyType = "GETNEXT"
 )
 
-func FetchAllFirstRowOIDsVariables(session gosnmp.GoSNMP, fetchStrategy fetchStrategyType) []gosnmp.SnmpPDU {
+// AllFirstRowOIDsVariables TODO
+func AllFirstRowOIDsVariables(session gosnmp.GoSNMP, fetchStrategy fetchStrategyType) []gosnmp.SnmpPDU {
 	var savedPDUs []gosnmp.SnmpPDU
 	curRequestOid := "1.0"
 	alreadySeenOIDs := make(map[string]bool)
@@ -37,7 +39,7 @@ func FetchAllFirstRowOIDsVariables(session gosnmp.GoSNMP, fetchStrategy fetchStr
 	defer throttler.Stop()
 
 	for {
-		counter += 1
+		counter++
 
 		if alreadySeenOIDs[curRequestOid] {
 			// breaking on already seen OIDs prevent infinite loop if the device mis behave by responding with non-sequential OIDs when called with GETNEXT

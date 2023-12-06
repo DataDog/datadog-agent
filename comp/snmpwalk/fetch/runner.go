@@ -15,7 +15,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	"github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
-	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gosnmp/gosnmp"
@@ -85,7 +84,7 @@ func (rc *SnmpwalkRunner) Callback() {
 	log.Debug("[SNMP RUNNER] SNMP RUNNER")
 
 	// TODO: Do not collect snmp-listener configs
-	snmpConfigList, err := parse.GetConfigCheckSnmp()
+	snmpConfigList, err := snmpparse.GetConfigCheckSnmp()
 	if err != nil {
 		log.Debugf("[SNMP RUNNER] Couldn't parse the SNMP config: %v", err)
 		return
@@ -114,20 +113,20 @@ func (rc *SnmpwalkRunner) Callback() {
 		if config.IPAddress == "" {
 			continue
 		}
-		deviceId := namespace + ":" + config.IPAddress
-		if prevTime, ok := rc.prevSnmpwalkTime[deviceId]; ok { // TODO: check config instanceId instead?
+		deviceID := namespace + ":" + config.IPAddress
+		if prevTime, ok := rc.prevSnmpwalkTime[deviceID]; ok { // TODO: check config instanceId instead?
 			// TODO: Also skip if the device is currently being walked
 			if time.Since(prevTime) < interval {
-				log.Debugf("[SNMP RUNNER] Skip Device, interval not reached: %s", deviceId)
+				log.Debugf("[SNMP RUNNER] Skip Device, interval not reached: %s", deviceID)
 				continue
 			}
 		}
 		// TODO: Also skip if the device is currently being walked
-		if rc.isRunning[deviceId] {
-			log.Debugf("[SNMP RUNNER] Skip Device, already running: %s", deviceId)
+		if rc.isRunning[deviceID] {
+			log.Debugf("[SNMP RUNNER] Skip Device, already running: %s", deviceID)
 			continue
 		}
-		rc.isRunning[deviceId] = true
+		rc.isRunning[deviceID] = true
 
 		//rc.snmpwalkOneDevice(config, namespace, commonTags)
 		rc.jobs <- SnmpwalkJob{
@@ -139,7 +138,7 @@ func (rc *SnmpwalkRunner) Callback() {
 	//rc.sender.Gauge("datadog.snmpwalk.total.duration", time.Since(globalStart).Seconds(), "", commonTags)
 }
 
-func (rc *SnmpwalkRunner) snmpwalkOneDevice(config parse.SNMPConfig, namespace string, commonTags []string) {
+func (rc *SnmpwalkRunner) snmpwalkOneDevice(config snmpparse.SNMPConfig, namespace string, commonTags []string) {
 	ipaddr := config.IPAddress
 	if ipaddr == "" {
 		log.Debugf("[SNMP RUNNER] Missing IP Addr: %v", config)
@@ -149,21 +148,21 @@ func (rc *SnmpwalkRunner) snmpwalkOneDevice(config parse.SNMPConfig, namespace s
 	log.Debugf("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
 
 	localStart := time.Now()
-	deviceId := namespace + ":" + ipaddr
+	deviceID := namespace + ":" + ipaddr
 	fetchStrategy := useGetNext
 	devTags := []string{
 		"namespace:" + namespace, // TODO: FIX ME
 		"device_ip:" + ipaddr,
-		"device_id:" + deviceId,
+		"device_id:" + deviceID,
 		"snmp_command:" + string(fetchStrategy),
 	}
 	devTags = append(devTags, commonTags...)
 
 	// TODO: Need mutex lock?
-	if prevTime, ok := rc.prevSnmpwalkTime[deviceId]; ok { // TODO: check config instanceId instead?
+	if prevTime, ok := rc.prevSnmpwalkTime[deviceID]; ok { // TODO: check config instanceId instead?
 		rc.sender.Gauge("datadog.snmpwalk.device.interval", localStart.Sub(prevTime).Seconds(), "", devTags)
 	}
-	rc.prevSnmpwalkTime[deviceId] = localStart
+	rc.prevSnmpwalkTime[deviceID] = localStart
 
 	oidsCollectedCount := rc.collectDeviceOIDs(config, fetchStrategy)
 	duration := time.Since(localStart)
@@ -172,13 +171,13 @@ func (rc *SnmpwalkRunner) snmpwalkOneDevice(config parse.SNMPConfig, namespace s
 
 	rc.sender.Commit()
 
-	delete(rc.isRunning, deviceId)
+	delete(rc.isRunning, deviceID)
 }
 
-func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig, fetchStrategy fetchStrategyType) int {
+func (rc *SnmpwalkRunner) collectDeviceOIDs(config snmpparse.SNMPConfig, fetchStrategy fetchStrategyType) int {
 	prefix := fmt.Sprintf("(%s)", config.CommunityString)
 	namespace := "default" // TODO: CHANGE PLACEHOLDER
-	deviceId := namespace + ":" + config.IPAddress
+	deviceID := namespace + ":" + config.IPAddress
 
 	session := createSession(config)
 	log.Debugf("[SNMP RUNNER]%s session: %+v", prefix, session)
@@ -192,14 +191,14 @@ func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig, fetchStrate
 	}
 	defer session.Conn.Close()
 
-	variables := FetchAllFirstRowOIDsVariables(session, fetchStrategy)
+	variables := AllFirstRowOIDsVariables(session, fetchStrategy)
 	log.Debugf("[SNMP RUNNER]%s Variables: %d", prefix, len(variables))
 
 	for idx, variable := range variables {
 		log.Debugf("[SNMP RUNNER]%s Variable Name (%d): %s", prefix, idx+1, variable.Name)
 	}
 
-	deviceOIDs := buildDeviceScanMetadata(deviceId, variables)
+	deviceOIDs := buildDeviceScanMetadata(deviceID, variables)
 
 	metadataPayloads := metadata.BatchPayloads(namespace,
 		"",
@@ -233,7 +232,7 @@ func (rc *SnmpwalkRunner) Stop() {
 	rc.stop <- true
 }
 
-func buildDeviceScanMetadata(deviceId string, oidsValues []gosnmp.SnmpPDU) []metadata.DeviceOid {
+func buildDeviceScanMetadata(deviceID string, oidsValues []gosnmp.SnmpPDU) []metadata.DeviceOid {
 	var deviceOids []metadata.DeviceOid
 	if oidsValues == nil {
 		return deviceOids
@@ -253,7 +252,7 @@ func buildDeviceScanMetadata(deviceId string, oidsValues []gosnmp.SnmpPDU) []met
 		}
 
 		deviceOids = append(deviceOids, metadata.DeviceOid{
-			DeviceID:    deviceId,
+			DeviceID:    deviceID,
 			Oid:         strings.TrimLeft(variablePdu.Name, "."),
 			Type:        variablePdu.Type.String(), // TODO: Map to internal types?
 			ValueString: strValue,

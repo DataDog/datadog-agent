@@ -3,7 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-// Package config exposes the snmpwalk configuration as a component.
+// Package impl TODO
+// Package impl TODO Package config exposes the snmpwalk configuration as a component.
 package impl
 
 import (

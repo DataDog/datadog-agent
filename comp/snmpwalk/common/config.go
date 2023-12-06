@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package common TODO
 package common
 
 import (
@@ -22,6 +23,10 @@ func (mainConfig *SnmpwalkConfig) SetDefaults(namespace string, logger log.Compo
 	if mainConfig.StopTimeout == 0 {
 		mainConfig.StopTimeout = common.DefaultStopTimeout
 	}
+
+	// TODO: FIX UNUSED
+	_ = namespace
+	_ = logger
 
 	return nil
 }

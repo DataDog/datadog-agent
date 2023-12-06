@@ -5,6 +5,8 @@
 
 // Package server implements a component that runs the snmpwalk server.
 // It does not expose any public methods.
+
+// Package impl TODO
 package impl
 
 import (
