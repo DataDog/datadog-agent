@@ -365,8 +365,7 @@ func (mr *Resolver) ResolveMountPath(mountID uint32, device uint32, pid uint32, 
 	return mr.resolveMountPath(mountID, device, pid, containerID)
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func (mr *Resolver) syncCacheMiss(mountID uint32) {
+func (mr *Resolver) syncCacheMiss() {
 	mr.procMissStats.Inc()
 }
 
@@ -378,7 +377,7 @@ func (mr *Resolver) reSyncCache(mountID uint32, pids []uint32, containerID strin
 	}
 
 	if err := mr.syncCache(mountID, pids); err != nil {
-		mr.syncCacheMiss(mountID)
+		mr.syncCacheMiss()
 		return err
 	}
 
