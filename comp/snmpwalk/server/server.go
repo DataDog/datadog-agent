@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	nfconfig "github.com/DataDog/datadog-agent/comp/snmpwalk/config"
 	"github.com/DataDog/datadog-agent/comp/snmpwalk/fetch"
-	"github.com/DataDog/datadog-agent/pkg/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"go.uber.org/fx"
 	"sync"
 	"time"
@@ -58,6 +58,11 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	// TODO: USE SENDER
 	_ = sender
 	server.logger.Infof("[SNMPWALK] Starting Snmpwalk Server")
+
+	interval := pkgconfig.Datadog.GetDuration("network_devices.snmpwalk.interval") * time.Second
+	if interval == 0 {
+		interval = 60
+	}
 
 	ticker := time.NewTicker(60 * time.Second)
 	quit := make(chan struct{})
@@ -128,5 +133,5 @@ func (s *Server) Stop() {
 
 // IsEnabled checks if the snmpwalk functionality is enabled in the configuration.
 func IsEnabled() bool {
-	return config.Datadog.GetBool("network_devices.snmpwalk.enabled")
+	return pkgconfig.Datadog.GetBool("network_devices.snmpwalk.enabled")
 }

@@ -141,7 +141,7 @@ func (rc *SnmpwalkRunner) snmpwalkOneDevice(config parse.SNMPConfig, namespace s
 	rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", devTags)
 
 	if prevTime, ok := rc.prevSnmpwalkTime[deviceId]; ok { // TODO: check config instanceId instead?
-		rc.sender.Gauge("datadog.snmpwalk.device.interval", prevTime.Sub(localStart).Seconds(), "", devTags)
+		rc.sender.Gauge("datadog.snmpwalk.device.interval", localStart.Sub(prevTime).Seconds(), "", devTags)
 	}
 	rc.prevSnmpwalkTime[deviceId] = localStart
 
