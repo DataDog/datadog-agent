@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	nfconfig "github.com/DataDog/datadog-agent/comp/snmpwalk/config"
-	"github.com/DataDog/datadog-agent/comp/snmpwalk/flowaggregator"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"go.uber.org/fx"
 	"sync"
@@ -44,12 +43,13 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	if err != nil {
 		return nil, err
 	}
-	flowAgg := flowaggregator.NewFlowAggregator(sender, deps.Forwarder, conf, deps.Hostname.GetSafe(context.Background()), deps.Logger)
+
+	// TODO: USE SENDER
+	_ = sender
 
 	server := &Server{
-		config:  conf,
-		FlowAgg: flowAgg,
-		logger:  deps.Logger,
+		config: conf,
+		logger: deps.Logger,
 	}
 
 	globalServerMu.Lock()

@@ -7,12 +7,9 @@
 package config
 
 import (
-	"fmt"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-
-	"github.com/DataDog/datadog-agent/pkg/snmp/utils"
 
 	"github.com/DataDog/datadog-agent/comp/snmpwalk/common"
 )

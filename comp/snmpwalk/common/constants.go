@@ -4,3 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 package common
+
+const (
+	// DefaultStopTimeout is the default stop timeout in seconds
+	DefaultStopTimeout = 5
+)
