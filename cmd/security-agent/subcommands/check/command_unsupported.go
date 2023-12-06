@@ -16,11 +16,15 @@ import (
 )
 
 // SecurityAgentCommands returns security agent commands
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return nil
 }
 
 // ClusterAgentCommands returns cluster agent commands
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func ClusterAgentCommands(bundleParams core.BundleParams) []*cobra.Command {
 	return nil
 }

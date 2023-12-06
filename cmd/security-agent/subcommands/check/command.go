@@ -285,6 +285,7 @@ func newFakeResolver(regoInputPath string) compliance.Resolver {
 	return &fakeResolver{regoInputPath}
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (r *fakeResolver) ResolveInputs(ctx context.Context, rule *compliance.Rule) (compliance.ResolvedInputs, error) {
 	var fixtures map[string]map[string]interface{}
 	data, err := os.ReadFile(r.regoInputPath)

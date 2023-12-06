@@ -63,21 +63,7 @@ func assertStressProcessCollected(
 
 	var found, populated bool
 	for _, payload := range payloads {
-		for _, process := range payload.Processes {
-			if len(process.Command.Args) > 0 && process.Command.Args[0] == "stress" {
-				found = true
-				populated = processHasData(process)
-
-				if withIOStats {
-					populated = populated && processHasIOStats(process)
-				}
-
-				if populated {
-					break
-				}
-			}
-		}
-
+		found, populated = findProcess("stress", payload.Processes, withIOStats)
 		if found && populated {
 			break
 		}
@@ -85,6 +71,29 @@ func assertStressProcessCollected(
 
 	require.True(t, found, "stress process not found")
 	assert.True(t, populated, "no stress process had all data populated")
+}
+
+// findProcess returns whether the process with the given name exists in the given list of
+// processes and whether it has the expected data populated
+func findProcess(
+	name string, processes []*agentmodel.Process, withIOStats bool,
+) (found, populated bool) {
+	for _, process := range processes {
+		if len(process.Command.Args) > 0 && process.Command.Args[0] == name {
+			found = true
+			populated = processHasData(process)
+
+			if withIOStats {
+				populated = populated && processHasIOStats(process)
+			}
+
+			if populated {
+				break
+			}
+		}
+	}
+
+	return found, populated
 }
 
 // processHasData asserts that the given process has the expected data populated
@@ -113,16 +122,7 @@ func assertStressProcessDiscoveryCollected(
 
 	var found, populated bool
 	for _, payload := range payloads {
-		for _, disc := range payload.ProcessDiscoveries {
-			if len(disc.Command.Args) > 0 && disc.Command.Args[0] == "stress" {
-				found = true
-				populated = processDiscoveryHasData(disc)
-				if populated {
-					break
-				}
-			}
-		}
-
+		found, populated = findProcessDiscovery("stress", payload.ProcessDiscoveries)
 		if found && populated {
 			break
 		}
@@ -132,7 +132,67 @@ func assertStressProcessDiscoveryCollected(
 	assert.True(t, populated, "no stress process had all data populated")
 }
 
+// findProcessDiscovery returns whether the process with the given name exists in the given list of
+// process discovery payloads and whether it has the expected data populated
+func findProcessDiscovery(
+	name string, discs []*agentmodel.ProcessDiscovery,
+) (found, populated bool) {
+	for _, disc := range discs {
+		if len(disc.Command.Args) > 0 && disc.Command.Args[0] == name {
+			found = true
+			populated = processDiscoveryHasData(disc)
+			if populated {
+				break
+			}
+		}
+	}
+
+	return found, populated
+}
+
 // processDiscoveryHasData asserts that the given process discovery has the expected data populated
 func processDiscoveryHasData(disc *agentmodel.ProcessDiscovery) bool {
 	return disc.Pid != 0 && disc.NsPid != 0 && len(disc.User.Name) > 0
+}
+
+// assertManualProcessCheck asserts that the stress process is collected and reported in the output
+// of the manual process check
+func assertManualProcessCheck(t *testing.T, check string, withIOStats bool) {
+	defer func() {
+		if t.Failed() {
+			t.Logf("Check output:\n%s\n", check)
+		}
+	}()
+
+	var checkOutput struct {
+		Processes []*agentmodel.Process `json:"processes"`
+	}
+	err := json.Unmarshal([]byte(check), &checkOutput)
+	require.NoError(t, err, "failed to unmarshal process check output")
+
+	found, populated := findProcess("stress", checkOutput.Processes, withIOStats)
+
+	require.True(t, found, "stress process not found")
+	assert.True(t, populated, "no stress process had all data populated")
+}
+
+// assertManualProcessDiscoveryCheck asserts that the stress process is collected and reported in
+// the output of the manual process_discovery check
+func assertManualProcessDiscoveryCheck(t *testing.T, check string) {
+	defer func() {
+		if t.Failed() {
+			t.Logf("Check output:\n%s\n", check)
+		}
+	}()
+
+	var checkOutput struct {
+		ProcessDiscoveries []*agentmodel.ProcessDiscovery `json:"processDiscoveries"`
+	}
+	err := json.Unmarshal([]byte(check), &checkOutput)
+	require.NoError(t, err, "failed to unmarshal process check output")
+
+	found, populated := findProcessDiscovery("stress", checkOutput.ProcessDiscoveries)
+
+	require.True(t, found, "stress process not found")
+	assert.True(t, populated, "no stress process had all data populated")
 }

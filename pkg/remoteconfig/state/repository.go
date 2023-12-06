@@ -300,6 +300,8 @@ func (r *Repository) getConfigs(product string) map[string]interface{} {
 //
 // The update is guaranteed to succeed at this point, having been vetted and the details
 // needed to apply the update stored in the `updateResult`.
+//
+//nolint:revive // TODO(RC) Fix revive linter
 func (r *Repository) applyUpdateResult(update Update, result updateResult) {
 	// 4.b Save all the updated and new config files
 	for product, configs := range result.changed {

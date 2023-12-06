@@ -86,7 +86,7 @@ func testUDSOriginDetection(t *testing.T, network string) {
 
 	// Start sender container
 	t.Logf("Starting sender container %s", composeFile)
-	go s.Listen()
+	s.Listen()
 	defer s.Stop()
 
 	compose := &utils.ComposeConf{

@@ -7,7 +7,6 @@
 package config
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -248,6 +247,8 @@ func InitConfig(config Config) {
 	config.BindEnv("ipc_address") // deprecated: use `cmd_host` instead
 	config.BindEnvAndSetDefault("cmd_host", "localhost")
 	config.BindEnvAndSetDefault("cmd_port", 5001)
+	config.BindEnvAndSetDefault("agent_ipc_host", "localhost")
+	config.BindEnvAndSetDefault("agent_ipc_port", 0)
 	config.BindEnvAndSetDefault("default_integration_http_timeout", 9)
 	config.BindEnvAndSetDefault("integration_tracing", false)
 	config.BindEnvAndSetDefault("integration_tracing_exhaustive", false)
@@ -1672,7 +1673,7 @@ func setupFipsEndpoints(config Config) error {
 		networkDevicesNetflow      = 15 // 14 is reserved for compliance (#20230)
 	)
 
-	localAddress, err := isLocalAddress(config.GetString("fips.local_address"))
+	localAddress, err := IsLocalAddress(config.GetString("fips.local_address"))
 	if err != nil {
 		return fmt.Errorf("fips.local_address: %s", err)
 	}
@@ -1775,13 +1776,33 @@ func ResolveSecrets(config Config, secretResolver secrets.Component, origin stri
 			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %v", err)
 		}
 
-		finalYamlConf, err := secretResolver.Decrypt(yamlConf, origin)
+		err = secretResolver.ResolveWithCallback(
+			yamlConf,
+			origin,
+			func(yamlPath []string, value any) bool {
+				settingName := strings.Join(yamlPath, ".")
+
+				// We received a notification about an unknown setting. This means that the a value
+				// inside a map was updated (ie: settings like additional_endpoints,
+				// kubernetes_node_annotations_as_tags, ...). This is an issue when a setting use a
+				// map[string] as a value. The key can contain a '.' making it impossible to set or get.
+				//
+				// The secrets resolver doesn't have the notion of what is a known setting and what
+				// isn't. Returning false tells the secretResolver that we refuse the notification and
+				// we want to be notified for the parent key.
+				//
+				// See secrets.ResolveCallback documentation for more information.
+				//
+				if !config.IsKnown(settingName) {
+					return false
+				}
+
+				log.Debugf("replacing handle for setting '%s' with secret value", settingName)
+				config.Set(settingName, value, pkgconfigmodel.SourceAgentRuntime)
+				return true
+			})
 		if err != nil {
 			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
-		}
-		r := bytes.NewReader(finalYamlConf)
-		if err = config.MergeConfigOverride(r); err != nil {
-			return fmt.Errorf("could not update main configuration after decrypting secrets: %v", err)
 		}
 	}
 	return nil
@@ -1860,13 +1881,6 @@ func IsCloudProviderEnabled(cloudProviderName string) bool {
 		cloudProviderFromConfig,
 		cloudProviderName)
 	return false
-}
-
-var isLocalAddress = pkgconfigenv.IsLocalAddress
-
-// GetIPCAddress returns the IPC address or an error if the address is not local
-func GetIPCAddress() (string, error) {
-	return pkgconfigenv.GetIPCAddress(Datadog)
 }
 
 // pathExists returns true if the given path exists

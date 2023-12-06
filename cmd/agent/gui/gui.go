@@ -120,6 +120,7 @@ func createCSRFToken() error {
 	return nil
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func generateIndex(w http.ResponseWriter, r *http.Request) {
 	data, err := viewsFS.ReadFile("views/templates/index.tmpl")
 	if err != nil {
@@ -139,6 +140,7 @@ func generateIndex(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func generateAuthEndpoint(w http.ResponseWriter, r *http.Request) {
 	data, err := viewsFS.ReadFile("views/templates/auth.tmpl")
 	if err != nil {

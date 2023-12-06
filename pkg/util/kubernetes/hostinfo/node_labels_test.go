@@ -23,6 +23,7 @@ type kubeUtilMock struct {
 	mock.Mock
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (m *kubeUtilMock) GetNodename(ctx context.Context) (string, error) {
 	args := m.Called()
 	return args.String(0), args.Error(1)

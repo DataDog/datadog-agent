@@ -288,6 +288,7 @@ func NewState(clientExpiry time.Duration, maxClosedConns uint32, maxClientStats 
 	}
 }
 
+//nolint:unused // TODO(NET) Fix unused linter
 func (ns *networkState) getClients() []string {
 	ns.Lock()
 	defer ns.Unlock()
@@ -782,6 +783,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 		ns.updateConnWithStats(client, cookie, closedConn)
 
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		if closedConn.Last.IsZero() {
 			// not reporting an "empty" connection
 			return false
@@ -803,6 +805,7 @@ func (ns *networkState) mergeConnections(id string, active []ConnectionStats) (_
 
 		newStats[c.Cookie] = client.stats[c.Cookie]
 
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		if c.Last.IsZero() {
 			// not reporting an "empty" connection
 			return false

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package daemon
 
 import (
@@ -208,10 +209,12 @@ func (d *Daemon) SetTraceAgent(traceAgent *trace.ServerlessTraceAgent) {
 	d.TraceAgent = traceAgent
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (d *Daemon) SetOTLPAgent(otlpAgent *otlp.ServerlessOTLPAgent) {
 	d.OTLPAgent = otlpAgent
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func (d *Daemon) SetColdStartSpanCreator(creator *trace.ColdStartSpanCreator) {
 	d.ColdStartCreator = creator
 }
