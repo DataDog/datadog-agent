@@ -15,6 +15,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ebs"
 )
 
+// EBSBlockDeviceOptions represents the options of the EBS block device.
 type EBSBlockDeviceOptions struct {
 	EBSClient   *ebs.Client
 	Name        string
@@ -23,6 +24,7 @@ type EBSBlockDeviceOptions struct {
 	SnapshotARN arn.ARN
 }
 
+// SetupEBSBlockDevice sets up the EBS block device.
 func SetupEBSBlockDevice(ctx context.Context, opts EBSBlockDeviceOptions) error {
 	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
