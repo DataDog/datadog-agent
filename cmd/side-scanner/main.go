@@ -2149,15 +2149,16 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 	device = nextDeviceName()
 	log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
 	for i := 0; i < 10; i++ {
-		_, err = locaEC2Client.AttachVolume(ctx, &ec2.AttachVolumeInput{
+		attachVolumeOutput, err := locaEC2Client.AttachVolume(ctx, &ec2.AttachVolumeInput{
 			InstanceId: aws.String(self.InstanceID),
 			VolumeId:   volume.VolumeId,
 			Device:     aws.String(device),
 		})
 		if err == nil {
+			log.Debugf("volume attached successfully %q: %s (%s)", *attachVolumeOutput.VolumeId, *attachVolumeOutput.Device, device)
 			break
 		}
-		log.Debugf("error attaching volume %q into device %q", *volume.VolumeId, device)
+		log.Debugf("error attaching volume %q into device %q (retrying in 1 sec)", *volume.VolumeId, device)
 		if !sleepCtx(ctx, 1*time.Second) {
 			break
 		}
