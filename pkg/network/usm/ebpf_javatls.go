@@ -134,7 +134,7 @@ var javaTLSSpec = &protocols.ProtocolSpec{
 }
 
 func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
-	if !c.EnableJavaTLSSupport || !http.HTTPSSupported(c) {
+	if !c.EnableJavaTLSSupport || !http.TLSSupported(c) {
 		return nil, nil
 	}
 

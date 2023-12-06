@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// StatKeeper is responsible for aggregating HTTP stats.
 type StatKeeper struct {
 	mux                         sync.Mutex
 	cfg                         *config.Config
@@ -38,7 +38,7 @@ type StatKeeper struct {
 	oversizedLogLimit *util.LogLimit
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// NewStatkeeper returns a new StatKeeper.
 func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 	// For now we're only enabling path quantization for HTTP/1 traffic
 	enableQuantization := c.EnableUSMQuantization && telemetry.protocol == "http"
@@ -58,7 +58,7 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 	}
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Process processes a transaction and updates the stats accordingly.
 func (h *StatKeeper) Process(tx Transaction) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
@@ -71,7 +71,7 @@ func (h *StatKeeper) Process(tx Transaction) {
 	h.add(tx)
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// GetAndResetAllStats returns all the stats and resets the internal state.
 func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	h.mux.Lock()
 	defer h.mux.Unlock()
@@ -85,7 +85,7 @@ func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	return ret
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Close closes the stat keeper.
 func (h *StatKeeper) Close() {
 	h.oversizedLogLimit.Close()
 }
