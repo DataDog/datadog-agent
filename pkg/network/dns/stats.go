@@ -207,7 +207,7 @@ func (d *dnsStatKeeper) hasDomain(domain string) bool {
 	d.mux.Lock()
 	defer d.mux.Unlock()
 	for _, statsByTypeByHost := range d.stats {
-		for host, _ := range statsByTypeByHost {
+		for host := range statsByTypeByHost {
 			if host.Get() == domain {
 				return true
 			}
