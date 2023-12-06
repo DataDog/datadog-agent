@@ -20,6 +20,8 @@ var (
 	defaultGuiPort              = 5002
 	// DefaultSecurityAgentLogFile points to the log file that will be used by the security-agent if not configured
 	DefaultSecurityAgentLogFile = "c:\\programdata\\datadog\\logs\\security-agent.log"
+	// DefaultSideScannerLogFile points to the log file that will be used by the side-scanner if not configured
+	DefaultSideScannerLogFile = "c:\\programdata\\datadog\\logs\\side-scanner.log"
 	// DefaultProcessAgentLogFile is the default process-agent log file
 	DefaultProcessAgentLogFile = "C:\\ProgramData\\Datadog\\logs\\process-agent.log"
 
