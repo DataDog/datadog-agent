@@ -1583,9 +1583,9 @@ api_key:
   ## @env DD_APM_TRACE_BUFFER - integer - optional - default: 0
   ## 
   ## WARNING: Do not use this config. It is here for debugging and
-  ## as a temporary fix in certain load scenarios. Setting this will
-  ## result in a performance deterioration and an increase in memory
-  ## usage when the trace agent is under load. This config may be
+  ## as a temporary fix in certain load scenarios. Setting this
+  ## results in a performance deterioration and an increase in memory
+  ## usage when the Trace Agent is under load. This config may be
   ## removed in a future version.
   ## 
   ## Specifies the number of trace payloads to buffer after decoding.
