@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-// Package sharedlibraries contains implementation for the TLS support of USM.
+// Package sharedlibraries contains implementation for the TLS support of USM
 package sharedlibraries
 
 import (

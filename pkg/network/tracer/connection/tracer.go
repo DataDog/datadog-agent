@@ -661,7 +661,7 @@ func populateConnStats(stats *network.ConnectionStats, t *netebpf.ConnTuple, s *
 	}
 
 	stats.ProtocolStack = protocols.Stack{
-		Api:         protocols.API(s.Protocol_stack.Api),
+		API:         protocols.API(s.Protocol_stack.Api),
 		Application: protocols.Application(s.Protocol_stack.Application),
 		Encryption:  protocols.Encryption(s.Protocol_stack.Encryption),
 	}
