@@ -1,6 +1,7 @@
 package fetch
 
 import (
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/cihub/seelog"
@@ -22,7 +23,12 @@ func FetchAllFirstRowOIDsVariables(session gosnmp.GoSNMP, fetchStrategy fetchStr
 	alreadySeenOIDs := make(map[string]bool)
 	counter := 0
 
-	throttler := time.NewTicker(100 * time.Millisecond)
+	throttlerMinInterval := pkgconfig.Datadog.GetDuration("network_devices.snmpwalk.throttler_min_interval_per_oid")
+	if throttlerMinInterval == 0 {
+		throttlerMinInterval = 100 * time.Millisecond
+	}
+
+	throttler := time.NewTicker(throttlerMinInterval)
 	defer throttler.Stop()
 
 	for {

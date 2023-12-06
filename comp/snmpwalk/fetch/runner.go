@@ -31,6 +31,7 @@ type SnmpwalkRunner struct {
 	jobs             chan SnmpwalkJob
 	stop             chan bool
 	prevSnmpwalkTime map[string]time.Time
+	isRunning        map[string]bool
 }
 
 // SnmpwalkJob ...
@@ -46,6 +47,7 @@ func NewSnmpwalkRunner(sender sender.Sender) *SnmpwalkRunner {
 		upToDate:         false,
 		sender:           sender,
 		prevSnmpwalkTime: make(map[string]time.Time),
+		isRunning:        make(map[string]bool),
 	}
 	workers := pkgconfig.Datadog.GetInt("network_devices.snmpwalk.workers")
 	if workers == 0 {
@@ -113,10 +115,16 @@ func (rc *SnmpwalkRunner) Callback() {
 		if prevTime, ok := rc.prevSnmpwalkTime[deviceId]; ok { // TODO: check config instanceId instead?
 			// TODO: Also skip if the device is currently being walked
 			if time.Since(prevTime) < interval {
-				log.Infof("[SNMP RUNNER] Skip Device: %s", deviceId)
+				log.Infof("[SNMP RUNNER] Skip Device, interval not reached: %s", deviceId)
 				continue
 			}
 		}
+		// TODO: Also skip if the device is currently being walked
+		if rc.isRunning[deviceId] {
+			log.Infof("[SNMP RUNNER] Skip Device, already running: %s", deviceId)
+			continue
+		}
+		rc.isRunning[deviceId] = true
 
 		//rc.snmpwalkOneDevice(config, namespace, commonTags)
 		rc.jobs <- SnmpwalkJob{
@@ -162,6 +170,8 @@ func (rc *SnmpwalkRunner) snmpwalkOneDevice(config parse.SNMPConfig, namespace s
 	rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", devTags)
 
 	rc.sender.Commit()
+
+	delete(rc.isRunning, deviceId)
 }
 
 func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig, fetchStrategy fetchStrategyType) int {
