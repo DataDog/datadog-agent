@@ -5,9 +5,15 @@
 
 // Package server implements a component that runs the snmpwalk server.
 // It does not expose any public methods.
-package server
+package impl
 
-// team: network-device-monitoring
+import (
+	"go.uber.org/fx"
 
-// Component is the component type. It has no exposed methods.
-type Component interface{}
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+)
+
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newServer),
+)

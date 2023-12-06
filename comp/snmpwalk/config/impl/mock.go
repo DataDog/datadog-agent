@@ -3,15 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-package config
+package impl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/snmpwalk/common"
+	"github.com/DataDog/datadog-agent/comp/snmpwalk/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"go.uber.org/fx"
 )
 
-func newMock(conf *SnmpwalkConfig, logger log.Component) (Component, error) {
+func newMock(conf *common.SnmpwalkConfig, logger log.Component) (config.Component, error) {
 	if err := conf.SetDefaults("default", logger); err != nil {
 		return nil, err
 	}
@@ -24,5 +26,5 @@ func newMock(conf *SnmpwalkConfig, logger log.Component) (Component, error) {
 // Defaults will always be populated.
 var MockModule = fxutil.Component(
 	fx.Provide(newMock),
-	fx.Supply(&SnmpwalkConfig{}),
+	fx.Supply(&common.SnmpwalkConfig{}),
 )

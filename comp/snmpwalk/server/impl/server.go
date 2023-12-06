@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-package server
+package impl
 
 import (
 	"context"
@@ -12,8 +12,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
+	"github.com/DataDog/datadog-agent/comp/snmpwalk/common"
 	nfconfig "github.com/DataDog/datadog-agent/comp/snmpwalk/config"
 	"github.com/DataDog/datadog-agent/comp/snmpwalk/fetch"
+	"github.com/DataDog/datadog-agent/comp/snmpwalk/server"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"go.uber.org/fx"
 	"sync"
@@ -39,7 +41,7 @@ var (
 )
 
 // newServer configures a snmpwalk server.
-func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
+func newServer(lc fx.Lifecycle, deps dependencies) (server.Component, error) {
 	deps.Logger.Infof("[SNMPWALK] newServer")
 	conf := deps.Config.Get()
 	sender, err := deps.Demultiplexer.GetDefaultSender()
@@ -98,7 +100,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 // Server manages snmpwalk.
 type Server struct {
 	Addr    string
-	config  *nfconfig.SnmpwalkConfig
+	config  *common.SnmpwalkConfig
 	logger  log.Component
 	running bool
 	runner  *fetch.SnmpwalkRunner

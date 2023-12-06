@@ -4,15 +4,15 @@
 // Copyright 2023-present Datadog, Inc.
 
 // Package config exposes the snmpwalk configuration as a component.
-package config
+package impl
 
 import (
-	"github.com/DataDog/datadog-agent/comp/snmpwalk/common"
+	"go.uber.org/fx"
+
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
-// team: network-device-monitoring
-
-// Component is the component type.
-type Component interface {
-	Get() *common.SnmpwalkConfig
-}
+// Module defines the fx options for this component.
+var Module = fxutil.Component(
+	fx.Provide(newService),
+)

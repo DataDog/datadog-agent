@@ -218,10 +218,10 @@
 /comp/metadata @DataDog/agent-shared-components
 /comp/ndmtmp @DataDog/network-device-monitoring
 /comp/netflow @DataDog/network-device-monitoring
-/comp/snmpwalk @DataDog/network-device-monitoring
 /comp/otelcol @DataDog/opentelemetry
 /comp/process @DataDog/processes
 /comp/remote-config @DataDog/remote-config
+/comp/snmpwalk @DataDog/network-device-monitoring
 /comp/systray @DataDog/windows-agent
 /comp/trace @DataDog/agent-apm
 /comp/checks/agentcrashdetect @DataDog/windows-kernel-integrations

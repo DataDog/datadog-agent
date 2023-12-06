@@ -8,8 +8,8 @@
 package snmpwalk
 
 import (
-	"github.com/DataDog/datadog-agent/comp/snmpwalk/config"
-	"github.com/DataDog/datadog-agent/comp/snmpwalk/server"
+	configimpl "github.com/DataDog/datadog-agent/comp/snmpwalk/config/impl"
+	serverimpl "github.com/DataDog/datadog-agent/comp/snmpwalk/server/impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -17,6 +17,6 @@ import (
 
 // Bundle defines the fx options for this bundle.
 var Bundle = fxutil.Bundle(
-	server.Module,
-	config.Module,
+	serverimpl.Module,
+	configimpl.Module,
 )

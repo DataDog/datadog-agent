@@ -296,6 +296,22 @@ supported Datadog intakes.
 
 
 
+## [comp/snmpwalk](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpwalk) (Component Bundle)
+
+*Datadog Team*: network-device-monitoring
+
+Package snmpwalk implements the "snmpwalk" bundle, which collect partial snmpwalk
+for runtime SNMP integration instances
+
+### [comp/snmpwalk/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpwalk/config)
+
+Package config exposes the snmpwalk configuration as a component.
+
+### [comp/snmpwalk/server](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/snmpwalk/server)
+
+Package server implements a component that runs the snmpwalk server.
+It does not expose any public methods.
+
 ## [comp/systray](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/systray) (Component Bundle)
 
 *Datadog Team*: windows-agent
