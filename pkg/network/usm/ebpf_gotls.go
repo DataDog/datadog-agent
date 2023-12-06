@@ -168,7 +168,7 @@ func newGoTLSProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map) pro
 			return nil, nil
 		}
 
-		if !http.HTTPSSupported(c) {
+		if !http.TLSSupported(c) {
 			return nil, errors.New("goTLS not supported by this platform")
 		}
 

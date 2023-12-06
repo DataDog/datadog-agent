@@ -13,7 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Transaction is the interface for an HTTP transaction.
 type Transaction interface {
 	RequestLatency() float64
 	ConnTuple() types.ConnectionKey

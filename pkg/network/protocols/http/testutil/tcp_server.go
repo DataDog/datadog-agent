@@ -7,13 +7,14 @@ package testutil
 
 import "net"
 
-//nolint:revive // TODO(USM) Fix revive linter
+// TCPServer represents a basic TCP server configuration.
 type TCPServer struct {
 	address   string
 	onMessage func(c net.Conn)
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// NewTCPServer creates and initializes a new TCPServer instance with the provided address
+// and callback function to handle incoming messages.
 func NewTCPServer(addr string, onMessage func(c net.Conn)) *TCPServer {
 	return &TCPServer{
 		address:   addr,
@@ -21,7 +22,7 @@ func NewTCPServer(addr string, onMessage func(c net.Conn)) *TCPServer {
 	}
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Run starts the TCPServer to listen on its configured address.
 func (s *TCPServer) Run(done chan struct{}) error {
 	ln, err := net.Listen("tcp", s.address)
 	if err != nil {

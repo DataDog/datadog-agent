@@ -127,13 +127,13 @@ func (r *RequestStat) initSketch() (err error) {
 	return
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// RequestStats stores HTTP request statistics.
 type RequestStats struct {
 	aggregateByStatusCode bool
 	Data                  map[uint16]*RequestStat
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// NewRequestStats creates a new RequestStats object.
 func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	return &RequestStats{
 		aggregateByStatusCode: aggregateByStatusCode,
@@ -141,7 +141,7 @@ func NewRequestStats(aggregateByStatusCode bool) *RequestStats {
 	}
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// NormalizeStatusCode normalizes the status code into a status code family.
 func (r *RequestStats) NormalizeStatusCode(status uint16) uint16 {
 	if r.aggregateByStatusCode {
 		return status

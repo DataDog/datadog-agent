@@ -66,7 +66,7 @@ func httpsSupported() bool {
 	if isFentry() {
 		return false
 	}
-	return http.HTTPSSupported(testConfig())
+	return http.TLSSupported(testConfig())
 }
 
 func goTLSSupported() bool {
