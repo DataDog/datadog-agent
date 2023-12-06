@@ -32,12 +32,12 @@ class CommandRunner:
     def copy_files(self, stack, path):
         if self.vm.arch == "local":
             arch = arch_mapping[platform.machine()]
-            self.ctx.run(f"cp kmt-deps/{stack}/dependencies-{arch}.tar.gz {get_kmt_os().shared_dir}")
+            self.ctx.run(f"cp {path} {get_kmt_os().shared_dir}")
         else:
             if self.remote_ssh_key == "" or self.remote_ip == "":
                 raise Exit("remote ssh key and remote ip are required to run command on remote VMs")
             self.run_cmd(
-                f"scp -o StrictHostKeyChecking=no -i {self.remote_ssh_key} kmt-deps/{stack}/dependencies-{self.vm.arch}.tar.gz ubuntu@{self.remote_ip}:/opt/kernel-version-testing/",
+                f"scp -o StrictHostKeyChecking=no -i {self.remote_ssh_key} {path} ubuntu@{self.remote_ip}:/opt/kernel-version-testing/",
                 False,
             )
 
