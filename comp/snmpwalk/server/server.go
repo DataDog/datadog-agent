@@ -65,7 +65,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 		for {
 			select {
 			case <-ticker.C:
-				server.logger.Infof("[SNMPWALK] Ticker")
+				server.logger.Debugf("[SNMPWALK] Ticker")
 				runner.Callback()
 			case <-quit:
 				ticker.Stop()
