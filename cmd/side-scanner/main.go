@@ -1202,19 +1202,25 @@ func (s *sideScanner) start(ctx context.Context) {
 		}()
 	}
 
-	for config := range s.configsCh {
-		if config == nil { // nil config signals the end of the configs
-			break
-		}
-		for _, scan := range config.Tasks {
-			if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
-				continue
+configsloop:
+	for {
+		select {
+		case config := <-s.configsCh:
+			if config == nil { // nil config signals the end of the configs
+				break configsloop
 			}
-			select {
-			case <-ctx.Done():
-				return
-			case s.scansCh <- scan:
+			for _, scan := range config.Tasks {
+				if len(s.allowedScanTypes) > 0 && !slices.Contains(s.allowedScanTypes, string(scan.Type)) {
+					continue
+				}
+				select {
+				case <-ctx.Done():
+					break configsloop
+				case s.scansCh <- scan:
+				}
 			}
+		case <-ctx.Done():
+			break configsloop
 		}
 	}
 	close(s.scansCh)
