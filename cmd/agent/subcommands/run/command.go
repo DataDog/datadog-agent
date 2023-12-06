@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	snmpwalkServer "github.com/DataDog/datadog-agent/comp/snmpwalk/server"
 
 	// checks implemented as components
 
@@ -215,6 +216,7 @@ func run(log log.Component,
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
 	_ netflowServer.Component,
+	_ snmpwalkServer.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
 ) error {

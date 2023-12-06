@@ -52,6 +52,7 @@ import (
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 	otelcollector "github.com/DataDog/datadog-agent/comp/otelcol/collector"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	snmpwalkServer "github.com/DataDog/datadog-agent/comp/snmpwalk/server"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/optional"
@@ -94,6 +95,7 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			secretResolver secrets.Component,
 			invChecks inventorychecks.Component,
 			_ netflowServer.Component,
+			_ snmpwalkServer.Component,
 			agentAPI internalAPI.Component,
 		) error {
 
