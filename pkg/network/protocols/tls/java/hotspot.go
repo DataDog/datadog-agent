@@ -5,7 +5,7 @@
 
 //go:build linux
 
-// Package java contains implementation for JavaTLS support
+// Package java contains implementation for JavaTLS support.
 package java
 
 import (

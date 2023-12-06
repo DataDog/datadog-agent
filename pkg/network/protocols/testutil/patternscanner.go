@@ -55,7 +55,7 @@ func (ps *PatternScanner) Write(p []byte) (n int, err error) {
 	return
 }
 
-// PrintLogs writes the captured logs into the test logger
+// PrintLogs writes the captured logs into the test logger.
 func (ps *PatternScanner) PrintLogs(t testing.TB) {
 	t.Log(strings.Join(ps.buffers, ""))
 }

@@ -123,7 +123,7 @@ type ProcessMonitor struct {
 	tel processMonitorTelemetry
 }
 
-// ProcessCallback is a callback function that is called on a given pid that represents a new process
+// ProcessCallback is a callback function that is called on a given pid that represents a new process.
 type ProcessCallback func(pid uint32)
 
 // GetProcessMonitor create a monitor (only once) that register to netlink process events.
