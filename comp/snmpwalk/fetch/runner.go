@@ -70,10 +70,10 @@ var worker = func(l *SnmpwalkRunner, jobs <-chan SnmpwalkJob, workerId int) {
 		select {
 		// TODO: IMPL STOP
 		case <-l.stop:
-			log.Info("Stopping SNMP worker")
+			log.Debug("Stopping SNMP worker")
 			return
 		case job := <-jobs:
-			log.Infof("[worker %d] Handling IP %s", workerId, job.config.IPAddress)
+			log.Debugf("[worker %d] Handling IP %s", workerId, job.config.IPAddress)
 			l.snmpwalkOneDevice(job.config, job.namespace, job.tags)
 		}
 	}
@@ -82,18 +82,18 @@ var worker = func(l *SnmpwalkRunner, jobs <-chan SnmpwalkJob, workerId int) {
 // Callback is when profiles updates are available (rc product NDM_DEVICE_PROFILES_CUSTOM)
 func (rc *SnmpwalkRunner) Callback() {
 	//globalStart := time.Now()
-	log.Info("[SNMP RUNNER] SNMP RUNNER")
+	log.Debug("[SNMP RUNNER] SNMP RUNNER")
 
 	// TODO: Do not collect snmp-listener configs
 	snmpConfigList, err := parse.GetConfigCheckSnmp()
 	if err != nil {
-		log.Infof("[SNMP RUNNER] Couldn't parse the SNMP config: %v", err)
+		log.Debugf("[SNMP RUNNER] Couldn't parse the SNMP config: %v", err)
 		return
 	}
-	log.Infof("[SNMP RUNNER] snmpConfigList len=%d", len(snmpConfigList))
+	log.Debugf("[SNMP RUNNER] snmpConfigList len=%d", len(snmpConfigList))
 
 	for _, config := range snmpConfigList {
-		log.Infof("[SNMP RUNNER] SNMP config: %+v", config)
+		log.Debugf("[SNMP RUNNER] SNMP config: %+v", config)
 	}
 
 	hname, err := hostname.Get(context.TODO())
@@ -118,13 +118,13 @@ func (rc *SnmpwalkRunner) Callback() {
 		if prevTime, ok := rc.prevSnmpwalkTime[deviceId]; ok { // TODO: check config instanceId instead?
 			// TODO: Also skip if the device is currently being walked
 			if time.Since(prevTime) < interval {
-				log.Infof("[SNMP RUNNER] Skip Device, interval not reached: %s", deviceId)
+				log.Debugf("[SNMP RUNNER] Skip Device, interval not reached: %s", deviceId)
 				continue
 			}
 		}
 		// TODO: Also skip if the device is currently being walked
 		if rc.isRunning[deviceId] {
-			log.Infof("[SNMP RUNNER] Skip Device, already running: %s", deviceId)
+			log.Debugf("[SNMP RUNNER] Skip Device, already running: %s", deviceId)
 			continue
 		}
 		rc.isRunning[deviceId] = true
@@ -142,11 +142,11 @@ func (rc *SnmpwalkRunner) Callback() {
 func (rc *SnmpwalkRunner) snmpwalkOneDevice(config parse.SNMPConfig, namespace string, commonTags []string) {
 	ipaddr := config.IPAddress
 	if ipaddr == "" {
-		log.Infof("[SNMP RUNNER] Missing IP Addr: %v", config)
+		log.Debugf("[SNMP RUNNER] Missing IP Addr: %v", config)
 		return
 	}
 
-	log.Infof("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
+	log.Debugf("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
 
 	localStart := time.Now()
 	deviceId := namespace + ":" + ipaddr
@@ -183,7 +183,7 @@ func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig, fetchStrate
 	deviceId := namespace + ":" + config.IPAddress
 
 	session := createSession(config)
-	log.Infof("[SNMP RUNNER]%s session: %+v", prefix, session)
+	log.Debugf("[SNMP RUNNER]%s session: %+v", prefix, session)
 
 	// Establish connection
 	err := session.Connect()
@@ -195,10 +195,10 @@ func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig, fetchStrate
 	defer session.Conn.Close()
 
 	variables := FetchAllFirstRowOIDsVariables(session, fetchStrategy)
-	log.Infof("[SNMP RUNNER]%s Variables: %d", prefix, len(variables))
+	log.Debugf("[SNMP RUNNER]%s Variables: %d", prefix, len(variables))
 
 	for idx, variable := range variables {
-		log.Infof("[SNMP RUNNER]%s Variable Name (%d): %s", prefix, idx+1, variable.Name)
+		log.Debugf("[SNMP RUNNER]%s Variable Name (%d): %s", prefix, idx+1, variable.Name)
 	}
 
 	deviceOIDs := buildDeviceScanMetadata(deviceId, variables)

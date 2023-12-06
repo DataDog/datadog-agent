@@ -44,21 +44,21 @@ func FetchAllFirstRowOIDsVariables(session gosnmp.GoSNMP, fetchStrategy fetchStr
 		var results *gosnmp.SnmpPacket
 		if session.Version == gosnmp.Version1 || fetchStrategy == useGetNext {
 			// snmp v1 doesn't support GetBulk
-			log.Infof("[%s] GetNext request (%d): %s", session.Target, counter, curRequestOid)
+			log.Debugf("[%s] GetNext request (%d): %s", session.Target, counter, curRequestOid)
 			res, err := session.GetNext([]string{curRequestOid})
-			//log.Infof("GetNext results: %+v", results)
+			//log.Debugf("GetNext results: %+v", results)
 			if err != nil {
 				log.Debugf("GetNext error: %s", err)
 				break
 			}
 			results = res
 		} else {
-			log.Infof("GetBulk request (%d): %s", counter, curRequestOid)
+			log.Debugf("GetBulk request (%d): %s", counter, curRequestOid)
 			getBulkResults, err := session.GetBulk([]string{curRequestOid}, 0, 20)
 			if err != nil {
 				log.Debugf("fetch column: failed getting oids `%v` using GetBulk: %s", curRequestOid, err)
 			}
-			log.Infof("GetBulk results, num of variables: %d", len(getBulkResults.Variables))
+			log.Debugf("GetBulk results, num of variables: %d", len(getBulkResults.Variables))
 			results = getBulkResults
 			if log.ShouldLog(seelog.DebugLvl) {
 				log.Debugf("fetch column: GetBulk results: %v", gosnmplib.PacketAsString(results))
@@ -80,7 +80,7 @@ func FetchAllFirstRowOIDsVariables(session gosnmp.GoSNMP, fetchStrategy fetchStr
 				break
 			}
 			oid := strings.TrimLeft(variable.Name, ".")
-			log.Infof("Variable oid %s", oid)
+			log.Debugf("Variable oid %s", oid)
 
 			if strings.HasSuffix(oid, ".0") { // check if it's a scalar OID
 				curRequestOid = oid
