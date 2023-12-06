@@ -114,6 +114,7 @@ build do
                 move "#{install_dir}/scripts/datadog-agent-trace", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-process", "/etc/init.d"
                 move "#{install_dir}/scripts/datadog-agent-security", "/etc/init.d"
+                move "#{install_dir}/scripts/datadog-side-scanner", "/etc/init.d"
             end
             mkdir systemd_directory
             move "#{install_dir}/scripts/datadog-agent.service", systemd_directory
@@ -121,6 +122,7 @@ build do
             move "#{install_dir}/scripts/datadog-agent-process.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-sysprobe.service", systemd_directory
             move "#{install_dir}/scripts/datadog-agent-security.service", systemd_directory
+            move "#{install_dir}/scripts/datadog-side-scanner.service", systemd_directory
 
             # Move configuration files
             mkdir "/etc/datadog-agent"

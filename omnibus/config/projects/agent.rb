@@ -251,12 +251,14 @@ if linux_target?
     extra_package_file "/etc/init.d/datadog-agent-process"
     extra_package_file "/etc/init.d/datadog-agent-trace"
     extra_package_file "/etc/init.d/datadog-agent-security"
+    extra_package_file "/etc/init.d/datadog-side-scanner"
   end
   extra_package_file "#{systemd_directory}/datadog-agent.service"
   extra_package_file "#{systemd_directory}/datadog-agent-process.service"
   extra_package_file "#{systemd_directory}/datadog-agent-sysprobe.service"
   extra_package_file "#{systemd_directory}/datadog-agent-trace.service"
   extra_package_file "#{systemd_directory}/datadog-agent-security.service"
+  extra_package_file "#{systemd_directory}/datadog-side-scanner.service"
   extra_package_file '/etc/datadog-agent/'
   extra_package_file '/usr/bin/dd-agent'
   extra_package_file '/var/log/datadog/'
