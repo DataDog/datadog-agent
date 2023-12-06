@@ -5,6 +5,7 @@
 
 //go:build linux && test
 
+//nolint:revive // TODO(USM) Fix revive linter
 package testutil
 
 import (

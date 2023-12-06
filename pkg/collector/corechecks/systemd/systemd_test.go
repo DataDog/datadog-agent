@@ -57,6 +57,7 @@ func (s *mockSystemdStats) SystemState(conn *dbus.Conn) (*dbus.Property, error) 
 	return args.Get(0).(*dbus.Property), args.Error(1)
 }
 
+//nolint:revive // TODO(AI) Fix revive linter
 func (s *mockSystemdStats) CloseConn(c *dbus.Conn) {
 }
 
@@ -979,14 +980,17 @@ func TestGetPropertyBool(t *testing.T) {
 	}
 }
 
+//nolint:unused // TODO(AI) Fix unused linter
 type mockCollector struct {
 	Checks []check.Info
 }
 
+//nolint:unused // TODO(AI) Fix unused linter
 func (m mockCollector) MapOverChecks(fn func([]check.Info)) {
 	fn(m.Checks)
 }
 
+//nolint:unused // TODO(AI) Fix unused linter
 func (m mockCollector) GetChecks() []check.Check {
 	return nil
 }

@@ -74,6 +74,7 @@ func getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func getHealth(w http.ResponseWriter, r *http.Request) {
 	h := health.GetReady()
 
@@ -91,6 +92,7 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonHealth)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func stopAgent(w http.ResponseWriter, r *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
@@ -98,6 +100,7 @@ func stopAgent(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func getVersion(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	av, err := version.Agent()
@@ -164,6 +167,7 @@ func makeFlare(w http.ResponseWriter, r *http.Request, senderManager sender.Diag
 	w.Write([]byte(filePath))
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	var response response.ConfigCheckResponse
 
@@ -192,6 +196,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonConfig)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func getTaggerList(w http.ResponseWriter, r *http.Request) {
 	response := tagger.List(collectors.HighCardinality)
 

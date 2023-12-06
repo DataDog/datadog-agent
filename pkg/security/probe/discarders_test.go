@@ -346,8 +346,10 @@ type testEventListener struct {
 	fields map[eval.Field]int
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (l *testEventListener) RuleMatch(rule *rules.Rule, event eval.Event) bool { return true }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (l *testEventListener) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
 	if l.fields == nil {
 		l.fields = make(map[eval.Field]int)

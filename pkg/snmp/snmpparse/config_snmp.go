@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0.
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
+//
+//nolint:revive // TODO(NDM) Fix revive linter
 package snmpparse
 
 import (
@@ -24,6 +26,7 @@ var configCheckURLSnmp string
 // SNMPConfig is a generic container for configuration data specific to the SNMP
 // integration.
 
+//nolint:revive // TODO(NDM) Fix revive linter
 type SNMPConfig struct {
 
 	//General
@@ -46,6 +49,8 @@ type SNMPConfig struct {
 }
 
 // set default values used by the agent
+//
+//nolint:revive // TODO(NDM) Fix revive linter
 func SetDefault(sc *SNMPConfig) {
 	sc.Port = 161
 	sc.Version = ""
@@ -54,6 +59,7 @@ func SetDefault(sc *SNMPConfig) {
 
 }
 
+//nolint:revive // TODO(NDM) Fix revive linter
 func ParseConfigSnmp(c integration.Config) []SNMPConfig {
 	//an array containing all the snmp instances
 	snmpconfigs := []SNMPConfig{}
@@ -106,6 +112,7 @@ func parseConfigSnmpMain() ([]SNMPConfig, error) {
 
 }
 
+//nolint:revive // TODO(NDM) Fix revive linter
 func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 
 	c := util.GetClient(false) // FIX: get certificates right then make this true
@@ -144,6 +151,7 @@ func GetConfigCheckSnmp() ([]SNMPConfig, error) {
 
 }
 
+//nolint:revive // TODO(NDM) Fix revive linter
 func GetIPConfig(ip_address string, SnmpConfigList []SNMPConfig) SNMPConfig {
 	ipAddressConfigs := []SNMPConfig{}
 	netAddressConfigs := []SNMPConfig{}

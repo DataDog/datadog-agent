@@ -5,6 +5,7 @@
 
 //go:build systemd
 
+//nolint:revive // TODO(AML) Fix revive linter
 package journald
 
 import (
@@ -29,6 +30,7 @@ func (t *Tailer) isContainerEntry(entry *sdjournal.JournalEntry) bool {
 
 // getContainerID returns the container identifier of the journal entry.
 func (t *Tailer) getContainerID(entry *sdjournal.JournalEntry) string {
+	//nolint:gosimple // TODO(AML) Fix gosimple linter
 	containerID, _ := entry.Fields[containerIDKey]
 	return containerID
 }

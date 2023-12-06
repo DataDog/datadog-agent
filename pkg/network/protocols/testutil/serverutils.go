@@ -17,6 +17,7 @@ import (
 )
 
 const (
+	//nolint:revive // TODO(USM) Fix revive linter
 	DefaultTimeout = time.Minute
 )
 

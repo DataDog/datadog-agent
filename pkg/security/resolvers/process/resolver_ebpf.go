@@ -1176,7 +1176,14 @@ func (p *EBPFResolver) syncCache(proc *process.Process, filledProc *utils.Filled
 		return nil, false
 	}
 
-	p.setAncestor(entry)
+	parent := p.entryCache[entry.PPid]
+	if parent != nil {
+		if parent.Equals(entry) {
+			entry.SetParentOfForkChild(parent)
+		} else {
+			entry.SetAncestor(parent)
+		}
+	}
 
 	p.insertEntry(entry, p.entryCache[pid], source)
 

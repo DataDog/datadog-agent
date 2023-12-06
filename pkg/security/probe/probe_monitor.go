@@ -25,6 +25,8 @@ import (
 )
 
 // Monitor regroups all the work we want to do to monitor the probes we pushed in the kernel
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 type EBPFMonitors struct {
 	ebpfProbe *EBPFProbe
 

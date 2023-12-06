@@ -50,6 +50,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{launchCmd}
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func launchGui(config config.Component, cliParams *cliParams) error {
 	guiPort := pkgconfig.Datadog.GetString("GUI_port")
 	if guiPort == "-1" {

@@ -65,14 +65,17 @@ type kafkaParsingTestAttributes struct {
 type kafkaParsingValidation struct {
 	expectedNumberOfProduceRequests int
 	expectedNumberOfFetchRequests   int
-	expectedApiVersionProduce       int
-	expectedApiVersionFetch         int
+	//nolint:revive // TODO(USM) Fix revive linter
+	expectedApiVersionProduce int
+	//nolint:revive // TODO(USM) Fix revive linter
+	expectedApiVersionFetch int
 }
 
 func skipTestIfKernelNotSupported(t *testing.T) {
 	currKernelVersion, err := kernel.HostVersion()
 	require.NoError(t, err)
 	if currKernelVersion < http.MinimumKernelVersion {
+		//nolint:gosimple // TODO(USM) Fix gosimple linter
 		t.Skip(fmt.Sprintf("Kafka feature not available on pre %s kernels", http.MinimumKernelVersion.String()))
 	}
 }
@@ -456,10 +459,12 @@ func validateProduceFetchCount(t *testing.T, kafkaStats map[kafka.Key]*kafka.Req
 		case kafka.ProduceAPIKey:
 			require.Equal(t, uint16(validation.expectedApiVersionProduce), kafkaKey.RequestVersion)
 			numberOfProduceRequests += kafkaStat.Count
+			//nolint:gosimple // TODO(USM) Fix gosimple linter
 			break
 		case kafka.FetchAPIKey:
 			require.Equal(t, uint16(validation.expectedApiVersionFetch), kafkaKey.RequestVersion)
 			numberOfFetchRequests += kafkaStat.Count
+			//nolint:gosimple // TODO(USM) Fix gosimple linter
 			break
 		default:
 			require.FailNow(t, "Expecting only produce or fetch kafka requests")

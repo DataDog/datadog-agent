@@ -35,6 +35,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+//nolint:revive // TODO(APL) Fix revive linter
 type Server struct {
 	server    http.Server
 	ready     chan bool
@@ -122,6 +123,7 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 	}
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func WithClock(clock clock.Clock) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
@@ -132,6 +134,7 @@ func WithClock(clock clock.Clock) func(*Server) {
 	}
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func WithRetention(retention time.Duration) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
@@ -157,6 +160,7 @@ func (fi *Server) Start() {
 	go fi.cleanUpPayloadsRoutine()
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func (fi *Server) URL() string {
 	fi.urlMutex.RLock()
 	defer fi.urlMutex.RUnlock()
@@ -169,6 +173,7 @@ func (fi *Server) setURL(url string) {
 	fi.url = url
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func (fi *Server) IsRunning() bool {
 	return fi.URL() != ""
 }
@@ -363,6 +368,7 @@ func (fi *Server) handleFakeHealth(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) {
 	log.Print("Handling getRouteStats request")
 	routes := fi.store.GetRouteStats()

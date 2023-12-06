@@ -67,6 +67,7 @@ const (
 	telemetryMap                     = "http2_telemetry"
 )
 
+// Spec is the protocol spec for HTTP/2.
 var Spec = &protocols.ProtocolSpec{
 	Factory: newHTTP2Protocol,
 	Maps: []*manager.Map{

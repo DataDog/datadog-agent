@@ -33,31 +33,43 @@ type NoResolver struct {
 }
 
 // ResolveBasename resolves an inode/mount ID pair to a file basename
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (n *NoResolver) ResolveBasename(e *model.FileFields) string {
 	return ""
 }
 
 // ResolveFileFieldsPath resolves an inode/mount ID pair to a full path
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (n *NoResolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDContext, ctrCtx *model.ContainerContext) (string, error) {
 	return "", nil
 }
 
 // SetMountRoot set the mount point information
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (n *NoResolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
 	return nil
 }
 
 // ResolveMountRoot resolves the mountpoint to a full path
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (n *NoResolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, error) {
 	return "", nil
 }
 
 // SetMountPoint set the mount point information
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (n *NoResolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
 	return nil
 }
 
 // ResolveMountPoint resolves the mountpoint to a full path
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (n *NoResolver) ResolveMountPoint(ev *model.Event, e *model.Mount) (string, error) {
 	return "", nil
 }
@@ -121,6 +133,8 @@ func (r *Resolver) ResolveFileFieldsPath(e *model.FileFields, pidCtx *model.PIDC
 }
 
 // SetMountRoot set the mount point information
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (r *Resolver) SetMountRoot(ev *model.Event, e *model.Mount) error {
 	var err error
 
@@ -142,6 +156,8 @@ func (r *Resolver) ResolveMountRoot(ev *model.Event, e *model.Mount) (string, er
 }
 
 // SetMountPoint set the mount point information
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (r *Resolver) SetMountPoint(ev *model.Event, e *model.Mount) error {
 	var err error
 

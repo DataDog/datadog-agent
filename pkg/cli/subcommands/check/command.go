@@ -534,6 +534,7 @@ func run(
 	return nil
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *stats.Stats {
 	s := stats.NewStats(c)
 	times := cliParams.checkTimes

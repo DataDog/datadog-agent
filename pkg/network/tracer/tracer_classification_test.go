@@ -5,6 +5,7 @@
 
 //go:build linux_bpf || (windows && npm)
 
+//nolint:revive // TODO(USM) Fix revive linter
 package tracer
 
 import (

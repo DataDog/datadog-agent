@@ -186,75 +186,6 @@ func (r *secretResolver) Configure(command string, arguments []string, timeout, 
 	}
 }
 
-type walkerCallback func([]string, string) (string, error)
-
-func walkSlice(data []interface{}, yamlPath []string, callback walkerCallback) error {
-	for idx, k := range data {
-		switch v := k.(type) {
-		case string:
-			newValue, err := callback(yamlPath, v)
-			if err != nil {
-				return err
-			}
-			data[idx] = newValue
-		case map[interface{}]interface{}:
-			if err := walkHash(v, yamlPath, callback); err != nil {
-				return err
-			}
-		case []interface{}:
-			if err := walkSlice(v, yamlPath, callback); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-func walkHash(data map[interface{}]interface{}, yamlPath []string, callback walkerCallback) error {
-	for k := range data {
-		path := yamlPath
-		if newkey, ok := k.(string); ok {
-			path = append(path, newkey)
-		}
-
-		switch v := data[k].(type) {
-		case string:
-			newValue, err := callback(path, v)
-			if err != nil {
-				return err
-			}
-			data[k] = newValue
-		case map[interface{}]interface{}:
-			if err := walkHash(v, path, callback); err != nil {
-				return err
-			}
-		case []interface{}:
-			if err := walkSlice(v, path, callback); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
-// walk will go through loaded yaml and call callback on every strings allowing
-// the callback to overwrite the string value
-func walk(data *interface{}, yamlPath []string, callback walkerCallback) error {
-	switch v := (*data).(type) {
-	case string:
-		newValue, err := callback(yamlPath, v)
-		if err != nil {
-			return err
-		}
-		*data = newValue
-	case map[interface{}]interface{}:
-		return walkHash(v, yamlPath, callback)
-	case []interface{}:
-		return walkSlice(v, yamlPath, callback)
-	}
-	return nil
-}
-
 func isEnc(str string) (bool, string) {
 	// trimming space and tabs
 	str = strings.Trim(str, " 	")
@@ -264,9 +195,20 @@ func isEnc(str string) (bool, string) {
 	return false, ""
 }
 
-// Decrypt replaces all encrypted secrets in data by executing
-// "secret_backend_command" once if all secrets aren't present in the cache.
-func (r *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
+// Resolve replaces all encrypted secrets in data by executing "secret_backend_command" once if all secrets aren't
+// present in the cache.
+func (r *secretResolver) Resolve(data []byte, origin string) ([]byte, error) {
+	return r.resolve(data, origin, nil)
+}
+
+// ResolveWithCallback resolves the secrets in the given yaml data calling the callback with the YAML path of
+// the secret handle and its value
+func (r *secretResolver) ResolveWithCallback(data []byte, origin string, cb secrets.ResolveCallback) error {
+	_, err := r.resolve(data, origin, cb)
+	return err
+}
+
+func (r *secretResolver) resolve(data []byte, origin string, notifyCb secrets.ResolveCallback) ([]byte, error) {
 	if !r.enabled {
 		log.Infof("Agent secrets is disabled by caller")
 		return nil, nil
@@ -284,11 +226,10 @@ func (r *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
 	// First we collect all new handles in the config
 	newHandles := []string{}
 	haveSecret := false
-	err = walk(
-		&config,
-		nil,
-		func(yamlPath []string, str string) (string, error) {
-			if ok, handle := isEnc(str); ok {
+
+	w := &walker{
+		resolver: func(yamlPath []string, value string) (string, error) {
+			if ok, handle := isEnc(value); ok {
 				haveSecret = true
 				// Check if we already know this secret
 				if secret, ok := r.cache[handle]; ok {
@@ -298,10 +239,14 @@ func (r *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
 					return secret, nil
 				}
 				newHandles = append(newHandles, handle)
+				return value, nil
 			}
-			return str, nil
-		})
-	if err != nil {
+			return value, nil
+		},
+		notifier: notifyCb,
+	}
+
+	if err := w.walk(&config); err != nil {
 		return nil, err
 	}
 
@@ -324,25 +269,24 @@ func (r *secretResolver) Decrypt(data []byte, origin string) ([]byte, error) {
 			return nil, err
 		}
 
-		// Replace all new encrypted secrets in the config
-		err = walk(
-			&config,
-			nil,
-			func(yamlPath []string, str string) (string, error) {
-				if ok, handle := isEnc(str); ok {
-					if secret, ok := secrets[handle]; ok {
-						log.Debugf("Secret '%s' was retrieved from executable", handle)
-						// keep track of place where a handle was found
-						r.registerSecretOrigin(handle, origin, yamlPath)
-						return secret, nil
-					}
-					// This should never happen since fetchSecret will return an error
-					// if not every handles have been fetched.
-					return str, fmt.Errorf("unknown secret '%s'", handle)
+		w.resolver = func(yamlPath []string, value string) (string, error) {
+			if ok, handle := isEnc(value); ok {
+				if secret, ok := secrets[handle]; ok {
+					log.Debugf("Secret '%s' was successfully resolved", handle)
+					// keep track of place where a handle was found
+					r.registerSecretOrigin(handle, origin, yamlPath)
+					return secret, nil
 				}
-				return str, nil
-			})
-		if err != nil {
+
+				// This should never happen since fetchSecret will return an error if not every handle have
+				// been fetched.
+				return "", fmt.Errorf("unknown secret '%s'", handle)
+			}
+			return value, nil
+		}
+
+		// Replace all newly resolved secrets in the config
+		if err := w.walk(&config); err != nil {
 			return nil, err
 		}
 	}
