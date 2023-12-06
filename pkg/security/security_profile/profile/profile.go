@@ -132,9 +132,7 @@ func (p *SecurityProfile) IsEventTypeValid(evtType model.EventType) bool {
 }
 
 // NewProcessNodeCallback is a callback function used to propagate the fact that a new process node was added to the activity tree
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (p *SecurityProfile) NewProcessNodeCallback(node *activity_tree.ProcessNode) {
+func (p *SecurityProfile) NewProcessNodeCallback(_ *activity_tree.ProcessNode) {
 	// TODO: debounce and regenerate profile filters & programs
 }
 

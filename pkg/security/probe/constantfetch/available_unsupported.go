@@ -17,9 +17,7 @@ import (
 )
 
 // GetAvailableConstantFetchers returns available constant fetchers
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version, statsdClient statsd.ClientInterface) []ConstantFetcher {
+func GetAvailableConstantFetchers(_ *config.Config, kv *kernel.Version, _ statsd.ClientInterface) []ConstantFetcher {
 	fetchers := make([]ConstantFetcher, 0)
 
 	btfhubFetcher, err := NewBTFHubConstantFetcher(kv)

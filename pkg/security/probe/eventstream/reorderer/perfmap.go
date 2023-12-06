@@ -55,8 +55,7 @@ func (m *OrderedPerfMap) Init(mgr *manager.Manager, config *config.Config) error
 	return nil
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func (m *OrderedPerfMap) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, manager *manager.Manager) {
+func (m *OrderedPerfMap) handleLostEvents(CPU int, count uint64, perfMap *manager.PerfMap, _ *manager.Manager) {
 	seclog.Tracef("lost %d events", count)
 	if m.lostEventCounter != nil {
 		m.lostEventCounter.CountLostEvent(count, perfMap.Name, CPU)

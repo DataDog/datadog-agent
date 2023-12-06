@@ -559,9 +559,7 @@ func (adm *ActivityDumpManager) DumpActivity(params *api.ActivityDumpParams) (*a
 }
 
 // ListActivityDumps returns the list of active activity dumps
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (adm *ActivityDumpManager) ListActivityDumps(params *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
+func (adm *ActivityDumpManager) ListActivityDumps(_ *api.ActivityDumpListParams) (*api.ActivityDumpListMessage, error) {
 	adm.Lock()
 	defer adm.Unlock()
 
