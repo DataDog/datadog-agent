@@ -15,11 +15,12 @@ import (
 	"fmt"
 	"time"
 
-	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
+
+	workloadmetaServer "github.com/DataDog/datadog-agent/comp/core/workloadmeta/server"
 
 	dsdReplay "github.com/DataDog/datadog-agent/comp/dogstatsd/replay"
 	dogstatsdServer "github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -46,6 +47,7 @@ type serverSecure struct {
 	capture            dsdReplay.Component
 }
 
+// GetHostname returns the hostname of the host
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
 	h, err := hostname.Get(ctx)
 	if err != nil {
