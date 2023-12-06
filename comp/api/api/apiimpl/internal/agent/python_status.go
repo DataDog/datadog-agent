@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func getPythonStatus(w http.ResponseWriter, r *http.Request) {
+func getPythonStatus(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	pyStats, err := python.GetPythonInterpreterMemoryUsage()
 	if err != nil {

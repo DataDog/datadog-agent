@@ -19,12 +19,12 @@ import (
 
 const noJMXErrorString = "jmx is not compiled in this agent"
 
-func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
+func getJMXConfigs(w http.ResponseWriter, _ *http.Request) {
 	log.Error(noJMXErrorString)
 	http.Error(w, noJMXErrorString, 500)
 }
 
-func setJMXStatus(w http.ResponseWriter, r *http.Request) {
+func setJMXStatus(w http.ResponseWriter, _ *http.Request) {
 	log.Error(noJMXErrorString)
 	http.Error(w, noJMXErrorString, 500)
 }

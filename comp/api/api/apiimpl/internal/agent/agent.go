@@ -124,7 +124,7 @@ func setJSONError(w http.ResponseWriter, err error, errorCode int) {
 	http.Error(w, string(body), errorCode)
 }
 
-func stopAgent(w http.ResponseWriter, r *http.Request) {
+func stopAgent(w http.ResponseWriter, _ *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
@@ -360,7 +360,7 @@ func getFormattedStatus(w http.ResponseWriter, _ *http.Request, invAgent invento
 	w.Write(s)
 }
 
-func getHealth(w http.ResponseWriter, r *http.Request) {
+func getHealth(w http.ResponseWriter, _ *http.Request) {
 	h := health.GetReady()
 
 	if len(h.Unhealthy) > 0 {
@@ -377,11 +377,11 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonHealth)
 }
 
-func getCSRFToken(w http.ResponseWriter, r *http.Request) {
+func getCSRFToken(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(gui.CsrfToken))
 }
 
-func getConfigCheck(w http.ResponseWriter, r *http.Request) {
+func getConfigCheck(w http.ResponseWriter, _ *http.Request) {
 	var response response.ConfigCheckResponse
 
 	if common.AC == nil {
@@ -408,7 +408,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonConfig)
 }
 
-func getTaggerList(w http.ResponseWriter, r *http.Request) {
+func getTaggerList(w http.ResponseWriter, _ *http.Request) {
 	// query at the highest cardinality between checks and dogstatsd cardinalities
 	cardinality := collectors.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
 	response := tagger.List(cardinality)
