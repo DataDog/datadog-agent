@@ -5,7 +5,7 @@
 
 //go:build linux_bpf || (windows && npm)
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package tracer contains implementation for NPM's tracer.
 package tracer
 
 import (

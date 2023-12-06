@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(USM) Fix revive linter
+	// DefaultTimeout is the default timeout for running a server.
 	DefaultTimeout = time.Minute
 )
 

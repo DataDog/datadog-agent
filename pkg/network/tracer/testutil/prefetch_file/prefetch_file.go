@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package main is a simple utility to prefetch files into the page cache.
 package main
 
 import (

@@ -71,10 +71,10 @@ type ProtocolStats struct {
 	Stats interface{}
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// ProtocolFactory is a function that creates a Protocol.
 type ProtocolFactory func(*config.Config) (Protocol, error)
 
-//nolint:revive // TODO(USM) Fix revive linter
+// ProtocolSpec represents a protocol specification.
 type ProtocolSpec struct {
 	Factory   ProtocolFactory
 	Instance  Protocol

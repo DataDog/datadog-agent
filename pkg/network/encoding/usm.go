@@ -35,7 +35,7 @@ type USMConnectionData[K comparable, V any] struct {
 	claimed bool
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// USMKeyValue is a generic container for USM data
 type USMKeyValue[K comparable, V any] struct {
 	Key   K
 	Value V

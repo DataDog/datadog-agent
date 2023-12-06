@@ -685,27 +685,18 @@ func (s *USMSuite) TestJavaInjection() {
 	_, err = nettestutil.RunCommand("install -m444 " + filepath.Join(testdataDir, "TestAgentLoaded.jar") + " " + filepath.Join(fakeAgentDir, "agent-usm.jar"))
 	require.NoError(t, err)
 
-	// testContext shares the context of a given test.
-	// It contains common variable used by all tests, and allows extending the context dynamically by setting more
-	// attributes to the `extras` map.
-	type testContext struct {
-		// A dynamic map that allows extending the context easily between phases of the test.
-		//nolint:unused // TODO(USM) Fix unused linter
-		extras map[string]interface{}
-	}
-
 	tests := []struct {
 		name            string
 		context         testContext
-		preTracerSetup  func(t *testing.T, ctx testContext)
-		postTracerSetup func(t *testing.T, ctx testContext)
-		validation      func(t *testing.T, ctx testContext, tr *Tracer)
-		teardown        func(t *testing.T, ctx testContext)
+		preTracerSetup  func(t *testing.T)
+		postTracerSetup func(t *testing.T)
+		validation      func(t *testing.T, tr *Tracer)
+		teardown        func(t *testing.T)
 	}{
 		{
 			// Test the java jdk client https request is working
 			name: "java_jdk_client_httpbin_docker_withTLSClassification_java15",
-			preTracerSetup: func(t *testing.T, ctx testContext) {
+			preTracerSetup: func(t *testing.T) {
 				cfg.JavaDir = legacyJavaDir
 				cfg.ProtocolClassificationEnabled = true
 				cfg.CollectTCPv4Conns = true
@@ -716,10 +707,10 @@ func (s *USMSuite) TestJavaInjection() {
 				})
 				t.Cleanup(serverDoneFn)
 			},
-			postTracerSetup: func(t *testing.T, ctx testContext) {
+			postTracerSetup: func(t *testing.T) {
 				require.NoError(t, javatestutil.RunJavaVersion(t, "openjdk:15-oraclelinux8", "Wget https://host.docker.internal:5443/200/anything/java-tls-request", "./", regexp.MustCompile("Response code = .*")), "Failed running Java version")
 			},
-			validation: func(t *testing.T, ctx testContext, tr *Tracer) {
+			validation: func(t *testing.T, tr *Tracer) {
 				// Iterate through active connections until we find connection created above
 				require.Eventually(t, func() bool {
 					payload := getConnections(t, tr)
@@ -762,16 +753,16 @@ func (s *USMSuite) TestJavaInjection() {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.teardown != nil {
 				t.Cleanup(func() {
-					tt.teardown(t, tt.context)
+					tt.teardown(t)
 				})
 			}
 			cfg = defaultCfg
 			if tt.preTracerSetup != nil {
-				tt.preTracerSetup(t, tt.context)
+				tt.preTracerSetup(t)
 			}
 			tr := setupTracer(t, cfg)
-			tt.postTracerSetup(t, tt.context)
-			tt.validation(t, tt.context, tr)
+			tt.postTracerSetup(t)
+			tt.validation(t, tr)
 		})
 	}
 }
@@ -814,10 +805,10 @@ func TestHTTPSGoTLSAttachProbesOnContainer(t *testing.T) {
 		}
 
 		t.Run("new process", func(t *testing.T) {
-			testHTTPsGoTLSCaptureNewProcessContainer(t, config.New())
+			testHTTPSGoTLSCaptureNewProcessContainer(t, config.New())
 		})
 		t.Run("already running process", func(t *testing.T) {
-			testHTTPsGoTLSCaptureAlreadyRunningContainer(t, config.New())
+			testHTTPSGoTLSCaptureAlreadyRunningContainer(t, config.New())
 		})
 	})
 }
@@ -907,11 +898,7 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
-// Test that we can capture HTTPS traffic from Go processes started after the
-// tracer.
-//
-//nolint:revive // TODO(USM) Fix revive linter
-func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
+func testHTTPSGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
 	const (
 		serverPort          = "8443"
 		expectedOccurrences = 10
@@ -945,8 +932,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
-func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
+func testHTTPSGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
 	const (
 		serverPort          = "8443"
 		expectedOccurrences = 10
