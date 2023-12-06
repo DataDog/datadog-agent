@@ -299,7 +299,7 @@
 /pkg/collector/corechecks/nvidia/       @DataDog/agent-platform
 /pkg/collector/corechecks/windows_event_log/ @DataDog/windows-agent
 /pkg/config/                            @DataDog/agent-shared-components
-/pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation
+/pkg/config/config_template.yaml        @DataDog/agent-shared-components @DataDog/documentation @DataDog/agent-apm
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
