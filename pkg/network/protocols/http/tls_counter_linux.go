@@ -7,6 +7,7 @@
 
 package http
 
+// Add increments the TLS-aware counter based on the specified transaction's static tags
 func (t *TLSCounter) Add(tx Transaction) {
 	switch tx.StaticTags() {
 	case GnuTLS:
