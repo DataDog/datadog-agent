@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"gotest.tools/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
 	"github.com/DataDog/datadog-agent/comp/trace/config"
@@ -24,6 +24,6 @@ func TestCaptureCommand(t *testing.T) {
 		[]string{"capture"},
 		capture,
 		func(config config.Component) {
-			assert.Assert(t, config.Object() != nil)
+			require.True(t, config.Object() != nil)
 		})
 }
