@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/usm/utils"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -25,7 +26,7 @@ type StatKeeper struct {
 	maxEntries                  int
 	quantizer                   *URLQuantizer
 	telemetry                   *Telemetry
-	connectionAggregator        *ConnectionAggregator
+	connectionAggregator        *utils.ConnectionAggregator
 	enableStatusCodeAggregation bool
 
 	// replace rules for HTTP path
@@ -45,9 +46,9 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer Inco
 		quantizer = NewURLQuantizer()
 	}
 
-	var connectionAggregator *ConnectionAggregator
+	var connectionAggregator *utils.ConnectionAggregator
 	if c.EnableUSMConnectionRollup {
-		connectionAggregator = NewConnectionAggregator()
+		connectionAggregator = utils.NewConnectionAggregator()
 	}
 
 	return &StatKeeper{
@@ -89,10 +90,10 @@ func (h *StatKeeper) GetAndResetAllStats() map[Key]*RequestStats {
 	h.stats = make(map[Key]*RequestStats)
 
 	// Rotate ConnectionAggregator
-	var aggregator *ConnectionAggregator
+	var aggregator *utils.ConnectionAggregator
 	if h.connectionAggregator == nil {
 		aggregator = h.connectionAggregator
-		h.connectionAggregator = NewConnectionAggregator()
+		h.connectionAggregator = utils.NewConnectionAggregator()
 	}
 	h.mux.Unlock()
 
@@ -195,7 +196,7 @@ func (h *StatKeeper) processHTTPPath(tx Transaction, path []byte) ([]byte, bool)
 	return path, false
 }
 
-func (h *StatKeeper) clearEphemeralPorts(aggregator *ConnectionAggregator, stats map[Key]*RequestStats) {
+func (h *StatKeeper) clearEphemeralPorts(aggregator *utils.ConnectionAggregator, stats map[Key]*RequestStats) {
 	if aggregator == nil {
 		return
 	}
