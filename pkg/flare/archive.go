@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(ASC) Fix revive linter
 package flare
 
 import (
@@ -29,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
@@ -89,7 +89,6 @@ func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSend
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
 	fb.AddFileFromFunc("diagnose.log", getDiagnoses(fb.IsLocal(), senderManager))
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
-	fb.AddFileFromFunc("metadata_inventories.json", inventories.GetLastPayload)
 	fb.AddFileFromFunc("health.yaml", getHealth)
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })
 	fb.AddFileFromFunc("docker_inspect.log", getDockerSelfInspect)

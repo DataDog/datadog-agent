@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/etw"
 )
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 type EtwInterface struct {
 	maxEntriesBuffered int
 	DataChannel        chan []WinHttpTransaction
@@ -25,6 +26,7 @@ type EtwInterface struct {
 	requestSize        int64
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func NewEtwInterface(c *config.Config) *EtwInterface {
 	return &EtwInterface{
 		maxEntriesBuffered: c.MaxHTTPStatsBuffered,
@@ -35,21 +37,26 @@ func NewEtwInterface(c *config.Config) *EtwInterface {
 	}
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) SetCapturedProtocols(http, https bool) {
 	hei.captureHTTP = http
 	hei.captureHTTPS = https
 	SetEnabledProtocols(http, https)
 }
+
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) SetMaxFlows(maxFlows uint64) {
 	log.Debugf("Setting max flows in ETW http source to %v", maxFlows)
 	SetMaxFlows(maxFlows)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) SetMaxRequestBytes(maxRequestBytes uint64) {
 	log.Debugf("Setting max request bytes in ETW http source to to %v", maxRequestBytes)
 	SetMaxRequestBytes(maxRequestBytes)
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) StartReadingHttpFlows() {
 	hei.eventLoopWG.Add(2)
 
@@ -114,6 +121,7 @@ func (hei *EtwInterface) StartReadingHttpFlows() {
 	}()
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (hei *EtwInterface) Close() {
 	etw.StopEtw("ddnpm-httpservice")
 

@@ -21,6 +21,7 @@ import (
 )
 
 const (
+	//nolint:revive // TODO(PLINT) Fix revive linter
 	LoggerName = "CLUSTER"
 )
 

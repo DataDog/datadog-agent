@@ -7,6 +7,7 @@
 
 package retry
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func NewPointCountTelemetryMock() *PointCountTelemetry {
 	return NewPointCountTelemetry("domain")
 }

@@ -33,6 +33,7 @@ func (p *TracerPayload) Cut(i int) *TracerPayload {
 	if i > len(p.Chunks) {
 		i = len(p.Chunks)
 	}
+	//nolint:revive // TODO(APM) Fix revive linter
 	new := TracerPayload{
 		ContainerID:     p.GetContainerID(),
 		LanguageName:    p.GetLanguageName(),

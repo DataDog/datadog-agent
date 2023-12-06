@@ -28,6 +28,7 @@ type telemetryJoiner struct {
 	agedRequest      *libtelemetry.Counter
 }
 
+// Telemetry is used to collect telemetry for HTTP and HTTPS traffic.
 type Telemetry struct {
 	protocol string
 
@@ -49,6 +50,7 @@ type Telemetry struct {
 	joiner telemetryJoiner
 }
 
+// NewTelemetry returns a new Telemetry.
 func NewTelemetry(protocol string) *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol))
 	metricGroupJoiner := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s.joiner", protocol))
@@ -87,6 +89,7 @@ func NewTelemetry(protocol string) *Telemetry {
 	}
 }
 
+// Count counts a transaction.
 func (t *Telemetry) Count(tx Transaction) {
 	statusClass := (tx.StatusCode() / 100) * 100
 	switch statusClass {
@@ -105,6 +108,7 @@ func (t *Telemetry) Count(tx Transaction) {
 	t.countOSSpecific(tx)
 }
 
+// Log logs the telemetry.
 func (t *Telemetry) Log() {
 	log.Debugf("%s stats summary: %s", t.protocol, t.metricGroup.Summary())
 }

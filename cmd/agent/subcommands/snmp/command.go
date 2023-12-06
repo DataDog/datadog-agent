@@ -136,6 +136,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{snmpCmd}
 }
 
+//nolint:revive // TODO(NDM) Fix revive linter
 func snmpwalk(config config.Component, cliParams *cliParams) error {
 	var (
 		address      string

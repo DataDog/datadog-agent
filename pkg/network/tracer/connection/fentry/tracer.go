@@ -25,6 +25,7 @@ import (
 
 const probeUID = "net"
 
+//nolint:revive // TODO(NET) Fix revive linter
 var ErrorNotSupported = errors.New("fentry tracer is only supported on Fargate")
 
 // LoadTracer loads a new tracer

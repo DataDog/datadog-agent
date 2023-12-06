@@ -36,6 +36,8 @@ func NewLocalParams(distPath string, pythonChecksPath string, defaultLogFile str
 }
 
 // NewLocalParams returns parameters for to initialize a non local flare component
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func NewParams(distPath string, pythonChecksPath string, defaultLogFile string, defaultJMXLogFile string, defaultDogstatsdLogFile string) Params {
 	return Params{
 		local:                   false,

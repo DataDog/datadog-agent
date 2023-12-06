@@ -67,6 +67,7 @@ const (
 	telemetryMap                     = "http2_telemetry"
 )
 
+// Spec is the protocol spec for HTTP/2.
 var Spec = &protocols.ProtocolSpec{
 	Factory: newHTTP2Protocol,
 	Maps: []*manager.Map{
@@ -396,61 +397,21 @@ func (p *Protocol) GetStats() *protocols.ProtocolStats {
 	}
 }
 
-// The staticTableEntry represents an entry in the static table that contains an index in the table and a value.
-// The value itself contains both the key and the corresponding value in the static table.
-// For instance, index 2 in the static table has a value of method: GET, and index 3 has a value of method: POST.
-// It is not possible to save the index by the key because we need to distinguish between the values attached to the key.
-type staticTableEntry struct {
-	Index uint64
-	Value StaticTableEnumValue
-}
-
+// The following map contains a list of static table entries that are used by the http2 monitor.
+// The full list of static table entries can be found here: https://httpwg.org/specs/rfc7541.html#static.table.definition.
 var (
-	staticTableEntries = []staticTableEntry{
-		{
-			Index: 2,
-			Value: GetValue,
-		},
-		{
-			Index: 3,
-			Value: PostValue,
-		},
-		{
-			Index: 4,
-			Value: EmptyPathValue,
-		},
-		{
-			Index: 5,
-			Value: IndexPathValue,
-		},
-		{
-			Index: 8,
-			Value: K200Value,
-		},
-		{
-			Index: 9,
-			Value: K204Value,
-		},
-		{
-			Index: 10,
-			Value: K206Value,
-		},
-		{
-			Index: 11,
-			Value: K304Value,
-		},
-		{
-			Index: 12,
-			Value: K400Value,
-		},
-		{
-			Index: 13,
-			Value: K404Value,
-		},
-		{
-			Index: 14,
-			Value: K500Value,
-		},
+	staticTableEntries = map[uint64]StaticTableEnumValue{
+		2:  GetValue,
+		3:  PostValue,
+		4:  EmptyPathValue,
+		5:  IndexPathValue,
+		8:  K200Value,
+		9:  K204Value,
+		10: K206Value,
+		11: K304Value,
+		12: K400Value,
+		13: K404Value,
+		14: K500Value,
 	}
 )
 
@@ -461,8 +422,8 @@ func (p *Protocol) createStaticTable(mgr *manager.Manager) error {
 		return errors.New("http2 static table is null")
 	}
 
-	for _, entry := range staticTableEntries {
-		err := staticTable.Put(unsafe.Pointer(&entry.Index), unsafe.Pointer(&entry.Value))
+	for key, value := range staticTableEntries {
+		err := staticTable.Put(unsafe.Pointer(&key), unsafe.Pointer(&value))
 
 		if err != nil {
 			return err

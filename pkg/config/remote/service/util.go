@@ -30,6 +30,7 @@ const metaBucket = "meta"
 const metaFile = "meta.json"
 const databaseLockTimeout = time.Second
 
+//nolint:revive // TODO(RC) Fix revive linter
 type AgentMetadata struct {
 	Version string `json:"version"`
 }

@@ -5,6 +5,7 @@
 
 //go:build linux
 
+//nolint:revive // TODO(NET) Fix revive linter
 package events
 
 import (
@@ -61,6 +62,7 @@ func Init() error {
 	return initErr
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 type ProcessEventHandler interface {
 	HandleProcessEvent(*Process)
 }
@@ -160,6 +162,7 @@ func (e *eventMonitor) HandleEvent(ev *Process) {
 	}
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (e *eventMonitor) HandleCustomEvent(rule *rules.Rule, event *events.CustomEvent) {
 }
 

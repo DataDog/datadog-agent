@@ -20,17 +20,23 @@ type ResolverOpts struct{}
 type Resolver struct{}
 
 // NewResolver returns a new instance of the hash resolver
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func NewResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
 	return &Resolver{}, nil
 }
 
 // ComputeHashesFromEvent calls ComputeHashes using the provided event
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (resolver *Resolver) ComputeHashesFromEvent(event *model.Event, file *model.FileEvent) []string {
 	return nil
 }
 
 // ComputeHashes computes the hashes of the provided file event.
 // Disclaimer: This resolver considers that the FileEvent has already been resolved
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (resolver *Resolver) ComputeHashes(eventType model.EventType, process *model.Process, file *model.FileEvent) []string {
 	return nil
 }
