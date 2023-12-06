@@ -6,7 +6,11 @@
 package clients
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"net"
 	"os"
 	"path"
@@ -159,4 +163,133 @@ func copyFile(sftpClient *sftp.Client, src string, dst string) error {
 	}
 	return nil
 
+}
+
+// FileExists create a sftp session to and returns true if the file exists and is a regular file
+func FileExists(client *ssh.Client, path string) (bool, error) {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return false, err
+	}
+	defer sftpClient.Close()
+
+	info, err := sftpClient.Lstat(path)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return info.Mode().IsRegular(), nil
+}
+
+// ReadFile reads the content of the file, return bytes read and error if any
+func ReadFile(client *ssh.Client, path string) ([]byte, error) {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return nil, err
+	}
+	defer sftpClient.Close()
+
+	f, err := sftpClient.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var content bytes.Buffer
+	_, err = io.Copy(&content, f)
+	if err != nil {
+		return content.Bytes(), err
+	}
+
+	return content.Bytes(), nil
+}
+
+// WriteFile write content to the file and returns the number of bytes written and error if any
+func WriteFile(client *ssh.Client, path string, content []byte) (int64, error) {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return 0, err
+	}
+	defer sftpClient.Close()
+
+	f, err := sftpClient.Create(path)
+	if err != nil {
+		return 0, err
+	}
+
+	reader := bytes.NewReader(content)
+	return io.Copy(f, reader)
+}
+
+// ReadDir returns list of directory entries in path
+func ReadDir(client *ssh.Client, path string) ([]fs.DirEntry, error) {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return nil, err
+	}
+	defer sftpClient.Close()
+
+	infos, err := sftpClient.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]fs.DirEntry, 0, len(infos))
+	for _, info := range infos {
+		entry := fs.FileInfoToDirEntry(info)
+		entries = append(entries, entry)
+	}
+
+	return entries, nil
+}
+
+// Lstat returns a FileInfo structure describing path.
+// if path is a symbolic link, the FileInfo structure describes the symbolic link.
+func Lstat(client *ssh.Client, path string) (fs.FileInfo, error) {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return nil, err
+	}
+	defer sftpClient.Close()
+
+	return sftpClient.Lstat(path)
+}
+
+// MkdirAll creates the specified directory along with any necessary parents.
+// If the path is already a directory, does nothing and returns nil.
+// Otherwise returns an error if any.
+func MkdirAll(client *ssh.Client, path string) error {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return err
+	}
+	defer sftpClient.Close()
+
+	return sftpClient.MkdirAll(path)
+}
+
+// Remove removes the specified file or directory.
+// Returns an error if file or directory does not exist, or if the directory is not empty.
+func Remove(client *ssh.Client, path string) error {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return err
+	}
+	defer sftpClient.Close()
+
+	return sftpClient.Remove(path)
+}
+
+// RemoveAll recursively removes all files/folders in the specified directory.
+// Returns an error if the directory does not exist.
+func RemoveAll(client *ssh.Client, path string) error {
+	sftpClient, err := sftp.NewClient(client)
+	if err != nil {
+		return err
+	}
+	defer sftpClient.Close()
+
+	return sftpClient.RemoveAll(path)
 }
