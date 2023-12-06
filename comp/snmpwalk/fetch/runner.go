@@ -6,12 +6,14 @@
 package fetch
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/DataDog/datadog-agent/comp/snmpwalk/fetch/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 	parse "github.com/DataDog/datadog-agent/pkg/snmp/snmpparse"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/gosnmp/gosnmp"
 	"os"
@@ -50,26 +52,37 @@ func (rc *SnmpwalkRunner) Callback() {
 		log.Infof("[SNMP RUNNER] SNMP config: %+v", config)
 	}
 
+	hname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting the hostname: %v", err)
+	}
+
 	namespace := "default"
 	for _, config := range snmpConfigList {
-		tags := []string{
-			"namespace:" + namespace, // TODO: FIX ME
-			"device_ip:" + config.IPAddress,
-			"device_id:" + namespace + ":" + config.IPAddress,
-		}
-
 		ipaddr := config.IPAddress
+		if ipaddr == "" {
+			log.Infof("[SNMP RUNNER] Missing IP Addr: %v", config)
+			continue
+		}
+		tags := []string{
+			"agent_host:" + hname,
+			"namespace:" + namespace, // TODO: FIX ME
+			"device_ip:" + ipaddr,
+			"device_id:" + namespace + ":" + ipaddr,
+		}
 		log.Infof("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
 
 		localStart := time.Now()
-		rc.collectDeviceOIDs(config)
+		oidsCollectedCount := rc.collectDeviceOIDs(config)
 		duration := time.Since(localStart)
 		rc.sender.Gauge("datadog.snmpwalk.device.duration", duration.Seconds(), "", tags)
+		rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", tags)
 	}
 	rc.sender.Gauge("datadog.snmpwalk.total.duration", time.Since(globalStart).Seconds(), "", nil)
+	rc.sender.Commit()
 }
 
-func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig) {
+func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig) int {
 	namespace := "default" // TODO: CHANGE PLACEHOLDER
 	deviceId := namespace + ":" + config.IPAddress
 
@@ -81,7 +94,7 @@ func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig) {
 	if err != nil {
 		log.Errorf("[SNMP RUNNER] Connect err: %v\n", err)
 		os.Exit(1)
-		return
+		return 0
 	}
 	defer session.Conn.Close()
 
@@ -93,6 +106,7 @@ func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig) {
 	}
 
 	deviceOIDs := buildDeviceScanMetadata(deviceId, variables)
+
 	metadataPayloads := metadata.BatchPayloads(namespace,
 		"",
 		time.Now(),
@@ -117,6 +131,7 @@ func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig) {
 			log.Errorf("[SNMP RUNNER] Error sending event platform event for Device OID metadata: %s", err)
 		}
 	}
+	return len(deviceOIDs)
 }
 
 func buildDeviceScanMetadata(deviceId string, oidsValues []gosnmp.SnmpPDU) []metadata.DeviceOid {
