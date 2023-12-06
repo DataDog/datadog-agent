@@ -5,6 +5,7 @@
 
 //go:build linux
 
+// Package bininspect provides tools to inspect a Go binary.
 package bininspect
 
 import (
@@ -16,39 +17,39 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(USM) Fix revive linter
+	// WriteGoTLSFunc is the name of the function that writes to the TLS connection.
 	WriteGoTLSFunc = "crypto/tls.(*Conn).Write"
-	//nolint:revive // TODO(USM) Fix revive linter
+	// ReadGoTLSFunc is the name of the function that reads from the TLS connection.
 	ReadGoTLSFunc = "crypto/tls.(*Conn).Read"
-	//nolint:revive // TODO(USM) Fix revive linter
+	// CloseGoTLSFunc is the name of the function that closes the TLS connection.
 	CloseGoTLSFunc = "crypto/tls.(*Conn).Close"
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// StructOffsetTLSConn is the offset of the `conn` field within `crypto/tls.Conn`.
 var StructOffsetTLSConn = FieldIdentifier{
 	StructName: "crypto/tls.Conn",
 	FieldName:  "conn",
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// StructOffsetTCPConn is the offset of the `conn` field within `net.TCPConn`.
 var StructOffsetTCPConn = FieldIdentifier{
 	StructName: "net.TCPConn",
 	FieldName:  "conn",
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// StructOffsetNetConnFd is the offset of the `fd` field within `net.conn`.
 var StructOffsetNetConnFd = FieldIdentifier{
 	StructName: "net.conn",
 	FieldName:  "fd",
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// StructOffsetNetFdPfd is the offset of the `pdf` field within `net.netFD`.
 var StructOffsetNetFdPfd = FieldIdentifier{
 	StructName: "net.netFD",
 	FieldName:  "pfd",
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// StructOffsetPollFdSysfd is the offset of the `sysfd` field within `internal/poll.FD`.
 var StructOffsetPollFdSysfd = FieldIdentifier{
 	StructName: "internal/poll.FD",
 	FieldName:  "Sysfd",
