@@ -12,7 +12,27 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var aasMetadata map[string]string
+var mockAzureAppServiceMetadata = map[string]string{
+	"WEBSITE_SITE_NAME":            "site-name-test",
+	"WEBSITE_OWNER_NAME":           "00000000-0000-0000-0000-000000000000+apm-dotnet-EastUSwebspace-Linux",
+	"WEBSITE_RESOURCE_GROUP":       "test-resource-group",
+	"WEBSITE_INSTANCE_ID":          "1234abcd",
+	"COMPUTERNAME":                 "test-instance",
+	"WEBSITE_STACK":                "NODE",
+	"WEBSITE_NODE_DEFAULT_VERSION": "~18",
+}
+
+var mockAzureFunctionAppMetadata = map[string]string{
+	"WEBSITE_SITE_NAME":            "site-name-test",
+	"WEBSITE_OWNER_NAME":           "00000000-0000-0000-0000-000000000000+apm-dotnet-EastUSwebspace-Linux",
+	"WEBSITE_RESOURCE_GROUP":       "test-resource-group",
+	"WEBSITE_INSTANCE_ID":          "1234abcd",
+	"COMPUTERNAME":                 "test-instance",
+	"WEBSITE_STACK":                "NODE",
+	"WEBSITE_NODE_DEFAULT_VERSION": "~18",
+	"FUNCTIONS_WORKER_RUNTIME":     "node",
+	"FUNCTIONS_EXTENSION_VERSION":  "~4",
+}
 
 func TestGetAppServiceTags(t *testing.T) {
 	metadata := getAppServicesTags(mockGetEnvVar)
@@ -87,8 +107,7 @@ func TestGetLinuxRuntime(t *testing.T) {
 }
 
 func TestParseAzureSubscriptionID(t *testing.T) {
-	metadata := mockAzureAppServiceMetadata()
-	parsedSubID := parseAzureSubscriptionID(metadata["WEBSITE_OWNER_NAME"])
+	parsedSubID := parseAzureSubscriptionID(mockAzureAppServiceMetadata["WEBSITE_OWNER_NAME"])
 	assert.Equal(t, "00000000-0000-0000-0000-000000000000", parsedSubID)
 }
 
@@ -122,40 +141,10 @@ func TestAzureFunction(t *testing.T) {
 
 }
 
-func mockAzureAppServiceMetadata() map[string]string {
-	aasMetadata = make(map[string]string)
-	aasMetadata["WEBSITE_SITE_NAME"] = "site-name-test"
-	aasMetadata["WEBSITE_OWNER_NAME"] = "00000000-0000-0000-0000-000000000000+apm-dotnet-EastUSwebspace-Linux"
-	aasMetadata["WEBSITE_RESOURCE_GROUP"] = "test-resource-group"
-	aasMetadata["WEBSITE_INSTANCE_ID"] = "1234abcd"
-	aasMetadata["COMPUTERNAME"] = "test-instance"
-	aasMetadata["WEBSITE_STACK"] = "NODE"
-	aasMetadata["WEBSITE_NODE_DEFAULT_VERSION"] = "~18"
-
-	return aasMetadata
-}
-
-func mockAzureFunctionAppMetadata() map[string]string {
-	aasMetadata = make(map[string]string)
-	aasMetadata["WEBSITE_SITE_NAME"] = "site-name-test"
-	aasMetadata["WEBSITE_OWNER_NAME"] = "00000000-0000-0000-0000-000000000000+apm-dotnet-EastUSwebspace-Linux"
-	aasMetadata["WEBSITE_RESOURCE_GROUP"] = "test-resource-group"
-	aasMetadata["WEBSITE_INSTANCE_ID"] = "1234abcd"
-	aasMetadata["COMPUTERNAME"] = "test-instance"
-	aasMetadata["WEBSITE_STACK"] = "NODE"
-	aasMetadata["WEBSITE_NODE_DEFAULT_VERSION"] = "~18"
-	aasMetadata["FUNCTIONS_WORKER_RUNTIME"] = "node"
-	aasMetadata["FUNCTIONS_EXTENSION_VERSION"] = "~4"
-
-	return aasMetadata
-}
-
 func mockGetEnvVar(key string) string {
-	aasMetadata := mockAzureAppServiceMetadata()
-	return aasMetadata[key]
+	return mockAzureAppServiceMetadata[key]
 }
 
 func mockGetEnvVarFunctionApp(key string) string {
-	aasMetadata := mockAzureFunctionAppMetadata()
-	return aasMetadata[key]
+	return mockAzureFunctionAppMetadata[key]
 }
