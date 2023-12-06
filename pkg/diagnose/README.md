@@ -13,7 +13,7 @@ All function and structures details can be found in [loader.go](./diagnosis/load
 
 To register a diagnose suite one need to register a function which returns ```[]diagnosis.Diagnosis```.
 
-Example from [loader.go](./connectivity/trace_request.go) file:
+Example from [loader.go](./connectivity/core_endpoint.go) file:
 ```
 package connectivity
 
