@@ -461,9 +461,9 @@ def codecov_flavor(
     return test_core(modules, flavor, None, "codecov upload", command, skip_module_class=True)
 
 
-def process_input_args(input_module, input_targets, input_flavors, headless_mode=False):
+def process_input_args(input_module, input_targets, input_flavor, headless_mode=False):
     """
-    Takes the input module, targets and flavors arguments from inv test and inv codecov,
+    Takes the input module, targets and flavor arguments from inv test and inv codecov,
     sets default values for them & casts them to the expected types.
     """
     if isinstance(input_module, str):
@@ -480,56 +480,27 @@ def process_input_args(input_module, input_targets, input_flavors, headless_mode
             print("Using default modules and targets")
         modules = DEFAULT_MODULES.values()
 
-    if not input_flavors:
-        flavors = [AgentFlavor.base]
-    else:
-        flavors = [AgentFlavor[f] for f in input_flavors]
+    flavor = AgentFlavor.base
+    if input_flavor:
+        flavor = AgentFlavor[input_flavor]
 
-    return modules, flavors
+    return modules, flavor
 
 
-def process_module_results(module_results: Dict[str, Dict[str, List[ModuleResult]]]):
+def process_module_results(flavor: str, module_results: List[ModuleResult]):
     """
-    Expects results in the format:
-    {
-        "phase1": {
-            "flavor1": [module_result1, module_result2],
-            "flavor2": [module_result3, module_result4],
-        }
-    }
-
-    Prints failures, and returns False if at least one module failed in one phase.
+    Prints failures in module results, and returns False if at least one module failed.
     """
 
     success = True
-    for phase in module_results:
-        for flavor in module_results[phase]:
-            for module_result in module_results[phase][flavor]:
-                if module_result is not None:
-                    module_failed, failure_string = module_result.get_failure(flavor)
-                    success = success and (not module_failed)
-                    if module_failed:
-                        print(failure_string)
+    for module_result in module_results:
+        if module_result is not None:
+            module_failed, failure_string = module_result.get_failure(flavor)
+            success = success and (not module_failed)
+            if module_failed:
+                print(failure_string)
 
     return success
-
-
-def deprecating_skip_linters_flag(skip_linters):
-    """
-    We're deprecating the --skip-linters flag in the test invoke task
-
-    Displays a warning when user is running inv -e test --skip-linters
-    Also displays the command the user should run to
-    """
-    if skip_linters:
-        deprecation_msg = """Warning: the --skip-linters is deprecated for the test invoke task.
-Feel free to remove the flag when running inv -e test.
-"""
-    else:
-        deprecation_msg = """Warning: the linters were removed from the test invoke task.
-If you want to run the linters, please run inv -e lint-go instead.
-"""
-    print(deprecation_msg, file=sys.stderr)
 
 
 def sanitize_env_vars():
@@ -542,12 +513,12 @@ def sanitize_env_vars():
             del os.environ[env]
 
 
-@task(iterable=['flavors'])
+@task
 def test(
     ctx,
     module=None,
     targets=None,
-    flavors=None,
+    flavor=None,
     coverage=False,
     print_coverage=False,
     build_include=None,
@@ -565,7 +536,6 @@ def test(
     arch="x64",
     cache=True,
     test_run_name="",
-    skip_linters=False,
     save_result_json=None,
     rerun_fails=None,
     go_mod="mod",
@@ -586,21 +556,13 @@ def test(
         inv test --targets=./pkg/collector/check,./pkg/aggregator --race
         inv test --module=. --race
     """
-
-    modules_results_per_phase = defaultdict(dict)
-
     sanitize_env_vars()
 
-    deprecating_skip_linters_flag(skip_linters)
+    modules, flavor = process_input_args(module, targets, flavor)
 
-    modules, flavors = process_input_args(module, targets, flavors)
-
-    unit_tests_tags = {
-        f: compute_build_tags_for_flavor(
-            flavor=f, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
-        )
-        for f in flavors
-    }
+    unit_tests_tags = compute_build_tags_for_flavor(
+        flavor=flavor, build="unit-tests", arch=arch, build_include=build_include, build_exclude=build_exclude
+    )
 
     ldflags, gcflags, env = get_build_flags(
         ctx,
@@ -653,44 +615,41 @@ def test(
     }
 
     # Test
-    for flavor, build_tags in unit_tests_tags.items():
-        build_stdlib(
-            ctx,
-            build_tags=build_tags,
-            cmd=stdlib_build_cmd,
-            env=env,
-            args=args,
-            test_profiler=test_profiler,
-        )
-        if only_modified_packages:
-            modules = get_modified_packages(ctx)
+    build_stdlib(
+        ctx,
+        build_tags=unit_tests_tags,
+        cmd=stdlib_build_cmd,
+        env=env,
+        args=args,
+        test_profiler=test_profiler,
+    )
+    if only_modified_packages:
+        modules = get_modified_packages(ctx)
 
-        modules_results_per_phase["test"][flavor] = test_flavor(
-            ctx,
-            flavor=flavor,
-            build_tags=build_tags,
-            modules=modules,
-            cmd=cmd,
-            env=env,
-            args=args,
-            junit_tar=junit_tar,
-            save_result_json=save_result_json,
-            test_profiler=test_profiler,
-        )
+    test_results = test_flavor(
+        ctx,
+        flavor=flavor,
+        build_tags=unit_tests_tags,
+        modules=modules,
+        cmd=cmd,
+        env=env,
+        args=args,
+        junit_tar=junit_tar,
+        save_result_json=save_result_json,
+        test_profiler=test_profiler,
+    )
 
     # Output
     if junit_tar:
         junit_files = []
-        for flavor in modules_results_per_phase["test"]:
-            for module_test_result in modules_results_per_phase["test"][flavor]:
-                if module_test_result.junit_file_path:
-                    junit_files.append(module_test_result.junit_file_path)
+        for module_test_result in test_results:
+            if module_test_result.junit_file_path:
+                junit_files.append(module_test_result.junit_file_path)
 
         produce_junit_tar(junit_files, junit_tar)
 
     if coverage and print_coverage:
-        for flavor in flavors:
-            coverage_flavor(ctx, flavor, modules)
+        coverage_flavor(ctx, flavor, modules)
 
     # FIXME(AP-1958): this prints nothing in CI. Commenting out the print line
     # in the meantime to avoid confusion
@@ -698,7 +657,7 @@ def test(
         # print("\n--- Top 15 packages sorted by run time:")
         test_profiler.print_sorted(15)
 
-    success = process_module_results(modules_results_per_phase)
+    success = process_module_results(test_results)
 
     if success:
         print(color_message("All tests passed", "green"))
@@ -711,7 +670,7 @@ def run_lint_go(
     ctx,
     module=None,
     targets=None,
-    flavors=None,
+    flavor=None,
     build="lint",
     build_tags=None,
     build_include=None,
@@ -723,41 +682,34 @@ def run_lint_go(
     golangci_lint_kwargs="",
     headless_mode=False,
 ):
-    modules, flavors = process_input_args(module, targets, flavors, headless_mode)
+    modules, flavor = process_input_args(module, targets, flavor, headless_mode)
 
-    linter_tags = {
-        f: build_tags
-        or compute_build_tags_for_flavor(
-            flavor=f, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
-        )
-        for f in flavors
-    }
+    linter_tags = build_tags or compute_build_tags_for_flavor(
+        flavor=flavor, build=build, arch=arch, build_include=build_include, build_exclude=build_exclude
+    )
 
-    modules_lint_results_per_flavor = {flavor: [] for flavor in flavors}
+    lint_results = lint_flavor(
+        ctx,
+        modules=modules,
+        flavor=flavor,
+        build_tags=linter_tags,
+        arch=arch,
+        rtloader_root=rtloader_root,
+        concurrency=cpus,
+        timeout=timeout,
+        golangci_lint_kwargs=golangci_lint_kwargs,
+        headless_mode=headless_mode,
+    )
 
-    for flavor, build_tags in linter_tags.items():
-        modules_lint_results_per_flavor[flavor] = lint_flavor(
-            ctx,
-            modules=modules,
-            flavor=flavor,
-            build_tags=build_tags,
-            arch=arch,
-            rtloader_root=rtloader_root,
-            concurrency=cpus,
-            timeout=timeout,
-            golangci_lint_kwargs=golangci_lint_kwargs,
-            headless_mode=headless_mode,
-        )
-
-    return modules_lint_results_per_flavor
+    return lint_results
 
 
-@task(iterable=['flavors'])
+@task
 def lint_go(
     ctx,
     module=None,
     targets=None,
-    flavors=None,
+    flavor=None,
     build="lint",
     build_tags=None,
     build_include=None,
@@ -787,20 +739,11 @@ def lint_go(
         inv lint-go --module=.
     """
 
-    # Format:
-    # {
-    #     "phase1": {
-    #         "flavor1": [module_result1, module_result2],
-    #         "flavor2": [module_result3, module_result4],
-    #     }
-    # }
-    modules_results_per_phase = defaultdict(dict)
-
-    modules_results_per_phase["lint"] = run_lint_go(
+    lint_results = run_lint_go(
         ctx=ctx,
         module=module,
         targets=targets,
-        flavors=flavors,
+        flavor=flavor,
         build=build,
         build_tags=build_tags,
         build_include=build_include,
@@ -813,7 +756,7 @@ def lint_go(
         headless_mode=headless_mode,
     )
 
-    success = process_module_results(modules_results_per_phase)
+    success = process_module_results(lint_results)
 
     if success:
         if not headless_mode:
