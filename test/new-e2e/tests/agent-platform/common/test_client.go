@@ -8,14 +8,23 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/bound-port"
+	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
+	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
 	pkgmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/pkg-manager"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/process"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
+	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
+
+	"testing"
 )
 
 // ServiceManager generic interface
@@ -33,10 +42,10 @@ type PackageManager interface {
 
 // FileManager generic interface
 type FileManager interface {
-	ReadFile(path string) (string, error)
-	FileExists(path string) (string, error)
-	FindFileInFolder(path string) (string, error)
-	WriteFile(path string, content string) (string, error)
+	ReadFile(path string) ([]byte, error)
+	ReadDir(path string) ([]fs.DirEntry, error)
+	FileExists(path string) (bool, error)
+	WriteFile(path string, content []byte) (int64, error)
 }
 
 // Helper generic interface
@@ -46,6 +55,7 @@ type Helper interface {
 	GetBinaryPath() string
 	GetConfigFileName() string
 	GetServiceName() string
+	AgentProcesses() []string
 }
 
 func getServiceManager(host *components.RemoteHost) ServiceManager {
@@ -103,18 +113,6 @@ func NewTestClient(host *components.RemoteHost, agentClient agentclient.Agent, f
 	}
 }
 
-// CheckPortBound check if the port is currently bound, use netstat or ss
-func (c *TestClient) CheckPortBound(port int) error {
-	netstatCmd := "sudo netstat -lntp | grep %v"
-	if _, err := c.Host.Execute("command -v netstat"); err != nil {
-		netstatCmd = "sudo ss -lntp | grep %v"
-	}
-
-	_, err := c.ExecuteWithRetry(fmt.Sprintf(netstatCmd, port))
-
-	return err
-}
-
 // SetConfig set config given a key and a path to a yaml config file, support key nested twice at most
 func (c *TestClient) SetConfig(confPath string, key string, value string) error {
 	confYaml := map[string]any{}
@@ -142,12 +140,11 @@ func (c *TestClient) SetConfig(confPath string, key string, value string) error 
 	if err != nil {
 		return err
 	}
-	_, err = c.FileManager.WriteFile(confPath, string(confUpdated))
+	_, err = c.FileManager.WriteFile(confPath, confUpdated)
 	return err
 }
 
-// GetPythonVersion returns python version from the Agent status
-func (c *TestClient) GetPythonVersion() (string, error) {
+func (c *TestClient) getJSONStatus() (map[string]any, error) {
 	statusJSON := map[string]any{}
 	ok := false
 	var statusString string
@@ -173,11 +170,31 @@ func (c *TestClient) GetPythonVersion() (string, error) {
 			fmt.Println("Logs from journalctl: ", output)
 		}
 
+		return nil, err
+	}
+	return statusJSON, nil
+}
+
+// GetPythonVersion returns python version from the Agent status
+func (c *TestClient) GetPythonVersion() (string, error) {
+	statusJSON, err := c.getJSONStatus()
+	if err != nil {
 		return "", err
 	}
 	pythonVersion := statusJSON["python_version"].(string)
 
 	return pythonVersion, nil
+}
+
+// GetAgentVersion returns agent version from the Agent status
+func (c *TestClient) GetAgentVersion() (string, error) {
+	statusJSON, err := c.getJSONStatus()
+	if err != nil {
+		return "", err
+	}
+	agentVersion := statusJSON["version"].(string)
+
+	return agentVersion, nil
 }
 
 // ExecuteWithRetry execute the command with retry
@@ -196,4 +213,70 @@ func (c *TestClient) ExecuteWithRetry(cmd string) (string, error) {
 	}
 
 	return output, err
+}
+
+// NewWindowsTestClient create a TestClient for Windows VM
+func NewWindowsTestClient(t *testing.T, host *components.RemoteHost) *TestClient {
+	fileManager := filemanager.NewClientFileManager(host)
+
+	agentClient, err := client.NewHostAgentClient(t, host, false)
+	require.NoError(t, err)
+
+	helper := helpers.NewWindowsHelper()
+	client := NewTestClient(host, agentClient, fileManager, helper)
+	client.SvcManager = svcmanager.NewWindowsSvcManager(host)
+
+	return client
+}
+
+// RunningAgentProcesses returns the list of running agent processes
+func RunningAgentProcesses(client *TestClient) ([]string, error) {
+	agentProcesses := client.Helper.AgentProcesses()
+	runningAgentProcesses := []string{}
+	for _, process := range agentProcesses {
+		if AgentProcessIsRunning(client, process) {
+			runningAgentProcesses = append(runningAgentProcesses, process)
+		}
+	}
+	return runningAgentProcesses, nil
+}
+
+// AgentProcessIsRunning returns true if the agent process is running
+func AgentProcessIsRunning(client *TestClient, processName string) bool {
+	running, err := process.IsProcessRunning(client.Host, processName)
+	return running && err == nil
+}
+
+// PortBoundByPID returns the info about the port bound by a given PID
+func PortBoundByPID(client *TestClient, port int, pid int) (boundport.BoundPort, error) {
+	ports, err := boundport.BoundPorts(client.Host)
+	if err != nil {
+		return nil, err
+	}
+	for _, boundPort := range ports {
+		if boundPort.PID() == pid && boundPort.LocalPort() == port {
+			return boundPort, nil
+		}
+	}
+	return nil, nil
+}
+
+// PortBoundByService returns info about the port bound by a given service
+func PortBoundByService(client *TestClient, port int, service string) (boundport.BoundPort, error) {
+	// TODO: might need to map service name to process name, this is working right now though
+	pids, err := process.FindPID(client.Host, service)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, pid := range pids {
+		boundPort, err := PortBoundByPID(client, port, pid)
+		if err != nil {
+			return nil, err
+		}
+		if boundPort != nil {
+			return boundPort, nil
+		}
+	}
+	return nil, nil
 }

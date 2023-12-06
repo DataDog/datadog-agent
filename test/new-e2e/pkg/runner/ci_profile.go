@@ -63,8 +63,13 @@ func NewCIProfile() (Profile, error) {
 
 	ciEnvironments := strings.Split(environmentsStr, " ")
 
+	outputRoot := os.Getenv("CI_PROJECT_DIR")
+	if outputRoot == "" {
+		return nil, fmt.Errorf("unable to compute output directory, missing variable CI_PROJECT_DIR")
+	}
+
 	return ciProfile{
-		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore),
+		baseProfile: newProfile("e2eci", ciEnvironments, store, &secretStore, outputRoot),
 		ciUniqueID:  "ci-" + pipelineID + "-" + projectID,
 	}, nil
 }

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
@@ -43,7 +44,27 @@ func NewLocalProfile() (Profile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return localProfile{baseProfile: newProfile("e2elocal", strings.Split(environments, " "), store, nil)}, nil
+	outputDir, err := getLocalOutputDir()
+	if err != nil {
+		return nil, err
+	}
+	return localProfile{baseProfile: newProfile("e2elocal", strings.Split(environments, " "), store, nil, outputDir)}, nil
+}
+
+func getLocalOutputDir() (string, error) {
+	// walk up the directory tree to find the root of the project (where .git is)
+	wd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	for wd != "" && wd != "/" {
+		if _, err := os.Stat(filepath.Join(wd, ".git")); err == nil {
+			return wd, nil
+		}
+		wd = filepath.Dir(wd)
+	}
+	// If we don't find .git then let base profile handle the default
+	return "", nil
 }
 
 func getConfigFilePath() (string, error) {

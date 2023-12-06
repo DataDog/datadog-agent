@@ -8,3 +8,4 @@ include:
   - /.gitlab/new-e2e_testing/amazonlinux.yml
   - /.gitlab/new-e2e_testing/centos.yml
   - /.gitlab/new-e2e_testing/suse.yml
+  - /.gitlab/new-e2e_testing/windows.yml
