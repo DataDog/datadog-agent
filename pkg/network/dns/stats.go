@@ -188,15 +188,17 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 }
 
 func (d *dnsStatKeeper) WaitForDomain(domain string) error {
+
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
 	for {
 		select {
 		case <-time.After(waitForDomainTimeout):
 			return fmt.Errorf("domain %v did not appear within %v", domain, waitForDomainTimeout)
-		default:
+		case <-tick.C:
 			if d.hasDomain(domain) {
 				return nil
 			}
-			time.Sleep(time.Millisecond * 10)
 		}
 	}
 }
