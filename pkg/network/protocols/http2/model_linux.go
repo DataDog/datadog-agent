@@ -58,7 +58,7 @@ func (tx *EbpfTx) Incomplete() bool {
 	return tx.Stream.Request_started == 0 || tx.Stream.Response_last_seen == 0 || tx.StatusCode() == 0 || tx.Stream.Path_size == 0 || tx.Method() == http.MethodUnknown
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// ConnTuple returns the connections tuple of the transaction.
 func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	return types.ConnectionKey{
 		SrcIPHigh: tx.Tuple.Saddr_h,
@@ -70,7 +70,7 @@ func (tx *EbpfTx) ConnTuple() types.ConnectionKey {
 	}
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Method returns the HTTP method of the transaction.
 func (tx *EbpfTx) Method() http.Method {
 	switch tx.Stream.Request_method {
 	case GetValue:
@@ -82,7 +82,7 @@ func (tx *EbpfTx) Method() http.Method {
 	}
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// StatusCode returns the HTTP status code of the transaction.
 func (tx *EbpfTx) StatusCode() uint16 {
 	switch tx.Stream.Response_status_code {
 	case uint16(K200Value):
@@ -100,43 +100,43 @@ func (tx *EbpfTx) StatusCode() uint16 {
 	}
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// SetStatusCode sets the HTTP status code of the transaction.
 func (tx *EbpfTx) SetStatusCode(code uint16) {
 	tx.Stream.Response_status_code = code
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// ResponseLastSeen returns the last seen response.
 func (tx *EbpfTx) ResponseLastSeen() uint64 {
 	return tx.Stream.Response_last_seen
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// SetResponseLastSeen sets the last seen response.
 func (tx *EbpfTx) SetResponseLastSeen(lastSeen uint64) {
 	tx.Stream.Response_last_seen = lastSeen
 
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// RequestStarted returns the timestamp of the request start.
 func (tx *EbpfTx) RequestStarted() uint64 {
 	return tx.Stream.Request_started
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// SetRequestMethod sets the HTTP method of the transaction.
 func (tx *EbpfTx) SetRequestMethod(m http.Method) {
 	tx.Stream.Request_method = uint8(m)
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// StaticTags returns the static tags of the transaction.
 func (tx *EbpfTx) StaticTags() uint64 {
 	return 0
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// DynamicTags returns the dynamic tags of the transaction.
 func (tx *EbpfTx) DynamicTags() []string {
 	return nil
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// String returns a string representation of the transaction.
 func (tx *EbpfTx) String() string {
 	var output strings.Builder
 	output.WriteString("http2.ebpfTx{")
@@ -209,6 +209,7 @@ func (t http2StreamKey) destEndpoint() string {
 	return net.JoinHostPort(t.destAddress().String(), strconv.Itoa(int(t.Tup.Dport)))
 }
 
+// String returns a string representation of the http2 stream key.
 func (t http2StreamKey) String() string {
 	return fmt.Sprintf(
 		"[%s] [%s ⇄ %s] (stream id %d)",
@@ -219,6 +220,7 @@ func (t http2StreamKey) String() string {
 	)
 }
 
+// String returns a string representation of the http2 dynamic table.
 func (t http2DynamicTableEntry) String() string {
 	if t.Len == 0 {
 		return ""
