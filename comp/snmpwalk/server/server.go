@@ -64,7 +64,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 		interval = 60
 	}
 
-	ticker := time.NewTicker(60 * time.Second)
+	ticker := time.NewTicker(interval)
 	quit := make(chan struct{})
 	go func() {
 		for {
