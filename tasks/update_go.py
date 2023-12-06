@@ -70,6 +70,7 @@ def update_go(
     _update_go_mods(warn, new_major)
     _update_go_version_file(warn, version)
     _update_gdb_dockerfile(warn, version)
+    _update_fakeintake_dockerfile(warn, version)
     _update_install_devenv(warn, version)
     _update_agent_devenv(warn, version)
     _update_task_go(warn, version)
@@ -148,6 +149,13 @@ def _update_go_version_file(warn: bool, version: str):
 def _update_gdb_dockerfile(warn: bool, version: str):
     path = "./tools/gdb/Dockerfile"
     pattern = r'(https://go\.dev/dl/go)[.0-9]+(\.linux-amd64\.tar\.gz)'
+    replace = rf'\g<1>{version}\g<2>'
+    _update_file(warn, path, pattern, replace)
+
+
+def _update_fakeintake_dockerfile(warn: bool, version: str):
+    path = "./test/fakeintake/Dockerfile"
+    pattern = r'(FROM golang:)[.0-9]+(-alpine)'
     replace = rf'\g<1>{version}\g<2>'
     _update_file(warn, path, pattern, replace)
 
