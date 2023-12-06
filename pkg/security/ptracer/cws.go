@@ -90,7 +90,7 @@ func handleOpenAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		return err
 	}
 
-	msg.Type = ebpfless.SyscallType_Open
+	msg.Type = ebpfless.SyscallTypeOpen
 	msg.Open = &ebpfless.OpenSyscallMsg{
 		Filename: filename,
 		Flags:    uint32(tracer.ReadArgUint64(regs, 2)),
@@ -111,7 +111,7 @@ func handleOpen(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs
 		return err
 	}
 
-	msg.Type = ebpfless.SyscallType_Open
+	msg.Type = ebpfless.SyscallTypeOpen
 	msg.Open = &ebpfless.OpenSyscallMsg{
 		Filename: filename,
 		Flags:    uint32(tracer.ReadArgUint64(regs, 1)),
@@ -144,7 +144,7 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 		return err
 	}
 
-	msg.Type = ebpfless.SyscallType_Exec
+	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
 		Filename: filename,
 		Args:     args,
@@ -155,7 +155,7 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 }
 
 func handleFcntl(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs) error {
-	msg.Type = ebpfless.SyscallType_Fcntl
+	msg.Type = ebpfless.SyscallTypeFcntl
 	msg.Fcntl = &ebpfless.FcntlSyscallMsg{
 		Fd:  tracer.ReadArgUint32(regs, 0),
 		Cmd: tracer.ReadArgUint32(regs, 1),
@@ -184,7 +184,7 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		return err
 	}
 
-	msg.Type = ebpfless.SyscallType_Exec
+	msg.Type = ebpfless.SyscallTypeExec
 	msg.Exec = &ebpfless.ExecSyscallMsg{
 		Filename: filename,
 		Args:     args,
@@ -504,7 +504,7 @@ func StartCWSPtracer(args []string, grpcAddr string, verbose bool) error {
 				msg := &ebpfless.SyscallMsg{
 					ContainerContext: &containerCtx,
 				}
-				msg.Type = ebpfless.SyscallType_Fork
+				msg.Type = ebpfless.SyscallTypeFork
 				msg.PID = uint32(pid)
 				msg.Fork = &ebpfless.ForkSyscallMsg{
 					PPID: uint32(ppid),
@@ -549,7 +549,7 @@ func StartCWSPtracer(args []string, grpcAddr string, verbose bool) error {
 			msg := &ebpfless.SyscallMsg{
 				ContainerContext: &containerCtx,
 			}
-			msg.Type = ebpfless.SyscallType_Exit
+			msg.Type = ebpfless.SyscallTypeExit
 			msg.PID = uint32(pid)
 			send(msg)
 

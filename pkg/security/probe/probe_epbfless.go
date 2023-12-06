@@ -59,7 +59,7 @@ type EBPFLessProbe struct {
 	clients       map[net.Conn]*client
 }
 
-func (p *EBPFLessProbe) handleSyscallMsg(syscallMsg *ebpfless.SyscallMsg) error {
+func (p *EBPFLessProbe) handleSyscallMsg(syscallMsg *ebpfless.SyscallMsg) {
 	if p.seqNum != syscallMsg.SeqNum {
 		seclog.Errorf("communication out of sync %d vs %d", p.seqNum, syscallMsg.SeqNum)
 	}
@@ -68,21 +68,19 @@ func (p *EBPFLessProbe) handleSyscallMsg(syscallMsg *ebpfless.SyscallMsg) error 
 	event := p.probe.zeroEvent()
 
 	switch syscallMsg.Type {
-	case ebpfless.SyscallType_Exec:
+	case ebpfless.SyscallTypeExec:
 		event.Type = uint32(model.ExecEventType)
 		entry := p.Resolvers.ProcessResolver.AddExecEntry(syscallMsg.PID, syscallMsg.Exec.Filename, syscallMsg.Exec.Args, syscallMsg.Exec.Envs, syscallMsg.ContainerContext.ID)
 		event.Exec.Process = &entry.Process
-	case ebpfless.SyscallType_Fork:
+	case ebpfless.SyscallTypeFork:
 		event.Type = uint32(model.ForkEventType)
 		p.Resolvers.ProcessResolver.AddForkEntry(syscallMsg.PID, syscallMsg.Fork.PPID)
-	case ebpfless.SyscallType_Open:
+	case ebpfless.SyscallTypeOpen:
 		event.Type = uint32(model.FileOpenEventType)
 		event.Open.File.PathnameStr = syscallMsg.Open.Filename
 		event.Open.File.BasenameStr = filepath.Base(syscallMsg.Open.Filename)
 		event.Open.Flags = syscallMsg.Open.Flags
 		event.Open.Mode = syscallMsg.Open.Mode
-	default:
-		return nil
 	}
 
 	// container context
@@ -101,8 +99,6 @@ func (p *EBPFLessProbe) handleSyscallMsg(syscallMsg *ebpfless.SyscallMsg) error 
 	event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
 
 	p.DispatchEvent(event)
-
-	return nil
 }
 
 // DispatchEvent sends an event to the probe event handler
@@ -150,12 +146,12 @@ func (p *EBPFLessProbe) Close() error {
 func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.SyscallMsg) error {
 	sizeBuf := make([]byte, 4)
 
-	len, err := conn.Read(sizeBuf)
+	n, err := conn.Read(sizeBuf)
 	if err != nil {
 		return err
 	}
 
-	if len < 4 {
+	if n < 4 {
 		// TODO return EOF
 		return errors.New("not enough data")
 	}
@@ -169,12 +165,12 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.SyscallMsg) error {
 		p.buf = make([]byte, size)
 	}
 
-	len, err = conn.Read(p.buf)
+	n, err = conn.Read(p.buf)
 	if err != nil {
 		return err
 	}
 
-	return msgpack.Unmarshal(p.buf[0:len], msg)
+	return msgpack.Unmarshal(p.buf[0:n], msg)
 }
 
 func (p *EBPFLessProbe) handleNewClient(conn net.Conn, ch chan ebpfless.SyscallMsg) {
