@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package mongo provides a simple wrapper around 3rd party mongo client.
 package mongo
 
 import (
@@ -23,7 +23,7 @@ const (
 	defaultConnectionTimeout = time.Second * 10
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Options is a struct to hold the options for the mongo client
 type Options struct {
 	ClientDialer     *net.Dialer
 	ServerAddress    string
@@ -32,12 +32,12 @@ type Options struct {
 	ConnectionTimout time.Duration
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Client is a wrapper around the mongo client
 type Client struct {
 	C *mongo.Client
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// NewClient creates a new mongo client
 func NewClient(opts Options) (*Client, error) {
 	clientOptions := options.Client().ApplyURI(fmt.Sprintf("mongodb://%s", opts.ServerAddress))
 	if opts.Username == "" {
@@ -88,7 +88,7 @@ var (
 	}
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// DeleteDatabases deletes all databases except the default ones
 func (c *Client) DeleteDatabases() error {
 	dbs, err := c.C.ListDatabases(context.Background(), bson.M{})
 	if err != nil {
@@ -106,7 +106,7 @@ func (c *Client) DeleteDatabases() error {
 	return nil
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Stop stops the mongo client
 func (c *Client) Stop() error {
 	return c.C.Disconnect(context.Background())
 }

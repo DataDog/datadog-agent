@@ -5,7 +5,7 @@
 
 //go:build test
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package kafka provides a simple wrapper around 3rd party kafka client.
 package kafka
 
 import (
@@ -21,19 +21,19 @@ const (
 	defaultTimeout = time.Second * 10
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Options is a struct to hold the options for the kafka client
 type Options struct {
 	ServerAddress string
 	Dialer        *net.Dialer
 	CustomOptions []kgo.Opt
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Client is a wrapper around the kafka client
 type Client struct {
 	Client *kgo.Client
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// NewClient creates a new kafka client
 func NewClient(opts Options) (*Client, error) {
 	kafkaOptions := []kgo.Opt{kgo.SeedBrokers(opts.ServerAddress)}
 	kafkaOptions = append(kafkaOptions, opts.CustomOptions...)
@@ -56,7 +56,7 @@ func NewClient(opts Options) (*Client, error) {
 	}, nil
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// CreateTopic creates a topic named topicName.
 func (c *Client) CreateTopic(topicName string) error {
 	adminClient := kadm.NewClient(c.Client)
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)
@@ -65,7 +65,7 @@ func (c *Client) CreateTopic(topicName string) error {
 	return err
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// DeleteTopic removes a topic named topicName.
 func (c *Client) DeleteTopic(topicName string) error {
 	adminClient := kadm.NewClient(c.Client)
 	ctxTimeout, cancel := context.WithTimeout(context.Background(), defaultTimeout)

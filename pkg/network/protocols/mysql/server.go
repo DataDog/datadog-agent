@@ -15,13 +15,13 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(USM) Fix revive linter
+	// User is the username used for authentication
 	User = "root"
-	//nolint:revive // TODO(USM) Fix revive linter
+	// Pass is the password used for authentication
 	Pass = "root"
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// RunServer runs a MySQL server in a docker container
 func RunServer(t testing.TB, serverAddr, serverPort string) error {
 	env := []string{
 		"MYSQL_ADDR=" + serverAddr,
