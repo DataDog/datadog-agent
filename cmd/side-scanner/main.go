@@ -1075,6 +1075,7 @@ type sideScanner struct {
 	poolSize         int
 	eventForwarder   epforwarder.EventPlatformForwarder
 	findingsReporter *LogReporter
+	rcClient         *remote.Client
 	allowedScanTypes []string
 	limits           *awsLimits
 	printResults     bool
@@ -1090,11 +1091,16 @@ func newSideScanner(hostname string, limits *awsLimits, poolSize int, allowedSca
 	if err != nil {
 		return nil, err
 	}
+	rcClient, err := remote.NewUnverifiedGRPCClient("sidescanner", version.AgentVersion, nil, 100*time.Millisecond)
+	if err != nil {
+		return nil, fmt.Errorf("could not init Remote Config client: %w", err)
+	}
 	return &sideScanner{
 		hostname:         hostname,
 		poolSize:         poolSize,
 		eventForwarder:   eventForwarder,
 		findingsReporter: findingsReporter,
+		rcClient:         rcClient,
 		allowedScanTypes: allowedScanTypes,
 		limits:           limits,
 
@@ -1105,15 +1111,8 @@ func newSideScanner(hostname string, limits *awsLimits, poolSize int, allowedSca
 }
 
 func (s *sideScanner) acceptRemoteConfig(ctx context.Context) error {
-	rcClient, err := remote.NewUnverifiedGRPCClient("sidescanner", version.AgentVersion, nil, 100*time.Millisecond)
-	if err != nil {
-		return fmt.Errorf("could not init Remote Config client: %w", err)
-	}
-
 	log.Infof("subscribing to remote-config")
-	rcClient.Start()
-	rcClient.Subscribe(state.ProductCSMSideScanning, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
-		defer rcClient.Close()
+	s.rcClient.Subscribe(state.ProductCSMSideScanning, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 		log.Debugf("received %d remote config config updates", len(update))
 		for _, rawConfig := range update {
 			log.Debugf("received new config %q from remote-config of size %d", rawConfig.Metadata.ID, len(rawConfig.Config))
@@ -1131,12 +1130,16 @@ func (s *sideScanner) acceptRemoteConfig(ctx context.Context) error {
 	})
 	return nil
 }
+
 func (s *sideScanner) start(ctx context.Context) {
 	log.Infof("starting side-scanner main loop with %d scan workers", s.poolSize)
 	defer log.Infof("stopped side-scanner main loop")
 
 	s.eventForwarder.Start()
 	defer s.eventForwarder.Stop()
+
+	s.rcClient.Start()
+	defer s.rcClient.Close()
 
 	done := make(chan struct{})
 	go func() {
