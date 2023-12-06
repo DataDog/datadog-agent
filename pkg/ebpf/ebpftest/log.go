@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func LogLevel(t testing.TB, level string) {
 	t.Cleanup(func() {
 		log.SetupLogger(seelog.Default, "off")

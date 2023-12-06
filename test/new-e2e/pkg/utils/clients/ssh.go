@@ -19,20 +19,28 @@ import (
 )
 
 // GetSSHClient returns an ssh Client for the specified host
-func GetSSHClient(user, host string, privateKey []byte, retryInterval time.Duration, maxRetries uint64) (client *ssh.Client, session *ssh.Session, err error) {
+func GetSSHClient(user, host string, privateKey, privateKeyPassphrase []byte, retryInterval time.Duration, maxRetries uint64) (client *ssh.Client, session *ssh.Session, err error) {
 	err = backoff.Retry(func() error {
-		client, session, err = getSSHClient(user, host, privateKey)
+		client, session, err = getSSHClient(user, host, privateKey, privateKeyPassphrase)
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(retryInterval), maxRetries))
 
 	return
 }
 
-func getSSHClient(user, host string, privateKey []byte) (*ssh.Client, *ssh.Session, error) {
+func getSSHClient(user, host string, privateKey, privateKeyPassphrase []byte) (*ssh.Client, *ssh.Session, error) {
 	var auth ssh.AuthMethod
 
 	if privateKey != nil {
-		privateKeyAuth, err := ssh.ParsePrivateKey(privateKey)
+		var privateKeyAuth ssh.Signer
+		var err error
+
+		if privateKeyPassphrase != nil {
+			privateKeyAuth, err = ssh.ParsePrivateKeyWithPassphrase(privateKey, privateKeyPassphrase)
+		} else {
+			privateKeyAuth, err = ssh.ParsePrivateKey(privateKey)
+		}
+
 		if err != nil {
 			return nil, nil, err
 		}

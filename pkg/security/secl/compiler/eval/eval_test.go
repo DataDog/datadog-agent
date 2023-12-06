@@ -54,6 +54,7 @@ func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
 	return rule, nil
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func eval(t *testing.T, event *testEvent, expr string) (bool, *ast.Rule, error) {
 	model := &testModel{}
 

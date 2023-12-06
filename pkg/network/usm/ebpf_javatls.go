@@ -142,7 +142,7 @@ func newJavaTLSProgram(c *config.Config) (protocols.Protocol, error) {
 	// We tried switching os.Open to os.Stat, but it seems it does not guarantee we'll be able to copy the file.
 	if f, err := os.Open(javaUSMAgentJarPath); err != nil {
 		return nil, fmt.Errorf("java TLS can't access java tracer payload %s : %s", javaUSMAgentJarPath, err)
-	} else {
+	} else { //nolint:revive // TODO(USM) Fix revive linter
 		// If we managed to open the file, then we close it, as we just needed to check if the file exists.
 		_ = f.Close()
 	}

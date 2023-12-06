@@ -25,14 +25,17 @@ type Tagger interface {
 
 type nullTagger struct{}
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (n *nullTagger) Init(context.Context) error {
 	return nil
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (n *nullTagger) Stop() error {
 	return nil
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (n *nullTagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
 	return nil, nil
 }

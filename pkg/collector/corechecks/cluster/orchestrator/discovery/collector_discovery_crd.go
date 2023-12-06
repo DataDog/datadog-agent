@@ -31,10 +31,12 @@ type collectorVersion struct {
 	name    string
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 type DiscoveryCollector struct {
 	cache discoveryCache
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func NewDiscoveryCollectorForInventory() *DiscoveryCollector {
 	dc := &DiscoveryCollector{
 		cache: discoveryCache{collectorForVersion: map[collectorVersion]struct{}{}},
@@ -70,6 +72,7 @@ func (d *DiscoveryCollector) fillCache() error {
 	return nil
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (d *DiscoveryCollector) VerifyForCRDInventory(resource string, groupVersion string) (collectors.Collector, error) {
 	collector, err := d.DiscoverCRDResource(resource, groupVersion)
 	if err != nil {
@@ -78,6 +81,7 @@ func (d *DiscoveryCollector) VerifyForCRDInventory(resource string, groupVersion
 	return collector, nil
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (d *DiscoveryCollector) VerifyForInventory(resource string, groupVersion string, collectorInventory *inventory.CollectorInventory) (collectors.Collector, error) {
 	collector, err := d.DiscoverRegularResource(resource, groupVersion, collectorInventory)
 	if err != nil {
@@ -86,6 +90,7 @@ func (d *DiscoveryCollector) VerifyForInventory(resource string, groupVersion st
 	return collector, nil
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (d *DiscoveryCollector) DiscoverCRDResource(resource string, groupVersion string) (collectors.Collector, error) {
 	collector, err := k8sCollectors.NewCRCollectorVersion(resource, groupVersion)
 	if err != nil {
@@ -95,6 +100,7 @@ func (d *DiscoveryCollector) DiscoverCRDResource(resource string, groupVersion s
 	return d.isSupportCollector(collector)
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (d *DiscoveryCollector) DiscoverRegularResource(resource string, groupVersion string, collectorInventory *inventory.CollectorInventory) (collectors.Collector, error) {
 	var collector collectors.Collector
 	var err error

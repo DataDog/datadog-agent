@@ -23,6 +23,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -59,8 +60,9 @@ func (server *apiServer) StartServer(
 	demux demultiplexer.Component,
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
+	invChecks inventorychecks.Component,
 ) error {
-	return apiPackage.StartServer(configService,
+	return apiPackage.StartServers(configService,
 		flare,
 		dogstatsdServer,
 		capture,
@@ -73,13 +75,14 @@ func (server *apiServer) StartServer(
 		demux,
 		invHost,
 		secretResolver,
+		invChecks,
 	)
 }
 
 // StopServer closes the connection and the server
 // stops listening to new commands.
 func (server *apiServer) StopServer() {
-	apiPackage.StopServer()
+	apiPackage.StopServers()
 }
 
 // ServerAddress returns the server address.

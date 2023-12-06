@@ -8,6 +8,7 @@ package api
 import (
 	"fmt"
 	"net"
+	"strconv"
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
@@ -22,10 +23,19 @@ func getIPCAddressPort() (string, error) {
 }
 
 // getListener returns a listening connection
-func getListener() (net.Listener, error) {
-	address, err := getIPCAddressPort()
-	if err != nil {
-		return nil, err
-	}
+func getListener(address string) (net.Listener, error) {
 	return net.Listen("tcp", address)
+}
+
+// returns whether the IPC server is enabled, and if so its host and host:port
+func getIPCServerAddressPort() (string, string, bool) {
+	ipcServerPort := config.Datadog.GetInt("agent_ipc_port")
+	if ipcServerPort == 0 {
+		return "", "", false
+	}
+
+	ipcServerHost := config.Datadog.GetString("agent_ipc_host")
+	ipcServerHostPort := net.JoinHostPort(ipcServerHost, strconv.Itoa(ipcServerPort))
+
+	return ipcServerHost, ipcServerHostPort, true
 }

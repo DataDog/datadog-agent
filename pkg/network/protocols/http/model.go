@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 type Transaction interface {
 	RequestLatency() float64
 	ConnTuple() types.ConnectionKey

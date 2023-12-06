@@ -95,9 +95,13 @@ func (r *Repository) ASMFeaturesConfigs() map[string]ASMFeaturesConfig {
 type ApplyState uint64
 
 const (
+	//nolint:revive // TODO(RC) Fix revive linter
 	ApplyStateUnknown ApplyState = iota
+	//nolint:revive // TODO(RC) Fix revive linter
 	ApplyStateUnacknowledged
+	//nolint:revive // TODO(RC) Fix revive linter
 	ApplyStateAcknowledged
+	//nolint:revive // TODO(RC) Fix revive linter
 	ApplyStateError
 )
 

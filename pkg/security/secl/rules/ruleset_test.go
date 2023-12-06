@@ -39,10 +39,12 @@ func (rs *RuleSet) setRuleSetTagValue(value eval.RuleSetTagValue) error {
 	return nil
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (f *testHandler) RuleMatch(rule *Rule, event eval.Event) bool {
 	return true
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (f *testHandler) EventDiscarderFound(rs *RuleSet, event eval.Event, field string, eventType eval.EventType) {
 	values, ok := f.filters[event.GetType()]
 	if !ok {

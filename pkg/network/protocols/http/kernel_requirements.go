@@ -29,6 +29,8 @@ func runningOnARM() bool {
 
 // HTTPSSupported returns true if HTTPs monitoring is supported on the current OS.
 // We only support ARM with kernel >= 5.5.0 and with runtime compilation enabled
+//
+//nolint:revive // TODO(USM) Fix revive linter
 func HTTPSSupported(c *config.Config) bool {
 	kversion, err := kernel.HostVersion()
 	if err != nil {

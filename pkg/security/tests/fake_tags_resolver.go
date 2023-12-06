@@ -26,6 +26,8 @@ type FakeResolver struct {
 }
 
 // Start the resolver
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (t *FakeResolver) Start(ctx context.Context) error {
 	return nil
 }
@@ -70,6 +72,8 @@ type FakeMonoResolver struct {
 }
 
 // Start the resolver
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (t *FakeMonoResolver) Start(ctx context.Context) error {
 	return nil
 }

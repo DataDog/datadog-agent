@@ -7,11 +7,13 @@ package testutil
 
 import "net"
 
+//nolint:revive // TODO(USM) Fix revive linter
 type TCPServer struct {
 	address   string
 	onMessage func(c net.Conn)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func NewTCPServer(addr string, onMessage func(c net.Conn)) *TCPServer {
 	return &TCPServer{
 		address:   addr,
@@ -19,6 +21,7 @@ func NewTCPServer(addr string, onMessage func(c net.Conn)) *TCPServer {
 	}
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func (s *TCPServer) Run(done chan struct{}) error {
 	ln, err := net.Listen("tcp", s.address)
 	if err != nil {

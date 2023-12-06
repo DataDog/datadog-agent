@@ -39,6 +39,7 @@ type ReadErrorMock struct {
 	io.Reader
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (r *ReadErrorMock) Read(p []byte) (int, error) {
 	return 0, errFoo
 }

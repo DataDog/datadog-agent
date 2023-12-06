@@ -690,6 +690,7 @@ func (s *USMSuite) TestJavaInjection() {
 	// attributes to the `extras` map.
 	type testContext struct {
 		// A dynamic map that allows extending the context easily between phases of the test.
+		//nolint:unused // TODO(USM) Fix unused linter
 		extras map[string]interface{}
 	}
 
@@ -908,6 +909,8 @@ func testHTTPGoTLSCaptureAlreadyRunning(t *testing.T, cfg *config.Config) {
 
 // Test that we can capture HTTPS traffic from Go processes started after the
 // tracer.
+//
+//nolint:revive // TODO(USM) Fix revive linter
 func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) {
 	const (
 		serverPort          = "8443"
@@ -942,6 +945,7 @@ func testHTTPsGoTLSCaptureNewProcessContainer(t *testing.T, cfg *config.Config) 
 	checkRequests(t, tr, expectedOccurrences, reqs)
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func testHTTPsGoTLSCaptureAlreadyRunningContainer(t *testing.T, cfg *config.Config) {
 	const (
 		serverPort          = "8443"

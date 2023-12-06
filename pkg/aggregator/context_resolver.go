@@ -141,6 +141,7 @@ func (cr *contextResolver) removeOverLimit(keep func(ckey.ContextKey) bool) {
 	}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (c *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
 	// Within the contextResolver, each set of tags is represented by a unique pointer.
 	perOrigin := map[*tags.Entry]uint64{}
@@ -171,6 +172,7 @@ func (c *contextResolver) sendOriginTelemetry(timestamp float64, series metrics.
 	}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (c *contextResolver) sendLimiterTelemetry(timestamp float64, series metrics.SerieSink, hostname string, constTags []string) {
 	c.contextsLimiter.SendTelemetry(timestamp, series, hostname, constTags)
 	c.tagsLimiter.SendTelemetry(timestamp, series, hostname, constTags)

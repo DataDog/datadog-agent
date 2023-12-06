@@ -216,6 +216,7 @@ func TestCreateChunks(t *testing.T) {
 		require.Equal(t, "0.50", c.Tags["_dd.otlp_sr"])
 		switch id {
 		case traceID1:
+			//nolint:revive // TODO(OTEL) Fix revive linter
 			found += 1
 			require.Equal(t, "-9", c.Spans[0].Meta["_dd.p.dm"])
 			require.Equal(t, int32(1), c.Priority)
@@ -1871,6 +1872,7 @@ func trimSpaces(str string) string {
 	return out.String()
 }
 
+//nolint:revive // TODO(OTEL) Fix revive linter
 func makeSpanLinkSlice(t *testing.T, traceId, spanId, traceState string, attrs map[string]string, dropped uint32) ptrace.SpanLinkSlice {
 	s := ptrace.NewSpanLinkSlice()
 	l := s.AppendEmpty()

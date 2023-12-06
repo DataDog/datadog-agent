@@ -44,6 +44,7 @@ const (
 	eventStream            = "http"
 )
 
+//nolint:revive // TODO(USM) Fix revive linter
 var Spec = &protocols.ProtocolSpec{
 	Factory: newHttpProtocol,
 	Maps: []*manager.Map{
@@ -74,6 +75,7 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableHTTPMonitoring {
 		return nil, nil

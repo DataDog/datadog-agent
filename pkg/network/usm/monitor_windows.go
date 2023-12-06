@@ -5,6 +5,7 @@
 
 //go:build windows && npm
 
+//nolint:revive // TODO(USM) Fix revive linter
 package usm
 
 import (
@@ -93,6 +94,7 @@ func (m *WindowsMonitor) Start() {
 		}
 	}()
 
+	//nolint:gosimple // TODO(USM) Fix gosimple linter
 	return
 }
 

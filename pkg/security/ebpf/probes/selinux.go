@@ -10,6 +10,7 @@ package probes
 
 import manager "github.com/DataDog/ebpf-manager"
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func getSELinuxProbes(fentry bool) []*manager.Probe {
 	selinuxProbes := []*manager.Probe{
 		{

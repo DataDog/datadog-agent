@@ -29,6 +29,7 @@ func getTestOrgUUIDProvider(orgID int) OrgUUIDProvider {
 	}
 }
 
+//nolint:revive // TODO(RC) Fix revive linter
 func getTestOrgUUIDFromId(orgID int) string {
 	return fmt.Sprintf("org-%d-uuid", orgID)
 }

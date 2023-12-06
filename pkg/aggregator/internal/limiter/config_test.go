@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+//nolint:revive // TODO(AML) Fix revive linter
 var mockError = errors.New("mock")
 
 func TestConfig(t *testing.T) {
