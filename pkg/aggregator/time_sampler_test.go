@@ -8,7 +8,6 @@
 package aggregator
 
 import (
-	"fmt"
 	"math"
 	"sort"
 	"testing"
@@ -17,9 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/limiter"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
-	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags_limiter"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/quantile"
@@ -35,7 +32,7 @@ func generateSerieContextKey(serie *metrics.Serie) ckey.ContextKey {
 }
 
 func testTimeSampler() *TimeSampler {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), nil, nil, "host")
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, tags.NewStore(false, "test"), "host")
 	return sampler
 }
 
@@ -549,7 +546,7 @@ func TestFlushMissingContext(t *testing.T) {
 }
 
 func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
-	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, nil, nil, "host")
+	sampler := NewTimeSampler(TimeSamplerID(0), 10, store, "host")
 
 	sample := metrics.MetricSample{
 		Name:       "my.metric.name",
@@ -565,39 +562,6 @@ func benchmarkTimeSampler(b *testing.B, store *tags.Store) {
 }
 func BenchmarkTimeSampler(b *testing.B) {
 	benchWithTagsStore(b, benchmarkTimeSampler)
-}
-
-func BenchmarkTimeSamplerWithLimiter(b *testing.B) {
-	sample1 := metrics.MetricSample{
-		Name:       "foo",
-		Value:      1,
-		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
-		SampleRate: 1,
-		Timestamp:  12345.0,
-	}
-	sample2 := metrics.MetricSample{
-		Name:       "bar",
-		Value:      1,
-		Mtype:      metrics.GaugeType,
-		Tags:       []string{"foo", "bar"},
-		SampleRate: 1,
-		Timestamp:  12345.0,
-	}
-
-	for limit := range []int{0, 1, 2, 3} {
-		store := tags.NewStore(false, "test")
-		limiter := limiter.New(limit, "pod", []string{"pod"})
-		tagsLimiter := tags_limiter.New(5)
-		sampler := NewTimeSampler(TimeSamplerID(0), 10, store, limiter, tagsLimiter, "host")
-
-		b.Run(fmt.Sprintf("limit=%d", limit), func(b *testing.B) {
-			for n := 0; n < b.N; n++ {
-				sampler.sample(&sample1, 12345.0)
-				sampler.sample(&sample2, 12345.0)
-			}
-		})
-	}
 }
 
 func flushSerie(sampler *TimeSampler, timestamp float64) (metrics.Series, metrics.SketchSeriesList) {
