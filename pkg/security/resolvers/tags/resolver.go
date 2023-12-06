@@ -33,7 +33,7 @@ func (n *nullTagger) Stop() error {
 	return nil
 }
 
-func (n *nullTagger) Tag(entity string, cardinality collectors.TagCardinality) ([]string, error) {
+func (n *nullTagger) Tag(_ string, _ collectors.TagCardinality) ([]string, error) {
 	return nil, nil
 }
 
