@@ -52,7 +52,7 @@ func Test_interfaceBandwidthState_RemoveExpiredBandwidthUsageRates(t *testing.T)
 func Test_interfaceBandwidthState_calculateBandwidthUsageRate(t *testing.T) {
 	tests := []struct {
 		name             string
-		symbols          []profiledefinition.SymbolConfig
+		symbol           profiledefinition.SymbolConfig
 		fullIndex        string
 		values           *valuestore.ResultValueStore
 		tags             []string
@@ -62,7 +62,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate(t *testing.T) {
 	}{
 		{
 			name:      "snmp.ifBandwidthOutUsage.Rate ifHCInOctets Gauge submitted",
-			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"}},
+			symbol:    profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.6", Name: "ifHCInOctets"},
 			fullIndex: "9",
 			tags:      []string{"abc"},
 			values: &valuestore.ResultValueStore{
@@ -98,7 +98,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate(t *testing.T) {
 		},
 		{
 			name:      "snmp.ifBandwidthOutUsage.Rate ifHCOutOctets submitted",
-			symbols:   []profiledefinition.SymbolConfig{{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"}},
+			symbol:    profiledefinition.SymbolConfig{OID: "1.3.6.1.2.1.31.1.1.1.10", Name: "ifHCOutOctets"},
 			fullIndex: "9",
 			values: &valuestore.ResultValueStore{
 				ColumnValues: valuestore.ColumnResultValuesType{
@@ -144,7 +144,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate(t *testing.T) {
 				interfaceBandwidthState: interfaceRateMapWithPrevious(),
 			}
 
-			usageName := bandwidthMetricNameToUsage[tt.symbols[0].Name]
+			usageName := bandwidthMetricNameToUsage[tt.symbol.Name]
 			rate, err := ms.interfaceBandwidthState.calculateBandwidthUsageRate(tt.fullIndex, usageName, ifSpeed, tt.usageValue)
 			interfaceID := fullIndex + "." + usageName
 
@@ -161,7 +161,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate(t *testing.T) {
 	}
 }
 
-func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T) {
+func Test_interfaceBandwidthState_calculateBandwidthUsageRate_errors(t *testing.T) {
 	tests := []struct {
 		name             string
 		symbols          []profiledefinition.SymbolConfig
@@ -281,8 +281,6 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_logs(t *testing.T)
 				interfaceConfigs:        tt.interfaceConfigs,
 				interfaceBandwidthState: interfaceRateMapWithPrevious(),
 			}
-			// conflicting ifSpeed from mocked saved state (80) in interfaceRateMap
-			//newIfSpeed := uint64(100) * (1e6)
 			for _, symbol := range tt.symbols {
 				usageName := bandwidthMetricNameToUsage[symbol.Name]
 				interfaceID := fullIndex + "." + usageName
