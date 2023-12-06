@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package sharedlibraries contains implementation for the TLS support of USM
 package sharedlibraries
 
 import (

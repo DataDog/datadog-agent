@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package usm contains implementation for all USM logic
 package usm
 
 import (

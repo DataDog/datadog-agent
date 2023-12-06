@@ -21,7 +21,7 @@ import (
 //			},
 //		}
 //
-// Additionnally, if the staticTags contains TLS tags, the TLS protocol is added
+// Additionally, if the staticTags contains TLS tags, the TLS protocol is added
 // to the protocol stack, giving an output like this:
 //
 //	&model.ProtocolStack{
@@ -39,8 +39,8 @@ func formatProtocolStack(originalStack protocols.Stack, staticTags uint64) *mode
 	if originalStack.Application != protocols.Unknown {
 		stack = addProtocol(stack, originalStack.Application)
 	}
-	if originalStack.Api != protocols.Unknown {
-		stack = addProtocol(stack, originalStack.Api)
+	if originalStack.API != protocols.Unknown {
+		stack = addProtocol(stack, originalStack.API)
 	}
 
 	return &model.ProtocolStack{

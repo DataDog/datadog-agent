@@ -5,7 +5,7 @@
 
 //go:build linux && test
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Package testutil provides utilities for testing the fmapper program
 package testutil
 
 import (

@@ -14,7 +14,7 @@ const (
 	disabled = uint64(0)
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// AddBoolConst adds a constant editor to the options with the given name and the given value
 func AddBoolConst(options *manager.Options, flag bool, name string) {
 	val := enabled
 	if !flag {
@@ -29,7 +29,7 @@ func AddBoolConst(options *manager.Options, flag bool, name string) {
 	)
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// EnableOption adds a constant editor to the options with the given name and value true
 func EnableOption(options *manager.Options, name string) {
 	options.ConstantEditors = append(options.ConstantEditors,
 		manager.ConstantEditor{
