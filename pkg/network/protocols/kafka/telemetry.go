@@ -12,7 +12,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Telemetry is a struct to hold the telemetry for the kafka protocol
 type Telemetry struct {
 	metricGroup *libtelemetry.MetricGroup
 
@@ -20,7 +20,7 @@ type Telemetry struct {
 	dropped   *libtelemetry.Counter // this happens when KafkaStatKeeper reaches capacity
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// NewTelemetry creates a new Telemetry
 func NewTelemetry() *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup("usm.kafka", libtelemetry.OptStatsd)
 
@@ -32,12 +32,12 @@ func NewTelemetry() *Telemetry {
 	}
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
-func (t *Telemetry) Count(_ *EbpfTx) {
+// Count increments the total hits counter
+func (t *Telemetry) Count(*EbpfTx) {
 	t.totalHits.Add(1)
 }
 
-//nolint:revive // TODO(USM) Fix revive linter
+// Log logs the kafka stats summary
 func (t *Telemetry) Log() {
 	log.Debugf("kafka stats summary: %s", t.metricGroup.Summary())
 }
