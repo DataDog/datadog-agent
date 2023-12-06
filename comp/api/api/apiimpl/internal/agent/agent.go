@@ -159,10 +159,12 @@ func configRequestHandler(w http.ResponseWriter, r *http.Request, cfg cfgcomp.Co
 	case "ha":
 		settings := make(map[string]interface{})
 		settings["site"] = cfg.GetString("site")
+		settings["dd_url"] = cfg.GetString("dd_url")
 		settings["api_key"] = cfg.GetString("api_key")
 		ha_settings := make(map[string]interface{})
 		ha_settings["api_key"] = cfg.GetString("ha.api_key")
 		ha_settings["site"] = cfg.GetString("ha.site")
+		ha_settings["dd_url"] = cfg.GetString("ha.dd_url")
 		ha_settings["enabled"] = cfg.GetString("ha.enabled")
 		ha_settings["failover"] = cfg.GetString("ha.failover")
 		settings["ha"] = ha_settings
