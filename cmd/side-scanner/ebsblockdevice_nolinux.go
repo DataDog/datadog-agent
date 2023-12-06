@@ -25,6 +25,6 @@ type EBSBlockDeviceOptions struct {
 }
 
 // SetupEBSBlockDevice sets up the EBS block device.
-func SetupEBSBlockDevice(ctx context.Context, opts EBSBlockDeviceOptions) error {
+func SetupEBSBlockDevice(_ context.Context, _ EBSBlockDeviceOptions) error {
 	return fmt.Errorf("ebsblockdevice: not supported on this platform")
 }
