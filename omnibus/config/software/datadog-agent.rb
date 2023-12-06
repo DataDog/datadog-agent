@@ -216,6 +216,10 @@ build do
           dest: "#{install_dir}/scripts/datadog-agent-security",
           mode: 0755,
           vars: { install_dir: install_dir, etc_dir: etc_dir }
+      erb source: "sysvinit_debian.side-scanner.erb",
+          dest: "#{install_dir}/scripts/datadog-side-scanner",
+          mode: 0755,
+          vars: { install_dir: install_dir, etc_dir: etc_dir }
     elsif redhat_target? || suse_target?
       # Ship a different upstart job definition on RHEL to accommodate the old
       # version of upstart (0.6.5) that RHEL 6 provides.
