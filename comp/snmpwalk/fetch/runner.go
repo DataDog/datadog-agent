@@ -56,7 +56,9 @@ func (rc *SnmpwalkRunner) Callback() {
 	if err != nil {
 		log.Warnf("Error getting the hostname: %v", err)
 	}
-
+	commonTags := []string{
+		"agent_host:" + hname,
+	}
 	namespace := "default"
 	for _, config := range snmpConfigList {
 		ipaddr := config.IPAddress
@@ -64,21 +66,23 @@ func (rc *SnmpwalkRunner) Callback() {
 			log.Infof("[SNMP RUNNER] Missing IP Addr: %v", config)
 			continue
 		}
-		tags := []string{
-			"agent_host:" + hname,
+		devTags := []string{
 			"namespace:" + namespace, // TODO: FIX ME
 			"device_ip:" + ipaddr,
 			"device_id:" + namespace + ":" + ipaddr,
+		}
+		for _, tag := range commonTags {
+			devTags = append(devTags, tag)
 		}
 		log.Infof("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
 
 		localStart := time.Now()
 		oidsCollectedCount := rc.collectDeviceOIDs(config)
 		duration := time.Since(localStart)
-		rc.sender.Gauge("datadog.snmpwalk.device.duration", duration.Seconds(), "", tags)
-		rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", tags)
+		rc.sender.Gauge("datadog.snmpwalk.device.duration", duration.Seconds(), "", devTags)
+		rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", devTags)
 	}
-	rc.sender.Gauge("datadog.snmpwalk.total.duration", time.Since(globalStart).Seconds(), "", nil)
+	rc.sender.Gauge("datadog.snmpwalk.total.duration", time.Since(globalStart).Seconds(), "", commonTags)
 	rc.sender.Commit()
 }
 
