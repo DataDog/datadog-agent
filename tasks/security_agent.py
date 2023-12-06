@@ -11,7 +11,7 @@ from subprocess import check_output
 from invoke import task
 from invoke.exceptions import Exit
 
-from .build_tags import get_default_build_tags
+from .build_tags import get_build_tags
 from .go import run_golangci_lint
 from .libs.ninja_syntax import NinjaWriter
 from .process_agent import TempDir
@@ -90,7 +90,7 @@ def build(
         )
 
     ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(
+    build_tags += get_build_tags(
         build="security-agent"
     )  # TODO/FIXME: Arch not passed to preserve build tags. Should this be fixed?
 
