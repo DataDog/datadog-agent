@@ -3,7 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(NDM) Fix revive linter
 package metadata
 
 // PayloadMetadataBatchSize is the number of resources per event payload
@@ -20,15 +19,12 @@ const (
 	DeviceStatusUnreachable = DeviceStatus(2)
 )
 
-//nolint:revive // TODO(NDM) Fix revive linter
 type IDType string
 
 const (
 	// IDTypeMacAddress represent mac address in `00:00:00:00:00:00` format
-	IDTypeMacAddress = "mac_address"
-	//nolint:revive // TODO(NDM) Fix revive linter
-	IDTypeInterfaceName = "interface_name"
-	//nolint:revive // TODO(NDM) Fix revive linter
+	IDTypeMacAddress     = "mac_address"
+	IDTypeInterfaceName  = "interface_name"
 	IDTypeInterfaceAlias = "interface_alias"
 )
 
@@ -42,6 +38,7 @@ type NetworkDevicesMetadata struct {
 	Links            []TopologyLinkMetadata `json:"links,omitempty"`
 	NetflowExporters []NetflowExporter      `json:"netflow_exporters,omitempty"`
 	Diagnoses        []DiagnosisMetadata    `json:"diagnoses,omitempty"`
+	DeviceOids       []DeviceOid            `json:"device_oids,omitempty"`
 	CollectTimestamp int64                  `json:"collect_timestamp"`
 }
 
@@ -143,4 +140,12 @@ type DiagnosisMetadata struct {
 	ResourceType string      `json:"resource_type"`
 	ResourceID   string      `json:"resource_id"`
 	Diagnoses    []Diagnosis `json:"diagnoses"`
+}
+
+// DeviceOid device scan oid data
+type DeviceOid struct {
+	DeviceID    string `json:"device_id"`
+	Oid         string `json:"oid"`
+	Type        string `json:"type"`
+	ValueString string `json:"value_string"`
 }
