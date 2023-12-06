@@ -31,6 +31,9 @@ const (
 	// This const limits the maximum size of the state map. Benchmark results show that allocated space is less than 3MB
 	// for 10000 entries.
 	maxStateMapSize = 10000
+
+	// See WaitForDomain
+	waitForDomainTimeout = 5 * time.Second
 )
 
 var statsTelemetry = struct {
@@ -185,15 +188,17 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 }
 
 func (d *dnsStatKeeper) WaitForDomain(domain string) error {
-	timeout := 5 * time.Second
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if d.hasDomain(domain) {
-			return nil
+	for {
+		select {
+		case <-time.After(waitForDomainTimeout):
+			return fmt.Errorf("domain %v did not appear within %v", domain, waitForDomainTimeout)
+		default:
+			if d.hasDomain(domain) {
+				return nil
+			}
+			time.Sleep(time.Millisecond * 10)
 		}
-		time.Sleep(time.Millisecond * 10)
 	}
-	return fmt.Errorf("domain %v did not appear within %v", domain, timeout)
 }
 
 func (d *dnsStatKeeper) hasDomain(domain string) bool {

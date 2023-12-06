@@ -19,7 +19,6 @@ func NewNullReverseDNS() ReverseDNS {
 type nullReverseDNS struct{}
 
 func (d nullReverseDNS) WaitForDomain(domain string) error {
-	//TODO implement me
 	return nil
 }
 
