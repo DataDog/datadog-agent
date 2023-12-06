@@ -103,7 +103,21 @@ func (rc *SnmpwalkRunner) Callback() {
 	}
 	namespace := "default"
 
+	interval := pkgconfig.Datadog.GetDuration("network_devices.snmpwalk.interval")
+	if interval == 0 {
+		interval = 60 * time.Second
+	}
+
 	for _, config := range snmpConfigList {
+		deviceId := namespace + ":" + config.IPAddress
+		if prevTime, ok := rc.prevSnmpwalkTime[deviceId]; ok { // TODO: check config instanceId instead?
+			// TODO: Also skip if the device is currently being walked
+			if time.Since(prevTime) < interval {
+				log.Infof("[SNMP RUNNER] Skip Device: %s", deviceId)
+				continue
+			}
+		}
+
 		//rc.snmpwalkOneDevice(config, namespace, commonTags)
 		rc.jobs <- SnmpwalkJob{
 			namespace: namespace,
@@ -124,10 +138,8 @@ func (rc *SnmpwalkRunner) snmpwalkOneDevice(config parse.SNMPConfig, namespace s
 	log.Infof("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
 
 	localStart := time.Now()
-	fetchStrategy := useGetNext
-	oidsCollectedCount := rc.collectDeviceOIDs(config, fetchStrategy)
-	duration := time.Since(localStart)
 	deviceId := namespace + ":" + ipaddr
+	fetchStrategy := useGetNext
 	devTags := []string{
 		"namespace:" + namespace, // TODO: FIX ME
 		"device_ip:" + ipaddr,
@@ -137,13 +149,17 @@ func (rc *SnmpwalkRunner) snmpwalkOneDevice(config parse.SNMPConfig, namespace s
 	for _, tag := range commonTags {
 		devTags = append(devTags, tag)
 	}
-	rc.sender.Gauge("datadog.snmpwalk.device.duration", duration.Seconds(), "", devTags)
-	rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", devTags)
 
+	// TODO: Need mutex lock?
 	if prevTime, ok := rc.prevSnmpwalkTime[deviceId]; ok { // TODO: check config instanceId instead?
 		rc.sender.Gauge("datadog.snmpwalk.device.interval", localStart.Sub(prevTime).Seconds(), "", devTags)
 	}
 	rc.prevSnmpwalkTime[deviceId] = localStart
+
+	oidsCollectedCount := rc.collectDeviceOIDs(config, fetchStrategy)
+	duration := time.Since(localStart)
+	rc.sender.Gauge("datadog.snmpwalk.device.duration", duration.Seconds(), "", devTags)
+	rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", devTags)
 
 	rc.sender.Commit()
 }

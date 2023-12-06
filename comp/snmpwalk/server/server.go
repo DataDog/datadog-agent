@@ -59,12 +59,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	_ = sender
 	server.logger.Infof("[SNMPWALK] Starting Snmpwalk Server")
 
-	interval := pkgconfig.Datadog.GetDuration("network_devices.snmpwalk.interval") * time.Second
-	if interval == 0 {
-		interval = 60
-	}
-
-	ticker := time.NewTicker(interval)
+	ticker := time.NewTicker(10 * time.Second)
 	quit := make(chan struct{})
 	go func() {
 		for {
