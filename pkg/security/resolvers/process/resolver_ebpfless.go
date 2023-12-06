@@ -198,16 +198,14 @@ func (p *EBPFLessResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, 
 		return pr.Argv, pr.ArgsTruncated
 	}
 
-	argv, truncated := GetProcessArgv(pr)
-
-	if p.scrubber != nil && len(argv) > 0 {
+	if p.scrubber != nil && len(pr.ArgsEntry.Values) > 0 {
 		// replace with the scrubbed version
-		argv, _ = p.scrubber.ScrubCommand(argv)
+		argv, _ := p.scrubber.ScrubCommand(pr.ArgsEntry.Values[1:])
 		pr.ArgsEntry.Values = []string{pr.ArgsEntry.Values[0]}
 		pr.ArgsEntry.Values = append(pr.ArgsEntry.Values, argv...)
 	}
 
-	return pr.ArgsEntry.Values, truncated
+	return GetProcessArgv(pr)
 }
 
 // GetProcessEnvs returns the envs of the event
