@@ -111,6 +111,9 @@ func (rc *SnmpwalkRunner) Callback() {
 	}
 
 	for _, config := range snmpConfigList {
+		if config.IPAddress == "" {
+			continue
+		}
 		deviceId := namespace + ":" + config.IPAddress
 		if prevTime, ok := rc.prevSnmpwalkTime[deviceId]; ok { // TODO: check config instanceId instead?
 			// TODO: Also skip if the device is currently being walked

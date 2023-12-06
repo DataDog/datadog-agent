@@ -44,7 +44,7 @@ func FetchAllFirstRowOIDsVariables(session gosnmp.GoSNMP, fetchStrategy fetchStr
 		var results *gosnmp.SnmpPacket
 		if session.Version == gosnmp.Version1 || fetchStrategy == useGetNext {
 			// snmp v1 doesn't support GetBulk
-			log.Infof("GetNext request (%d): %s", counter, curRequestOid)
+			log.Infof("[%s] GetNext request (%d): %s", session.Target, counter, curRequestOid)
 			res, err := session.GetNext([]string{curRequestOid})
 			//log.Infof("GetNext results: %+v", results)
 			if err != nil {
