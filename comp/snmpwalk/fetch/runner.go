@@ -43,8 +43,9 @@ type SnmpwalkJob struct {
 // NewSnmpwalkRunner creates a new SnmpwalkRunner.
 func NewSnmpwalkRunner(sender sender.Sender) *SnmpwalkRunner {
 	snmpwalk := &SnmpwalkRunner{
-		upToDate: false,
-		sender:   sender,
+		upToDate:         false,
+		sender:           sender,
+		prevSnmpwalkTime: make(map[string]time.Time),
 	}
 	workers := pkgconfig.Datadog.GetInt("network_devices.snmpwalk.workers")
 	if workers == 0 {
@@ -140,7 +141,7 @@ func (rc *SnmpwalkRunner) snmpwalkOneDevice(config parse.SNMPConfig, namespace s
 	rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", devTags)
 
 	if prevTime, ok := rc.prevSnmpwalkTime[deviceId]; ok { // TODO: check config instanceId instead?
-		rc.sender.Gauge("datadog.snmpwalk.device.interval", time.Since(prevTime).Seconds(), "", devTags)
+		rc.sender.Gauge("datadog.snmpwalk.device.interval", prevTime.Sub(localStart).Seconds(), "", devTags)
 	}
 	rc.prevSnmpwalkTime[deviceId] = localStart
 

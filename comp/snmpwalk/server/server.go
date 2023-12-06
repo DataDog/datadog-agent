@@ -59,7 +59,7 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	_ = sender
 	server.logger.Infof("[SNMPWALK] Starting Snmpwalk Server")
 
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(60 * time.Second)
 	quit := make(chan struct{})
 	go func() {
 		for {
