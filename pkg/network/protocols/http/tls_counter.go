@@ -20,7 +20,7 @@ type TLSCounter struct {
 	counterGoTLS   *libtelemetry.Counter
 }
 
-// NewTLSCounter creates and return a new TLSCounter
+// NewTLSCounter creates and returns a new instance of TLSCounter
 func NewTLSCounter(metricGroup *libtelemetry.MetricGroup, metricName string, tags ...string) *TLSCounter {
 	return &TLSCounter{
 		counterPlain:   metricGroup.NewCounter(metricName, append(tags, "encrypted:false")...),
