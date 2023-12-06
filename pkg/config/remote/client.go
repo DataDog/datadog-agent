@@ -86,8 +86,6 @@ type agentGRPCConfigFetcher struct {
 }
 
 // NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
-//
-//nolint:revive // TODO(RC) Fix revive linter
 func NewAgentGRPCConfigFetcher() (ConfigUpdater, error) {
 	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
