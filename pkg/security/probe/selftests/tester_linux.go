@@ -152,7 +152,7 @@ func (t *SelfTester) Close() error {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (t *SelfTester) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) { //nolint:revive // TODO fix revive unused-parameter
+func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	p := &rules.Policy{
 		Name:    policyName,
 		Source:  policySource,
