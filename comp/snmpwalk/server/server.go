@@ -38,19 +38,21 @@ var (
 
 // newServer configures a snmpwalk server.
 func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
+	deps.Logger.Infof("[SNMPWALK] newServer")
 	conf := deps.Config.Get()
 	sender, err := deps.Demultiplexer.GetDefaultSender()
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: USE SENDER
-	_ = sender
-
 	server := &Server{
 		config: conf,
 		logger: deps.Logger,
 	}
+
+	// TODO: USE SENDER
+	_ = sender
+	server.logger.Infof("[SNMPWALK] Starting Snmpwalk Server")
 
 	globalServerMu.Lock()
 	globalServer = server
