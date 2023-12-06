@@ -1008,8 +1008,8 @@ func unmarshalConfig(b []byte) (*scanConfig, error) {
 	}
 
 	config.Tasks = make([]*scanTask, 0, len(configRaw.Tasks))
-	for _, scan := range configRaw.Tasks {
-		task, err := newScanTask(scan.Type, scan.ARN, scan.Hostname, scan.Actions, config.Roles)
+	for _, rawScan := range configRaw.Tasks {
+		task, err := newScanTask(rawScan.Type, rawScan.ARN, rawScan.Hostname, rawScan.Actions, config.Roles)
 		if err != nil {
 			log.Warnf("dropping malformed task: %v", err)
 			continue
