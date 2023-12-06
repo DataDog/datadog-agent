@@ -579,22 +579,16 @@ type BaseExtraFieldHandlers interface {
 }
 
 // ResolveProcessCacheEntry stub implementation
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(ev *Event) (*ProcessCacheEntry, bool) {
+func (dfh *DefaultFieldHandlers) ResolveProcessCacheEntry(_ *Event) (*ProcessCacheEntry, bool) {
 	return nil, false
 }
 
 // ResolveContainerContext stub implementation
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (dfh *DefaultFieldHandlers) ResolveContainerContext(ev *Event) (*ContainerContext, bool) {
+func (dfh *DefaultFieldHandlers) ResolveContainerContext(_ *Event) (*ContainerContext, bool) {
 	return nil, false
 }
 
 // GetProcessService stub implementation
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (dfh *DefaultFieldHandlers) GetProcessService(ev *Event) string {
+func (dfh *DefaultFieldHandlers) GetProcessService(_ *Event) string {
 	return ""
 }
