@@ -5,7 +5,7 @@
 
 //go:build linux_bpf
 
-package http
+package utils
 
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
