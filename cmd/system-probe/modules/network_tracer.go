@@ -311,6 +311,7 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 	log.Tracef("/connections: %d connections", len(cs.Conns))
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func startTelemetryReporter(cfg *config.Config, done <-chan struct{}) {
 	telemetry.SetStatsdClient(statsd.Client)
 	ticker := time.NewTicker(30 * time.Second)

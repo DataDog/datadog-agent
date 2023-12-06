@@ -122,7 +122,6 @@ def get_build_flags(
     major_version='7',
     python_runtimes='3',
     headless_mode=False,
-    race=False,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -216,12 +215,6 @@ def get_build_flags(
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
-
-    # Needed to fix an issue when using -race + gcc 10.x on Windows
-    # https://github.com/bazelbuild/rules_go/issues/2614
-    if race:
-        if sys.platform == 'win32':
-            ldflags += " -linkmode=external"
 
     return ldflags, gcflags, env
 

@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 package runtime
 
 // updated as of Linux v6.0 commit 4fe89d07dcc2804c8b562f6c7896a45643d34b2f

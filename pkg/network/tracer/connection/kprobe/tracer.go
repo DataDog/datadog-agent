@@ -29,11 +29,15 @@ import (
 
 const probeUID = "net"
 
+//nolint:revive // TODO(NET) Fix revive linter
 type TracerType int
 
 const (
+	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypePrebuilt TracerType = iota
+	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeRuntimeCompiled
+	//nolint:revive // TODO(NET) Fix revive linter
 	TracerTypeCORE
 )
 
@@ -208,6 +212,7 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 			return nil, nil, fmt.Errorf("error enabling protocol classifier: %w", err)
 		}
 
+		//nolint:ineffassign,staticcheck // TODO(NET) Fix ineffassign linter // TODO(NET) Fix staticcheck linter
 		undefinedProbes = append(undefinedProbes, protocolClassificationTailCalls[0].ProbeIdentificationPair)
 		mgrOpts.TailCallRouter = append(mgrOpts.TailCallRouter, protocolClassificationTailCalls...)
 	} else {

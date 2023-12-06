@@ -13,6 +13,8 @@ import (
 )
 
 // Build serializes a metadata payload and sends it to the forwarder
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func BuildJSONPayload(b *JSONPayloadBuilder, m marshaler.StreamJSONMarshaler) (transaction.BytesPayloads, error) {
 	adapter := marshaler.NewIterableStreamJSONMarshalerAdapter(m)
 	return b.BuildWithOnErrItemTooBigPolicy(adapter, DropItemOnErrItemTooBig)

@@ -62,6 +62,8 @@ func newCRICollector(cache *provider.Cache) (provider.CollectorMetadata, error) 
 }
 
 // GetContainerStats returns stats by container ID.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (collector *criCollector) GetContainerStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats, err := collector.getCriContainerStats(containerID)
 	if err != nil {

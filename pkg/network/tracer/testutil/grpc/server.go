@@ -253,10 +253,12 @@ func (s *Server) GetGRPCServer() *grpc.Server {
 	return s.grpcSrv
 }
 
+// Stop stops the gRPC server.
 func (s *Server) Stop() {
 	s.grpcSrv.Stop()
 }
 
+// Run starts the gRPC server.
 func (s *Server) Run() {
 	go func() {
 		if err := s.grpcSrv.Serve(s.lis); err != nil {

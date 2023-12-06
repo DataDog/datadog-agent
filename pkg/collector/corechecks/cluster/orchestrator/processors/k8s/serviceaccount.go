@@ -24,6 +24,8 @@ type ServiceAccountHandlers struct {
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ServiceAccountHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.ServiceAccount)
 	m.Yaml = yaml
@@ -50,6 +52,8 @@ func (h *ServiceAccountHandlers) BuildMessageBody(ctx *processors.ProcessorConte
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ServiceAccountHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*corev1.ServiceAccount)
 	return k8sTransformers.ExtractServiceAccount(r)
@@ -57,6 +61,8 @@ func (h *ServiceAccountHandlers) ExtractResource(ctx *processors.ProcessorContex
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ServiceAccountHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*corev1.ServiceAccount)
 	resources = make([]interface{}, 0, len(resourceList))
@@ -69,17 +75,23 @@ func (h *ServiceAccountHandlers) ResourceList(ctx *processors.ProcessorContext, 
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ServiceAccountHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*corev1.ServiceAccount).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ServiceAccountHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*corev1.ServiceAccount).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ServiceAccountHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*corev1.ServiceAccount)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)

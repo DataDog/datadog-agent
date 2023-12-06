@@ -5,6 +5,7 @@
 
 //go:build !kubelet
 
+//nolint:revive // TODO(ASC) Fix revive linter
 package kubernetes
 
 import (
@@ -17,6 +18,8 @@ var (
 )
 
 // GetHostAliases returns the host aliases from the Kubernetes node annotations
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func GetHostAliases(ctx context.Context) ([]string, error) {
 	return nil, nil
 }

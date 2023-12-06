@@ -10,6 +10,7 @@ package metadata
 import (
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
@@ -25,6 +26,7 @@ var Bundle = fxutil.Bundle(
 	host.Module,
 	inventoryagent.Module,
 	inventoryhostimpl.Module,
+	inventorychecksimpl.Module,
 )
 
 // MockBundle defines the mock fx options for this bundle.
