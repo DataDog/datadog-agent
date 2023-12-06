@@ -157,9 +157,7 @@ func (rc *SnmpwalkRunner) snmpwalkOneDevice(config parse.SNMPConfig, namespace s
 		"device_id:" + deviceId,
 		"snmp_command:" + string(fetchStrategy),
 	}
-	for _, tag := range commonTags {
-		devTags = append(devTags, tag)
-	}
+	devTags = append(devTags, commonTags...)
 
 	// TODO: Need mutex lock?
 	if prevTime, ok := rc.prevSnmpwalkTime[deviceId]; ok { // TODO: check config instanceId instead?

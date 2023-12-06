@@ -71,9 +71,7 @@ func FetchAllFirstRowOIDsVariables(session gosnmp.GoSNMP, fetchStrategy fetchStr
 		}
 
 		// throttle
-		select {
-		case <-throttler.C:
-		}
+		<-throttler.C
 
 		//if len(results.Variables) != 1 {
 		//	log.Debugf("Expect 1 variable, but got %d: %+v", len(results.Variables), results.Variables)

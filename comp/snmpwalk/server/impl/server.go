@@ -49,6 +49,9 @@ func newServer(lc fx.Lifecycle, deps dependencies) (server.Component, error) {
 		return nil, err
 	}
 
+	// TODO: FIX ME
+	_ = globalServer // avoid unused error
+
 	runner := fetch.NewSnmpwalkRunner(sender)
 
 	server := &Server{
