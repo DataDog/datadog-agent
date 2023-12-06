@@ -5,7 +5,6 @@
 
 //go:build linux_bpf
 
-//nolint:revive // TODO(USM) Fix revive linter
 package http2
 
 import (
