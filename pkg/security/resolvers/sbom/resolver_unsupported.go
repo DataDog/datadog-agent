@@ -18,33 +18,26 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
-//nolint:revive // TODO(SEC) Fix revive linter
 type Resolver struct {
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func NewSBOMResolver(c *config.RuntimeSecurityConfig, statsdClient statsd.ClientInterface) (*Resolver, error) {
+func NewSBOMResolver(_ *config.RuntimeSecurityConfig, _ statsd.ClientInterface) (*Resolver, error) {
 	return &Resolver{}, nil
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func (r *Resolver) OnCGroupDeletedEvent(sbom *cgroupModel.CacheEntry) {
+func (r *Resolver) OnCGroupDeletedEvent(_ *cgroupModel.CacheEntry) {
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func (r *Resolver) OnWorkloadSelectorResolvedEvent(sbom *cgroupModel.CacheEntry) {
+func (r *Resolver) OnWorkloadSelectorResolvedEvent(_ *cgroupModel.CacheEntry) {
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func (r *Resolver) ResolvePackage(containerID string, file *model.FileEvent) *Package {
+func (r *Resolver) ResolvePackage(_ string, _ *model.FileEvent) *Package {
 	return nil
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
 func (r *Resolver) SendStats() error {
 	return nil
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func (r *Resolver) Start(ctx context.Context) {
+func (r *Resolver) Start(_ context.Context) {
 }

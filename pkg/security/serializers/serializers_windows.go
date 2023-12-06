@@ -54,14 +54,14 @@ type EventSerializer struct {
 	*BaseEventSerializer
 }
 
-func newFileSerializer(fe *model.FileEvent, e *model.Event, forceInode ...uint64) *FileSerializer { //nolint:revive // TODO fix revive unused-parameter
+func newFileSerializer(fe *model.FileEvent, e *model.Event, _ ...uint64) *FileSerializer {
 	return &FileSerializer{
 		Path: e.FieldHandlers.ResolveFilePath(e, fe),
 		Name: e.FieldHandlers.ResolveFileBasename(e, fe),
 	}
 }
 
-func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer { //nolint:revive // TODO fix revive unused-parameter
+func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer {
 	psSerializer := &ProcessSerializer{
 		ExecTime: getTimeIfNotZero(ps.ExecTime),
 		ExitTime: getTimeIfNotZero(ps.ExitTime),
@@ -113,7 +113,7 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event) *Proc
 	return &ps
 }
 
-func serializeOutcome(retval int64) string { //nolint:revive // TODO fix revive unused-parameter
+func serializeOutcome(_ int64) string {
 	return "unknown"
 }
 

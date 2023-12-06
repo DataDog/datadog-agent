@@ -295,9 +295,8 @@ func (r *Resolver) analyzeWorkload(sbom *SBOM) error {
 		if lastErr == nil {
 			scanned = true
 			break
-		} else { //nolint:revive // TODO(SEC) Fix revive linter
-			seclog.Errorf("couldn't generate SBOM: %v", lastErr)
 		}
+		seclog.Errorf("couldn't generate SBOM: %v", lastErr)
 	}
 	if lastErr != nil {
 		return lastErr
