@@ -319,7 +319,7 @@ func checkEntryPoint(path string) (string, error) {
 }
 
 // StartCWSPtracer start the ptracer
-func StartCWSPtracer(args []string, grpcAddr string, verbose bool) error {
+func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 	entry, err := checkEntryPoint(args[0])
 	if err != nil {
 		return err
@@ -339,9 +339,8 @@ func StartCWSPtracer(args []string, grpcAddr string, verbose bool) error {
 		client net.Conn
 	)
 
-	// GRPC
-	if grpcAddr != "" {
-		tcpAddr, err := net.ResolveTCPAddr("tcp", grpcAddr)
+	if probeAddr != "" {
+		tcpAddr, err := net.ResolveTCPAddr("tcp", probeAddr)
 		if err != nil {
 			return err
 		}
@@ -389,7 +388,7 @@ func StartCWSPtracer(args []string, grpcAddr string, verbose bool) error {
 
 			logDebugf("sending message: %s", msg)
 
-			if grpcAddr != "" {
+			if probeAddr != "" {
 				data, err := msgpack.Marshal(msg)
 				if err != nil {
 					logErrorf("unable to marshal message: %v", err)
