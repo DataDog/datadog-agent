@@ -17,7 +17,7 @@ Cloud Security Management Threats (CSM Threats) first evaluates activity within 
 {% raw %}
 {{< code-block lang="javascript" >}}
 {% endraw %}
-<event-type>.<event-attribute> <operator> <value> <event-type>.<event-attribute> ...
+<event-type>.<event-attribute> <operator> <value> [<operator> <event-type>.<event-attribute>] ...
 {% raw %}
 {{< /code-block >}}
 {% endraw %}
