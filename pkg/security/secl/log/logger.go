@@ -24,27 +24,19 @@ type Logger interface {
 type NullLogger struct{}
 
 // Tracef is used to print a trace level log
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (l NullLogger) Tracef(format string, params ...interface{}) {
+func (l NullLogger) Tracef(_ string, _ ...interface{}) {
 }
 
 // Debugf is used to print a trace level log
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (l NullLogger) Debugf(format string, params ...interface{}) {
+func (l NullLogger) Debugf(_ string, _ ...interface{}) {
 }
 
 // Errorf is used to print an error
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (l NullLogger) Errorf(format string, params ...interface{}) {
+func (l NullLogger) Errorf(_ string, _ ...interface{}) {
 }
 
 // Infof is used to print an info
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func (l NullLogger) Infof(format string, params ...interface{}) {
+func (l NullLogger) Infof(_ string, _ ...interface{}) {
 }
 
 // IsTracing is used to check if TraceF would actually log

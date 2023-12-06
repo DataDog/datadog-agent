@@ -134,7 +134,7 @@ func TestSetFieldValue(t *testing.T) {
 			if err != nil {
 				if errors.As(err, &readOnlyError) {
 					continue
-				} else { //nolint:revive // TODO(SEC) Fix revive linter
+				} else {
 					t.Error(err)
 				}
 			}
@@ -162,7 +162,7 @@ func TestSetFieldValue(t *testing.T) {
 			if err != nil {
 				if errors.As(err, &readOnlyError) {
 					continue
-				} else { //nolint:revive // TODO(SEC) Fix revive linter
+				} else {
 					t.Error(err)
 				}
 			}
