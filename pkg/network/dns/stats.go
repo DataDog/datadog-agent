@@ -8,6 +8,7 @@
 package dns
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -181,6 +182,32 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	d.processedStats = 0
 	d.droppedStats = 0
 	return ret
+}
+
+func (d *dnsStatKeeper) WaitForDomain(domain string) error {
+	timeout := 5 * time.Second
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if d.hasDomain(domain) {
+			return nil
+		}
+		time.Sleep(time.Millisecond * 10)
+	}
+	return fmt.Errorf("domain %v did not appear within %v", domain, timeout)
+}
+
+func (d *dnsStatKeeper) hasDomain(domain string) bool {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+	for _, statsByTypeByHost := range d.stats {
+		for host, _ := range statsByTypeByHost {
+			if host.Get() == domain {
+				return true
+			}
+		}
+
+	}
+	return false
 }
 
 // Snapshot returns a deep copy of all DNS stats.
