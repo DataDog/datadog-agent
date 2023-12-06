@@ -7,17 +7,17 @@
 
 package http
 
-func (t *Telemetry) countOSSpecific(tx Transaction) {
+func (t *TLSCounter) Add(tx Transaction) {
 	switch tx.StaticTags() {
 	case GnuTLS:
-		t.totalHitsGnuTLS.Add(1)
+		t.counterGnuTLS.Add(1)
 	case OpenSSL:
-		t.totalHitsOpenSLL.Add(1)
+		t.counterOpenSLL.Add(1)
 	case Java:
-		t.totalHitsJavaTLS.Add(1)
+		t.counterJavaTLS.Add(1)
 	case Go:
-		t.totalHitsGoTLS.Add(1)
+		t.counterGoTLS.Add(1)
 	default:
-		t.totalHitsPlain.Add(1)
+		t.counterPlain.Add(1)
 	}
 }
