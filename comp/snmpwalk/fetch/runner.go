@@ -8,6 +8,7 @@ package fetch
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/DataDog/datadog-agent/comp/snmpwalk/fetch/valuestore"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
@@ -87,26 +88,27 @@ func (rc *SnmpwalkRunner) Callback() {
 }
 
 func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig) int {
+	prefix := fmt.Sprintf("(%s)", config.CommunityString)
 	namespace := "default" // TODO: CHANGE PLACEHOLDER
 	deviceId := namespace + ":" + config.IPAddress
 
 	session := createSession(config)
-	log.Infof("[SNMP RUNNER] session: %+v", session)
+	log.Infof("[SNMP RUNNER]%s session: %+v", prefix, session)
 
 	// Establish connection
 	err := session.Connect()
 	if err != nil {
-		log.Errorf("[SNMP RUNNER] Connect err: %v\n", err)
+		log.Errorf("[SNMP RUNNER]%s Connect err: %v\n", prefix, err)
 		os.Exit(1)
 		return 0
 	}
 	defer session.Conn.Close()
 
 	variables := FetchAllFirstRowOIDsVariables(session)
-	log.Infof("[SNMP RUNNER] Variables: %d", len(variables))
+	log.Infof("[SNMP RUNNER]%s Variables: %d", prefix, len(variables))
 
-	for _, variable := range variables {
-		log.Infof("[SNMP RUNNER] Variable Name: %s", variable.Name)
+	for idx, variable := range variables {
+		log.Infof("[SNMP RUNNER]%s Variable Name (%d): %s", prefix, idx+1, variable.Name)
 	}
 
 	deviceOIDs := buildDeviceScanMetadata(deviceId, variables)
@@ -126,13 +128,13 @@ func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig) int {
 	for _, payload := range metadataPayloads {
 		payloadBytes, err := json.Marshal(payload)
 		if err != nil {
-			log.Errorf("[SNMP RUNNER] Error marshalling device metadata: %s", err)
+			log.Errorf("[SNMP RUNNER]%s Error marshalling device metadata: %s", prefix, err)
 			continue
 		}
-		log.Debugf("[SNMP RUNNER] Device OID metadata payload: %s", string(payloadBytes))
+		log.Debugf("[SNMP RUNNER]%s Device OID metadata payload: %s", prefix, string(payloadBytes))
 		rc.sender.EventPlatformEvent(payloadBytes, epforwarder.EventTypeNetworkDevicesMetadata)
 		if err != nil {
-			log.Errorf("[SNMP RUNNER] Error sending event platform event for Device OID metadata: %s", err)
+			log.Errorf("[SNMP RUNNER]%s Error sending event platform event for Device OID metadata: %s", prefix, err)
 		}
 	}
 	return len(deviceOIDs)

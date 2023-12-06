@@ -10,11 +10,12 @@ func FetchAllFirstRowOIDsVariables(session gosnmp.GoSNMP) []gosnmp.SnmpPDU {
 	var savedPDUs []gosnmp.SnmpPDU
 	curRequestOid := "1.0"
 	alreadySeenOIDs := make(map[string]bool)
-
+	counter := 0
 	for {
-		//log.Debugf("GetNext request: %s", curRequestOid)
+		counter += 1
+		log.Infof("GetNext request (%d): %s", counter, curRequestOid)
 		results, err := session.GetNext([]string{curRequestOid})
-		//log.Debugf("GetNext results: %+v", results)
+		//log.Infof("GetNext results: %+v", results)
 		if err != nil {
 			log.Debugf("GetNext error: %s", err)
 			break
