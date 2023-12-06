@@ -26,7 +26,6 @@ type VM interface {
 	// CopyFolder copy a folder to the remote host
 	CopyFolder(srcFolder string, dstFolder string)
 
-
 	// GetOSType returns the OS type of the VM.
 	GetOSType() componentos.Type
 
@@ -58,5 +57,4 @@ type VM interface {
 	// RemoveAll recursively removes all files/folders in the specified directory.
 	// Returns an error if the directory does not exist.
 	RemoveAll(path string) error
-
 }
