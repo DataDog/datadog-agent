@@ -16,7 +16,7 @@ import (
 )
 
 // NetworkNFNatSelectors is the list of probes that should be activated if the `nf_nat` module is loaded
-func NetworkNFNatSelectors(fentry bool) []manager.ProbesSelector {
+func NetworkNFNatSelectors() []manager.ProbesSelector {
 	return []manager.ProbesSelector{
 		&manager.OneOf{Selectors: []manager.ProbesSelector{
 			kprobeOrFentry("nf_nat_manip_pkt"),
@@ -26,7 +26,7 @@ func NetworkNFNatSelectors(fentry bool) []manager.ProbesSelector {
 }
 
 // NetworkVethSelectors is the list of probes that should be activated if the `veth` module is loaded
-func NetworkVethSelectors(fentry bool) []manager.ProbesSelector {
+func NetworkVethSelectors() []manager.ProbesSelector {
 	return []manager.ProbesSelector{
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
 			kprobeOrFentry("rtnl_create_link"),
@@ -35,7 +35,7 @@ func NetworkVethSelectors(fentry bool) []manager.ProbesSelector {
 }
 
 // NetworkSelectors is the list of probes that should be activated when the network is enabled
-func NetworkSelectors(fentry bool) []manager.ProbesSelector {
+func NetworkSelectors() []manager.ProbesSelector {
 	return []manager.ProbesSelector{
 		// flow classification probes
 		&manager.AllOf{Selectors: []manager.ProbesSelector{
@@ -70,7 +70,7 @@ var SyscallMonitorSelectors = []manager.ProbesSelector{
 }
 
 // SnapshotSelectors selectors required during the snapshot
-func SnapshotSelectors(fentry bool) []manager.ProbesSelector {
+func SnapshotSelectors() []manager.ProbesSelector {
 	return []manager.ProbesSelector{
 		// required to stat /proc/.../exe
 		kprobeOrFentry("security_inode_getattr"),
@@ -435,8 +435,8 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 		// List of probes required to capture DNS events
 		"dns": {
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
-				&manager.AllOf{Selectors: NetworkSelectors(fentry)},
-				&manager.AllOf{Selectors: NetworkVethSelectors(fentry)},
+				&manager.AllOf{Selectors: NetworkSelectors()},
+				&manager.AllOf{Selectors: NetworkVethSelectors()},
 				kprobeOrFentry("security_socket_bind"),
 			}},
 		},
@@ -446,7 +446,7 @@ func GetSelectorsPerEventType(fentry bool) map[eval.EventType][]manager.ProbesSe
 	loadedModules, err := utils.FetchLoadedModules()
 	if err == nil {
 		if _, ok := loadedModules["nf_nat"]; ok {
-			selectorsPerEventTypeStore["dns"] = append(selectorsPerEventTypeStore["dns"], NetworkNFNatSelectors(fentry)...)
+			selectorsPerEventTypeStore["dns"] = append(selectorsPerEventTypeStore["dns"], NetworkNFNatSelectors()...)
 		}
 	}
 
