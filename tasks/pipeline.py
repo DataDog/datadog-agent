@@ -467,11 +467,9 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
 
 def parse(commit_str):
-    # print("COMMIT: " + commit_str)
     lines = commit_str.split("\n")
     title = lines[0]
     url = ""
-    # print(title)
     pr_id_match = re.search(r".*\(#(\d+)\)", title)
     if pr_id_match is not None:
         url = f"https://github.com/DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
