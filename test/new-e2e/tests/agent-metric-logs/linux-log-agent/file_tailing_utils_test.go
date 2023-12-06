@@ -135,7 +135,6 @@ func (s *LinuxVMFakeintakeSuite) cleanUp() {
 		}
 
 		s.EventuallyWithT(func(c *assert.CollectT) {
-
 			output, err := s.Env().VM.ExecuteWithError(checkCmd)
 			if assert.NoErrorf(c, err, "Having issue cleaning up log files, retrying... %s", output) {
 				t.Log("Successfully cleaned up log files.")
@@ -143,10 +142,12 @@ func (s *LinuxVMFakeintakeSuite) cleanUp() {
 		}, 1*time.Minute, 10*time.Second)
 	}
 
-	err := s.Env().Fakeintake.FlushServerAndResetAggregators()
-	if assert.NoErrorf(t, err, "Having issue flushing server and resetting aggregators, retrying...") {
-		t.Log("Successfully flushed server and reset aggregators.")
-	}
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
+		if assert.NoErrorf(t, err, "Having issue flushing server and resetting aggregators, retrying...") {
+			t.Log("Successfully flushed server and reset aggregators.")
+		}
+	}, 1*time.Minute, 10*time.Second)
 }
 
 // prettyPrintLog pretty prints a log entry.

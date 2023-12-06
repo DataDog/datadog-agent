@@ -48,6 +48,19 @@ func TestE2EVMFakeintakeSuite(t *testing.T) {
 func (s *LinuxVMFakeintakeSuite) BeforeTest(_, _ string) {
 	// Flush server and reset aggregators before the test is ran
 	s.cleanUp()
+
+	// Ensure no logs are present in fakeintake before testing starts
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		logs, err := s.Env().Fakeintake.FilterLogs("hello")
+		if !assert.NoError(c, err, "Unable to filter logs by the service 'hello'.") {
+			return
+		}
+		// If logs are found, print their content for debugging
+		if !assert.Empty(c, logs, "Logs were found when none were expected.") {
+			cat, _ := s.Env().VM.ExecuteWithError("cat /var/log/hello-world.log && cat /var/log/hello-world-2.log")
+			s.T().Logf("Logs detected when none were expected: %v", cat)
+		}
+	}, 2*time.Minute, 10*time.Second)
 }
 
 func (s *LinuxVMFakeintakeSuite) TearDownSuite() {
@@ -57,62 +70,60 @@ func (s *LinuxVMFakeintakeSuite) TearDownSuite() {
 
 func (s *LinuxVMFakeintakeSuite) TestLinuxLogTailing() {
 	// Run test cases
+
+	// Test log file collection with permissions granted before and after log generation
 	s.Run("LogCollection", s.LogCollection)
 
+	// Test log file collection with permission revoked and granted before log generation
 	s.Run("LogPermission", s.LogPermission)
 
-	s.Run("LogRotation", s.LogRotation)
+	// Test log file collection with log file delete and recreate rotation
+	s.Run("LogRecreateRotation", s.LogRecreateRotation)
 }
 
 func (s *LinuxVMFakeintakeSuite) LogCollection() {
 	t := s.T()
-	fakeintake := s.Env().Fakeintake
+	// fakeintake := s.Env().Fakeintake
 
 	// Create a new log file with permissionn inaccessible to the agent
 	s.Env().VM.Execute("sudo touch /var/log/hello-world.log")
 
-	// Part 1: Ensure no logs are present in fakeintake
-	s.EventuallyWithT(func(c *assert.CollectT) {
-		logs, err := fakeintake.FilterLogs("hello")
-		if !assert.NoError(c, err, "Unable to filter logs by the service 'hello'.") {
-			return
-		}
-		// If logs are found, print their content for debugging
-		if !assert.Empty(c, logs, "Logs were found when none were expected.") {
-			cat, _ := s.Env().VM.ExecuteWithError("cat /var/log/hello-world.log && cat /var/log/hello-world-2.log")
-			t.Logf("Logs detected when none were expected: %v", cat)
-		}
-	}, 2*time.Minute, 10*time.Second)
-
-	// Part 2: Adjust permissions of new log file before log generation
+	// Adjust permissions of new log file before log generation
 	output, err := s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
+
 	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-	if strings.TrimSpace(output) == "true" {
-		t.Logf("Permissions granted for new log file.")
-		// Generate log
-		generateLog(s, "hello-before-permission-world", 1)
 
-		// Part 3: Check intake for new logs
-		checkLogs(s, "hello", "hello-before-permission-world", true)
-	}
+	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
 
-	// Part 3: Adjust permissions of new log file after log generation
+	t.Logf("Permissions granted for new log file.")
+	// Generate log
+	generateLog(s, "hello-before-permission-world", 1)
+
+	// Check intake for new logs
+	checkLogs(s, "hello", "hello-before-permission-world", true)
+
+	//  Adjust permissions of new log file after log generation
 
 	// Restore permissions to default and generate log
 	output, err = s.Env().VM.ExecuteWithError("sudo chmod 644 /var/log/hello-world.log && echo true")
-	assert.NoError(t, err, "Unable to adjust back to default permissions for the log file '/var/log/hello-world.log'.")
-	if strings.TrimSpace(output) == "true" {
-		t.Logf("Permissions reset to default.")
-		generateLog(s, "hello-after-permission-world", 1)
-	}
+
+	assert.NoErrorf(t, err, "Unable to adjust back to default permissions, err: %s.", err)
+
+	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust back to default permissions for the log file '/var/log/hello-world.log'.")
+
+	t.Logf("Permissions reset to default.")
+	generateLog(s, "hello-after-permission-world", 1)
 
 	// Grant log file permission and check intake for new logs
 	output, err = s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
+
 	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-	if strings.TrimSpace(output) == "true" {
-		t.Logf("Permissions granted for log file.")
-		checkLogs(s, "hello", "hello-after-permission-world", true)
-	}
+
+	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+
+	t.Logf("Permissions granted for log file.")
+
+	checkLogs(s, "hello", "hello-after-permission-world", true)
 }
 
 func (s *LinuxVMFakeintakeSuite) LogPermission() {
@@ -120,55 +131,71 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 	logPath := "/var/log/hello-world.log"
 	checkLogFilePresence(s, logPath)
 
-	// Part 4: Allow on only write permission to the log file so the agent cannot tail it
+	// Allow on only write permission to the log file so the agent cannot tail it
 	output, err := s.Env().VM.ExecuteWithError("sudo chmod -r /var/log/hello-world.log && echo true")
+
 	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-	if strings.TrimSpace(output) == "true" {
-		t.Logf("Read permissions revoked")
-		s.Env().VM.Execute("sudo service datadog-agent restart")
 
-		generateLog(s, "access-denied", 1)
-		// Check intake to see if new logs are not present
-		checkLogs(s, "hello", "access-denied", false)
-	}
+	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
 
-	// Part 5: Restore permissions
+	t.Logf("Read permissions revoked")
+
+	// In Linux, file permissions are checked at the time of file opening, not during subsequent read or write operations
+	// => If the agent has already successfully opened a file for reading, it can continue to read from that file even if the read permissions are later removed
+	// => Restart the agent to force it to reopen the file
+
+	s.Env().VM.Execute("sudo service datadog-agent restart")
+
+	generateLog(s, "access-denied", 1)
+
+	// Check intake to see if new logs are not present
+	checkLogs(s, "hello", "access-denied", false)
+
+	// Restore permissions
 	output, err = s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
+
 	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
 
-	// Part 6: Generate new logs and check the intake for new logs
-	if strings.TrimSpace(output) == "true" {
-		t.Logf("Permissions restored.")
-		generateLog(s, "access-granted", 1)
-		// Check intake to see if new logs are present
-		checkLogs(s, "hello", "access-granted", true)
-	}
+	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+
+	// Generate new logs and check the intake for new logs
+	t.Logf("Permissions restored.")
+
+	// Wait for the agent to tail the log file since there is a delay between permissions being granted and the agent tailing the log file
+	time.Sleep(1000 * time.Millisecond)
+
+	generateLog(s, "access-granted", 1)
+
+	// Check intake to see if new logs are present
+	checkLogs(s, "hello", "access-granted", true)
 
 }
 
-func (s *LinuxVMFakeintakeSuite) LogRotation() {
+func (s *LinuxVMFakeintakeSuite) LogRecreateRotation() {
 	t := s.T()
 	logPath := "/var/log/hello-world.log"
 	checkLogFilePresence(s, logPath)
 
-	// Part 7: Rotate the log file and check if the agent is tailing the new log file.
+	// Rotate the log file and check if the agent is tailing the new log file.
 	// Delete and Recreate file rotation
+
+	output, err := s.Env().VM.ExecuteWithError("umask 022 && echo true")
+	assert.NoError(t, err, "Failed to set umask")
+
 	s.Env().VM.Execute("sudo mv /var/log/hello-world.log /var/log/hello-world.log.old && sudo touch /var/log/hello-world.log")
 
 	// Verify the old log file's existence after rotation
-	_, err := s.Env().VM.ExecuteWithError("ls /var/log/hello-world.log.old")
+	_, err = s.Env().VM.ExecuteWithError("ls /var/log/hello-world.log.old")
 	assert.NoError(t, err, "Failed to find the old log file after rotation")
 
-	// Grant new log file permission
-	output, err := s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
-	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-	if strings.TrimSpace(output) == "true" {
-		t.Logf("Permissions granted for new log file.")
-		// Generate new logs
-		generateLog(s, "hello-world-new-content", 1)
+	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
 
-		// Check intake for new logs
-		checkLogs(s, "hello", "hello-world-new-content", true)
-	}
+	t.Logf("Permissions granted for new log file.")
+
+	// Generate new logs
+	generateLog(s, "hello-world-new-content", 1)
+
+	// Check intake for new logs
+	checkLogs(s, "hello", "hello-world-new-content", true)
 
 }
