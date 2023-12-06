@@ -67,19 +67,23 @@ func (rc *SnmpwalkRunner) Callback() {
 			log.Infof("[SNMP RUNNER] Missing IP Addr: %v", config)
 			continue
 		}
+
+		log.Infof("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
+
+		localStart := time.Now()
+		fetchStrategy := useGetNext
+		oidsCollectedCount := rc.collectDeviceOIDs(config, fetchStrategy)
+		duration := time.Since(localStart)
+
 		devTags := []string{
 			"namespace:" + namespace, // TODO: FIX ME
 			"device_ip:" + ipaddr,
 			"device_id:" + namespace + ":" + ipaddr,
+			"snmp_command:" + string(fetchStrategy),
 		}
 		for _, tag := range commonTags {
 			devTags = append(devTags, tag)
 		}
-		log.Infof("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
-
-		localStart := time.Now()
-		oidsCollectedCount := rc.collectDeviceOIDs(config)
-		duration := time.Since(localStart)
 		rc.sender.Gauge("datadog.snmpwalk.device.duration", duration.Seconds(), "", devTags)
 		rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", devTags)
 	}
@@ -87,7 +91,7 @@ func (rc *SnmpwalkRunner) Callback() {
 	rc.sender.Commit()
 }
 
-func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig) int {
+func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig, fetchStrategy fetchStrategyType) int {
 	prefix := fmt.Sprintf("(%s)", config.CommunityString)
 	namespace := "default" // TODO: CHANGE PLACEHOLDER
 	deviceId := namespace + ":" + config.IPAddress
@@ -104,7 +108,7 @@ func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig) int {
 	}
 	defer session.Conn.Close()
 
-	variables := FetchAllFirstRowOIDsVariables(session)
+	variables := FetchAllFirstRowOIDsVariables(session, fetchStrategy)
 	log.Infof("[SNMP RUNNER]%s Variables: %d", prefix, len(variables))
 
 	for idx, variable := range variables {
