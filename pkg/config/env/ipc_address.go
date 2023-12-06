@@ -10,6 +10,7 @@ import (
 	"net"
 
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // IsLocalAddress returns the given address if it is local or an error if it is not
@@ -38,9 +39,19 @@ func IsLocalAddress(address string) (string, error) {
 
 // GetIPCAddress returns the IPC address or an error if the address is not local
 func GetIPCAddress(cfg pkgconfigmodel.Reader) (string, error) {
-	address, err := IsLocalAddress(cfg.GetString("ipc_address"))
+	var key string
+	// ipc_address is deprecated in favor of cmd_host, but we still need to support it
+	// if it is set, use it, otherwise use cmd_host
+	if cfg.IsSet("ipc_address") {
+		log.Warn("ipc_address is deprecated, use cmd_host instead")
+		key = "ipc_address"
+	} else {
+		key = "cmd_host"
+	}
+
+	address, err := IsLocalAddress(cfg.GetString(key))
 	if err != nil {
-		return "", fmt.Errorf("ipc_address: %s", err)
+		return "", fmt.Errorf("%s: %s", key, err)
 	}
 	return address, nil
 }

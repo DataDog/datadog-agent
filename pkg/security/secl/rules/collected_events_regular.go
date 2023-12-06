@@ -15,6 +15,8 @@ type EventCollector struct {
 }
 
 // CollectEvent collects event
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (ec *EventCollector) CollectEvent(rs *RuleSet, event eval.Event, result bool) {
 	// no-op
 }

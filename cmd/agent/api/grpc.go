@@ -46,6 +46,7 @@ type serverSecure struct {
 	capture            dsdReplay.Component
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
 	h, err := hostname.Get(ctx)
 	if err != nil {
@@ -58,6 +59,8 @@ func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.H
 // override of the AuthFunc registered with the unary interceptor.
 //
 // see: https://godoc.org/github.com/grpc-ecosystem/go-grpc-middleware/auth#ServiceAuthFuncOverride
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func (s *server) AuthFuncOverride(ctx context.Context, fullMethodName string) (context.Context, error) {
 	return ctx, nil
 }
@@ -73,6 +76,8 @@ func (s *serverSecure) TaggerFetchEntity(ctx context.Context, req *pb.FetchEntit
 // DogstatsdCaptureTrigger triggers a dogstatsd traffic capture for the
 // duration specified in the request. If a capture is already in progress,
 // an error response is sent back.
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.CaptureTriggerRequest) (*pb.CaptureTriggerResponse, error) {
 	d, err := time.ParseDuration(req.GetDuration())
 	if err != nil {
@@ -91,6 +96,8 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 // Tagger facilities. This endpoint is used when traffic replays are in
 // progress. An empty state or nil request will result in the Tagger
 // capture state being reset to nil.
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.TaggerState) (*pb.TaggerStateResponse, error) {
 	// Reset and return if no state pushed
 	if req == nil || req.State == nil {
@@ -126,6 +133,7 @@ func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetCon
 	return s.configService.ClientGetConfigs(ctx, in)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func (s *serverSecure) GetConfigState(ctx context.Context, e *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
 	if s.configService == nil {
 		log.Debug(rcNotInitializedErr.Error())

@@ -26,6 +26,7 @@ var (
 		"Number of times string interner returned an existing string")
 	tlmSIRMiss = telemetry.NewCounter("dogstatsd", "string_interner_miss", []string{"interner_id"},
 		"Number of times string interner created a new string object")
+	//nolint:unused // TODO(AML) Fix unused linter
 	tlmSIRNew = telemetry.NewSimpleCounter("dogstatsd", "string_interner_new",
 		"Number of times string interner was created")
 	tlmSIRStrBytes = telemetry.NewSimpleHistogram("dogstatsd", "string_interner_str_bytes",

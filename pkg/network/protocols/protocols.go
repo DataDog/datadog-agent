@@ -71,7 +71,10 @@ type ProtocolStats struct {
 	Stats interface{}
 }
 
+//nolint:revive // TODO(USM) Fix revive linter
 type ProtocolFactory func(*config.Config) (Protocol, error)
+
+//nolint:revive // TODO(USM) Fix revive linter
 type ProtocolSpec struct {
 	Factory   ProtocolFactory
 	Instance  Protocol

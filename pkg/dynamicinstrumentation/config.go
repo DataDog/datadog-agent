@@ -16,6 +16,7 @@ type Config struct {
 	DynamicInstrumentationEnabled bool
 }
 
+//nolint:revive // TODO(DEBUG) Fix revive linter
 func NewConfig(sysprobeConfig *config.Config) (*Config, error) {
 	_, diEnabled := sysprobeConfig.EnabledModules[config.DynamicInstrumentationModule]
 	return &Config{

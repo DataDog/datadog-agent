@@ -167,6 +167,7 @@ func (c *systemCollector) GetContainerStats(containerNS, containerID string, cac
 	return c.buildContainerMetrics(cg, cacheValidity)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID string, cacheValidity time.Duration) (*uint64, error) {
 	pids, err := c.getPIDs(containerID, cacheValidity)
 	if err != nil {
@@ -181,6 +182,7 @@ func (c *systemCollector) GetContainerOpenFilesCount(containerNS, containerID st
 	return &ofCount, nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *systemCollector) GetContainerNetworkStats(containerNS, containerID string, cacheValidity time.Duration) (*provider.ContainerNetworkStats, error) {
 	pids, err := c.getPIDs(containerID, cacheValidity)
 	if err != nil {
@@ -194,6 +196,7 @@ func (c *systemCollector) GetPIDs(_, containerID string, cacheValidity time.Dura
 	return c.getPIDs(containerID, cacheValidity)
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *systemCollector) GetContainerIDForPID(pid int, cacheValidity time.Duration) (string, error) {
 	containerID, err := cgroups.IdentiferFromCgroupReferences(c.procPath, strconv.Itoa(pid), c.baseController, cgroups.ContainerFilter)
 	return containerID, err
@@ -233,6 +236,7 @@ func (c *systemCollector) getPIDs(containerID string, cacheValidity time.Duratio
 	return c.pidMapper.GetPIDs(containerID, cacheValidity), nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (c *systemCollector) buildContainerMetrics(cg cgroups.Cgroup, cacheValidity time.Duration) (*provider.ContainerStats, error) {
 	stats := &cgroups.Stats{}
 	allFailed, errs := cgroups.GetStats(cg, stats)

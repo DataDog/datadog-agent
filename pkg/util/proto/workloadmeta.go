@@ -123,6 +123,7 @@ func toProtoEventType(eventType workloadmeta.EventType) (pb.WorkloadmetaEventTyp
 	return pb.WorkloadmetaEventType_EVENT_TYPE_ALL, fmt.Errorf("unknown event type: %d", eventType)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func toProtoEntityIdFromContainer(container *workloadmeta.Container) (*pb.WorkloadmetaEntityId, error) {
 	protoKind, err := toProtoKind(container.Kind)
 	if err != nil {
@@ -301,6 +302,7 @@ func toProtoEntityMetaFromKubernetesPod(kubernetesPod *workloadmeta.KubernetesPo
 	}
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func toProtoEntityIdFromKubernetesPod(kubernetesPod *workloadmeta.KubernetesPod) (*pb.WorkloadmetaEntityId, error) {
 	protoKind, err := toProtoKind(kubernetesPod.Kind)
 	if err != nil {
@@ -369,6 +371,7 @@ func toProtoEntityMetaFromECSTask(ecsTask *workloadmeta.ECSTask) *pb.EntityMeta 
 	}
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func toProtoEntityIdFromECSTask(ecsTask *workloadmeta.ECSTask) (*pb.WorkloadmetaEntityId, error) {
 	protoKind, err := toProtoKind(ecsTask.Kind)
 	if err != nil {
@@ -523,6 +526,7 @@ func toWorkloadmetaEventType(protoEventType pb.WorkloadmetaEventType) (workloadm
 }
 
 func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Container, error) {
+	//nolint:revive // TODO(ASC) Fix revive linter
 	entityId, err := toWorkloadmetaEntityID(protoContainer.EntityId)
 	if err != nil {
 		return nil, err
@@ -685,6 +689,7 @@ func toWorkloadmetaContainerHealth(protoContainerHealth pb.ContainerHealth) (wor
 }
 
 func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloadmeta.KubernetesPod, error) {
+	//nolint:revive // TODO(ASC) Fix revive linter
 	entityId, err := toWorkloadmetaEntityID(protoKubernetesPod.EntityId)
 	if err != nil {
 		return nil, err
@@ -733,6 +738,7 @@ func toWorkloadmetaOrchestratorContainer(protoOrchestratorContainer *pb.Orchestr
 }
 
 func toWorkloadmetaECSTask(protoECSTask *pb.ECSTask) (*workloadmeta.ECSTask, error) {
+	//nolint:revive // TODO(ASC) Fix revive linter
 	entityId, err := toWorkloadmetaEntityID(protoECSTask.EntityId)
 	if err != nil {
 		return nil, err

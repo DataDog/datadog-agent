@@ -11,6 +11,8 @@ package probes
 import manager "github.com/DataDog/ebpf-manager"
 
 // getSharedProbes returns the list of probes that are shared across multiple events
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func getSharedProbes(fentry bool) []*manager.Probe {
 	return []*manager.Probe{
 		{

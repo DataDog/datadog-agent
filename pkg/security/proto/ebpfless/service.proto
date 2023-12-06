@@ -43,6 +43,14 @@ message OpenSyscallMsg {
     uint32 Mode = 3;
 }
 
+message DupSyscallFakeMsg {
+    int32 OldFd = 1;
+}
+
+message ChdirSyscallFakeMsg {
+    string Path = 1;
+}
+
 message SyscallMsg {
     uint64 SeqNum = 1;
     SyscallType Type = 2;
@@ -54,6 +62,8 @@ message SyscallMsg {
     ForkSyscallMsg Fork = 7;
     ExitSyscallMsg Exit = 8;
     FcntlSyscallMsg Fcntl = 9;
+    DupSyscallFakeMsg Dup = 10;
+    ChdirSyscallFakeMsg Chdir = 11;
 }
 
 message Response {}

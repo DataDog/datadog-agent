@@ -248,6 +248,8 @@ func (r *ReOrderer) Start(wg *sync.WaitGroup) {
 }
 
 // HandleEvent handle event form perf ring
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (r *ReOrderer) HandleEvent(record *perf.Record, perfMap *manager.PerfMap, manager *manager.Manager) {
 	select {
 	case r.queue <- record:

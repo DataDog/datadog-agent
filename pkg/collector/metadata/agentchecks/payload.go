@@ -51,6 +51,8 @@ func (p *Payload) MarshalJSON() ([]byte, error) {
 }
 
 // SplitPayload breaks the payload into times number of pieces
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *Payload) SplitPayload(times int) ([]marshaler.AbstractMarshaler, error) {
 	return nil, fmt.Errorf("AgentChecks Payload splitting is not implemented")
 }

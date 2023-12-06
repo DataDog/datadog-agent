@@ -19,11 +19,13 @@ import (
 
 const noJMXErrorString = "jmx is not compiled in this agent"
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func getJMXConfigs(w http.ResponseWriter, r *http.Request) {
 	log.Error(noJMXErrorString)
 	http.Error(w, noJMXErrorString, 500)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func setJMXStatus(w http.ResponseWriter, r *http.Request) {
 	log.Error(noJMXErrorString)
 	http.Error(w, noJMXErrorString, 500)

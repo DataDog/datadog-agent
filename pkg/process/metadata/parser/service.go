@@ -74,6 +74,7 @@ func NewServiceExtractor(sysProbeConfig ddconfig.Reader) *ServiceExtractor {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	if !d.enabled {
 		return
@@ -101,6 +102,7 @@ func (d *ServiceExtractor) Extract(processes map[int32]*procutil.Process) {
 	d.serviceByPID = serviceByPID
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (d *ServiceExtractor) GetServiceContext(pid int32) []string {
 	if !d.enabled {
 		return nil

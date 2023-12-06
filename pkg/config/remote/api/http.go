@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(RC) Fix revive linter
 package api
 
 import (
@@ -48,6 +49,7 @@ type API interface {
 	FetchOrgStatus(context.Context) (*pbgo.OrgStatusResponse, error)
 }
 
+//nolint:revive // TODO(RC) Fix revive linter
 type Auth struct {
 	ApiKey    string
 	AppKey    string

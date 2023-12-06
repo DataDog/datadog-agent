@@ -47,6 +47,7 @@ func TestProxyLifecycleProcessor(t *testing.T) {
 			IsError: false,
 		})
 		// Run the span modifier to mock the trace-agent calling it when receiving a trace from the tracer
+		//nolint:revive // TODO(ASM) Fix revive linter
 		spanId := rand.Uint64()
 		chunk := &pb.TraceChunk{
 			Spans: []*pb.Span{

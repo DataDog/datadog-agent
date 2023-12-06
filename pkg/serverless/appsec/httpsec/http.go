@@ -110,7 +110,7 @@ func tryParseBody(headers textproto.MIMEHeader, raw string) (body any, err error
 
 	if value := headers.Get("Content-Type"); value == "" {
 		return nil, nil
-	} else {
+	} else { //nolint:revive // TODO(ASM) Fix revive linter
 		mt, p, err := mime.ParseMediaType(value)
 		if err != nil {
 			return nil, err

@@ -160,10 +160,14 @@ func (og *OffsetGuesser) guess(id string) error {
 }
 
 // AppendSizeofRequest appends a sizeof request
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (og *OffsetGuesser) AppendSizeofRequest(id, typeName, headerName string) {
 }
 
 // AppendOffsetofRequest appends an offset request
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func (og *OffsetGuesser) AppendOffsetofRequest(id, typeName, fieldName, headerName string) {
 	og.res[id] = ErrorSentinel
 }

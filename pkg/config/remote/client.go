@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+//nolint:revive // TODO(RC) Fix revive linter
 package remote
 
 import (
@@ -84,6 +85,8 @@ type agentGRPCConfigFetcher struct {
 }
 
 // NewAgentGRPCConfigFetcher returns a gRPC config fetcher using the secure agent client
+//
+//nolint:revive // TODO(RC) Fix revive linter
 func NewAgentGRPCConfigFetcher() (*agentGRPCConfigFetcher, error) {
 	c, err := ddgrpc.GetDDAgentSecureClient(context.Background(), grpc.WithDefaultCallOptions(
 		grpc.MaxCallRecvMsgSize(maxMessageSize),
@@ -181,6 +184,7 @@ func newClient(agentName string, updater ConfigUpdater, doTufVerification bool, 
 		}
 	}
 
+	//nolint:revive // TODO(RC) Fix revive linter
 	ctx, close := context.WithCancel(context.Background())
 
 	return &Client{
