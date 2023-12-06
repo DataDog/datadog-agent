@@ -13,9 +13,11 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder"
 	nfconfig "github.com/DataDog/datadog-agent/comp/snmpwalk/config"
+	"github.com/DataDog/datadog-agent/comp/snmpwalk/fetch"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"go.uber.org/fx"
 	"sync"
+	"time"
 )
 
 type dependencies struct {
@@ -53,6 +55,10 @@ func newServer(lc fx.Lifecycle, deps dependencies) (Component, error) {
 	// TODO: USE SENDER
 	_ = sender
 	server.logger.Infof("[SNMPWALK] Starting Snmpwalk Server")
+
+	time.Sleep(5 * time.Second)
+	runner := fetch.NewSnmpwalkRunner(sender)
+	runner.Callback()
 
 	globalServerMu.Lock()
 	globalServer = server
