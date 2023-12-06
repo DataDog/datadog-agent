@@ -15,7 +15,6 @@ import (
 	"net/http"
 )
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func getPythonStatus(w http.ResponseWriter, r *http.Request) {
+func getPythonStatus(_ http.ResponseWriter, _ *http.Request) {
 	// nothing here when python disabled
 }

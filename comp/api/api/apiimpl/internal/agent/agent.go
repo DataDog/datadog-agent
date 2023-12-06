@@ -24,11 +24,11 @@ import (
 	"github.com/DataDog/zstd"
 	"github.com/gorilla/mux"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/api/response"
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/agent/gui"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/response"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
@@ -124,8 +124,7 @@ func setJSONError(w http.ResponseWriter, err error, errorCode int) {
 	http.Error(w, string(body), errorCode)
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func stopAgent(w http.ResponseWriter, r *http.Request) {
+func stopAgent(w http.ResponseWriter, _ *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
 	j, _ := json.Marshal("")
@@ -361,8 +360,7 @@ func getFormattedStatus(w http.ResponseWriter, _ *http.Request, invAgent invento
 	w.Write(s)
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func getHealth(w http.ResponseWriter, r *http.Request) {
+func getHealth(w http.ResponseWriter, _ *http.Request) {
 	h := health.GetReady()
 
 	if len(h.Unhealthy) > 0 {
@@ -379,13 +377,11 @@ func getHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonHealth)
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func getCSRFToken(w http.ResponseWriter, r *http.Request) {
+func getCSRFToken(w http.ResponseWriter, _ *http.Request) {
 	w.Write([]byte(gui.CsrfToken))
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func getConfigCheck(w http.ResponseWriter, r *http.Request) {
+func getConfigCheck(w http.ResponseWriter, _ *http.Request) {
 	var response response.ConfigCheckResponse
 
 	if common.AC == nil {
@@ -412,8 +408,7 @@ func getConfigCheck(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonConfig)
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func getTaggerList(w http.ResponseWriter, r *http.Request) {
+func getTaggerList(w http.ResponseWriter, _ *http.Request) {
 	// query at the highest cardinality between checks and dogstatsd cardinalities
 	cardinality := collectors.TagCardinality(max(int(tagger.ChecksCardinality), int(tagger.DogstatsdCardinality)))
 	response := tagger.List(cardinality)

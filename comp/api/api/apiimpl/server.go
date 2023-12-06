@@ -3,12 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-/*
-Package api implements the agent IPC api. Using HTTP
-calls, it's possible to communicate with the agent,
-sending commands and receiving infos.
-*/
-package api
+package apiimpl
 
 import (
 	"crypto/tls"

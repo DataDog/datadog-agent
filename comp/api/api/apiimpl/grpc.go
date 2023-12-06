@@ -3,12 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-/*
-Package api implements the agent IPC api. Using HTTP
-calls, it's possible to communicate with the agent,
-sending commands and receiving infos.
-*/
-package api
+package apiimpl
 
 import (
 	"context"
@@ -46,8 +41,7 @@ type serverSecure struct {
 	capture            dsdReplay.Component
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.HostnameReply, error) {
+func (s *server) GetHostname(ctx context.Context, _ *pb.HostnameRequest) (*pb.HostnameReply, error) {
 	h, err := hostname.Get(ctx)
 	if err != nil {
 		return &pb.HostnameReply{}, err
@@ -59,9 +53,7 @@ func (s *server) GetHostname(ctx context.Context, in *pb.HostnameRequest) (*pb.H
 // override of the AuthFunc registered with the unary interceptor.
 //
 // see: https://godoc.org/github.com/grpc-ecosystem/go-grpc-middleware/auth#ServiceAuthFuncOverride
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func (s *server) AuthFuncOverride(ctx context.Context, fullMethodName string) (context.Context, error) {
+func (s *server) AuthFuncOverride(ctx context.Context, _ string) (context.Context, error) {
 	return ctx, nil
 }
 
@@ -76,9 +68,7 @@ func (s *serverSecure) TaggerFetchEntity(ctx context.Context, req *pb.FetchEntit
 // DogstatsdCaptureTrigger triggers a dogstatsd traffic capture for the
 // duration specified in the request. If a capture is already in progress,
 // an error response is sent back.
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.CaptureTriggerRequest) (*pb.CaptureTriggerResponse, error) {
+func (s *serverSecure) DogstatsdCaptureTrigger(_ context.Context, req *pb.CaptureTriggerRequest) (*pb.CaptureTriggerResponse, error) {
 	d, err := time.ParseDuration(req.GetDuration())
 	if err != nil {
 		return &pb.CaptureTriggerResponse{}, err
@@ -96,9 +86,7 @@ func (s *serverSecure) DogstatsdCaptureTrigger(ctx context.Context, req *pb.Capt
 // Tagger facilities. This endpoint is used when traffic replays are in
 // progress. An empty state or nil request will result in the Tagger
 // capture state being reset to nil.
-//
-//nolint:revive // TODO(ASC) Fix revive linter
-func (s *serverSecure) DogstatsdSetTaggerState(ctx context.Context, req *pb.TaggerState) (*pb.TaggerStateResponse, error) {
+func (s *serverSecure) DogstatsdSetTaggerState(_ context.Context, req *pb.TaggerState) (*pb.TaggerStateResponse, error) {
 	// Reset and return if no state pushed
 	if req == nil || req.State == nil {
 		log.Debugf("API: empty request or state")
@@ -133,8 +121,7 @@ func (s *serverSecure) ClientGetConfigs(ctx context.Context, in *pb.ClientGetCon
 	return s.configService.ClientGetConfigs(ctx, in)
 }
 
-//nolint:revive // TODO(ASC) Fix revive linter
-func (s *serverSecure) GetConfigState(ctx context.Context, e *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
+func (s *serverSecure) GetConfigState(_ context.Context, _ *emptypb.Empty) (*pb.GetStateConfigResponse, error) {
 	if s.configService == nil {
 		log.Debug(rcNotInitializedErr.Error())
 		return nil, rcNotInitializedErr
