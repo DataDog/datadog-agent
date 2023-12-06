@@ -35,6 +35,7 @@ func NewSnmpwalkRunner(sender sender.Sender) *SnmpwalkRunner {
 
 // Callback is when profiles updates are available (rc product NDM_DEVICE_PROFILES_CUSTOM)
 func (rc *SnmpwalkRunner) Callback() {
+	globalStart := time.Now()
 	log.Info("[SNMP RUNNER] SNMP RUNNER")
 
 	// TODO: Do not collect snmp-listener configs
@@ -49,15 +50,23 @@ func (rc *SnmpwalkRunner) Callback() {
 		log.Infof("[SNMP RUNNER] SNMP config: %+v", config)
 	}
 
+	namespace := "default"
 	for _, config := range snmpConfigList {
-		ipaddr := config.IPAddress
-		log.Infof("[SNMP RUNNER] ipaddr: %s", ipaddr)
-		if ipaddr == "127.0.0.50" {
-			log.Infof("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
-
-			rc.collectDeviceOIDs(config)
+		tags := []string{
+			"namespace:" + namespace, // TODO: FIX ME
+			"device_ip:" + config.IPAddress,
+			"device_id:" + namespace + ":" + config.IPAddress,
 		}
+
+		ipaddr := config.IPAddress
+		log.Infof("[SNMP RUNNER] Run Device OID Scan for: %s", ipaddr)
+
+		localStart := time.Now()
+		rc.collectDeviceOIDs(config)
+		duration := time.Since(localStart)
+		rc.sender.Gauge("datadog.snmpwalk.device.duration", duration.Seconds(), "", tags)
 	}
+	rc.sender.Gauge("datadog.snmpwalk.total.duration", time.Since(globalStart).Seconds(), "", nil)
 }
 
 func (rc *SnmpwalkRunner) collectDeviceOIDs(config parse.SNMPConfig) {
