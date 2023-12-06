@@ -197,8 +197,13 @@ func InitSystemProbeConfig(cfg Config) {
 
 	cfg.BindEnvAndSetDefault(join(spNS, "language_detection.enabled"), false)
 
-	cfg.BindEnvAndSetDefault(join(spNS, "process_service_inference.enabled"), false, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
-	cfg.BindEnvAndSetDefault(join(spNS, "process_service_inference.use_windows_service_name"), true, "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
+	//For backward compatibility
+	cfg.BindEnv(join(smNS, "process_service_inference", "enabled"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_ENABLED")
+	cfg.BindEnv(join(spNS, "process_service_inference", "enabled"))
+
+	//For backward compatibility
+	cfg.BindEnv(join(smNS, "process_service_inference", "use_windows_service_name"), "DD_SYSTEM_PROBE_PROCESS_SERVICE_INFERENCE_USE_WINDOWS_SERVICE_NAME")
+	cfg.BindEnv(join(spNS, "process_service_inference", "use_windows_service_name"))
 
 	// network_config namespace only
 
