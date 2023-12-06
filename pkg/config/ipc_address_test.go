@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package env
+package config
 
 import (
 	"strings"
@@ -23,7 +23,7 @@ const (
 func TestGetIPCAddress(t *testing.T) {
 	t.Run("default value", func(t *testing.T) {
 		cfg := getConfig()
-		val, err := GetIPCAddress(cfg)
+		val, err := getIPCAddress(cfg)
 		require.NoError(t, err)
 		require.Equal(t, localhostStr, val)
 	})
@@ -31,7 +31,7 @@ func TestGetIPCAddress(t *testing.T) {
 	t.Run("ipc_address from file", func(t *testing.T) {
 		cfg := getConfig()
 		cfg.Set("ipc_address", localhostV4, model.SourceFile)
-		val, err := GetIPCAddress(cfg)
+		val, err := getIPCAddress(cfg)
 		require.NoError(t, err)
 		require.Equal(t, localhostV4, val)
 	})
@@ -39,7 +39,7 @@ func TestGetIPCAddress(t *testing.T) {
 	t.Run("ipc_address from env", func(t *testing.T) {
 		cfg := getConfig()
 		t.Setenv("DD_IPC_ADDRESS", localhostV4)
-		val, err := GetIPCAddress(cfg)
+		val, err := getIPCAddress(cfg)
 		require.NoError(t, err)
 		require.Equal(t, localhostV4, val)
 	})
@@ -48,7 +48,7 @@ func TestGetIPCAddress(t *testing.T) {
 		cfg := getConfig()
 		cfg.Set("ipc_address", localhostV4, model.SourceFile)
 		cfg.Set("cmd_host", localhostV6, model.SourceFile)
-		val, err := GetIPCAddress(cfg)
+		val, err := getIPCAddress(cfg)
 		require.NoError(t, err)
 		require.Equal(t, localhostV4, val)
 	})
@@ -56,7 +56,7 @@ func TestGetIPCAddress(t *testing.T) {
 	t.Run("ipc_address takes precedence over cmd_host", func(t *testing.T) {
 		cfg := getConfig()
 		cfg.Set("cmd_host", localhostV6, model.SourceFile)
-		val, err := GetIPCAddress(cfg)
+		val, err := getIPCAddress(cfg)
 		require.NoError(t, err)
 		require.Equal(t, localhostV6, val)
 	})
@@ -64,7 +64,7 @@ func TestGetIPCAddress(t *testing.T) {
 	t.Run("error if not local", func(t *testing.T) {
 		cfg := getConfig()
 		cfg.Set("cmd_host", "111.111.111.111", model.SourceFile)
-		_, err := GetIPCAddress(cfg)
+		_, err := getIPCAddress(cfg)
 		require.Error(t, err)
 	})
 }
