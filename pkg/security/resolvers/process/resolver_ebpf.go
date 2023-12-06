@@ -953,7 +953,7 @@ func (p *EBPFResolver) GetProcessArgvScrubbed(pr *model.Process) ([]string, bool
 		pr.ScrubbedArgvResolved = true
 	}
 
-	return argv, truncated
+	return pr.ArgsEntry.Values, truncated
 }
 
 // SetProcessEnvs set envs to cache entry

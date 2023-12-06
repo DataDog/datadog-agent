@@ -6,6 +6,8 @@
 // Package ebpfless holds msgpack messages
 package ebpfless
 
+import "encoding/json"
+
 // SyscallType defines the type of a syscall message
 type SyscallType int32
 
@@ -83,4 +85,10 @@ type SyscallMsg struct {
 	Fcntl            *FcntlSyscallMsg
 	Dup              *DupSyscallFakeMsg
 	Chdir            *ChdirSyscallFakeMsg
+}
+
+// String returns string representation
+func (s SyscallMsg) String() string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }

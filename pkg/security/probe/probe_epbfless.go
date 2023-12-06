@@ -158,14 +158,14 @@ func (p *EBPFLessProbe) readMsg(conn net.Conn, msg *ebpfless.SyscallMsg) error {
 
 	size := native.Endian.Uint32(sizeBuf)
 	if size > 64*1024 {
-		return errors.New("data overflow the max size")
+		return fmt.Errorf("data overflow the max size: %d", size)
 	}
 
 	if cap(p.buf) < int(size) {
 		p.buf = make([]byte, size)
 	}
 
-	n, err = conn.Read(p.buf)
+	n, err = conn.Read(p.buf[:size])
 	if err != nil {
 		return err
 	}

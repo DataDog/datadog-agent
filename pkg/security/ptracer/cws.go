@@ -387,7 +387,7 @@ func StartCWSPtracer(args []string, grpcAddr string, verbose bool) error {
 		for msg := range msgChan {
 			msg.SeqNum = seq
 
-			logDebugf("sending message: %+v", msg)
+			logDebugf("sending message: %s", msg)
 
 			if grpcAddr != "" {
 				data, err := msgpack.Marshal(msg)
