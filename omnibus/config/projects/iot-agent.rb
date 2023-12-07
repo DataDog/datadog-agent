@@ -139,14 +139,8 @@ package :msi do
 
   # For a consistent package management, please NEVER change this code
   arch = "x64"
-  if windows_arch_i386?
-    full_agent_upgrade_code = '2497f989-f07e-4e8c-9e05-841ad3d4405f'
-    upgrade_code '6f7ac237-334c-44c8-9fec-ec8f3459db37'
-    arch = "x86"
-  else
-    full_agent_upgrade_code = '0c50421b-aefb-4f15-a809-7af256d608a5'
-    upgrade_code '1b3d4067-fd27-4de4-bfc9-605695ad514c'
-  end
+  full_agent_upgrade_code = '0c50421b-aefb-4f15-a809-7af256d608a5'
+  upgrade_code '1b3d4067-fd27-4de4-bfc9-605695ad514c'
   wix_candle_extension 'WixUtilExtension'
   wix_light_extension 'WixUtilExtension'
   extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"

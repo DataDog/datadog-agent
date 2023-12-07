@@ -160,7 +160,7 @@ def _update_install_devenv(warn: bool, version: str):
         path,
         r'(https://dl\.google\.com/go/go)[.0-9]+(\.windows-)',
         rf'\g<1>{version}\g<2>',
-        2,
+        1,
     )
 
 
