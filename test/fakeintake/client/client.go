@@ -40,12 +40,12 @@ package client
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"regexp"
 	"strings"
 	"time"
 
@@ -65,6 +65,8 @@ const (
 	containersEndpoint       = "/api/v1/container"
 	processDiscoveryEndpoint = "/api/v1/discovery"
 	flareEndpoint            = "/support/flare"
+
+	defaultHTTPTimeout = 2 * time.Minute
 )
 
 // ErrNoFlareAvailable is returned when no flare is available
@@ -73,6 +75,7 @@ var ErrNoFlareAvailable = errors.New("no flare available")
 //nolint:revive // TODO(APL) Fix revive linter
 type Client struct {
 	fakeIntakeURL string
+	httpClient    *http.Client
 
 	metricAggregator           aggregator.MetricAggregator
 	checkRunAggregator         aggregator.CheckRunAggregator
@@ -86,8 +89,18 @@ type Client struct {
 // NewClient creates a new fake intake client
 // fakeIntakeURL: the host of the fake Datadog intake server
 func NewClient(fakeIntakeURL string) *Client {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // FakeIntake never has a valid cert
+
+	httpClient := &http.Client{
+		Transport: transport,
+		Timeout:   defaultHTTPTimeout, // We set a large timeout to be ~backward compatible
+	}
+
 	return &Client{
-		fakeIntakeURL:              strings.TrimSuffix(fakeIntakeURL, "/"),
+		fakeIntakeURL: strings.TrimSuffix(fakeIntakeURL, "/"),
+		httpClient:    httpClient,
+
 		metricAggregator:           aggregator.NewMetricAggregator(),
 		checkRunAggregator:         aggregator.NewCheckRunAggregator(),
 		logAggregator:              aggregator.NewLogAggregator(),
@@ -170,7 +183,7 @@ func (c *Client) GetLatestFlare() (flare.Flare, error) {
 }
 
 func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, err error) {
-	body, err := c.get(fmt.Sprintf("fakeintake/payloads?endpoint=%s", endpoint))
+	body, err := c.getWithRetry(fmt.Sprintf("fakeintake/payloads?endpoint=%s", endpoint))
 	if err != nil {
 		return nil, err
 	}
@@ -185,15 +198,8 @@ func (c *Client) getFakePayloads(endpoint string) (rawPayloads []api.Payload, er
 // GetServerHealth fetches fakeintake health status and returns an error if
 // fakeintake is unhealthy
 func (c *Client) GetServerHealth() error {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/health", c.fakeIntakeURL))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error code %v", resp.StatusCode)
-	}
-	return nil
+	_, err := c.get("fakeintake/health")
+	return err
 }
 
 // ConfigureOverride sets a response override on the fakeintake server
@@ -225,9 +231,6 @@ func (c *Client) getMetric(name string) ([]*aggregator.MetricSeries, error) {
 	}
 	return c.metricAggregator.GetPayloadsByName(name), nil
 }
-
-// A MatchOpt to filter fakeintake payloads
-type MatchOpt[P aggregator.PayloadItem] func(payload P) (bool, error)
 
 // GetMetricNames fetches fakeintake on `/api/v2/series` endpoint and returns
 // all received metric names
@@ -265,56 +268,6 @@ func (c *Client) FilterMetrics(name string, options ...MatchOpt[*aggregator.Metr
 		}
 	}
 	return filteredMetrics, nil
-}
-
-// WithTags filters by `tags`
-func WithTags[P aggregator.PayloadItem](tags []string) MatchOpt[P] {
-	return func(payload P) (bool, error) {
-		if aggregator.AreTagsSubsetOfOtherTags(tags, payload.GetTags()) {
-			return true, nil
-		}
-		// TODO return similarity error score
-		return false, nil
-	}
-}
-
-// WithMetricValueInRange filters metrics with values in range `minValue < value < maxValue`
-func WithMetricValueInRange(minValue float64, maxValue float64) MatchOpt[*aggregator.MetricSeries] {
-	return func(metric *aggregator.MetricSeries) (bool, error) {
-		isMatch, err := WithMetricValueHigherThan(minValue)(metric)
-		if !isMatch || err != nil {
-			return isMatch, err
-		}
-		return WithMetricValueLowerThan(maxValue)(metric)
-	}
-}
-
-// WithMetricValueLowerThan filters metrics with values lower than `maxValue`
-func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSeries] {
-	return func(metric *aggregator.MetricSeries) (bool, error) {
-		for _, point := range metric.Points {
-			if point.Value < maxValue {
-				return true, nil
-			}
-		}
-		// TODO return similarity error score
-		return false, nil
-	}
-}
-
-// WithMetricValueLowerThan filters metrics with values higher than `minValue`
-//
-//nolint:revive // TODO(APL) Fix revive linter
-func WithMetricValueHigherThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
-	return func(metric *aggregator.MetricSeries) (bool, error) {
-		for _, point := range metric.Points {
-			if point.Value > minValue {
-				return true, nil
-			}
-		}
-		// TODO return similarity error score
-		return false, nil
-	}
 }
 
 func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
@@ -365,32 +318,6 @@ func (c *Client) FilterLogs(service string, options ...MatchOpt[*aggregator.Log]
 	return filteredLogs, nil
 }
 
-// WithMessageContaining filters logs by message containing `content`
-func WithMessageContaining(content string) MatchOpt[*aggregator.Log] {
-	return func(log *aggregator.Log) (bool, error) {
-		if strings.Contains(log.Message, content) {
-			return true, nil
-		}
-		// TODO return similarity score in error
-		return false, nil
-	}
-}
-
-// WithMessageMatching filters logs by message matching [regexp](https://pkg.go.dev/regexp) `pattern`
-func WithMessageMatching(pattern string) MatchOpt[*aggregator.Log] {
-	return func(log *aggregator.Log) (bool, error) {
-		matched, err := regexp.MatchString(pattern, log.Message)
-		if err != nil {
-			return false, err
-		}
-		if matched {
-			return true, nil
-		}
-		// TODO return similarity score in error
-		return false, nil
-	}
-}
-
 // GetCheckRunNames fetches fakeintake on `/api/v1/check_run` endpoint and returns
 // all received check run names
 func (c *Client) GetCheckRunNames() ([]string, error) {
@@ -428,15 +355,8 @@ func (c *Client) FlushServerAndResetAggregators() error {
 }
 
 func (c *Client) flushPayloads() error {
-	resp, err := http.Get(fmt.Sprintf("%s/fakeintake/flushPayloads", c.fakeIntakeURL))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error code %v", resp.StatusCode)
-	}
-	return nil
+	_, err := c.get("fakeintake/flushPayloads")
+	return err
 }
 
 // GetConnections fetches fakeintake on `/api/v1/connections` endpoint and returns
@@ -512,27 +432,10 @@ func (c *Client) GetProcessDiscoveries() ([]*aggregator.ProcessDiscoveryPayload,
 	return discs, nil
 }
 
-func (c *Client) get(route string) ([]byte, error) {
-	var body []byte
-	err := backoff.Retry(func() error {
-		tmpResp, err := http.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
-		if err != nil {
-			return err
-		}
-		defer tmpResp.Body.Close()
-		if tmpResp.StatusCode != http.StatusOK {
-			return fmt.Errorf("Expected %d got %d", http.StatusOK, tmpResp.StatusCode)
-		}
-		body, err = io.ReadAll(tmpResp.Body)
-		return err
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
-	return body, err
-}
-
 // RouteStats queries the routestats fakeintake endpoint to get statistics about each route.
 // It only returns statistics about endpoint which store some payloads.
 func (c *Client) RouteStats() (map[string]int, error) {
-	body, err := c.get("fakeintake/routestats")
+	body, err := c.getWithRetry("fakeintake/routestats")
 	if err != nil {
 		return nil, err
 	}
@@ -552,4 +455,28 @@ func (c *Client) RouteStats() (map[string]int, error) {
 	}
 
 	return routes, nil
+}
+
+func (c *Client) getWithRetry(route string) ([]byte, error) {
+	var body []byte
+	err := backoff.Retry(func() error {
+		var err error
+		body, err = c.get(route)
+		return err
+	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(5*time.Second), 4))
+	return body, err
+}
+
+func (c *Client) get(route string) ([]byte, error) {
+	reply, err := c.httpClient.Get(fmt.Sprintf("%s/%s", c.fakeIntakeURL, route))
+	if err != nil {
+		return nil, err
+	}
+
+	defer reply.Body.Close()
+	if reply.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("Expected %d got %d", http.StatusOK, reply.StatusCode)
+	}
+
+	return io.ReadAll(reply.Body)
 }
