@@ -68,6 +68,7 @@ func (s *GosnmpSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (resul
 
 // GetNext will send a SNMP GETNEXT command
 func (s *GosnmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	s.nextRequestCount++
 	return s.gosnmpInst.GetNext(oids)
 }
 
