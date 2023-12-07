@@ -34,7 +34,7 @@ func MetricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceTomcat,
 		metrics.MetricSourceWeblogic,
 		// Core Checks
-		metrics.MetricSourceAgentTelemetry,
+		metrics.MetricSourceInternal,
 		metrics.MetricSourceContainer,
 		metrics.MetricSourceContainerd,
 		metrics.MetricSourceCri,
@@ -162,7 +162,7 @@ func MetricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 202
 	case metrics.MetricSourceLoad:
 		return 203
-	case metrics.MetricSourceAgentTelemetry:
+	case metrics.MetricSourceInternal:
 		return 212
 	default:
 		return 0
