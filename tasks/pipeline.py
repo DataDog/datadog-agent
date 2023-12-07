@@ -522,10 +522,7 @@ def changelog(ctx, new_commit_sha):
         title, author, author_email, files, url = parse(commit_str)
         if not is_system_probe(owners, files):
             continue
-        if url:
-            message_link = f"• <{url}|{title}>"
-        else:
-            message_link = f"• {title}"
+        message_link = f"• <{url}|{title}>" if url else f"• {title}"
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
