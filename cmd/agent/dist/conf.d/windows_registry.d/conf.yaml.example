@@ -2,9 +2,10 @@
 #
 init_config:
   ## @param send_on_start - boolean - optional - default: true
-  ## Can be overritten per instance and indicate that registry values will be sent as logs
-  ## not only when they changed but also when Agent starts.
+  ## Can be overridden per instance and indicate that registry values will
+  ## be sent as logs not only when they change but also when Agent starts.
   # send_on_start: true
+
 
   ## @param service - string - optional
   ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
@@ -21,7 +22,7 @@ instances:
     ## @param registry_keys - mapping - required
     ## This mapping defines which metrics to collect from the windows registry monitoring integration.
     ## All of the specified registry values will also be sent as a log when the value is added, modified
-    ## or deleted but only if the Logs Agent is enabled. Registry value also will sent as a log
+    ## or deleted but only if the Logs Agent is enabled. Registry value also will be sent as a log
     ## when the Agent starts if send_on_start option is set to true.
     ##
     ## Note: registry value of types REG_MULTI_SZ and REG_BINARY are not supported.
@@ -44,8 +45,8 @@ instances:
     ##        ...
     ##
     ## Numeric registry value or string registry value which can be automatically converted to a number
-    ## will be send as a metric. If a registry string value cannot be automaticaly converted to a number
-    ## it still can be sent as a metric if custom convertion mapping from string to numeric value is
+    ## will be sent as a metric. If a registry string value cannot be automatically converted to a number
+    ## it still can be sent as a metric if custom conversion mapping from string to numeric value is
     ## specified via `mapping` option.
     ##
     ## Metric name is implicitly constructed from the provided registry key and registry value name options
