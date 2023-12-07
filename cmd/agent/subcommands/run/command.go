@@ -56,6 +56,7 @@ import (
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+
 	//nolint:revive // TODO(ASC) Fix revive linter
 	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -541,19 +542,9 @@ func startAgent(
 	// start the cmd HTTP server
 	if err = agentAPI.StartServer(
 		configService,
-		flare,
-		server,
-		capture,
-		serverDebug,
 		wmeta,
 		logsAgent,
 		demultiplexer,
-		hostMetadata,
-		invAgent,
-		demultiplexer,
-		invHost,
-		secretResolver,
-		invChecks,
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}

@@ -48,19 +48,9 @@ func newMock() api.Mock {
 // StartServer creates the router and starts the HTTP server
 func (mock *mockAPIServer) StartServer(
 	_ *remoteconfig.Service,
-	_ flare.Component,
-	_ dogstatsdServer.Component,
-	_ replay.Component,
-	_ dogstatsddebug.Component,
 	_ workloadmeta.Component,
 	_ optional.Option[logsAgent.Component],
 	_ sender.DiagnoseSenderManager,
-	_ host.Component,
-	_ inventoryagent.Component,
-	_ demultiplexer.Component,
-	_ inventoryhost.Component,
-	_ secrets.Component,
-	_ inventorychecks.Component,
 ) error {
 	return nil
 }

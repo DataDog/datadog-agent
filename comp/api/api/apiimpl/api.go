@@ -36,45 +36,71 @@ var Module = fxutil.Component(
 )
 
 type apiServer struct {
+	flare           flare.Component
+	dogstatsdServer dogstatsdServer.Component
+	capture         replay.Component
+	serverDebug     dogstatsddebug.Component
+	hostMetadata    host.Component
+	invAgent        inventoryagent.Component
+	demux           demultiplexer.Component
+	invHost         inventoryhost.Component
+	secretResolver  secrets.Component
+	invChecks       inventorychecks.Component
+}
+
+type dependencies struct {
+	fx.In
+
+	flare           flare.Component
+	dogstatsdServer dogstatsdServer.Component
+	capture         replay.Component
+	serverDebug     dogstatsddebug.Component
+	hostMetadata    host.Component
+	invAgent        inventoryagent.Component
+	demux           demultiplexer.Component
+	invHost         inventoryhost.Component
+	secretResolver  secrets.Component
+	invChecks       inventorychecks.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
 
-func newAPIServer() api.Component {
-	return &apiServer{}
+func newAPIServer(deps dependencies) api.Component {
+	return &apiServer{
+		flare:           deps.flare,
+		dogstatsdServer: deps.dogstatsdServer,
+		capture:         deps.capture,
+		serverDebug:     deps.serverDebug,
+		hostMetadata:    deps.hostMetadata,
+		invAgent:        deps.invAgent,
+		demux:           deps.demux,
+		invHost:         deps.invHost,
+		secretResolver:  deps.secretResolver,
+		invChecks:       deps.invChecks,
+	}
 }
 
 // StartServer creates the router and starts the HTTP server
 func (server *apiServer) StartServer(
 	configService *remoteconfig.Service,
-	flare flare.Component,
-	dogstatsdServer dogstatsdServer.Component,
-	capture replay.Component,
-	serverDebug dogstatsddebug.Component,
 	wmeta workloadmeta.Component,
 	logsAgent optional.Option[logsAgent.Component],
 	senderManager sender.DiagnoseSenderManager,
-	hostMetadata host.Component,
-	invAgent inventoryagent.Component,
-	demux demultiplexer.Component,
-	invHost inventoryhost.Component,
-	secretResolver secrets.Component,
-	invChecks inventorychecks.Component,
 ) error {
 	return StartServers(configService,
-		flare,
-		dogstatsdServer,
-		capture,
-		serverDebug,
+		server.flare,
+		server.dogstatsdServer,
+		server.capture,
+		server.serverDebug,
 		wmeta,
 		logsAgent,
 		senderManager,
-		hostMetadata,
-		invAgent,
-		demux,
-		invHost,
-		secretResolver,
-		invChecks,
+		server.hostMetadata,
+		server.invAgent,
+		server.demux,
+		server.invHost,
+		server.secretResolver,
+		server.invChecks,
 	)
 }
 
