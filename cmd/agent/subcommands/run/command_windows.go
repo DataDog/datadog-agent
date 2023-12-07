@@ -95,11 +95,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			secretResolver secrets.Component,
 			invChecks inventorychecks.Component,
 			_ netflowServer.Component,
-<<<<<<< HEAD
-			agentAPI internalAPI.Component,
-=======
 			_ trapserver.Component,
->>>>>>> ee6eaf70ae ([SNMP] Componentize SNMP traps server (#19789))
+			agentAPI internalAPI.Component,
 		) error {
 
 			defer StopAgentWithDefaults(server, demultiplexer, agentAPI)
