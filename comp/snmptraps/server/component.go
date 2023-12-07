@@ -10,8 +10,12 @@ package server
 
 // team: network-device-monitoring
 
-// Component is the component type.
+// Component is the SNMP traps server. It listens for SNMP traps messages and
+// sends traps data to the DD backend.
 type Component interface {
+	// Running indicates whether the server is currently running.
 	Running() bool
+	// Error records any error that happened while starting the server.
+	// If it is not nil, Running() should be false.
 	Error() error
 }
