@@ -160,7 +160,6 @@ func (d *dnsStatKeeper) ProcessPacketInfo(info dnsPacketInfo, ts time.Time) {
 		statsTelemetry.processedStats.Inc()
 	}
 
-	// Note: time.Duration in the agent version of go (1.12.9) does not have the Microseconds method.
 	if latency > uint64(d.expirationPeriod.Microseconds()) {
 		byqtype.Timeouts++
 	} else {
