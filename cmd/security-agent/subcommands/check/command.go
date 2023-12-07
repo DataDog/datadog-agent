@@ -286,7 +286,7 @@ func newFakeResolver(regoInputPath string) compliance.Resolver {
 	return &fakeResolver{regoInputPath}
 }
 
-func (r *fakeResolver) ResolveInputs(ctx context.Context, rule *compliance.Rule) (compliance.ResolvedInputs, error) {
+func (r *fakeResolver) ResolveInputs(_ context.Context, rule *compliance.Rule) (compliance.ResolvedInputs, error) {
 	var fixtures map[string]map[string]interface{}
 	data, err := os.ReadFile(r.regoInputPath)
 	if err != nil {

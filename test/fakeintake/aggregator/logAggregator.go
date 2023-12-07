@@ -16,6 +16,7 @@ import (
 
 type tags []string
 
+//nolint:revive // TODO(APL) Fix revive linter
 type Log struct {
 	collectedTime time.Time
 	Message       string `json:"message"`
@@ -75,10 +76,12 @@ func ParseLogPayload(payload api.Payload) (logs []*Log, err error) {
 	return logs, err
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 type LogAggregator struct {
 	Aggregator[*Log]
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func NewLogAggregator() LogAggregator {
 	return LogAggregator{
 		Aggregator: newAggregator(ParseLogPayload),

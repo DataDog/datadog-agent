@@ -54,8 +54,7 @@ func (m *mockLogLevelRuntimeSettings) Hidden() bool {
 	return true
 }
 
-// nolint: revive
-func applyEmpty(s string, as state.ApplyStatus) {}
+func applyEmpty(_ string, _ state.ApplyStatus) {}
 
 func TestAgentConfigCallback(t *testing.T) {
 	pkglog.SetupLogger(seelog.Default, "info")

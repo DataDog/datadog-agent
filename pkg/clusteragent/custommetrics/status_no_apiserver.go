@@ -8,6 +8,8 @@
 package custommetrics
 
 // GetStatus returns the status info of the Custom Metrics Server.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func GetStatus(apiCl interface{}) map[string]interface{} {
 	status := make(map[string]interface{})
 	status["Disabled"] = "The external metrics provider is not compiled-in"

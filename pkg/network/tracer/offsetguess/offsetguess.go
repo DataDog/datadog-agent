@@ -77,6 +77,7 @@ var whatString = map[GuessWhat]string{
 	GuessCtNet:         "conntrack network namespace",
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 type OffsetGuesser interface {
 	Manager() *manager.Manager
 	Probes(c *config.Config) (map[string]struct{}, error)
@@ -107,6 +108,7 @@ type fieldValues struct {
 	sportFl6 uint16
 	dportFl6 uint16
 
+	//nolint:unused // TODO(NET) Fix unused linter
 	ctStatus uint32
 }
 
@@ -161,6 +163,7 @@ func setupOffsetGuesser(guesser OffsetGuesser, config *config.Config, buf byteco
 	return nil
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func RunOffsetGuessing(cfg *config.Config, buf bytecode.AssetReader, newGuesser func() (OffsetGuesser, error)) (editors []manager.ConstantEditor, err error) {
 	// Offset guessing has been flaky for some customers, so if it fails we'll retry it up to 5 times
 	start := time.Now()

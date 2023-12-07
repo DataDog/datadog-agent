@@ -7,6 +7,7 @@ package trigger
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -117,17 +118,62 @@ func TestGetEventType(t *testing.T) {
 	}
 
 	for testFile, expectedEventType := range testCases {
-		file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
-		assert.NoError(t, err)
+		t.Run(testFile, func(t *testing.T) {
+			file, err := os.Open(fmt.Sprintf("%v/%v", testDir, testFile))
+			assert.NoError(t, err)
 
-		jsonData, err := io.ReadAll(file)
-		assert.NoError(t, err)
+			jsonData, err := io.ReadAll(file)
+			assert.NoError(t, err)
 
-		jsonPayload, err := Unmarshal(bytes.ToLower(jsonData))
-		assert.NoError(t, err)
+			jsonPayload, err := Unmarshal(bytes.ToLower(jsonData))
+			assert.NoError(t, err)
 
-		parsedEventType := GetEventType(jsonPayload)
+			parsedEventType := GetEventType(jsonPayload)
 
-		assert.Equal(t, expectedEventType, parsedEventType, fmt.Sprintf("%v\n", testFile))
+			assert.Equal(t, expectedEventType, parsedEventType)
+
+			lastEventChecker = unknownChecker // reset event check cache
+		})
+	}
+}
+
+func TestUnknownChecker(t *testing.T) {
+	assert.Nil(t, unknownChecker.check)
+	assert.Equal(t, Unknown, unknownChecker.typ)
+}
+
+func TestGetEventTypeCaching(t *testing.T) {
+	payloadFiles, err := os.ReadDir("../trace/testdata/event_samples")
+	if err != nil {
+		t.Fatal(err)
+	}
+	type testcase struct {
+		name    string
+		payload map[string]any
+		result  AWSEventType
+	}
+	testcases := make([]testcase, 0, len(payloadFiles))
+	for _, file := range payloadFiles {
+		raw, err := os.ReadFile("../trace/testdata/event_samples/" + file.Name())
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload map[string]any
+		err = json.Unmarshal(bytes.ToLower(raw), &payload)
+		if err != nil {
+			t.Fatal(err)
+		}
+		result := GetEventType(payload)
+		testcases = append(testcases, testcase{file.Name(), payload, result})
+	}
+
+	for _, test1 := range testcases {
+		for _, test2 := range testcases {
+			t.Run(test1.name+"/"+test2.name, func(t *testing.T) {
+				lastEventChecker = unknownChecker
+				assert.Equal(t, test1.result, GetEventType(test1.payload))
+				assert.Equal(t, test2.result, GetEventType(test2.payload))
+			})
+		}
 	}
 }

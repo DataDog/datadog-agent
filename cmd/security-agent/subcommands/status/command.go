@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package status implements status related subcommands
 package status
 
 import (
@@ -34,6 +35,7 @@ type cliParams struct {
 	file            string
 }
 
+// Commands returns the status commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,

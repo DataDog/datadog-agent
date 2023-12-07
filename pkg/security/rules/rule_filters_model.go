@@ -16,12 +16,12 @@ import (
 func (e *RuleFilterEvent) Init() {}
 
 // GetFieldEventType returns the event type for the given field
-func (e *RuleFilterEvent) GetFieldEventType(field eval.Field) (string, error) {
+func (e *RuleFilterEvent) GetFieldEventType(_ eval.Field) (string, error) {
 	return "*", nil
 }
 
 // SetFieldValue sets the value for the given field
-func (e *RuleFilterEvent) SetFieldValue(field eval.Field, value interface{}) error {
+func (e *RuleFilterEvent) SetFieldValue(field eval.Field, _ interface{}) error {
 	return &eval.ErrFieldNotFound{Field: field}
 }
 
@@ -52,7 +52,7 @@ func (e *RuleFilterEvent) GetTags() []string {
 }
 
 // ValidateField returns whether the value use against the field is valid
-func (m *RuleFilterModel) ValidateField(key string, value eval.FieldValue) error {
+func (m *RuleFilterModel) ValidateField(_ string, _ eval.FieldValue) error {
 	return nil
 }
 

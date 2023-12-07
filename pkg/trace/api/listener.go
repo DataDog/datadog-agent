@@ -91,6 +91,7 @@ func (c *onCloseConn) Close() error {
 	return err
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func OnCloseConn(c net.Conn, onclose func()) net.Conn {
 	return &onCloseConn{c, onclose, sync.Once{}}
 }
@@ -225,7 +226,7 @@ func (sl *rateLimitedListener) Accept() (net.Conn, error) {
 				if ne.Temporary() {
 					// deadline expired; continue
 					continue
-				} else {
+				} else { //nolint:revive // TODO(APM) Fix revive linter
 					// don't count temporary errors; they usually signify expired deadlines
 					// see (golang/go/src/internal/poll/fd.go).TimeoutError
 					sl.timedout.Inc()

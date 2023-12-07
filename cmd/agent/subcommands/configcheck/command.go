@@ -57,6 +57,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{configCheckCommand}
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func run(config config.Component, cliParams *cliParams) error {
 	var b bytes.Buffer
 	color.Output = &b

@@ -45,14 +45,7 @@ excluded_folders = [
 excluded_packages = Array.new
 
 # We build these manually
-excluded_packages.push(/^snowflake-connector-python==/)
 excluded_packages.push(/^confluent-kafka==/)
-
-if suse_target?
-  # Temporarily exclude Aerospike until builder supports new dependency
-  excluded_packages.push(/^aerospike==/)
-  excluded_folders.push('aerospike')
-end
 
 if osx_target?
   # Temporarily exclude Aerospike until builder supports new dependency
@@ -75,10 +68,7 @@ if redhat? && !arm_target?
   excluded_packages.push(/^pydantic-core==/)
 end
 
-# _64_bit checks the kernel arch.  On windows, the builder is 64 bit
-# even when doing a 32 bit build.  Do a specific check for the 32 bit
-# build
-if arm_target? || !_64_bit? || (windows_target? && windows_arch_i386?)
+if arm_target?
   excluded_packages.push(/^orjson==/)
 end
 
@@ -181,10 +171,6 @@ build do
       {
         "RUSTFLAGS" => "-C link-arg=-Wl,-rpath,#{install_dir}/embedded/lib",
         "OPENSSL_DIR" => "#{install_dir}/embedded/",
-        # We have a manually installed dependency (snowflake connector) that already installed cryptography (but without the flags)
-        # We force reinstall it from source to be sure we use the flag
-        "PIP_NO_CACHE_DIR" => "off",
-        "PIP_FORCE_REINSTALL" => "1",
       }
     )
   end

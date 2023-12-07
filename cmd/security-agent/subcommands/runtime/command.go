@@ -205,12 +205,14 @@ func downloadPolicyCommands(globalParams *command.GlobalParams) []*cobra.Command
 	return []*cobra.Command{downloadPolicyCmd}
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 type processCacheDumpCliParams struct {
 	*command.GlobalParams
 
 	withArgs bool
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &processCacheDumpCliParams{
 		GlobalParams: globalParams,
@@ -241,12 +243,14 @@ func processCacheCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{processCacheCmd}
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 type dumpNetworkNamespaceCliParams struct {
 	*command.GlobalParams
 
 	snapshotInterfaces bool
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &dumpNetworkNamespaceCliParams{
 		GlobalParams: globalParams,
@@ -277,6 +281,7 @@ func networkNamespaceCommands(globalParams *command.GlobalParams) []*cobra.Comma
 	return []*cobra.Command{networkNamespaceCmd}
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func discardersCommands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	dumpDiscardersCmd := &cobra.Command{
@@ -342,6 +347,7 @@ func dumpNetworkNamespace(_ log.Component, _ config.Component, _ secrets.Compone
 	return nil
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func printStorageRequestMessage(prefix string, storage *api.StorageRequestMessage) {
 	fmt.Printf("%so file: %s\n", prefix, storage.GetFile())
 	fmt.Printf("%s  format: %s\n", prefix, storage.GetFormat())

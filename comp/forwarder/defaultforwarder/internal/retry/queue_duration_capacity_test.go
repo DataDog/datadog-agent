@@ -90,6 +90,7 @@ type diskSpaceAvailabilityMock struct {
 	space int64
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func (m *diskSpaceAvailabilityMock) computeAvailableSpace(extraSize int64) (int64, error) {
 	return m.space, nil
 }

@@ -5,6 +5,7 @@
 
 //go:build orchestrator
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 package k8s
 
 import (
@@ -12,18 +13,23 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/processors"
 )
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 type BaseHandlers struct{}
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (BaseHandlers) BeforeCacheCheck(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (BaseHandlers) BeforeMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}) (skip bool) {
 	return
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (BaseHandlers) ScrubBeforeMarshalling(ctx *processors.ProcessorContext, resource interface{}) {}
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (BaseHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	return ExtractModelManifests(ctx, resourceManifests, groupSize)
 }

@@ -35,6 +35,7 @@ type USMConnectionData[K comparable, V any] struct {
 	claimed bool
 }
 
+// USMKeyValue is a generic container for USM data
 type USMKeyValue[K comparable, V any] struct {
 	Key   K
 	Value V

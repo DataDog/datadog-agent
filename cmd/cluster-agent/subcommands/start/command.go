@@ -248,6 +248,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
 	// so we store it in a configmap that we try and read before generating a new one.
 	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+	//nolint:revive // TODO(CINT) Fix revive linter
 	clusterId, err := apicommon.GetOrCreateClusterID(coreClient)
 	if err != nil {
 		pkglog.Errorf("Failed to generate or retrieve the cluster ID")
@@ -412,7 +413,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 
 // initRuntimeSettings builds the map of runtime Cluster Agent settings configurable at runtime.
 func initRuntimeSettings() error {
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting()); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting(nil)); err != nil {
 		return err
 	}
 

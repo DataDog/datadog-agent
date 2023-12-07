@@ -124,6 +124,8 @@ func TestStopServer(t *testing.T) {
 // properly protected from multiple accesses by `cachedTlmLock`.
 // The main purpose of this test is to detect early if a future code change is
 // introducing a data race.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func TestNoRaceOriginTagMaps(t *testing.T) {
 	const N = 100
 	s := &server{cachedOriginCounters: make(map[string]cachedOriginCounter)}
@@ -934,6 +936,7 @@ func TestProcessedMetricsOrigin(t *testing.T) {
 	}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testContainerIDParsing(t *testing.T, cfg map[string]interface{}) {
 	deps := fulfillDeps(t)
 	s := deps.Server.(*server)

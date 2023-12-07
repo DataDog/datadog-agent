@@ -38,6 +38,8 @@ type readbuffer struct {
 
 // OverlappedCallbackFunc is called every time a read completes.
 // if err is not nil, it will be set to
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 type OverlappedCallback interface {
 	OnData([]uint8)
 	OnError(err error)
@@ -45,7 +47,8 @@ type OverlappedCallback interface {
 
 // OverlappedReader is the manager object for doing overlapped reads
 // for a particular handle
-
+//
+//nolint:revive // TODO(WKIT) Fix revive linter
 type OverlappedReader struct {
 	h       windows.Handle
 	iocp    windows.Handle
@@ -56,6 +59,7 @@ type OverlappedReader struct {
 	buffers []*readbuffer
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func NewOverlappedReader(cbfn OverlappedCallback, bufsz, count int) (*OverlappedReader, error) {
 	olr := &OverlappedReader{
 		cb:    cbfn,
@@ -66,6 +70,7 @@ func NewOverlappedReader(cbfn OverlappedCallback, bufsz, count int) (*Overlapped
 	return olr, nil
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (olr *OverlappedReader) Open(name string) error {
 	p, err := windows.UTF16PtrFromString(name)
 	if err != nil {
@@ -91,6 +96,7 @@ func (olr *OverlappedReader) Open(name string) error {
 	return nil
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (olr *OverlappedReader) Read() error {
 	if err := olr.createBuffers(); err != nil {
 		return fmt.Errorf("Failed to create overlapped read buffers")
@@ -120,6 +126,7 @@ func (olr *OverlappedReader) Read() error {
 				// the completion port was closed.  time to go home
 				return
 			}
+			//nolint:gosimple // TODO(WKIT) Fix gosimple linter
 			var buf *readbuffer
 			buf = (*readbuffer)(unsafe.Pointer(ol))
 			data := buf.data[:bytesRead]
@@ -136,6 +143,7 @@ func (olr *OverlappedReader) Read() error {
 	return nil
 }
 
+//nolint:revive // TODO(WKIT) Fix revive linter
 func (olr *OverlappedReader) Stop() {
 	_ = windows.CloseHandle(olr.iocp)
 	_ = windows.CloseHandle(olr.h)

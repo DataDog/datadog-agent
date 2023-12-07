@@ -33,7 +33,7 @@ func (m *RuleFilterModel) NewEvent() eval.Event {
 }
 
 // GetEvaluator returns a new evaluator for a rule filtering field
-func (m *RuleFilterModel) GetEvaluator(field eval.Field, regID eval.RegisterID) (eval.Evaluator, error) { //nolint:revive // TODO fix revive unused-parameter
+func (m *RuleFilterModel) GetEvaluator(field eval.Field, _ eval.RegisterID) (eval.Evaluator, error) {
 	switch field {
 	case "kernel.version.major", "kernel.version.minor", "kernel.version.patch",
 		"kernel.version.abi", "kernel.version.flavor":

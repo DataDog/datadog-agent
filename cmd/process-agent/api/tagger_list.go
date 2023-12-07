@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func getTaggerList(deps APIServerDeps, w http.ResponseWriter, r *http.Request) {
 	cardinality := collectors.TagCardinality(tagger.ChecksCardinality)
 	response := tagger.List(cardinality)
