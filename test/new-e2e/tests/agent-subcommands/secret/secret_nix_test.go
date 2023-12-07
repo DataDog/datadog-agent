@@ -31,7 +31,7 @@ func (v *linuxSecretSuite) TestAgentSecretExecDoesNotExist() {
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /does/not/exist")
 	assert.Contains(v.T(), output, "Executable permissions: error: invalid executable '/does/not/exist': can't stat it: no such file or directory")
-	assert.Contains(v.T(), output, "Number of secrets resolved: 0")
+	assert.Regexp(v.T(), "Number of secrets .+: 0", output)
 }
 
 func (v *linuxSecretSuite) TestAgentSecretChecksExecutablePermissions() {
@@ -42,7 +42,7 @@ func (v *linuxSecretSuite) TestAgentSecretChecksExecutablePermissions() {
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /usr/bin/echo")
 	assert.Contains(v.T(), output, "Executable permissions: error: invalid executable: '/usr/bin/echo' isn't owned by this user")
-	assert.Contains(v.T(), output, "Number of secrets resolved: 0")
+	assert.Regexp(v.T(), "Number of secrets .+: 0", output)
 }
 
 func (v *linuxSecretSuite) TestAgentSecretCorrectPermissions() {
@@ -64,7 +64,7 @@ host_aliases:
 	assert.Contains(v.T(), output, "File mode: 100700")
 	assert.Contains(v.T(), output, "Owner: dd-agent")
 	assert.Contains(v.T(), output, "Group: dd-agent")
-	assert.Contains(v.T(), output, "Number of secrets resolved: 1")
+	assert.Regexp(v.T(), "Number of secrets .+: 1", output)
 	assert.Contains(v.T(), output, "- 'alias_secret':\n\tused in 'datadog.yaml' configuration in entry 'host_aliases'")
 	// assert we don't output the resolved secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")
