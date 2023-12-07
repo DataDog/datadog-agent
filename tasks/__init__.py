@@ -6,6 +6,7 @@ from invoke import Collection
 
 from . import (
     agent,
+    bench,
     cluster_agent,
     cluster_agent_cloudfoundry,
     components,
@@ -126,6 +127,7 @@ ns.add_collection(agent)
 ns.add_collection(cluster_agent)
 ns.add_collection(cluster_agent_cloudfoundry)
 ns.add_collection(components)
+ns.add_collection(bench)
 ns.add_collection(trace_agent)
 ns.add_collection(docker_tasks, "docker")
 ns.add_collection(dogstatsd)
