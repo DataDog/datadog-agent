@@ -1477,9 +1477,11 @@ func (s *TracerSuite) TestSendfileRegression() {
 			return int64(clientMessageSize) == rcvdFunc()
 		}, 3*time.Second, 500*time.Millisecond, "TCP server didn't receive data")
 
+		t.Logf("looking for connections %+v <-> %+v", c.LocalAddr(), c.RemoteAddr())
 		var outConn, inConn *network.ConnectionStats
 		assert.Eventually(t, func() bool {
 			conns := getConnections(t, tr)
+			t.Log(conns)
 			if outConn == nil {
 				outConn = network.FirstConnection(conns, network.ByType(connType), network.ByFamily(family), network.ByTuple(c.LocalAddr(), c.RemoteAddr()))
 			}
