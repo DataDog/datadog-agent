@@ -10,40 +10,42 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 type fakeintakeSuiteMetrics struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
+	e2e.BaseSuite[environments.VM]
 }
 
 func TestVMSuiteEx5(t *testing.T) {
-	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.FakeIntakeStackDef(e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer())))
+	e2e.Run(t, &fakeintakeSuiteMetrics{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithFakeIntakeOptions(fakeintake.WithoutLoadBalancer()))))
 }
 
 func (v *fakeintakeSuiteMetrics) Test1_FakeIntakeReceivesMetrics() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		metricNames, err := v.Env().Fakeintake.GetMetricNames()
-		require.NoError(c, err)
+		metricNames, err := v.Env().FakeIntake.Client().GetMetricNames()
+		assert.NoError(c, err)
 		assert.Greater(c, len(metricNames), 0)
 	}, 5*time.Minute, 10*time.Second)
 }
 
 func (v *fakeintakeSuiteMetrics) Test2_FakeIntakeReceivesSystemLoadMetric() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		metrics, err := v.Env().Fakeintake.FilterMetrics("system.load.1")
-		require.NoError(c, err)
+		metrics, err := v.Env().FakeIntake.Client().FilterMetrics("system.load.1")
+		assert.NoError(c, err)
 		assert.Greater(c, len(metrics), 0, "no 'system.load.1' metrics yet")
 	}, 5*time.Minute, 10*time.Second)
 }
 
 func (v *fakeintakeSuiteMetrics) Test3_FakeIntakeReceivesSystemUptimeHigherThanZero() {
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		metrics, err := v.Env().Fakeintake.FilterMetrics("system.uptime", client.WithMetricValueHigherThan(0))
-		require.NoError(c, err)
+		metrics, err := v.Env().FakeIntake.Client().FilterMetrics("system.uptime", client.WithMetricValueHigherThan(0))
+		assert.NoError(c, err)
 		assert.Greater(c, len(metrics), 0, "no 'system.uptime' with value higher than 0 yet")
 		assert.Greater(c, len(metrics), 0, "no 'system.load.1' metrics yet")
 	}, 5*time.Minute, 10*time.Second)

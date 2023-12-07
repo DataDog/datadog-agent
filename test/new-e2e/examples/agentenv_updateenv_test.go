@@ -8,32 +8,31 @@ package examples
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+
 	"github.com/stretchr/testify/assert"
 )
 
 type agentSuiteEx4 struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.BaseSuite[environments.VM]
 }
 
 func TestVMSuiteEx4(t *testing.T) {
-	e2e.Run(t, &agentSuiteEx4{}, e2e.AgentStackDef(
-		e2e.WithVMParams(ec2params.WithOS(ec2os.UbuntuOS)),
-		e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: debug")),
-	))
+	e2e.Run(t, &agentSuiteEx4{}, e2e.WithProvisioner(awsvm.Provisioner(
+		awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")),
+	)))
 }
 
 func (v *agentSuiteEx4) TestLogDebug() {
-	assert.Contains(v.T(), v.Env().Agent.Config(), "log_level: debug")
+	assert.Contains(v.T(), v.Env().Agent.Client.Config(), "log_level: debug")
 }
 
 func (v *agentSuiteEx4) TestLogInfo() {
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithVMParams(
-		ec2params.WithOS(ec2os.UbuntuOS)),
-		e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: info")),
+	v.UpdateEnv(awsvm.Provisioner(
+		awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: info")),
 	))
-	assert.Contains(v.T(), v.Env().Agent.Config(), "log_level: info")
+	assert.Contains(v.T(), v.Env().Agent.Client.Config(), "log_level: info")
 }

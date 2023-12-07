@@ -8,21 +8,22 @@ package examples
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+
 	"github.com/stretchr/testify/assert"
 )
 
-type vmSuiteEx1 struct {
-	e2e.Suite[e2e.VMEnv]
+type myVMSuite struct {
+	e2e.BaseSuite[environments.VM]
 }
 
-func TestVMSuiteEx1(t *testing.T) {
-	e2e.Run(t, &vmSuiteEx1{}, e2e.EC2VMStackDef(ec2params.WithOS(ec2os.UbuntuOS)))
+func TestMyVMSuite(t *testing.T) {
+	e2e.Run(t, &myVMSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithoutAgent())))
 }
 
-func (v *vmSuiteEx1) TestItIsUbuntu() {
-	res := v.Env().VM.Execute("cat /etc/os-release")
+func (v *myVMSuite) TestItIsUbuntu() {
+	res := v.Env().Host.MustExecute("cat /etc/os-release")
 	assert.Contains(v.T(), res, "Ubuntu")
 }
