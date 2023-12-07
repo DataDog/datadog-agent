@@ -136,4 +136,4 @@ def benchmarks(ctx, bench, output="./trace-agent.benchmarks.out"):
         print("Argument --bench=<bench_regex> is required.")
         return
     with ctx.cd("./pkg/trace"):
-        ctx.run(f"go test -run=XXX -bench \"{bench}\" -benchmem -count 10 -benchtime 2s ./... | tee {output}")
+        ctx.run(f"go test -run=XXX -bench \"{bench}\" -benchmem -count 1 -benchtime 2s ./... | tee {output}")
