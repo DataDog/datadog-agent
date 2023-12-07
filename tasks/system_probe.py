@@ -668,6 +668,85 @@ def test(
         raise Exit(code=1, message="system-probe tests failed")
 
 
+@task(
+    help={
+        "package": "The package to test. REQUIRED ",
+        "skip_object_files": "Skip rebuilding the object files.",
+        "run": "The name of the test to run. REQUIRED",
+    }
+)
+def test_debug(
+    ctx,
+    package,
+    bundle_ebpf=False,
+    runtime_compiled=False,
+    co_re=False,
+    skip_linters=False,
+    skip_object_files=False,
+    run=None,
+    windows=is_windows,
+    failfast=False,
+    kernel_release=None,
+    timeout=None,
+):
+    """
+    Run delve on a specific system-probe test.
+    """
+    if not run:
+        raise Exit(
+            code=1, message="test name must be specified with the --run option")
+
+    if os.getenv("GOPATH") is None:
+        raise Exit(
+            code=1,
+            message="GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to "
+            "preserve your environment",
+        )
+
+    if not skip_linters and not windows:
+        clang_format(ctx)
+        clang_tidy(ctx)
+
+    if not skip_object_files:
+        build_object_files(
+            ctx,
+            windows=windows,
+            kernel_release=kernel_release,
+        )
+
+    build_tags = [NPM_TAG]
+    build_tags.extend(UNIT_TEST_TAGS)
+    if not windows:
+        build_tags.append(BPF_TAG)
+        if bundle_ebpf:
+            build_tags.append(BUNDLE_TAG)
+
+    args = {
+        "build_tags": ",".join(build_tags),
+        "run": run,
+        "failfast": "-failfast" if failfast else "",
+        "dlv": "dlv",
+        "sudo": "sudo -E " if not windows and not is_root() else "",
+    }
+
+    _, _, env = get_build_flags(ctx)
+    env["DD_SYSTEM_PROBE_BPF_DIR"] = EMBEDDED_SHARE_DIR
+    if runtime_compiled:
+        env["DD_ENABLE_RUNTIME_COMPILER"] = "true"
+        env["DD_ALLOW_PRECOMPILED_FALLBACK"] = "false"
+        env["DD_ENABLE_CO_RE"] = "false"
+    elif co_re:
+        env["DD_ENABLE_CO_RE"] = "true"
+        env["DD_ALLOW_RUNTIME_COMPILED_FALLBACK"] = "false"
+        env["DD_ALLOW_PRECOMPILED_FALLBACK"] = "false"
+
+    args["dir"] = package
+    testto = timeout if timeout else get_test_timeout(package)
+    args["timeout"] = f"-timeout {testto}" if testto else ""
+    cmd = '{sudo}{dlv} test {dir} --build-flags="-mod=mod -v {failfast} {timeout} -tags={build_tags}" -- -test.run {run}'
+    ctx.run(cmd.format(**args), env=env, pty=True, warn=True)
+
+
 def get_test_timeout(pkg):
     for tt, to in TEST_TIMEOUTS.items():
         if re.search(tt, pkg) is not None:
