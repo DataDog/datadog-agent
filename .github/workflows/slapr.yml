@@ -1,4 +1,3 @@
-
 # Disable Slapr until https://github.com/DataDog/slapr/issues/45 gets fixed.
 # ---
 # name: Slack emoji PR updates
@@ -7,7 +6,7 @@
 #     types: [submitted]
 #   pull_request:
 #     types: [closed]
-
+#
 # jobs:
 #   run_slapr_datadog_agent:
 #     runs-on: ubuntu-latest
