@@ -950,8 +950,8 @@ func easyjsonA1e47abeDecodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(i
 				}
 				in.Delim(']')
 			}
-		case "source":
-			out.Source = string(in.String())
+		case "origin":
+			out.Origin = string(in.String())
 		default:
 			in.SkipRecursive()
 		}
@@ -1021,15 +1021,15 @@ func easyjsonA1e47abeEncodeGithubComDataDogDatadogAgentPkgSecuritySerializers6(o
 			out.RawByte(']')
 		}
 	}
-	if in.Source != "" {
-		const prefix string = ",\"source\":"
+	if in.Origin != "" {
+		const prefix string = ",\"origin\":"
 		if first {
 			first = false
 			out.RawString(prefix[1:])
 		} else {
 			out.RawString(prefix)
 		}
-		out.String(string(in.Source))
+		out.String(string(in.Origin))
 	}
 	out.RawByte('}')
 }

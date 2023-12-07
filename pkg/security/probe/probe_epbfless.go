@@ -316,7 +316,7 @@ func (p *EBPFLessProbe) GetEventTags(containerID string) []string {
 func (p *EBPFLessProbe) zeroEvent() *model.Event {
 	p.event.Zero()
 	p.event.FieldHandlers = p.fieldHandlers
-	p.event.Source = "ebpfless"
+	p.event.Origin = "ebpfless"
 	return p.event
 }
 
