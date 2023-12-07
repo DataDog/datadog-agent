@@ -182,7 +182,7 @@ def list_possible():
 # Each normalized_vm_def output corresponds to each VM
 # requested by the user
 def normalize_vm_def(possible, vm):
-    # atempt to fuzzy match user provided vm-def with the possible list.
+    # attempt to fuzzy match user provided vm-def with the possible list.
     vm_def, _ = process.extractOne(vm, possible, scorer=fuzz.token_sort_ratio)
     recipe, version, arch = vm_def.split('-')
 
