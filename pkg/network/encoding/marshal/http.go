@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package encoding
+package marshal
 
 import (
 	"bytes"
@@ -17,25 +17,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/types"
 )
 
-type http2Encoder struct {
-	http2AggregationsBuilder *model.HTTP2AggregationsBuilder
-	byConnection             *USMConnectionIndex[http.Key, *http.RequestStats]
+type httpEncoder struct {
+	httpAggregationsBuilder *model.HTTPAggregationsBuilder
+	byConnection            *USMConnectionIndex[http.Key, *http.RequestStats]
 }
 
-func newHTTP2Encoder(http2Payloads map[http.Key]*http.RequestStats) *http2Encoder {
-	if len(http2Payloads) == 0 {
+func newHTTPEncoder(httpPayloads map[http.Key]*http.RequestStats) *httpEncoder {
+	if len(httpPayloads) == 0 {
 		return nil
 	}
 
-	return &http2Encoder{
-		byConnection: GroupByConnection("http2", http2Payloads, func(key http.Key) types.ConnectionKey {
+	return &httpEncoder{
+		httpAggregationsBuilder: model.NewHTTPAggregationsBuilder(nil),
+		byConnection: GroupByConnection("http", httpPayloads, func(key http.Key) types.ConnectionKey {
 			return key.ConnectionKey
 		}),
-		http2AggregationsBuilder: model.NewHTTP2AggregationsBuilder(nil),
 	}
 }
 
-func (e *http2Encoder) WriteHTTP2AggregationsAndTags(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
+func (e *httpEncoder) GetHTTPAggregationsAndTags(c network.ConnectionStats, builder *model.ConnectionBuilder) (uint64, map[string]struct{}) {
 	if e == nil {
 		return 0, nil
 	}
@@ -50,33 +50,34 @@ func (e *http2Encoder) WriteHTTP2AggregationsAndTags(c network.ConnectionStats, 
 		dynamicTags map[string]struct{}
 	)
 
-	builder.SetHttp2Aggregations(func(b *bytes.Buffer) {
+	builder.SetHttpAggregations(func(b *bytes.Buffer) {
 		staticTags, dynamicTags = e.encodeData(connectionData, b)
 	})
 	return staticTags, dynamicTags
 }
 
-func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
+func (e *httpEncoder) encodeData(connectionData *USMConnectionData[http.Key, *http.RequestStats], w io.Writer) (uint64, map[string]struct{}) {
 	var staticTags uint64
 	dynamicTags := make(map[string]struct{})
-	e.http2AggregationsBuilder.Reset(w)
+	e.httpAggregationsBuilder.Reset(w)
 
 	for _, kvPair := range connectionData.Data {
-		e.http2AggregationsBuilder.AddEndpointAggregations(func(http2StatsBuilder *model.HTTPStatsBuilder) {
+		e.httpAggregationsBuilder.AddEndpointAggregations(func(httpStatsBuilder *model.HTTPStatsBuilder) {
 			key := kvPair.Key
 			stats := kvPair.Value
 
-			http2StatsBuilder.SetPath(key.Path.Content.Get())
-			http2StatsBuilder.SetFullPath(key.Path.FullPath)
-			http2StatsBuilder.SetMethod(uint64(model.HTTPMethod(key.Method)))
+			httpStatsBuilder.SetPath(key.Path.Content.Get())
+			httpStatsBuilder.SetFullPath(key.Path.FullPath)
+			httpStatsBuilder.SetMethod(uint64(model.HTTPMethod(key.Method)))
 
 			for code, stats := range stats.Data {
-				http2StatsBuilder.AddStatsByStatusCode(func(w *model.HTTPStats_StatsByStatusCodeEntryBuilder) {
+				httpStatsBuilder.AddStatsByStatusCode(func(w *model.HTTPStats_StatsByStatusCodeEntryBuilder) {
 					w.SetKey(int32(code))
 					w.SetValue(func(w *model.HTTPStats_DataBuilder) {
 						w.SetCount(uint32(stats.Count))
 						if latencies := stats.Latencies; latencies != nil {
 
+							// TODO: can we get a streaming marshaller for latencies?
 							blob, _ := proto.Marshal(latencies.ToProto())
 							w.SetLatencies(func(b *bytes.Buffer) {
 								b.Write(blob)
@@ -93,12 +94,12 @@ func (e *http2Encoder) encodeData(connectionData *USMConnectionData[http.Key, *h
 				}
 			}
 		})
-	}
 
+	}
 	return staticTags, dynamicTags
 }
 
-func (e *http2Encoder) Close() {
+func (e *httpEncoder) Close() {
 	if e == nil {
 		return
 	}

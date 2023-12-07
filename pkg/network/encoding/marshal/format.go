@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package encoding
+package marshal
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"github.com/twmb/murmur3"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 )
@@ -82,7 +83,7 @@ func FormatConnection(builder *model.ConnectionBuilder, conn network.ConnectionS
 	builder.SetLastTcpEstablished(conn.Last.TCPEstablished)
 	builder.SetLastTcpClosed(conn.Last.TCPClosed)
 	builder.SetProtocol(func(w *model.ProtocolStackBuilder) {
-		ps := formatProtocolStack(conn.ProtocolStack, conn.StaticTags)
+		ps := FormatProtocolStack(conn.ProtocolStack, conn.StaticTags)
 		for _, p := range ps.Stack {
 			w.AddStack(uint64(p))
 		}

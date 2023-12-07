@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package encoding
+package marshal
 
 import (
 	"testing"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 )
 
@@ -116,7 +117,7 @@ func TestFormatProtocols(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equalf(t, tt.want, formatProtocolStack(tt.protocol, 0), "formatProtocol(%v)", tt.protocol)
+			assert.Equalf(t, tt.want, FormatProtocolStack(tt.protocol, 0), "formatProtocol(%v)", tt.protocol)
 		})
 	}
 }

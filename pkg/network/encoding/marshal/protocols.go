@@ -3,16 +3,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package encoding
+package marshal
 
 import (
 	model "github.com/DataDog/agent-payload/v5/process"
+
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// formatProtocolStack generates a protobuf representation of protocol stack  from the internal one (`protocols.Stack`)
+// FormatProtocolStack generates a protobuf representation of protocol stack  from the internal one (`protocols.Stack`)
 // i.e: if the input is protocols.Stack{Application: protocols.HTTP2} the output should be:
 //
 //	&model.ProtocolStack{
@@ -30,7 +31,7 @@ import (
 //				model.ProtocolType_protocolHTTP2,
 //			},
 //		}
-func formatProtocolStack(originalStack protocols.Stack, staticTags uint64) *model.ProtocolStack {
+func FormatProtocolStack(originalStack protocols.Stack, staticTags uint64) *model.ProtocolStack {
 	var stack []model.ProtocolType
 
 	if network.IsTLSTag(staticTags) || originalStack.Encryption == protocols.TLS {

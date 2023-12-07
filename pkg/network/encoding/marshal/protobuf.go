@@ -3,12 +3,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package encoding
+package marshal
 
 import (
-	model "github.com/DataDog/agent-payload/v5/process"
-	"github.com/gogo/protobuf/proto"
 	"io"
+
+	model "github.com/DataDog/agent-payload/v5/process"
 
 	"github.com/DataDog/datadog-agent/pkg/network"
 )
@@ -24,17 +24,8 @@ func (protoSerializer) Marshal(conns *network.Connections, writer io.Writer, con
 	return nil
 }
 
-func (protoSerializer) Unmarshal(blob []byte) (*model.Connections, error) {
-	conns := new(model.Connections)
-	if err := proto.Unmarshal(blob, conns); err != nil {
-		return nil, err
-	}
-	return conns, nil
-}
-
 func (p protoSerializer) ContentType() string {
 	return ContentTypeProtobuf
 }
 
 var _ Marshaler = protoSerializer{}
-var _ Unmarshaler = protoSerializer{}

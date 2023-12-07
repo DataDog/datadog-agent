@@ -3,38 +3,21 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package encoding
+package unmarshal
 
 import (
 	"bytes"
-	"io"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/gogo/protobuf/jsonpb"
-
-	"github.com/DataDog/datadog-agent/pkg/network"
 )
 
 // ContentTypeJSON holds the HTML content-type of a JSON payload
 const ContentTypeJSON = "application/json"
 
-type jsonSerializer struct {
-	marshaller jsonpb.Marshaler
-}
+type jsonSerializer struct{}
 
-func (j jsonSerializer) Marshal(conns *network.Connections, writer io.Writer, connsModeler *ConnectionsModeler) error {
-	out := bytes.NewBuffer(nil)
-	connsModeler.modelConnections(model.NewConnectionsBuilder(out), conns)
-
-	var payload model.Connections
-	if err := payload.Unmarshal(out.Bytes()); err != nil {
-		return err
-	}
-
-	return j.marshaller.Marshal(writer, &payload)
-}
-
-func (jsonSerializer) Unmarshal(blob []byte) (*model.Connections, error) {
+func (j jsonSerializer) Unmarshal(blob []byte) (*model.Connections, error) {
 	conns := new(model.Connections)
 	reader := bytes.NewReader(blob)
 	if err := jsonpb.Unmarshal(reader, conns); err != nil {
@@ -48,9 +31,6 @@ func (jsonSerializer) Unmarshal(blob []byte) (*model.Connections, error) {
 func (j jsonSerializer) ContentType() string {
 	return ContentTypeJSON
 }
-
-var _ Marshaler = jsonSerializer{}
-var _ Unmarshaler = jsonSerializer{}
 
 // this code is a hack to fix the way zero value maps are handled during a
 // roundtrip (eg. marshaling/unmarshaling) by the JSON marshaler as we use the
