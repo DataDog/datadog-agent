@@ -43,10 +43,14 @@ const (
 	ComplianceModule             ModuleName = "compliance"
 )
 
+type moduleDescripton struct {
+	needsEBPF bool
+}
+
 // Config represents the configuration options for the system-probe
 type Config struct {
 	Enabled        bool
-	EnabledModules map[ModuleName]struct{}
+	EnabledModules map[ModuleName]moduleDescripton
 
 	// When the system-probe is enabled in a separate container, we need a way to also disable the system-probe
 	// packaged in the main agent container (without disabling network collection on the process-agent).
@@ -119,7 +123,7 @@ func load() (*Config, error) {
 
 	c := &Config{
 		Enabled:             cfg.GetBool(spNS("enabled")),
-		EnabledModules:      make(map[ModuleName]struct{}),
+		EnabledModules:      make(map[ModuleName]moduleDescripton),
 		ExternalSystemProbe: cfg.GetBool(spNS("external")),
 
 		SocketAddress:      cfg.GetString(spNS("sysprobe_socket")),
@@ -141,44 +145,44 @@ func load() (*Config, error) {
 	dsmEnabled := cfg.GetBool(dsmNS("enabled"))
 
 	if npmEnabled || usmEnabled || dsmEnabled {
-		c.EnabledModules[NetworkTracerModule] = struct{}{}
+		c.EnabledModules[NetworkTracerModule] = moduleDescripton{needsEBPF: true}
 	}
 	if cfg.GetBool(spNS("enable_tcp_queue_length")) {
-		c.EnabledModules[TCPQueueLengthTracerModule] = struct{}{}
+		c.EnabledModules[TCPQueueLengthTracerModule] = moduleDescripton{needsEBPF: true}
 	}
 	if cfg.GetBool(spNS("enable_oom_kill")) {
-		c.EnabledModules[OOMKillProbeModule] = struct{}{}
+		c.EnabledModules[OOMKillProbeModule] = moduleDescripton{needsEBPF: true}
 	}
 	if cfg.GetBool(secNS("enabled")) ||
 		cfg.GetBool(secNS("fim_enabled")) ||
 		cfg.GetBool(evNS("process.enabled")) ||
 		(c.ModuleIsEnabled(NetworkTracerModule) && cfg.GetBool(evNS("network_process.enabled"))) {
-		c.EnabledModules[EventMonitorModule] = struct{}{}
+		c.EnabledModules[EventMonitorModule] = moduleDescripton{needsEBPF: !cfg.GetBool(secNS("ebpfless.enabled"))}
 	}
 	if cfg.GetBool(secNS("enabled")) && cfg.GetBool(secNS("compliance_module.enabled")) {
-		c.EnabledModules[ComplianceModule] = struct{}{}
+		c.EnabledModules[ComplianceModule] = moduleDescripton{needsEBPF: false}
 	}
 	if cfg.GetBool(spNS("process_config.enabled")) {
-		c.EnabledModules[ProcessModule] = struct{}{}
+		c.EnabledModules[ProcessModule] = moduleDescripton{needsEBPF: false}
 	}
 	if cfg.GetBool(diNS("enabled")) {
-		c.EnabledModules[DynamicInstrumentationModule] = struct{}{}
+		c.EnabledModules[DynamicInstrumentationModule] = moduleDescripton{needsEBPF: true}
 	}
 	if cfg.GetBool(nskey("ebpf_check", "enabled")) {
-		c.EnabledModules[EBPFModule] = struct{}{}
+		c.EnabledModules[EBPFModule] = moduleDescripton{needsEBPF: true}
 	}
 	if cfg.GetBool("system_probe_config.language_detection.enabled") {
-		c.EnabledModules[LanguageDetectionModule] = struct{}{}
+		c.EnabledModules[LanguageDetectionModule] = moduleDescripton{needsEBPF: true}
 	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
-		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
+		c.EnabledModules[WindowsCrashDetectModule] = moduleDescripton{needsEBPF: false}
 	}
 	if runtime.GOOS == "windows" {
 		if c.ModuleIsEnabled(NetworkTracerModule) {
 			// enable the windows crash detection module if the network tracer
 			// module is enabled, to allow the core agent to detect our own crash
-			c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
+			c.EnabledModules[WindowsCrashDetectModule] = moduleDescripton{needsEBPF: false}
 		}
 	}
 
@@ -193,6 +197,16 @@ func load() (*Config, error) {
 func (c Config) ModuleIsEnabled(modName ModuleName) bool {
 	_, ok := c.EnabledModules[modName]
 	return ok
+}
+
+// RequiresEBPF returns a bool indicating if at least one enabled module requires eBPF.
+func (c Config) RequiresEBPF() bool {
+	for _, mod := range c.EnabledModules {
+		if mod.needsEBPF {
+			return true
+		}
+	}
+	return false
 }
 
 // SetupOptionalDatadogConfigWithDir loads the datadog.yaml config file from a given config directory but will not fail on a missing file
