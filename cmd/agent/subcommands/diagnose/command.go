@@ -176,7 +176,7 @@ This command print the inventory-host metadata payload. This payload is used by 
 This command print the inventory-checks metadata payload. This payload is used by the 'inventories/sql' product.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(printPayload,
-				fx.Supply(payloadName("inventory-host")),
+				fx.Supply(payloadName("inventory-checks")),
 				fx.Supply(command.GetDefaultCoreBundleParams(cliParams.GlobalParams)),
 				core.Bundle(),
 			)
