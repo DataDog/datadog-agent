@@ -560,5 +560,12 @@ func StartCWSPtracer(args []string, grpcAddr string, verbose bool) error {
 
 	<-traceChan
 
-	return tracer.Trace(cb)
+	if err := tracer.Trace(cb); err != nil {
+		return err
+	}
+
+	// let a few queued message being send
+	time.Sleep(time.Second)
+
+	return nil
 }

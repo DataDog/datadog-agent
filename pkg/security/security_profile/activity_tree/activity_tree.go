@@ -372,9 +372,10 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 	current := entry
 	ancestor := entry.Ancestor
 	for ancestor != nil {
-		if ancestor.FileEvent.Inode == 0 {
-			return nil
-		}
+		// HACK: we did not retrieve inodes yet
+		// if ancestor.FileEvent.Inode == 0 {
+		// 	return nil
+		// }
 		if current.FileEvent.PathnameStr != ancestor.FileEvent.PathnameStr {
 			return ancestor
 		}
@@ -437,14 +438,15 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 		return nil, nil, nil
 	}
 
-	// make sure the branch has a valid root node
-	for i := len(branch) - 1; i >= 0; i-- {
-		if isValidRootNode(&branch[i].ProcessContext) {
-			return branch[:i+1], nil, nil
-		}
-	}
-
-	return branch, nil, ErrNotValidRootNode
+	// HACK: we don't have valid root node
+	// // make sure the branch has a valid root node
+	// for i := len(branch) - 1; i >= 0; i-- {
+	// 	if isValidRootNode(&branch[i].ProcessContext) {
+	// 		return branch[:i+1], nil, nil
+	// 	}
+	// }
+	// return branch, nil, ErrNotValidRootNode
+	return branch, nil, nil
 }
 
 // CreateProcessNode looks up or inserts the provided entry in the tree
@@ -453,13 +455,14 @@ func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, genera
 		return nil, false, nil
 	}
 
-	if _, err := entry.HasValidLineage(); err != nil {
-		// check if the node belongs to the container
-		var mn *model.ErrProcessMissingParentNode
-		if !errors.As(err, &mn) {
-			return nil, false, ErrBrokenLineage
-		}
-	}
+	// HACK: disable because with ptracer we'll won't have pid 1 lineage
+	// if _, err := entry.HasValidLineage(); err != nil {
+	// 	// check if the node belongs to the container
+	// 	var mn *model.ErrProcessMissingParentNode
+	// 	if !errors.As(err, &mn) {
+	// 		return nil, false, ErrBrokenLineage
+	// 	}
+	// }
 
 	// Check if entry or one of its parents cookies are in CookieToProcessNode while building the branch we're trying to
 	// insert.
