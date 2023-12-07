@@ -24,6 +24,8 @@ type ClusterRoleHandlers struct {
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ClusterRoleHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	m := resourceModel.(*model.ClusterRole)
 	m.Yaml = yaml
@@ -49,6 +51,8 @@ func (h *ClusterRoleHandlers) BuildMessageBody(ctx *processors.ProcessorContext,
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ClusterRoleHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	r := resource.(*rbacv1.ClusterRole)
 	return k8sTransformers.ExtractClusterRole(r)
@@ -56,6 +60,8 @@ func (h *ClusterRoleHandlers) ExtractResource(ctx *processors.ProcessorContext, 
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ClusterRoleHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]*rbacv1.ClusterRole)
 	resources = make([]interface{}, 0, len(resourceList))
@@ -68,17 +74,23 @@ func (h *ClusterRoleHandlers) ResourceList(ctx *processors.ProcessorContext, lis
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ClusterRoleHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*rbacv1.ClusterRole).UID
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ClusterRoleHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*rbacv1.ClusterRole).ResourceVersion
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (h *ClusterRoleHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*rbacv1.ClusterRole)
 	redact.RemoveLastAppliedConfigurationAnnotation(r.Annotations)

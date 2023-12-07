@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package collector
 
 import (
@@ -19,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/runner"
 	"github.com/DataDog/datadog-agent/pkg/collector/runner/expvars"
 	"github.com/DataDog/datadog-agent/pkg/collector/scheduler"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,16 +30,39 @@ const (
 
 const cancelCheckTimeout time.Duration = 500 * time.Millisecond
 
+// EventType represents the type of events emitted by the collector
+type EventType uint32
+
+const (
+	// CheckRun is emitted when a check is added to the collector
+	CheckRun EventType = iota
+	// CheckStop is emitted when a check is stopped and removed from the collector
+	CheckStop
+)
+
+// EventReceiver represents a function to receive notification from the collector when running or stopping checks.
+type EventReceiver func(checkid.ID, EventType)
+
 // Collector manages a collection of checks and provides operations over them
 type Collector interface {
+	// Start begins the collector's operation.  The scheduler will not run any checks until this has been called.
 	Start()
+	// Stop halts any component involved in running a Check
 	Stop()
+	// RunCheck sends a Check in the execution queue
 	RunCheck(inner check.Check) (checkid.ID, error)
+	// StopCheck halts a check and remove the instance
 	StopCheck(id checkid.ID) error
+	// MapOverChecks call the callback with the list of checks locked.
 	MapOverChecks(cb func([]check.Info))
+	// GetChecks copies checks
 	GetChecks() []check.Check
+	// GetAllInstanceIDs returns the ID's of all instances of a check
 	GetAllInstanceIDs(checkName string) []checkid.ID
+	// ReloadAllCheckInstances completely restarts a check with a new configuration
 	ReloadAllCheckInstances(name string, newInstances []check.Check) ([]checkid.ID, error)
+	// AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.
+	AddEventReceiver(cb EventReceiver)
 }
 
 type collector struct {
@@ -49,9 +72,10 @@ type collector struct {
 	// state is 'started' or 'stopped'
 	state *atomic.Uint32
 
-	scheduler *scheduler.Scheduler
-	runner    *runner.Runner
-	checks    map[checkid.ID]*middleware.CheckWrapper
+	scheduler      *scheduler.Scheduler
+	runner         *runner.Runner
+	checks         map[checkid.ID]*middleware.CheckWrapper
+	eventReceivers []EventReceiver
 
 	m sync.RWMutex
 }
@@ -82,8 +106,21 @@ func NewCollector(senderManager sender.SenderManager, paths ...string) Collector
 	return c
 }
 
-// Start begins the collector's operation.  The scheduler will not run any
-// checks until this has been called.
+// AddEventReceiver adds a callback to the collector to be called each time a check is added or removed.
+func (c *collector) AddEventReceiver(cb EventReceiver) {
+	c.m.Lock()
+	defer c.m.Unlock()
+
+	c.eventReceivers = append(c.eventReceivers, cb)
+}
+
+func (c *collector) notify(cid checkid.ID, e EventType) {
+	for _, cb := range c.eventReceivers {
+		cb(cid, e)
+	}
+}
+
+// Start begins the collector's operation.  The scheduler will not run any checks until this has been called.
 func (c *collector) Start() {
 	c.m.Lock()
 	defer c.m.Unlock()
@@ -159,7 +196,7 @@ func (c *collector) RunCheck(inner check.Check) (checkid.ID, error) {
 	}
 
 	c.checks[ch.ID()] = ch
-	inventories.Refresh()
+	c.notify(ch.ID(), CheckRun)
 	return ch.ID(), nil
 }
 
@@ -194,7 +231,6 @@ func (c *collector) StopCheck(id checkid.ID) error {
 
 	// remove the check from the stats map
 	expvars.RemoveCheckStats(id)
-	inventories.RemoveCheckMetadata(string(id))
 
 	// vaporize the check
 	c.delete(id)
@@ -233,6 +269,7 @@ func (c *collector) delete(id checkid.ID) {
 	defer c.m.Unlock()
 
 	delete(c.checks, id)
+	c.notify(id, CheckStop)
 }
 
 // lightweight shortcut to see if the collector has started

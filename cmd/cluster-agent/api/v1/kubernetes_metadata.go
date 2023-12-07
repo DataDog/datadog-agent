@@ -40,6 +40,7 @@ func installKubernetesMetadataEndpoints(r *mux.Router, wmeta workloadmeta.Compon
 	r.HandleFunc("/cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID)).Methods("GET")
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func installCloudFoundryMetadataEndpoints(r *mux.Router) {}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels
@@ -222,6 +223,8 @@ func getPodMetadataForNode(w http.ResponseWriter, r *http.Request) {
 }
 
 // getAllMetadata is used by the svcmap command.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 	/*
 		Input
@@ -269,6 +272,8 @@ func getAllMetadata(w http.ResponseWriter, r *http.Request) {
 }
 
 // getClusterID is used by recent agents to get the cluster UUID, needed for enabling the orchestrator explorer
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func getClusterID(w http.ResponseWriter, r *http.Request) {
 	// As HTTP query handler, we do not retry getting the APIServer
 	// Client will have to retry query in case of failure

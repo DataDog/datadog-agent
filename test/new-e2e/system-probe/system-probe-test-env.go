@@ -10,6 +10,7 @@ package systemprobe
 
 import (
 	"context"
+	//nolint:revive // TODO(EBPF) Fix revive linter
 	_ "embed"
 	"fmt"
 	"os"
@@ -30,17 +31,26 @@ import (
 )
 
 const (
-	AgentQAPrimaryAZ   = "subnet-03061a1647c63c3c3"
+	//nolint:revive // TODO(EBPF) Fix revive linter
+	AgentQAPrimaryAZ = "subnet-03061a1647c63c3c3"
+	//nolint:revive // TODO(EBPF) Fix revive linter
 	AgentQASecondaryAZ = "subnet-0f1ca3e929eb3fb8b"
-	AgentQABackupAZ    = "subnet-071213aedb0e1ae54"
+	//nolint:revive // TODO(EBPF) Fix revive linter
+	AgentQABackupAZ = "subnet-071213aedb0e1ae54"
 
-	SandboxPrimaryAz   = "subnet-b89e00e2"
+	//nolint:revive // TODO(EBPF) Fix revive linter
+	SandboxPrimaryAz = "subnet-b89e00e2"
+	//nolint:revive // TODO(EBPF) Fix revive linter
 	SandboxSecondaryAz = "subnet-8ee8b1c6"
-	SandboxBackupAz    = "subnet-3f5db45b"
+	//nolint:revive // TODO(EBPF) Fix revive linter
+	SandboxBackupAz = "subnet-3f5db45b"
 
+	//nolint:revive // TODO(EBPF) Fix revive linter
 	DatadogAgentQAEnv = "aws/agent-qa"
-	SandboxEnv        = "aws/sandbox"
-	EC2TagsEnvVar     = "RESOURCE_TAGS"
+	//nolint:revive // TODO(EBPF) Fix revive linter
+	SandboxEnv = "aws/sandbox"
+	//nolint:revive // TODO(EBPF) Fix revive linter
+	EC2TagsEnvVar = "RESOURCE_TAGS"
 )
 
 var availabilityZones = map[string][]string{
@@ -48,6 +58,7 @@ var availabilityZones = map[string][]string{
 	SandboxEnv:        {SandboxPrimaryAz, SandboxSecondaryAz, SandboxBackupAz},
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 type SystemProbeEnvOpts struct {
 	X86AmiID              string
 	ArmAmiID              string
@@ -65,6 +76,7 @@ type SystemProbeEnvOpts struct {
 	AgentVersion          string
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 type TestEnv struct {
 	context context.Context
 	name    string
@@ -75,9 +87,12 @@ type TestEnv struct {
 }
 
 var (
+	//nolint:revive // TODO(EBPF) Fix revive linter
 	MicroVMsDependenciesPath = filepath.Join("/", "opt", "kernel-version-testing", "dependencies-%s.tar.gz")
-	CustomAMIWorkingDir      = filepath.Join("/", "home", "kernel-version-testing")
+	//nolint:revive // TODO(EBPF) Fix revive linter
+	CustomAMIWorkingDir = filepath.Join("/", "home", "kernel-version-testing")
 
+	//nolint:revive // TODO(EBPF) Fix revive linter
 	CI_PROJECT_DIR = GetEnv("CI_PROJECT_DIR", "/tmp")
 	sshKeyX86      = GetEnv("LibvirtSSHKeyX86", "/tmp/libvirt_rsa-x86_64")
 	sshKeyArm      = GetEnv("LibvirtSSHKeyARM", "/tmp/libvirt_rsa-arm64")
@@ -104,6 +119,7 @@ func outputsToFile(output auto.OutputMap) error {
 	return f.Sync()
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func GetEnv(key, fallback string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
@@ -141,6 +157,7 @@ func getAvailabilityZone(env string, azIndx int) string {
 	return ""
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbeEnvOpts) (*TestEnv, error) {
 	var err error
 	var sudoPassword string
@@ -251,10 +268,12 @@ func NewTestEnv(name, x86InstanceType, armInstanceType string, opts *SystemProbe
 	return systemProbeTestEnv, nil
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func Destroy(name string) error {
 	return infra.GetStackManager().DeleteStack(context.Background(), name)
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func (env *TestEnv) RemoveStack() error {
 	return infra.GetStackManager().ForceRemoveStackConfiguration(env.context, env.name)
 }

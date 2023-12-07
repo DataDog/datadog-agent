@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 )
 
+//nolint:revive // TODO(APL) Fix revive linter
 type PayloadItem interface {
 	name() string
 	GetTags() []string
@@ -24,6 +25,7 @@ type PayloadItem interface {
 
 type parseFunc[P PayloadItem] func(payload api.Payload) (items []P, err error)
 
+//nolint:revive // TODO(APL) Fix revive linter
 type Aggregator[P PayloadItem] struct {
 	payloadsByName map[string][]P
 	parse          parseFunc[P]

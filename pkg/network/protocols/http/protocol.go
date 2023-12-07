@@ -44,8 +44,9 @@ const (
 	eventStream            = "http"
 )
 
+// Spec is the protocol spec for the HTTP protocol.
 var Spec = &protocols.ProtocolSpec{
-	Factory: newHttpProtocol,
+	Factory: newHTTPProtocol,
 	Maps: []*manager.Map{
 		{Name: inFlightMap},
 	},
@@ -74,7 +75,8 @@ var Spec = &protocols.ProtocolSpec{
 	},
 }
 
-func newHttpProtocol(cfg *config.Config) (protocols.Protocol, error) {
+// newHTTPProtocol returns a new HTTP protocol.
+func newHTTPProtocol(cfg *config.Config) (protocols.Protocol, error) {
 	if !cfg.EnableHTTPMonitoring {
 		return nil, nil
 	}

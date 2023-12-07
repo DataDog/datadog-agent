@@ -55,6 +55,8 @@ func (f *pdbv1beta1Factory) Name() string {
 }
 
 // CreateClient is not implemented
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *pdbv1beta1Factory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }

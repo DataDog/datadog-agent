@@ -147,6 +147,7 @@ func TestStop(t *testing.T) {
 	assert.Nil(t, s.Stop())
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestStopCancelsProducers(t *testing.T) {
 	ch := make(chan check.Check)
 	stop := make(chan bool)

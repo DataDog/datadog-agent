@@ -40,6 +40,7 @@
 /.github/CODEOWNERS                                 # do not notify anyone
 /.github/*_TEMPLATE.md                              @DataDog/agent-all
 /.github/dependabot.yaml                            @DataDog/agent-platform
+/.github/workflows/serverless-benchmarks.yml        @DataDog/serverless
 /.github/workflows/serverless-binary-size.yml       @DataDog/serverless
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
 /.github/workflows/windows-*.yml                    @DataDog/windows-agent
@@ -150,6 +151,7 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/platform-integrations
 /cmd/cws-instrumentation/               @DataDog/agent-security
 /cmd/dogstatsd/                         @DataDog/agent-metrics-logs
+/cmd/otel-agent/                        @DataDog/opentelemetry
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
 /cmd/serverless-init/                   @DataDog/serverless
@@ -227,6 +229,7 @@
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/workloadmeta @DataDog/container-integrations
 /comp/dogstatsd/statsd @DataDog/agent-shared-components
+/comp/forwarder/orchestrator @DataDog/agent-metrics-logs
 # END COMPONENTS
 
 # pkg
@@ -479,7 +482,6 @@
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing
 /test/new-e2e/                                @DataDog/agent-e2e-testing
-/test/new-e2e/language-detection              @DataDog/processes
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
@@ -488,6 +490,7 @@
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
+/test/new-e2e/tests/process                   @DataDog/processes
 /test/new-e2e/tests/cws                       @DataDog/agent-security
 /test/new-e2e/tests/agent-platform            @DataDog/agent-platform
 /test/system/                                 @DataDog/agent-shared-components

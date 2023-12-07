@@ -5,6 +5,7 @@
 
 //go:build !linux && !windows
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 package modules
 
 import "github.com/DataDog/datadog-agent/cmd/system-probe/api/module"

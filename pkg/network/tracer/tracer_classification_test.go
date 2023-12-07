@@ -5,6 +5,7 @@
 
 //go:build linux_bpf || (windows && npm)
 
+// Package tracer contains implementation for NPM's tracer.
 package tracer
 
 import (
@@ -1564,7 +1565,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				defer cancel()
 				require.NoError(t, c.HandleUnary(timedContext, "test"))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 		{
 			name:    "http2 traffic using gRPC - stream call",
@@ -1579,7 +1580,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 				defer cancel()
 				require.NoError(t, c.HandleStream(timedContext, 5))
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 		{
 			// This test checks if the classifier can properly skip literal
@@ -1615,7 +1616,7 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *Tracer, clientHost, targe
 
 				resp.Body.Close()
 			},
-			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC}),
+			validation: validateProtocolConnection(&protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}),
 		},
 	}
 	for _, tt := range tests {

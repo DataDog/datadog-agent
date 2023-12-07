@@ -17,6 +17,7 @@ import (
 	settingshttp "github.com/DataDog/datadog-agent/pkg/config/settings/http"
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type APIServerDeps struct {
 	fx.In
 
@@ -31,6 +32,7 @@ func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWri
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func SetupAPIServerHandlers(deps APIServerDeps, r *mux.Router) {
 	r.HandleFunc("/config", settingshttp.Server.GetFullDatadogConfig("process_config")).Methods("GET") // Get only settings in the process_config namespace
 	r.HandleFunc("/config/all", settingshttp.Server.GetFullDatadogConfig("")).Methods("GET")           // Get all fields from process-agent Config object
