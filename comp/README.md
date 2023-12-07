@@ -28,11 +28,13 @@ Package api implements the "api" bundle,
 
 Package api implements the internal Agent API which exposes endpoints such as config, flare or status
 
-## [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/apm/etwtracer) (Component Bundle)
+## [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer) (Component Bundle)
 
 *Datadog Team*: windows-agent
 
-### [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/apm/etwtracer)
+
+
+### [comp/apm/etwtracer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/apm/etwtracer)
 
 Package apmetwtracer provides ETW events to the .Net tracer
 
@@ -117,21 +119,21 @@ Package server implements a component to run the dogstatsd server
 
 Package serverdebug implements a component to run the dogstatsd server debug
 
-## [comp/etw](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/etw) (Component Bundle)
-
-*Datadog Team*: windows-agent
-
-
-
-### [comp/etw](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/etw)
-
-Package etw provides an ETW tracing interface
-
 ### [comp/dogstatsd/statsd](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dogstatsd/statsd)
 
 *Datadog Team*: agent-shared-components
 
 Package statsd implements a component to get a statsd client.
+
+## [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw) (Component Bundle)
+
+*Datadog Team*: windows-agent
+
+
+
+### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
+
+Package etw provides an ETW tracing interface
 
 ## [comp/forwarder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder) (Component Bundle)
 
