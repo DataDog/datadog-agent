@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
@@ -59,7 +60,8 @@ func buildSelfSignedKeyPair(additionalHostIdentities ...string) ([]byte, []byte)
 }
 
 func initializeTLS(additionalHostIdentities ...string) (*tls.Certificate, *x509.CertPool, error) {
-	log.Info("Initializing TLS certificates")
+	// print the caller as log source to identify what is calling this function
+	log.InfoStackDepth(2, "Initializing TLS certificates for hosts:", strings.Join(additionalHostIdentities, ", "))
 
 	cert, key := buildSelfSignedKeyPair(additionalHostIdentities...)
 	if cert == nil {
