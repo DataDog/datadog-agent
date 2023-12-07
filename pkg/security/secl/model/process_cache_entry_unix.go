@@ -100,6 +100,22 @@ func (pc *ProcessCacheEntry) Exec(entry *ProcessCacheEntry) {
 	copyProcessContext(pc, entry)
 }
 
+// GetContainerPIDs return the pids
+func (pc *ProcessCacheEntry) GetContainerPIDs() []uint32 {
+	var pids []uint32
+
+	for pc != nil {
+		if pc.ContainerID == "" {
+			break
+		}
+		pids = append(pids, pc.Pid)
+
+		pc = pc.Ancestor
+	}
+
+	return pids
+}
+
 // SetParentOfForkChild set the parent of a fork child
 func (pc *ProcessCacheEntry) SetParentOfForkChild(parent *ProcessCacheEntry) {
 	pc.SetAncestor(parent)

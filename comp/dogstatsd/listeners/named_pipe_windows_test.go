@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Microsoft/go-winio"
+	winio "github.com/Microsoft/go-winio"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/packets"
@@ -138,7 +138,7 @@ func newNamedPipeListenerTest(t *testing.T) namedPipeListenerTest {
 		packetOut:         packetOut,
 	}
 
-	go listenerTest.Listen()
+	listenerTest.Listen()
 	return listenerTest
 }
 
@@ -154,6 +154,7 @@ func getNamedPipeMessage(t *testing.T, listener namedPipeListenerTest) string {
 	return messages[0]
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func getNamedPipeMessages(t *testing.T, listener namedPipeListenerTest, nbMessage int) map[string]bool {
 	messageSet := make(map[string]bool)
 

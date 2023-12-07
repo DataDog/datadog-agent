@@ -57,6 +57,7 @@ as well as which services are serving the pods. Or the deployment name for the p
 	return []*cobra.Command{cmd}
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
 	nodeName := ""
 	if len(cliParams.args) > 0 {

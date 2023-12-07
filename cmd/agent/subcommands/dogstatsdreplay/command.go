@@ -75,6 +75,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{dogstatsdReplayCmd}
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func dogstatsdReplay(log log.Component, config config.Component, cliParams *cliParams) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

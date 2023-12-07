@@ -40,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
+//nolint:unused // TODO(NDM) Fix unused linter
 func demuxOpts() aggregator.AgentDemultiplexerOptions {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour

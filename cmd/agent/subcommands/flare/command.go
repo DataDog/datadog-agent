@@ -32,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
+	//nolint:revive // TODO(ASC) Fix revive linter
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
@@ -207,6 +208,7 @@ func readProfileData(seconds int) (flare.ProfileData, error) {
 	return pdata, errs
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func makeFlare(flareComp flare.Component, log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, cliParams *cliParams) error {
 	var (
 		profile flare.ProfileData

@@ -62,7 +62,7 @@ func TestMockBundleDependencies(t *testing.T) {
 		statsd.MockModule(),
 		fx.Supply(&agent.Params{}),
 		fx.Invoke(func(_ agent.Component) {}),
-		MockBundle,
+		MockBundle(),
 	))
 
 	require.NotNil(t, cfg.Object())

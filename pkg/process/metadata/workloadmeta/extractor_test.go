@@ -49,7 +49,9 @@ func TestExtractor(t *testing.T) {
 
 	// Silly test container id's for fun, doesn't matter what they are they just have to be unique.
 	var (
+		//nolint:revive // TODO(PROC) Fix revive linter
 		ctrId1 = "containers-are-awesome"
+		//nolint:revive // TODO(PROC) Fix revive linter
 		ctrId2 = "we-all-live-in-a-yellow-container"
 	)
 	extractor.SetLastPidToCid(map[int]string{
@@ -296,6 +298,7 @@ func TestLateContainerId(t *testing.T) {
 	}, <-extractor.ProcessCacheDiff())
 
 	var (
+		//nolint:revive // TODO(PROC) Fix revive linter
 		ctrId1 = "containers-are-awesome"
 	)
 	extractor.SetLastPidToCid(map[int]string{

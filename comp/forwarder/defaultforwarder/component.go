@@ -4,6 +4,8 @@
 // Copyright 2023-present Datadog, Inc.
 
 // Package defaultForwarder implements a component to send payloads to the backend
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 package defaultforwarder
 
 import (

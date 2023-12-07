@@ -343,6 +343,7 @@ func TestConvertParseMetricError(t *testing.T) {
 	assert.Error(t, err)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func TestConvertParseMonokeyBatching(t *testing.T) {
 	// TODO: not implemented
 	// parsed, err := parseAndEnrichSingleMetricMessage(t, []byte("test_gauge:1.5|g|#tag1:one,tag2:two:2.3|g|#tag3:three:3|g"), "default-hostname")

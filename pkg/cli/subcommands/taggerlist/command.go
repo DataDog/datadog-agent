@@ -66,6 +66,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	}
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func taggerList(log log.Component, config config.Component, cliParams *cliParams) error {
 	// Set session token
 	if err := util.SetAuthToken(); err != nil {
@@ -80,6 +81,7 @@ func taggerList(log log.Component, config config.Component, cliParams *cliParams
 	return tagger_api.GetTaggerList(color.Output, url)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func getTaggerURL(config config.Component) (string, error) {
 	ipcAddress, err := pkgconfig.GetIPCAddress()
 	if err != nil {

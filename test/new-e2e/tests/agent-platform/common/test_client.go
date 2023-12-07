@@ -51,6 +51,11 @@ func getServiceManager(vmClient e2eClient.VM) ServiceManager {
 	if _, err := vmClient.ExecuteWithError("command -v systemctl"); err == nil {
 		return svcmanager.NewSystemctlSvcManager(vmClient)
 	}
+
+	if _, err := vmClient.ExecuteWithError("command -v /sbin/initctl"); err == nil {
+		return svcmanager.NewUpstartSvcManager(vmClient)
+	}
+
 	if _, err := vmClient.ExecuteWithError("command -v service"); err == nil {
 		return svcmanager.NewServiceSvcManager(vmClient)
 	}
@@ -65,6 +70,11 @@ func getPackageManager(vmClient e2eClient.VM) PackageManager {
 	if _, err := vmClient.ExecuteWithError("command -v yum"); err == nil {
 		return pkgmanager.NewYumPackageManager(vmClient)
 	}
+
+	if _, err := vmClient.ExecuteWithError("command -v zypper"); err == nil {
+		return pkgmanager.NewZypperPackageManager(vmClient)
+	}
+
 	return nil
 }
 

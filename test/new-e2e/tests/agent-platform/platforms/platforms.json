@@ -45,5 +45,26 @@
             "amazonlinux2022-5-15": "ami-0a8495f6303122235",
             "amazonlinux2023": "ami-08fc6fb8ad2e794bb"
         }
+    },
+    "centos": {
+        "x86_64": {
+            "centos-610": "ami-0506f01ccb6dddeda",
+            "centos-79": "ami-00e87074e52e6c9f9",
+            "rhel-86": "ami-06640050dc3f556bb",
+            "rocky-92": "ami-062b16ca222175b97"
+        },
+        "arm64": {
+            "centos-79": "ami-0144a5a84f5699847",
+            "rhel-86": "ami-0238411fb452f8275"
+        }
+    },
+    "suse": {
+        "x86_64": {
+            "sles-12": "ami-09e1f60648b4fb117",
+            "sles-15": "ami-08f3662e2d5b3989a"
+        },
+        "arm64": {
+            "sles-15": "ami-02f7663f03ca92749"
+        }
     }
 }

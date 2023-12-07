@@ -289,8 +289,8 @@ func TestPatchOwner(t *testing.T) {
 				"annotations": map[string]interface{}{
 					"annotationkey1": "annotationvalue1",
 					"annotationkey2": "annotationvalue2",
-					"apm.datadoghq.com/container-1.languages": "java,python",
-					"apm.datadoghq.com/container-2.languages": "cpp",
+					"internal.dd.datadoghq.com/container-1.detected_langs": "java,python",
+					"internal.dd.datadoghq.com/container-2.detected_langs": "cpp",
 				},
 			},
 			"spec": map[string]interface{}{},
@@ -311,9 +311,9 @@ func TestPatchOwner(t *testing.T) {
 	assert.True(t, found)
 
 	expectedAnnotations := map[string]string{
-		"apm.datadoghq.com/container-1.languages": "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages": "python,ruby",
-		"apm.datadoghq.com/container-3.languages": "cpp",
+		"internal.dd.datadoghq.com/container-1.detected_langs": "cpp,java,python",
+		"internal.dd.datadoghq.com/container-2.detected_langs": "python,ruby",
+		"internal.dd.datadoghq.com/container-3.detected_langs": "cpp",
 		"annotationkey1": "annotationvalue1",
 		"annotationkey2": "annotationvalue2",
 	}
@@ -427,8 +427,8 @@ func TestPatchAllOwners(t *testing.T) {
 				"annotations": map[string]interface{}{
 					"annotationkey1": "annotationvalue1",
 					"annotationkey2": "annotationvalue2",
-					"apm.datadoghq.com/container-1.languages": "java,python",
-					"apm.datadoghq.com/container-2.languages": "python",
+					"internal.dd.datadoghq.com/container-1.detected_langs": "java,python",
+					"internal.dd.datadoghq.com/container-2.detected_langs": "python",
 				},
 			},
 			"spec": map[string]interface{}{},
@@ -471,9 +471,9 @@ func TestPatchAllOwners(t *testing.T) {
 	assert.True(t, found)
 
 	expectedAnnotationsA := map[string]string{
-		"apm.datadoghq.com/container-1.languages":      "cpp,java,python",
-		"apm.datadoghq.com/container-2.languages":      "python,ruby",
-		"apm.datadoghq.com/init.container-3.languages": "cpp",
+		"internal.dd.datadoghq.com/container-1.detected_langs":      "cpp,java,python",
+		"internal.dd.datadoghq.com/container-2.detected_langs":      "python,ruby",
+		"internal.dd.datadoghq.com/init.container-3.detected_langs": "cpp",
 		"annotationkey1": "annotationvalue1",
 		"annotationkey2": "annotationvalue2",
 	}
@@ -489,9 +489,9 @@ func TestPatchAllOwners(t *testing.T) {
 	assert.True(t, found)
 
 	expectedAnnotationsB := map[string]string{
-		"apm.datadoghq.com/container-1.languages":      "python",
-		"apm.datadoghq.com/container-2.languages":      "golang",
-		"apm.datadoghq.com/init.container-3.languages": "cpp,java",
+		"internal.dd.datadoghq.com/container-1.detected_langs":      "python",
+		"internal.dd.datadoghq.com/container-2.detected_langs":      "golang",
+		"internal.dd.datadoghq.com/init.container-3.detected_langs": "cpp,java",
 	}
 
 	assert.True(t, reflect.DeepEqual(expectedAnnotationsB, annotations))

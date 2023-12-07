@@ -10,16 +10,16 @@ package telemetry
 import (
 	"io"
 
-	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	manager "github.com/DataDog/ebpf-manager"
-	"github.com/cilium/ebpf"
 )
 
+// Manager wraps ebpf-manager.Manager to transparently handle eBPF telemetry
 type Manager struct {
 	*manager.Manager
 	bpfTelemetry *EBPFTelemetry
 }
 
+// NewManager creates a Manager
 func NewManager(mgr *manager.Manager, bt *EBPFTelemetry) *Manager {
 	return &Manager{
 		Manager:      mgr,
@@ -27,38 +27,20 @@ func NewManager(mgr *manager.Manager, bt *EBPFTelemetry) *Manager {
 	}
 }
 
+// InitWithOptions is a wrapper around ebpf-manager.Manager.InitWithOptions
 func (m *Manager) InitWithOptions(bytecode io.ReaderAt, opts manager.Options) error {
-	telemetryMapKeys := BuildTelemetryKeys(m.Manager)
-	opts.ConstantEditors = append(opts.ConstantEditors, telemetryMapKeys...)
-
-	initializeMaps(m.bpfTelemetry, &opts)
+	if err := setupForTelemetry(m.Manager, &opts, m.bpfTelemetry); err != nil {
+		return err
+	}
 
 	if err := m.Manager.InitWithOptions(bytecode, opts); err != nil {
 		return err
 	}
 
-	if err := m.bpfTelemetry.RegisterEBPFTelemetry(m.Manager); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func initializeMaps(bpfTelemetry *EBPFTelemetry, opts *manager.Options) {
-	if bpfTelemetry == nil {
-		return
-	}
-
-	if (bpfTelemetry.MapErrMap != nil) || (bpfTelemetry.HelperErrMap != nil) {
-		if opts.MapEditors == nil {
-			opts.MapEditors = make(map[string]*ebpf.Map)
+	if m.bpfTelemetry != nil {
+		if err := m.bpfTelemetry.populateMapsWithKeys(m.Manager); err != nil {
+			return err
 		}
 	}
-	if bpfTelemetry.MapErrMap != nil {
-		opts.MapEditors[probes.MapErrTelemetryMap] = bpfTelemetry.MapErrMap
-	}
-	if bpfTelemetry.HelperErrMap != nil {
-		opts.MapEditors[probes.HelperErrTelemetryMap] = bpfTelemetry.HelperErrMap
-	}
-
+	return nil
 }

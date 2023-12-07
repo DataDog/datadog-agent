@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//nolint:revive // TODO(AML) Fix revive linter
 func testDemuxSamples(t *testing.T) metrics.MetricSampleBatch {
 	batch := metrics.MetricSampleBatch{
 		metrics.MetricSample{

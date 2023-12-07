@@ -7,12 +7,9 @@ package util
 
 import (
 	"fmt"
-	"regexp"
 
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 )
-
-var re = regexp.MustCompile(`apm\.datadoghq\.com\/(init)?\.?(.+?)\.languages`)
 
 // ContainersLanguages maps container name to language set
 type ContainersLanguages map[string]LanguageSet
@@ -46,20 +43,13 @@ func (containerslanguages ContainersLanguages) TotalLanguages() int {
 // ParseAnnotations updates the containers languages based on existing language annotations
 func (containerslanguages ContainersLanguages) ParseAnnotations(annotations map[string]string) {
 	for annotation, languages := range annotations {
-		// find a match
-		matches := re.FindStringSubmatch(annotation)
-		if len(matches) != 3 {
-			continue
+		containerName, isInitContainer := ExtractContainerFromAnnotationKey(annotation)
+		if containerName != "" {
+			if isInitContainer {
+				containerName = fmt.Sprintf("init.%s", containerName)
+			}
+			containerslanguages.GetOrInitializeLanguageset(containerName).Parse(languages)
 		}
-
-		containerName := matches[2]
-
-		// matches[1] matches "init"
-		if matches[1] != "" {
-			containerName = fmt.Sprintf("init.%s", containerName)
-		}
-
-		containerslanguages.GetOrInitializeLanguageset(containerName).Parse(languages)
 	}
 }
 

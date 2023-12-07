@@ -346,9 +346,9 @@ type testEventListener struct {
 	fields map[eval.Field]int
 }
 
-func (l *testEventListener) RuleMatch(rule *rules.Rule, event eval.Event) bool { return true }
+func (l *testEventListener) RuleMatch(_ *rules.Rule, _ eval.Event) bool { return true }
 
-func (l *testEventListener) EventDiscarderFound(rs *rules.RuleSet, event eval.Event, field eval.Field, eventType eval.EventType) {
+func (l *testEventListener) EventDiscarderFound(_ *rules.RuleSet, _ eval.Event, field eval.Field, _ eval.EventType) {
 	if l.fields == nil {
 		l.fields = make(map[eval.Field]int)
 	}
