@@ -379,7 +379,6 @@ static __always_inline int guess_conntrack_offsets(conntrack_status_t* status, c
     case GUESS_CT_TUPLE_ORIGIN:
         new_status.offset_origin = aligned_offset(subject, status->offset_origin, SIZEOF_CT_TUPLE_ORIGIN);
         bpf_probe_read_kernel(&new_status.saddr, sizeof(new_status.saddr), subject + new_status.offset_origin);
-        log_debug("new_status.saddr=%u\n", new_status.saddr);
         break;
     case GUESS_CT_TUPLE_REPLY:
         new_status.offset_reply = aligned_offset(subject, status->offset_reply, SIZEOF_CT_TUPLE_REPLY);
