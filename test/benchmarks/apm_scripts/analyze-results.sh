@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+export UNCONFIDENCE_THRESHOLD=2.0
+
 benchmark_analyzer convert \
   --framework=GoBench \
   --outpath="pr.json" \
@@ -14,4 +16,3 @@ benchmark_analyzer convert \
 
 benchmark_analyzer compare pairwise --outpath $ARTIFACTS_DIR/report.md --format md-nodejs main.json pr.json
 benchmark_analyzer compare pairwise --outpath $ARTIFACTS_DIR/report_full.html --format html main.json pr.json
-
