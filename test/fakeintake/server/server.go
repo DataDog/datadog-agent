@@ -443,17 +443,22 @@ func (fi *Server) handleConfigureOverride(w http.ResponseWriter, req *http.Reque
 
 	log.Printf("Handling configureOverride request for endpoint %s", payload.Endpoint)
 
-	fi.responseOverridesMutex.Lock()
-	fi.responseOverrides[payload.Endpoint] = httpResponse{
+	fi.safeSetResponseOverride(payload.Endpoint, httpResponse{
 		statusCode:  payload.StatusCode,
 		contentType: payload.ContentType,
 		body:        payload.Body,
-	}
-	fi.responseOverridesMutex.Unlock()
+	})
 
 	writeHTTPResponse(w, httpResponse{
 		statusCode: http.StatusOK,
 	})
+}
+
+func (fi *Server) safeSetResponseOverride(endpoint string, response httpResponse) {
+	fi.responseOverridesMutex.Lock()
+	defer fi.responseOverridesMutex.Unlock()
+
+	fi.responseOverrides[endpoint] = response
 }
 
 // getResponseFromURLPath returns the HTTP response for a given URL path, or the default response if
