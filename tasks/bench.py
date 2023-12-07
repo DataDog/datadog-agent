@@ -47,23 +47,6 @@ def build_aggregator(ctx, rebuild=False, arch="x64"):
 
 
 @task
-def build_dogstatsd(ctx, arch="x64"):
-    """
-    Build Dogstatsd benchmarks.
-    """
-    build_tags = get_default_build_tags(build="test", arch=arch)  # pass all the build flags
-
-    cmd = "go build -mod={go_mod} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/dogstatsd"
-    args = {
-        "go_mod": "mod",
-        "build_tags": " ".join(build_tags),
-        "bin_name": os.path.join(BENCHMARKS_BIN_PATH, bin_name("dogstatsd")),
-        "REPO_PATH": REPO_PATH,
-    }
-    ctx.run(cmd.format(**args))
-
-
-@task
 def build_kubernetes_state(ctx, arch="x64"):
     """
     Build Kubernetes_State benchmarks.
@@ -78,28 +61,6 @@ def build_kubernetes_state(ctx, arch="x64"):
         "REPO_PATH": REPO_PATH,
     }
     ctx.run(cmd.format(**args))
-
-
-@task(pre=[build_dogstatsd])
-def dogstatsd(ctx):
-    """
-    Run Dogstatsd Benchmarks.
-    """
-    bin_path = os.path.join(BENCHMARKS_BIN_PATH, bin_name("dogstatsd"))
-    branch_name = os.environ.get("DD_REPO_BRANCH_NAME") or get_git_branch_name()
-    options = f"-branch {branch_name}"
-
-    key = os.environ.get("DD_AGENT_API_KEY")
-    if key:
-        options += f" -api-key {key}"
-
-    ctx.run(f"{bin_path} -pps=5000 -dur 45 -ser 5 -brk -inc 1000 {options}")
-
-
-# Temporarily keep compatibility after typo fix
-@task(pre=[build_dogstatsd])
-def dogstastd(ctx):
-    dogstatsd(ctx)
 
 
 @task(pre=[build_aggregator])
