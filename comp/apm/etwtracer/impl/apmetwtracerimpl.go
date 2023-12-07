@@ -57,8 +57,8 @@ func newApmEtwTracerImpl(deps dependencies) (apmetwtracer.Component, error) {
 	guid, _ := windows.GUIDFromString("{E13C0D23-CCBC-4E12-931B-D9CC2EEE27E4}")
 
 	apmEtwTracer := &apmetwtracerimpl{
-		pids:                      make(pidMap),
 		dotNetRuntimeProviderGUID: guid,
+		pids:                      make(pidMap),
 		log:                       deps.Log,
 		etw:                       deps.Etw,
 	}
@@ -79,6 +79,8 @@ type apmetwtracerimpl struct {
 	pids     pidMap
 	pidMutex sync.Mutex
 
+	readCtx      context.Context
+	readCancel   context.CancelFunc
 	pipeListener net.Listener
 	log          log.Component
 	etw          etw.Component
@@ -116,23 +118,38 @@ type win32MessageBytePipe interface {
 	CloseWrite() error
 }
 
-func (a *apmetwtracerimpl) readBinary(c net.Conn, data any) error {
-	// Don't set a deadline for reading, some clients might be silent for a long time
-	// and keep the connection open.
-	err := binary.Read(c, binary.LittleEndian, data)
-	if errors.Is(err, io.EOF) {
-		a.log.Debugf("Client disconnected [%s]", c.RemoteAddr().Network())
-		return err
+func (a *apmetwtracerimpl) readBinary(c net.Conn, data any, ctx context.Context) error {
+	for {
+		// There's no way to interrupt a read with a context cancellation
+		// so use read deadline to regularly poll the context error.
+		c.SetReadDeadline(time.Now().Add(1 * time.Second))
+		err := binary.Read(c, binary.LittleEndian, data)
+
+		if ctx.Err() != nil {
+			return windows.Errno(ERROR_NO_DATA)
+		}
+
+		// Read timed out and cancellation not requested, continuing to read.
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			continue
+		}
+
+		// Handle other errors / successful read
+		if errors.Is(err, io.EOF) {
+			a.log.Debugf("Client disconnected [%s]", c.RemoteAddr().Network())
+			return err
+		}
+		if errors.Is(err, os.ErrDeadlineExceeded) {
+			a.log.Debugf("Client timed-out [%s]", c.RemoteAddr().Network())
+			return err
+		}
+		if err != nil {
+			a.log.Errorf("Read error: %v", err)
+			return err
+		}
+
+		return nil
 	}
-	if errors.Is(err, os.ErrDeadlineExceeded) {
-		a.log.Debugf("Client timed-out [%s]", c.RemoteAddr().Network())
-		return err
-	}
-	if err != nil {
-		a.log.Errorf("Read error: %v", err)
-		return err
-	}
-	return nil
 }
 
 func (a *apmetwtracerimpl) writeBinary(c net.Conn, data any) error {
@@ -160,13 +177,14 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 	// calls https://github.com/microsoft/go-winio/blob/e6aebd619a7278545b11188a0e21babea6b94182/pipe.go#L147
 	// which closes a pipe in message-mode
 	defer func(pipe win32MessageBytePipe) {
+		a.log.Tracef("Closing pipe [%s]", c.RemoteAddr().Network())
 		_ = pipe.CloseWrite()
 	}(c.(win32MessageBytePipe))
 
 	a.log.Debugf("Client connected [%s]", c.RemoteAddr().Network())
 	for {
 		h := header{}
-		err := a.readBinary(c, &h)
+		err := a.readBinary(c, &h, a.readCtx)
 		if err != nil {
 			// Error is handled in readBinary
 			return
@@ -179,7 +197,7 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 
 		// Read pid
 		var pid uint64
-		err = a.readBinary(c, &pid)
+		err = a.readBinary(c, &pid, a.readCtx)
 		if err != nil {
 			// Error is handled in readBinary
 			return
@@ -229,6 +247,7 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 		return nil
 	}
 
+	a.readCtx, a.readCancel = context.WithCancel(context.Background())
 	a.pipeListener, err = winio.ListenPipe(serverNamedPipePath, &winio.PipeConfig{
 		// https://learn.microsoft.com/en-us/windows/win32/secauthz/security-descriptor-string-format
 		// https://learn.microsoft.com/en-us/windows/win32/secauthz/ace-strings
@@ -252,6 +271,7 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 		return nil
 	}
 	go func() {
+
 		for {
 			conn, err := a.pipeListener.Accept()
 			if err != nil {
@@ -344,6 +364,14 @@ func (a *apmetwtracerimpl) stop(_ context.Context) error {
 	a.log.Infof("Stopping Datadog APM ETW tracer component")
 	err := a.session.StopTracing()
 	err = errors.Join(err, a.pipeListener.Close())
+	// Cancel all active reads
+	a.readCancel()
+	a.pidMutex.Lock()
+	defer a.pidMutex.Unlock()
+	for pid, pidCtx := range a.pids {
+		pidCtx.conn.Close()
+		delete(a.pids, pid)
+	}
 	return err
 }
 
