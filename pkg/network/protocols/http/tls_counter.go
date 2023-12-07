@@ -12,6 +12,7 @@ import (
 )
 
 // TLSCounter is a TLS aware counter, it has a plain counter and a counter for each TLS library
+// It enables the use of a single metric that increments based on the TLS library, avoiding the need for separate metrics for each TLS library
 type TLSCounter struct {
 	counterPlain   *libtelemetry.Counter
 	counterGnuTLS  *libtelemetry.Counter

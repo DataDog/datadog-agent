@@ -8,6 +8,6 @@
 package http
 
 // Add increments the plain counter since TLS support for Windows is not yet available
-func (t *TLSCounter) Add(tx Transaction) {
+func (t *TLSCounter) Add(Transaction) {
 	t.counterPlain.Add(1)
 }
