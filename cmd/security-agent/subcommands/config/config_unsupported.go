@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-//nolint:revive // TODO(SEC) Fix revive linter
 func Commands(*command.GlobalParams) []*cobra.Command {
 	return nil
 }

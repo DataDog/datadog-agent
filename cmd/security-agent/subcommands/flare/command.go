@@ -35,7 +35,6 @@ type cliParams struct {
 	caseID        string
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,

@@ -23,9 +23,7 @@ import (
 )
 
 // Commands returns the runtime security commands
-//
-//nolint:revive // TODO(SEC) Fix revive linter
-func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+func Commands(*command.GlobalParams) []*cobra.Command {
 	return nil
 }
 

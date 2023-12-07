@@ -64,7 +64,6 @@ type cliParams struct {
 	pidfilePath string
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	params := &cliParams{
 		GlobalParams: globalParams,
