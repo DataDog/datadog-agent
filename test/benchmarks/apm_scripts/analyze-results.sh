@@ -46,3 +46,5 @@ benchmark_analyzer convert \
 
 benchmark_analyzer compare pairwise --outpath $ARTIFACTS_DIR/report.md --format md-nodejs main.json pr.json
 benchmark_analyzer compare pairwise --outpath $ARTIFACTS_DIR/report_full.html --format html main.json pr.json
+
+git checkout "${CI_COMMIT_REF_NAME}" # (Only needed while these changes aren't merged to main)
