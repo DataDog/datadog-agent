@@ -13,7 +13,6 @@ build_fakeintake:
   script:
     - inv fakeintake.build
 
-
 docker_build_fakeintake:
   stage: container_build
   rules:
