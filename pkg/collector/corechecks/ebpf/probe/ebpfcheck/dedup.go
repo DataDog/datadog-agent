@@ -21,7 +21,7 @@ func deduplicateProgramNames(stats *model.EBPFStats) {
 	slices.SortStableFunc(stats.Programs, func(a, b model.EBPFProgramStats) int {
 		x := strings.Compare(a.Name, b.Name)
 		if x == 0 {
-			x = strings.Compare(a.Module(), b.Module)
+			x = strings.Compare(a.Module, b.Module)
 			if x == 0 {
 				return int(a.ID - b.ID)
 			}
@@ -57,7 +57,7 @@ func deduplicateMapNames(stats *model.EBPFStats) {
 	cmpFunc := func(a, b *model.EBPFMapStats) int {
 		x := strings.Compare(a.Name, b.Name)
 		if x == 0 {
-			x = strings.Compare(a.Module(), b.Module)
+			x = strings.Compare(a.Module, b.Module)
 			if x == 0 {
 				return int(a.ID - b.ID)
 			}

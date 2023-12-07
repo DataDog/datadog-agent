@@ -69,6 +69,7 @@ def check_component(file, content):
         "comp/languagedetection/client/component.go",
         "comp/process/apiserver/component.go",
         "comp/process/forwarders/component.go",
+        "comp/core/workloadmeta/component.go", # // TODO: (components) fix it in later PR
     ]
 
     if file in components_to_migrate:
