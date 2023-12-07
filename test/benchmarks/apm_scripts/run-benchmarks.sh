@@ -12,4 +12,5 @@ bench_loop_x10 () {
 bench_loop_x10 "pr_bench.txt"
 git checkout main && bench_loop_x10 "main_bench.txt"
 
+inv trace-agent.benchmarks --output="$ARTIFACTS_DIR/main_bench.txt" --bench="BenchmarkAgentTraceProcessing$"
 git checkout "${CI_COMMIT_REF_NAME}" # (Only needed while these changes aren't merged to main)
