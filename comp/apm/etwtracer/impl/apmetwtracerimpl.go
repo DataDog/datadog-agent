@@ -271,7 +271,6 @@ func (a *apmetwtracerimpl) start(_ context.Context) error {
 		return nil
 	}
 	go func() {
-
 		for {
 			conn, err := a.pipeListener.Accept()
 			if err != nil {
@@ -379,6 +378,10 @@ func (a *apmetwtracerimpl) addPID(pid uint64) error {
 	c, err := winio.DialPipe(fmt.Sprintf(clientNamedPipePath, pid), nil)
 	if err != nil {
 		return err
+	}
+	// Only allow 15 PIDs to be registered
+	if len(a.pids) > 15 {
+		return fmt.Errorf("too many processes registered")
 	}
 	a.pids[pid] = pidContext{
 		conn: c,
