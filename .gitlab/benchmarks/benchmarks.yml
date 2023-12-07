@@ -9,16 +9,17 @@ benchmark:
   needs: ["setup_agent_version"]
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   script:
+    - export ARTIFACTS_DIR="$(pwd)/artifacts" && mkdir -p $ARTIFACTS_DIR
     - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
     - ./test/benchmarks/apm_scripts/run-benchmarks.sh
     - ./test/benchmarks/apm_scripts/upload-results-to-s3.sh
     - ./test/benchmarks/apm_scripts/analyze-results.sh
     - ./test/benchmarks/apm_scripts/post-pr-comment.sh
   artifacts:
-    name: "reports"
+    name: "artifacts"
     when: always
     paths:
-      - reports/
+      - artifacts/
     expire_in: 3 months
   variables:
     FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
