@@ -60,6 +60,16 @@ func (s *MockSession) GetVersion() gosnmp.SnmpVersion {
 	return s.Version
 }
 
+// GetBulkRequestCount TODO
+func (s *MockSession) GetBulkRequestCount() int64 {
+	return 0
+}
+
+// GetNextRequestCount TODO
+func (s *MockSession) GetNextRequestCount() int64 {
+	return 0
+}
+
 // CreateMockSession creates a mock session
 func CreateMockSession() *MockSession {
 	session := &MockSession{}

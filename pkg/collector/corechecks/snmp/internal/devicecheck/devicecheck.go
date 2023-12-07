@@ -342,6 +342,9 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
+
+	d.sender.MonotonicCount("datadog.snmp.requests", float64(d.session.GetNextRequestCount()), append(common.CopyStrings(newTags), "request_type:get_next"))
+	d.sender.MonotonicCount("datadog.snmp.requests", float64(d.session.GetBulkRequestCount()), append(common.CopyStrings(newTags), "request_type:get_bulk"))
 }
 
 // GetDiagnoses collects diagnoses for diagnose CLI

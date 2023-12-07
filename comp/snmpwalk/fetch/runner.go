@@ -20,17 +20,22 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
 // SnmpwalkRunner receives configuration from remote-config
 type SnmpwalkRunner struct {
-	upToDate         bool
-	sender           sender.Sender
-	jobs             chan SnmpwalkJob
-	stop             chan bool
-	prevSnmpwalkTime map[string]time.Time
-	isRunning        map[string]bool
+	upToDate bool
+	sender   sender.Sender
+	jobs     chan SnmpwalkJob
+	stop     chan bool
+
+	prevSnmpwalkTime   map[string]time.Time
+	prevSnmpwalkTimeMu sync.Mutex
+
+	isRunning   map[string]bool
+	isRunningMu sync.Mutex
 }
 
 // SnmpwalkJob ...
@@ -114,6 +119,8 @@ func (rc *SnmpwalkRunner) Callback() {
 			continue
 		}
 		deviceID := namespace + ":" + config.IPAddress
+
+		rc.prevSnmpwalkTimeMu.Lock()
 		if prevTime, ok := rc.prevSnmpwalkTime[deviceID]; ok { // TODO: check config instanceId instead?
 			// TODO: Also skip if the device is currently being walked
 			if time.Since(prevTime) < interval {
@@ -121,12 +128,16 @@ func (rc *SnmpwalkRunner) Callback() {
 				continue
 			}
 		}
+		rc.prevSnmpwalkTimeMu.Unlock()
+
 		// TODO: Also skip if the device is currently being walked
+		rc.isRunningMu.Lock()
 		if rc.isRunning[deviceID] {
 			log.Debugf("[SNMP RUNNER] Skip Device, already running: %s", deviceID)
 			continue
 		}
 		rc.isRunning[deviceID] = true
+		rc.isRunningMu.Unlock()
 
 		//rc.snmpwalkOneDevice(config, namespace, commonTags)
 		rc.jobs <- SnmpwalkJob{
@@ -159,10 +170,12 @@ func (rc *SnmpwalkRunner) snmpwalkOneDevice(config snmpparse.SNMPConfig, namespa
 	devTags = append(devTags, commonTags...)
 
 	// TODO: Need mutex lock?
+	rc.prevSnmpwalkTimeMu.Lock()
 	if prevTime, ok := rc.prevSnmpwalkTime[deviceID]; ok { // TODO: check config instanceId instead?
 		rc.sender.Gauge("datadog.snmpwalk.device.interval", localStart.Sub(prevTime).Seconds(), "", devTags)
 	}
 	rc.prevSnmpwalkTime[deviceID] = localStart
+	rc.prevSnmpwalkTimeMu.Unlock()
 
 	oidsCollectedCount := rc.collectDeviceOIDs(config, fetchStrategy)
 	duration := time.Since(localStart)
@@ -171,7 +184,9 @@ func (rc *SnmpwalkRunner) snmpwalkOneDevice(config snmpparse.SNMPConfig, namespa
 
 	rc.sender.Commit()
 
+	rc.isRunningMu.Lock()
 	delete(rc.isRunning, deviceID)
+	rc.isRunningMu.Unlock()
 }
 
 func (rc *SnmpwalkRunner) collectDeviceOIDs(config snmpparse.SNMPConfig, fetchStrategy fetchStrategyType) int {

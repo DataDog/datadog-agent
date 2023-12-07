@@ -249,3 +249,13 @@ func (fs *FakeSession) SetInt(oid string, value int) *FakeSession {
 func (fs *FakeSession) SetIP(oid string, value string) *FakeSession {
 	return fs.Set(oid, gosnmp.IPAddress, value)
 }
+
+// GetBulkRequestCount TODO
+func (fs *FakeSession) GetBulkRequestCount() int64 {
+	return 0
+}
+
+// GetNextRequestCount TODO
+func (fs *FakeSession) GetNextRequestCount() int64 {
+	return 0
+}
