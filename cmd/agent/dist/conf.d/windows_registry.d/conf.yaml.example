@@ -52,7 +52,7 @@ instances:
     ## Metric name is implicitly constructed from the provided registry key and registry value name options
     ## according to the following formula:
     ##
-    ##     winregistry.<Name for registry key path>.<name for registry value>
+    ##     winregistry.<name for registry key path>.<name for registry value>
     ##
     ##  For the following registry key and value ...
     ##
