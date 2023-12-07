@@ -30,6 +30,7 @@ func Adjust(cfg config.Config) {
 
 	usmEnabled := cfg.GetBool(smNS("enabled"))
 	dsmEnabled := cfg.GetBool(dsmNS("enabled"))
+	npmEnabled := cfg.GetBool(netNS("enabled"))
 	// this check must come first, so we can accurately tell if system_probe was explicitly enabled
 	if cfg.GetBool(spNS("enabled")) &&
 		!cfg.IsSet(netNS("enabled")) &&
@@ -47,6 +48,14 @@ func Adjust(cfg config.Config) {
 	adjustNetwork(cfg)
 	adjustUSM(cfg)
 	adjustSecurity(cfg)
+
+	if cfg.GetBool(spNS("process_service_inference", "enabled")) &&
+		!usmEnabled &&
+		!dsmEnabled &&
+		!npmEnabled {
+		log.Warn("universal service monitoring, network monitoring and data streams monitoring are disabled, disabling process service inference")
+		cfg.Set(spNS("process_service_inference", "enabled"), false, model.SourceAgentRuntime)
+	}
 
 	cfg.Set(spNS("adjusted"), true, model.SourceAgentRuntime)
 }
