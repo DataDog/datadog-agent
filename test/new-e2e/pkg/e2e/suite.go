@@ -24,7 +24,7 @@
 //	}
 //
 //	func (v *vmSuite) TestBasicVM() {
-//		v.Env().VM.Execute("ls")
+//		v.Env().VM.MustExecute("ls")
 //	}
 //
 // To write an E2E test:
@@ -52,7 +52,7 @@
 // 3. Write a test function
 //
 //	func (v *vmSuite) TestBasicVM() {
-//		v.Env().VM.Execute("ls")
+//		v.Env().VM.MustExecute("ls")
 //	}
 //
 // [e2e.Suite.Env] gives access to the components in your environment.
@@ -109,7 +109,7 @@
 //	}
 //
 //	func (v *vmSuite) TestBasicVM() {
-//		v.Env().VM.Execute("ls")
+//		v.Env().VM.MustExecute("ls")
 //	}
 //
 // # e2e.AgentStackDef
@@ -189,7 +189,7 @@
 //	}
 //
 //	func (docker *dockerSuite) TestDocker() {
-//		docker.Env().VM.Execute("docker container ls")
+//		docker.Env().VM.MustExecute("docker container ls")
 //	}
 //
 // [e2e.EnvFactoryStackDef] is used to define a custom environment.
@@ -334,7 +334,7 @@
 //	}
 //
 //	func (v *vmSuite) TestBasicVM() {
-//		v.Env().VM.Execute("ls")
+//		v.Env().VM.MustExecute("ls")
 //	}
 //
 // [Subtests]: https://go.dev/blog/subtests
@@ -345,149 +345,291 @@
 // [Agent]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
 // [ec2params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2params
 // [agentparams]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agentparams
+
 package e2e
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/runner/parameters"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/infra"
 	"github.com/DataDog/test-infra-definitions/common/utils"
-	"github.com/pulumi/pulumi/sdk/v3/go/auto"
-	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+	"github.com/DataDog/test-infra-definitions/components"
+
 	"github.com/stretchr/testify/suite"
 )
 
 const (
-	deleteTimeout = 30 * time.Minute
+	importKey = "import"
+
+	createTimeout          = 60 * time.Minute
+	deleteTimeout          = 30 * time.Minute
+	provisionerGracePeriod = 2 * time.Second
 )
 
-// Suite manages the environment creation and runs E2E tests.
-type Suite[Env any] struct {
+// Suite is a generic inteface used internally, only implemented by BaseSuite
+type Suite[Env any] interface {
+	suite.TestingSuite
+
+	init(params []SuiteOption, self Suite[Env])
+
+	UpdateEnv(...Provisioner)
+	Env() *Env
+}
+
+var _ Suite[any] = &BaseSuite[any]{}
+
+type BaseSuite[Env any] struct {
 	suite.Suite
 
-	params          params.Params
-	defaultStackDef *StackDefinition[Env]
-	currentStackDef *StackDefinition[Env]
-	firstFailTest   string
+	env    *Env
+	params suiteParams
 
-	// These fields are initialized in SetupSuite
-	env *Env
+	currentProvisioners map[string]Provisioner
+	targetProvisioners  map[string]Provisioner
 
-	isUpdateEnvCalledInThisTest bool
+	firstFailTest string
 }
 
-type suiteConstraint[Env any] interface {
-	suite.TestingSuite
-	initSuite(stackName string, stackDef *StackDefinition[Env], options ...params.Option)
+// Custom methods
+func (bs *BaseSuite[Env]) Env() *Env {
+	bs.reconcileEnv()
+	return bs.env
 }
 
-// Run runs the tests defined in e2eSuite
-//
-// t is an instance of type [*testing.T].
-//
-// e2eSuite is a pointer to a structure with a [e2e.Suite] embbeded struct.
-//
-// stackDef defines the stack definition.
-//
-// options is an optional list of options like [DevMode], [SkipDeleteOnFailure] or [WithStackName].
-//
-//	type vmSuite struct {
-//		e2e.Suite[e2e.VMEnv]
-//	}
-//	// ...
-//	e2e.Run(t, &vmSuite{}, e2e.EC2VMStackDef())
-func Run[Env any, T suiteConstraint[Env]](t *testing.T, e2eSuite T, stackDef *StackDefinition[Env], options ...params.Option) {
-	suiteType := reflect.TypeOf(e2eSuite).Elem()
-	name := suiteType.Name()
-	pkgPaths := suiteType.PkgPath()
-	pkgs := strings.Split(pkgPaths, "/")
+func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...Provisioner) {
+	uniqueIDs := make(map[string]struct{})
+	newTargetProvisioners := make(map[string]Provisioner, len(newProvisioners))
+	for _, provisioner := range newProvisioners {
+		if _, found := uniqueIDs[provisioner.ID()]; found {
+			bs.T().Errorf("Multiple providers with same id found, provisioner with id %s already exists", provisioner.ID())
+			bs.T().FailNow()
+		}
 
-	// Use the hash of PkgPath in order to have a uniq stack name
-	hash := utils.StrHash(pkgs...)
+		uniqueIDs[provisioner.ID()] = struct{}{}
+		newTargetProvisioners[provisioner.ID()] = provisioner
+	}
 
-	// Example: "e2e-e2eSuite-cbb731954db42b"
-	defaultStackName := fmt.Sprintf("%v-%v-%v", pkgs[len(pkgs)-1], name, hash)
-
-	e2eSuite.initSuite(defaultStackName, stackDef, options...)
-	suite.Run(t, e2eSuite)
+	bs.targetProvisioners = newTargetProvisioners
+	bs.reconcileEnv()
 }
 
-func (suite *Suite[Env]) initSuite(stackName string, stackDef *StackDefinition[Env], options ...params.Option) {
-	suite.params.StackName = stackName
-	suite.defaultStackDef = stackDef
+func (bs *BaseSuite[Env]) init(options []SuiteOption, self Suite[Env]) {
 	for _, o := range options {
-		o(&suite.params)
+		o(&bs.params)
+	}
+
+	if bs.params.devMode && !runner.GetProfile().AllowDevMode() {
+		bs.params.devMode = false
+	}
+
+	if !bs.params.skipDeleteOnFailure {
+		bs.params.skipDeleteOnFailure, _ = runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
+	}
+
+	if bs.params.stackName == "" {
+		sType := reflect.TypeOf(self).Elem()
+		hash := utils.StrHash(sType.PkgPath()) // hash of PkgPath in order to have a unique stack name
+		bs.params.stackName = fmt.Sprintf("e2e-%s-%s", sType.Name(), hash)
 	}
 }
 
-// Env returns the current environment.
-// In order to improve the efficiency, this function behaves as follow:
-//   - It creates the default environment if no environment exists.
-//   - It restores the default environment if [e2e.Suite.UpdateEnv] was not already called during this test.
-//     This avoid having to restore the default environment for each test even if [suite.UpdateEnv] immedialy
-//     overrides the environment.
-func (suite *Suite[Env]) Env() *Env {
-	if suite.env == nil || !suite.isUpdateEnvCalledInThisTest {
-		suite.UpdateEnv(suite.defaultStackDef)
+func (bs *BaseSuite[Env]) reconcileEnv() {
+	if reflect.DeepEqual(bs.currentProvisioners, bs.targetProvisioners) {
+		return
 	}
-	return suite.env
+
+	ctx, cancel := bs.providerContext(createTimeout)
+	defer cancel()
+
+	newEnv, newEnvFields, newEnvValues, err := bs.createEnv()
+	if err != nil {
+		panic(fmt.Errorf("unable to create new env: %T for stack: %s, err: %v", newEnv, bs.params.stackName, err))
+	}
+
+	resources := make(RawResources)
+	for id, provisioner := range bs.targetProvisioners {
+		var provisionerResources RawResources
+		var err error
+
+		switch pType := provisioner.(type) {
+		case TypedProvisioner[Env]:
+			provisionerResources, err = pType.ProvisionEnv(bs.params.stackName, ctx, newEnv)
+		case UntypedProvisioner:
+			provisionerResources, err = pType.Provision(bs.params.stackName, ctx)
+		default:
+			panic(fmt.Errorf("provisioner of type %T does not implement UntypedProvisioner nor TypedProvisioner", provisioner))
+		}
+
+		if err != nil {
+			panic(fmt.Errorf("unable to provision stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err))
+		}
+
+		resources.Merge(provisionerResources)
+	}
+
+	// Env is taken as parameter as some fields may have keys set by Env pulumi program.
+	err = bs.buildEnvFromResources(resources, newEnvFields, newEnvValues, newEnv)
+	if err != nil {
+		panic(fmt.Errorf("unable to build env: %T from resources for stack: %s, err: %v", newEnv, bs.params.stackName, err))
+	}
+
+	// If env implements Initializable, we call Init
+	if initializable, ok := any(newEnv).(Initializable); ok {
+		if err := initializable.Init(bs); err != nil {
+			panic(fmt.Errorf("failed to init environment, err: %v", err))
+		}
+	}
+
+	// On success we update the current environment
+	bs.env = newEnv
+	bs.currentProvisioners = bs.targetProvisioners
 }
+
+func (bs *BaseSuite[Env]) createEnv() (*Env, []reflect.StructField, []reflect.Value, error) {
+	var env Env
+	envFields := reflect.VisibleFields(reflect.TypeOf(&env).Elem())
+	envValue := reflect.ValueOf(&env)
+
+	retainedFields := make([]reflect.StructField, 0)
+	retainedValues := make([]reflect.Value, 0)
+	for _, field := range envFields {
+		if !field.IsExported() {
+			continue
+		}
+
+		importKeyFromTag := field.Tag.Get(importKey)
+		isImportable := field.Type.Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
+		isPtrImportable := reflect.PtrTo(field.Type).Implements(reflect.TypeOf((*components.Importable)(nil)).Elem())
+
+		// Produce meaningful error in case we have an importKey but field is not importable
+		if importKeyFromTag != "" && !isImportable {
+			return nil, nil, nil, fmt.Errorf("resource named %s has %s key but does not implement Importable interface", field.Name, importKey)
+		}
+
+		if !isImportable && isPtrImportable {
+			return nil, nil, nil, fmt.Errorf("resource named %s of type %T implements Importable on pointer receiver but is not a pointer", field.Name, field.Type)
+		}
+
+		if !isImportable {
+			continue
+		}
+
+		// Create zero-value if not created (pointer to struct)
+		fieldValue := envValue.Elem().FieldByIndex(field.Index)
+		if fieldValue.IsNil() {
+			fieldValue.Set(reflect.New(fieldValue.Type().Elem()))
+		}
+
+		retainedFields = append(retainedFields, field)
+		retainedValues = append(retainedValues, fieldValue)
+	}
+
+	return &env, retainedFields, retainedValues, nil
+}
+
+func (bs *BaseSuite[Env]) buildEnvFromResources(resources RawResources, fields []reflect.StructField, values []reflect.Value, env *Env) error {
+	if len(fields) != len(values) {
+		panic("fields and values must have the same length")
+	}
+
+	if len(resources) == 0 {
+		return nil
+	}
+
+	for idx, fieldValue := range values {
+		field := fields[idx]
+		importKeyFromTag := field.Tag.Get(importKey)
+
+		// If a field value is nil, it means that it was explicitly set to nil by provisioners, hence not available
+		// We should not find it in the resources map, returning an error in this case.
+		if fieldValue.IsNil() {
+			if _, found := resources[importKeyFromTag]; found {
+				return fmt.Errorf("resource named %s has key %s but is nil", fields[idx].Name, importKeyFromTag)
+			} else {
+				continue
+			}
+		}
+
+		importable := fieldValue.Interface().(components.Importable)
+		resourceKey := importable.Key()
+		if importKeyFromTag != "" {
+			resourceKey = importKeyFromTag
+		}
+		if resourceKey == "" {
+			return fmt.Errorf("resource named %s has no import key set and no annotation", field.Name)
+		}
+
+		if rawResource, found := resources[resourceKey]; found {
+			err := importable.Import(rawResource, fieldValue.Interface())
+			if err != nil {
+				return fmt.Errorf("failed to import resource named: %s with key: %s, err: %w", field.Name, resourceKey, err)
+			}
+
+			// See if the component requires init
+			if initializable, ok := fieldValue.Interface().(Initializable); ok {
+				if err := initializable.Init(bs); err != nil {
+					return fmt.Errorf("failed to init resource named: %s with key: %s, err: %w", field.Name, resourceKey, err)
+				}
+			}
+		} else {
+			return fmt.Errorf("expected resource named: %s with key: %s but not returned by provisioners", field.Name, resourceKey)
+		}
+	}
+
+	return nil
+}
+
+func (bs *BaseSuite[Env]) providerContext(opTimeout time.Duration) (context.Context, context.CancelFunc) {
+	var ctx context.Context
+	var cancel func()
+
+	if deadline, ok := bs.T().Deadline(); ok {
+		deadline = deadline.Add(-provisionerGracePeriod)
+		ctx, cancel = context.WithDeadlineCause(context.Background(), deadline, errors.New("go test timeout almost reached, cancelling provisioners"))
+	} else {
+		ctx, cancel = context.WithTimeout(context.Background(), opTimeout)
+	}
+
+	return ctx, cancel
+}
+
+//
+// Overriden methods
+//
 
 // BeforeTest is executed right before the test starts and receives the suite and test names as input.
 // This function is called by [testify Suite].
 //
-// If you override BeforeTest in your custom test suite type, the function must call [e2e.Suite.BeforeTest].
+// If you override BeforeTest in your custom test suite type, the function must call [test.BaseSuite.BeforeTest].
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
-func (suite *Suite[Env]) BeforeTest(suiteName, testName string) {
-	_ = suiteName
-	_ = testName
-	suite.isUpdateEnvCalledInThisTest = false
+func (bs *BaseSuite[Env]) BeforeTest(string, string) {
+	// Reset provisioners to original provisioners
+	bs.targetProvisioners = bs.params.provisioners
 }
 
 // AfterTest is executed right after the test finishes and receives the suite and test names as input.
 // This function is called by [testify Suite].
 //
-// If you override AfterTest in your custom test suite type, the function must call [e2e.Suite.AfterTest].
+// If you override AfterTest in your custom test suite type, the function must call [test.BaseSuite.AfterTest].
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
-func (suite *Suite[Env]) AfterTest(suiteName, testName string) {
-	if suite.T().Failed() && suite.firstFailTest == "" {
+func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
+	if bs.T().Failed() && bs.firstFailTest == "" {
 		// As far as I know, there is no way to prevent other tests from being
 		// run when a test fail. Even calling panic doesn't work.
 		// Instead, this code stores the name of the first fail test and prevents
 		// the environment to be updated.
 		// Note: using os.Exit(1) prevents other tests from being run but at the
 		// price of having no test output at all.
-		suite.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
+		bs.firstFailTest = fmt.Sprintf("%v.%v", suiteName, testName)
 	}
-}
-
-// SetupSuite method will run before the tests in the suite are run.
-// This function is called by [testify Suite].
-//
-// If you override SetupSuite in your custom test suite type, the function must call [e2e.Suite.SetupSuite].
-//
-// [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
-func (suite *Suite[Env]) SetupSuite() {
-	skipDelete, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.SkipDeleteOnFailure, false)
-	if skipDelete {
-		suite.params.SkipDeleteOnFailure = true
-	}
-
-	suite.Require().NotEmptyf(suite.params.StackName, "The stack name is empty. You must define it with WithName")
-	// Check if the Env type is correct otherwise raises an error before creating the env.
-	err := client.CheckEnvStructValid[Env]()
-	suite.Require().NoError(err)
 }
 
 // TearDownSuite run after all the tests in the suite have been run.
@@ -496,59 +638,37 @@ func (suite *Suite[Env]) SetupSuite() {
 // If you override TearDownSuite in your custom test suite type, the function must call [e2e.Suite.TearDownSuite].
 //
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
-func (suite *Suite[Env]) TearDownSuite() {
-	if runner.GetProfile().AllowDevMode() && suite.params.DevMode {
+func (bs *BaseSuite[Env]) TearDownSuite() {
+	if bs.params.devMode {
 		return
 	}
 
-	if suite.firstFailTest != "" && suite.params.SkipDeleteOnFailure {
-		suite.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
-			"The environment of %v was kept.", suite.firstFailTest, suite.firstFailTest, suite.firstFailTest))
+	if bs.firstFailTest != "" && bs.params.skipDeleteOnFailure {
+		bs.Require().FailNow(fmt.Sprintf("%v failed. As SkipDeleteOnFailure feature is enabled the tests after %v were skipped. "+
+			"The environment of %v was kept.", bs.firstFailTest, bs.firstFailTest, bs.firstFailTest))
 		return
 	}
 
-	// TODO: Implement retry on delete
-	ctx, cancel := context.WithTimeout(context.Background(), deleteTimeout)
+	ctx, cancel := bs.providerContext(deleteTimeout)
 	defer cancel()
-	err := infra.GetStackManager().DeleteStack(ctx, suite.params.StackName)
-	if err != nil {
-		suite.T().Errorf("unable to delete stack: %s, err :%v", suite.params.StackName, err)
-		suite.T().Fail()
-	}
-}
 
-func createEnv[Env any](suite *Suite[Env], stackDef *StackDefinition[Env]) (*Env, auto.UpResult, error) {
-	var env *Env
-	ctx := context.Background()
-
-	_, stackOutput, err := infra.GetStackManager().GetStackNoDeleteOnFailure(
-		ctx,
-		suite.params.StackName,
-		stackDef.configMap,
-		func(ctx *pulumi.Context) error {
-			var err error
-			env, err = stackDef.envFactory(ctx)
-			return err
-		}, false)
-
-	return env, stackOutput, err
-}
-
-// UpdateEnv updates the environment.
-// This affects only the test that calls this function.
-// Test functions that don't call UpdateEnv have the environment defined by [e2e.Run].
-func (suite *Suite[Env]) UpdateEnv(stackDef *StackDefinition[Env]) {
-	if stackDef != suite.currentStackDef {
-		if (suite.firstFailTest != "" || suite.T().Failed()) && suite.params.SkipDeleteOnFailure {
-			// In case of failure, do not override the environment
-			suite.T().SkipNow()
+	atLeastOneFailure := false
+	for id, provisioner := range bs.currentProvisioners {
+		if err := provisioner.Delete(bs.params.stackName, ctx); err != nil {
+			bs.T().Errorf("unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
+			atLeastOneFailure = true
 		}
-		env, upResult, err := createEnv(suite, stackDef)
-		suite.Require().NoError(err)
-		err = client.CallStackInitializers(suite.T(), env, upResult)
-		suite.Require().NoError(err)
-		suite.env = env
-		suite.currentStackDef = stackDef
 	}
-	suite.isUpdateEnvCalledInThisTest = true
+
+	if atLeastOneFailure {
+		bs.T().Fail()
+	}
+}
+
+// Unfortunatly, we cannot use `s Suite[Env]` as Go is not able to match it with a struct
+// However it's able to verify the same constraint on T
+func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
+	options = append(options, WithDevMode())
+	s.init(options, s)
+	suite.Run(t, s)
 }
