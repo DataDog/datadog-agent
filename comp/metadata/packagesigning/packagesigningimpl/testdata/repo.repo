@@ -1,0 +1,15 @@
+[gringotts]
+name=bank
+baseurl=tidy
+          room
+gpgkey=file:///etc/filedanstachambre
+gpgcheck=1
+[train]
+enabled=0
+mirrorlist=metro
+gpgkey=file:///etc/ratp
+gpgcheck=1
+[disney]
+baseurl=mirror apple
+gpgcheck=1
+gpgkey=/snow-white

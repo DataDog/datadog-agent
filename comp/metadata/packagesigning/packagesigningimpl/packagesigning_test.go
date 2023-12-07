@@ -111,7 +111,7 @@ nHqwA45eQzOye+95moLpip69fGWCX12OxjAH2jFieUX4yxHczYdc/CqyH9eyoKxL
 
 func TestDecryptGPGReader(t *testing.T) {
 	// Example data for testing
-	keys := make(map[SigningKey]struct{})
+	keys := make(map[string]SigningKey)
 
 	testCases := []struct {
 		name    string
@@ -135,7 +135,7 @@ func TestDecryptGPGReader(t *testing.T) {
 			keyType: "RSA",
 			output: SigningKey{
 				Fingerprint:    "F1068E14E09422B3",
-				ExpirationDate: "2022-06-29",
+				ExpirationDate: "2022-06-28",
 				KeyType:        "RSA",
 			},
 		},
@@ -144,67 +144,242 @@ func TestDecryptGPGReader(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 
-			decryptGPGReader(keys, testCase.reader, testCase.keyType)
+			decryptGPGReader(keys, testCase.reader, testCase.keyType, nil)
 
-			_, ok := keys[testCase.output]
-			if !ok {
+			retrieved, ok := keys[testCase.output.Fingerprint]
+			if !ok || !compareKeys(retrieved, testCase.output) {
 				t.Errorf("Expected key %s|%s to be present in the map", testCase.output.Fingerprint, testCase.output.ExpirationDate)
-				for k := range keys {
-					t.Logf("Key %s|%s", k.Fingerprint, k.ExpirationDate)
-				}
+				t.Logf("Key %s|%s", retrieved.Fingerprint, retrieved.ExpirationDate)
 			}
 		})
 
 	}
 }
 
+func compareKeys(a, b SigningKey) bool {
+	if a.Fingerprint != b.Fingerprint {
+		return false
+	}
+	if a.ExpirationDate != b.ExpirationDate {
+		return false
+	}
+	if a.KeyType != b.KeyType {
+		return false
+	}
+	if a.Repositories == nil && b.Repositories == nil {
+		for idx, repo := range a.Repositories {
+			if repo.RepoName != b.Repositories[idx].RepoName {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func TestParseRepoFile(t *testing.T) {
 	testCases := []struct {
-		name     string
-		fileName string
-		gpgCheck bool
-		gpgFiles []string
+		name        string
+		fileName    string
+		mainConf    mainData
+		reposPerKey map[string][]repositories
 	}{
 		{
-			name:     "Main file with serveral repo config",
+			name:     "Main file with several repo config",
 			fileName: "testdata/main.repo",
-			gpgCheck: false,
-			gpgFiles: []string{"/etc/httpfile",
-				"https://httpfile.com",
-				"https://ook.com",
-				"/etc/rincewind",
-				"https://leia.com",
-				"/etc/luke",
-				"https://strength.com",
-				"https://courage.com",
-				"/etc/wisdom",
-				"https://brahma.com",
-				"/etc/vishnu",
-				"/etc/shiva"},
+			mainConf: mainData{false, false, false},
+			reposPerKey: map[string][]repositories{"file:///etc/httpfile": nil,
+				"https://httpfile.com":  nil,
+				"https://ook.com":       nil,
+				"file:///etc/rincewind": nil,
+				"https://leia.com":      nil,
+				"file:///etc/luke":      nil,
+				"https://strength.com":  nil,
+				"https://courage.com":   nil,
+				"file:///etc/wisdom":    nil,
+				"https://brahma.com":    nil,
+				"file:///etc/vishnu":    nil,
+				"file:///etc/shiva":     nil},
+		},
+		{
+			name:        "Main with checks enabled",
+			fileName:    "testdata/main_enabled.repo",
+			mainConf:    mainData{true, true, true},
+			reposPerKey: nil,
 		},
 		{
 			name:     "One file with 2 different configurations",
 			fileName: "testdata/multi.repo",
-			gpgCheck: false,
-			gpgFiles: []string{"https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public",
-				"https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
-				"https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public",
-				"/etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release",
-				"/etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-beta"},
+			mainConf: mainData{},
+			reposPerKey: map[string][]repositories{"https://keys.datadoghq.com/DATADOG_RPM_KEY_CURRENT.public": {{"https://yum.datadoghq.com/stable/7/x86_64/"}},
+				"https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public": {{"https://yum.datadoghq.com/stable/7/x86_64/"}},
+				"https://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public": {{"https://yum.datadoghq.com/stable/7/x86_64/"}, {"another"}}},
+		},
+		{
+			name:     "Repositories with one or several filenames",
+			fileName: "testdata/repo.repo",
+			mainConf: mainData{true, false, false},
+			reposPerKey: map[string][]repositories{"file:///etc/filedanstachambre": {{"tidy"}, {"room"}},
+				"/snow-white": {{"mirror"}, {"apple"}}},
 		},
 	}
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			gpgCheck, gpgFiles := parseRepoFile(testCase.fileName, false)
-			for idx, f := range gpgFiles {
-				if f != testCase.gpgFiles[idx] {
-					t.Errorf("Expected gpgFile %s, got %s", testCase.gpgFiles[idx], f)
-				}
+			mainConf, reposPerKey := parseRepoFile(testCase.fileName, testCase.mainConf)
+			errorData := compareRepoPerKeys(reposPerKey, testCase.reposPerKey)
+			if mainConf != testCase.mainConf {
+				t.Errorf("Expected gpgcheck/local/repo %t/%t/%t, got %t/%t/%t",
+					testCase.mainConf.gpgcheck,
+					testCase.mainConf.localpkgGpgcheck,
+					testCase.mainConf.repoGpgcheck,
+					mainConf.gpgcheck,
+					mainConf.localpkgGpgcheck,
+					mainConf.repoGpgcheck)
 			}
-			if gpgCheck != testCase.gpgCheck {
-				t.Errorf("Expected gpgCheck %t, got %t", testCase.gpgCheck, gpgCheck)
+			if len(errorData) > 0 {
+				for _, key := range errorData {
+					if _, ok := testCase.reposPerKey[key]; !ok {
+						t.Errorf("Unexpected key %s", key)
+					} else {
+						if _, ok := reposPerKey[key]; !ok {
+							t.Errorf("Missing key %s", key)
+						} else {
+							t.Errorf("Wrong key %s expected %v got %v", key, testCase.reposPerKey[key], reposPerKey[key])
+						}
+					}
+				}
 			}
 		})
 	}
 }
+
+func compareRepoPerKeys(a, b map[string][]repositories) []string {
+	errorKeys := make([]string, 0)
+	if len(a) < len(b) {
+		for key := range b {
+			if _, ok := a[key]; !ok {
+				errorKeys = append(errorKeys, key)
+			}
+		}
+	} else if len(a) > len(b) {
+		for key := range a {
+			if _, ok := b[key]; !ok {
+				errorKeys = append(errorKeys, key)
+			}
+		}
+	} else {
+		errorKeys = append(errorKeys, compareKey(a, b)...)
+		errorKeys = append(errorKeys, compareKey(b, a)...)
+	}
+	return errorKeys
+}
+func compareKey(a, b map[string][]repositories) []string {
+	errorKeys := make([]string, 0)
+	for key := range a {
+		if _, ok := b[key]; !ok {
+			errorKeys = append(errorKeys, key)
+		} else {
+			if len(a[key]) == len(b[key]) {
+				if anyMissingRepository(a[key], b[key]) {
+					errorKeys = append(errorKeys, key)
+				}
+				if anyMissingRepository(b[key], a[key]) {
+					errorKeys = append(errorKeys, key)
+				}
+			} else {
+				errorKeys = append(errorKeys, key)
+			}
+		}
+	}
+	return errorKeys
+}
+func anyMissingRepository(r, s []repositories) bool {
+	for _, src := range r {
+		found := false
+		for _, dest := range s {
+			if src.RepoName == dest.RepoName {
+				found = true
+				break
+			}
+
+		}
+		if !found {
+			return true
+		}
+	}
+	return false
+}
+
+func TestGetDebsigPath(t *testing.T) {
+	t.Cleanup(func() {
+		debsigPolicies = "/etc/debsig/policies/"
+		debsigKeyring = "/usr/share/debsig/keyrings/"
+	})
+
+	debsigPolicies = "testdata/debsig/policies"
+	debsigKeyring = "testdata/debsig/keyrings"
+	testCases := []struct {
+		name  string
+		files []string
+	}{
+		{
+			name:  "Find debsigfiles",
+			files: []string{"testdata/debsig/keyrings/F1E2D3C4B5/debsig.gpg"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+
+			debsigFiles := getDebsigKeyPaths()
+			for idx, file := range debsigFiles {
+				if file != testCase.files[idx] {
+					t.Errorf("Expected file %s, got %s", testCase.files[idx], file)
+				}
+			}
+		})
+
+	}
+
+}
+
+func TestParseSourceListFile(t *testing.T) {
+	testCases := []struct {
+		name        string
+		fileName    string
+		reposPerKey map[string][]repositories
+	}{
+		{
+			name:     "Source list file with several repo config",
+			fileName: "testdata/datadog.list",
+			reposPerKey: map[string][]repositories{"/usr/share/keyrings/datadog-archive-keyring.gpg": {{"https://apt.datadoghq.com//stable/7"}, {"https://apt.datadoghq.com//stable/6"}, {"https://apt.datadoghq.com//beta/7"}},
+				"/usr/vinz/clortho/keyring.gpg": {{"https://apt.ghostbusters.com//stable/84"}},
+				"/don/rosa/carl/barks":          {{"https://duck.family.com/scrooge/donald/huey/dewey/louie"}},
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			reposPerKey := parseSourceListFile(testCase.fileName)
+			errorData := compareRepoPerKeys(reposPerKey, testCase.reposPerKey)
+			if len(errorData) > 0 {
+				for _, key := range errorData {
+					if _, ok := testCase.reposPerKey[key]; !ok {
+						t.Errorf("Unexpected key %s", key)
+					} else {
+						if _, ok := reposPerKey[key]; !ok {
+							t.Errorf("Missing key %s", key)
+						} else {
+							t.Errorf("Wrong key %s expected %v got %v", key, testCase.reposPerKey[key], reposPerKey[key])
+						}
+					}
+				}
+			}
+		})
+	}
+}
+
+// func TestGetPayload(t *testing.T) {
+// 	//TODO
+// }

@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"runtime"
 	"time"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
+	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"go.uber.org/fx"
 )
 
@@ -106,11 +108,15 @@ func newPackageSigningProvider(deps dependencies) provides {
 
 func (is *pkgSigning) fillData() {
 	pkgManager := getPackageManager()
+
+	transport := httputils.CreateHTTPTransport(is.conf)
+	client := &http.Client{Transport: transport}
+
 	switch pkgManager {
 	case "apt":
-		is.data.SigningKeys = getAPTSignatureKeys()
+		is.data.SigningKeys = getAPTSignatureKeys(client)
 	case "yum", "dnf", "zypper":
-		is.data.SigningKeys = getYUMSignatureKeys(pkgManager)
+		is.data.SigningKeys = getYUMSignatureKeys(pkgManager, client)
 	default: // should not happen, tested above
 		is.log.Info("No supported package manager detected, package signing telemetry will not be collected")
 	}
@@ -127,17 +133,17 @@ func (is *pkgSigning) getPayload() marshaler.JSONMarshaler {
 }
 
 // GetLinuxPackageSigningPolicy returns the global GPG signing policy of the host
-func GetLinuxPackageSigningPolicy() bool {
+func GetLinuxPackageSigningPolicy() (bool, bool) {
 	if runtime.GOOS == "linux" {
 		pkgManager := getPackageManager()
 		switch pkgManager {
 		case "apt":
-			return getNoDebsig()
+			return getNoDebsig(), false
 		case "yum", "dnf", "zypper":
 			return getMainGPGCheck(pkgManager)
 		default: // should not happen, tested above
-			return false
+			return false, false
 		}
 	}
-	return true
+	return true, true
 }

@@ -17,15 +17,20 @@ import (
 
 // SigningKey represents relevant fields for a package signature key
 type SigningKey struct {
-	Fingerprint    string `json:"signing_key_fingerprint"`
-	ExpirationDate string `json:"signing_key_expiration_date"`
-	KeyType        string `json:"signing_key_type"`
-	// Repositories   []repositories `json:"repositories"`
+	Fingerprint    string         `json:"signing_key_fingerprint"`
+	ExpirationDate string         `json:"signing_key_expiration_date"`
+	KeyType        string         `json:"signing_key_type"`
+	Repositories   []repositories `json:"repositories"`
 }
 
-// type repositories struct {
-// 	RepoName string `json:"repo_name"`
-// }
+type repositories struct {
+	RepoName string `json:"repo_name"`
+}
+
+type repoFile struct {
+	filename     string
+	repositories []repositories
+}
 
 const (
 	aptPath    = "/etc/apt"
@@ -51,28 +56,29 @@ func getPackageManager() string {
 }
 
 // decryptGPGFile parse a gpg file (local or http) and extract signing keys information
-func decryptGPGFile(allKeys map[SigningKey]struct{}, gpgFile string, keyType string) {
+// Some files can contain a list of repositories.
+func decryptGPGFile(allKeys map[string]SigningKey, gpgFile repoFile, keyType string, client *http.Client) {
 	var reader io.Reader
-	if strings.HasPrefix(gpgFile, "http") {
-		response, err := http.Get(gpgFile)
+	if strings.HasPrefix(gpgFile.filename, "http") {
+		response, err := client.Get(gpgFile.filename)
 		if err != nil {
 			return
 		}
 		defer response.Body.Close()
 		reader = response.Body
 	} else {
-		file, err := os.Open(gpgFile)
+		file, err := os.Open(strings.Replace(gpgFile.filename, "file://", "", 1))
 		if err != nil {
 			return
 		}
 		defer file.Close()
 		reader = file
 	}
-	decryptGPGReader(allKeys, reader, keyType)
+	decryptGPGReader(allKeys, reader, keyType, gpgFile.repositories)
 }
 
 // decryptGPGReader extract keys from a reader, useful for rpm extraction
-func decryptGPGReader(allKeys map[SigningKey]struct{}, reader io.Reader, keyType string) {
+func decryptGPGReader(allKeys map[string]SigningKey, reader io.Reader, keyType string, repositories []repositories) {
 	keyList, err := pgp.ReadArmoredKeyRing(reader)
 	if err != nil {
 		return
@@ -86,10 +92,11 @@ func decryptGPGReader(allKeys map[SigningKey]struct{}, reader io.Reader, keyType
 			expiry := key.PrimaryKey.CreationTime.Add(time.Duration(*i.SelfSignature.KeyLifetimeSecs) * time.Second)
 			expDate = expiry.Format(formatDate)
 		}
-		allKeys[SigningKey{
+		allKeys[fingerprint] = SigningKey{
 			Fingerprint:    fingerprint,
 			ExpirationDate: expDate,
 			KeyType:        keyType,
-		}] = struct{}{}
+			Repositories:   repositories,
+		}
 	}
 }

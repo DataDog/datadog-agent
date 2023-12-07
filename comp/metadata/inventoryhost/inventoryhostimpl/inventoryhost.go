@@ -93,7 +93,8 @@ type hostMetadata struct {
 	DmiBoardVendor      string `json:"dmi_board_vendor"`
 
 	// from package repositories
-	LinuxPackageSigningEnabled bool `json:"linux_package_signing_enabled"`
+	LinuxPackageSigningEnabled   bool `json:"linux_package_signing_enabled"`
+	RPMGlobalRepoGPGCheckEnabled bool `json:"rpm_global_repo_gpg_check_enabled"`
 }
 
 // Payload handles the JSON unmarshalling of the metadata payload
@@ -236,7 +237,9 @@ func (ih *invHost) fillData() {
 	ih.data.CloudProviderHostID = cloudproviders.GetHostID(context.Background(), cloudProvider)
 	ih.data.OsVersion = osVersionGet()
 
-	ih.data.LinuxPackageSigningEnabled = packagesigningimpl.GetLinuxPackageSigningPolicy()
+	gpgcheck, repoGPGCheck := packagesigningimpl.GetLinuxPackageSigningPolicy()
+	ih.data.LinuxPackageSigningEnabled = gpgcheck
+	ih.data.RPMGlobalRepoGPGCheckEnabled = repoGPGCheck
 }
 
 func (ih *invHost) getPayload() marshaler.JSONMarshaler {

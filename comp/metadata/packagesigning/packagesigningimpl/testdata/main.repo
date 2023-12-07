@@ -1,6 +1,6 @@
 [main]
 gpgcheck=0
-[basic http not included]
+[basic http]
 gpgkey=https://basic.com
 [file and http same line]
 gpgcheck=1
