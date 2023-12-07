@@ -16,6 +16,7 @@ import (
 // team: windows-agent
 
 // DDGUID represents a GUID
+// 16 bytes
 type DDGUID struct {
 	Data1 uint32
 	Data2 uint16
@@ -25,6 +26,7 @@ type DDGUID struct {
 
 // DDEventDescriptor contains information (metadata) about an ETW event.
 // see https://learn.microsoft.com/en-us/windows/win32/api/evntprov/ns-evntprov-event_descriptor
+// 16 bytes
 type DDEventDescriptor struct {
 	ID      uint16
 	Version uint8
@@ -37,6 +39,7 @@ type DDEventDescriptor struct {
 
 // DDEventHeader defines information about an ETW event.
 // see https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_header
+// 80 bytes
 type DDEventHeader struct {
 	Size            uint16
 	HeaderType      uint16
@@ -53,12 +56,14 @@ type DDEventHeader struct {
 
 // DDEventRecord defines the layout of an event that Event Tracing for Windows (ETW) delivers.
 // see https://learn.microsoft.com/en-us/windows/win32/api/evntcons/ns-evntcons-event_record
+// 104
 type DDEventRecord struct {
 	EventHeader    DDEventHeader
-	Pad1           [6]uint8
+	Pad1           [6]uint8 // sizeof(ETW_BUFFER_CONTEXT) + sizeof(USHORT) = 6
 	UserDataLength uint16
-	Pad2           [8]uint8
+	Pad2           [8]uint8 // sizeof(PEVENT_HEADER_EXTENDED_DATA_ITEM) = 8
 	UserData       *uint8
+	// UserDataContext is left out
 }
 
 // EventCallback is a function that will be called when an ETW event is received

@@ -183,6 +183,23 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 
 	a.log.Debugf("Client connected [%s]", c.RemoteAddr().Network())
 	for {
+		/*
+			Here we read a 17 bytes header, which will contain the command to process.
+			The header is succeeded by the PID to monitor on 8 bytes.
+
+				+------------------------+
+				|		 HEADER			 |
+				+------------------------+
+			    | Magic 14 bytes 		 |
+			    | Size 2 bytes			 |
+			    | Command 1 byte         |
+				+------------------------+
+			    |		 PAYLOAD		 |
+				+------------------------+
+				| PID 8 bytes 		     |
+				+------------------------+
+		*/
+
 		h := header{}
 		err := a.readBinary(c, &h, a.readCtx)
 		if err != nil {
@@ -229,7 +246,20 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		default:
 			a.log.Infof("Unsupported command %d", h.CommandResponse)
 		}
-		h.Size = headerSize
+		h.Size = 0
+
+		/*
+			Here we write a 17 bytes header, which will contain the response to the command.
+			The size is set to 17 since there is no payload.
+
+				+------------------------+
+				|		 HEADER			 |
+				+------------------------+
+			    | Magic 14 bytes 		 |
+			    | Size 2 bytes			 |
+			    | Response 1 byte        |
+				+------------------------+
+		*/
 
 		// Error is handled in writeBinary
 		_ = a.writeBinary(c, &h)
@@ -327,6 +357,32 @@ func (a *apmetwtracerimpl) doTrace() {
 		}
 
 		payloadBuffer.Reset()
+
+		/*
+			Here we send the ETW traces. First we send the 17 bytes header.
+			The size is set to the size of the header + the ETW event header + the size of
+			the user data length + the size of the user data.
+
+			The payload consists of the fixed-size ETW event header, then the size of the
+			user data length, and finally the bytes of the ETW user data.
+
+				+------------------------------------+
+				|              HEADER                |
+				+------------------------------------+
+				| Magic 14 bytes                     |
+				| Size 2 bytes                       |
+				| Command 1 byte                     |
+				+------------------------------------+
+				|              PAYLOAD               |
+				+------------------------------------+
+				| ETW event record 104 bytes         |
+				+------------------------------------+
+				| User data length 2 bytes           |
+				+------------------------------------+
+				| User data (User data length bytes) |
+				+------------------------------------+
+		*/
+
 		binWriter := bufio.NewWriter(&payloadBuffer)
 		err = binary.Write(binWriter, binary.LittleEndian, header{
 			Magic:           a.magic,
