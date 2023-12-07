@@ -2,7 +2,11 @@
 #
 init_config:
   ## @param send_on_start - boolean - optional - default: true
+  ## Can be overridden per instance and indicate that registry values will
+  ## be sent as logs not only when they change but also when Agent starts.
+  #
   # send_on_start: true
+
 
   ## @param service - string - optional
   ## Attach the tag `service:<SERVICE>` to every metric, event, and service check emitted by this integration.
@@ -18,24 +22,67 @@ instances:
   - 
     ## @param registry_keys - mapping - required
     ## This mapping defines which metrics to collect from the windows registry monitoring integration.
-    ## All of the metrics value will also be sent as a log, if the Logs Agent is enabled.
-    ## Note: registry value of types REG_MULTI_SZ and REG_BINARY are not supported.
+    ## All of the specified registry values will also be sent as a log when the value is added, modified
+    ## or deleted but only if the Logs Agent is enabled. Registry value also will be sent as a log
+    ## when the Agent starts if send_on_start option is set to true.
     ##
-    ## For each registry key, the following fields are available:
+    ## For each registry key, the following options are available:
+    ##
     ##   name (string - required): The metric name of the registry key.
     ##   registry_values (map of registry values - required): The registry values to monitor.
     ##
-    ## For each registry value, the following fields are available:
+    ## For each registry value, the following options are available:
+    ##
     ##   name (string - required): The metrics name of the registry value.
     ##   default_value (float - optional): An optional value to send if the registry value was not found.
     ##   mapping (map string to float - optional): An optional map to convert registry string values to valid metrics.
+    ##
+    ##    registry_keys:
+    ##      <REGISTRY KEY PATH 1>:
+    ##        name: <Name for registry key path 1>
+    ##        registry_values:
+    ##          <REGISTRY VALUE NAME 1>:
+    ##            name: <metric name for registry value 1>
+    ##            <options for registry value 1>
+    ##          <REGISTRY VALUE NAME 2>:
+    ##            name: <metric name for registry value 2>
+    ##            <options for registry value 1>
+    ##      <REGISTRY KEY PATH_2>:
+    ##        ...
+    ##      <REGISTRY KEY PATH_N>:
+    ##        ...
+    ##
+    ## Numeric registry value or string registry value which can be automatically converted to a number
+    ## will be sent as a metric. If a registry string value cannot be automatically converted to a number
+    ## it can still be sent as a metric if custom conversion mapping from string to numeric value is
+    ## specified via the `mapping` option.
+    ##
+    ## Note: registry value of types REG_MULTI_SZ and REG_BINARY are not supported.
+    ##
+    ## Metric name is implicitly constructed from the provided registry key and registry value name options
+    ## according to the following formula:
+    ##
+    ##     winregistry.<name for registry key path>.<name for registry value>
+    ##
+    ##  For the following registry key and value ...
+    ##
+    ##    registry_keys:
+    ##      HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecureBoot\State:
+    ##        name: secureboot_state
+    ##        registry_values:
+    ##          UEFISecureBootEnabled:
+    ##            name: uefi_secure_boot_enabled
+    ##
+    ##  ... the following metric will be sent.
+    ##
+    ##    winregistry.secureboot_state.uefi_secure_boot_enabled
     ##
     ## Examples:
     ##
     ##   The following example checks if secure boot is enabled:
     ##   # HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecureBoot\State:
     ##   #   name: secureboot_state
-    ##   #   registry_value:
+    ##   #   registry_values:
     ##   #     UEFISecureBootEnabled:
     ##   #       name: uefi_secure_boot_enabled
     ##
@@ -69,13 +116,7 @@ instances:
     ##   #       name: start
     #
     registry_keys:
-      HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\wuauserv:
-        name: wuauserv
-        registry_values:
-          Start:
-            name: start
-          RequiredPrivileges:
-            name: required_privileges
+
     ## @param tags - list of strings - optional
     ## A list of tags to attach to every metric and service check emitted by this instance.
     ##
