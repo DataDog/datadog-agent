@@ -12,9 +12,9 @@ benchmark:
     - export ARTIFACTS_DIR="$(pwd)/artifacts" && mkdir -p $ARTIFACTS_DIR
     - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
     - ./test/benchmarks/apm_scripts/run-benchmarks.sh
-    - ./test/benchmarks/apm_scripts/upload-results-to-s3.sh
     - ./test/benchmarks/apm_scripts/analyze-results.sh
-    - ./test/benchmarks/apm_scripts/post-pr-comment.sh
+    - "./test/benchmarks/apm_scripts/upload-results-to-s3.sh || :"
+    - "./test/benchmarks/apm_scripts/post-pr-comment.sh || :"
   artifacts:
     name: "artifacts"
     when: always
