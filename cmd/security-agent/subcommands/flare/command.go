@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Package flare implements flare related subcommands
 package flare
 
 import (
@@ -35,7 +35,7 @@ type cliParams struct {
 	caseID        string
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Commands returns the flare commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,

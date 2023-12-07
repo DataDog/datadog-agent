@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Package compliance implements compliance related subcommands
 package compliance
 
 import (
@@ -28,7 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Commands returns the compliance commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	complianceCmd := &cobra.Command{
 		Use:   "compliance",
