@@ -179,7 +179,7 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 		"dogstatsd",
 		"channel_latency",
 		[]string{"shard", "message_type"},
-		"Time in millisecond to push metrics to the aggregator input buffer",
+		"Time in nanosecond to push metrics to the aggregator input buffer",
 		buckets)
 
 	listeners.InitTelemetry(get("telemetry.dogstatsd.listeners_latency_buckets"))
@@ -187,6 +187,8 @@ func initTelemetry(cfg config.Reader, logger logComponent.Component) {
 }
 
 // TODO: (components) - remove once serverless is an FX app
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func NewServerlessServer() Component {
 	return newServerCompat(config.Datadog, logComponent.NewTemporaryLoggerWithoutInit(), replay.NewServerlessTrafficCapture(), serverdebugimpl.NewServerlessServerDebug(), true)
 }
@@ -475,7 +477,7 @@ func (s *server) handleMessages() {
 	}
 
 	for _, l := range s.listeners {
-		go l.Listen()
+		l.Listen()
 	}
 
 	workersCount, _ := aggregator.GetDogStatsDWorkerAndPipelineCount()

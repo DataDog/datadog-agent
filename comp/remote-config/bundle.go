@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package remoteconfig defines the fx options for the Bundle
 package remoteconfig
 
 import (

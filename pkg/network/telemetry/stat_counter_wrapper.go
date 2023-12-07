@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 package telemetry
 
 import (
@@ -18,21 +19,25 @@ type StatCounterWrapper struct {
 	counter telemetry.Counter
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func (sgw *StatCounterWrapper) Inc(tags ...string) {
 	sgw.stat.Inc()
 	sgw.counter.Inc(tags...)
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func (sgw *StatCounterWrapper) Delete() {
 	sgw.stat.Store(0)
 	sgw.counter.Delete()
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func (sgw *StatCounterWrapper) Add(v int64, tags ...string) {
 	sgw.stat.Add(v)
 	sgw.counter.Add(float64(v), tags...)
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func (sgw *StatCounterWrapper) Load() int64 {
 	return sgw.stat.Load()
 }

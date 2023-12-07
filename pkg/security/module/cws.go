@@ -53,7 +53,7 @@ type CWSConsumer struct {
 func NewCWSConsumer(evm *eventmonitor.EventMonitor, cfg *config.RuntimeSecurityConfig, opts Opts) (*CWSConsumer, error) {
 	ctx, cancelFnc := context.WithCancel(context.Background())
 
-	selfTester, err := selftests.NewSelfTester(evm.Probe)
+	selfTester, err := selftests.NewSelfTester(cfg, evm.Probe)
 	if err != nil {
 		seclog.Errorf("unable to instantiate self tests: %s", err)
 	}

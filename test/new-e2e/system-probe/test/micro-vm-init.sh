@@ -1,7 +1,8 @@
 #!/bin/bash
 set -eEuxo pipefail
 
-retry_count=$1; shift
+retry_count=$1
+pkgs_run_config_file=$2
 docker_dir=/kmt-docker
 
 # Add provisioning steps here !
@@ -15,7 +16,7 @@ fi
 
 # Start tests
 code=0
-/test-runner -retry "${retry_count}" "${@}" || code=$?
+/test-runner -retry "${retry_count}" -packages-run-config "${pkgs_run_config_file}" || code=$?
 
 cp /job_env.txt /ci-visibility/junit/
 tar -C /ci-visibility/testjson -czvf /ci-visibility/testjson.tar.gz .

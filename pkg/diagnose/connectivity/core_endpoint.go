@@ -186,7 +186,9 @@ func verifyEndpointResponse(statusCode int, responseBody []byte, err error) (str
 			scrubber.ScrubLine(err.Error()), noResponseHints(err)), err
 	}
 
+	//nolint:revive // TODO(ASC) Fix revive linter
 	var verifyReport string = ""
+	//nolint:revive // TODO(ASC) Fix revive linter
 	var newErr error = nil
 	if statusCode >= 400 {
 		newErr = fmt.Errorf("bad request")

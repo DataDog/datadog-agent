@@ -13,6 +13,7 @@ data:
     instances:
       - collectors:
         - secrets
+        - configmaps
         - nodes
         - pods
         - services

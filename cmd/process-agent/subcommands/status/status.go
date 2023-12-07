@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package status
 
 import (
@@ -139,7 +140,10 @@ func getAndWriteStatus(log log.Component, statusURL string, w io.Writer, options
 			option(&s)
 		}
 
-		body, err = json.Marshal(s)
+		status := map[string]interface{}{}
+		status["processAgentStatus"] = s
+
+		body, err = json.Marshal(status)
 		if err != nil {
 			writeError(log, w, err)
 			return

@@ -5,6 +5,7 @@
 
 //go:build !linux && !windows
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package net
 
 import (
@@ -19,16 +20,22 @@ var _ SysProbeUtil = &RemoteSysProbeUtil{}
 type RemoteSysProbeUtil struct{}
 
 // CheckPath is not supported
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 func CheckPath(path string) error {
 	return ebpf.ErrNotImplemented
 }
 
 // GetRemoteSystemProbeUtil is not supported
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 func GetRemoteSystemProbeUtil(path string) (*RemoteSysProbeUtil, error) {
 	return &RemoteSysProbeUtil{}, ebpf.ErrNotImplemented
 }
 
 // GetConnections is not supported
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) GetConnections(clientID string) (*model.Connections, error) {
 	return nil, ebpf.ErrNotImplemented
 }
@@ -39,11 +46,15 @@ func (r *RemoteSysProbeUtil) GetStats() (map[string]interface{}, error) {
 }
 
 // GetProcStats is not supported
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) GetProcStats(pids []int32) (*model.ProcStatsWithPermByPID, error) {
 	return nil, ebpf.ErrNotImplemented
 }
 
 // Register is not supported
+//
+//nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) Register(clientID string) error {
 	return ebpf.ErrNotImplemented
 }

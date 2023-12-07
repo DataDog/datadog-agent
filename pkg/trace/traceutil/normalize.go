@@ -268,6 +268,7 @@ func normMetricNameParse(name string) (string, bool) {
 	res := make([]byte, 0, len(name))
 
 	// skip non-alphabetic characters
+	//nolint:revive // TODO(APM) Fix revive linter
 	for ; i < len(name) && !isAlpha(name[i]); i++ {
 	}
 

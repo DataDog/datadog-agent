@@ -52,11 +52,15 @@ func (f *extendedPodFactory) Name() string {
 }
 
 // CreateClient is not implemented
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *extendedPodFactory) CreateClient(cfg *rest.Config) (interface{}, error) {
 	return f.client, nil
 }
 
 // MetricFamilyGenerators returns the extended pod metric family generators
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *extendedPodFactory) MetricFamilyGenerators(allowAnnotationsList, allowLabelsList []string) []generator.FamilyGenerator {
 	// At the time of writing this, this is necessary in order for us to have access to the "kubernetes.io/network-bandwidth" resource
 	// type, as the default KSM offering explicitly filters out anything that is prefixed with "kubernetes.io/"
@@ -234,6 +238,8 @@ func (f *extendedPodFactory) ExpectedType() interface{} {
 }
 
 // ListWatch returns a ListerWatcher for v1.Pod
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (f *extendedPodFactory) ListWatch(customResourceClient interface{}, ns string, fieldSelector string) cache.ListerWatcher {
 	client := customResourceClient.(clientset.Interface)
 	return &cache.ListWatch{
