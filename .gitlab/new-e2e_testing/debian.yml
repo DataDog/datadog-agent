@@ -165,7 +165,7 @@ new-e2e-agent-platform-step-by-step-debian-a6-x86_64:
   stage: kitchen_testing
   extends:
     - .new_e2e_template
-    - .new-e2e_install_script
+    - .new-e2e_step_by_step
     - .new-e2e_os_debian
     - .new-e2e_debian_a6_x86_64
     - .new-e2e_agent_a6
@@ -176,7 +176,7 @@ new-e2e-agent-platform-step-by-step-debian-a6-arm64:
   stage: kitchen_testing
   extends:
     - .new_e2e_template
-    - .new-e2e_install_script
+    - .new-e2e_step_by_step
     - .new-e2e_os_debian
     - .new-e2e_debian_a6_arm64
     - .new-e2e_agent_a6

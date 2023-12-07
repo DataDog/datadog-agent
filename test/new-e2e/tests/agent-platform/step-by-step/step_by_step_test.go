@@ -89,6 +89,9 @@ func TestStepByStepScript(t *testing.T) {
 			if len(slice) == 2 {
 				version, err = strconv.ParseFloat(slice[1], 64)
 				require.NoError(tt, err)
+			} else if len(slice) == 3 {
+				version, err = strconv.ParseFloat(slice[1]+"."+slice[2], 64)
+				require.NoError(tt, err)
 			} else {
 				version = 0
 			}
@@ -196,7 +199,6 @@ func StepByStepRhelTest(is *stepByStepSuite) {
 		"\t%s://keys.datadoghq.com/DATADOG_RPM_KEY_FD4BF915.public\n"+
 		"\t%s://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public",
 		yumrepo, repogpgcheck, protocol, protocol, protocol)
-	is.T().Log(fileContent)
 	_, err = fileManager.WriteFile("/etc/yum.repos.d/datadog.repo", fileContent)
 	require.NoError(is.T(), err)
 
