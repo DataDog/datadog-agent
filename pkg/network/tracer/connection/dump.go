@@ -5,6 +5,7 @@
 
 //go:build linux_bpf
 
+//nolint:revive // TODO(NET) Fix revive linter
 package connection
 
 import (
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//nolint:revive // TODO(NET) Fix revive linter
 func dumpMapsHandler(manager *manager.Manager, mapName string, currentMap *ebpf.Map) string {
 	var output strings.Builder
 

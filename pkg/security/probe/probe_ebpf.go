@@ -276,7 +276,7 @@ func (p *EBPFProbe) Init() error {
 		})
 	}
 
-	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors(p.useFentry)...)
+	p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SnapshotSelectors()...)
 
 	if err := p.Manager.InitWithOptions(bytecodeReader, p.managerOptions); err != nil {
 		return fmt.Errorf("failed to init manager: %w", err)
@@ -760,9 +760,6 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
 		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTime(event, &event.BaseEvent)
 		event.Exit.Process = &event.ProcessCacheEntry.Process
-
-		// update mount pid mapping
-		p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
 	case model.SetuidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -1102,7 +1099,7 @@ func (p *EBPFProbe) updateProbes(ruleEventTypes []eval.EventType, needRawSyscall
 		}
 	}
 
-	activatedProbes := probes.SnapshotSelectors(p.useFentry)
+	activatedProbes := probes.SnapshotSelectors()
 
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry) {
@@ -1336,7 +1333,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.Resolvers.MountResolver.Insert(*m, 0); err != nil {
+	if err := p.Resolvers.MountResolver.Insert(*m); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}
@@ -1616,14 +1613,12 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 		)
 	}
 
-	if useRingBuffers {
-		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
-			manager.ConstantEditor{
-				Name:  "use_ring_buffer",
-				Value: utils.BoolTouint64(true),
-			},
-		)
-	}
+	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
+		manager.ConstantEditor{
+			Name:  "use_ring_buffer",
+			Value: utils.BoolTouint64(useRingBuffers),
+		},
+	)
 
 	if p.kernelVersion.HavePIDLinkStruct() {
 		p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors,
@@ -1644,7 +1639,7 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 	}
 
 	// tail calls
-	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, useMmapableMaps, p.useFentry)
+	p.managerOptions.TailCallRouter = probes.AllTailRoutes(config.Probe.ERPCDentryResolutionEnabled, config.Probe.NetworkEnabled, useMmapableMaps)
 	if !config.Probe.ERPCDentryResolutionEnabled || useMmapableMaps {
 		// exclude the programs that use the bpf_probe_write_user helper
 		p.managerOptions.ExcludedFunctions = probes.AllBPFProbeWriteUserProgramFunctions()
@@ -1905,9 +1900,27 @@ func (p *EBPFProbe) HandleActions(rule *rules.Rule, event eval.Event) {
 			_ = p.RefreshUserCache(ev.ContainerContext.ID)
 
 		case action.Kill != nil:
-			if pid := ev.ProcessContext.Pid; pid > 1 && pid != utils.Getpid() {
-				log.Debugf("Requesting signal %s to be sent to %d", action.Kill.Signal, pid)
-				sig := model.SignalConstants[action.Kill.Signal]
+			var pids []uint32
+
+			entry, exists := ev.ResolveProcessCacheEntry()
+			if !exists {
+				return
+			}
+
+			if entry.ContainerID != "" && action.Kill.Scope == "container" {
+				pids = entry.GetContainerPIDs()
+			} else {
+				pids = []uint32{ev.ProcessContext.Pid}
+			}
+
+			sig := model.SignalConstants[action.Kill.Signal]
+
+			for _, pid := range pids {
+				if pid == 0 || pid == utils.Getpid() {
+					continue
+				}
+
+				log.Debugf("requesting signal %s to be sent to %d", action.Kill.Signal, pid)
 
 				var err error
 				if p.supportsBPFSendSignal {

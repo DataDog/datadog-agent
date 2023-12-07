@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package grpc provides a gRPC client that fits the gRPC server.
 package grpc
 
 import (
@@ -89,6 +90,8 @@ func (c *Client) HandleStream(ctx context.Context, numberOfMessages int32) error
 	}
 	return nil
 }
+
+// GetFeature activates the GetFeature RPC.
 func (c *Client) GetFeature(ctx context.Context, long, lat int32) error {
 	_, err := c.routeGuideClient.GetFeature(ctx, &routeguide.Point{
 		Latitude:  lat,
@@ -97,6 +100,7 @@ func (c *Client) GetFeature(ctx context.Context, long, lat int32) error {
 	return err
 }
 
+// ListFeatures activates the ListFeatures RPC.
 func (c *Client) ListFeatures(ctx context.Context, longLo, latLo, longHi, latHi int32) error {
 	stream, err := c.routeGuideClient.ListFeatures(ctx, &routeguide.Rectangle{
 		Lo: &routeguide.Point{

@@ -317,7 +317,9 @@ func TestCompleteInferredSpanWithStartTime(t *testing.T) {
 
 	testProcessor.OnInvokeEnd(&endDetails)
 
-	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 2, len(spans))
+	completedInferredSpan := spans[1]
 	httpStatusCode := testProcessor.GetInferredSpan().Span.GetMeta()["http.status_code"]
 	peerService := testProcessor.GetInferredSpan().Span.GetMeta()["peer.service"]
 	assert.NotNil(t, httpStatusCode)
@@ -396,6 +398,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayRest(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod",
 		"http.method":                       "POST",
+		"http.route":                        "/{proxy+}",
 		"http.url":                          "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
 		"http.url_details.path":             "/prod/path/to/resource",
 		"http.useragent":                    "Custom User Agent String",
@@ -442,6 +445,7 @@ func TestTriggerTypesLifecycleEventForAPIGateway5xxResponse(t *testing.T) {
 		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/1234567890/stages/prod",
 		"http.method":                       "POST",
+		"http.route":                        "/{proxy+}",
 		"http.url":                          "70ixmpl4fl.execute-api.us-east-2.amazonaws.com",
 		"http.url_details.path":             "/prod/path/to/resource",
 		"http.useragent":                    "Custom User Agent String",
@@ -487,6 +491,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy(t *testing.T) {
 		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
 		"http.method":                       "GET",
+		"http.route":                        "/http/get",
 		"http.url":                          "lgxbo6a518.execute-api.sa-east-1.amazonaws.com",
 		"http.url_details.path":             "/dev/http/get",
 		"http.useragent":                    "curl/7.64.1",
@@ -535,6 +540,7 @@ func TestTriggerTypesLifecycleEventForAPIGatewayNonProxy5xxResponse(t *testing.T
 		"cold_start":                        "false",
 		"function_trigger.event_source_arn": "arn:aws:apigateway:us-east-1::/restapis/lgxbo6a518/stages/dev",
 		"http.method":                       "GET",
+		"http.route":                        "/http/get",
 		"http.url":                          "lgxbo6a518.execute-api.sa-east-1.amazonaws.com",
 		"http.url_details.path":             "/dev/http/get",
 		"request_id":                        "test-request-id",
@@ -928,8 +934,9 @@ func TestTriggerTypesLifecycleEventForSNSSQS(t *testing.T) {
 		IsError:   false,
 	})
 
-	snsSpan := testProcessor.requestHandler.inferredSpans[1].Span
-	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+	snsSpan, sqsSpan := spans[1], spans[2]
 	// These IDs are B64 decoded from the snssqs.json event sample's _datadog MessageAttribute
 	expectedTraceID := uint64(1728904347387697031)
 	expectedParentID := uint64(353722510835624345)
@@ -972,8 +979,9 @@ func TestTriggerTypesLifecycleEventForSNSSQSNoDdContext(t *testing.T) {
 		IsError:   false,
 	})
 
-	snsSpan := testProcessor.requestHandler.inferredSpans[1].Span
-	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 3, len(spans))
+	snsSpan, sqsSpan := spans[1], spans[2]
 	expectedTraceID := uint64(0)
 	expectedParentID := uint64(0)
 
@@ -1015,7 +1023,9 @@ func TestTriggerTypesLifecycleEventForSQSNoDdContext(t *testing.T) {
 		IsError:   false,
 	})
 
-	sqsSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 2, len(spans))
+	sqsSpan := spans[1]
 	expectedTraceID := uint64(0)
 	expectedParentID := uint64(0)
 

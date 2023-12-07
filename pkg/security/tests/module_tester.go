@@ -546,6 +546,7 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 	}
 
 	var prevPID, prevPPID float64
+	var prevArgs []interface{}
 
 	for _, entry := range json.([]interface{}) {
 		pce, ok := entry.(map[string]interface{})
@@ -568,7 +569,6 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 			tb.Error(string(eventJSON))
 			return
 		}
-		prevPID = pid
 
 		if pid != 1 {
 			ppid, ok := pce["ppid"].(float64)
@@ -580,6 +580,23 @@ func validateProcessContextLineage(tb testing.TB, event *model.Event, probe *spr
 
 			prevPPID = ppid
 		}
+
+		// check that parent/child ancestors have deduplicated args
+		args, ok := pce["args"].([]interface{})
+		if ok && len(args) > 0 {
+			if pid != prevPID && prevArgs != nil {
+				if reflect.DeepEqual(args, prevArgs) {
+					tb.Errorf("invalid process tree, same parent/child args (%d/%d) %+q", int(pid), int(prevPID), args)
+					tb.Error(string(eventJSON))
+					return
+				}
+			}
+			prevArgs = args
+		} else {
+			prevArgs = nil
+		}
+
+		prevPID = pid
 	}
 
 	if prevPID != 1 {
@@ -676,8 +693,8 @@ func validateProcessContext(tb testing.TB, event *model.Event, probe *sprobe.Pro
 //nolint:deadcode,unused
 func validateEvent(tb testing.TB, validate func(event *model.Event, rule *rules.Rule), probe *sprobe.Probe) func(event *model.Event, rule *rules.Rule) {
 	return func(event *model.Event, rule *rules.Rule) {
-		validateProcessContext(tb, event, probe)
 		validate(event, rule)
+		validateProcessContext(tb, event, probe)
 	}
 }
 

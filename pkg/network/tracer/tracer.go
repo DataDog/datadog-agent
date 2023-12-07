@@ -156,9 +156,11 @@ func newTracer(cfg *config.Config) (_ *Tracer, reterr error) {
 		}
 	}()
 
-	if nettelemetry.EBPFTelemetrySupported() {
-		tr.bpfTelemetry = nettelemetry.NewEBPFTelemetry()
+	tr.bpfTelemetry = nettelemetry.NewEBPFTelemetry()
+	if tr.bpfTelemetry != nil {
 		coretelemetry.GetCompatComponent().RegisterCollector(tr.bpfTelemetry)
+	} else {
+		log.Debug("eBPF telemetry not supported")
 	}
 
 	tr.ebpfTracer, err = connection.NewTracer(cfg, tr.bpfTelemetry)
@@ -280,6 +282,7 @@ func newReverseDNS(c *config.Config) dns.ReverseDNS {
 	return rdns
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	var rejected int
 	_ = t.timeResolver.Sync()
@@ -307,6 +310,7 @@ func (t *Tracer) storeClosedConnections(connections []network.ConnectionStats) {
 	t.state.StoreClosedConnections(connections)
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if t.processCache == nil {
 		return
@@ -346,6 +350,8 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 }
 
 // Stop stops the tracer
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) Stop() {
 	if t.gwLookup != nil {
 		t.gwLookup.Close()
@@ -375,6 +381,8 @@ func (t *Tracer) Stop() {
 }
 
 // GetActiveConnections returns the delta for connection info from the last time it was called with the same clientID
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, error) {
 	t.bufferLock.Lock()
 	defer t.bufferLock.Unlock()
@@ -426,15 +434,19 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, er
 }
 
 // RegisterClient registers a clientID with the tracer
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) RegisterClient(clientID string) error {
 	t.state.RegisterClient(clientID)
 	return nil
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) removeClient(clientID string) {
 	t.state.RemoveClient(clientID)
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int64 {
 	kprobeStats := ddebpf.GetProbeTotals()
 	tm := map[network.ConnTelemetryType]int64{
@@ -460,6 +472,7 @@ func (t *Tracer) getConnTelemetry(mapSize int) map[network.ConnTelemetryType]int
 	return tm
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeCompilationTelemetry {
 	telemetryByAsset := map[string]runtime.CompilationTelemetry{
 		"tracer":          runtime.Tracer.GetTelemetry(),
@@ -485,6 +498,8 @@ func (t *Tracer) getRuntimeCompilationTelemetry() map[string]network.RuntimeComp
 
 // getConnections returns all the active connections in the ebpf maps along with the latest timestamp.  It takes
 // a reusable buffer for appending the active connections so that this doesn't continuously allocate
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestUint uint64, activeConnections []network.ConnectionStats, err error) {
 	cachedConntrack := newCachedConntrack(t.config.ProcRoot, netlink.NewConntrack, 128)
 	defer func() { _ = cachedConntrack.Close() }()
@@ -552,6 +567,7 @@ func (t *Tracer) getConnections(activeBuffer *network.ConnectionBuffer) (latestU
 	return uint64(latestTime), activeConnections, nil
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	now := time.Now()
 	// Byte keys of the connections to remove
@@ -581,6 +597,7 @@ func (t *Tracer) removeEntries(entries []network.ConnectionStats) {
 	}
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) timeoutForConn(c *network.ConnectionStats) uint64 {
 	if c.Type == network.TCP {
 		return uint64(t.config.TCPConnTimeout.Nanoseconds())
@@ -589,6 +606,7 @@ func (t *Tracer) timeoutForConn(c *network.ConnectionStats) uint64 {
 	return t.udpConnTimeout(c.IsAssured)
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) udpConnTimeout(isAssured bool) uint64 {
 	if isAssured {
 		if v, err := t.sysctlUDPConnStreamTimeout.Get(); err == nil {
@@ -616,8 +634,6 @@ const (
 	stateStats
 	tracerStats
 	processCacheStats
-	bpfMapStats
-	bpfHelperStats
 	kafkaStats
 )
 
@@ -625,10 +641,9 @@ var allStats = []statsComp{
 	stateStats,
 	tracerStats,
 	httpStats,
-	bpfMapStats,
-	bpfHelperStats,
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 	if t.state == nil {
 		return nil, fmt.Errorf("internal state not yet initialized")
@@ -650,10 +665,6 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 			ret["tracer"] = tracerStats
 		case httpStats:
 			ret["universal_service_monitoring"] = t.usmMonitor.GetUSMStats()
-		case bpfMapStats:
-			ret[nettelemetry.EBPFMapTelemetryNS] = t.bpfTelemetry.GetMapsTelemetry()
-		case bpfHelperStats:
-			ret[nettelemetry.EBPFHelperTelemetryNS] = t.bpfTelemetry.GetHelpersTelemetry()
 		}
 	}
 
@@ -661,6 +672,8 @@ func (t *Tracer) getStats(comps ...statsComp) (map[string]interface{}, error) {
 }
 
 // GetStats returns a map of statistics about the current tracer's internal state
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) GetStats() (map[string]interface{}, error) {
 	return map[string]interface{}{
 		"tracer": map[string]interface{}{
@@ -670,6 +683,8 @@ func (t *Tracer) GetStats() (map[string]interface{}, error) {
 }
 
 // DebugNetworkState returns a map with the current tracer's internal state, for debugging
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, error) {
 	if t.state == nil {
 		return nil, fmt.Errorf("internal state not yet initialized")
@@ -678,6 +693,8 @@ func (t *Tracer) DebugNetworkState(clientID string) (map[string]interface{}, err
 }
 
 // DebugNetworkMaps returns all connections stored in the BPF maps without modifications from network state
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 	activeBuffer := network.NewConnectionBuffer(512, 512)
 	_, connections, err := t.getConnections(activeBuffer)
@@ -693,6 +710,8 @@ func (t *Tracer) DebugNetworkMaps() (*network.Connections, error) {
 }
 
 // DebugEBPFMaps returns all maps registered in the eBPF manager
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 	tracerMaps, err := t.ebpfTracer.DumpMaps(maps...)
 	if err != nil {
@@ -714,6 +733,8 @@ func (t *Tracer) DebugEBPFMaps(maps ...string) (string, error) {
 // but use conntrack as a source of truth to keep long-lived idle TCP conns in the userspace state, while evicting closed TCP connections.
 // for UDP, the conntrack TTL is lower (two minutes), so the userspace and conntrack expiry are synced to avoid touching conntrack for
 // UDP expires
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) connectionExpired(conn *network.ConnectionStats, latestTime uint64, ctr *cachedConntrack) bool {
 	timeout := t.timeoutForConn(conn)
 	if !conn.IsExpired(latestTime, timeout) {
@@ -740,6 +761,7 @@ func (t *Tracer) connectionExpired(conn *network.ConnectionStats, latestTime uin
 	return !exists
 }
 
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) connVia(cs *network.ConnectionStats) {
 	if t.gwLookup == nil {
 		return // gateway lookup is not enabled
@@ -749,6 +771,8 @@ func (t *Tracer) connVia(cs *network.ConnectionStats) {
 }
 
 // DebugCachedConntrack dumps the cached NAT conntrack data
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) {
 	ns, err := t.config.GetRootNetNs()
 	if err != nil {
@@ -775,6 +799,8 @@ func (t *Tracer) DebugCachedConntrack(ctx context.Context) (interface{}, error) 
 }
 
 // DebugHostConntrack dumps the NAT conntrack data obtained from the host via netlink.
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 	ns, err := t.config.GetRootNetNs()
 	if err != nil {
@@ -801,6 +827,8 @@ func (t *Tracer) DebugHostConntrack(ctx context.Context) (interface{}, error) {
 }
 
 // DebugDumpProcessCache dumps the process cache
+//
+//nolint:revive // TODO(NET) Fix revive linter
 func (t *Tracer) DebugDumpProcessCache(ctx context.Context) (interface{}, error) {
 	if t.processCache != nil {
 		return t.processCache.Dump()

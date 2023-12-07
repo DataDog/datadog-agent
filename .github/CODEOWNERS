@@ -40,6 +40,7 @@
 /.github/CODEOWNERS                                 # do not notify anyone
 /.github/*_TEMPLATE.md                              @DataDog/agent-all
 /.github/dependabot.yaml                            @DataDog/agent-platform
+/.github/workflows/serverless-benchmarks.yml        @DataDog/serverless
 /.github/workflows/serverless-binary-size.yml       @DataDog/serverless
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
 /.github/workflows/windows-*.yml                    @DataDog/windows-agent
@@ -150,6 +151,7 @@
 /cmd/cluster-agent/api/v1/cloudfoundry_metadata.go        @DataDog/platform-integrations
 /cmd/cws-instrumentation/               @DataDog/agent-security
 /cmd/dogstatsd/                         @DataDog/agent-metrics-logs
+/cmd/otel-agent/                        @DataDog/opentelemetry
 /cmd/process-agent/                     @DataDog/processes
 /cmd/serverless/                        @DataDog/serverless
 /cmd/serverless-init/                   @DataDog/serverless
@@ -207,6 +209,7 @@
 # BEGIN COMPONENTS
 /comp @DataDog/agent-shared-components
 /comp/aggregator @DataDog/agent-shared-components
+/comp/api @DataDog/agent-shared-components
 /comp/checks @DataDog/agent-shared-components
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
@@ -226,6 +229,7 @@
 /comp/core/sysprobeconfig @DataDog/ebpf-platform
 /comp/core/workloadmeta @DataDog/container-integrations
 /comp/dogstatsd/statsd @DataDog/agent-shared-components
+/comp/forwarder/orchestrator @DataDog/agent-metrics-logs
 # END COMPONENTS
 
 # pkg
@@ -234,6 +238,7 @@
 /pkg/aggregator/                        @DataDog/agent-metrics-logs
 /pkg/collector/                         @DataDog/agent-metrics-logs
 /pkg/cli/                               @DataDog/agent-shared-components
+/pkg/cli/subcommands/clusterchecks      @DataDog/container-integrations
 /pkg/dogstatsd/                         @DataDog/agent-metrics-logs
 /pkg/errors/                            @DataDog/agent-shared-components
 /pkg/forwarder/                         @DataDog/agent-metrics-logs @DataDog/agent-shared-components
@@ -328,7 +333,6 @@
 /pkg/proto/datadog/languagedetection    @DataDog/processes
 /pkg/proto/datadog/process              @DataDog/processes
 /pkg/proto/datadog/trace                @DataDog/agent-apm
-/pkg/proto/pbgo/trace                   @DataDog/agent-apm
 /pkg/remoteconfig/                      @DataDog/remote-config
 /pkg/runtime/                           @DataDog/agent-shared-components
 /pkg/secrets/                           @DataDog/agent-shared-components
@@ -354,6 +358,8 @@
 /pkg/util/cgroups/                      @DataDog/container-integrations
 /pkg/util/retry/                        @DataDog/container-integrations
 /pkg/util/intern/                       @DataDog/ebpf-platform
+/pkg/util/crashreport/                  @DataDog/windows-kernel-integrations
+/pkg/util/pdhutil/                      @DataDog/windows-agent
 /pkg/util/winutil/                      @DataDog/windows-agent
 /pkg/languagedetection                  @DataDog/processes @DataDog/universal-service-monitoring
 /pkg/logs/                              @DataDog/agent-metrics-logs
@@ -368,6 +374,11 @@
 /pkg/process/net/                       @DataDog/processes @DataDog/Networks
 /pkg/proto/datadog/remoteconfig/        @DataDog/remote-config
 /pkg/proto/pbgo/                        # do not notify anyone
+/pkg/proto/pbgo/trace                   @DataDog/agent-apm
+/pkg/proto/pbgo/languagedetection       @DataDog/agent-apm
+/pkg/proto/pbgo/process                 @DataDog/processes
+/pkg/proto/pbgo/core                    @DataDog/agent-shared-components
+/pkg/proto/pbgo/mocks/core              @DataDog/agent-shared-components
 /pkg/orchestrator/                      @DataDog/container-app
 /pkg/network/                           @DataDog/Networks
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
@@ -471,7 +482,6 @@
 /test/kitchen/test/integration/win-user/ @DataDog/windows-agent
 /test/fakeintake/                             @DataDog/agent-e2e-testing
 /test/new-e2e/                                @DataDog/agent-e2e-testing
-/test/new-e2e/language-detection              @DataDog/processes
 /test/new-e2e/system-probe                    @DataDog/ebpf-platform
 /test/new-e2e/scenarios/system-probe          @DataDog/ebpf-platform
 /test/new-e2e/tests/agent-shared-components   @DataDog/agent-shared-components
@@ -480,6 +490,8 @@
 /test/new-e2e/tests/language-detection        @DataDog/processes
 /test/new-e2e/tests/ndm                       @DataDog/network-device-monitoring
 /test/new-e2e/tests/npm                       @DataDog/Networks
+/test/new-e2e/tests/process                   @DataDog/processes
+/test/new-e2e/tests/cws                       @DataDog/agent-security
 /test/new-e2e/tests/agent-platform            @DataDog/agent-platform
 /test/system/                                 @DataDog/agent-shared-components
 /test/system/dogstatsd/                       @DataDog/agent-metrics-logs

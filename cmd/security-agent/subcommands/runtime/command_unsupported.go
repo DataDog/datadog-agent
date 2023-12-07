@@ -5,6 +5,7 @@
 
 //go:build !linux && !windows
 
+//nolint:revive // TODO(SEC) Fix revive linter
 package runtime
 
 import (
@@ -22,6 +23,8 @@ import (
 )
 
 // Commands returns the runtime security commands
+//
+//nolint:revive // TODO(SEC) Fix revive linter
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return nil
 }

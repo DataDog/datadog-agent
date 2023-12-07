@@ -426,7 +426,7 @@ type sslProgram struct {
 
 func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTelemetry *errtelemetry.EBPFTelemetry) protocols.ProtocolFactory {
 	return func(c *config.Config) (protocols.Protocol, error) {
-		if (!c.EnableNativeTLSMonitoring || !http.HTTPSSupported(c)) && !c.EnableIstioMonitoring {
+		if (!c.EnableNativeTLSMonitoring || !http.TLSSupported(c)) && !c.EnableIstioMonitoring {
 			return nil, nil
 		}
 
@@ -437,7 +437,7 @@ func newSSLProgramProtocolFactory(m *manager.Manager, sockFDMap *ebpf.Map, bpfTe
 
 		procRoot := kernel.ProcFSRoot()
 
-		if c.EnableNativeTLSMonitoring && http.HTTPSSupported(c) {
+		if c.EnableNativeTLSMonitoring && http.TLSSupported(c) {
 			watcher, err = sharedlibraries.NewWatcher(c, bpfTelemetry,
 				sharedlibraries.Rule{
 					Re:           regexp.MustCompile(`libssl.so`),

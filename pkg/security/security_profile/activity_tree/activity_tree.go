@@ -397,6 +397,7 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 	return nil
 }
 
+//nolint:unused // TODO(SEC) Fix unused linter
 func eventHaveValidCookie(entry *model.ProcessCacheEntry) bool {
 	return !entry.ExecTime.IsZero() && entry.Cookie != 0
 }

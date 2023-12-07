@@ -37,6 +37,7 @@ FROM
 WHERE
   m.tablespace_name(+) = t.tablespace_name`
 
+//nolint:revive // TODO(DBM) Fix revive linter
 type RowDB struct {
 	PdbName        sql.NullString `db:"PDB_NAME"`
 	TablespaceName string         `db:"TABLESPACE_NAME"`
@@ -46,6 +47,7 @@ type RowDB struct {
 	Offline        float64        `db:"OFFLINE_"`
 }
 
+//nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) Tablespaces() error {
 	rows := []RowDB{}
 	var tablespaceQuery string
