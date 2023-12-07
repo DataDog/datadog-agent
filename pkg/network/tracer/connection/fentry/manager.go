@@ -14,11 +14,12 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
 
-func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler) {
+func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, cfg *config.Config) {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -43,7 +44,7 @@ func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler) {
 			RecordHandler:      closedHandler.RecordHandler,
 			LostHandler:        closedHandler.LostHandler,
 			RecordGetter:       closedHandler.RecordGetter,
-			TelemetryEnabled:   true,
+			TelemetryEnabled:   cfg.InternalTelemetryEnabled,
 		},
 	}
 	mgr.PerfMaps = []*manager.PerfMap{pm}

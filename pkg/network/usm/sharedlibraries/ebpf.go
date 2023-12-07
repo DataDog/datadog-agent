@@ -54,7 +54,7 @@ func newEBPFProgram(c *config.Config, bpfTelemetry *errtelemetry.EBPFTelemetry) 
 			RecordHandler:      perfHandler.RecordHandler,
 			LostHandler:        perfHandler.LostHandler,
 			RecordGetter:       perfHandler.RecordGetter,
-			TelemetryEnabled:   true,
+			TelemetryEnabled:   c.InternalTelemetryEnabled,
 		},
 	}
 	mgr := &manager.Manager{

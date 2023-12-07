@@ -47,7 +47,7 @@ func (m *OrderedPerfMap) Init(mgr *manager.Manager, config *config.Config) error
 		RecordHandler:    m.reOrderer.HandleEvent,
 		LostHandler:      m.handleLostEvents,
 		RecordGetter:     m.recordPool.Get,
-		TelemetryEnabled: true,
+		TelemetryEnabled: config.InternalTelemetryEnabled,
 	}
 
 	if config.EventStreamBufferSize != 0 {

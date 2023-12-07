@@ -40,7 +40,7 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 			return rb.recordPool.Get().(*ringbuf.Record)
 		},
 		RecordHandler:    rb.handleEvent,
-		TelemetryEnabled: true,
+		TelemetryEnabled: config.InternalTelemetryEnabled,
 	}
 
 	if config.EventStreamBufferSize != 0 {

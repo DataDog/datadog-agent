@@ -77,11 +77,9 @@ func setupPerfMap(proto string, m *manager.Manager) {
 			RecordHandler:      handler.RecordHandler,
 			LostHandler:        handler.LostHandler,
 			RecordGetter:       handler.RecordGetter,
-			TelemetryEnabled:   true,
 		},
 	}
 	m.PerfMaps = append(m.PerfMaps, pm)
-	ddebpf.ReportPerfMapTelemetry(pm)
 
 	handlerMux.Lock()
 	if handlerByProtocol == nil {

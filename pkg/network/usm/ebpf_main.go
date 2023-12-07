@@ -368,6 +368,12 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	for _, p := range supported {
 		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
 	}
+	if e.cfg.InternalTelemetryEnabled {
+		for _, pm := range e.PerfMaps {
+			pm.TelemetryEnabled = true
+			ddebpf.ReportPerfMapTelemetry(pm)
+		}
+	}
 
 	// Add excluded functions from disabled protocols
 	for _, p := range notSupported {

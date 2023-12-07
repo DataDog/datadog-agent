@@ -14,6 +14,7 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	errtelemetry "github.com/DataDog/datadog-agent/pkg/network/telemetry"
 )
@@ -69,7 +70,7 @@ var mainProbes = []probes.ProbeFuncName{
 	probes.UDPSendPageReturn,
 }
 
-func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, runtimeTracer bool) error {
+func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, runtimeTracer bool, cfg *config.Config) error {
 	mgr.Maps = []*manager.Map{
 		{Name: probes.ConnMap},
 		{Name: probes.TCPStatsMap},
@@ -103,7 +104,7 @@ func initManager(mgr *errtelemetry.Manager, closedHandler *ebpf.PerfHandler, run
 			RecordHandler:      closedHandler.RecordHandler,
 			LostHandler:        closedHandler.LostHandler,
 			RecordGetter:       closedHandler.RecordGetter,
-			TelemetryEnabled:   true,
+			TelemetryEnabled:   cfg.InternalTelemetryEnabled,
 		},
 	}
 	mgr.PerfMaps = []*manager.PerfMap{pm}
