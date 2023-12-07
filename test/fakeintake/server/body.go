@@ -21,6 +21,9 @@ type flareResponseBody struct {
 	Error  string `json:"error,omitempty"`
 }
 
+// defaultResponse is the default response returned by the fakeintake server
+var defaultResponse httpResponse
+
 func getConnectionsResponse() []byte {
 	clStatus := &agentmodel.CollectorStatus{
 		ActiveClients: 1,
@@ -44,28 +47,19 @@ func getConnectionsResponse() []byte {
 	return out
 }
 
-// getResponseFromURLPath returns the appropriate response body to HTTP request sent to 'urlPath'
-func getResponseFromURLPath(urlPath string) httpResponse {
-	var defaultResponse = httpResponse{
-		statusCode:  http.StatusOK,
-		contentType: "application/json",
-		data:        errorResponseBody{Errors: []string{}},
-	}
-	responses := map[string]httpResponse{
-		"/support/flare": {
+// newResponseOverrides creates and returns a map of URL paths to HTTP responses populated with
+// static custom response overrides
+func newResponseOverrides() map[string]httpResponse {
+	return map[string]httpResponse{
+		"/support/flare": updateResponseFromData(httpResponse{
 			statusCode:  http.StatusOK,
 			contentType: "application/json",
 			data:        flareResponseBody{CaseID: 0, Error: ""},
-		},
-		"/api/v1/connections": {
+		}),
+		"/api/v1/connections": updateResponseFromData(httpResponse{
 			statusCode:  http.StatusOK,
 			contentType: "application/x-protobuf",
 			data:        getConnectionsResponse(),
-		},
+		}),
 	}
-
-	if _, found := responses[urlPath]; !found {
-		return defaultResponse
-	}
-	return updateResponseFromData(responses[urlPath])
 }
