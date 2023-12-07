@@ -6,6 +6,7 @@ benchmark:
   rules:
     !reference [.manual] # TODO: run this benchmark automatically when the trace-agent changes
   interruptible: true
+  needs: ["setup_agent_version"]
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   script:
     - ./test/benchmarks/apm_scripts/capture-hardware-software-info.sh
