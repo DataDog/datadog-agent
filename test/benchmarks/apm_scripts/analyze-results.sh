@@ -2,7 +2,6 @@
 
 export UNCONFIDENCE_THRESHOLD=2.0
 
-<<<<<<< HEAD
 CI_JOB_DATE=$(date +%s)
 CPU_MODEL=$(cat "$ARTIFACTS_DIR/lscpu.txt" | grep -Eo 'Model name: .*' | sed 's/Model name://' | awk '{$1=$1;print}')
 if [ -z "$CPU_MODEL" ]; then
@@ -12,8 +11,6 @@ fi
 
 COMMIT_SHA=$(git rev-parse HEAD)
 COMMIT_DATE=$(git show -s --format=%ct $COMMIT_SHA)
-=======
->>>>>>> 39e95fa340 (Do multiple Go benchmark runs to properly capture run-rerun variability)
 benchmark_analyzer convert \
   --framework=GoBench \
   --outpath="pr.json" \
