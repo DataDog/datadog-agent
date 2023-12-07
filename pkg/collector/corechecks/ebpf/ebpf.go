@@ -106,7 +106,7 @@ func (m *EBPFCheck) Run() error {
 		tags := []string{
 			"map_name:" + mapStats.Name,
 			"map_type:" + mapStats.Type.String(),
-			"module:" + mapStats.Module(),
+			"module:" + mapStats.Module,
 		}
 		sender.Gauge("ebpf.maps.memory_max", float64(mapStats.MaxSize), "", tags)
 		sender.Gauge("ebpf.maps.max_entries", float64(mapStats.MaxEntries), "", tags)
@@ -146,7 +146,7 @@ func (m *EBPFCheck) Run() error {
 		tags := []string{
 			"program_name:" + progInfo.Name,
 			"program_type:" + progInfo.Type.String(),
-			"module:" + progInfo.Module(),
+			"module:" + progInfo.Module,
 		}
 		if progInfo.Tag != "" {
 			tags = append(tags, "program_tag:"+progInfo.Tag)
