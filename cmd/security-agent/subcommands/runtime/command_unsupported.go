@@ -5,7 +5,7 @@
 
 //go:build !linux && !windows
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Package runtime holds runtime related files
 package runtime
 
 import (
