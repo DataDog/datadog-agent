@@ -68,10 +68,13 @@ instances:
     ##    winregistry.secureboot_state.uefi_secure_boot_enabled
     ##
     ## For each registry key, the following options are available:
+    ##
     ##   name (string - required): The metric name of the registry key.
     ##   registry_values (map of registry values - required): The registry values to monitor.
     ##
+    ##
     ## For each registry value, the following options are available:
+    ##
     ##   name (string - required): The metrics name of the registry value.
     ##   default_value (float - optional): An optional value to send if the registry value was not found.
     ##   mapping (map string to float - optional): An optional map to convert registry string values to valid metrics.
