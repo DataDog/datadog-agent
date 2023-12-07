@@ -70,6 +70,7 @@ def update_go(
     _update_fakeintake_readme(warn, new_major)
     _update_go_mods(warn, new_major)
     _update_process_agent_readme(warn, new_major)
+    _update_windowsevent_readme(warn, new_major)
     _update_go_version_file(warn, version)
     _update_gdb_dockerfile(warn, version)
     _update_fakeintake_dockerfile(warn, version)
@@ -205,6 +206,13 @@ def _update_fakeintake_readme(warn: bool, major: str):
 def _update_process_agent_readme(warn: bool, major: str):
     path = "./cmd/process-agent/README.md"
     pattern = r'(`go >= )[.0-9]+(`)'
+    replace = rf'\g<1>{major}\g<2>'
+    _update_file(warn, path, pattern, replace)
+
+
+def _update_windowsevent_readme(warn: bool, major: str):
+    path = "./pkg/logs/launchers/windowsevent/README.md"
+    pattern = r'(install go )[.0-9]+(\+,)'
     replace = rf'\g<1>{major}\g<2>'
     _update_file(warn, path, pattern, replace)
 
