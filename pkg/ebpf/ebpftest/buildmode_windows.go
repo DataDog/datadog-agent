@@ -7,15 +7,18 @@ package ebpftest
 
 import "testing"
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func SupportedBuildModes() []BuildMode {
 	return []BuildMode{Prebuilt}
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func TestBuildModes(t *testing.T, modes []BuildMode, name string, fn func(t *testing.T)) { //nolint:revive // TODO fix revive unused-parameter
 	// ignore provided modes and only use prebuilt
 	TestBuildMode(t, Prebuilt, name, fn)
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func TestBuildMode(t *testing.T, mode BuildMode, name string, fn func(t *testing.T)) {
 	if mode != Prebuilt {
 		t.Skipf("unsupported build mode %s", mode)

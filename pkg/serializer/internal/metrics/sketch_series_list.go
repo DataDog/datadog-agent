@@ -377,6 +377,7 @@ func (sl SketchSeriesList) SplitPayload(times int) ([]marshaler.AbstractMarshale
 	return sketches.SplitPayload(times)
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 type SketchSeriesSlice []*metrics.SketchSeries
 
 // SplitPayload breaks the payload into times number of pieces

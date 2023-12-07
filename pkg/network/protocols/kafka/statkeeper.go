@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// StatKeeper is a struct to hold the stats for the kafka protocol
 type StatKeeper struct {
 	stats      map[Key]*RequestStat
 	statsMutex sync.RWMutex
@@ -25,6 +26,7 @@ type StatKeeper struct {
 	topicNames map[string]string
 }
 
+// NewStatkeeper creates a new StatKeeper
 func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 	return &StatKeeper{
 		stats:      make(map[Key]*RequestStat),
@@ -34,6 +36,7 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry) *StatKeeper {
 	}
 }
 
+// Process processes the kafka transaction
 func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 	statKeeper.statsMutex.Lock()
 	defer statKeeper.statsMutex.Unlock()
@@ -56,6 +59,7 @@ func (statKeeper *StatKeeper) Process(tx *EbpfTx) {
 	requestStats.Count++
 }
 
+// GetAndResetAllStats returns all the stats and resets the stats
 func (statKeeper *StatKeeper) GetAndResetAllStats() map[Key]*RequestStat {
 	statKeeper.statsMutex.RLock()
 	defer statKeeper.statsMutex.RUnlock()

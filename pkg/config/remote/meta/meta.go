@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package meta provides a way to access embedded remote config TUF metadata
 package meta
 
 import (

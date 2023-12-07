@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
+// Package rcclient is a remote config client that can run within the agent to receive
+// configurations.
 package rcclient
 
 import (

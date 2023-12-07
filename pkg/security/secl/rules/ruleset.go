@@ -173,6 +173,7 @@ type InternalCallbackDefinition struct{}
 // KillDefinition describes the 'kill' section of a rule action
 type KillDefinition struct {
 	Signal string `yaml:"signal"`
+	Scope  string `yaml:"scope"`
 }
 
 // Rule describes a rule of a ruleset

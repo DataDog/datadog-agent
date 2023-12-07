@@ -229,6 +229,7 @@ func newSystemProbe(path string) *RemoteSysProbeUtil {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func (r *RemoteSysProbeUtil) DetectLanguage(pids []int32) ([]languagemodels.Language, error) {
 	procs := make([]*languagepb.Process, len(pids))
 	for i, pid := range pids {

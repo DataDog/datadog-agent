@@ -55,6 +55,7 @@ func (a *Agent) SetupHandlers(r *mux.Router) {
 	r.HandleFunc("/config/{setting}", settingshttp.Server.SetValue).Methods("POST")
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (a *Agent) stopAgent(w http.ResponseWriter, r *http.Request) {
 	signals.Stopper <- true
 	w.Header().Set("Content-Type", "application/json")
@@ -83,6 +84,7 @@ func (a *Agent) getHostname(w http.ResponseWriter, r *http.Request) {
 	w.Write(j)
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (a *Agent) getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	s, err := status.GetStatus(false, nil)
@@ -112,6 +114,7 @@ func (a *Agent) getStatus(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStats)
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (a *Agent) getHealth(w http.ResponseWriter, r *http.Request) {
 	h := health.GetReady()
 
@@ -130,6 +133,7 @@ func (a *Agent) getHealth(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonHealth)
 }
 
+//nolint:revive // TODO(SEC) Fix revive linter
 func (a *Agent) makeFlare(w http.ResponseWriter, r *http.Request) {
 	log.Infof("Making a flare")
 	w.Header().Set("Content-Type", "application/json")

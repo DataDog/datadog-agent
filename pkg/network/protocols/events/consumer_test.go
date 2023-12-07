@@ -134,7 +134,8 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 	}
 	defer bc.Close()
 
-	m := &manager.Manager{
+	bpfTelemetry := bpftelemetry.NewEBPFTelemetry()
+	m := bpftelemetry.NewManager(&manager.Manager{
 		Probes: []*manager.Probe{
 			{
 				ProbeIdentificationPair: manager.ProbeIdentificationPair{
@@ -142,7 +143,7 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 				},
 			},
 		},
-	}
+	}, bpfTelemetry)
 	options := manager.Options{
 		RLimit: &unix.Rlimit{
 			Cur: math.MaxUint64,
@@ -163,14 +164,11 @@ func newEBPFProgram(c *config.Config) (*manager.Manager, error) {
 		},
 	}
 
-	Configure("test", m, &options)
-	m.InstructionPatcher = func(m *manager.Manager) error {
-		return bpftelemetry.PatchEBPFTelemetry(m, true, nil)
-	}
+	Configure("test", m.Manager, &options)
 	err = m.InitWithOptions(bc, options)
 	if err != nil {
 		return nil, err
 	}
 
-	return m, nil
+	return m.Manager, nil
 }

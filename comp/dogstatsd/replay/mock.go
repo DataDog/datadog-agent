@@ -31,6 +31,7 @@ func (tc *mockTrafficCapture) IsOngoing() bool {
 	return tc.isRunning
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) Start(p string, d time.Duration, compressed bool) (string, error) {
 	tc.Lock()
 	defer tc.Unlock()
@@ -39,20 +40,24 @@ func (tc *mockTrafficCapture) Start(p string, d time.Duration, compressed bool) 
 
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) Stop() {
 	tc.Lock()
 	defer tc.Unlock()
 	tc.isRunning = false
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) RegisterSharedPoolManager(p *packets.PoolManager) error {
 	return nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) RegisterOOBPoolManager(p *packets.PoolManager) error {
 	return nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (tc *mockTrafficCapture) Enqueue(msg *CaptureBuffer) bool {
 	return true
 }

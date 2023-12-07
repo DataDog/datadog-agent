@@ -8,6 +8,8 @@
 package demultiplexer
 
 import (
+	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"go.uber.org/fx"
@@ -35,15 +37,19 @@ func (m *mock) LazyGetSenderManager() (sender.SenderManager, error) {
 
 type mockDependencies struct {
 	fx.In
-	AggregatorDeps aggregator.TestDeps
+	Log log.Component
 }
 
 func newMock(deps mockDependencies) (Component, Mock) {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.DontStartForwarders = true
 
+	aggDeps := aggregator.TestDeps{
+		Log:             deps.Log,
+		SharedForwarder: defaultforwarder.NoopForwarder{},
+	}
 	demultiplexer := demultiplexer{
-		AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(deps.AggregatorDeps, opts, ""),
+		AgentDemultiplexer: aggregator.InitAndStartAgentDemultiplexerForTest(aggDeps, opts, ""),
 	}
 
 	instance := &mock{Component: demultiplexer}

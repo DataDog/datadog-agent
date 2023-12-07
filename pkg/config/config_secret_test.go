@@ -17,20 +17,42 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var testAdditionalEndpointsConf = []byte(`
+secret_backend_command: some command
+additional_endpoints:
+  https://url1.com:
+    - ENC[api_key_1]
+    - ENC[api_key_2]
+  https://url2.eu:
+    - ENC[api_key_3]
+process_config:
+  additional_endpoints:
+    https://url1.com:
+      - ENC[api_key_1]
+      - ENC[api_key_2]
+    https://url2.eu:
+      - ENC[api_key_3]
+`)
+
 func TestProxyWithSecret(t *testing.T) {
 	type testCase struct {
 		name  string
-		setup func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver)
+		setup func(t *testing.T, config Config, configPath string, resolver secrets.Mock)
 		tests func(t *testing.T, config Config)
 	}
 
 	cases := []testCase{
 		{
 			name: "secrets from configuration for proxy",
-			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
-				resolver.InjectCallback([]string{"proxy", "http"}, "http_url")
-				resolver.InjectCallback([]string{"proxy", "https"}, "https_url")
-				resolver.InjectCallback([]string{"proxy", "no_proxy"}, []string{"no_proxy_1", "no_proxy_2"})
+			setup: func(t *testing.T, config Config, configPath string, resolver secrets.Mock) {
+				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
+					return map[string]string{
+						"http_handle":       "http_url",
+						"https_handle":      "https_url",
+						"no_proxy_1_handle": "no_proxy_1",
+						"no_proxy_2_handle": "no_proxy_2",
+					}, nil
+				})
 
 				config.SetWithoutSource("secret_backend_command", "some_command")
 				config.SetWithoutSource("proxy.http", "ENC[http_handle]")
@@ -49,10 +71,15 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron DD env vars for proxy",
-			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
-				resolver.InjectCallback([]string{"proxy", "http"}, "http_url")
-				resolver.InjectCallback([]string{"proxy", "https"}, "https_url")
-				resolver.InjectCallback([]string{"proxy", "no_proxy"}, []string{"no_proxy_1", "no_proxy_2"})
+			setup: func(t *testing.T, config Config, configPath string, resolver secrets.Mock) {
+				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
+					return map[string]string{
+						"http_handle":       "http_url",
+						"https_handle":      "https_url",
+						"no_proxy_1_handle": "no_proxy_1",
+						"no_proxy_2_handle": "no_proxy_2",
+					}, nil
+				})
 
 				config.SetWithoutSource("secret_backend_command", "some_command")
 				t.Setenv("DD_PROXY_HTTP", "ENC[http_handle]")
@@ -71,10 +98,15 @@ func TestProxyWithSecret(t *testing.T) {
 		},
 		{
 			name: "secrets fron UNIX env vars for proxy",
-			setup: func(t *testing.T, config Config, resolver *secretsimpl.MockSecretResolver) {
-				resolver.InjectCallback([]string{"proxy", "http"}, "http_url")
-				resolver.InjectCallback([]string{"proxy", "https"}, "https_url")
-				resolver.InjectCallback([]string{"proxy", "no_proxy"}, []string{"no_proxy_1", "no_proxy_2"})
+			setup: func(t *testing.T, config Config, configPath string, resolver secrets.Mock) {
+				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
+					return map[string]string{
+						"http_handle":       "http_url",
+						"https_handle":      "https_url",
+						"no_proxy_1_handle": "no_proxy_1",
+						"no_proxy_2_handle": "no_proxy_2",
+					}, nil
+				})
 
 				config.SetWithoutSource("secret_backend_command", "some_command")
 				t.Setenv("HTTP_PROXY", "ENC[http_handle]")
@@ -89,6 +121,32 @@ func TestProxyWithSecret(t *testing.T) {
 						NoProxy: []string{"no_proxy_1", "no_proxy_2"},
 					},
 					config.GetProxies())
+			},
+		},
+		{
+			name: "secrets from maps with keys containing dots (ie 'additional_endpoints')",
+			setup: func(t *testing.T, config Config, configPath string, resolver secrets.Mock) {
+				resolver.SetFetchHookFunc(func(_ []string) (map[string]string, error) {
+					return map[string]string{
+						"api_key_1": "resolved_api_key_1",
+						"api_key_2": "resolved_api_key_2",
+						"api_key_3": "resolved_api_key_3",
+					}, nil
+				})
+				os.WriteFile(configPath, testAdditionalEndpointsConf, 0600)
+			},
+			tests: func(t *testing.T, config Config) {
+				expected := map[string][]string{
+					"https://url1.com": {
+						"resolved_api_key_1",
+						"resolved_api_key_2",
+					},
+					"https://url2.eu": {
+						"resolved_api_key_3",
+					},
+				}
+				assert.Equal(t, expected, config.GetStringMapStringSlice("additional_endpoints"))
+				assert.Equal(t, expected, config.GetStringMapStringSlice("process_config.additional_endpoints"))
 			},
 		},
 	}
@@ -109,9 +167,9 @@ func TestProxyWithSecret(t *testing.T) {
 			os.WriteFile(configPath, nil, 0600)
 			config.SetConfigFile(configPath)
 
-			resolver := secretsimpl.NewMockSecretResolver()
+			resolver := secretsimpl.NewMock()
 			if c.setup != nil {
-				c.setup(t, config, resolver)
+				c.setup(t, config, configPath, resolver)
 			}
 
 			_, err := LoadCustom(config, "unit_test", optional.NewOption[secrets.Component](resolver), nil)
