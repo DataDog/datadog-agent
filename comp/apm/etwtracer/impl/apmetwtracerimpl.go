@@ -118,11 +118,11 @@ type win32MessageBytePipe interface {
 	CloseWrite() error
 }
 
-func (a *apmetwtracerimpl) readBinary(c net.Conn, data any, ctx context.Context) error {
+func (a *apmetwtracerimpl) readBinary(ctx context.Context, c net.Conn, data any) error {
 	for {
 		// There's no way to interrupt a read with a context cancellation
 		// so use read deadline to regularly poll the context error.
-		c.SetReadDeadline(time.Now().Add(1 * time.Second))
+		_ = c.SetReadDeadline(time.Now().Add(1 * time.Second))
 		err := binary.Read(c, binary.LittleEndian, data)
 
 		if ctx.Err() != nil {
@@ -201,7 +201,7 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 		*/
 
 		h := header{}
-		err := a.readBinary(c, &h, a.readCtx)
+		err := a.readBinary(a.readCtx, c, &h)
 		if err != nil {
 			// Error is handled in readBinary
 			return
@@ -214,7 +214,7 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 
 		// Read pid
 		var pid uint64
-		err = a.readBinary(c, &pid, a.readCtx)
+		err = a.readBinary(a.readCtx, c, &pid)
 		if err != nil {
 			// Error is handled in readBinary
 			return
