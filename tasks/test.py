@@ -1284,7 +1284,6 @@ def send_unit_tests_stats(_, job_name):
     send_metrics(series)
 
 
-@task
 def parse_test_log(_, log_file):
     failed_tests = []
     n_test_executed = 0
