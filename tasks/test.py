@@ -606,7 +606,6 @@ def test(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        race=race,
     )
 
     # Use stdout if no profile is set
@@ -1129,6 +1128,15 @@ def get_modified_packages(ctx) -> List[GoModule]:
                 if len(module_path) > match_precision:
                     match_precision = len(module_path)
                     best_module_path = module_path
+
+        # Check if the package is in the target list of the module we want to test
+        targeted = False
+        for target in DEFAULT_MODULES[best_module_path].targets:
+            if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
+                targeted = True
+                break
+        if not targeted:
+            continue
 
         # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
         if best_module_path in go_mod_modified_modules:

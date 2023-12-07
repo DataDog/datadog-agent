@@ -19,10 +19,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type GoDetector struct {
 	hostProc string
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func NewGoDetector() GoDetector {
 	return GoDetector{hostProc: kernel.ProcFSRoot()}
 }

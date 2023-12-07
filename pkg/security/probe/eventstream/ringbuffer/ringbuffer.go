@@ -49,12 +49,12 @@ func (rb *RingBuffer) Init(mgr *manager.Manager, config *config.Config) error {
 }
 
 // Start the event stream.
-func (rb *RingBuffer) Start(wg *sync.WaitGroup) error {
+func (rb *RingBuffer) Start(_ *sync.WaitGroup) error {
 	return rb.ringBuffer.Start()
 }
 
 // SetMonitor set the monitor
-func (rb *RingBuffer) SetMonitor(counter eventstream.LostEventCounter) {}
+func (rb *RingBuffer) SetMonitor(_ eventstream.LostEventCounter) {}
 
 func (rb *RingBuffer) handleEvent(record *ringbuf.Record, _ *manager.RingBuffer, _ *manager.Manager) {
 	rb.handler(0, record.RawSample)

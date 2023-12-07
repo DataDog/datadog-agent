@@ -75,11 +75,15 @@ func (s *dummyService) GetCheckNames(context.Context) []string {
 }
 
 // HasFilter returns false
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *dummyService) HasFilter(filter containers.FilterType) bool {
 	return false
 }
 
 // GetExtraConfig isn't supported
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (s *dummyService) GetExtraConfig(key string) (string, error) {
 	return "", nil
 }

@@ -94,10 +94,12 @@ func (e *RareSampler) Stop() {
 	e.tickStats.Stop()
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (e *RareSampler) SetEnabled(enabled bool) {
 	e.enabled.Store(enabled)
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (e *RareSampler) IsEnabled() bool {
 	return e.enabled.Load()
 }

@@ -49,6 +49,8 @@ const (
 	pauseContainerEKS = `image:(amazonaws\.com/)?eks/pause.*`
 	// rancher/pause-amd64:3.0
 	pauseContainerRancher = `image:rancher/pause.*`
+	// rancher/mirrored-pause:3.7
+	pauseContainerRancherMirrored = `image:rancher/mirrored-pause.*`
 	// - mcr.microsoft.com/k8s/core/pause-amd64
 	pauseContainerMCR = `image:mcr\.microsoft\.com(.*)/pause.*`
 	// - aksrepos.azurecr.io/mirror/pause-amd64
@@ -180,6 +182,7 @@ func GetPauseContainerFilter() (*Filter, error) {
 			pauseContainerECS,
 			pauseContainerEKS,
 			pauseContainerRancher,
+			pauseContainerRancherMirrored,
 			pauseContainerMCR,
 			pauseContainerWin,
 			pauseContainerAKS,

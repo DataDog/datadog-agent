@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 )
 
+//nolint:revive // TODO(CSPM) Fix revive linter
 func getMockedKubeClient(t *testing.T, objects ...runtime.Object) dynamic.Interface {
 	addKnownTypes := func(scheme *runtime.Scheme) error {
 		scheme.AddKnownTypes(schema.GroupVersion{Group: "mygroup.com", Version: "v1"},

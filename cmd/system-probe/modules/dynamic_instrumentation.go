@@ -16,6 +16,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 var DynamicInstrumentation = module.Factory{
 	Name:             config.DynamicInstrumentationModule,
 	ConfigNamespaces: []string{},

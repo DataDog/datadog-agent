@@ -41,7 +41,7 @@ func (t *SelfTester) Close() error {
 }
 
 // LoadPolicies implements the PolicyProvider interface
-func (t *SelfTester) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) { //nolint:revive // TODO fix revive unused-parameter
+func (t *SelfTester) LoadPolicies(_ []rules.MacroFilter, _ []rules.RuleFilter) ([]*rules.Policy, *multierror.Error) {
 	p := &rules.Policy{
 		Name:    policyName,
 		Source:  policySource,
@@ -52,6 +52,6 @@ func (t *SelfTester) LoadPolicies(macroFilters []rules.MacroFilter, ruleFilters 
 }
 
 // IsExpectedEvent sends an event to the tester
-func (t *SelfTester) IsExpectedEvent(rule *rules.Rule, event eval.Event, p *probe.Probe) bool { //nolint:revive // TODO fix revive unused-parameter
+func (t *SelfTester) IsExpectedEvent(_ *rules.Rule, _ eval.Event, _ *probe.Probe) bool {
 	return false
 }

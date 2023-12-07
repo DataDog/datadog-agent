@@ -44,6 +44,8 @@ func align[T constraints.Integer](x, a T) T {
 }
 
 // generic slice deletion at position i without concern for slice order
+//
+//nolint:unused // TODO(EBPF) Fix unused linter
 func deleteAtNoOrder[S ~[]E, E any](s S, i int) S {
 	s[i] = s[len(s)-1]
 	// use zero value here to ensure no memory leaks

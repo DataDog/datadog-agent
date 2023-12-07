@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
+// Package state provides the types and logic needed to track the current TUF repository
+// state for a client.
 package state
 
 import (
@@ -300,7 +302,7 @@ func (r *Repository) getConfigs(product string) map[string]interface{} {
 //
 // The update is guaranteed to succeed at this point, having been vetted and the details
 // needed to apply the update stored in the `updateResult`.
-func (r *Repository) applyUpdateResult(update Update, result updateResult) {
+func (r *Repository) applyUpdateResult(_ Update, result updateResult) {
 	// 4.b Save all the updated and new config files
 	for product, configs := range result.changed {
 		for path, config := range configs {

@@ -24,7 +24,7 @@ func TestFormatProtocols(t *testing.T) {
 			name: "unknown protocol",
 			protocol: protocols.Stack{
 				Application: protocols.Unknown,
-				Api:         protocols.Unknown,
+				API:         protocols.Unknown,
 				Encryption:  protocols.Unknown,
 			},
 			want: &model.ProtocolStack{
@@ -51,7 +51,7 @@ func TestFormatProtocols(t *testing.T) {
 		},
 		{
 			name:     "grpc protocol",
-			protocol: protocols.Stack{Application: protocols.HTTP2, Api: protocols.GRPC},
+			protocol: protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC},
 			want: &model.ProtocolStack{
 				Stack: []model.ProtocolType{
 					model.ProtocolType_protocolHTTP2,
