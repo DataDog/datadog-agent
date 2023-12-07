@@ -16,8 +16,9 @@ const (
 	ContainerID = "Datadog-Container-ID"
 
 	// EntityID specifies the name of the header which contains entityID of the
-	// sender of the payload. This entityID can either be "cid-<container-id>", "pid-<pod.uid>", or
-	// "in-<cgroupv2-inode>" and is used to retrieve the container-id/pod-uid.
+	// sender of the payload. This entityID can either be "cid-<container-id>", or
+	// "in-<cgroupv2-inode>" and is used to retrieve the container-id. It could be
+	// extended to support other entities such as the pid.
 	EntityID = "Datadog-Entity-ID"
 
 	// Lang specifies the name of the header which contains the language from
