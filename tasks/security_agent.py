@@ -790,7 +790,6 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False):
     build_cws_object_files(
         ctx,
         major_version='7',
-        arch=CURRENT_ARCH,
         kernel_release=None,
         with_unit_test=True,
     )
