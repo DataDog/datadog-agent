@@ -9,9 +9,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"testing"
 	"time"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
@@ -57,7 +58,7 @@ type deps struct {
 }
 
 func createDeps(t *testing.T) deps {
-	return fxutil.Test[deps](t, defaultforwarder.MockModule, config.MockModule, logimpl.MockModule)
+	return fxutil.Test[deps](t, demultiplexer.MockModule, defaultforwarder.MockModule, config.MockModule, logimpl.MockModule)
 }
 
 func Test_Run_simpleCase(t *testing.T) {
