@@ -2,9 +2,7 @@ $ErrorActionPreference = "Stop"
 
 $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
 
-if ($Env:TARGET_ARCH -eq "x64") {
-    & ridk enable
-}
+& ridk enable
 & $Env:Python3_ROOT_DIR\python.exe -m  pip install -r requirements.txt
 
 $LINT_ROOT=(Get-Location).Path
@@ -12,13 +10,8 @@ $Env:PATH="$LINT_ROOT\dev\lib;$Env:GOPATH\bin;$Env:Python3_ROOT_DIR;$Env:Python3
 
 & $Env:Python3_ROOT_DIR\python.exe -m pip install PyYAML==5.3.1
 
-$archflag = "x64"
-if ($Env:TARGET_ARCH -eq "x86") {
-    $archflag = "x86"
-}
-
 & inv -e deps
-& .\tasks\winbuildscripts\pre-go-build.ps1 -Architecture "$archflag" -PythonRuntimes "$Env:PY_RUNTIMES"
+& .\tasks\winbuildscripts\pre-go-build.ps1 -PythonRuntimes "$Env:PY_RUNTIMES"
 
 & inv -e rtloader.format --raise-if-changed
 $err = $LASTEXITCODE
@@ -29,7 +22,7 @@ if($err -ne 0){
 }
 
 & inv -e install-tools
-& inv -e lint-go --arch $archflag
+& inv -e lint-go
 
 $err = $LASTEXITCODE
 Write-Host Lint result is $err

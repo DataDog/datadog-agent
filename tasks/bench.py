@@ -16,11 +16,11 @@ BENCHMARKS_BIN_PATH = os.path.join(".", "bin", "benchmarks")
 
 
 @task
-def build_aggregator(ctx, rebuild=False, arch="x64"):
+def build_aggregator(ctx, rebuild=False):
     """
     Build the Aggregator benchmarks.
     """
-    build_tags = get_default_build_tags(build="test", arch=arch)  # pass all the build flags
+    build_tags = get_default_build_tags(build="test")  # pass all the build flags
 
     ldflags = ""
     gcflags = ""
@@ -47,11 +47,11 @@ def build_aggregator(ctx, rebuild=False, arch="x64"):
 
 
 @task
-def build_dogstatsd(ctx, arch="x64"):
+def build_dogstatsd(ctx):
     """
     Build Dogstatsd benchmarks.
     """
-    build_tags = get_default_build_tags(build="test", arch=arch)  # pass all the build flags
+    build_tags = get_default_build_tags(build="test")  # pass all the build flags
 
     cmd = "go build -mod={go_mod} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/dogstatsd"
     args = {
@@ -64,11 +64,11 @@ def build_dogstatsd(ctx, arch="x64"):
 
 
 @task
-def build_kubernetes_state(ctx, arch="x64"):
+def build_kubernetes_state(ctx):
     """
     Build Kubernetes_State benchmarks.
     """
-    build_tags = get_default_build_tags(build="test", arch=arch)  # pass all the build flags
+    build_tags = get_default_build_tags(build="test")  # pass all the build flags
 
     cmd = "go build -mod={go_mod} -tags \"{build_tags}\" -o {bin_name} {REPO_PATH}/test/benchmarks/kubernetes_state"
     args = {
