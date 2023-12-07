@@ -22,23 +22,27 @@ const (
 )
 
 var ddURLRegexp = regexp.MustCompile(`^app(\.[a-z]{2}\d)?\.(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
+var ddNoSubDomainRegexp = regexp.MustCompile(`^(datad(oghq|0g)\.(com|eu)|ddog-gov\.com)$`)
 var versionNumsddURLRegexp = regexp.MustCompile(`(\d+)\.(\d+)\.(\d+)`)
 
-type endpointGetter func(url *url.URL, agentVersion string)
+type endpointGetter func(url *url.URL, agentVersion string) *url.URL
 
 // tracerFlareTransport forwards request to tracer flare endpoint.
 type tracerFlareTransport struct {
 	rt           http.RoundTripper
 	getEndpoint  endpointGetter
 	agentVersion string
+	site         string
 }
 
-func getServerlessFlareEndpoint(url *url.URL, agentVersion string) {
+func getServerlessFlareEndpoint(url *url.URL, agentVersion string) *url.URL {
 	// The DNS doesn't redirect to the proper endpoint when a subdomain is not present in the baseUrl.
 	// Adding app. subdomain here for site like datadoghq.com
-	if !ddURLRegexp.MatchString(url.Host) {
-		url.Host = "app." + url.Host
-	} else {
+	if ddNoSubDomainRegexp.MatchString(url.Path) {
+		url.Host = "app." + url.Path
+	}
+
+	if ddURLRegexp.MatchString(url.Host) {
 		// Following exisiting logic to prefixes the domain with the agent version
 		// https://github.com/DataDog/datadog-agent/blob/e9056abe94e8dbddd51bbc901036e7362442f02e/pkg/config/utils/endpoints.go#L129
 		subdomain := strings.Split(url.Host, ".")[0]
@@ -47,17 +51,26 @@ func getServerlessFlareEndpoint(url *url.URL, agentVersion string) {
 
 		url.Host = strings.Replace(url.Host, subdomain, newSubdomain, 1)
 	}
+
 	url.Scheme = "https"
 	url.Path = serverlessFlareEndpointPath
+
+	return url
 }
 
 func (m *tracerFlareTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
-	m.getEndpoint(req.URL, m.agentVersion)
+	u, err := url.Parse(m.site)
+	if err != nil {
+		return nil, err
+	}
+
+	req.URL = m.getEndpoint(u, m.agentVersion)
 	return m.rt.RoundTrip(req)
 }
 
 func (r *HTTPReceiver) tracerFlareHandler() http.Handler {
 	apiKey := r.conf.APIKey()
+	site := r.conf.Site
 
 	director := func(req *http.Request) {
 		req.Header.Set("DD-API-KEY", apiKey)
@@ -69,6 +82,6 @@ func (r *HTTPReceiver) tracerFlareHandler() http.Handler {
 	return &httputil.ReverseProxy{
 		Director:  director,
 		ErrorLog:  stdlog.New(logger, "tracer_flare.Proxy: ", 0),
-		Transport: &tracerFlareTransport{transport, getServerlessFlareEndpoint, agentVersion},
+		Transport: &tracerFlareTransport{transport, getServerlessFlareEndpoint, agentVersion, site},
 	}
 }

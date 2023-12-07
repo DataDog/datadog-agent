@@ -40,6 +40,7 @@ func SetLogsTags(tags []string) {
 	}
 }
 
+//nolint:revive // TODO(SERV) Fix revive linter
 func GetLogsTags() []string {
 	if logsScheduler != nil {
 		return logsScheduler.GetLogsTags()

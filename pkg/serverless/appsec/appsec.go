@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//nolint:revive // TODO(ASM) Fix revive linter
 func New() (*httpsec.ProxyLifecycleProcessor, error) {
 	appsecInstance, err := newAppSec() // note that the assigned variable is in the parent scope
 	if err != nil {
@@ -40,6 +41,7 @@ func New() (*httpsec.ProxyLifecycleProcessor, error) {
 	return lp, nil
 }
 
+//nolint:revive // TODO(ASM) Fix revive linter
 type AppSec struct {
 	cfg *config.Config
 	// WAF handle instance of the appsec event rules.

@@ -25,11 +25,11 @@ import (
 
 func getTestOrgUUIDProvider(orgID int) OrgUUIDProvider {
 	return func() (string, error) {
-		return getTestOrgUUIDFromId(orgID), nil
+		return getTestOrgUUIDFromID(orgID), nil
 	}
 }
 
-func getTestOrgUUIDFromId(orgID int) string {
+func getTestOrgUUIDFromID(orgID int) string {
 	return fmt.Sprintf("org-%d-uuid", orgID)
 }
 
@@ -476,7 +476,7 @@ func generateSnapshot(orgID int, key keys.Signer, version int64, targetsVersion 
 	meta.Meta["targets.json"] = data.SnapshotFileMeta{Version: targetsVersion}
 
 	if orgID != 0 {
-		uuid := getTestOrgUUIDFromId(orgID)
+		uuid := getTestOrgUUIDFromID(orgID)
 		customData := &snapshotCustomData{OrgUUID: &uuid}
 		customDataBytes, _ := json.Marshal(customData)
 		customDataBytesRaw := json.RawMessage(customDataBytes)

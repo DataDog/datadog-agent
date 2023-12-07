@@ -23,16 +23,21 @@ type CRHandlers struct {
 }
 
 // AfterMarshalling is a handler called after resource marshalling.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) AfterMarshalling(ctx *processors.ProcessorContext, resource, resourceModel interface{}, yaml []byte) (skip bool) {
 	return
 }
 
 // BuildMessageBody is a handler called to build a message body out of a list of
 // extracted resources.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) BuildMessageBody(ctx *processors.ProcessorContext, resourceModels []interface{}, groupSize int) model.MessageBody {
 	return nil
 }
 
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext, resourceManifests []interface{}, groupSize int) model.MessageBody {
 	cm := ExtractModelManifests(ctx, resourceManifests, groupSize)
 	return &model.CollectorManifestCR{
@@ -42,12 +47,16 @@ func (cr *CRHandlers) BuildManifestMessageBody(ctx *processors.ProcessorContext,
 }
 
 // ExtractResource is a handler called to extract the resource model out of a raw resource.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) ExtractResource(ctx *processors.ProcessorContext, resource interface{}) (resourceModel interface{}) {
 	return nil
 }
 
 // ResourceList is a handler called to convert a list passed as a generic
 // interface to a list of generic interfaces.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) ResourceList(ctx *processors.ProcessorContext, list interface{}) (resources []interface{}) {
 	resourceList := list.([]runtime.Object)
 	resources = make([]interface{}, 0, len(resourceList))
@@ -60,17 +69,23 @@ func (cr *CRHandlers) ResourceList(ctx *processors.ProcessorContext, list interf
 }
 
 // ResourceUID is a handler called to retrieve the resource UID.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) ResourceUID(ctx *processors.ProcessorContext, resource interface{}) types.UID {
 	return resource.(*unstructured.Unstructured).GetUID()
 }
 
 // ResourceVersion is a handler called to retrieve the resource version.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) ResourceVersion(ctx *processors.ProcessorContext, resource, resourceModel interface{}) string {
 	return resource.(*unstructured.Unstructured).GetResourceVersion()
 }
 
 // ScrubBeforeExtraction is a handler called to redact the raw resource before
 // it is extracted as an internal resource model.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func (cr *CRHandlers) ScrubBeforeExtraction(ctx *processors.ProcessorContext, resource interface{}) {
 	r := resource.(*unstructured.Unstructured)
 	annotations := r.GetAnnotations()

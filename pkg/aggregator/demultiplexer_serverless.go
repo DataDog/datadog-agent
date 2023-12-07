@@ -45,7 +45,7 @@ func InitAndStartServerlessDemultiplexer(keysPerDomain map[string][]string, forw
 	metricSamplePool := metrics.NewMetricSamplePool(MetricSamplePoolBatchSize, utils.IsTelemetryEnabled())
 	tagsStore := tags.NewStore(config.Datadog.GetBool("aggregator_use_tags_store"), "timesampler")
 
-	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, nil, nil, "")
+	statsdSampler := NewTimeSampler(TimeSamplerID(0), bucketSize, tagsStore, "")
 	flushAndSerializeInParallel := NewFlushAndSerializeInParallel(config.Datadog)
 	statsdWorker := newTimeSamplerWorker(statsdSampler, DefaultFlushInterval, bufferSize, metricSamplePool, flushAndSerializeInParallel, tagsStore)
 
@@ -141,6 +141,8 @@ func (d *ServerlessDemultiplexer) AggregateSample(sample metrics.MetricSample) {
 // The ServerlessDemultiplexer is not using sharding in its DogStatsD pipeline,
 // the `shard` parameter is ignored.
 // In the Serverless Agent, consider using `AggregateSample` instead.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (d *ServerlessDemultiplexer) AggregateSamples(shard TimeSamplerID, samples metrics.MetricSampleBatch) {
 	d.flushLock.Lock()
 	defer d.flushLock.Unlock()
@@ -148,6 +150,8 @@ func (d *ServerlessDemultiplexer) AggregateSamples(shard TimeSamplerID, samples 
 }
 
 // SendSamplesWithoutAggregation is not supported in the Serverless Agent implementation.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 func (d *ServerlessDemultiplexer) SendSamplesWithoutAggregation(samples metrics.MetricSampleBatch) {
 	panic("not implemented.")
 }

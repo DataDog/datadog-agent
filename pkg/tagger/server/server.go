@@ -115,6 +115,8 @@ func (s *Server) TaggerStreamEntities(in *pb.StreamTagsRequest, out pb.AgentSecu
 }
 
 // TaggerFetchEntity fetches an entity from the Tagger with the desired cardinality tags.
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (s *Server) TaggerFetchEntity(ctx context.Context, in *pb.FetchEntityRequest) (*pb.FetchEntityResponse, error) {
 	if in.Id == nil {
 		return nil, status.Errorf(codes.InvalidArgument, `missing "id" parameter`)

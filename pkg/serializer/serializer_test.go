@@ -113,8 +113,13 @@ func init() {
 
 type testPayload struct{}
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) MarshalJSON() ([]byte, error) { return jsonString, nil }
-func (p *testPayload) Marshal() ([]byte, error)     { return protobufString, nil }
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (p *testPayload) Marshal() ([]byte, error) { return protobufString, nil }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContext) (transaction.BytesPayloads, error) {
 	payloads := transaction.BytesPayloads{}
 	payload, err := compression.Compress(protobufString)
@@ -125,31 +130,44 @@ func (p *testPayload) MarshalSplitCompress(bufferContext *marshaler.BufferContex
 	return payloads, nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
 	return []marshaler.AbstractMarshaler{}, nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) WriteHeader(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonHeader)
 	return err
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) WriteFooter(stream *jsoniter.Stream) error {
 	_, err := stream.Write(jsonFooter)
 	return err
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) WriteItem(stream *jsoniter.Stream, i int) error {
 	_, err := stream.Write(jsonItem)
 	return err
 }
-func (p *testPayload) Len() int                  { return 1 }
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (p *testPayload) Len() int { return 1 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testPayload) DescribeItem(i int) string { return "description" }
 
 type testErrorPayload struct{}
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) MarshalJSON() ([]byte, error) { return nil, fmt.Errorf("some error") }
-func (p *testErrorPayload) Marshal() ([]byte, error)     { return nil, fmt.Errorf("some error") }
+
+//nolint:revive // TODO(AML) Fix revive linter
+func (p *testErrorPayload) Marshal() ([]byte, error) { return nil, fmt.Errorf("some error") }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) SplitPayload(int) ([]marshaler.AbstractMarshaler, error) {
 	return []marshaler.AbstractMarshaler{}, fmt.Errorf("some error")
 }
@@ -164,10 +182,13 @@ func (p *testErrorPayload) WriteFooter(stream *jsoniter.Stream) error {
 	return err
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) WriteItem(stream *jsoniter.Stream, i int) error {
 	return fmt.Errorf("some error")
 }
-func (p *testErrorPayload) Len() int                  { return 1 }
+func (p *testErrorPayload) Len() int { return 1 }
+
+//nolint:revive // TODO(AML) Fix revive linter
 func (p *testErrorPayload) DescribeItem(i int) string { return "description" }
 
 func mkPayloads(payload []byte, compress bool) (transaction.BytesPayloads, error) {
@@ -193,7 +214,7 @@ func doPayloadsMatch(payloads transaction.BytesPayloads, prefix string) bool {
 	for _, compressedPayload := range payloads {
 		if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
 			return false
-		} else {
+		} else { //nolint:revive // TODO(AML) Fix revive linter
 			if strings.HasPrefix(string(payload), prefix) {
 				return true
 			}
@@ -213,14 +234,14 @@ func createProtoscopeMatcher(protoscopeDef string) interface{} {
 		for _, compressedPayload := range payloads {
 			if payload, err := compression.Decompress(compressedPayload.GetContent()); err != nil {
 				return false
-			} else {
+			} else { //nolint:revive // TODO(AML) Fix revive linter
 				res, err := protoscope.NewScanner(protoscopeDef).Exec()
 				if err != nil {
 					return false
 				}
 				if reflect.DeepEqual(res, payload) {
 					return true
-				} else {
+				} else { //nolint:revive // TODO(AML) Fix revive linter
 					fmt.Printf("Did not match. Payload was\n%x and protoscope compilation was\n%x\n", payload, res)
 				}
 			}

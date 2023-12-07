@@ -18,6 +18,16 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package diagnosesendermanager defines the sender manager for the local diagnose check
 
+## [comp/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api) (Component Bundle)
+
+*Datadog Team*: agent-shared-components
+
+Package api implements the "api" bundle,
+
+### [comp/api/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api/api)
+
+Package api implements the internal Agent API which exposes endpoints such as config, flare or status
+
 ## [comp/checks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/checks) (Component Bundle)
 
 *Datadog Team*: agent-shared-components
@@ -115,6 +125,12 @@ Package forwarder implements the "forwarder" bundle
 
 Package defaultForwarder implements a component to send payloads to the backend
 
+### [comp/forwarder/orchestrator](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/forwarder/orchestrator)
+
+*Datadog Team*: agent-metrics-logs
+
+Package orchestrator implements the orchestrator forwarder component.
+
 ## [comp/languagedetection](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection) (Component Bundle)
 
 *Datadog Team*: container-integrations
@@ -149,6 +165,10 @@ Package host implements a component to generate the 'host' metadata payload (als
 ### [comp/metadata/inventoryagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryagent)
 
 Package inventoryagent implements a component to generate the 'datadog_agent' metadata payload for inventory.
+
+### [comp/metadata/inventorychecks](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventorychecks)
+
+Package inventorychecks implements a component to generate the 'check_metadata' metadata payload for inventory.
 
 ### [comp/metadata/inventoryhost](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/inventoryhost)
 
@@ -270,7 +290,7 @@ supported Datadog intakes.
 
 *Datadog Team*: remote-config
 
-
+Package remoteconfig defines the fx options for the Bundle
 
 ### [comp/remote-config/rcclient](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/remote-config/rcclient)
 

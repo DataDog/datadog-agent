@@ -45,7 +45,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
-	"github.com/DataDog/datadog-agent/pkg/network/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/offsetguess"
@@ -1209,13 +1208,28 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 		t.Skip("reuseport not supported on prebuilt")
 	}
 
-	cfg.TCPConnTimeout = 3 * time.Second
 	tr := setupTracer(t, cfg)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-	out, err := testutil.RunCommandWithContext(ctx, "testdata/reuseport.py")
-	require.NoError(t, err, "error running reuseport.py, output: %s", out)
+	var out string
+	var err error
+	for i := 0; i < 5; i++ {
+		err = func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			out, err = testutil.RunCommandWithContext(ctx, "testdata/reuseport.py")
+			if err != nil {
+				t.Logf("error running reuseport.py: %s", err)
+			}
+
+			return err
+		}()
+
+		if err == nil {
+			break
+		}
+	}
+
+	require.NoError(t, err, "error running reuseport.py")
 
 	port, err := strconv.ParseUint(strings.TrimSpace(strings.Split(out, "\n")[0]), 10, 16)
 	require.NoError(t, err, "could not convert %s to integer port", out)
@@ -1701,6 +1715,7 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	stats := ddebpf.GetProbeStats()
 	require.NotNil(t, stats)
 
+	//nolint:revive // TODO(NET) Fix revive linter
 	p_tcp_sendmsg, ok := stats["p_tcp_sendmsg_hits"]
 	require.True(t, ok)
 	fmt.Printf("p_tcp_sendmsg_hits = %d\n", p_tcp_sendmsg)
@@ -1923,11 +1938,7 @@ func (s *TracerSuite) TestGetMapsTelemetry() {
 	err := exec.Command(cmd[0], cmd[1:]...).Run()
 	require.NoError(t, err)
 
-	stats, err := tr.getStats(bpfMapStats)
-	require.NoError(t, err)
-
-	mapsTelemetry, ok := stats[telemetry.EBPFMapTelemetryNS].(map[string]interface{})
-	require.True(t, ok)
+	mapsTelemetry := tr.bpfTelemetry.GetMapsTelemetry()
 	t.Logf("EBPF Maps telemetry: %v\n", mapsTelemetry)
 
 	tcpStatsErrors, ok := mapsTelemetry[probes.TCPStatsMap].(map[string]uint64)
@@ -1981,11 +1992,7 @@ func (s *TracerSuite) TestGetHelpersTelemetry() {
 		syscall.Syscall(syscall.SYS_MUNMAP, uintptr(addr), uintptr(syscall.Getpagesize()), 0)
 	})
 
-	stats, err := tr.getStats(bpfHelperStats)
-	require.NoError(t, err)
-
-	helperTelemetry, ok := stats[telemetry.EBPFHelperTelemetryNS].(map[string]interface{})
-	require.True(t, ok)
+	helperTelemetry := tr.bpfTelemetry.GetHelpersTelemetry()
 	t.Logf("EBPF helper telemetry: %v\n", helperTelemetry)
 
 	openAtErrors, ok := helperTelemetry[expectedErrorTP].(map[string]interface{})

@@ -29,6 +29,7 @@ import (
 	comptraceconfig "github.com/DataDog/datadog-agent/comp/trace/config"
 
 	// core components
+	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -45,6 +46,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
@@ -90,10 +92,12 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 			invAgent inventoryagent.Component,
 			invHost inventoryhost.Component,
 			secretResolver secrets.Component,
+			invChecks inventorychecks.Component,
 			_ netflowServer.Component,
+			agentAPI internalAPI.Component,
 		) error {
 
-			defer StopAgentWithDefaults(server, demultiplexer)
+			defer StopAgentWithDefaults(server, demultiplexer, agentAPI)
 
 			err := startAgent(
 				&cliParams{GlobalParams: &command.GlobalParams{}},
@@ -115,6 +119,8 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 				invAgent,
 				invHost,
 				secretResolver,
+				agentAPI,
+				invChecks,
 			)
 			if err != nil {
 				return err

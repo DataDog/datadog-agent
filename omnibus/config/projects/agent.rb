@@ -144,15 +144,11 @@ end
 
 # Windows .zip specific flags
 package :zip do
-  if windows_arch_i386?
-    skip_packager true
-  else
-    # noinspection RubyLiteralArrayInspection
-    extra_package_dirs [
-      "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
-      "#{Omnibus::Config.source_dir()}\\cf-root"
-    ]
-  end
+  # noinspection RubyLiteralArrayInspection
+  extra_package_dirs [
+    "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
+    "#{Omnibus::Config.source_dir()}\\cf-root"
+  ]
 end
 
 package :msi do
@@ -182,12 +178,12 @@ end
 
 if with_python_runtime? "2"
   dependency 'pylint2'
+  dependency 'datadog-agent-integrations-py2'
 end
 
-if with_python_runtime? "3" or with_python_runtime? "2"
-  dependency 'datadog-agent-integrations'
+if with_python_runtime? "3"
+  dependency 'datadog-agent-integrations-py3'
 end
-
 
 if linux_target?
   dependency 'datadog-security-agent-policies'
@@ -281,7 +277,7 @@ if windows_target?
     "#{install_dir}\\bin\\agent\\process-agent.exe",
     "#{install_dir}\\bin\\agent\\system-probe.exe"
   ]
-  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
+  if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
   end
 
