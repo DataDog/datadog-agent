@@ -181,6 +181,7 @@ func (rc *SnmpwalkRunner) snmpwalkOneDevice(config snmpparse.SNMPConfig, namespa
 	duration := time.Since(localStart)
 	rc.sender.Gauge("datadog.snmpwalk.device.duration", duration.Seconds(), "", devTags)
 	rc.sender.Gauge("datadog.snmpwalk.device.oids", float64(oidsCollectedCount), "", devTags)
+	rc.sender.Counter("datadog.snmpwalk.device.oids_count", float64(oidsCollectedCount), "", devTags)
 
 	rc.sender.Commit()
 
