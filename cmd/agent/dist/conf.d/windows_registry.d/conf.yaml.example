@@ -69,7 +69,7 @@ instances:
     ##
     ## For each registry key, the following options are available:
     ##   name (string - required): The metric name of the registry key.
-    ##   registry_value (map of registry values - required): The registry values to monitor.
+    ##   registry_values (map of registry values - required): The registry values to monitor.
     ##
     ## For each registry value, the following options are available:
     ##   name (string - required): The metrics name of the registry value.
