@@ -356,8 +356,6 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component) demultiplexer.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			opts.UseDogstatsdContextLimiter = true
-			opts.DogstatsdMaxMetricsTags = config.GetInt("dogstatsd_max_metrics_tags")
 			return demultiplexer.Params{Options: opts}
 		}),
 		demultiplexer.Module,
