@@ -8,6 +8,7 @@
 package selftests
 
 import (
+	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
@@ -21,7 +22,7 @@ type SelfTester struct {
 }
 
 // NewSelfTester returns a new SelfTester, enabled or not
-func NewSelfTester(probe *probe.Probe) (*SelfTester, error) {
+func NewSelfTester(_ *config.RuntimeSecurityConfig, probe *probe.Probe) (*SelfTester, error) {
 	return &SelfTester{
 		probe: probe,
 	}, nil
