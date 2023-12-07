@@ -35,6 +35,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+func init() {
+	defaultResponse = updateResponseFromData(httpResponse{
+		statusCode:  http.StatusOK,
+		contentType: "application/json",
+		data:        errorResponseBody{Errors: []string{}},
+	})
+}
+
 //nolint:revive // TODO(APL) Fix revive linter
 type Server struct {
 	server    http.Server

@@ -21,11 +21,8 @@ type flareResponseBody struct {
 	Error  string `json:"error,omitempty"`
 }
 
-var defaultResponse = updateResponseFromData(httpResponse{
-	statusCode:  http.StatusOK,
-	contentType: "application/json",
-	data:        errorResponseBody{Errors: []string{}},
-})
+// defaultResponse is the default response returned by the fakeintake server
+var defaultResponse httpResponse
 
 func getConnectionsResponse() []byte {
 	clStatus := &agentmodel.CollectorStatus{
