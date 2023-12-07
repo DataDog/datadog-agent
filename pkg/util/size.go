@@ -27,8 +27,8 @@ const (
 	IntSize = strconv.IntSize / 8
 	// StringSize is the size of a string structure in bytes.
 	StringSize = unsafe.Sizeof("")
-	// StringSliceSice is the size of the string slice in bytes (not counting the size of the strings themselves).
-	StringSliceSice = unsafe.Sizeof([]string{})
+	// StringSliceSize is the size of the string slice in bytes (not counting the size of the strings themselves).
+	StringSliceSize = unsafe.Sizeof([]string{})
 )
 
 // SizeOfString returns the size of a string structure in bytes.
@@ -38,7 +38,7 @@ func SizeOfString() int {
 
 // SizeOfStringSlice returns the size of the string slice in bytes (not counting the size of the strings themselves).
 func SizeOfStringSlice(s []string) int {
-	return int(StringSliceSice) + len(s)*SizeOfString()
+	return int(StringSliceSize) + len(s)*SizeOfString()
 }
 
 // DataSizeOfStringSlice returns the size of the content of the string slice in bytes.
