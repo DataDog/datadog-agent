@@ -64,6 +64,7 @@ type cliParams struct {
 	pidfilePath string
 }
 
+// Commands returns the start commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	params := &cliParams{
 		GlobalParams: globalParams,

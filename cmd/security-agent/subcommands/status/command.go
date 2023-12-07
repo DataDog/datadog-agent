@@ -34,6 +34,7 @@ type cliParams struct {
 	file            string
 }
 
+// Commands returns the status commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,

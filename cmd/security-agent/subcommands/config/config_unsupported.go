@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// Commands returns the config commands
 func Commands(*command.GlobalParams) []*cobra.Command {
 	return nil
 }

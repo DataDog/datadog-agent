@@ -35,6 +35,7 @@ type cliParams struct {
 	caseID        string
 }
 
+// Commands returns the flare commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
