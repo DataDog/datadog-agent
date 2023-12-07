@@ -347,12 +347,12 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string,
 	d.sender.MonotonicCount("datadog.snmp.requests", float64(d.session.GetBulkRequestCount()), append(common.CopyStrings(newTags), "request_type:get_bulk"))
 
 	if values != nil {
-		d.sender.Gauge("datadog.snmp.oids", float64(len(values.ScalarValues)), append(common.CopyStrings(newTags), "oid_type:scalar"))
+		d.sender.Gauge("datadog.snmp.fetched_oids", float64(len(values.ScalarValues)), append(common.CopyStrings(newTags), "oid_type:scalar"))
 		columnOids := 0
 		for _, colValues := range values.ColumnValues {
 			columnOids += len(colValues)
 		}
-		d.sender.Gauge("datadog.snmp.oids", float64(columnOids), append(common.CopyStrings(newTags), "oid_type:column"))
+		d.sender.Gauge("datadog.snmp.fetched_oids", float64(columnOids), append(common.CopyStrings(newTags), "oid_type:column"))
 
 	}
 }
