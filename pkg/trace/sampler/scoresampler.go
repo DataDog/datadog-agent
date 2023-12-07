@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 )
 
 const (
@@ -54,13 +54,13 @@ func NewErrorsSampler(conf *config.AgentConfig) *ErrorsSampler {
 }
 
 // Sample counts an incoming trace and tells if it is a sample which has to be kept
-func (s *ScoreSampler) Sample(now time.Time, trace pb.Trace, root *pb.Span, env string) bool {
+func (s *ScoreSampler) Sample(now time.Time, trace tracerpayload.TraceChunk, root tracerpayload.Span, env string) bool {
 	if s.disabled {
 		return false
 	}
 
 	// Extra safety, just in case one trace is empty
-	if len(trace) == 0 {
+	if trace.NumSpans() == 0 {
 		return false
 	}
 	signature := computeSignatureWithRootAndEnv(trace, root, env)
@@ -83,14 +83,14 @@ func (s *ScoreSampler) GetTargetTPS() float64 {
 	return s.Sampler.targetTPS.Load()
 }
 
-func (s *ScoreSampler) applySampleRate(root *pb.Span, rate float64) bool {
+func (s *ScoreSampler) applySampleRate(root tracerpayload.Span, rate float64) bool {
 	initialRate := GetGlobalRate(root)
 	newRate := initialRate * rate
-	traceID := root.TraceID
+	traceID := root.TraceID()
 	sampled := SampleByRate(traceID, newRate)
 	if sampled {
 		s.countSample()
-		setMetric(root, s.samplingRateKey, rate)
+		root.SetMetrics(s.samplingRateKey, rate)
 	}
 	return sampled
 }

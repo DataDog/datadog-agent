@@ -14,6 +14,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 )
@@ -170,8 +171,12 @@ func (c *Concentrator) Stop() {
 }
 
 // computeStatsForSpanKind returns true if the span.kind value makes the span eligible for stats computation.
-func computeStatsForSpanKind(s *pb.Span) bool {
-	k := strings.ToLower(s.Meta["span.kind"])
+func computeStatsForSpanKind(s tracerpayload.Span) bool {
+	sk, ok := s.Meta("span.kind")
+	if !ok {
+		sk = ""
+	}
+	k := strings.ToLower(sk)
 	switch k {
 	case "server", "consumer", "client", "producer":
 		return true
@@ -230,7 +235,8 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 		Version:     pt.AppVersion,
 		ContainerID: containerID,
 	}
-	for _, s := range pt.TraceChunk.Spans {
+	for i := 0; i < pt.TraceChunk.NumSpans(); i++ {
+		s := pt.TraceChunk.Span(i)
 		isTop := traceutil.HasTopLevel(s)
 		eligibleSpanKind := c.computeStatsBySpanKind && computeStatsForSpanKind(s)
 		if !(isTop || traceutil.IsMeasured(s) || eligibleSpanKind) {
@@ -239,7 +245,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 		if traceutil.IsPartialSnapshot(s) {
 			continue
 		}
-		end := s.Start + s.Duration
+		end := s.Start() + s.Duration()
 		btime := end - end%c.bsize
 
 		// If too far in the past, count in the oldest-allowed time bucket instead.
@@ -252,7 +258,7 @@ func (c *Concentrator) addNow(pt *traceutil.ProcessedTrace, containerID string) 
 			b = NewRawBucket(uint64(btime), uint64(c.bsize))
 			c.buckets[btime] = b
 		}
-		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin, aggKey, c.peerTagsAggregation, c.peerTagKeys)
+		b.HandleSpan(s, weight, isTop, pt.TraceChunk.Origin(), aggKey, c.peerTagsAggregation, c.peerTagKeys)
 	}
 }
 

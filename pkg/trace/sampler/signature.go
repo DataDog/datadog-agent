@@ -8,8 +8,7 @@ package sampler
 import (
 	"sort"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 )
 
 // Signature is a hash representation of trace or a service, used to identify
@@ -29,12 +28,12 @@ func sortHashes(hashes []spanHash)         { sort.Sort(spanHashSlice(hashes)) }
 // computeSignatureWithRootAndEnv generates the signature of a trace knowing its root
 // Signature based on the hash of (env, service, name, resource, is_error) for the root, plus the set of
 // (env, service, name, is_error) of each span.
-func computeSignatureWithRootAndEnv(trace pb.Trace, root *pb.Span, env string) Signature {
+func computeSignatureWithRootAndEnv(trace tracerpayload.TraceChunk, root tracerpayload.Span, env string) Signature {
 	rootHash := computeSpanHash(root, env, true)
-	spanHashes := make([]spanHash, 0, len(trace))
+	spanHashes := make([]spanHash, 0, trace.NumSpans())
 
-	for i := range trace {
-		spanHashes = append(spanHashes, computeSpanHash(trace[i], env, false))
+	for i := 0; i < trace.NumSpans(); i++ {
+		spanHashes = append(spanHashes, computeSpanHash(trace.Span(i), env, false))
 	}
 	// Now sort, dedupe then merge all the hashes to build the signature
 	sortHashes(spanHashes)
@@ -70,20 +69,20 @@ func (s ServiceSignature) String() string {
 	return "service:" + s.Name + ",env:" + s.Env
 }
 
-func computeSpanHash(span *pb.Span, env string, withResource bool) spanHash {
+func computeSpanHash(span tracerpayload.Span, env string, withResource bool) spanHash {
 	h := new32a()
 	h.Write([]byte(env))
-	h.Write([]byte(span.Service))
-	h.Write([]byte(span.Name))
-	h.WriteChar(byte(span.Error))
+	h.Write([]byte(span.Service()))
+	h.Write([]byte(span.Name()))
+	h.WriteChar(byte(span.Error()))
 	if withResource {
-		h.Write([]byte(span.Resource))
+		h.Write([]byte(span.Resource()))
 	}
-	code, ok := traceutil.GetMeta(span, KeyHTTPStatusCode)
+	code, ok := span.Meta(KeyHTTPStatusCode)
 	if ok {
 		h.Write([]byte(code))
 	}
-	typ, ok := traceutil.GetMeta(span, KeyErrorType)
+	typ, ok := span.Meta(KeyErrorType)
 	if ok {
 		h.Write([]byte(typ))
 	}

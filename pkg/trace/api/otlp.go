@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics/timing"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 
 	"github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes"
@@ -274,7 +275,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		hostname = o.conf.Hostname
 		src = source.Source{Kind: source.HostnameKind, Identifier: hostname}
 	}
-	p.TracerPayload = &pb.TracerPayload{
+	p.TracerPayload = &tracerpayload.ProtoWrapped{&pb.TracerPayload{
 		Hostname:        hostname,
 		Chunks:          o.createChunks(tracesByID, priorityByID),
 		Env:             traceutil.NormalizeTag(env),
@@ -282,7 +283,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		LanguageName:    tagstats.Lang,
 		LanguageVersion: tagstats.LangVersion,
 		TracerVersion:   tagstats.TracerVersion,
-	}
+	}}
 	ctags := attributes.ContainerTagsFromResourceAttributes(attr)
 	payloadTags := flatten(ctags)
 	if tags := getContainerTags(o.conf.ContainerTags, containerID); tags != "" {
@@ -295,9 +296,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 		}
 	}
 	if payloadTags.Len() > 0 {
-		p.TracerPayload.Tags = map[string]string{
-			tagContainersTags: payloadTags.String(),
-		}
+		p.TracerPayload.SetTag(tagContainersTags, payloadTags.String())
 	}
 	select {
 	case o.out <- &p:

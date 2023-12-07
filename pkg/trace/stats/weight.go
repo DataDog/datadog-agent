@@ -5,18 +5,20 @@
 
 package stats
 
-import pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+import (
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
+)
 
 // keySamplingRateGlobal is a metric key holding the global sampling rate.
 const keySamplingRateGlobal = "_sample_rate"
 
 // weight returns the weight of the span as defined for sampling, i.e. the
 // inverse of the sampling rate.
-func weight(s *pb.Span) float64 {
+func weight(s tracerpayload.Span) float64 {
 	if s == nil {
 		return 1
 	}
-	sampleRate, ok := s.Metrics[keySamplingRateGlobal]
+	sampleRate, ok := s.Metrics(keySamplingRateGlobal)
 	if !ok || sampleRate <= 0.0 || sampleRate > 1.0 {
 		return 1
 	}

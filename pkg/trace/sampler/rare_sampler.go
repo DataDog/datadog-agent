@@ -12,9 +12,9 @@ import (
 	"go.uber.org/atomic"
 	"golang.org/x/time/rate"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/metrics"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
@@ -76,7 +76,7 @@ func NewRareSampler(conf *config.AgentConfig) *RareSampler {
 }
 
 // Sample a trace and returns true if trace was sampled (should be kept)
-func (e *RareSampler) Sample(now time.Time, t *pb.TraceChunk, env string) bool {
+func (e *RareSampler) Sample(now time.Time, t tracerpayload.TraceChunk, env string) bool {
 
 	if !e.enabled.Load() {
 		return false
@@ -104,9 +104,10 @@ func (e *RareSampler) IsEnabled() bool {
 	return e.enabled.Load()
 }
 
-func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.TraceChunk, ttl time.Duration) {
+func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t tracerpayload.TraceChunk, ttl time.Duration) {
 	expire := now.Add(ttl)
-	for _, s := range t.Spans {
+	for i := 0; i < t.NumSpans(); i++ {
+		s := t.Span(i)
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
 			continue
 		}
@@ -114,9 +115,10 @@ func (e *RareSampler) handlePriorityTrace(now time.Time, env string, t *pb.Trace
 	}
 }
 
-func (e *RareSampler) handleTrace(now time.Time, env string, t *pb.TraceChunk) bool {
+func (e *RareSampler) handleTrace(now time.Time, env string, t tracerpayload.TraceChunk) bool {
 	var sampled bool
-	for _, s := range t.Spans {
+	for i := 0; i < t.NumSpans(); i++ {
+		s := t.Span(i)
 		if !traceutil.HasTopLevel(s) && !traceutil.IsMeasured(s) {
 			continue
 		}
@@ -131,17 +133,17 @@ func (e *RareSampler) handleTrace(now time.Time, env string, t *pb.TraceChunk) b
 }
 
 // addSpan adds a span to the seenSpans with an expire time.
-func (e *RareSampler) addSpan(expire time.Time, env string, s *pb.Span) {
-	shardSig := ServiceSignature{env, s.Service}.Hash()
+func (e *RareSampler) addSpan(expire time.Time, env string, s tracerpayload.Span) {
+	shardSig := ServiceSignature{env, s.Service()}.Hash()
 	ss := e.loadSeenSpans(shardSig)
 	ss.add(expire, s)
 }
 
 // sampleSpan samples a span if it's not in the seenSpan set. If the span is sampled
 // it's added to the seenSpans set.
-func (e *RareSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
+func (e *RareSampler) sampleSpan(now time.Time, env string, s tracerpayload.Span) bool {
 	var sampled bool
-	shardSig := ServiceSignature{env, s.Service}.Hash()
+	shardSig := ServiceSignature{env, s.Service()}.Hash()
 	ss := e.loadSeenSpans(shardSig)
 	sig := ss.sign(s)
 	expire, ok := ss.getExpire(sig)
@@ -150,7 +152,7 @@ func (e *RareSampler) sampleSpan(now time.Time, env string, s *pb.Span) bool {
 		if sampled {
 			ss.add(now.Add(e.ttl), s)
 			e.hits.Inc()
-			traceutil.SetMetric(s, rareKey, 1)
+			s.SetMetrics(rareKey, 1)
 		} else {
 			e.misses.Inc()
 		}
@@ -195,7 +197,7 @@ type seenSpans struct {
 	cardinality int
 }
 
-func (ss *seenSpans) add(expire time.Time, s *pb.Span) {
+func (ss *seenSpans) add(expire time.Time, s tracerpayload.Span) {
 	sig := ss.sign(s)
 	storedExpire, ok := ss.getExpire(sig)
 	if ok && expire.Sub(storedExpire) < ttlRenewalPeriod {
@@ -234,7 +236,7 @@ func (ss *seenSpans) getExpire(h spanHash) (time.Time, bool) {
 	return expire, ok
 }
 
-func (ss *seenSpans) sign(s *pb.Span) spanHash {
+func (ss *seenSpans) sign(s tracerpayload.Span) spanHash {
 	h := computeSpanHash(s, "", true)
 	if ss.shrunk {
 		h = h % spanHash(ss.cardinality)

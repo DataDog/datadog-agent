@@ -14,7 +14,6 @@ import (
 	"time"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // YearNS is the number of nanoseconds in a year
@@ -349,10 +348,9 @@ func GetTestSpan() *pb.Span {
 		Start:    9223372036854775807,
 		Duration: 9223372036854775807,
 		Meta:     map[string]string{"http.host": "192.168.0.1"},
-		Metrics:  map[string]float64{"http.monitor": 41.99},
+		Metrics:  map[string]float64{"http.monitor": 41.99, "_top_level": 1},
 	}
 	trace := pb.Trace{span}
-	traceutil.ComputeTopLevel(trace)
 	return trace[0]
 }
 

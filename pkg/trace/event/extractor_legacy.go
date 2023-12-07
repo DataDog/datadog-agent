@@ -10,7 +10,6 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/sampler"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
 )
 
 // legacyExtractor is an event extractor that decides whether to extract APM events from spans based on
@@ -37,9 +36,9 @@ func NewLegacyExtractor(rateByService map[string]float64) Extractor {
 //
 //nolint:revive // TODO(APM) Fix revive linter
 func (e *legacyExtractor) Extract(s *pb.Span, priority sampler.SamplingPriority) (float64, bool) {
-	if !traceutil.HasTopLevel(s) {
-		return 0, false
-	}
+	//if !traceutil.HasTopLevel(s) {
+	//	return 0, false
+	//}
 	extractionRate, ok := e.rateByService[strings.ToLower(s.Service)]
 	if !ok {
 		return 0, false

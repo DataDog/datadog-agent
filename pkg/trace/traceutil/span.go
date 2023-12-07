@@ -26,8 +26,11 @@ const (
 )
 
 // HasTopLevel returns true if span is top-level.
-func HasTopLevel(s *pb.Span) bool {
-	return s.Metrics[topLevelKey] == 1
+func HasTopLevel(s tracerpayload.Span) bool {
+	if tk, ok := s.Metrics(topLevelKey); ok {
+		return tk == 1
+	}
+	return false
 }
 
 // UpdateTracerTopLevel sets _top_level tag on spans flagged by the tracer
@@ -38,16 +41,19 @@ func UpdateTracerTopLevel(s tracerpayload.Span) {
 }
 
 // IsMeasured returns true if a span should be measured (i.e., it should get trace metrics calculated).
-func IsMeasured(s *pb.Span) bool {
-	return s.Metrics[measuredKey] == 1
+func IsMeasured(s tracerpayload.Span) bool {
+	if m, ok := s.Metrics(measuredKey); ok {
+		return m == 1
+	}
+	return false
 }
 
 // IsPartialSnapshot returns true if the span is a partial snapshot.
 // This kind of spans are partial images of long-running spans.
 // When incomplete, a partial snapshot has a metric _dd.partial_version which is a positive integer.
 // The metric usually increases each time a new version of the same span is sent by the tracer
-func IsPartialSnapshot(s *pb.Span) bool {
-	v, ok := s.Metrics[partialVersionKey]
+func IsPartialSnapshot(s tracerpayload.Span) bool {
+	v, ok := s.Metrics(partialVersionKey)
 	return ok && v >= 0
 }
 

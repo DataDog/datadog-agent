@@ -14,7 +14,7 @@ import (
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
-	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 )
 
 const (
@@ -49,14 +49,14 @@ type PayloadAggregationKey struct {
 	ContainerID string
 }
 
-func getStatusCode(s *pb.Span) uint32 {
-	code, ok := traceutil.GetMetric(s, tagStatusCode)
+func getStatusCode(s tracerpayload.Span) uint32 {
+	code, ok := s.Metrics(tagStatusCode)
 	if ok {
 		// only 7.39.0+, for lesser versions, always use Meta
 		return uint32(code)
 	}
-	strC := traceutil.GetMetaDefault(s, tagStatusCode, "")
-	if strC == "" {
+	strC, ok := s.Meta(tagStatusCode)
+	if !ok {
 		return 0
 	}
 	c, err := strconv.ParseUint(strC, 10, 32)
@@ -73,16 +73,20 @@ func clientOrProducer(spanKind string) bool {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) (Aggregation, []string) {
+func NewAggregationFromSpan(s tracerpayload.Span, origin string, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) (Aggregation, []string) {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
+	sk, ok := s.Meta(tagSpanKind)
+	if !ok {
+		sk = ""
+	}
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
 		BucketsAggregationKey: BucketsAggregationKey{
-			Resource:   s.Resource,
-			Service:    s.Service,
-			Name:       s.Name,
-			SpanKind:   s.Meta[tagSpanKind],
-			Type:       s.Type,
+			Resource:   s.Resource(),
+			Service:    s.Service(),
+			Name:       s.Name(),
+			SpanKind:   sk,
+			Type:       s.Type(),
 			StatusCode: getStatusCode(s),
 			Synthetics: synthetics,
 		},
@@ -95,13 +99,13 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 	return agg, peerTags
 }
 
-func matchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
+func matchingPeerTags(s tracerpayload.Span, peerTagKeys []string) []string {
 	if len(peerTagKeys) == 0 {
 		return nil
 	}
 	var pt []string
 	for _, t := range peerTagKeys {
-		if v, ok := s.Meta[t]; ok && v != "" {
+		if v, ok := s.Meta(t); ok && v != "" {
 			pt = append(pt, t+":"+v)
 		}
 	}

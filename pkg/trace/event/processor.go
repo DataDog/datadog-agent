@@ -55,36 +55,36 @@ func (p *Processor) Stop() {
 // numExtracted is the number of events found in the trace
 // events is the slice of sampled analytics events to keep (only has values if pt will be dropped)
 func (p *Processor) Process(pt *traceutil.ProcessedTrace) (numEvents, numExtracted int64, events []*pb.Span) {
-	clientSampleRate := sampler.GetClientRate(pt.Root)
-	preSampleRate := sampler.GetPreSampleRate(pt.Root)
-	priority := sampler.SamplingPriority(pt.TraceChunk.Priority)
-
-	for _, span := range pt.TraceChunk.Spans {
-		extractionRate, ok := p.extract(span, priority)
-		if !ok {
-			continue
-		}
-		if !sampler.SampleByRate(span.TraceID, extractionRate) {
-			continue
-		}
-
-		numExtracted++
-
-		sampled, epsRate := p.maxEPSSample(span, priority)
-		if !sampled {
-			continue
-		}
-		// event analytics tags shouldn't be set on sampled single spans
-		sampler.SetMaxEPSRate(span, epsRate)
-		sampler.SetClientRate(span, clientSampleRate)
-		sampler.SetPreSampleRate(span, preSampleRate)
-		sampler.SetEventExtractionRate(span, extractionRate)
-		sampler.SetAnalyzedSpan(span)
-		if pt.TraceChunk.DroppedTrace {
-			events = append(events, span)
-		}
-		numEvents++
-	}
+	//clientSampleRate := sampler.GetClientRate(pt.Root)
+	//preSampleRate := sampler.GetPreSampleRate(pt.Root)
+	//priority := sampler.SamplingPriority(pt.TraceChunk.Priority)
+	//
+	//for _, span := range pt.TraceChunk.Spans {
+	//	extractionRate, ok := p.extract(span, priority)
+	//	if !ok {
+	//		continue
+	//	}
+	//	if !sampler.SampleByRate(span.TraceID, extractionRate) {
+	//		continue
+	//	}
+	//
+	//	numExtracted++
+	//
+	//	sampled, epsRate := p.maxEPSSample(span, priority)
+	//	if !sampled {
+	//		continue
+	//	}
+	//	// event analytics tags shouldn't be set on sampled single spans
+	//	sampler.SetMaxEPSRate(span, epsRate)
+	//	sampler.SetClientRate(span, clientSampleRate)
+	//	sampler.SetPreSampleRate(span, preSampleRate)
+	//	sampler.SetEventExtractionRate(span, extractionRate)
+	//	sampler.SetAnalyzedSpan(span)
+	//	if pt.TraceChunk.DroppedTrace {
+	//		events = append(events, span)
+	//	}
+	//	numEvents++
+	//}
 	return numEvents, numExtracted, events
 }
 

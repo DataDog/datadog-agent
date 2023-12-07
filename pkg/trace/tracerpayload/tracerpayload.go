@@ -175,6 +175,7 @@ type Span interface {
 	SetResource(string)
 	Type() string
 	SetType(string)
+	Error() int32
 	Meta(string) (string, bool)
 	ForMeta(func(string, string) (string, string, bool)) bool
 	SetMeta(string, string)
@@ -247,6 +248,10 @@ func (s *WrappedSpan) Type() string {
 
 func (s *WrappedSpan) SetType(typ string) {
 	s.s.Type = typ
+}
+
+func (s *WrappedSpan) Error() int32 {
+	return s.s.Error
 }
 
 func (s *WrappedSpan) Meta(key string) (string, bool) {

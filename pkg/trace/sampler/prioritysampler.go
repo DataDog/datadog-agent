@@ -21,8 +21,8 @@ package sampler
 import (
 	"time"
 
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/tracerpayload"
 )
 
 const (
@@ -96,9 +96,9 @@ func (s *PrioritySampler) Stop() {
 }
 
 // Sample counts an incoming trace and returns the trace sampling decision and the applied sampling rate
-func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.Span, tracerEnv string, clientDroppedP0sWeight float64) bool {
+func (s *PrioritySampler) Sample(now time.Time, trace tracerpayload.TraceChunk, root tracerpayload.Span, tracerEnv string, clientDroppedP0sWeight float64) bool {
 	// Extra safety, just in case one trace is empty
-	if len(trace.Spans) == 0 {
+	if trace.NumSpans() == 0 {
 		return false
 	}
 
@@ -118,7 +118,7 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 		return sampled
 	}
 
-	signature := s.catalog.register(ServiceSignature{Name: root.Service, Env: toSamplerEnv(tracerEnv, s.agentEnv)})
+	signature := s.catalog.register(ServiceSignature{Name: root.Service(), Env: toSamplerEnv(tracerEnv, s.agentEnv)})
 
 	// Update sampler state by counting this trace
 	s.countSignature(now, root, signature, clientDroppedP0sWeight)
@@ -130,33 +130,33 @@ func (s *PrioritySampler) Sample(now time.Time, trace *pb.TraceChunk, root *pb.S
 	return sampled
 }
 
-func (s *PrioritySampler) applyRate(root *pb.Span, signature Signature) float64 {
-	if root.ParentID != 0 {
+func (s *PrioritySampler) applyRate(root tracerpayload.Span, signature Signature) float64 {
+	if root.ParentID() != 0 {
 		return 1.0
 	}
 	// recent tracers annotate roots with applied priority rate
 	// agentRateKey is set when the agent computed rate is applied
-	if rate, ok := getMetric(root, agentRateKey); ok {
+	if rate, ok := root.Metrics(agentRateKey); ok {
 		return rate
 	}
 	// ruleRateKey is set when a tracer rule rate is applied
-	if rate, ok := getMetric(root, ruleRateKey); ok {
+	if rate, ok := root.Metrics(ruleRateKey); ok {
 		return rate
 	}
 	// slow path used by older tracer versions
 	// dd-trace-go used to set the rate in deprecatedRateKey
-	if rate, ok := getMetric(root, deprecatedRateKey); ok {
+	if rate, ok := root.Metrics(deprecatedRateKey); ok {
 		return rate
 	}
 	rate := s.sampler.getSignatureSampleRate(signature)
 
-	setMetric(root, deprecatedRateKey, rate)
+	root.SetMetrics(deprecatedRateKey, rate)
 
 	return rate
 }
 
 // countSignature counts all chunks received with local chunk root signature.
-func (s *PrioritySampler) countSignature(now time.Time, root *pb.Span, signature Signature, clientDroppedP0Weight float64) {
+func (s *PrioritySampler) countSignature(now time.Time, root tracerpayload.Span, signature Signature, clientDroppedP0Weight float64) {
 	rootWeight := weightRoot(root)
 	newRates := s.sampler.countWeightedSig(now, signature, rootWeight+float32(clientDroppedP0Weight))
 

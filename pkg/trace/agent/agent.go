@@ -533,7 +533,9 @@ func (a *Agent) sample(now time.Time, ts *info.TagStats, pt *traceutil.Processed
 		events = a.getAnalyzedEvents(pt, ts)
 	}
 	if !keep {
-		modified := sampler.SingleSpanSampling(pt)
+		//todo: impl me
+		//modified := sampler.SingleSpanSampling(pt)
+		modified := false
 		if !modified {
 			// If there were no sampled spans, and we're not keeping the trace, let's use the analytics events
 			// This is OK because SSS is a replacement for analytics events so both should not be configured
@@ -601,8 +603,8 @@ func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) 
 	if a.PrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv, pt.ClientDroppedP0sWeight) {
 		return true
 	}
-	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+	if traceContainsError(pt.TraceChunk) {
+		return a.ErrorsSampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv)
 	}
 	return rare
 }
@@ -610,15 +612,16 @@ func (a *Agent) samplePriorityTrace(now time.Time, pt traceutil.ProcessedTrace) 
 // sampleNoPriorityTrace samples traces with no priority set on them. The traces
 // get sampled by either the score sampler or the error sampler if they have an error.
 func (a *Agent) sampleNoPriorityTrace(now time.Time, pt traceutil.ProcessedTrace) bool {
-	if traceContainsError(pt.TraceChunk.Spans) {
-		return a.ErrorsSampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+	if traceContainsError(pt.TraceChunk) {
+		return a.ErrorsSampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv)
 	}
-	return a.NoPrioritySampler.Sample(now, pt.TraceChunk.Spans, pt.Root, pt.TracerEnv)
+	return a.NoPrioritySampler.Sample(now, pt.TraceChunk, pt.Root, pt.TracerEnv)
 }
 
-func traceContainsError(trace pb.Trace) bool {
-	for _, span := range trace {
-		if span.Error != 0 {
+func traceContainsError(trace tracerpayload.TraceChunk) bool {
+	for i := 0; i < trace.NumSpans(); i++ {
+		span := trace.Span(i)
+		if span.Error() != 0 {
 			return true
 		}
 	}
