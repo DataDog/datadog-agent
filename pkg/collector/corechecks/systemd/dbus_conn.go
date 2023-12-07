@@ -19,7 +19,7 @@ import (
 	"strconv"
 
 	"github.com/coreos/go-systemd/dbus"
-	godbus "github.com/godbus/dbus"
+	godbus "github.com/godbus/dbus/v5"
 )
 
 // NewSystemdConnection establishes a private, direct connection to systemd.
