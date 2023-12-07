@@ -16,11 +16,11 @@ import (
 var MinimumKernelVersion kernel.Version
 
 func init() {
-	MinimumKernelVersion = kernel.VersionCode(5, 2, 0)
+	MinimumKernelVersion = kernel.VersionCode(5, 4, 0)
 }
 
-// Supported We only support http2 with kernel >= 5.2.0, as the kernel implementation exceeds the instruction limit
-// on kernels prior to that. In 5.2.0 the instruction limit was bumped to 1M instead of 4K.
+// Supported We only support http2 with kernel >= 5.4.0, as the kernel implementation exceeds the instruction limit
+// on kernels prior to that. In 5.4.0 the instruction limit was bumped to 1M instead of 4K.
 func Supported() bool {
 	kversion, err := kernel.HostVersion()
 	if err != nil {
