@@ -38,9 +38,9 @@ instances:
     ##            name: <name for registry value>
     ##            <OPTION_1>
     ##            <OPTION_2>
-    ##      <registry key path 2>:
+    ##      <REGISTRY KEY PATH_2>:
     ##        ...
-    ##      <registry key path N>:
+    ##      <REGISTRY KEY PATH_N>:
     ##        ...
     ##
     ## Numeric registry value or string registry value which can be automatically converted to a number
@@ -70,7 +70,7 @@ instances:
     ##   name (string - required): The metric name of the registry key.
     ##   registry_value (map of registry values - required): The registry values to monitor.
     ##
-    ## For each registry values, the following fields are available:
+    ## For each registry value, the following options are available:
     ##   name (string - required): The metrics name of the registry value.
     ##   default_value (float - optional): An optional value to send if the registry value was not found.
     ##   mapping (map string to float - optional): An optional map to convert registry string values to valid metrics.
