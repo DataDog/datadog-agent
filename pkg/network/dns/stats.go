@@ -8,6 +8,7 @@
 package dns
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
@@ -30,6 +31,9 @@ const (
 	// This const limits the maximum size of the state map. Benchmark results show that allocated space is less than 3MB
 	// for 10000 entries.
 	maxStateMapSize = 10000
+
+	// See WaitForDomain
+	waitForDomainTimeout = 5 * time.Second
 )
 
 var statsTelemetry = struct {
@@ -181,6 +185,36 @@ func (d *dnsStatKeeper) GetAndResetAllStats() StatsByKeyByNameByType {
 	d.processedStats = 0
 	d.droppedStats = 0
 	return ret
+}
+
+func (d *dnsStatKeeper) WaitForDomain(domain string) error {
+
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		select {
+		case <-time.After(waitForDomainTimeout):
+			return fmt.Errorf("domain %v did not appear within %v", domain, waitForDomainTimeout)
+		case <-tick.C:
+			if d.hasDomain(domain) {
+				return nil
+			}
+		}
+	}
+}
+
+func (d *dnsStatKeeper) hasDomain(domain string) bool {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+	for _, statsByTypeByHost := range d.stats {
+		for host := range statsByTypeByHost {
+			if host.Get() == domain {
+				return true
+			}
+		}
+
+	}
+	return false
 }
 
 // Snapshot returns a deep copy of all DNS stats.
