@@ -10,28 +10,28 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/test-infra-definitions/components/datadog/agent/dockerparams"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsdocker "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/docker"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 )
 
 type dockerSuite struct {
-	e2e.Suite[e2e.DockerEnv]
+	e2e.BaseSuite[environments.DockerVM]
 }
 
 func TestDocker(t *testing.T) {
-	e2e.Run(t, &dockerSuite{}, e2e.DockerStackDef(dockerparams.WithAgent()))
+	e2e.Run(t, &dockerSuite{}, e2e.WithProvisioner(awsdocker.Provisioner(awsdocker.WithoutFakeIntake())))
 }
 
 func (v *dockerSuite) TestExecuteCommand() {
-	docker := v.Env().Docker
-	output := docker.ExecuteCommand(docker.GetAgentContainerName(), "agent", "version")
+	agentVersion := v.Env().Agent.Client.Version()
 	regexpVersion := regexp.MustCompile(`.*Agent .* - Commit: .* - Serialization version: .* - Go version: .*`)
 
-	v.Require().Truef(regexpVersion.MatchString(output), fmt.Sprintf("%v doesn't match %v", output, regexpVersion))
+	v.Require().Truef(regexpVersion.MatchString(agentVersion), fmt.Sprintf("%v doesn't match %v", agentVersion, regexpVersion))
 
 	// args is used to test client.WithArgs. The values of the arguments are not relevant.
-	args := client.WithArgs([]string{"-n", "-c", "."})
-	version := docker.GetAgent().Version(args)
+	args := agentclient.WithArgs([]string{"-n", "-c", "."})
+	version := v.Env().Agent.Client.Version(args)
 	v.Require().Truef(regexpVersion.MatchString(version), fmt.Sprintf("%v doesn't match %v", version, regexpVersion))
 }
