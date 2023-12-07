@@ -1863,13 +1863,6 @@ func IsCloudProviderEnabled(cloudProviderName string, config pkgconfigmodel.Read
 	return false
 }
 
-var isLocalAddress = pkgconfigenv.IsLocalAddress
-
-// GetIPCAddress returns the IPC address or an error if the address is not local
-func GetIPCAddress(config pkgconfigmodel.Reader) (string, error) {
-	return pkgconfigenv.GetIPCAddress(config)
-}
-
 // pathExists returns true if the given path exists
 func pathExists(path string) bool {
 	_, err := os.Stat(path)

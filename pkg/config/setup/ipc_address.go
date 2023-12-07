@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package setup
 
 import (
 	"fmt"
@@ -38,8 +38,8 @@ func IsLocalAddress(address string) (string, error) {
 }
 
 // GetIPCAddress returns the IPC address or an error if the address is not local
-func GetIPCAddress() (string, error) {
-	return getIPCAddress(Datadog)
+func GetIPCAddress(config pkgconfigmodel.Reader) (string, error) {
+	return getIPCAddress(config)
 }
 
 func getIPCAddress(cfg pkgconfigmodel.Reader) (string, error) {
