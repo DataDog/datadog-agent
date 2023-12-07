@@ -51,11 +51,15 @@ type Protocol struct {
 	// http2Telemetry is used to retrieve metrics from the kernel
 	http2Telemetry             *kernelTelemetry
 	kernelTelemetryStopChannel chan struct{}
+
+	// dynamicTable stores all interesting paths captured by the kernel
+	dynamicTable *DynamicTable
 }
 
 const (
 	inFlightMap                      = "http2_in_flight"
 	dynamicTable                     = "http2_dynamic_table"
+	interestingDynamicTableSet       = "http2_interesting_dynamic_table_set"
 	dynamicTableCounter              = "http2_dynamic_counter_table"
 	http2IterationsTable             = "http2_iterations"
 	staticTable                      = "http2_static_table"
@@ -76,6 +80,9 @@ var Spec = &protocols.ProtocolSpec{
 		},
 		{
 			Name: dynamicTable,
+		},
+		{
+			Name: interestingDynamicTableSet,
 		},
 		{
 			Name: staticTable,
@@ -141,6 +148,7 @@ func newHTTP2Protocol(cfg *config.Config) (protocols.Protocol, error) {
 		telemetry:                  telemetry,
 		http2Telemetry:             http2KernelTelemetry,
 		kernelTelemetryStopChannel: make(chan struct{}),
+		dynamicTable:               NewDynamicTable(int(cfg.MaxUSMConcurrentRequests)),
 	}, nil
 }
 
@@ -166,6 +174,10 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	}
 
 	opts.MapSpecEditors[dynamicTable] = manager.MapSpecEditor{
+		MaxEntries: dynamicMapSizeValue,
+		EditorFlag: manager.EditMaxEntries,
+	}
+	opts.MapSpecEditors[interestingDynamicTableSet] = manager.MapSpecEditor{
 		MaxEntries: dynamicMapSizeValue,
 		EditorFlag: manager.EditMaxEntries,
 	}
@@ -224,9 +236,13 @@ func (p *Protocol) PreStart(mgr *manager.Manager) (err error) {
 func (p *Protocol) PostStart(mgr *manager.Manager) error {
 	// Setup map cleaner after manager start.
 
+	if err := p.dynamicTable.StartProcessingPerfHandler(mgr); err != nil {
+		return err
+	}
 	p.setupHTTP2InFlightMapCleaner(mgr)
 	p.setupDynamicTableMapCleaner(mgr)
 	p.updateKernelTelemetry(mgr)
+
 	return nil
 }
 
@@ -287,6 +303,10 @@ func (p *Protocol) Stop(_ *manager.Manager) {
 		p.statkeeper.Close()
 	}
 
+	if p.dynamicTable != nil {
+		p.dynamicTable.StopProcessingPerfHandler()
+	}
+
 	close(p.kernelTelemetryStopChannel)
 }
 
@@ -315,6 +335,7 @@ func (p *Protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 func (p *Protocol) processHTTP2(events []EbpfTx) {
 	for i := range events {
 		tx := &events[i]
+		// TODO: Here we need to resolve the path index to the actual path
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
 	}
