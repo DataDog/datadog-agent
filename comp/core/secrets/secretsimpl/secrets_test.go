@@ -369,7 +369,7 @@ func TestResolveWithCallback(t *testing.T) {
 	err := resolver.ResolveWithCallback(
 		testConf,
 		"test",
-		func(yamlPath []string, value any) {
+		func(yamlPath []string, value any) bool {
 			switch strings.Join(yamlPath, "/") {
 			case "top_level":
 				assert.Equal(t, "password1", value)
@@ -383,6 +383,7 @@ func TestResolveWithCallback(t *testing.T) {
 			default:
 				assert.Fail(t, "unknown yaml path: %s", yamlPath)
 			}
+			return true
 		},
 	)
 	require.NoError(t, err)

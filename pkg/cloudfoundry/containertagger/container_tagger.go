@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package containertagger
 
 import (
@@ -157,6 +158,7 @@ func (c *ContainerTagger) processEvent(ctx context.Context, evt workloadmeta.Eve
 
 // updateTagsInContainer runs a script inside the container that handles updating the agent with the given tags
 func updateTagsInContainer(container garden.Container, tags []string) (int, error) {
+	//nolint:revive // TODO(PLINT) Fix revive linter
 	shell_path := config.Datadog.GetString("cloud_foundry_container_tagger.shell_path")
 	process, err := container.Run(garden.ProcessSpec{
 		Path: shell_path,

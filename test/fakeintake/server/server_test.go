@@ -393,7 +393,7 @@ func postSomeFakePayloads(t *testing.T, fi *Server) {
 	fi.handleDatadogRequest(postResponse, request)
 }
 
-//go:embed fixture_test/log_bytes
+//go:embed fixtures/log_bytes
 var logBytes []byte
 
 func postSomeRealisticPayloads(t *testing.T, fi *Server) {

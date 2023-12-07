@@ -5,6 +5,7 @@
 
 //go:build linux
 
+//nolint:revive // TODO(NET) Fix revive linter
 package testutil
 
 import (

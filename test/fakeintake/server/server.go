@@ -23,14 +23,19 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/api"
 	"github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore"
 	"github.com/benbjohnson/clock"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+//nolint:revive // TODO(APL) Fix revive linter
 type Server struct {
 	server    http.Server
 	ready     chan bool
@@ -56,12 +61,32 @@ func NewServer(options ...func(*Server)) *Server {
 		store:     serverstore.NewStore(),
 	}
 
+	registry := prometheus.NewRegistry()
+
+	registry.MustRegister(
+		collectors.NewBuildInfoCollector(),
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+		fi.store.NbPayloads,
+	)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", fi.handleDatadogRequest)
-	mux.HandleFunc("/fakeintake/payloads/", fi.handleGetPayloads)
-	mux.HandleFunc("/fakeintake/health/", fi.handleFakeHealth)
-	mux.HandleFunc("/fakeintake/routestats/", fi.handleGetRouteStats)
-	mux.HandleFunc("/fakeintake/flushPayloads/", fi.handleFlushPayloads)
+	mux.HandleFunc("/fakeintake/payloads", fi.handleGetPayloads)
+	mux.HandleFunc("/fakeintake/health", fi.handleFakeHealth)
+	mux.HandleFunc("/fakeintake/routestats", fi.handleGetRouteStats)
+	mux.HandleFunc("/fakeintake/flushPayloads", fi.handleFlushPayloads)
+
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{
+		EnableOpenMetrics: true,
+		Registry:          registry,
+	}))
 
 	fi.server = http.Server{
 		Handler: mux,
@@ -98,6 +123,7 @@ func WithReadyChannel(ready chan bool) func(*Server) {
 	}
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func WithClock(clock clock.Clock) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
@@ -108,6 +134,7 @@ func WithClock(clock clock.Clock) func(*Server) {
 	}
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func WithRetention(retention time.Duration) func(*Server) {
 	return func(fi *Server) {
 		if fi.IsRunning() {
@@ -133,6 +160,7 @@ func (fi *Server) Start() {
 	go fi.cleanUpPayloadsRoutine()
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func (fi *Server) URL() string {
 	fi.urlMutex.RLock()
 	defer fi.urlMutex.RUnlock()
@@ -145,6 +173,7 @@ func (fi *Server) setURL(url string) {
 	fi.url = url
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func (fi *Server) IsRunning() bool {
 	return fi.URL() != ""
 }
@@ -339,6 +368,7 @@ func (fi *Server) handleFakeHealth(w http.ResponseWriter, _ *http.Request) {
 	})
 }
 
+//nolint:revive // TODO(APL) Fix revive linter
 func (fi *Server) handleGetRouteStats(w http.ResponseWriter, req *http.Request) {
 	log.Print("Handling getRouteStats request")
 	routes := fi.store.GetRouteStats()
