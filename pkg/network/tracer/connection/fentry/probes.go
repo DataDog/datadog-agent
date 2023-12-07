@@ -45,9 +45,11 @@ const (
 	udpSendMsgReturn        = "udp_sendmsg_exit"
 	udpSendSkb              = "kprobe__udp_send_skb"
 
-	skbFreeDatagramLocked   = "skb_free_datagram_locked"
+	skbFreeDatagramLocked = "skb_free_datagram_locked"
+	//nolint:revive // TODO(NET) Fix revive linter
 	__skbFreeDatagramLocked = "__skb_free_datagram_locked"
-	skbConsumeUdp           = "skb_consume_udp"
+	//nolint:revive // TODO(NET) Fix revive linter
+	skbConsumeUdp = "skb_consume_udp"
 
 	udpv6RecvMsg              = "udpv6_recvmsg"
 	udpv6RecvMsgReturn        = "udpv6_recvmsg_exit"

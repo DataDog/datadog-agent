@@ -28,6 +28,7 @@ import (
 
 // RuntimeSecurityAgent represents the main wrapper for the Runtime Security product
 type RuntimeSecurityAgent struct {
+	//nolint:unused // TODO(SEC) Fix unused linter
 	hostname             string
 	reporter             common.RawReporter
 	client               *RuntimeSecurityClient

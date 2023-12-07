@@ -41,6 +41,7 @@ func NewProxyLifecycleProcessor(appsec Monitorer) *ProxyLifecycleProcessor {
 	}
 }
 
+//nolint:revive // TODO(ASM) Fix revive linter
 func (lp *ProxyLifecycleProcessor) GetExecutionInfo() *invocationlifecycle.ExecutionStartInfo {
 	return nil // not used in the runtime api proxy case
 }
@@ -99,6 +100,7 @@ func (lp *ProxyLifecycleProcessor) OnInvokeEnd(_ *invocationlifecycle.Invocation
 	// So the final appsec monitoring logic moved to the SpanModifier instead and we use it as "invocation end" event.
 }
 
+//nolint:revive // TODO(ASM) Fix revive linter
 func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.TraceChunk, s *pb.Span) {
 	// Add relevant standalone tags to the chunk (TODO: remove per span tagging once backend handles chunk tags)
 	if config.IsStandalone() {
@@ -115,7 +117,9 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	if s.Name != "aws.lambda" || s.Type != "serverless" {
 		return
 	}
+	//nolint:revive // TODO(ASM) Fix revive linter
 	currentReqId := s.Meta["request_id"]
+	//nolint:revive // TODO(ASM) Fix revive linter
 	if spanReqId := lastReqId; currentReqId != spanReqId {
 		log.Debugf("appsec: ignoring service entry span with an unexpected request id: expected `%s` but got `%s`", currentReqId, spanReqId)
 		return
@@ -254,6 +258,7 @@ func (lp *ProxyLifecycleProcessor) spanModifier(lastReqId string, chunk *pb.Trac
 	}
 }
 
+//nolint:revive // TODO(ASM) Fix revive linter
 type ExecutionContext interface {
 	LastRequestID() string
 }

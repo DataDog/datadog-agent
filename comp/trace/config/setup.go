@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	//nolint:revive // TODO(APM) Fix revive linter
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -55,6 +56,7 @@ const (
 	rcClientPollInterval = time.Second * 1
 )
 
+//nolint:revive // TODO(APM) Fix revive linter
 func setupConfigCommon(deps dependencies, apikey string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
@@ -93,6 +95,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	// TODO: do not interface directly with pkg/config anywhere
 	coreConfigObject := c.Object()
 	if coreConfigObject == nil {
+		//nolint:revive // TODO(APM) Fix revive linter
 		return nil, fmt.Errorf("No core config found! Bailing out.")
 	}
 

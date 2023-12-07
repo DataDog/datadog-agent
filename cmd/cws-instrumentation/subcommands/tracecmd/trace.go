@@ -15,15 +15,15 @@ import (
 )
 
 const (
-	// gRPCAddr defines the system-probe GRPC addr
-	gRPCAddr = "grpc-addr"
+	// gRPCAddr defines the system-probe addr
+	probeAddr = "probe-addr"
 	// logLevel defines the log level
 	verbose = "verbose"
 )
 
 type traceCliParams struct {
-	GRPCAddr string
-	Verbose  bool
+	ProbeAddr string
+	Verbose   bool
 }
 
 // Command returns the commands for the trace subcommand
@@ -34,11 +34,11 @@ func Command() []*cobra.Command {
 		Use:   "trace",
 		Short: "trace the syscalls and signals of the given binary",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return ptracer.StartCWSPtracer(args, params.GRPCAddr, params.Verbose)
+			return ptracer.StartCWSPtracer(args, params.ProbeAddr, params.Verbose)
 		},
 	}
 
-	traceCmd.Flags().StringVar(&params.GRPCAddr, gRPCAddr, "localhost:5678", "system-probe eBPF less GRPC address")
+	traceCmd.Flags().StringVar(&params.ProbeAddr, probeAddr, "localhost:5678", "system-probe eBPF less GRPC address")
 	traceCmd.Flags().BoolVar(&params.Verbose, verbose, false, "enable verbose output")
 
 	return []*cobra.Command{traceCmd}

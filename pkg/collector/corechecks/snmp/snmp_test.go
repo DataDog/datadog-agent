@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/report"
 	"testing"
 	"time"
 
@@ -40,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 )
 
+//nolint:unused // TODO(NDM) Fix unused linter
 func demuxOpts() aggregator.AgentDemultiplexerOptions {
 	opts := aggregator.DefaultAgentDemultiplexerOptions()
 	opts.FlushInterval = 1 * time.Hour
@@ -336,12 +338,14 @@ tags:
 }
 
 func Test_Run_customIfSpeed(t *testing.T) {
+	report.TimeNow = common.MockTimeNow
 	deps := createDeps(t)
 	profile.SetConfdPathAndCleanProfiles()
 	sess := session.CreateMockSession()
 	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
 		return sess, nil
 	}
+
 	chk := Check{sessionFactory: sessionFactory}
 
 	senderManager := deps.Demultiplexer
@@ -386,6 +390,7 @@ metrics:
 
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test")
 	assert.Nil(t, err)
+	chk.singleDeviceCk.SetInterfaceBandwidthState(report.MockInterfaceRateMap("1", 50_000_000, 40_000_000, 20, 10, int64(946684785000000000)))
 
 	sender := mocksender.NewMockSenderWithSenderManager(chk.ID(), senderManager)
 	sender.SetupAcceptAll()
@@ -466,10 +471,12 @@ metrics:
 
 	// ((2000000 * 8) / (50 * 1000000)) * 100 = 32
 	//   ^ifHCInOctets   ^custom in_speed
-	sender.AssertMetric(t, "Rate", "snmp.ifBandwidthInUsage.rate", float64(32), "", tags)
+	// previous: 20
+	sender.AssertMetric(t, "Gauge", "snmp.ifBandwidthInUsage.rate", float64(12.0/15.0), "", tags)
 	// ((1000000 * 8) / (40 * 1000000)) * 100 = 20
 	//   ^ifHCOutOctets   ^custom out_speed
-	sender.AssertMetric(t, "Rate", "snmp.ifBandwidthOutUsage.rate", float64(20), "", tags)
+	// previous: 10
+	sender.AssertMetric(t, "Gauge", "snmp.ifBandwidthOutUsage.rate", float64(10.0/15.0), "", tags)
 
 	chk.Cancel()
 }

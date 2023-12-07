@@ -22,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 const LoggerName config.LoggerName = "PROCESS"
 
 // DaemonLogParams are the log params should be given to the `core.BundleParams` for when the process agent is running as a daemon
@@ -141,6 +142,7 @@ func SetHostMountEnv(logger logComponent.Component) {
 	}
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func GetCoreBundleParamsForOneShot(globalParams *GlobalParams) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams:         configComponent.NewAgentParams(globalParams.ConfFilePath),

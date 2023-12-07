@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package start
 
 import (
@@ -20,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	//nolint:revive // TODO(AML) Fix revive linter
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
@@ -30,14 +32,17 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
-	"github.com/DataDog/datadog-agent/comp/metadata"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost/inventoryhostimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
+	metadatarunnerimpl "github.com/DataDog/datadog-agent/comp/metadata/runner/runnerimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
-	pkgmetadata "github.com/DataDog/datadog-agent/pkg/metadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -56,7 +61,6 @@ type CLIParams struct {
 type DogstatsdComponents struct {
 	DogstatsdServer dogstatsdServer.Component
 	DogstatsdStats  *http.Server
-	MetaScheduler   *pkgmetadata.Scheduler
 	WorkloadMeta    workloadmeta.Component
 }
 
@@ -143,11 +147,29 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 			return demultiplexer.Params{Options: opts, ContinueOnMissingHostname: true}
 		}),
 		fx.Supply(resourcesimpl.Disabled()),
-		metadata.Bundle,
+		metadatarunnerimpl.Module,
+		resourcesimpl.Module,
+		host.Module,
+		inventoryagent.Module,
+		inventoryhostimpl.Module,
 	)
 }
 
-func start(cliParams *CLIParams, config config.Component, log log.Component, params *Params, server dogstatsdServer.Component, sharedForwarder defaultforwarder.Component, wmeta optional.Option[workloadmeta.Component], demultiplexer demultiplexer.Component, metadataRunner runner.Component, hostComp host.Component) error { //nolint:revive // TODO fix revive unusued-parameter
+func start(
+	cliParams *CLIParams,
+	config config.Component,
+	log log.Component,
+	params *Params,
+	server dogstatsdServer.Component,
+	_ defaultforwarder.Component,
+	wmeta optional.Option[workloadmeta.Component],
+	demultiplexer demultiplexer.Component,
+	_ runner.Component,
+	_ resources.Component,
+	_ host.Component,
+	_ inventoryagent.Component,
+	_ inventoryhost.Component,
+) error {
 	// Main context passed to components
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -238,12 +260,6 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
 
-	// setup the pkgmetadata collector
-	components.MetaScheduler = pkgmetadata.NewScheduler(demultiplexer) //nolint:staticcheck
-	if err = pkgmetadata.SetupInventories(components.MetaScheduler, nil); err != nil {
-		return
-	}
-
 	// container tagging initialisation if origin detection is on
 	if config.GetBool("dogstatsd_origin_detection") && components.WorkloadMeta != nil {
 
@@ -295,11 +311,6 @@ func StopAgent(cancel context.CancelFunc, components *DogstatsdComponents) {
 
 	// gracefully shut down any component
 	cancel()
-
-	// stop metaScheduler and statsd if they are instantiated
-	if components.MetaScheduler != nil {
-		components.MetaScheduler.Stop()
-	}
 
 	if components.DogstatsdStats != nil {
 		if err := components.DogstatsdStats.Shutdown(context.Background()); err != nil {

@@ -1208,13 +1208,28 @@ func (s *TracerSuite) TestUDPPythonReusePort() {
 		t.Skip("reuseport not supported on prebuilt")
 	}
 
-	cfg.TCPConnTimeout = 3 * time.Second
 	tr := setupTracer(t, cfg)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	t.Cleanup(cancel)
-	out, err := testutil.RunCommandWithContext(ctx, "testdata/reuseport.py")
-	require.NoError(t, err, "error running reuseport.py, output: %s", out)
+	var out string
+	var err error
+	for i := 0; i < 5; i++ {
+		err = func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			out, err = testutil.RunCommandWithContext(ctx, "testdata/reuseport.py")
+			if err != nil {
+				t.Logf("error running reuseport.py: %s", err)
+			}
+
+			return err
+		}()
+
+		if err == nil {
+			break
+		}
+	}
+
+	require.NoError(t, err, "error running reuseport.py")
 
 	port, err := strconv.ParseUint(strings.TrimSpace(strings.Split(out, "\n")[0]), 10, 16)
 	require.NoError(t, err, "could not convert %s to integer port", out)
@@ -1700,6 +1715,7 @@ func (s *TracerSuite) TestKprobeAttachWithKprobeEvents() {
 	stats := ddebpf.GetProbeStats()
 	require.NotNil(t, stats)
 
+	//nolint:revive // TODO(NET) Fix revive linter
 	p_tcp_sendmsg, ok := stats["p_tcp_sendmsg_hits"]
 	require.True(t, ok)
 	fmt.Printf("p_tcp_sendmsg_hits = %d\n", p_tcp_sendmsg)

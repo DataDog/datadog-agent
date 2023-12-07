@@ -46,7 +46,7 @@ type SharedLibrarySuite struct {
 }
 
 func TestSharedLibrary(t *testing.T) {
-	if !http.HTTPSSupported(config.New()) {
+	if !http.TLSSupported(config.New()) {
 		t.Skip("shared library tracing not supported for this platform")
 	}
 
