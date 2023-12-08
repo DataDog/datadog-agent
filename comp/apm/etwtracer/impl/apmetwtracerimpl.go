@@ -188,15 +188,15 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 			The header is succeeded by the PID to monitor on 8 bytes.
 
 				+------------------------+
-				|		 HEADER			 |
+				|        HEADER          |
 				+------------------------+
-			    | Magic 14 bytes 		 |
-			    | Size 2 bytes			 |
-			    | Command 1 byte         |
+				| Magic 14 bytes         |
+				| Size 2 bytes           |
+				| Command 1 byte         |
 				+------------------------+
-			    |		 PAYLOAD		 |
+				|        PAYLOAD         |
 				+------------------------+
-				| PID 8 bytes 		     |
+				| PID 8 bytes            |
 				+------------------------+
 		*/
 
@@ -253,11 +253,11 @@ func (a *apmetwtracerimpl) handleConnection(c net.Conn) {
 			The size is set to 17 since there is no payload.
 
 				+------------------------+
-				|		 HEADER			 |
+				|        HEADER          |
 				+------------------------+
-			    | Magic 14 bytes 		 |
-			    | Size 2 bytes			 |
-			    | Response 1 byte        |
+				| Magic 14 bytes         |
+				| Size 2 bytes           |
+				| Response 1 byte        |
 				+------------------------+
 		*/
 
