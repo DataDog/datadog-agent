@@ -106,17 +106,24 @@ func newPackageSigningProvider(deps dependencies) provides {
 	}
 }
 
+// Testing purpose
+var (
+	getPkgManager = getPackageManager
+	getAPTKeys    = getAPTSignatureKeys
+	getYUMKeys    = getYUMSignatureKeys
+)
+
 func (is *pkgSigning) fillData() {
-	pkgManager := getPackageManager()
+	pkgManager := getPkgManager()
 
 	transport := httputils.CreateHTTPTransport(is.conf)
 	client := &http.Client{Transport: transport}
 
 	switch pkgManager {
 	case "apt":
-		is.data.SigningKeys = getAPTSignatureKeys(client)
+		is.data.SigningKeys = getAPTKeys(client)
 	case "yum", "dnf", "zypper":
-		is.data.SigningKeys = getYUMSignatureKeys(pkgManager, client)
+		is.data.SigningKeys = getYUMKeys(pkgManager, client)
 	default: // should not happen, tested above
 		is.log.Info("No supported package manager detected, package signing telemetry will not be collected")
 	}
@@ -145,5 +152,5 @@ func GetLinuxPackageSigningPolicy() (bool, bool) {
 			return false, false
 		}
 	}
-	return true, true
+	return false, false
 }

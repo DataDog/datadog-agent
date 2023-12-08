@@ -3,6 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//go:build Linux
+
 package packagesigningimpl
 
 import (
@@ -380,6 +382,58 @@ func TestParseSourceListFile(t *testing.T) {
 	}
 }
 
-// func TestGetPayload(t *testing.T) {
-// 	//TODO
+// func TestGetAPTPayload(t *testing.T) {
+// 	setupHostMetadataMock(t)
+
+// 	expectedMetadata := &signingMetadata{
+// 		SigningKeys: []SigningKey{
+// 		{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
+// 		{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
+// 		},
+// 	}
+
+// 	ih := getTestPackageSigning(t)
+
+// 	p := ih.getPayload().(*Payload)
+// 	assert.Equal(t, expectedMetadata, p.Metadata)
+// }
+// func setupAPTSigningMock(t *testing.T) {
+// 	t.Cleanup(func() {
+// 		getPkgManager = getPackageManager
+// 		getAPTKeys = getAPTSignatureKeys
+// 		getYUMKeys = getYUMSignatureKeys
+// 	}
+
+// 	getPkgManager = getPackageAPTMock
+// 	getAPTKeys = getAPTKeysMock
+// }
+// func getPackageAPTMock() string {
+// 	return "apt"
+// }
+// func getPackageYUMMock() string {
+// 	return "yum"
+// }
+// func getAPTKeysMock() []SigningKey {
+// 	return []SigningKey{
+// 		{Fingerprint: "F1068E14E09422B3", ExpirationDate: "2022-06-28", KeyType: "signed-by", Repositories: []repositories{{RepoName: "https://apt.datadoghq.com//stable/7"}}},
+// 		{Fingerprint: "FD4BF915", ExpirationDate: "9999-12-31", KeyType: "trusted"},
+// 	}
+// }
+// func getYUMSKeysMock() []SigningKey {
+// 	return []SigningKey{
+// 		{Fingerprint: "AL1C1AK3YS", ExpirationDate: "9999-12-31", KeyType: "repo", Repositories: []repositories{{RepoName: "https://yum.datadoghq.com/stable/7/x86_64/"}}},
+// 		{Fingerprint: "733142A241337", ExpirationDate: "2030-03-02", KeyType: "rpm"},
+// 	}
+// }
+
+// func getTestPackageSigning(t *testing.T) *pkgSigning {
+// 	p := newPackageSigningProvider(
+// 		fxutil.Test[dependencies](
+// 			t,
+// 			log.MockModule,
+// 			config.MockModule,
+// 			fx.Provide(func() serializer.MetricSerializer { return &serializer.MockSerializer{} }),
+// 		),
+// 	)
+// 	return p.Comp.(*pkgSigning)
 // }

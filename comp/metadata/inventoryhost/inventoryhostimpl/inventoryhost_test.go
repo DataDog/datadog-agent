@@ -156,7 +156,7 @@ func TestGetPayload(t *testing.T) {
 		DmiProductUUID:               "dmiUUID",
 		DmiBoardAssetTag:             "boardTag",
 		DmiBoardVendor:               "boardVendor",
-		LinuxPackageSigningEnabled:   false,
+		LinuxPackageSigningEnabled:   true,
 		RPMGlobalRepoGPGCheckEnabled: false,
 	}
 
@@ -179,7 +179,7 @@ func TestGetPayloadError(t *testing.T) {
 		CloudProviderSource:          "test_source",
 		CloudProviderHostID:          "test_id_1234",
 		OsVersion:                    "testOS",
-		LinuxPackageSigningEnabled:   false,
+		LinuxPackageSigningEnabled:   true,
 		RPMGlobalRepoGPGCheckEnabled: false,
 	}
 	assert.Equal(t, expected, p.Metadata)

@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
@@ -73,6 +74,7 @@ func StartServers(
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
+	pkgSigning packagesigning.Component,
 ) error {
 	apiAddr, err := getIPCAddressPort()
 	if err != nil {
@@ -120,6 +122,7 @@ func StartServers(
 		invHost,
 		secretResolver,
 		invChecks,
+		pkgSigning,
 	); err != nil {
 		return fmt.Errorf("unable to start CMD API server: %v", err)
 	}

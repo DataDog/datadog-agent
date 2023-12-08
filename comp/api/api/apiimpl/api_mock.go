@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -62,6 +63,7 @@ func (mock *mockAPIServer) StartServer(
 	_ inventoryhost.Component,
 	_ secrets.Component,
 	_ inventorychecks.Component,
+	_ packagesigning.Component,
 ) error {
 	return nil
 }

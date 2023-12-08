@@ -32,7 +32,7 @@ var (
 
 // getNoDebsig returns the signature policy for the host. no-debsig means GPG check is enabled
 func getNoDebsig() bool {
-	if _, err := os.Stat(packageConfig); os.IsExist(err) {
+	if _, err := os.Stat(packageConfig); !os.IsNotExist(err) {
 		if file, err := os.Open(packageConfig); err == nil {
 			defer file.Close()
 			scanner := bufio.NewScanner(file)
@@ -68,26 +68,26 @@ func getAPTSignatureKeys(client *http.Client) []SigningKey {
 
 func updateWithTrustedKeys(allkeys map[string]SigningKey, client *http.Client) {
 	// debian 11 and ubuntu 22.04 will be the last using legacy trusted.gpg.d folder and trusted.gpg file
-	if _, err := os.Stat(trustedFolder); os.IsExist(err) {
+	if _, err := os.Stat(trustedFolder); !os.IsNotExist(err) {
 		if files, err := os.ReadDir(trustedFolder); err == nil {
 			for _, file := range files {
 				decryptGPGFile(allkeys, repoFile{filepath.Join(trustedFolder, file.Name()), nil}, "trusted", client)
 			}
 		}
 	}
-	if _, err := os.Stat(trustedFile); os.IsExist(err) {
+	if _, err := os.Stat(trustedFile); !os.IsNotExist(err) {
 		decryptGPGFile(allkeys, repoFile{trustedFile, nil}, "trusted", client)
 	}
 }
 
 func updateWithSignedByKeys(allKeys map[string]SigningKey, client *http.Client) {
-	if _, err := os.Stat(mainSourceList); os.IsExist(err) {
+	if _, err := os.Stat(mainSourceList); !os.IsNotExist(err) {
 		reposPerKey := parseSourceListFile(mainSourceList)
 		for name, repos := range reposPerKey {
 			decryptGPGFile(allKeys, repoFile{name, repos}, "signed-by", client)
 		}
 	}
-	if _, err := os.Stat(sourceList); os.IsExist(err) {
+	if _, err := os.Stat(sourceList); !os.IsNotExist(err) {
 		if files, err := os.ReadDir(sourceList); err == nil {
 			for _, file := range files {
 				reposPerKey := parseSourceListFile(filepath.Join(sourceList, file.Name()))

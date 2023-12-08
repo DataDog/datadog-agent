@@ -70,6 +70,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/comp/metadata/runner"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp"
 	"github.com/DataDog/datadog-agent/comp/netflow"
@@ -220,6 +221,7 @@ func run(log log.Component,
 	_ netflowServer.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
+	pkgSigning packagesigning.Component,
 ) error {
 	defer func() {
 		stopAgent(cliParams, server, demultiplexer, agentAPI)
@@ -283,6 +285,7 @@ func run(log log.Component,
 		secretResolver,
 		agentAPI,
 		invChecks,
+		pkgSigning,
 	); err != nil {
 		return err
 	}
@@ -403,6 +406,7 @@ func startAgent(
 	secretResolver secrets.Component,
 	agentAPI internalAPI.Component,
 	invChecks inventorychecks.Component,
+	pkgSigning packagesigning.Component,
 ) error {
 
 	var err error
@@ -557,6 +561,7 @@ func startAgent(
 		invHost,
 		secretResolver,
 		invChecks,
+		pkgSigning,
 	); err != nil {
 		return log.Errorf("Error while starting api server, exiting: %v", err)
 	}

@@ -24,6 +24,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
+	"github.com/DataDog/datadog-agent/comp/metadata/packagesigning"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -61,6 +62,7 @@ func (server *apiServer) StartServer(
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
+	pkgSigning packagesigning.Component,
 ) error {
 	return StartServers(configService,
 		flare,
@@ -76,6 +78,7 @@ func (server *apiServer) StartServer(
 		invHost,
 		secretResolver,
 		invChecks,
+		pkgSigning,
 	)
 }
 

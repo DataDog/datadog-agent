@@ -43,13 +43,13 @@ const (
 
 // getPackageManager is a lazy implementation to detect if we use APT or YUM (RH or SUSE)
 func getPackageManager() string {
-	if _, err := os.Stat(aptPath); os.IsExist(err) {
+	if _, err := os.Stat(aptPath); !os.IsNotExist(err) {
 		return "apt"
-	} else if _, err := os.Stat(yumPath); os.IsExist(err) {
+	} else if _, err := os.Stat(yumPath); !os.IsNotExist(err) {
 		return "yum"
-	} else if _, err := os.Stat(dnfPath); os.IsExist(err) {
+	} else if _, err := os.Stat(dnfPath); !os.IsNotExist(err) {
 		return "dnf"
-	} else if _, err := os.Stat(zyppPath); os.IsExist(err) {
+	} else if _, err := os.Stat(zyppPath); !os.IsNotExist(err) {
 		return "zypper"
 	}
 	return ""

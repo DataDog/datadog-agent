@@ -194,7 +194,7 @@ Package inventorychecks implements a component to generate the 'check_metadata' 
 
 Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
 
-### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/dd-agent-comp-experiments/comp/metadata/packagesigning)
+### [comp/metadata/packagesigning](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/packagesigning)
 
 *Datadog Team*: agent-platform
 
