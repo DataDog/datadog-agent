@@ -78,7 +78,7 @@ const (
 	maxSnapshotRetries  = 3
 	defaultWorkersCount = 40
 	defaultEC2Rate      = 20.0
-	defaultEBSRAte      = 50.0
+	defaultEBSRAte      = 60.0
 )
 
 var statsd *ddgostatsd.Client
@@ -1509,7 +1509,8 @@ var (
 )
 
 func (rt *awsClientStats) getAction(req *http.Request) (service, action string, error error) {
-	if host := req.URL.Host; strings.HasSuffix(host, ".amazonaws.com") {
+	host := req.URL.Host
+	if strings.HasSuffix(host, ".amazonaws.com") {
 		switch {
 		// STS (sts.(region.)?amazonaws.com)
 		case strings.HasPrefix(host, "sts."):
@@ -1551,6 +1552,8 @@ func (rt *awsClientStats) getAction(req *http.Request) (service, action string, 
 				return "ec2", "unknown", nil
 			}
 		}
+	} else if host == "169.254.169.254" {
+		return "imds", "unknown", nil
 	}
 	return "unknown", "unknown", nil
 }
@@ -2335,6 +2338,8 @@ func (l *awsLimits) getLimiter(accountID, region, service, action string) *rate.
 			if l.ec2Rate > 0.0 {
 				ll = rate.NewLimiter(l.ebsRate, 1)
 			}
+		case "imds":
+			return nil // no rate limiting
 		}
 		if ll == nil {
 			ll = rate.NewLimiter(defaultAWSRate, 1)
