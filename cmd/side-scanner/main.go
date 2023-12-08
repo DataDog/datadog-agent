@@ -77,8 +77,10 @@ import (
 const (
 	maxSnapshotRetries  = 3
 	defaultWorkersCount = 40
-	defaultEC2Rate      = 20.0
-	defaultEBSRAte      = 60.0
+
+	defaultAWSRate = 20.0
+	defaultEC2Rate = 20.0
+	defaultEBSRAte = 60.0
 )
 
 var statsd *ddgostatsd.Client
@@ -1374,18 +1376,28 @@ func cloudResourcesCleanup(ctx context.Context, ec2client *ec2.Client, toBeDelet
 	}
 }
 
+func statsResourceTTL(resourceType resourceType, scan *scanTask, createTime time.Time) {
+	ttl := time.Since(createTime)
+	tags := tagScan(scan)
+	tags = append(tags, fmt.Sprintf("aws_resource_type:%s", string(resourceType)))
+	if err := statsd.Histogram("datadog.sidescanner.aws.resources_ttl", float64(ttl.Milliseconds()), tags, 1.0); err != nil {
+		log.Warnf("failed to send metric: %v", err)
+	}
+}
+
 func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, volumeARN arn.ARN) (snapshotARN arn.ARN, cleanupSnapshot func(context.Context), err error) {
+	var createSnapshotOutput *ec2.CreateSnapshotOutput
+
 	cleanupSnapshot = func(ctx context.Context) {
-		if snapshotARN.Resource != "" {
+		if createSnapshotOutput != nil {
 			log.Debugf("deleting snapshot %q for volume %q", snapshotARN, volumeARN)
-			// do not use context here: we want to force snapshot deletion
-			_, snapshotID, _ := getARNResource(snapshotARN)
+			statsResourceTTL(resourceTypeSnapshot, scan, *createSnapshotOutput.StartTime)
 			if _, err := ec2client.DeleteSnapshot(ctx, &ec2.DeleteSnapshotInput{
-				SnapshotId: &snapshotID,
+				SnapshotId: createSnapshotOutput.SnapshotId,
 			}); err != nil {
-				log.Warnf("could not delete snapshot %s: %v", snapshotID, err)
+				log.Warnf("could not delete snapshot %s: %v", *createSnapshotOutput.SnapshotId, err)
 			} else {
-				log.Warnf("snapshot deleted %s", snapshotID)
+				log.Warnf("snapshot deleted %s", *createSnapshotOutput.SnapshotId)
 			}
 		}
 	}
@@ -1399,7 +1411,7 @@ func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, 
 	retries := 0
 retry:
 	_, volumeID, _ := getARNResource(volumeARN)
-	result, err := ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
+	createSnapshotOutput, err = ec2client.CreateSnapshot(ctx, &ec2.CreateSnapshotInput{
 		VolumeId:          aws.String(volumeID),
 		TagSpecifications: cloudResourceTagSpec(resourceTypeSnapshot),
 	})
@@ -1442,7 +1454,7 @@ retry:
 		return
 	}
 
-	snapshotID := *result.SnapshotId
+	snapshotID := *createSnapshotOutput.SnapshotId
 	snapshotARN = ec2ARN(volumeARN.Region, volumeARN.AccountID, resourceTypeSnapshot, snapshotID)
 
 	waiter := ec2.NewSnapshotCompletedWaiter(ec2client, func(scwo *ec2.SnapshotCompletedWaiterOptions) {
@@ -2030,6 +2042,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 	if snapshotARN.Region != self.Region {
 		log.Debugf("copying snapshot %q into %q", snapshotARN, self.Region)
 		var copySnapshot *ec2.CopySnapshotOutput
+		copySnapshotStartTime := time.Now()
 		copySnapshot, err = remoteEC2Client.CopySnapshot(ctx, &ec2.CopySnapshotInput{
 			SourceRegion: aws.String(snapshotARN.Region),
 			// DestinationRegion: aws.String(self.Region): automatically filled by SDK
@@ -2048,6 +2061,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 				log.Warnf("could not delete snapshot %s: %v", *copySnapshot.SnapshotId, err)
 			} else {
 				log.Debugf("snapshot deleted %s", *copySnapshot.SnapshotId)
+				statsResourceTTL(resourceTypeSnapshot, scan, copySnapshotStartTime)
 			}
 		})
 		log.Debugf("waiting for copy of snapshot %q into %q as %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
@@ -2099,7 +2113,6 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 		return
 	}
 	pushCleanup(func(ctx context.Context) {
-		// do not use context here: we want to force deletion
 		log.Debugf("detaching volume %q", *volume.VolumeId)
 		if _, err := locaEC2Client.DetachVolume(ctx, &ec2.DetachVolumeInput{
 			Force:    aws.Bool(true),
@@ -2122,6 +2135,8 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 		}
 		if errd != nil {
 			log.Warnf("could not delete volume %q: %v", *volume.VolumeId, errd)
+		} else {
+			statsResourceTTL(resourceTypeVolume, scan, *volume.CreateTime)
 		}
 	})
 
@@ -2289,8 +2304,6 @@ func hasResults(results *sbommodel.SBOMEntity) bool {
 	bom := results.GetCyclonedx()
 	return len(bom.Components) > 0 || len(bom.Dependencies) > 0 || len(bom.Vulnerabilities) > 0
 }
-
-const defaultAWSRate = 20.0
 
 type awsLimits struct {
 	ebsRate    rate.Limit
