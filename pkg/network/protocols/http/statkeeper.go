@@ -58,16 +58,20 @@ func NewStatkeeper(c *config.Config, telemetry *Telemetry, incompleteBuffer Inco
 }
 
 // Process processes a transaction and updates the stats accordingly.
-func (h *StatKeeper) Process(tx Transaction) {
+func (h *StatKeeper) Process(transactions []Transaction) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 
-	if tx.Incomplete() {
-		h.incomplete.Add(tx)
-		return
-	}
+	for _, tx := range transactions {
+		h.telemetry.Count(tx)
 
-	h.add(tx)
+		if tx.Incomplete() {
+			h.incomplete.Add(tx)
+			continue
+		}
+
+		h.add(tx)
+	}
 }
 
 // GetAndResetAllStats returns all the stats and resets the internal state.

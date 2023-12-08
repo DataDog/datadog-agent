@@ -99,11 +99,9 @@ func (m *WindowsMonitor) process(transactionBatch []http.WinHttpTransaction) {
 	m.mux.Lock()
 	defer m.mux.Unlock()
 
-	for i := range transactionBatch {
-		tx := http.Transaction(&transactionBatch[i])
-		m.telemetry.Count(tx)
-		m.statkeeper.Process(tx)
-	}
+	transactions := http.GetTransactionSlice[EbpfTx, *EbpfTx](events)
+	defer transactions.Done()
+	m.statkeeper.Process(transactions.Data())
 }
 
 // GetHTTPStats returns a map of HTTP stats stored in the following format:

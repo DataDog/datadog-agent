@@ -33,6 +33,7 @@ func TestProcessHTTPTransactions(t *testing.T) {
 	destIP := util.AddressFromString(dstString)
 	destPort := 8080
 
+	var transactions []Transaction
 	const numPaths = 10
 	for i := 0; i < numPaths; i++ {
 		path := "/testpath" + strconv.Itoa(i)
@@ -41,10 +42,11 @@ func TestProcessHTTPTransactions(t *testing.T) {
 			statusCode := (j%5 + 1) * 100
 			latency := time.Duration(j%5+1) * time.Millisecond
 			tx := generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, path, statusCode, latency)
-			sk.Process(tx)
+			transactions = append(transactions, tx)
 		}
 	}
 
+	sk.Process(transactions)
 	stats := sk.GetAndResetAllStats()
 	assert.Equal(t, 0, len(sk.stats))
 	assert.Equal(t, numPaths, len(stats))
@@ -95,7 +97,7 @@ func BenchmarkProcessHTTPTransactions(b *testing.B) {
 			latency := time.Duration(i%5+1) * time.Millisecond
 			tx := generateIPv4HTTPTransaction(sourceIP, destIP, newSourcePort, destPort, path, statusCode, latency)
 			b.StartTimer()
-			sk.Process(tx)
+			sk.Process([]Transaction{tx})
 		}
 	}
 	b.StopTimer()
@@ -118,7 +120,7 @@ func BenchmarkProcessSameConn(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		sk.Process(tx)
+		sk.Process([]Transaction{tx})
 	}
 }
 
@@ -153,9 +155,7 @@ func TestPathProcessing(t *testing.T) {
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/foobar", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/payment/123", statusCode, latency),
 		}
-		for _, tx := range transactions {
-			sk.Process(tx)
-		}
+		sk.Process(transactions)
 		stats := sk.GetAndResetAllStats()
 
 		require.Len(t, stats, 1)
@@ -178,9 +178,7 @@ func TestPathProcessing(t *testing.T) {
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/2", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/prefix/users/3", statusCode, latency),
 		}
-		for _, tx := range transactions {
-			sk.Process(tx)
-		}
+		sk.Process(transactions)
 		stats := sk.GetAndResetAllStats()
 
 		require.Len(t, stats, 1)
@@ -209,9 +207,7 @@ func TestPathProcessing(t *testing.T) {
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/ana/payment/123", statusCode, latency),
 			generateIPv4HTTPTransaction(sourceIP, destIP, sourcePort, destPort, "/users/bob/payment/456", statusCode, latency),
 		}
-		for _, tx := range transactions {
-			sk.Process(tx)
-		}
+		sk.Process(transactions)
 		stats := sk.GetAndResetAllStats()
 
 		require.Len(t, stats, 1)
@@ -241,7 +237,7 @@ func TestHTTPCorrectness(t *testing.T) {
 			30*time.Millisecond,
 		)
 
-		sk.Process(tx)
+		sk.Process([]Transaction{tx})
 		tel.Log()
 		require.Equal(t, int64(1), tel.nonPrintableCharacters.Get())
 
@@ -266,7 +262,7 @@ func TestHTTPCorrectness(t *testing.T) {
 		)
 		tx.SetRequestMethod(MethodUnknown)
 
-		sk.Process(tx)
+		sk.Process([]Transaction{tx})
 		tel.Log()
 		require.Equal(t, int64(1), tel.unknownMethod.Get())
 
@@ -290,7 +286,7 @@ func TestHTTPCorrectness(t *testing.T) {
 			0,
 		)
 
-		sk.Process(tx)
+		sk.Process([]Transaction{tx})
 		tel.Log()
 		require.Equal(t, int64(1), tel.invalidLatency.Get())
 
@@ -314,7 +310,7 @@ func TestHTTPCorrectness(t *testing.T) {
 			30*time.Millisecond,
 		)
 
-		sk.Process(tx)
+		sk.Process([]Transaction{tx})
 		tel.Log()
 		require.Equal(t, int64(1), tel.emptyPath.Get())
 
