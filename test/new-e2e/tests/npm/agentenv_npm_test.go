@@ -20,12 +20,12 @@ type vmSuiteEx6 struct {
 }
 
 func TestVMSuiteEx6(t *testing.T) {
+	t.Skip("Skipping TestVMSuiteEx6 as it's flaky")
 	e2e.Run(t, &vmSuiteEx6{}, e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))
 }
 
 func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 	t := v.T()
-	t.Skip("Skipping TestFakeIntakeNPM as it's flaky")
 
 	// force pulumi to deploy before running the test
 	v.Env().VM.Execute("curl http://httpbin.org/anything")

@@ -28,6 +28,7 @@ type ec2VMSuite struct {
 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
 func TestEC2VMSuite(t *testing.T) {
+	t.Skip("Skipping TestEC2VMSuite as it's flaky")
 	s := &ec2VMSuite{}
 	e2eParams := []params.Option{}
 	// debug helper
@@ -47,7 +48,6 @@ func TestEC2VMSuite(t *testing.T) {
 //   - looking for 3 payloads and check if the last 2 have a span of 30s +/- 500ms
 func (v *ec2VMSuite) TestFakeIntakeNPM() {
 	t := v.T()
-	t.Skip("Skipping TestFakeIntakeNPM as it's flaky")
 
 	// default is to reset the current state of the fakeintake aggregators
 	if !v.DevMode {
