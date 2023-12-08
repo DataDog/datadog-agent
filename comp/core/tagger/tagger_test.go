@@ -6,17 +6,12 @@
 package tagger
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func Test_taggerCardinality(t *testing.T) {
@@ -64,14 +59,8 @@ func Test_taggerCardinality(t *testing.T) {
 }
 
 func TestEnrichTagsOrchestrator(t *testing.T) {
-	taggerClient := fxutil.Test[Component](t,
-		core.MockBundle,
-		fx.Supply(NewFakeTaggerParams()),
-		fx.Provide(func() context.Context { return context.TODO() }),
-		Module,
-	)
-	fakeTagger := GetDefaultTagger(taggerClient).(*local.FakeTagger)
-	defer ResetGlobalTaggerClient(nil)
+	fakeTagger := SetupFakeTagger(t)
+	defer ResetTagger()
 	fakeTagger.SetTags("foo", "fooSource", []string{"lowTag"}, []string{"orchTag"}, nil, nil)
 	tb := tagset.NewHashingTagsAccumulator()
 	EnrichTags(tb, "foo", "", "orchestrator")

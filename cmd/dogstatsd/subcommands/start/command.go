@@ -28,7 +28,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -138,10 +137,10 @@ func RunDogstatsdFct(cliParams *CLIParams, defaultConfPath string, defaultLogFil
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 		fx.Provide(func(config config.Component) tagger.Params {
-			if pkgconfig.IsCLCRunner() {
-				return tagger.Params{TaggerAgentType: tagger.CLCRunnerRemoteTaggerAgent}
+			if config.GetBool("dogstatsd_origin_detection") {
+				return tagger.Params{TaggerAgentType: tagger.LocalTaggerAgent}
 			}
-			return tagger.Params{TaggerAgentType: tagger.LocalTaggerAgent}
+			return tagger.Params{TaggerAgentType: tagger.FakeTagger}
 		}),
 		tagger.Module(),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
@@ -271,15 +270,6 @@ func RunDogstatsd(ctx context.Context, cliParams *CLIParams, config config.Compo
 	}
 
 	demultiplexer.AddAgentStartupTelemetry(version.AgentVersion)
-
-	// container tagging initialisation if origin detection is on
-	if config.GetBool("dogstatsd_origin_detection") && components.WorkloadMeta != nil {
-
-		tagger.SetDefaultTagger(local.NewTagger(components.WorkloadMeta))
-		if err := tagger.Init(ctx); err != nil {
-			log.Errorf("failed to start the tagger: %s", err)
-		}
-	}
 
 	err = components.DogstatsdServer.Start(demultiplexer)
 	if err != nil {

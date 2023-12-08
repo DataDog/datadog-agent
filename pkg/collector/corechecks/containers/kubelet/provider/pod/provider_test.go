@@ -24,7 +24,6 @@ import (
 	"github.com/stretchr/testify/suite"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -113,11 +112,11 @@ func (suite *ProviderTestSuite) SetupTest() {
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
-	fakeTagger := local.NewFakeTagger()
+	fakeTagger := tagger.SetupFakeTagger(suite.T())
+	defer tagger.ResetTagger()
 	for entity, tags := range commontesting.CommonTags {
 		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
 	}
-	tagger.SetDefaultTagger(fakeTagger)
 
 	suite.dummyKubelet = newDummyKubelet()
 	ts, kubeletPort, err := suite.dummyKubelet.Start()

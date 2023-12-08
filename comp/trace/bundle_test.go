@@ -16,6 +16,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/secrets/secretsimpl"
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/trace/agent"
@@ -63,6 +64,8 @@ func TestMockBundleDependencies(t *testing.T) {
 		fx.Supply(&agent.Params{}),
 		fx.Invoke(func(_ agent.Component) {}),
 		MockBundle(),
+		tagger.Module(),
+		fx.Supply(tagger.NewTaggerParams()),
 	))
 
 	require.NotNil(t, cfg.Object())

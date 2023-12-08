@@ -20,7 +20,6 @@ import (
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
@@ -273,11 +272,11 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			fakeTagger := local.NewFakeTagger()
+			fakeTagger := tagger.SetupFakeTagger(t)
+			defer tagger.ResetTagger()
 			for entity, tags := range entityTags {
 				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
 			}
-			tagger.SetDefaultTagger(fakeTagger)
 			store := creatFakeStore(t)
 			kubeletMock := mock.NewKubeletMock()
 			setFakeStatsSummary(t, kubeletMock, tt.response.code, tt.response.err)

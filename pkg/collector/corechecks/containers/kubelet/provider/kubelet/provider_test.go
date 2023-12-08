@@ -19,7 +19,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -137,11 +136,11 @@ func (suite *ProviderTestSuite) SetupTest() {
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
-	fakeTagger := local.NewFakeTagger()
+	fakeTagger := tagger.SetupFakeTagger(suite.T())
+	defer tagger.ResetTagger()
 	for entity, tags := range commontesting.CommonTags {
 		fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
 	}
-	tagger.SetDefaultTagger(fakeTagger)
 
 	podUtils := common.NewPodUtils()
 

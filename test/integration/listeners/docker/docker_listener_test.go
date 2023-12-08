@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/listeners"
@@ -75,10 +74,9 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
 		workloadmeta.Module(),
+		tagger.Module(),
+		fx.Supply(tagger.NewTaggerParams()),
 	))
-
-	tagger.SetDefaultTagger(local.NewTagger(suite.store))
-	tagger.Init(context.Background())
 
 	suite.dockerutil, err = docker.GetDockerUtil()
 	require.Nil(suite.T(), err, "can't connect to docker")

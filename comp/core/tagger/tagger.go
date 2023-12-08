@@ -7,6 +7,7 @@ package tagger
 
 import (
 	"context"
+	"reflect"
 	"sync"
 
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
@@ -48,12 +49,6 @@ type TaggerClient struct {
 
 	// defaultTagger is the shared tagger instance backing the global Tag and Init functions
 	defaultTagger Component
-
-	// we use to pull tagger metrics in dogstatsd. Pulling it later in the
-	// pipeline improve memory allocation. We kept the old name to be
-	// backward compatible and because origin detection only affect
-	// dogstatsd metrics.
-	tlmUDPOriginDetectionError telemetry.Counter
 }
 
 var (
@@ -64,6 +59,13 @@ var (
 	// DogstatsdCardinality defines the cardinality of tags we should send for metrics from
 	// dogstatsd.
 	DogstatsdCardinality collectors.TagCardinality
+
+	// we use to pull tagger metrics in dogstatsd. Pulling it later in the
+	// pipeline improve memory allocation. We kept the old name to be
+	// backward compatible and because origin detection only affect
+	// dogstatsd metrics.
+	tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_detection_error",
+		nil, "Dogstatsd UDP origin detection error count")
 )
 
 var _ Component = (*TaggerClient)(nil)
@@ -115,11 +117,10 @@ func newTaggerClient(deps dependencies) Component {
 			captureTagger: nil,
 		}
 	}
+	deps.Log.Info("TaggerClient is created, defaultTagger type: ", reflect.TypeOf(taggerClient.defaultTagger))
 	SetGlobalTaggerClient(taggerClient)
 	deps.Lc.Append(fx.Hook{OnStart: func(c context.Context) error {
 		var err error
-		taggerClient.tlmUDPOriginDetectionError = telemetry.NewCounter("dogstatsd", "udp_origin_detection_error",
-			nil, "Dogstatsd UDP origin detection error count")
 		checkCard := deps.Config.GetString("checks_tag_cardinality")
 		dsdCard := deps.Config.GetString("dogstatsd_tag_cardinality")
 		ChecksCardinality, err = collectors.StringToTagCardinality(checkCard)
@@ -318,7 +319,7 @@ func (t *TaggerClient) EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, c
 
 	if clientOrigin != "" {
 		if err := t.AccumulateTagsFor(clientOrigin, cardinality, tb); err != nil {
-			t.tlmUDPOriginDetectionError.Inc()
+			tlmUDPOriginDetectionError.Inc()
 			log.Tracef("Cannot get tags for entity %s: %s", clientOrigin, err)
 		}
 	}

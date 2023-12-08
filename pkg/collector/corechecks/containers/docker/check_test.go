@@ -21,7 +21,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -113,12 +112,12 @@ func TestDockerCustomPart(t *testing.T) {
 	mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 	mockSender.SetupAcceptAll()
 
-	fakeTagger := local.NewFakeTagger()
+	fakeTagger := tagger.SetupFakeTagger(t)
+	defer tagger.ResetTagger()
 	fakeTagger.SetTags("container_id://e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45", "foo", []string{"image_name:datadog/agent", "short:agent", "tag:latest"}, nil, nil, nil)
 	fakeTagger.SetTags("container_id://b781900d227cf8d63a0922705018b66610f789644bf236cb72c8698b31383074", "foo", []string{"image_name:datadog/agent", "short:agent", "tag:7.32.0-rc.1"}, nil, nil, nil)
 	fakeTagger.SetTags("container_id://be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b90", "foo", []string{"app:foo"}, nil, nil, nil)
 	fakeTagger.SetTags("container_id://be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b91", "foo", []string{"excluded:true"}, nil, nil, nil)
-	tagger.SetDefaultTagger(fakeTagger)
 
 	// Mock client + fake data
 	dockerClient := dockerUtil.MockClient{}
@@ -247,11 +246,11 @@ func TestContainersRunning(t *testing.T) {
 	// Define tags for 3 different containers. The first 2 have the same tags.
 	// The third one shares the image-related tags, but has a different
 	// "service" tag.
-	fakeTagger := local.NewFakeTagger()
+	fakeTagger := tagger.SetupFakeTagger(t)
+	defer tagger.ResetTagger()
 	fakeTagger.SetTags("container_id://e2d5394a5321d4a59497f53552a0131b2aafe64faba37f4738e78c531289fc45", "foo", []string{"image_name:datadog/agent", "short:agent", "tag:latest", "service:s1"}, nil, nil, nil)
 	fakeTagger.SetTags("container_id://b781900d227cf8d63a0922705018b66610f789644bf236cb72c8698b31383074", "foo", []string{"image_name:datadog/agent", "short:agent", "tag:latest", "service:s1"}, nil, nil, nil)
 	fakeTagger.SetTags("container_id://be2584a7d1a2a3ae9f9c688e9ce7a88991c028507fec7c70a660b705bd2a5b90", "foo", []string{"image_name:datadog/agent", "short:agent", "tag:latest", "service:s2"}, nil, nil, nil)
-	tagger.SetDefaultTagger(fakeTagger)
 
 	// Image ID is shared by the 3 containers
 	imageID := "sha256:7e813d42985b2e5a0269f868aaf238ffc952a877fba964f55aa1ff35fd0bf5f6"

@@ -22,8 +22,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/remote"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	compstatsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
@@ -138,6 +136,14 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 			return workloadmeta.Params{AgentType: catalog}
 		}),
 
+		fx.Provide(func(c config.Component) tagger.Params {
+			if c.GetBool("process_config.remote_tagger") {
+				return tagger.Params{TaggerAgentType: tagger.NodeRemoteTaggerAgent}
+			}
+			return tagger.Params{TaggerAgentType: tagger.LocalTaggerAgent}
+		}),
+		tagger.Module,
+
 		// Allows for debug logging of fx components if the `TRACE_FX` environment variable is set
 		fxutil.FxLoggingOption(),
 
@@ -244,20 +250,6 @@ func initMisc(deps miscDeps) error {
 		log.Warnf("Can't setup core dumps: %v, core dumps might not be available after a crash", err)
 	}
 
-	// Setup remote tagger
-	var t tagger.Tagger
-	if deps.Config.GetBool("process_config.remote_tagger") {
-		options, err := remote.NodeAgentOptions()
-		if err != nil {
-			log.Errorf("unable to deps.Configure the remote tagger: %s", err)
-		} else {
-			t = remote.NewTagger(options)
-		}
-	} else {
-		t = local.NewTagger(deps.WorkloadMeta)
-	}
-	tagger.SetDefaultTagger(t)
-
 	processCollectionServer := collector.NewProcessCollector(deps.Config, deps.Syscfg)
 
 	// TODO(components): still unclear how the initialization of workoadmeta
@@ -267,12 +259,7 @@ func initMisc(deps miscDeps) error {
 	deps.Lc.Append(fx.Hook{
 		OnStart: func(startCtx context.Context) error {
 
-			err := tagger.Init(startCtx)
-			if err != nil {
-				log.Errorf("failed to start the tagger: %s", err)
-			}
-
-			err = manager.ConfigureAutoExit(startCtx, deps.Config)
+			err := manager.ConfigureAutoExit(startCtx, deps.Config)
 			if err != nil {
 				log.Criticalf("Unable to configure auto-exit, err: %w", err)
 				return err
@@ -288,12 +275,6 @@ func initMisc(deps miscDeps) error {
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
-			// Stop the remote tagger
-			err := tagger.Stop()
-			if err != nil {
-				return err
-			}
-
 			stopApp()
 
 			return nil

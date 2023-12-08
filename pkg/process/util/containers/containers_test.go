@@ -17,7 +17,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
@@ -45,9 +44,8 @@ func TestGetContainers(t *testing.T) {
 		workloadmeta.MockModule(),
 	))
 
-	fakeTagger := local.NewFakeTagger()
-	tagger.SetDefaultTagger(fakeTagger)
-	defer tagger.SetDefaultTagger(nil)
+	fakeTagger := tagger.SetupFakeTagger(t)
+	defer tagger.ResetTagger()
 
 	// Finally, container provider
 	testTime := time.Now()

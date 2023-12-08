@@ -116,14 +116,3 @@ func EnrichTags(tb tagset.TagsAccumulator, udsOrigin string, clientOrigin string
 		globalTagger.EnrichTags(tb, udsOrigin, clientOrigin, cardinalityName)
 	}
 }
-
-// GetDefaultTagger returns the default Tagger in gvien instance
-func GetDefaultTagger(taggerClient Component) Component {
-	if taggerClient == nil {
-		return nil
-	}
-	if v, ok := taggerClient.(*TaggerClient); ok {
-		return v.defaultTagger
-	}
-	return nil
-}

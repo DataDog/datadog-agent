@@ -19,7 +19,6 @@ import (
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -122,12 +121,10 @@ func setup() (workloadmeta.Component, error) {
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
 		workloadmeta.Module(),
+		tagger.Module(),
+		fx.Supply(tagger.NewTaggerParams()),
 	))
 	workloadmeta.SetGlobalStore(store)
-
-	// Setup tagger
-	tagger.SetDefaultTagger(local.NewTagger(store))
-	tagger.Init(context.TODO())
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {

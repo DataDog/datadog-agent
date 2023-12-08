@@ -20,7 +20,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -271,11 +270,11 @@ func TestProvider_Provide(t *testing.T) {
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
-			fakeTagger := local.NewFakeTagger()
+			fakeTagger := tagger.SetupFakeTagger(t)
+			defer tagger.ResetTagger()
 			for entity, tags := range probeTags {
 				fakeTagger.SetTags(entity, "foo", tags, nil, nil, nil)
 			}
-			tagger.SetDefaultTagger(fakeTagger)
 
 			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils())
 			if err != nil {
