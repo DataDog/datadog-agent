@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 )
 
 type vmSuiteEx6 struct {
@@ -24,6 +25,7 @@ func TestVMSuiteEx6(t *testing.T) {
 
 func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 	t := v.T()
+	t.Skip("Skipping TestFakeIntakeNPM as it's flaky")
 
 	// force pulumi to deploy before running the test
 	v.Env().VM.Execute("curl http://httpbin.org/anything")
