@@ -29,8 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// sizeof(struct nf_conntrack_tuple_hash), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
-const sizeofNfConntrackTuple = 0x38
+const (
+	// sizeof(struct nf_conntrack_tuple), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
+	sizeofNfConntrackTuple = 40
+
+	// sizeof(struct nf_conntrack_tuple_hash), see https://github.com/torvalds/linux/blob/master/include/net/netfilter/nf_conntrack_tuple.h
+	sizeofNfConntrackTupleHash = 56
+)
 
 var localIPv4 = net.ParseIP("127.0.0.3")
 
