@@ -186,8 +186,7 @@ func setChunkAttributesFromRoot(chunk tracerpayload.TraceChunk, root tracerpaylo
 		// Older tracers set origin in the root span.
 		o, ok := root.Meta(tagOrigin)
 		if !ok {
-			// TODO: we panic'd here before but probably shouldn't have
-			panic("There must be an origin on the root span!")
+			chunk.SetOrigin("")
 		}
 		chunk.SetOrigin(o)
 	}

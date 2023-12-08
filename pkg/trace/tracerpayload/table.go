@@ -1,8 +1,303 @@
 package tracerpayload
 
-type TableTraces struct {
-	StringTable []string
-	Spans       []TableSpan
+import (
+	"math"
+
+	"github.com/vmihailenco/msgpack/v4"
+
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+)
+
+type TablePayload struct {
+	chunks          []*TableTraceChunk
+	containerID     string
+	env             string
+	hostname        string
+	appVersion      string
+	languageName    string
+	languageVersion string
+	runtimeID       string
+	tracerVersion   string
+	tags            map[string]string
+}
+
+func (t *TablePayload) SetTracerVersion(tv string) {
+	t.tracerVersion = tv
+}
+
+func (t *TablePayload) SetContainerID(cid string) {
+	t.containerID = cid
+}
+
+func (t *TablePayload) SetLanguageVersion(lv string) {
+	t.languageVersion = lv
+}
+
+func (t *TablePayload) SetLanguageName(ln string) {
+	t.languageName = ln
+}
+
+func UnmarshallTablePayload(b []byte) (Generic, error) {
+	var payload MsgpPayload
+	err := msgpack.Unmarshal(b, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	ttcs := MakeTraces(&payload)
+	return &TablePayload{
+		chunks:          ttcs,
+		containerID:     "",
+		env:             "",
+		hostname:        "",
+		appVersion:      "",
+		languageName:    "",
+		languageVersion: "",
+		runtimeID:       "",
+		tracerVersion:   "",
+		tags:            nil,
+	}, nil
+}
+
+func (t *TablePayload) NumChunks() int {
+	return len(t.chunks)
+}
+
+func (t *TablePayload) Chunk(i int) TraceChunk {
+	return t.chunks[i]
+}
+
+func (t *TablePayload) CloneChunks() []TraceChunk {
+	clone := make([]TraceChunk, len(t.chunks))
+	for i := 0; i < len(t.chunks); i++ {
+		clone[i] = t.chunks[i]
+	}
+	return clone
+}
+
+func (t *TablePayload) ReplaceChunk(i int, chunk TraceChunk) {
+	nc := chunk.(*TableTraceChunk) //TODO: uhhh this won't always work OR MAYBE IT WILL!?
+	t.chunks[i] = nc
+}
+
+func (t *TablePayload) SetChunks(chunks []TraceChunk) {
+	cs := make([]*TableTraceChunk, len(chunks))
+	for i := 0; i < len(chunks); i++ {
+		ttc := chunks[i].(*TableTraceChunk) //TODO: uhhh this won't always work
+		cs[i] = ttc
+	}
+	t.chunks = cs
+}
+
+func (t *TablePayload) RemoveChunk(i int) {
+	if i < 0 || i >= len(t.chunks) {
+		return
+	}
+	t.chunks[i] = t.chunks[len(t.chunks)-1]
+	t.chunks = t.chunks[:len(t.chunks)-1]
+}
+
+func (t *TablePayload) ContainerID() string {
+	return t.containerID
+}
+
+func (t *TablePayload) SetTag(k string, v string) {
+	if t.tags == nil {
+		t.tags = map[string]string{}
+	}
+	t.tags[k] = v
+}
+
+func (t *TablePayload) Env() string {
+	return t.env
+}
+
+func (t *TablePayload) SetEnv(e string) {
+	t.env = e
+}
+
+func (t *TablePayload) Hostname() string {
+	return t.hostname
+}
+
+func (t *TablePayload) SetHostname(h string) {
+	t.hostname = h
+}
+
+func (t *TablePayload) AppVersion() string {
+	return t.appVersion
+}
+
+func (t *TablePayload) SetAppVersion(av string) {
+	t.appVersion = av
+}
+
+func (t *TablePayload) Cut(i int) Generic {
+	if i < 0 {
+		i = 0
+	}
+	if i > len(t.chunks) {
+		i = len(t.chunks)
+	}
+	//nolint:revive // TODO(APM) Fix revive linter
+	new := TablePayload{
+		containerID:     t.containerID,
+		languageName:    t.languageName,
+		languageVersion: t.languageVersion,
+		tracerVersion:   t.tracerVersion,
+		runtimeID:       t.runtimeID,
+		env:             t.env,
+		hostname:        t.hostname,
+		appVersion:      t.appVersion,
+		tags:            t.tags,
+	}
+
+	new.chunks = t.chunks[:i]
+	t.chunks = t.chunks[i:]
+
+	return &new
+}
+
+func (t *TablePayload) ToPb() *pb.TracerPayload {
+	chunks := make([]*pb.TraceChunk, len(t.chunks))
+	for i, ttc := range t.chunks {
+		chunks[i] = ttc.ToPb()
+	}
+	p := pb.TracerPayload{
+		ContainerID:     t.containerID,
+		LanguageName:    t.languageName,
+		LanguageVersion: t.languageVersion,
+		TracerVersion:   t.tracerVersion,
+		RuntimeID:       t.runtimeID,
+		Chunks:          chunks,
+		Tags:            t.tags,
+		Env:             t.env,
+		Hostname:        t.hostname,
+		AppVersion:      t.appVersion,
+	}
+	return &p
+}
+
+type TableTraceChunk struct {
+	StringTable  *StringTable
+	Spans        []*TableSpan
+	priority     int32
+	origin       string
+	droppedTrace bool
+}
+
+func (t *TableTraceChunk) NumSpans() int {
+	return len(t.Spans)
+}
+
+func (t *TableTraceChunk) Span(i int) Span {
+	return t.Spans[i]
+}
+
+func (t *TableTraceChunk) Priority() int32 {
+	return t.priority
+}
+
+func (t *TableTraceChunk) SetPriority(p int32) {
+	t.priority = p
+}
+
+func (t *TableTraceChunk) Origin() string {
+	return t.origin
+}
+
+func (t *TableTraceChunk) SetOrigin(o string) {
+	t.origin = o
+}
+
+func (t *TableTraceChunk) DroppedTrace() bool {
+	return t.droppedTrace
+}
+
+func (t *TableTraceChunk) SetDroppedTrace(b bool) {
+	t.droppedTrace = b
+}
+
+func (t *TableTraceChunk) Msgsize() int {
+	//TODO actually implement me
+	// for now we just are guessing
+	return 20 * len(t.StringTable.strings) * len(t.Spans)
+}
+
+func (t *TableTraceChunk) ToPb() *pb.TraceChunk {
+	spans := make([]*pb.Span, len(t.Spans))
+	for i, ts := range t.Spans {
+		spans[i] = ts.ToPb()
+	}
+	return &pb.TraceChunk{
+		Priority:     t.priority,
+		Origin:       t.origin,
+		Spans:        spans,
+		Tags:         nil, //Todo: is this ok?
+		DroppedTrace: t.droppedTrace,
+	}
+}
+
+func MakeTraces(payload *MsgpPayload) []*TableTraceChunk {
+	st := StringTable{
+		strings:       make([]*SharedString, len(payload.Strings)),
+		stringIndexes: make(map[string]uint32, len(payload.Strings)),
+	}
+	for i, s := range payload.Strings {
+		sharedStr := SharedString{
+			s:    s,
+			refs: 0,
+		}
+		st.strings[i] = &sharedStr
+		st.stringIndexes[s] = uint32(i)
+	}
+	// Count a reference, returning the index (to make building a TableSpan read better)
+	addRef := func(i uint32) uint32 {
+		st.AddReference(i)
+		return i
+	}
+	tableTraces := make([]*TableTraceChunk, len(payload.Traces))
+	for i, payloadTrace := range payload.Traces {
+		tableSpans := make([]*TableSpan, len(payloadTrace))
+		for iSpan, payloadSpan := range payloadTrace {
+			for k, v := range payloadSpan.Meta {
+				st.AddReference(k)
+				st.AddReference(v)
+			}
+			if payloadSpan.Meta == nil {
+				payloadSpan.Meta = map[uint32]uint32{}
+			}
+			for k := range payloadSpan.Metrics {
+				st.AddReference(k)
+			}
+			if payloadSpan.Metrics == nil {
+				payloadSpan.Metrics = map[uint32]float64{}
+			}
+			ts := TableSpan{
+				stringTable: &st,
+				service:     addRef(payloadSpan.Service),
+				name:        addRef(payloadSpan.Name),
+				resource:    addRef(payloadSpan.Resource),
+				traceID:     payloadSpan.TraceID,
+				spanID:      payloadSpan.SpanID,
+				parentID:    payloadSpan.ParentID,
+				start:       payloadSpan.Start,
+				duration:    payloadSpan.Duration,
+				error:       payloadSpan.Error,
+				meta:        payloadSpan.Meta,
+				metrics:     payloadSpan.Metrics,
+				typ:         addRef(payloadSpan.Typ),
+			}
+			tableSpans[iSpan] = &ts
+		}
+		tableTraces[i] = &TableTraceChunk{
+			StringTable: &st,
+			Spans:       tableSpans,
+			priority:    math.MinInt8, //TODO: This is really sampler.PriorityNone but avoiding import cycle
+			// Allow other fields to use default value (matches behavior of "traceChunksFromTraces")
+		}
+	}
+	return tableTraces
 }
 
 // StringTable holds strings by index
@@ -26,9 +321,10 @@ func (st *StringTable) GetIndex(s string) (uint32, bool) {
 // otherwise a new string is added and the new index is returned
 func (st *StringTable) Update(i uint32, newS string) uint32 {
 	oldS := st.strings[i]
-	// More than one reference, add a new string
 	if oldS.refs > 1 {
-		return st.Add(newS)
+		// More than one reference, add a new string
+		// TODO: Should decrement ref here, but not strictly necessary for correctness (and will break the existing Add)
+		return st.Add(newS) //TODO: can improve this by not double checking
 	} else {
 		st.strings[i].s = newS
 		delete(st.stringIndexes, oldS.s)
@@ -39,10 +335,10 @@ func (st *StringTable) Update(i uint32, newS string) uint32 {
 
 // Add appends s to the table if it's new otherwise increments the ref of the existing string
 func (st *StringTable) Add(s string) uint32 {
-	// If the string is already there use it
-	if newSIdx, ok := st.stringIndexes[s]; ok {
-		st.strings[newSIdx].refs += 1
-		return newSIdx
+	// If the string is already there, use it
+	if sIdx, ok := st.stringIndexes[s]; ok {
+		st.AddReference(sIdx)
+		return sIdx
 	}
 	// If not, make a new entry
 	st.strings = append(st.strings, &SharedString{
@@ -54,6 +350,11 @@ func (st *StringTable) Add(s string) uint32 {
 	return newIndex
 }
 
+// AddReference adds one ref count to the string at index i
+func (st *StringTable) AddReference(i uint32) {
+	st.strings[i].refs += 1
+}
+
 type SharedString struct {
 	s    string
 	refs int
@@ -61,7 +362,7 @@ type SharedString struct {
 
 type TableSpan struct {
 	// string table is shared by whole trace
-	stringTable StringTable
+	stringTable *StringTable
 	service     uint32
 	name        uint32
 	resource    uint32
@@ -236,4 +537,30 @@ func (t *TableSpan) DeleteMetric(k string) {
 		return
 	}
 	delete(t.metrics, kIdx)
+}
+
+func (t *TableSpan) ToPb() *pb.Span {
+	meta := make(map[string]string, len(t.meta))
+	for kIdx, vIdk := range t.meta {
+		meta[t.stringTable.Get(kIdx)] = t.stringTable.Get(vIdk)
+	}
+	metrics := make(map[string]float64, len(t.metrics))
+	for kIdx, v := range t.metrics {
+		metrics[t.stringTable.Get(kIdx)] = v
+	}
+	return &pb.Span{
+		Service:    t.Service(),
+		Name:       t.Name(),
+		Resource:   t.Resource(),
+		TraceID:    t.traceID,
+		SpanID:     t.spanID,
+		ParentID:   t.parentID,
+		Start:      t.start,
+		Duration:   t.duration,
+		Error:      t.error,
+		Meta:       meta,
+		Metrics:    metrics,
+		Type:       t.Type(),
+		MetaStruct: nil, //todo: is ok?
+	}
 }

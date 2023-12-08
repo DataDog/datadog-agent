@@ -31,14 +31,14 @@ type Payload struct {
 	ClientDroppedP0s int64
 }
 
-//// Chunks returns chunks in TracerPayload
-//func (p *Payload) Chunks() []tracerpayload.TraceChunk {
-//	return p.TracerPayload.Chunks()
+//// chunks returns chunks in TracerPayload
+//func (p *Payload) chunks() []tracerpayload.TraceChunk {
+//	return p.TracerPayload.chunks()
 //}
 //
 //// Chunk returns a chunk in TracerPayload by its index
 //func (p *Payload) Chunk(i int) tracerpayload.TraceChunk {
-//	return p.TracerPayload.Chunks()[i]
+//	return p.TracerPayload.chunks()[i]
 //}
 //
 //// RemoveChunk removes a chunk in TracerPayload by its index
@@ -48,5 +48,5 @@ type Payload struct {
 //
 //// ReplaceChunk replaces a chunk in TracerPayload at a given index
 //func (p *Payload) ReplaceChunk(i int, chunk *pb.TraceChunk) {
-//	p.TracerPayload.Chunks()[i] = chunk
+//	p.TracerPayload.chunks()[i] = chunk
 //}

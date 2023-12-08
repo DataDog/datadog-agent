@@ -6,6 +6,18 @@ type ProtoWrapped struct {
 	TP *pb.TracerPayload
 }
 
+func (p *ProtoWrapped) SetTracerVersion(tv string) {
+	p.TP.TracerVersion = tv
+}
+
+func (p *ProtoWrapped) SetContainerID(cid string) {
+	p.TP.ContainerID = cid
+}
+
+func (p *ProtoWrapped) SetLanguageVersion(lv string) {
+	p.TP.LanguageVersion = lv
+}
+
 type Generic interface {
 	NumChunks() int
 	Chunk(int) TraceChunk
@@ -21,8 +33,12 @@ type Generic interface {
 	SetHostname(string)
 	AppVersion() string
 	SetAppVersion(string)
+	SetLanguageName(string)
 	Cut(i int) Generic
 	ToPb() *pb.TracerPayload
+	SetLanguageVersion(string)
+	SetContainerID(string)
+	SetTracerVersion(string)
 }
 
 func (p *ProtoWrapped) NumChunks() int {
@@ -42,7 +58,7 @@ func (p *ProtoWrapped) CloneChunks() []TraceChunk {
 }
 
 func (p *ProtoWrapped) ReplaceChunk(i int, newChunk TraceChunk) {
-	nc := newChunk.(*WrappedChunk) //TODO: uhhh this won't always work
+	nc := newChunk.(*WrappedChunk) //TODO: uhhh this won't always work OR MAYBE IT WILL!?
 	p.TP.Chunks[i] = nc.TC
 }
 
@@ -85,6 +101,10 @@ func (p *ProtoWrapped) AppVersion() string {
 
 func (p *ProtoWrapped) SetAppVersion(av string) {
 	p.TP.AppVersion = av
+}
+
+func (p *ProtoWrapped) SetLanguageName(ln string) {
+	p.TP.LanguageName = ln
 }
 
 func (p *ProtoWrapped) SetTag(key, value string) {

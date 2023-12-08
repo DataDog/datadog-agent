@@ -200,7 +200,7 @@ func (z *TracerPayload) MarshalMsg(b []byte) (o []byte, err error) {
 		} else {
 			o, err = z.Chunks[za0001].MarshalMsg(o)
 			if err != nil {
-				err = msgp.WrapError(err, "Chunks", za0001)
+				err = msgp.WrapError(err, "chunks", za0001)
 				return
 			}
 		}
@@ -276,7 +276,7 @@ func (z *TracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 			var zb0002 uint32
 			zb0002, bts, err = msgp.ReadArrayHeaderBytes(bts)
 			if err != nil {
-				err = msgp.WrapError(err, "Chunks")
+				err = msgp.WrapError(err, "chunks")
 				return
 			}
 			if cap(z.Chunks) >= int(zb0002) {
@@ -297,7 +297,7 @@ func (z *TracerPayload) UnmarshalMsg(bts []byte) (o []byte, err error) {
 					}
 					bts, err = z.Chunks[za0001].UnmarshalMsg(bts)
 					if err != nil {
-						err = msgp.WrapError(err, "Chunks", za0001)
+						err = msgp.WrapError(err, "chunks", za0001)
 						return
 					}
 				}

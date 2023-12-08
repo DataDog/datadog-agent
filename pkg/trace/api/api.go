@@ -376,15 +376,14 @@ func decodeTracerPayload(v Version, req *http.Request, ts *info.TagStats, cIDPro
 		if _, err = io.Copy(buf, req.Body); err != nil {
 			return nil, false, err
 		}
-		var traces pb.Traces
-		err = traces.UnmarshalMsgDictionary(buf.Bytes())
-		return &tracerpayload.ProtoWrapped{TP: &pb.TracerPayload{
-			LanguageName:    ts.Lang,
-			LanguageVersion: ts.LangVersion,
-			ContainerID:     cIDProvider.GetContainerID(req.Context(), req.Header),
-			Chunks:          traceChunksFromTraces(traces),
-			TracerVersion:   ts.TracerVersion,
-		}}, true, err
+		log.Warnf("YAY!!!!!!!!!!!!!!!!!!!!!!!! andrew special time")
+		var tracerPayload tracerpayload.Generic
+		tracerPayload, err = tracerpayload.UnmarshallTablePayload(buf.Bytes())
+		tracerPayload.SetLanguageName(ts.Lang)
+		tracerPayload.SetLanguageVersion(ts.LangVersion)
+		tracerPayload.SetContainerID(cIDProvider.GetContainerID(req.Context(), req.Header))
+		tracerPayload.SetTracerVersion(ts.TracerVersion)
+		return tracerPayload, true, err
 	case V07:
 		buf := getBuffer()
 		defer putBuffer(buf)
@@ -514,7 +513,7 @@ func (r *HTTPReceiver) handleTraces(v Version, w http.ResponseWriter, req *http.
 	//	log.Debug("Decoded the request without running pb.MetaHook. If this is a newly implemented endpoint, please make sure to run it!")
 	//	if _, ok := pb.MetaHook(); ok {
 	//		log.Warn("Received request on deprecated API endpoint or Content-Type. Performance is degraded. If you think this is an error, please contact support with this message.")
-	//		runMetaHook(tp.Chunks)
+	//		runMetaHook(tp.chunks)
 	//	}
 	//}
 	if n, ok := r.replyOK(req, v, w); ok {

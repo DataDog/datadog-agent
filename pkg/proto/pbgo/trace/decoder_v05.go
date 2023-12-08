@@ -213,6 +213,132 @@ func (z *Span) UnmarshalMsgDictionary(bts []byte, dict []string) ([]byte, error)
 	return bts, nil
 }
 
+// UnmarshalMsgDictionaryPacked decodes a span from the given decoder dc, keeping strings
+// in the given dictionary dict. For details, see the documentation for endpoint v0.5
+// in pkg/trace/api/version.go
+func (z *Span) UnmarshalMsgDictionaryPacked(bts []byte, dict []string) ([]byte, error) {
+	var (
+		sz  uint32
+		err error
+	)
+	sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes)
+	if err != nil {
+		return bts, err
+	}
+	if sz != spanPropertyCount {
+		return bts, errors.New("encoded span needs exactly 12 elements in array")
+	}
+	// Service (0)
+	z.Service, bts, err = dictionaryString(bts, dict)
+	if err != nil {
+		return bts, err
+	}
+	// Name (1)
+	z.Name, bts, err = dictionaryString(bts, dict)
+	if err != nil {
+		return bts, err
+	}
+	// Resource (2)
+	z.Resource, bts, err = dictionaryString(bts, dict)
+	if err != nil {
+		return bts, err
+	}
+	// TraceID (3)
+	z.TraceID, bts, err = parseUint64Bytes(bts)
+	if err != nil {
+		return bts, err
+	}
+	// SpanID (4)
+	z.SpanID, bts, err = parseUint64Bytes(bts)
+	if err != nil {
+		return bts, err
+	}
+	// ParentID (5)
+	z.ParentID, bts, err = parseUint64Bytes(bts)
+	if err != nil {
+		return bts, err
+	}
+	// Start (6)
+	z.Start, bts, err = parseInt64Bytes(bts)
+	if err != nil {
+		return bts, err
+	}
+	// Duration (7)
+	z.Duration, bts, err = parseInt64Bytes(bts)
+	if err != nil {
+		return bts, err
+	}
+	// Error (8)
+	z.Error, bts, err = parseInt32Bytes(bts)
+	if err != nil {
+		return bts, err
+	}
+	// Meta (9)
+	sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
+	if err != nil {
+		return bts, err
+	}
+	if z.Meta == nil && sz > 0 {
+		z.Meta = make(map[string]string, sz)
+	} else if len(z.Meta) > 0 {
+		for key := range z.Meta {
+			delete(z.Meta, key)
+		}
+	}
+	hook, hookok := MetaHook()
+	for sz > 0 {
+		sz--
+		var key, val string
+		key, bts, err = dictionaryString(bts, dict)
+		if err != nil {
+			return bts, err
+		}
+		val, bts, err = dictionaryString(bts, dict)
+		if err != nil {
+			return bts, err
+		}
+		if hookok {
+			z.Meta[key] = hook(key, val)
+		} else {
+			z.Meta[key] = val
+		}
+	}
+	// Metrics (10)
+	sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadMapHeaderBytes)
+	if err != nil {
+		return bts, err
+	}
+	if z.Metrics == nil && sz > 0 {
+		z.Metrics = make(map[string]float64, sz)
+	} else if len(z.Metrics) > 0 {
+		for key := range z.Metrics {
+			delete(z.Metrics, key)
+		}
+	}
+	for sz > 0 {
+		sz--
+		var (
+			key string
+			val float64
+		)
+		key, bts, err = dictionaryString(bts, dict)
+		if err != nil {
+			return bts, err
+		}
+		val, bts, err = parseFloat64Bytes(bts)
+		if err != nil {
+			return bts, err
+		}
+		z.Metrics[key] = val
+	}
+	// Type (11)
+	z.Type, bts, err = dictionaryString(bts, dict)
+	if err != nil {
+		return bts, err
+	}
+	return bts, nil
+}
+
 // safeReadHeaderBytes wraps msgp header readers (typically ReadArrayHeaderBytes and ReadMapHeaderBytes).
 // It enforces the dictionary max size of 25MB and protects the caller from making unbounded allocations through `make(any, sz)`.
 func safeReadHeaderBytes(b []byte, read func([]byte) (uint32, []byte, error)) (uint32, []byte, error) {

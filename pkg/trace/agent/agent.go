@@ -418,7 +418,7 @@ func processedTrace(p *api.Payload, chunk tracerpayload.TraceChunk, root tracerp
 
 // newChunksArray creates a new array which will point only to sampled chunks.
 
-// The underlying array behind TracePayload.Chunks points to unsampled chunks
+// The underlying array behind TracePayload.chunks points to unsampled chunks
 // preventing them from being collected by the GC.
 func newChunksArray(chunks []tracerpayload.TraceChunk) []tracerpayload.TraceChunk {
 	//nolint:revive // TODO(APM) Fix revive linter
@@ -435,7 +435,7 @@ func (a *Agent) discardSpans(p *api.Payload) {
 	//if a.DiscardSpan == nil {
 	//	return
 	//}
-	//for _, chunk := range p.Chunks() {
+	//for _, chunk := range p.chunks() {
 	//	n := 0
 	//	for _, span := range chunk.Spans {
 	//		if !a.DiscardSpan(span) {
