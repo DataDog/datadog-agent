@@ -140,6 +140,7 @@ func doTrivyScan(ctx context.Context, scan *scanTask, trivyArtifact artifact.Art
 	if err != nil {
 		return nil, fmt.Errorf("trivy scan failed: %w", err)
 	}
+	log.Debugf("trivy: scan of artifact %s finished successfully", scan)
 	return &trivyReport, nil
 }
 
