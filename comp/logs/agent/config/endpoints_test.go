@@ -488,6 +488,37 @@ func (suite *EndpointsTestSuite) TestIsReliableDefaultTrue() {
 	suite.Len(endpoints.GetReliableEndpoints(), 3)
 }
 
+func (suite *EndpointsTestSuite) TestUseSSLDefaultTrue() {
+	var (
+		endpoints *Endpoints
+		err       error
+	)
+
+	suite.config.SetWithoutSource("logs_config.additional_endpoints", []map[string]interface{}{
+		{
+			"host":    "a",
+			"api_key": "1",
+		},
+		{
+			"host":        "b",
+			"api_key":     "2",
+			"logs_no_ssl": true,
+		},
+		{
+			"host":        "c",
+			"api_key":     "3",
+			"logs_no_ssl": false,
+		},
+	})
+
+	endpoints, err = BuildEndpoints(suite.config, HTTPConnectivityFailure, "test-track", "test-proto", "test-source")
+	suite.Nil(err)
+	suite.Len(endpoints.Endpoints, 4)
+	suite.True(endpoints.Endpoints[1].GetUseSSL())
+	suite.True(endpoints.Endpoints[2].GetUseSSL())
+	suite.False(endpoints.Endpoints[3].GetUseSSL())
+}
+
 func TestEndpointsTestSuite(t *testing.T) {
 	suite.Run(t, new(EndpointsTestSuite))
 }
