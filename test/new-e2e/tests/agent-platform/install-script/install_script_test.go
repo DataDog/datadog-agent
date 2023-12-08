@@ -10,57 +10,42 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"testing"
 
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	filemanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/file-manager"
 	helpers "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/helper"
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/platforms"
-	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
-	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
-	e2eOs "github.com/DataDog/test-infra-definitions/components/os"
+	osComp "github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 
-	"testing"
+	"github.com/stretchr/testify/require"
 )
 
-var osVersion = flag.String("osversion", "", "os version to test")
-var platform = flag.String("platform", "", "platform to test")
-var cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
-var architecture = flag.String("arch", "x86_64", "architecture to test (x86_64, arm64))")
-var flavor = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-proxy, datadog-heroku-agent)")
-var majorVersion = flag.String("major-version", "7", "major version to test (6, 7)")
+var (
+	osVersion             = flag.String("osversion", "", "os version to test")
+	platform              = flag.String("platform", "", "platform to test")
+	cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
+	architecture          = flag.String("arch", "x86_64", "architecture to test (x86_64, arm64))")
+	flavor                = flag.String("flavor", "datadog-agent", "flavor to test (datadog-agent, datadog-iot-agent, datadog-dogstatsd, datadog-fips-proxy, datadog-heroku-agent)")
+	majorVersion          = flag.String("major-version", "7", "major version to test (6, 7)")
+)
 
 type installScriptSuite struct {
-	e2e.Suite[e2e.VMEnv]
+	e2e.BaseSuite[environments.VM]
 	cwsSupported bool
 }
 
 func TestInstallScript(t *testing.T) {
-	osMapping := map[string]ec2os.Type{
-		"debian":      ec2os.DebianOS,
-		"ubuntu":      ec2os.UbuntuOS,
-		"centos":      ec2os.CentOS,
-		"amazonlinux": ec2os.AmazonLinuxOS,
-		"redhat":      ec2os.RedHatOS,
-		"rhel":        ec2os.RedHatOS,
-		"sles":        ec2os.SuseOS,
-		"windows":     ec2os.WindowsOS,
-		"fedora":      ec2os.FedoraOS,
-		"suse":        ec2os.SuseOS,
-		"rocky":       ec2os.RockyLinux,
-	}
-
-	archMapping := map[string]e2eOs.Architecture{
-		"x86_64": e2eOs.AMD64Arch,
-		"arm64":  e2eOs.ARM64Arch,
-	}
-
 	platformJSON := map[string]map[string]map[string]string{}
 
 	err := json.Unmarshal(platforms.Content, &platformJSON)
@@ -97,10 +82,22 @@ func TestInstallScript(t *testing.T) {
 		if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
 			vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
 		}
+		
 		t.Run(fmt.Sprintf("test install script on %s %s %s agent %s", osVers, *architecture, *flavor, *majorVersion), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
-			e2e.Run(tt, &installScriptSuite{cwsSupported: cwsSupported}, e2e.EC2VMStackDef(vmOpts...), params.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)))
+			osDesc := osComp.NewDescriptorWithArch(osComp.NewFlavorFromString(*platform), osVers, osComp.NewArchitectureFromString(*architecture))
+
+			e2e.Run(tt,
+				&installScriptSuite{cwsSupported: cwsSupported},
+				e2e.WithProvisioner(awsvm.Provisioner(
+					awsvm.WithoutAgent(),
+					awsvm.WithEC2VMOptions(
+						ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture),
+					),
+				)),
+				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)),
+			)
 		})
 	}
 }
@@ -119,14 +116,13 @@ func (is *installScriptSuite) TestInstallAgent() {
 }
 
 func (is *installScriptSuite) AgentTest(flavor string) {
-	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
-
-	vm := is.Env().VM.(*client.PulumiStackVM)
-	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
+	host := is.Env().Host
+	fileManager := filemanager.NewUnixFileManager(host)
+	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnixHelper()
-	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
+	client := common.NewTestClient(is.Env().Host, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(flavor), installparams.WithMajorVersion(*majorVersion))
 
@@ -146,18 +142,16 @@ func (is *installScriptSuite) AgentTest(flavor string) {
 	}
 	common.CheckInstallationInstallScript(is.T(), client)
 	common.CheckUninstallation(is.T(), client, flavor)
-
 }
 
 func (is *installScriptSuite) IotAgentTest() {
-	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
-
-	vm := is.Env().VM.(*client.PulumiStackVM)
-	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
+	host := is.Env().Host
+	fileManager := filemanager.NewUnixFileManager(host)
+	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
 	unixHelper := helpers.NewUnixHelper()
-	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
+	client := common.NewTestClient(is.Env().Host, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
 
@@ -171,14 +165,13 @@ func (is *installScriptSuite) IotAgentTest() {
 }
 
 func (is *installScriptSuite) DogstatsdAgentTest() {
-	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
-
-	vm := is.Env().VM.(*client.PulumiStackVM)
-	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
+	host := is.Env().Host
+	fileManager := filemanager.NewUnixFileManager(host)
+	agentClient, err := client.NewHostAgentClient(is.T(), host, false)
 	require.NoError(is.T(), err)
 
-	unixHelper := helpers.NewUnixDogstatsdHelper()
-	client := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
+	unixHelper := helpers.NewUnixHelper()
+	client := common.NewTestClient(is.Env().Host, agentClient, fileManager, unixHelper)
 
 	install.Unix(is.T(), client, installparams.WithArch(*architecture), installparams.WithFlavor(*flavor))
 

@@ -9,32 +9,34 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 )
 
 type vmSuiteEx6 struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
+	e2e.BaseSuite[environments.VM]
 }
 
 func TestVMSuiteEx6(t *testing.T) {
-	e2e.Run(t, &vmSuiteEx6{}, e2e.FakeIntakeStackDef(e2e.WithAgentParams(agentparams.WithSystemProbeConfig(systemProbeConfigNPM))))
+	e2e.Run(t, &vmSuiteEx6{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithSystemProbeConfig(systemProbeConfigNPM)))))
 }
 
 func (v *vmSuiteEx6) Test1_FakeIntakeNPM() {
 	t := v.T()
 
 	// force pulumi to deploy before running the test
-	v.Env().VM.Execute("curl http://httpbin.org/anything")
-	v.Env().Fakeintake.FlushServerAndResetAggregators()
+	v.Env().Host.MustExecute("curl http://httpbin.org/anything")
+	v.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	// This loop waits for agent and system-probe to be ready, stated by
 	// checking we eventually receive a payload
 	v.EventuallyWithT(func(c *assert.CollectT) {
-		v.Env().VM.Execute("curl http://httpbin.org/anything")
+		v.Env().Host.MustExecute("curl http://httpbin.org/anything")
 
-		hostnameNetID, err := v.Env().Fakeintake.GetConnectionsNames()
+		hostnameNetID, err := v.Env().FakeIntake.Client().GetConnectionsNames()
 		if !assert.NoError(c, err, "fakeintake GetConnectionsNames() error") {
 			return
 		}

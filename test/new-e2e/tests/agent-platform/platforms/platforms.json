@@ -32,7 +32,7 @@
             "ubuntu-23-10": "ami-0dea732dd5f1da0a8"
         }
     },
-    "amazonlinux": {
+    "amazon-linux": {
         "x86_64": {
             "amazonlinux2-4-14": "ami-038b3df3312ddf25d",
             "amazonlinux2-5-10": "ami-06a0cd9728546d178",

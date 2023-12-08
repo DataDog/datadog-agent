@@ -10,17 +10,19 @@ import (
 	"regexp"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 )
 
 type agentConfigCheckSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.BaseSuite[environments.VM]
 }
 
 func TestAgentConfigCheckSuite(t *testing.T) {
-	e2e.Run(t, &agentConfigCheckSuite{}, e2e.AgentStackDef())
+	e2e.Run(t, &agentConfigCheckSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithoutFakeIntake())))
 }
 
 type CheckConfigOutput struct {
@@ -161,7 +163,7 @@ func (v *agentConfigCheckSuite) TestDefaultInstalledChecks() {
 		},
 	}
 
-	output := v.Env().Agent.ConfigCheck()
+	output := v.Env().Agent.Client.ConfigCheck()
 
 	assert.NotContains(v.T(), output, "=== Configuration errors ===")
 
@@ -182,9 +184,9 @@ func (v *agentConfigCheckSuite) TestWithBadConfigCheck() {
 	- name: bad yaml formatting via tab
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(integration)))
+	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(integration)))
 
-	output := v.Env().Agent.ConfigCheck()
+	output := v.Env().Agent.Client.ConfigCheck()
 
 	assert.Contains(v.T(), output, "http_check: yaml: line 2: found character that cannot start any token")
 }
@@ -195,9 +197,9 @@ func (v *agentConfigCheckSuite) TestWithAddedIntegrationsCheck() {
     url: http://some.url.example.com
 `
 	integration := agentparams.WithIntegration("http_check.d", config)
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(integration)))
+	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(integration)))
 
-	output := v.Env().Agent.ConfigCheck()
+	output := v.Env().Agent.Client.ConfigCheck()
 
 	result, err := MatchCheckToTemplate("http_check", output)
 	assert.NoError(v.T(), err)

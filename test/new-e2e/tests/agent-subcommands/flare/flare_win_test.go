@@ -9,26 +9,25 @@ package flare
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
+	"github.com/DataDog/test-infra-definitions/components/os"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+
 	"github.com/stretchr/testify/assert"
 )
 
-type windowsFlareSuite struct {
-	baseFlareSuite
-}
+type windowsFlareSuite baseFlareSuite
 
 func TestWindowsFlareSuite(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &windowsFlareSuite{}, e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS)), e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer())))
+	e2e.Run(t, &windowsFlareSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithEC2VMOptions(ec2.WithOS(os.WindowsDefault)), awsvm.WithFakeIntakeOptions(fakeintake.WithoutLoadBalancer()))))
 }
 
 func (v *windowsFlareSuite) TestFlareWindows() {
-	v.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithVMParams(ec2params.WithOS(ec2os.WindowsOS))))
-	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent, v.Env().Fakeintake, client.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
+	flare := requestAgentFlareAndFetchFromFakeIntake(v.T(), v.Env().Agent.Client, v.Env().FakeIntake.Client(), agentclient.WithArgs([]string{"--email", "e2e@test.com", "--send"}))
 
 	assertFilesExist(v.T(), flare, windowsFiles)
 	assertEventlogFolderOnlyContainsWindoesEventLog(v.T(), flare)

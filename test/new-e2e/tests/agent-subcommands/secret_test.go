@@ -8,30 +8,32 @@ package agentsubcommands
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type agentSecretSuite struct {
-	e2e.Suite[e2e.AgentEnv]
+	e2e.BaseSuite[environments.VM]
 }
 
 func TestAgentSecretSuite(t *testing.T) {
-	e2e.Run(t, &agentSecretSuite{}, e2e.AgentStackDef())
+	e2e.Run(t, &agentSecretSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithoutFakeIntake())))
 }
 
 func (v *agentSecretSuite) TestAgentSecretNotEnabledByDefault() {
-	secret := v.Env().Agent.Secret()
+	secret := v.Env().Agent.Client.Secret()
 
 	assert.Contains(v.T(), secret, "No secret_backend_command set")
 }
 
 func (v *agentSecretSuite) TestAgentSecretChecksExecutablePermissions() {
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("secret_backend_command: /usr/bin/echo"))))
+	v.UpdateEnv(awsvm.Provisioner(awsvm.WithoutFakeIntake(), awsvm.WithAgentOptions(agentparams.WithAgentConfig("secret_backend_command: /usr/bin/echo"))))
 
-	output := v.Env().Agent.Secret()
+	output := v.Env().Agent.Client.Secret()
 
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /usr/bin/echo")
@@ -45,11 +47,26 @@ printf '{"alias_secret": {"value": "a_super_secret_string"}}\n'`
 host_aliases:
   - ENC[alias_secret]`
 
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false))))
-	v.Env().VM.Execute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
-	v.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false), agentparams.WithAgentConfig(config))))
+	v.UpdateEnv(
+		awsvm.Provisioner(
+			awsvm.WithoutFakeIntake(),
+			awsvm.WithAgentOptions(
+				agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false),
+			),
+		),
+	)
+	v.Env().Host.MustExecute(`sudo sh -c "chown dd-agent:dd-agent /tmp/bin/secret.sh && chmod 700 /tmp/bin/secret.sh"`)
+	v.UpdateEnv(
+		awsvm.Provisioner(
+			awsvm.WithoutFakeIntake(),
+			awsvm.WithAgentOptions(
+				agentparams.WithFile("/tmp/bin/secret.sh", secretScript, false),
+				agentparams.WithAgentConfig(config),
+			),
+		),
+	)
 
-	output := v.Env().Agent.Secret()
+	output := v.Env().Agent.Client.Secret()
 
 	assert.Contains(v.T(), output, "=== Checking executable permissions ===")
 	assert.Contains(v.T(), output, "Executable path: /tmp/bin/secret.sh")

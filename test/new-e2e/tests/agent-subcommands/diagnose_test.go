@@ -13,17 +13,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
 	svcmanager "github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common/svc-manager"
+
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type agentDiagnoseSuite struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
+	e2e.BaseSuite[environments.VM]
 }
 
 var allSuites = []string{
@@ -34,7 +38,7 @@ var allSuites = []string{
 }
 
 func TestAgentDiagnoseEC2Suite(t *testing.T) {
-	e2e.Run(t, &agentDiagnoseSuite{}, e2e.FakeIntakeStackDef(e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer())))
+	e2e.Run(t, &agentDiagnoseSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithFakeIntakeOptions(fakeintake.WithoutLoadBalancer()))))
 }
 
 // type summary represents the number of success, fail, warnings and errors of a diagnose command
@@ -46,12 +50,12 @@ type summary struct {
 	errors   int
 }
 
-func getDiagnoseOutput(v *agentDiagnoseSuite, commandArgs ...client.AgentArgsOption) string {
+func getDiagnoseOutput(v *agentDiagnoseSuite, commandArgs ...agentclient.AgentArgsOption) string {
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
-		assert.NoError(c, v.Env().Fakeintake.Client.GetServerHealth())
+		assert.NoError(c, v.Env().FakeIntake.Client().GetServerHealth())
 	}, 5*time.Minute, 20*time.Second, "timedout waiting for fakeintake to be healthy")
 
-	return v.Env().Agent.Diagnose(commandArgs...)
+	return v.Env().Agent.Client.Diagnose(commandArgs...)
 }
 
 func (v *agentDiagnoseSuite) TestDiagnoseDefaultConfig() {
@@ -60,12 +64,12 @@ func (v *agentDiagnoseSuite) TestDiagnoseDefaultConfig() {
 }
 
 func (v *agentDiagnoseSuite) TestDiagnoseLocal() {
-	diagnose := getDiagnoseOutput(v, client.WithArgs([]string{"--local"}))
+	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--local"}))
 	assert.NotContains(v.T(), diagnose, "FAIL")
 }
 
 func (v *agentDiagnoseSuite) TestDiagnoseLocalFallback() {
-	svcManager := svcmanager.NewSystemctlSvcManager(v.Env().VM)
+	svcManager := svcmanager.NewSystemctlSvcManager(v.Env().Host)
 	svcManager.Stop("datadog-agent")
 
 	diagnose := getDiagnoseOutput(v)
@@ -77,15 +81,14 @@ func (v *agentDiagnoseSuite) TestDiagnoseLocalFallback() {
 
 func (v *agentDiagnoseSuite) TestDiagnoseOtherCmdPort() {
 	params := agentparams.WithAgentConfig("cmd_port: 4567")
-	v.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(params)))
+	v.UpdateEnv(awsvm.Provisioner(awsvm.WithFakeIntakeOptions(fakeintake.WithoutLoadBalancer()), awsvm.WithAgentOptions(params)))
 
 	diagnose := getDiagnoseOutput(v)
 	assert.NotContains(v.T(), diagnose, "FAIL")
 }
 
 func (v *agentDiagnoseSuite) TestDiagnoseList() {
-
-	diagnose := getDiagnoseOutput(v, client.WithArgs([]string{"--list"}))
+	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--list"}))
 	for _, suite := range allSuites {
 		assert.Contains(v.T(), diagnose, suite)
 	}
@@ -96,7 +99,7 @@ func (v *agentDiagnoseSuite) TestDiagnoseInclude() {
 	diagnoseSummary := getDiagnoseSummary(diagnose)
 
 	for _, suite := range allSuites {
-		diagnoseInclude := getDiagnoseOutput(v, client.WithArgs([]string{"--include", suite}))
+		diagnoseInclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--include", suite}))
 		resultInclude := getDiagnoseSummary(diagnoseInclude)
 
 		assert.Less(v.T(), resultInclude.total, diagnoseSummary.total, "Expected number of checks for suite %v to be lower than the total amount of checks (%v) but was %v", suite, diagnoseSummary.total, resultInclude.total)
@@ -108,14 +111,14 @@ func (v *agentDiagnoseSuite) TestDiagnoseInclude() {
 	includeArgs := strings.Split("--include "+strings.Join(allSuites, " --include "), " ")
 
 	// Diagnose with all suites included should be equal to diagnose without args
-	diagnoseIncludeEverySuite := getDiagnoseOutput(v, client.WithArgs(includeArgs))
+	diagnoseIncludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(includeArgs))
 	diagnoseIncludeEverySuiteSummary := getDiagnoseSummary(diagnoseIncludeEverySuite)
 	assert.Equal(v.T(), diagnoseIncludeEverySuiteSummary, diagnoseSummary)
 }
 
 func (v *agentDiagnoseSuite) TestDiagnoseExclude() {
 	for _, suite := range allSuites {
-		diagnoseExclude := getDiagnoseOutput(v, client.WithArgs([]string{"--exclude", suite}))
+		diagnoseExclude := getDiagnoseOutput(v, agentclient.WithArgs([]string{"--exclude", suite}))
 		resultExclude := getDiagnoseSummary(diagnoseExclude)
 
 		assert.Equal(v.T(), resultExclude.fail, 0)
@@ -126,13 +129,13 @@ func (v *agentDiagnoseSuite) TestDiagnoseExclude() {
 	excludeArgs := strings.Split("--exclude "+strings.Join(allSuites, " --exclude "), " ")
 
 	// Diagnose with all suites excluded should do nothing
-	diagnoseExcludeEverySuite := getDiagnoseOutput(v, client.WithArgs(excludeArgs))
+	diagnoseExcludeEverySuite := getDiagnoseOutput(v, agentclient.WithArgs(excludeArgs))
 	summary := getDiagnoseSummary(diagnoseExcludeEverySuite)
 	assert.Equal(v.T(), summary.total, 0)
 }
 
 func (v *agentDiagnoseSuite) TestDiagnoseVerbose() {
-	diagnose := getDiagnoseOutput(v, client.WithArgs([]string{"-v"}))
+	diagnose := getDiagnoseOutput(v, agentclient.WithArgs([]string{"-v"}))
 	summary := getDiagnoseSummary(diagnose)
 
 	re := regexp.MustCompile("PASS")
