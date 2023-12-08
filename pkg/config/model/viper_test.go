@@ -8,6 +8,7 @@ package model
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -241,4 +242,20 @@ func TestAllFileSettingsWithoutDefault(t *testing.T) {
 		},
 		config.AllFileSettingsWithoutDefault(),
 	)
+}
+
+func TestSourceFileReadConfig(t *testing.T) {
+	config := NewConfig("test", "DD", strings.NewReplacer(".", "_"))
+	yamlExample := []byte(`
+foo: bar
+`)
+
+	os.WriteFile("test.yaml", yamlExample, 0644)
+	config.SetConfigFile("test.yaml")
+	config.ReadInConfig()
+	os.Remove("test.yaml")
+
+	assert.Equal(t, "bar", config.Get("foo"))
+	assert.Equal(t, SourceFile, config.GetSource("foo"))
+	assert.Equal(t, map[string]interface{}{"foo": "bar"}, config.AllFileSettingsWithoutDefault())
 }
