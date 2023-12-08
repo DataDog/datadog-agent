@@ -10,6 +10,7 @@ package http2
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -69,6 +70,7 @@ const (
 	eventStream                      = "http2"
 	terminatedConnectionsEventStream = "terminated_http2"
 	telemetryMap                     = "http2_telemetry"
+	http2DynamicTablePerfBuffer      = "http2_dynamic_table_perf_buffer"
 )
 
 // Spec is the protocol spec for HTTP/2.
@@ -194,6 +196,17 @@ func (p *Protocol) ConfigureOptions(mgr *manager.Manager, opts *manager.Options)
 	// Configure event stream
 	events.Configure(eventStream, mgr, opts)
 	events.Configure(terminatedConnectionsEventStream, mgr, opts)
+
+	mgr.PerfMaps = append(mgr.PerfMaps, &manager.PerfMap{
+		Map: manager.Map{Name: http2DynamicTablePerfBuffer},
+		PerfMapOptions: manager.PerfMapOptions{
+			PerfRingBufferSize: 16 * os.Getpagesize(),
+			Watermark:          1,
+			RecordHandler:      p.dynamicTable.perfHandler.RecordHandler,
+			LostHandler:        p.dynamicTable.perfHandler.LostHandler,
+			RecordGetter:       p.dynamicTable.perfHandler.RecordGetter,
+		},
+	})
 }
 
 // PreStart is called before the start of the provided eBPF manager.
@@ -334,10 +347,13 @@ func (p *Protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 
 func (p *Protocol) processHTTP2(events []EbpfTx) {
 	for i := range events {
+		// TODO: Replace 0 with the actual path index
+		path, _ := p.dynamicTable.ResolvePath(events[i].Tuple, 0)
 		tx := &ebpfTXWrapper{
 			EbpfTx: &events[i],
+			// Path can be nil.
+			path: path,
 		}
-		// TODO: Here we need to resolve the path index to the actual path
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
 	}

@@ -101,6 +101,7 @@ func (dt *DynamicTable) StartProcessingPerfHandler(mgr *manager.Manager) error {
 
 	dt.wg.Add(1)
 	go func() {
+		dummyValue := true
 		defer dt.wg.Done()
 		for {
 			select {
@@ -110,7 +111,17 @@ func (dt *DynamicTable) StartProcessingPerfHandler(mgr *manager.Manager) error {
 				if !ok {
 					return
 				}
-				// TODO: process path
+				val := (*http2DynamicTableValue)(unsafe.Pointer(&data.Data[0]))
+				res, err := decodeHTTP2Path(val.Buf, val.Len)
+				if err == nil {
+					// Adding the new path to the dynamic table and the string interner.
+					// This may trigger an eviction in the LRU datastore, and maybe remove the evicted entry from the kernel map.
+					dt.datastore.Add(val.Key, dt.stringInternStore.Get(res))
+					// Although it is done by the kernel as well, the kernel may fail if the map is full (eviction happens in userspace),
+					// thus, we do it here as well to avoid losing entries.
+					// We're ignoring the error as we're trying to do best-effort here.
+					_ = dt.kernelMap.Update(unsafe.Pointer(&val.Key), unsafe.Pointer(&dummyValue), 0)
+				}
 				data.Done()
 			case _, ok := <-dt.perfHandler.LostChannel:
 				if !ok {

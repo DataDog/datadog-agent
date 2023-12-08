@@ -59,7 +59,12 @@ type HTTP2Telemetry struct {
 	Exceeding_max_frames_to_filter   uint64
 	Path_size_bucket                 [8]uint64
 }
-
+type http2DynamicTableValue struct {
+	Key       http2DynamicTableIndex
+	Len       uint8
+	Pad_cgo_0 [7]byte
+	Buf       [160]byte
+}
 type StaticTableEnumValue = uint8
 
 const (
