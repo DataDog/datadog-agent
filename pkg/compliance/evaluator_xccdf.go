@@ -93,14 +93,15 @@ func newOSCAPIO(file string) *oscapIO {
 func (p *oscapIO) Run(ctx context.Context) error {
 	defer p.Stop()
 
+	environ := []string{}
+
 	if config.IsContainerized() {
 		hostRoot := os.Getenv("HOST_ROOT")
 		if hostRoot == "" {
 			hostRoot = "/host"
 		}
 
-		os.Setenv("OSCAP_PROBE_ROOT", hostRoot)
-		defer os.Unsetenv("OSCAP_PROBE_ROOT")
+		environ = append(environ, fmt.Sprintf("OSCAP_PROBE_ROOT=%s", hostRoot))
 	}
 
 	args := []string{}
@@ -115,6 +116,7 @@ func (p *oscapIO) Run(ctx context.Context) error {
 	}
 
 	cmd := exec.CommandContext(ctx, binPath, args...)
+	cmd.Env = append(cmd.Env, environ...)
 	cmd.Dir = filepath.Dir(p.File)
 	p.cmd = cmd
 
