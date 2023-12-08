@@ -529,7 +529,7 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 
 	var identity *sts.GetCallerIdentityOutput
 	{
-		cfg, _, err := newAWSConfig(ctx, selfRegion, nil)
+		cfg, err := newAWSConfig(ctx, selfRegion, nil)
 		if err != nil {
 			return err
 		}
@@ -542,11 +542,10 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 
 	roles := getDefaultRolesMapping()
 
-	cfg, awsstats, err := newAWSConfig(ctx, selfRegion, roles[*identity.Account])
+	cfg, err := newAWSConfig(ctx, selfRegion, roles[*identity.Account])
 	if err != nil {
 		return err
 	}
-	defer awsstats.SendStats()
 
 	ec2client := ec2.NewFromConfig(cfg)
 	if err != nil {
@@ -616,11 +615,10 @@ func offlineCmd(poolSize int, regions []string, maxScans int) error {
 }
 
 func listEBSVolumesForRegion(ctx context.Context, accountID, regionName string, roles rolesMapping) (volumes []ebsVolume, err error) {
-	cfg, awsstats, err := newAWSConfig(ctx, regionName, roles[accountID])
+	cfg, err := newAWSConfig(ctx, regionName, roles[accountID])
 	if err != nil {
 		return nil, err
 	}
-	defer awsstats.SendStats()
 
 	ec2client := ec2.NewFromConfig(cfg)
 	if err != nil {
@@ -695,7 +693,7 @@ func cleanupCmd(region string, dryRun bool) error {
 	}
 
 	roles := getDefaultRolesMapping()
-	cfg, _, err := newAWSConfig(ctx, region, roles[*identity.Account])
+	cfg, err := newAWSConfig(ctx, region, roles[*identity.Account])
 	if err != nil {
 		return err
 	}
@@ -744,11 +742,10 @@ func downloadSnapshot(ctx context.Context, w io.Writer, snapshotARN arn.ARN) err
 	}
 
 	roles := getDefaultRolesMapping()
-	cfg, awsstats, err := newAWSConfig(ctx, selfRegion, roles[*identity.Account])
+	cfg, err := newAWSConfig(ctx, selfRegion, roles[*identity.Account])
 	if err != nil {
 		return err
 	}
-	defer awsstats.SendStats()
 
 	_, snapshotID, _ := getARNResource(snapshotARN)
 
@@ -846,11 +843,10 @@ func attachCmd() error {
 
 	roles := getDefaultRolesMapping()
 	for _, resourceARN := range arns {
-		cfg, awsstats, err := newAWSConfig(ctx, resourceARN.Region, roles[resourceARN.AccountID])
+		cfg, err := newAWSConfig(ctx, resourceARN.Region, roles[resourceARN.AccountID])
 		if err != nil {
 			return err
 		}
-		defer awsstats.SendStats()
 
 		ec2client := ec2.NewFromConfig(cfg)
 		hostname := ""
@@ -909,7 +905,7 @@ func nbdMountCmd(snapshotARN arn.ARN) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	cfg, _, err := newAWSConfig(ctx, snapshotARN.Region, nil)
+	cfg, err := newAWSConfig(ctx, snapshotARN.Region, nil)
 	if err != nil {
 		return err
 	}
@@ -1292,7 +1288,7 @@ func cloudResourceTagSpec(resourceType resourceType) []ec2types.TagSpecification
 		{
 			ResourceType: ec2types.ResourceType(resourceType),
 			Tags: []ec2types.Tag{
-				{Key: aws.String("ddsource"), Value: aws.String("datadog-side-scanner")},
+				{Key: aws.String("SideScanner"), Value: aws.String("true")},
 			},
 		},
 	}
@@ -1301,9 +1297,9 @@ func cloudResourceTagSpec(resourceType resourceType) []ec2types.TagSpecification
 func cloudResourceTagFilters() []ec2types.Filter {
 	return []ec2types.Filter{
 		{
-			Name: aws.String("tag:ddsource"),
+			Name: aws.String("tag:SideScanner"),
 			Values: []string{
-				"datadog-side-scanner",
+				"true",
 			},
 		},
 	}
@@ -1388,6 +1384,8 @@ func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, 
 				SnapshotId: &snapshotID,
 			}); err != nil {
 				log.Warnf("could not delete snapshot %s: %v", snapshotID, err)
+			} else {
+				log.Warnf("snapshot deleted %s", snapshotID)
 			}
 		}
 	}
@@ -1502,52 +1500,7 @@ type awsClientStats struct {
 	transport *http.Transport
 	region    string
 	accountID string
-	statsMu   sync.Mutex
-
-	ec2stats map[string]float64
-	ebsstats map[string]float64
-
-	limits *awsLimits
-}
-
-func (rt *awsClientStats) SendStats() {
-	rt.statsMu.Lock()
-	defer rt.statsMu.Unlock()
-
-	totalec2 := 0
-	totalebs := 0
-	for action, value := range rt.ec2stats {
-		if err := statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ec2", action), 1.0); err != nil {
-			log.Warnf("failed to send metric: %v", err)
-		}
-		totalec2 += int(value)
-	}
-	for action, value := range rt.ebsstats {
-		if err := statsd.Histogram("datadog.sidescanner.awsstats.actions", value, rt.tags("ebs", action), 1.0); err != nil {
-			log.Warnf("failed to send metric: %v", err)
-		}
-		totalebs += int(value)
-	}
-	if err := statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(totalec2), rt.tags("ec2"), 1.0); err != nil {
-		log.Warnf("failed to send metric: %v", err)
-	}
-	if err := statsd.Count("datadog.sidescanner.awsstats.total_requests", int64(totalebs), rt.tags("ebs"), 1.0); err != nil {
-		log.Warnf("failed to send metric: %v", err)
-	}
-
-	rt.ec2stats = nil
-	rt.ebsstats = nil
-}
-
-func (rt *awsClientStats) tags(serviceName string, actions ...string) []string {
-	tags := []string{
-		fmt.Sprintf("agent_version:%s", version.AgentVersion),
-		fmt.Sprintf("aws_service:%s", serviceName),
-	}
-	for _, action := range actions {
-		tags = append(tags, fmt.Sprintf("aws_action:%s_%s", serviceName, action))
-	}
-	return tags
+	limits    *awsLimits
 }
 
 var (
@@ -1556,59 +1509,50 @@ var (
 )
 
 func (rt *awsClientStats) getAction(req *http.Request) (service, action string, error error) {
-	host := req.URL.Host
-	switch {
-	// EBS (ebs.(region.)?amazonaws.com)
-	case strings.HasPrefix(host, "ebs.") && strings.HasSuffix(host, ".amazonaws.com"):
-		if req.Method == http.MethodGet && ebsGetBlockReg.MatchString(req.URL.Path) {
-			return "ebs", "getblock", nil
-		}
-		if req.Method == http.MethodGet && ebsListBlocksReg.MatchString(req.URL.Path) {
-			return "ebs", "listblocks", nil
-		}
+	if host := req.URL.Host; strings.HasSuffix(host, ".amazonaws.com") {
+		switch {
+		// STS (sts.(region.)?amazonaws.com)
+		case strings.HasPrefix(host, "sts."):
+			return "sts", "unknown", nil // TODO: actions ?
 
-	// EC2 (ec2.(region.)?amazonaws.com): https://docs.aws.amazon.com/AWSEC2/latest/APIReference/Using_Endpoints.html
-	case strings.HasPrefix(host, "ec2.") && strings.HasSuffix(host, ".amazonaws.com"):
-		if req.Method == http.MethodPost && req.Body != nil {
-			body, err := io.ReadAll(req.Body)
-			if err != nil {
-				return
+		// Lambda (lambda.(region.)?amazonaws.com)
+		case strings.HasPrefix(host, "lambda."):
+			return "lambda", "unknown", nil // TODO: actions ?
+
+		case strings.HasPrefix(host, "ebs."):
+			if req.Method == http.MethodGet && ebsGetBlockReg.MatchString(req.URL.Path) {
+				return "ebs", "getblock", nil
 			}
-			req.Body = io.NopCloser(bytes.NewReader(body))
-			form, err := url.ParseQuery(string(body))
-			if err == nil {
-				if action := form.Get("Action"); action != "" {
-					return "ec2", action, nil
+			if req.Method == http.MethodGet && ebsListBlocksReg.MatchString(req.URL.Path) {
+				return "ebs", "listblocks", nil
+			}
+			return "ebs", "unknown", nil
+
+		// EC2 (ec2.(region.)?amazonaws.com): https://docs.aws.amazon.com/AWSEC2/latest/APIReference/Using_Endpoints.html
+		case strings.HasPrefix(host, "ec2."):
+			if req.Method == http.MethodPost && req.Body != nil {
+				body, err := io.ReadAll(req.Body)
+				if err != nil {
+					return
 				}
-			}
-		} else if req.Method == http.MethodGet {
-			form := req.URL.Query()
-			if action := form.Get("Action"); action != "" {
-				return "ec2", action, nil
+				req.Body = io.NopCloser(bytes.NewReader(body))
+				form, err := url.ParseQuery(string(body))
+				if err == nil {
+					if action := form.Get("Action"); action != "" {
+						return "ec2", strings.ToLower(action), nil
+					}
+					return "ec2", "unknown", nil
+				}
+			} else {
+				form := req.URL.Query()
+				if action := form.Get("Action"); action != "" {
+					return "ec2", strings.ToLower(action), nil
+				}
+				return "ec2", "unknown", nil
 			}
 		}
 	}
-
-	return "", "", nil
-}
-
-func (rt *awsClientStats) recordStats(service, action string) {
-	rt.statsMu.Lock()
-	defer rt.statsMu.Unlock()
-
-	if rt.ec2stats == nil {
-		rt.ec2stats = make(map[string]float64, 0)
-	}
-	if rt.ebsstats == nil {
-		rt.ebsstats = make(map[string]float64, 0)
-	}
-
-	switch service {
-	case "ec2":
-		rt.ec2stats[action]++
-	case "ebs":
-		rt.ebsstats[action]++
-	}
+	return "unknown", "unknown", nil
 }
 
 func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -1617,24 +1561,47 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	limiter := rt.limits.getLimiter(rt.accountID, rt.region, service, action)
+	rateLimited := false
 	if limiter != nil {
 		r := limiter.Reserve()
 		if !r.OK() {
 			panic("unexpected limiter with a zero burst")
 		}
 		if delay := r.Delay(); delay > 0 {
+			rateLimited = true
 			sleepCtx(req.Context(), delay)
 		}
 	}
-	rt.recordStats(service, action)
+	tags := []string{
+		fmt.Sprintf("agent_version:%s", version.AgentVersion),
+		fmt.Sprintf("aws_service:%s", service),
+		fmt.Sprintf("aws_ratelimited:%t", rateLimited),
+		fmt.Sprintf("aws_action:%s_%s", service, action),
+	}
+	if err := statsd.Incr("datadog.sidescanner.aws.requests", tags, 1.0); err != nil {
+		log.Warnf("failed to send metric: %v", err)
+	}
+	now := time.Now()
 	resp, err := rt.transport.RoundTrip(req)
+	duration := float64(time.Since(now).Milliseconds())
+	if resp != nil {
+		tags = append(tags, fmt.Sprintf("aws_statuscode:%d", resp.StatusCode))
+	} else {
+		tags = append(tags, "aws_statuscode:0")
+	}
 	if err != nil {
+		if err := statsd.Histogram("datadog.sidescanner.aws.responses", duration, tags, 1.0); err != nil {
+			log.Warnf("failed to send metric: %v", err)
+		}
 		return nil, err
+	}
+	if err := statsd.Histogram("datadog.sidescanner.aws.responses", duration, tags, 1.0); err != nil {
+		log.Warnf("failed to send metric: %v", err)
 	}
 	return resp, nil
 }
 
-func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws.Config, *awsClientStats, error) {
+func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws.Config, error) {
 	awsstats := &awsClientStats{
 		region: region,
 		limits: getAWSLimit(ctx),
@@ -1652,7 +1619,7 @@ func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws
 		config.WithHTTPClient(&httpClient),
 	)
 	if err != nil {
-		return aws.Config{}, nil, err
+		return aws.Config{}, err
 	}
 	if assumedRole != nil {
 		awsstats.accountID = assumedRole.Resource
@@ -1666,12 +1633,12 @@ func newAWSConfig(ctx context.Context, region string, assumedRole *arn.ARN) (aws
 		stsclient = sts.NewFromConfig(cfg)
 		result, err := stsclient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 		if err != nil {
-			return aws.Config{}, nil, fmt.Errorf("awsconfig: could not assumerole %q: %w", assumedRole, err)
+			return aws.Config{}, fmt.Errorf("awsconfig: could not assumerole %q: %w", assumedRole, err)
 		}
 		log.Debugf("aws config: assuming role with arn=%q", *result.Arn)
 	}
 
-	return cfg, awsstats, nil
+	return cfg, nil
 }
 
 func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentityDocumentOutput, error) {
@@ -1695,11 +1662,10 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	defer statsd.Flush()
 
 	assumedRole := scan.Roles[scan.ARN.AccountID]
-	cfg, awsstats, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
+	cfg, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
 	if err != nil {
 		return err
 	}
-	defer awsstats.SendStats()
 
 	ec2client := ec2.NewFromConfig(cfg)
 	if err != nil {
@@ -1915,11 +1881,10 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 	functionStartedAt := time.Now()
 
 	assumedRole := scan.Roles[scan.ARN.AccountID]
-	cfg, awsstats, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
+	cfg, err := newAWSConfig(ctx, scan.ARN.Region, assumedRole)
 	if err != nil {
 		return "", err
 	}
-	defer awsstats.SendStats()
 
 	lambdaclient := lambda.NewFromConfig(cfg)
 	if err != nil {
@@ -2052,7 +2017,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 	}
 
 	remoteAssumedRole := scan.Roles[snapshotARN.AccountID]
-	remoteAWSCfg, _, err := newAWSConfig(ctx, self.Region, remoteAssumedRole)
+	remoteAWSCfg, err := newAWSConfig(ctx, self.Region, remoteAssumedRole)
 	if err != nil {
 		err = fmt.Errorf("could not create local aws config: %w", err)
 		return
@@ -2078,6 +2043,8 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 				SnapshotId: copySnapshot.SnapshotId,
 			}); err != nil {
 				log.Warnf("could not delete snapshot %s: %v", *copySnapshot.SnapshotId, err)
+			} else {
+				log.Debugf("snapshot deleted %s", *copySnapshot.SnapshotId)
 			}
 		})
 		log.Debugf("waiting for copy of snapshot %q into %q as %q", snapshotARN, self.Region, *copySnapshot.SnapshotId)
@@ -2109,7 +2076,7 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 	}
 
 	localAssumedRole := scan.Roles[self.AccountID]
-	localAWSCfg, _, err := newAWSConfig(ctx, self.Region, localAssumedRole)
+	localAWSCfg, err := newAWSConfig(ctx, self.Region, localAssumedRole)
 	if err != nil {
 		err = fmt.Errorf("could not create local aws config: %w", err)
 		return
