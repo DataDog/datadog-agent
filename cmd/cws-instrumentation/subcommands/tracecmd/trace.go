@@ -11,6 +11,7 @@ package tracecmd
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/DataDog/datadog-agent/cmd/cws-instrumentation/subcommands/selftestscmd"
 	"github.com/DataDog/datadog-agent/pkg/security/ptracer"
 )
 
@@ -40,6 +41,8 @@ func Command() []*cobra.Command {
 
 	traceCmd.Flags().StringVar(&params.ProbeAddr, probeAddr, "localhost:5678", "system-probe eBPF less GRPC address")
 	traceCmd.Flags().BoolVar(&params.Verbose, verbose, false, "enable verbose output")
+
+	traceCmd.AddCommand(selftestscmd.Command()...)
 
 	return []*cobra.Command{traceCmd}
 }
