@@ -278,7 +278,7 @@ func (suite *ecsSuite) TestRedis() {
 				`^task_name:.*-redis-ec2$`,
 				`^task_version:[[:digit:]]+$`,
 			},
-			Message: `oO0OoO0OoO0Oo Redis is starting oO0OoO0OoO0Oo`,
+			Message: `Accepted`,
 		},
 	})
 }

@@ -84,10 +84,10 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/log v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/pointer v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.50.0-rc.4
-	github.com/DataDog/datadog-go/v5 v5.3.1-0.20231115110321-54ec306d83b2
+	github.com/DataDog/datadog-go/v5 v5.4.0
 	// do not update datadog-operator to 1.2.1 because the indirect dependency github.com/DataDog/datadog-api-client-go/v2 v2.15.0 is trigger a huge Go heap memory increase.
 	github.com/DataDog/datadog-operator v1.1.0
-	github.com/DataDog/ebpf-manager v0.3.8
+	github.com/DataDog/ebpf-manager v0.3.9
 	github.com/DataDog/go-tuf v1.0.2-0.5.2
 	github.com/DataDog/gopsutil v1.2.2
 	github.com/DataDog/nikos v1.12.1
@@ -618,7 +618,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/testutil v0.50.0-rc.4
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/version v0.50.0-rc.4
-	github.com/DataDog/go-libddwaf/v2 v2.2.0
+	github.com/DataDog/go-libddwaf/v2 v2.2.2
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/logs v0.8.0
 	github.com/aquasecurity/trivy v0.0.0-00010101000000-000000000000
 	github.com/aws/aws-sdk-go-v2/service/kms v1.27.1

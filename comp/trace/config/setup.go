@@ -669,6 +669,9 @@ func compileReplaceRules(rules []*config.ReplaceRule) error {
 		if r.Name == "" {
 			return errors.New(`all rules must have a "name" property (use "*" to target all)`)
 		}
+		if r.Name == "env" {
+			log.Error("Replace tags should not be used to change the env in the Agent, as it could have negative side effects. THIS WILL BE DISALLOWED IN FUTURE AGENT VERSIONS. See https://docs.datadoghq.com/getting_started/tracing/#environment-name for instructions on setting the env, and https://github.com/DataDog/datadog-agent/issues/21253 for more details about this issue.")
+		}
 		if r.Pattern == "" {
 			return errors.New(`all rules must have a "pattern"`)
 		}

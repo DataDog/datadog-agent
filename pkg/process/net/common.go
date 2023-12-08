@@ -22,7 +22,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
-	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding"
+	netEncoding "github.com/DataDog/datadog-agent/pkg/network/encoding/unmarshal"
 	procEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding"
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	languagepb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/languagedetection"

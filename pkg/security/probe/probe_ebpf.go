@@ -98,6 +98,7 @@ type EBPFProbe struct {
 	kernelVersion  *kernel.Version
 
 	// internals
+	event           *model.Event
 	monitors        *EBPFMonitors
 	profileManagers *SecurityProfileManagers
 	fieldHandlers   *EBPFFieldHandlers
@@ -520,9 +521,16 @@ func (p *EBPFProbe) setProcessContext(eventType model.EventType, event *model.Ev
 	return true
 }
 
+func (p *EBPFProbe) zeroEvent() *model.Event {
+	p.event.Zero()
+	p.event.FieldHandlers = p.fieldHandlers
+	p.event.Origin = "ebpf"
+	return p.event
+}
+
 func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 	offset := 0
-	event := p.probe.zeroEvent()
+	event := p.zeroEvent()
 
 	dataLen := uint64(len(data))
 
@@ -1256,6 +1264,7 @@ func (p *EBPFProbe) Close() error {
 	p.wg.Wait()
 
 	ebpfcheck.RemoveNameMappings(p.Manager)
+	commonebpf.UnregisterTelemetry(p.Manager)
 	// Stopping the manager will stop the perf map reader and unload eBPF programs
 	if err := p.Manager.Stop(manager.CleanAll); err != nil {
 		return err
@@ -1688,6 +1697,11 @@ func NewEBPFProbe(probe *Probe, config *config.Config, opts Opts) (*EBPFProbe, e
 			eventstream.EventStreamMap: true,
 		}
 	}
+
+	p.event = p.NewEvent()
+
+	// be sure to zero the probe event before everything else
+	p.zeroEvent()
 
 	return p, nil
 }
