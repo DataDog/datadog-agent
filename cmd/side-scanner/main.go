@@ -883,12 +883,16 @@ func attachCmd() error {
 			return fmt.Errorf("unsupport resource type %q", resourceType)
 		}
 
-		device, localSnapshotARN, cleanupVolume, err := attachSnapshotWithVolume(ctx, scan, snapshotARN)
+		device, volumeARN, localSnapshotARN, cleanupVolume, err := attachSnapshotWithVolume(ctx, scan, snapshotARN)
 		cleanups = append(cleanups, cleanupVolume)
 		if err != nil {
 			return err
 		}
-		mountPoints, cleanupMount, err := mountDevice(ctx, localSnapshotARN, device)
+		partitions, err := listDevicePartitions(ctx, device, &volumeARN)
+		if err != nil {
+			return err
+		}
+		mountPoints, cleanupMount, err := mountDevice(ctx, localSnapshotARN, partitions)
 		cleanups = append(cleanups, cleanupMount)
 		if err != nil {
 			return err
@@ -925,7 +929,12 @@ func nbdMountCmd(snapshotARN arn.ARN) error {
 		return err
 	}
 
-	mountPoints, cleanupMount, err := mountDevice(ctx, snapshotARN, device)
+	partitions, err := listDevicePartitions(ctx, device, nil)
+	if err != nil {
+		return err
+	}
+
+	mountPoints, cleanupMount, err := mountDevice(ctx, snapshotARN, partitions)
 	defer cleanupMount(context.TODO())
 	if err != nil {
 		log.Errorf("error could not mount (device is still available on %q): %v", device, err)
@@ -1742,12 +1751,14 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	log.Infof("start EBS scanning %s", scan)
 
 	var device string
+	var attachedVolumeARN *arn.ARN
 	var localSnapshotARN arn.ARN
 	var scanStartedAt time.Time
 	var cleanupAttach func(context.Context)
 	switch globalParams.attachMode {
 	case volumeAttach:
-		device, localSnapshotARN, cleanupAttach, err = attachSnapshotWithVolume(ctx, scan, snapshotARN)
+		var volumeARN arn.ARN
+		device, volumeARN, localSnapshotARN, cleanupAttach, err = attachSnapshotWithVolume(ctx, scan, snapshotARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
@@ -1756,6 +1767,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 		if err != nil {
 			return err
 		}
+		attachedVolumeARN = &volumeARN
 	case nbdAttach:
 		ebsclient := ebs.NewFromConfig(cfg)
 		device, cleanupAttach, err = attachSnapshotWithNBD(ctx, scan, snapshotARN, ebsclient)
@@ -1764,10 +1776,10 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 			defer cancel()
 			cleanupAttach(cleanupctx)
 		}()
-		localSnapshotARN = snapshotARN
 		if err != nil {
 			return err
 		}
+		localSnapshotARN = snapshotARN
 	case noAttach:
 		// Only vulns scanning works without a proper mount point (for now)
 		for _, action := range scan.Actions {
@@ -1782,8 +1794,13 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	}
 
 	// TODO: remove this check once we definitely move to nbd mounting
-	if device != "" {
-		mountPoints, cleanupMount, err := mountDevice(ctx, localSnapshotARN, device)
+	if device != "" || attachedVolumeARN != nil {
+		partitions, err := listDevicePartitions(ctx, device, attachedVolumeARN)
+		if err != nil {
+			return err
+		}
+
+		mountPoints, cleanupMount, err := mountDevice(ctx, localSnapshotARN, partitions)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
@@ -2034,7 +2051,7 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 	return nil
 }
 
-func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (device string, localSnapshotARN arn.ARN, cleanupVolume func(context.Context), err error) {
+func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (device string, volumeARN arn.ARN, localSnapshotARN arn.ARN, cleanupVolume func(context.Context), err error) {
 	var cleanups []func(context.Context)
 	pushCleanup := func(cleanup func(context.Context)) {
 		cleanups = append(cleanups, cleanup)
@@ -2192,6 +2209,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 		return
 	}
 
+	volumeARN = ec2ARN(localSnapshotARN.Region, localSnapshotARN.AccountID, resourceTypeVolume, *volume.VolumeId)
 	return
 }
 
@@ -2200,61 +2218,110 @@ type devicePartition struct {
 	fsType     string
 }
 
-func listDevicePartitions(ctx context.Context, device string, volumeARN arn.ARN) {
-	log.Debugf("detecting mounted snapshot %q partitions from device %q", snapshotARN, device)
+func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN) ([]devicePartition, error) {
+	log.Debugf("listing partition from device %q (volume = %q)", device, volumeARN)
 
-	_, volumeID, _ := getARNResource(volumeARN)
-	serialNumber := strings.Replace(volumeID, "-", "", 1) // vol-XXX => volXXX
+	// NOTE(jinroh): we identified that on some Linux kernel the device path
+	// may not be the expected one (passed to AttachVolume). The kernel may
+	// map the block device to another path. However, the serial number
+	// associated with the volume is always of the form volXXX (not vol-XXX).
+	// So we use both the expected device path AND the serial number to find
+	// the actual block device path.
+	var serialNumber *string
+	if volumeARN != nil {
+		_, volumeID, _ := getARNResource(*volumeARN)
+		sn := strings.Replace(volumeID, "-", "", 1) // vol-XXX => volXXX
+		serialNumber = &sn
+	}
 
-	var partitions []devicePartition
+	type blockDevice struct {
+		Name     string `json:"name"`
+		Serial   string `json:"serial"`
+		Path     string `json:"path"`
+		Type     string `json:"type"`
+		FsType   string `json:"fstype"`
+		Children []struct {
+			Name   string `json:"name"`
+			Path   string `json:"path"`
+			Type   string `json:"type"`
+			FsType string `json:"fstype"`
+		} `json:"children"`
+	}
+
+	var blockDevices struct {
+		BlockDevices []blockDevice `json:"blockdevices"`
+	}
+
+	var foundBlockDevice *blockDevice
 	for i := 0; i < 120; i++ {
 		if !sleepCtx(ctx, 500*time.Millisecond) {
 			break
 		}
-		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", device, "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE").Output()
+		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE").Output()
 		if err != nil {
-			continue
-		}
-		log.Debugf("lsblk %q %q: %s", volumeARN, device, string(lsblkJSON))
-		var blockDevices struct {
-			BlockDevices []struct {
-				Name     string `json:"name"`
-				Serial   string `json:"serial"`
-				Path     string `json:"path"`
-				Type     string `json:"type"`
-				FsType   string `json:"fstype"`
-				Children []struct {
-					Name   string `json:"name"`
-					Path   string `json:"path"`
-					Type   string `json:"type"`
-					FsType string `json:"fstype"`
-				} `json:"children"`
-			} `json:"blockdevices"`
+			return nil, err
 		}
 		if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
 			log.Warnf("lsblk parsing error: %v", err)
 			continue
 		}
 		for _, bd := range blockDevices.BlockDevices {
-			fsType := string(bytes.TrimSpace(fsTypeBuf))
-			if fsType == "ext2" || fsType == "ext3" || fsType == "ext4" || fsType == "xfs" {
+			if serialNumber != nil {
+				if bd.Serial == *serialNumber {
+					foundBlockDevice = &bd
+					break
+				}
+			} else if bd.Path == device {
+				foundBlockDevice = &bd
+			}
+		}
+
+		if foundBlockDevice != nil {
+			break
+		}
+	}
+	if foundBlockDevice == nil {
+		return nil, fmt.Errorf("could not find the block device for volume %q", volumeARN)
+	}
+
+	var partitions []devicePartition
+	for i := 0; i < 5; i++ {
+		_, _ = exec.CommandContext(ctx, "udevadm", "settle", "--timeout=1").CombinedOutput()
+		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", foundBlockDevice.Path, "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE").Output()
+		if err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
+			log.Warnf("lsblk parsing error: %v", err)
+			continue
+		}
+		if len(blockDevices.BlockDevices) != 1 {
+			continue
+		}
+		for _, part := range blockDevices.BlockDevices[0].Children {
+			if part.FsType == "ext2" || part.FsType == "ext3" || part.FsType == "ext4" || part.FsType == "xfs" {
 				partitions = append(partitions, devicePartition{
-					devicePath: partitionDevPath,
-					fsType:     fsType,
+					devicePath: part.Path,
+					fsType:     part.FsType,
 				})
 			}
 		}
-		break
+		if len(partitions) > 0 {
+			break
+		}
+		if !sleepCtx(ctx, 100*time.Millisecond) {
+			break
+		}
 	}
-
 	if len(partitions) == 0 {
-		err = fmt.Errorf("could not find any ext4 or xfs devicePartition in the snapshot %q", snapshotARN)
-		return
+		return nil, fmt.Errorf("could not find any ext2, ext3, ext4 or xfs partition in the snapshot %q", volumeARN)
 	}
 
+	log.Debugf("found %d compatible partitions for device %q", len(partitions), device)
+	return partitions, nil
 }
 
-func mountDevice(ctx context.Context, snapshotARN arn.ARN, device string) (mountPoints []string, cleanupMount func(context.Context), err error) {
+func mountDevice(ctx context.Context, snapshotARN arn.ARN, partitions []devicePartition) (mountPoints []string, cleanupMount func(context.Context), err error) {
 	var cleanups []func(context.Context)
 	pushCleanup := func(cleanup func(context.Context)) {
 		cleanups = append(cleanups, cleanup)
@@ -2265,7 +2332,10 @@ func mountDevice(ctx context.Context, snapshotARN arn.ARN, device string) (mount
 		}
 	}
 
-	_, snapshotID, _ := getARNResource(snapshotARN)
+	_, snapshotID, err := getARNResource(snapshotARN)
+	if err != nil {
+		return
+	}
 
 	pushCleanup(func(_ context.Context) {
 		baseMountTarget := fmt.Sprintf("/snapshots/%s", snapshotID)
@@ -2317,9 +2387,10 @@ func mountDevice(ctx context.Context, snapshotARN arn.ARN, device string) (mount
 			log.Debugf("un-mounting %s", mountPoint)
 			for i := 0; i < 10; i++ {
 				umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountPoint).CombinedOutput()
-				if err != nil {
-					log.Warnf("could not umount %s: %s:\n%s", mountPoint, err, string(umountOuput))
+				if err == nil {
+					break
 				}
+				log.Warnf("could not umount %s: %s: %s", mountPoint, err, string(umountOuput))
 				if !sleepCtx(ctx, 3*time.Second) {
 					break
 				}
