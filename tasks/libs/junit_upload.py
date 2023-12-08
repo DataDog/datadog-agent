@@ -164,14 +164,15 @@ def junit_upload_from_tgz(junit_tgz, codeowners_path=".github/CODEOWNERS"):
             tempdirs.append(output_dir)
 
         # wait for the processes created to finish
-        for process in processes:
-            exit_code = process.wait()
-            if exit_code != 0:
-                raise subprocess.CalledProcessError(exit_code, DATADOG_CI_COMMAND)
-
-        # ensure the temporary directories created for each xml files are cleaned up
-        for dir in tempdirs:
-            dir.cleanup()
+        try:
+            for process in processes:
+                exit_code = process.wait()
+                if exit_code != 0:
+                    raise subprocess.CalledProcessError(exit_code, DATADOG_CI_COMMAND)
+        finally:
+            # ensure the temporary directories created for each xml files are cleaned up
+            for dir in tempdirs:
+                dir.cleanup()
 
         xmlcounts[junit_tgz] = xmls
 
