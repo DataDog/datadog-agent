@@ -63,12 +63,10 @@ func (p *Probe) Start() error {
 	go func() {
 		defer p.wg.Done()
 
-		var (
-			pce *model.ProcessCacheEntry
-		)
-
 		for {
+			var pce *model.ProcessCacheEntry
 			ev := p.zeroEvent()
+
 			select {
 			case <-p.ctx.Done():
 				return
@@ -79,7 +77,7 @@ func (p *Probe) Start() error {
 					continue
 				}
 
-				log.Tracef("Received start %v", start)
+				log.Debugf("Received start indication for process %v", start.Pid)
 
 				ppid, err := procutil.GetParentPid(pid)
 				if err != nil {
@@ -100,9 +98,9 @@ func (p *Probe) Start() error {
 					// TODO this shouldn't happen
 					continue
 				}
-				log.Infof("Received stop %v", stop)
+				log.Debugf("Received stop indication for process %v", stop.Pid)
 
-				pce := p.resolvers.ProcessResolver.GetEntry(pid)
+				pce = p.resolvers.ProcessResolver.GetEntry(pid)
 				defer p.resolvers.ProcessResolver.DeleteEntry(pid, time.Now())
 
 				ev.Type = uint32(model.ExitEventType)
