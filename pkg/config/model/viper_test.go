@@ -250,7 +250,7 @@ func TestSourceFileReadConfig(t *testing.T) {
 foo: bar
 `)
 
-	tempfile, err := os.CreateTemp("/tmp", "test-*.yaml")
+	tempfile, err := os.CreateTemp("", "test-*.yaml")
 	assert.NoError(t, err, "failed to create temporary file")
 	tempfile.Write(yamlExample)
 	defer os.Remove(tempfile.Name())
