@@ -1571,6 +1571,7 @@ func (rt *awsClientStats) getAction(req *http.Request) (service, action string, 
 }
 
 func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
+	startTime := time.Now()
 	service, action, err := rt.getAction(req)
 	if err != nil {
 		return nil, err
@@ -1596,9 +1597,8 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 	if err := statsd.Incr("datadog.sidescanner.aws.requests", tags, 1.0); err != nil {
 		log.Warnf("failed to send metric: %v", err)
 	}
-	now := time.Now()
 	resp, err := rt.transport.RoundTrip(req)
-	duration := float64(time.Since(now).Milliseconds())
+	duration := float64(time.Since(startTime).Milliseconds())
 	if resp != nil {
 		tags = append(tags, fmt.Sprintf("aws_statuscode:%d", resp.StatusCode))
 	} else {
