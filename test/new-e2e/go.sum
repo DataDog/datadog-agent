@@ -16,6 +16,16 @@ github.com/DataDog/test-infra-definitions v0.0.0-20231207152810-aa1982fa029c h1:
 github.com/DataDog/test-infra-definitions v0.0.0-20231207152810-aa1982fa029c/go.mod h1:UC141BOfnKPiHRjlEJQf9TnkNkhFO/LPas1MrjEn1FI=
 github.com/DataDog/test-infra-definitions v0.0.0-20231207181645-d8f0ff6c11e7 h1:N9RTu1WYIgWZzzvBr76Rl9s3nOo4bEScya66tuyKAhw=
 github.com/DataDog/test-infra-definitions v0.0.0-20231207181645-d8f0ff6c11e7/go.mod h1:UC141BOfnKPiHRjlEJQf9TnkNkhFO/LPas1MrjEn1FI=
+github.com/DataDog/test-infra-definitions v0.0.0-20231208174353-2fd5907c4ca3 h1:YQ/vWKipdP2GhubNm08BflUipeT2+PGbW/OQ0JweKrg=
+github.com/DataDog/test-infra-definitions v0.0.0-20231208174353-2fd5907c4ca3/go.mod h1:UC141BOfnKPiHRjlEJQf9TnkNkhFO/LPas1MrjEn1FI=
+github.com/DataDog/test-infra-definitions v0.0.0-20231208180911-d53b6bd28a0b h1:aOFUNk+UI44crAz5JIIap2iPKV6daR19Rdq88DnuyBI=
+github.com/DataDog/test-infra-definitions v0.0.0-20231208180911-d53b6bd28a0b/go.mod h1:UC141BOfnKPiHRjlEJQf9TnkNkhFO/LPas1MrjEn1FI=
+github.com/DataDog/test-infra-definitions v0.0.0-20231208181138-cf004e4c1ca0 h1:l0KbRbwfQsXLRYuZHITFI+K/aMMjMkpt515Bw6PbiQk=
+github.com/DataDog/test-infra-definitions v0.0.0-20231208181138-cf004e4c1ca0/go.mod h1:UC141BOfnKPiHRjlEJQf9TnkNkhFO/LPas1MrjEn1FI=
+github.com/DataDog/test-infra-definitions v0.0.0-20231208183040-ffa69245a469 h1:+YSPnIXh5/4mt8KSmLxYVLqpY92rYlEJXfPOJZcicSs=
+github.com/DataDog/test-infra-definitions v0.0.0-20231208183040-ffa69245a469/go.mod h1:UC141BOfnKPiHRjlEJQf9TnkNkhFO/LPas1MrjEn1FI=
+github.com/DataDog/test-infra-definitions v0.0.0-20231208183219-5492e1306678 h1:21gnT3ixuv5xpsLUYmY0xcGu/SBL/UVjc8u3rITF96k=
+github.com/DataDog/test-infra-definitions v0.0.0-20231208183219-5492e1306678/go.mod h1:UC141BOfnKPiHRjlEJQf9TnkNkhFO/LPas1MrjEn1FI=
 github.com/DataDog/zstd v1.5.2 h1:vUG4lAyuPCXO0TLbXvPv7EB7cNK1QV/luu55UHLrrn8=
 github.com/DataDog/zstd v1.5.2/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/DataDog/zstd_0 v0.0.0-20210310093942-586c1286621f h1:5Vuo4niPKFkfwW55jV4vY0ih3VQ9RaQqeqY67fvRn8A=
