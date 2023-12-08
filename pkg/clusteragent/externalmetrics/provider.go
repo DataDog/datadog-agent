@@ -115,6 +115,7 @@ func NewDatadogMetricProvider(ctx context.Context, apiCl *apiserver.APIClient) (
 	return provider, nil
 }
 
+//nolint:revive // TODO(CINT) Fix revive linter
 func (p *datadogMetricProvider) GetExternalMetric(ctx context.Context, namespace string, metricSelector labels.Selector, info provider.ExternalMetricInfo) (*external_metrics.ExternalMetricValueList, error) {
 	startTime := time.Now()
 	res, err := p.getExternalMetric(namespace, metricSelector, info)

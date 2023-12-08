@@ -498,6 +498,7 @@ func (r *defaultResolver) getProcs(ctx context.Context) ([]*process.Process, err
 	return r.procsCache, nil
 }
 
+//nolint:revive // TODO(CSPM) Fix revive linter
 func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup) (interface{}, error) {
 	f, err := os.Open(r.pathNormalizeToHostRoot("/etc/group"))
 	if err != nil {
@@ -532,6 +533,7 @@ func (r *defaultResolver) resolveGroup(ctx context.Context, spec InputSpecGroup)
 	return nil, nil
 }
 
+//nolint:revive // TODO(CSPM) Fix revive linter
 func (r *defaultResolver) resolveAudit(ctx context.Context, spec InputSpecAudit) (interface{}, error) {
 	cl := r.linuxAuditCl
 	if cl == nil {
