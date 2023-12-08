@@ -18,4 +18,4 @@ profiling_environment:
   DD_PROFILING_EXECUTION_TRACE_PERIOD: 1m
   DD_PROFILING_WAIT_PROFILE: true
 
-  DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:checks_churn
+  DD_INTERNAL_PROFILING_EXTRA_TAGS: experiment:basic_py_check
