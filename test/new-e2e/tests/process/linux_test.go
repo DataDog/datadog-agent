@@ -13,38 +13,36 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+	awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
 )
 
 type linuxTestSuite struct {
-	e2e.Suite[e2e.FakeIntakeEnv]
+	e2e.BaseSuite[environments.VM]
 }
 
 func TestLinuxTestSuite(t *testing.T) {
-	e2e.Run(t, &linuxTestSuite{},
-		e2e.FakeIntakeStackDef(
-			e2e.WithAgentParams(agentparams.WithAgentConfig(processCheckConfigStr))))
+	e2e.Run(t, &linuxTestSuite{}, e2e.WithProvisioner(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig(processCheckConfigStr)))))
 }
 
 func (s *linuxTestSuite) SetupSuite() {
-	s.Suite.SetupSuite()
-
 	// Start a process and keep it running
-	s.Env().VM.Execute("sudo apt-get -y install stress")
-	s.Env().VM.Execute("nohup stress -d 1 >myscript.log 2>&1 </dev/null &")
+	s.Env().Host.Execute("sudo apt-get -y install stress")
+	s.Env().Host.Execute("nohup stress -d 1 >myscript.log 2>&1 </dev/null &")
 }
 
 func (s *linuxTestSuite) TestProcessCheck() {
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, false)
+		assertRunningChecks(collect, s.Env().Host, []string{"process", "rtprocess"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
-		payloads, err = s.Env().Fakeintake.GetProcesses()
+		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
@@ -55,19 +53,17 @@ func (s *linuxTestSuite) TestProcessCheck() {
 }
 
 func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
-	s.UpdateEnv(e2e.FakeIntakeStackDef(
-		e2e.WithAgentParams(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr))))
-
+	s.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr))))
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().VM, []string{"process_discovery"}, false)
+		assertRunningChecks(collect, s.Env().Host, []string{"process_discovery"}, false)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessDiscoveryPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
-		payloads, err = s.Env().Fakeintake.GetProcessDiscoveries()
+		payloads, err = s.Env().FakeIntake.Client().GetProcessDiscoveries()
 		assert.NoError(c, err, "failed to get process discovery payloads from fakeintake")
 		assert.NotEmpty(c, payloads, "no process discovery payloads returned")
 	}, 2*time.Minute, 10*time.Second)
@@ -76,24 +72,21 @@ func (s *linuxTestSuite) TestProcessDiscoveryCheck() {
 }
 
 func (s *linuxTestSuite) TestProcessCheckWithIO() {
-	s.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(
-		agentparams.WithAgentConfig(processCheckConfigStr),
-		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
-	)))
+	s.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
 
 	// Flush fake intake to remove payloads that won't have IO stats
-	s.Env().Fakeintake.FlushServerAndResetAggregators()
+	s.Env().FakeIntake.Client().FlushServerAndResetAggregators()
 
 	t := s.T()
 
 	assert.EventuallyWithT(t, func(collect *assert.CollectT) {
-		assertRunningChecks(collect, s.Env().VM, []string{"process", "rtprocess"}, true)
+		assertRunningChecks(collect, s.Env().Host, []string{"process", "rtprocess"}, true)
 	}, 1*time.Minute, 5*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		var err error
-		payloads, err = s.Env().Fakeintake.GetProcesses()
+		payloads, err = s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
@@ -104,27 +97,21 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 }
 
 func (s *linuxTestSuite) TestManualProcessCheck() {
-	check := s.Env().VM.
-		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+	check := s.Env().Host.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
 
 	assertManualProcessCheck(s.T(), check, false)
 }
 
 func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
-	check := s.Env().VM.
-		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
+	check := s.Env().Host.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
 
 	assertManualProcessDiscoveryCheck(s.T(), check)
 }
 
 func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
-	s.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(
-		agentparams.WithAgentConfig(processCheckConfigStr),
-		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
-	)))
+	s.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig(processDiscoveryCheckConfigStr), agentparams.WithSystemProbeConfig(systemProbeConfigStr))))
 
-	check := s.Env().VM.
-		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+	check := s.Env().Host.MustExecute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
 
 	assertManualProcessCheck(s.T(), check, true)
 }

@@ -49,13 +49,25 @@
     "centos": {
         "x86_64": {
             "centos-610": "ami-0506f01ccb6dddeda",
-            "centos-79": "ami-0aedf6b1cb669b4c7",
-            "rhel-86": "ami-06640050dc3f556bb",
+            "centos-79": "ami-0aedf6b1cb669b4c7"
+        },
+        "arm64": {
+            "centos-79": "ami-0144a5a84f5699847"
+        }
+    },
+    "redhat": {
+        "x86_64": {
+            "rhel-86": "ami-06640050dc3f556bb"
+        },
+        "arm64": {
+            "rhel-86": "ami-0238411fb452f8275"
+        }
+    },
+    "rocky-linux": {
+        "x86_64": {
             "rocky-92": "ami-062b16ca222175b97"
         },
         "arm64": {
-            "centos-79": "ami-0144a5a84f5699847",
-            "rhel-86": "ami-0238411fb452f8275"
         }
     },
     "suse": {

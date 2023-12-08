@@ -32,12 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/components"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-<<<<<<< HEAD
-||||||| parent of d1d7241954 (Adapt existing tests to new code)
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
-=======
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client/agentclient"
->>>>>>> d1d7241954 (Adapt existing tests to new code)
 )
 
 type multiFakeIntakeEnv struct {

@@ -25,8 +25,6 @@ import (
 
 	osComp "github.com/DataDog/test-infra-definitions/components/os"
 	"github.com/DataDog/test-infra-definitions/scenarios/aws/ec2"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-	"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
 
 	"github.com/stretchr/testify/require"
 )
@@ -55,20 +53,11 @@ func TestInstallScript(t *testing.T) {
 	cwsSupportedOsVersionList := strings.Split(*cwsSupportedOsVersion, ",")
 
 	fmt.Println("Parsed platform json file: ", platformJSON)
-
-	vmOpts := []ec2params.Option{}
 	for _, osVers := range osVersions {
 		osVers := osVers
 		if platformJSON[*platform][*architecture][osVers] == "" {
 			// Fail if the image is not defined instead of silently running with default Ubuntu AMI
 			t.Fatalf("No image found for %s %s %s", *platform, *architecture, osVers)
-		}
-
-		var testOsType ec2os.Type
-		for osName, osType := range osMapping {
-			if strings.Contains(osVers, osName) {
-				testOsType = osType
-			}
 		}
 
 		cwsSupported := false
@@ -78,23 +67,22 @@ func TestInstallScript(t *testing.T) {
 			}
 		}
 
-		vmOpts = append(vmOpts, ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], testOsType))
+		vmOpts := []ec2.VMOption{}
 		if instanceType, ok := os.LookupEnv("E2E_OVERRIDE_INSTANCE_TYPE"); ok {
-			vmOpts = append(vmOpts, ec2params.WithInstanceType(instanceType))
+			vmOpts = append(vmOpts, ec2.WithInstanceType(instanceType))
 		}
-		
+
 		t.Run(fmt.Sprintf("test install script on %s %s %s agent %s", osVers, *architecture, *flavor, *majorVersion), func(tt *testing.T) {
 			tt.Parallel()
 			fmt.Printf("Testing %s", osVers)
 			osDesc := osComp.NewDescriptorWithArch(osComp.NewFlavorFromString(*platform), osVers, osComp.NewArchitectureFromString(*architecture))
+			vmOpts = append(vmOpts, ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture))
 
 			e2e.Run(tt,
 				&installScriptSuite{cwsSupported: cwsSupported},
 				e2e.WithProvisioner(awsvm.Provisioner(
 					awsvm.WithoutAgent(),
-					awsvm.WithEC2VMOptions(
-						ec2.WithAMI(platformJSON[*platform][*architecture][osVers], osDesc, osDesc.Architecture),
-					),
+					awsvm.WithEC2VMOptions(vmOpts...),
 				)),
 				e2e.WithStackName(fmt.Sprintf("install-script-test-%v-%v-%s-%s-%v", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture, *flavor, *majorVersion)),
 			)

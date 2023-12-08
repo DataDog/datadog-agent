@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"time"
 
@@ -43,6 +44,11 @@ func (h *Host) Init(ctx e2e.Context) error {
 		return err
 	}
 
+	privateKeyPassword, err := runner.GetProfile().SecretStore().GetWithDefault(parameters.PrivateKeyPassword, "")
+	if err != nil {
+		return err
+	}
+
 	if privateKeyPath != "" {
 		privateSSHKey, err = os.ReadFile(privateKeyPath)
 		if err != nil {
@@ -54,6 +60,7 @@ func (h *Host) Init(ctx e2e.Context) error {
 		h.Username,
 		fmt.Sprintf("%s:%d", h.Host, 22),
 		privateSSHKey,
+		[]byte(privateKeyPassword),
 		sshRetryInterval,
 		sshMaxRetries,
 	)
@@ -96,6 +103,51 @@ func (h *Host) CopyFile(src string, dst string) {
 func (h *Host) CopyFolder(srcFolder string, dstFolder string) {
 	err := clients.CopyFolder(h.client, srcFolder, dstFolder)
 	require.NoError(h.context.T(), err)
+}
+
+// FileExists returns true if the file exists and is a regular file and returns an error if any
+func (h *Host) FileExists(path string) (bool, error) {
+	return clients.FileExists(h.client, path)
+}
+
+// ReadFile reads the content of the file, return bytes read and error if any
+func (h *Host) ReadFile(path string) ([]byte, error) {
+	return clients.ReadFile(h.client, path)
+}
+
+// WriteFile write content to the file and returns the number of bytes written and error if any
+func (h *Host) WriteFile(path string, content []byte) (int64, error) {
+	return clients.WriteFile(h.client, path, content)
+}
+
+// ReadDir returns list of directory entries in path
+func (h *Host) ReadDir(path string) ([]fs.DirEntry, error) {
+	return clients.ReadDir(h.client, path)
+}
+
+// Lstat returns a FileInfo structure describing path.
+// if path is a symbolic link, the FileInfo structure describes the symbolic link.
+func (h *Host) Lstat(path string) (fs.FileInfo, error) {
+	return clients.Lstat(h.client, path)
+}
+
+// MkdirAll creates the specified directory along with any necessary parents.
+// If the path is already a directory, does nothing and returns nil.
+// Otherwise returns an error if any.
+func (h *Host) MkdirAll(path string) error {
+	return clients.MkdirAll(h.client, path)
+}
+
+// Remove removes the specified file or directory.
+// Returns an error if file or directory does not exist, or if the directory is not empty.
+func (h *Host) Remove(path string) error {
+	return clients.Remove(h.client, path)
+}
+
+// RemoveAll recursively removes all files/folders in the specified directory.
+// Returns an error if the directory does not exist.
+func (h *Host) RemoveAll(path string) error {
+	return clients.RemoveAll(h.client, path)
 }
 
 func (h *Host) buildEnvVariables(command string, envVar EnvVar) string {
