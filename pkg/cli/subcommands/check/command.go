@@ -31,13 +31,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks/inventorychecksimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/integration"
@@ -48,10 +50,11 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	statuscollector "github.com/DataDog/datadog-agent/pkg/status/collector"
 	"github.com/DataDog/datadog-agent/pkg/status/render"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -128,7 +131,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName)),
 					SecretParams:         secrets.NewEnabledParams(),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true)}),
+					LogParams:            logimpl.ForOneShot(globalParams.LoggerName, "off", true)}),
 				core.Bundle,
 
 				workloadmeta.Module,
@@ -137,6 +140,13 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(context.Background()),
 
 				forwarder.Bundle,
+				inventorychecksimpl.Module,
+				// inventorychecksimpl depends on a collector and serializer when created to send payload.
+				// Here we just want to collect metadata to be displayed, so we don't need a collector.
+				fx.Provide(func() optional.Option[collector.Collector] {
+					return optional.NewNoneOption[collector.Collector]()
+				}),
+				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
 				demultiplexer.Module,
 				orchestratorForwarderImpl.Module,
@@ -188,7 +198,15 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func run(config config.Component, cliParams *cliParams, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component, agentAPI internalAPI.Component) error {
+func run(
+	config config.Component,
+	cliParams *cliParams,
+	demultiplexer demultiplexer.Component,
+	wmeta workloadmeta.Component,
+	secretResolver secrets.Component,
+	agentAPI internalAPI.Component,
+	invChecks inventorychecks.Component,
+) error {
 	previousIntegrationTracing := false
 	previousIntegrationTracingExhaustive := false
 	if cliParams.generateIntegrationTraces {
@@ -209,6 +227,9 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 		cliParams.cmd.Help() //nolint:errcheck
 		return nil
 	}
+
+	// TODO: (components) - Until the checks are components we set there context so they can depends on components.
+	check.InitializeInventoryChecksContext(invChecks)
 
 	common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 	common.AC.LoadAndRun(context.Background())
@@ -383,9 +404,9 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 	checkRuns := collectorData["runnerStats"].(map[string]interface{})["Checks"].(map[string]interface{})
 	for _, c := range cs {
 		s := runCheck(cliParams, c, printer)
-		check := make(map[checkid.ID]*stats.Stats)
-		check[c.ID()] = s
-		checkRuns[c.String()] = check
+		checkMap := make(map[checkid.ID]*stats.Stats)
+		checkMap[c.ID()] = s
+		checkRuns[c.String()] = checkMap
 
 		// Sleep for a while to allow the aggregator to finish ingesting all the metrics/events/sc
 		time.Sleep(time.Duration(cliParams.checkDelay) * time.Millisecond)
@@ -465,12 +486,14 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 			checkStatus, _ := render.FormatCheckStats(statusJSON)
 			p(checkStatus)
 
-			metadata := inventories.GetCheckMetadata(c)
-			if metadata != nil {
-				p("  Metadata\n  ========")
-				for k, v := range *metadata {
-					p(fmt.Sprintf("    %s: %v", k, v))
-				}
+			p("  Metadata\n  ========")
+
+			metadata := check.GetMetadata(c, false)
+			for k, v := range metadata {
+				p(fmt.Sprintf("    %s: %v", k, v))
+			}
+			for k, v := range invChecks.GetInstanceMetadata(string(c.ID())) {
+				p(fmt.Sprintf("    %s: %v", k, v))
 			}
 		}
 	}
@@ -511,6 +534,7 @@ func run(config config.Component, cliParams *cliParams, demultiplexer demultiple
 	return nil
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func runCheck(cliParams *cliParams, c check.Check, demux aggregator.Demultiplexer) *stats.Stats {
 	s := stats.NewStats(c)
 	times := cliParams.checkTimes

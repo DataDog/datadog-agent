@@ -14,7 +14,7 @@ import (
 	"github.com/DataDog/gopsutil/process"
 )
 
-// MINIMUM_JAVA_AGE_TO_ATTACH_MS is the minimum age of a java process to be able to attach it
+// minJavaAgeToAttachMS is the minimum age of a java process to be able to attach it
 // else the java process would crash if he receives the SIGQUIT too early ("Signal Dispatch" thread is not ready)
 // In other words that the only reliable safety thing we could check to assume a java process started (System.main execution)
 // Looking a proc/pid/status.Thread numbers is not reliable as it depend on numbers of cores and JRE version/implementation
@@ -22,18 +22,19 @@ import (
 // The issue is described here https://bugs.openjdk.org/browse/JDK-8186709 see Kevin Walls comment
 // if java received a SIGQUIT and the JVM is not started yet, java will print 'quit (core dumped)'
 // SIGQUIT is sent as part of the hotspot protocol handshake
-const MINIMUM_JAVA_AGE_TO_ATTACH_MS = 10000
+const minJavaAgeToAttachMS = 10000
 
-func injectAttach(pid int, agent string, args string, nsPid int, fsUid int, fsGid int) error {
+func injectAttach(pid int, agent, args string, nsPid, fsUID, fsGID int) error {
 	h, err := NewHotspot(pid, nsPid)
 	if err != nil {
 		return err
 	}
 
-	return h.Attach(agent, args, fsUid, fsGid)
+	return h.Attach(agent, args, fsUID, fsGID)
 }
 
-func InjectAgent(pid int, agent string, args string) error {
+// InjectAgent injects the given agent into the given java process
+func InjectAgent(pid int, agent, args string) error {
 	proc, err := process.NewProcess(int32(pid))
 	if err != nil {
 		return err
@@ -52,12 +53,12 @@ func InjectAgent(pid int, agent string, args string) error {
 	fsUID, fsGID := int(uids[3]), int(gids[3])
 
 	ctime, _ := proc.CreateTime()
-	age_ms := time.Now().UnixMilli() - ctime
-	if age_ms < MINIMUM_JAVA_AGE_TO_ATTACH_MS {
-		log.Debugf("java attach pid %d will be delayed by %d ms", pid, MINIMUM_JAVA_AGE_TO_ATTACH_MS-age_ms)
+	ageMs := time.Now().UnixMilli() - ctime
+	if ageMs < minJavaAgeToAttachMS {
+		log.Debugf("java attach pid %d will be delayed by %d ms", pid, minJavaAgeToAttachMS-ageMs)
 		// wait and inject the agent asynchronously
 		go func() {
-			time.Sleep(time.Duration(MINIMUM_JAVA_AGE_TO_ATTACH_MS-age_ms) * time.Millisecond)
+			time.Sleep(time.Duration(minJavaAgeToAttachMS-ageMs) * time.Millisecond)
 			if err := injectAttach(pid, agent, args, int(proc.NsPid), fsUID, fsGID); err != nil {
 				log.Errorf("java attach pid %d failed %s", pid, err)
 			}

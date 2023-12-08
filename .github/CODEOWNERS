@@ -40,6 +40,7 @@
 /.github/CODEOWNERS                                 # do not notify anyone
 /.github/*_TEMPLATE.md                              @DataDog/agent-all
 /.github/dependabot.yaml                            @DataDog/agent-platform
+/.github/workflows/serverless-benchmarks.yml        @DataDog/serverless
 /.github/workflows/serverless-binary-size.yml       @DataDog/serverless
 /.github/workflows/serverless-integration.yml       @DataDog/serverless
 /.github/workflows/windows-*.yml                    @DataDog/windows-agent
@@ -209,9 +210,11 @@
 /comp @DataDog/agent-shared-components
 /comp/aggregator @DataDog/agent-shared-components
 /comp/api @DataDog/agent-shared-components
+/comp/apm/etwtracer @DataDog/windows-agent
 /comp/checks @DataDog/agent-shared-components
 /comp/core @DataDog/agent-shared-components
 /comp/dogstatsd @DataDog/agent-metrics-logs
+/comp/etw @DataDog/windows-agent
 /comp/forwarder @DataDog/agent-shared-components
 /comp/languagedetection @DataDog/container-integrations
 /comp/logs @DataDog/agent-metrics-logs
@@ -303,7 +306,6 @@
 /pkg/config/apm.go                      @DataDog/agent-apm
 /pkg/config/autodiscovery/              @Datadog/container-integrations
 /pkg/config/env                         @DataDog/container-integrations @DataDog/container-app
-/pkg/config/env/ipc_address*            @DataDog/agent-shared-components
 /pkg/config/logs                        @Datadog/agent-shared-components @Datadog/agent-platform
 /pkg/config/logs/internal/seelog/seelog_config.go          @Datadog/agent-shared-components
 /pkg/config/process*.go                 @DataDog/processes
@@ -383,6 +385,7 @@
 /pkg/network/                           @DataDog/Networks
 /pkg/network/*usm*                      @DataDog/universal-service-monitoring
 /pkg/network/*_windows*.go              @DataDog/windows-kernel-integrations
+/pkg/network/config/config_test.go      @DataDog/Networks @DataDog/universal-service-monitoring @DataDog/windows-kernel-integrations
 /pkg/network/driver_*.go                @DataDog/windows-kernel-integrations
 /pkg/network/dns/*_windows*.go          @DataDog/windows-kernel-integrations
 /pkg/network/driver/                    @DataDog/windows-kernel-integrations

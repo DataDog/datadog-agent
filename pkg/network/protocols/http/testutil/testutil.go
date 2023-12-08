@@ -63,6 +63,7 @@ func setNetIPV4TCPTimestamp(t *testing.T, enable bool) {
 	}
 }
 
+// SetupNetIPV4TCPTimestamp sets the net.ipv4.tcp_timestamps to the provided value.
 func SetupNetIPV4TCPTimestamp(t *testing.T, enable bool) {
 	oldTCPTS := isNetIPV4TCPTimestampEnabled(t)
 	setNetIPV4TCPTimestamp(t, enable)
@@ -163,6 +164,7 @@ func StatusFromPath(path string) uint16 {
 	return 0
 }
 
+// CurDir returns the current directory of the caller.
 func CurDir() (string, error) {
 	_, file, _, ok := runtime.Caller(1)
 	if !ok {

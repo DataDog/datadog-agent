@@ -102,3 +102,29 @@ func (s *linuxTestSuite) TestProcessCheckWithIO() {
 
 	assertStressProcessCollected(t, payloads, true)
 }
+
+func (s *linuxTestSuite) TestManualProcessCheck() {
+	check := s.Env().VM.
+		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+
+	assertManualProcessCheck(s.T(), check, false)
+}
+
+func (s *linuxTestSuite) TestManualProcessDiscoveryCheck() {
+	check := s.Env().VM.
+		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process_discovery --json")
+
+	assertManualProcessDiscoveryCheck(s.T(), check)
+}
+
+func (s *linuxTestSuite) TestManualProcessCheckWithIO() {
+	s.UpdateEnv(e2e.FakeIntakeStackDef(e2e.WithAgentParams(
+		agentparams.WithAgentConfig(processCheckConfigStr),
+		agentparams.WithSystemProbeConfig(systemProbeConfigStr),
+	)))
+
+	check := s.Env().VM.
+		Execute("sudo /opt/datadog-agent/embedded/bin/process-agent check process --json")
+
+	assertManualProcessCheck(s.T(), check, true)
+}

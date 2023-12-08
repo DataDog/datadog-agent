@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 const kProbeTelemetryName = "ebpf__probes"
 
 type profileType byte

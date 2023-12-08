@@ -20,7 +20,6 @@ import (
 	"github.com/cihub/seelog"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/features"
-	libnetlink "github.com/mdlayher/netlink"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sys/unix"
 
@@ -92,13 +91,7 @@ func NewEBPFConntracker(cfg *config.Config, bpfTelemetry *nettelemetry.EBPFTelem
 		return nil, fmt.Errorf("ebpf conntracker is disabled")
 	}
 
-	// dial the netlink layer aim to load nf_conntrack_netlink and nf_conntrack kernel modules
-	// eBPF conntrack require nf_conntrack symbols
-	conn, err := libnetlink.Dial(unix.NETLINK_NETFILTER, nil)
-	if err == nil {
-		conn.Close()
-	}
-
+	var err error
 	var buf bytecode.AssetReader
 	if cfg.EnableRuntimeCompiler {
 		buf, err = ebpfConntrackerRCCreator(cfg)
