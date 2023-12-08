@@ -238,7 +238,6 @@ def _destroy_stack(ctx: Context, stack: str):
             # run with refresh on first destroy attempt failure
             ctx.run(
                 f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
-                pty=True,
                 warn=True,
                 hide=True,
             )
