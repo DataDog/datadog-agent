@@ -18,7 +18,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/coreos/go-systemd/dbus"
+	"github.com/coreos/go-systemd/v22/dbus"
 	godbus "github.com/godbus/dbus/v5"
 )
 
