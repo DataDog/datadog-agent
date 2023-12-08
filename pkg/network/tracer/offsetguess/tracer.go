@@ -38,7 +38,7 @@ import (
 )
 
 const (
-	//nolint:revive // TODO(NET) Fix revive linter
+	// InterfaceLocalMulticastIPv6 is a destination IPv6 address used for offset guessing
 	InterfaceLocalMulticastIPv6 = "ff01::1"
 	listenIPv4                  = "127.0.0.2"
 
