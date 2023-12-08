@@ -38,7 +38,7 @@ To build the Agent you need:
       file for a smooth development/build experience.
 
 **Note:** You can enable auto completion for invoke tasks, to do this you can simply add the following line to your `.zshrc` file with 
-      `echo "source <(inv --print-completion-script zsh)" > ~/.zshrc`
+      `echo "source <(inv --print-completion-script zsh)" >> ~/.zshrc`
 
 Builds and tests are orchestrated with `invoke`, type `invoke --list` on a shell
 to see the available tasks.
