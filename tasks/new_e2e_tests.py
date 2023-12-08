@@ -245,7 +245,7 @@ def _destroy_stack(ctx: Context, stack: str):
 
 
 def _remove_stack(ctx: Context, stack: str):
-    ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack}", pty=True, hide=True)
+    ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack}",  hide=True)
 
 
 def _get_pulumi_about(ctx: Context) -> dict:
