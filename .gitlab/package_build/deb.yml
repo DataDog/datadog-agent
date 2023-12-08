@@ -88,7 +88,7 @@ agent_deb-x64-a7-fleet:
     DESTINATION_DBG_DEB: 'datadog-agent-dbg_7_amd64.deb'
   before_script:
     - export RELEASE_VERSION=$RELEASE_VERSION_7
-    - export INSTALL_DIR=/opt/datadog-agent/v7.test
+    - export INSTALL_DIR=/opt/datadog/agents/$RELEASE_VERSION_7
 
 agent_deb-arm64-a6:
   extends: .agent_build_common_deb
