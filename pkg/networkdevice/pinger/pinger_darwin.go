@@ -4,12 +4,16 @@ package pinger
 
 import probing "github.com/prometheus-community/pro-bing"
 
-type MacPinger struct{}
+type MacPinger struct {
+	cfg Config
+}
 
-func NewPinger() Pinger {
-	return &MacPinger{}
+func NewPinger(cfg Config) Pinger {
+	return &MacPinger{
+		cfg: cfg,
+	}
 }
 
 func (p *MacPinger) Ping(host string) (*probing.Statistics, error) {
-	return RunPing(host, false)
+	return RunPing(&p.cfg, host, false)
 }

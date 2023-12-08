@@ -8,13 +8,23 @@ import (
 	probing "github.com/prometheus-community/pro-bing"
 )
 
-type LinuxPinger struct{}
+type LinuxPinger struct {
+	useRawSocket bool
+	cfg          Config
+}
 
-func NewPinger() Pinger {
-	return &LinuxPinger{}
+func NewPinger(useRawSocket bool, cfg Config) Pinger {
+	return &LinuxPinger{
+		useRawSocket: useRawSocket,
+		cfg:          cfg,
+	}
 }
 
 func (p *LinuxPinger) Ping(host string) (*probing.Statistics, error) {
+	if !p.useRawSocket {
+		return RunPing(&p.cfg, host, false)
+	}
+
 	tu, err := net.GetRemoteSystemProbeUtil("/opt/datadog-agent/run/sysprobe.sock") // TODO: read the system probe config here, get the default going
 	if err != nil {
 		log.Warnf("could not initialize system-probe connection: %v (will only log every 10 minutes)", err)

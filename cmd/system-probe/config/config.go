@@ -37,7 +37,7 @@ const (
 	EBPFModule                   ModuleName = "ebpf"
 	LanguageDetectionModule      ModuleName = "language_detection"
 	WindowsCrashDetectModule     ModuleName = "windows_crash_detection"
-	PingerModule                 ModuleName = "pinger"
+	PingModule                   ModuleName = "ping"
 )
 
 // Config represents the configuration options for the system-probe
@@ -161,6 +161,9 @@ func load() (*Config, error) {
 	if cfg.GetBool("system_probe_config.language_detection.enabled") {
 		c.EnabledModules[LanguageDetectionModule] = struct{}{}
 	}
+	if cfg.GetBool(pngNS("enabled")) {
+		c.EnabledModules[PingModule] = struct{}{}
+	}
 
 	if cfg.GetBool(wcdNS("enabled")) {
 		c.EnabledModules[WindowsCrashDetectModule] = struct{}{}
@@ -182,11 +185,6 @@ func load() (*Config, error) {
 
 // ModuleIsEnabled returns a bool indicating if the given module name is enabled.
 func (c Config) ModuleIsEnabled(modName ModuleName) bool {
-	// TODO: idk where this config is
-	if modName == PingerModule {
-		return true
-	}
-
 	_, ok := c.EnabledModules[modName]
 	return ok
 }

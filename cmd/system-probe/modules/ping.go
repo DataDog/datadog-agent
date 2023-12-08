@@ -15,11 +15,13 @@ import (
 	"google.golang.org/grpc"
 )
 
-type pinger struct{}
+type pinger struct {
+	config *pingcheck.Config
+}
 
 // Pinger is a factory for NDMs Ping module
 var Pinger = module.Factory{
-	Name:             config.PingerModule,
+	Name:             config.PingModule,
 	ConfigNamespaces: []string{"ping_config"},
 	Fn: func(cfg *config.Config) (module.Module, error) {
 		return &pinger{}, nil
@@ -41,8 +43,12 @@ func (p *pinger) Register(httpMux *module.Router) error {
 		id := getClientID(req)
 		host := vars["host"]
 
+		// TODO:(ken) read in config from system probe config and/or regular config
+		// read it in once to the pinger struct, pass it down here
+		cfg := pingcheck.Config{}
+
 		// Run privileged ping from system-probe
-		stats, err := pingcheck.RunPing(host, true)
+		stats, err := pingcheck.RunPing(&cfg, host, true)
 		if err != nil {
 			log.Errorf("unable to run ping for host %s: %s", host, err)
 			w.WriteHeader(500)

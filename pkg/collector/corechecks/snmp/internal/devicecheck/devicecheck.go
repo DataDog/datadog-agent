@@ -126,6 +126,15 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		log.Infof("%s: ping returned: %+v", d.config.IPAddress, pingStats)
 	}
 
+	// Run ping binary
+	log.Infof("ATTEMPTING BINARY BASED PING FOR HOST: %s", d.config.IPAddress)
+	binaryStats, err := pinger.CallSystemPing(d.config.IPAddress, 5)
+	if err != nil {
+		log.Errorf("%s: failed to use ping binary for device: %s", d.config.IPAddress, err)
+	} else {
+		log.Infof("%s: ping binary returned: %+v", d.config.IPAddress, binaryStats)
+	}
+
 	deviceReachable, dynamicTags, values, checkErr := d.getValuesAndTags()
 	tags := common.CopyStrings(staticTags)
 	if checkErr != nil {

@@ -1,22 +1,22 @@
 package pinger
 
 import (
-	"time"
-
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	probing "github.com/prometheus-community/pro-bing"
 )
 
-func RunPing(host string, privileged bool) (*probing.Statistics, error) {
-	log.Infof("Running ping for host: %s, privileged: %t\n", host, privileged)
+// RunPing creates a pinger for the requested host and sends the requested number of packets to it
+func RunPing(cfg *Config, host string, useRawSocket bool) (*probing.Statistics, error) {
+	log.Infof("Running ping for host: %s, useRawSocket: %t\n", host, useRawSocket)
 	pinger, err := probing.NewPinger(host)
 	if err != nil {
 		return nil, err
 	}
-	pinger.SetPrivileged(privileged)
-	pinger.Timeout = 3 * time.Second
-	pinger.Count = 3
+	pinger.SetPrivileged(useRawSocket)
+	pinger.Timeout = cfg.Timeout
+	pinger.Interval = cfg.Interval
+	pinger.Count = cfg.Count
 	err = pinger.Run() // Blocks until finished.
 	if err != nil {
 		return nil, err
