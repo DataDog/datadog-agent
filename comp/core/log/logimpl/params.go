@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package log
+package logimpl
 
 import (
 	"runtime"
@@ -15,7 +15,7 @@ import (
 //
 // Logs-related parameters are implemented as unexported fields containing
 // callbacks.  These fields can be set with the `LogXxx()` methods, which
-// return the updated LogParams.  One of `log.ForOneShot` or `log.ForDaemon`
+// return the updated LogParams.  One of `logimpl.ForOneShot` or `logimpl.ForDaemon`
 // must be called.
 type Params struct {
 	// loggerName is the name that appears in the logfile

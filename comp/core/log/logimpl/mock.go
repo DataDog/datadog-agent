@@ -3,7 +3,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package log
+//go:build test
+
+package logimpl
 
 import (
 	"context"
@@ -13,10 +15,22 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/log"
 	"github.com/cihub/seelog"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
+)
+
+// MockModule defines the fx options for the mock component.
+var MockModule fx.Option = fxutil.Component(
+	fx.Provide(newMockLogger),
+)
+
+// TraceMockModule defines the fx options for the mock component in its Trace variant.
+var TraceMockModule fx.Option = fxutil.Component(
+	fx.Provide(newTraceMockLogger),
 )
 
 // tbWriter is an implementation of io.Writer that sends lines to
@@ -33,7 +47,7 @@ func (tbw *tbWriter) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func newMockLogger(t testing.TB, lc fx.Lifecycle) (Component, error) {
+func newMockLogger(t testing.TB, lc fx.Lifecycle) (log.Component, error) {
 	// Build a logger that only logs to t.Log(..)
 	iface, err := seelog.LoggerFromWriterWithMinLevelAndFormat(&tbWriter{t}, seelog.TraceLvl,
 		"%Date(2006-01-02 15:04:05 MST) | %LEVEL | (%ShortFilePath:%Line in %FuncShort) | %ExtraTextContext%Msg%n")
@@ -48,12 +62,12 @@ func newMockLogger(t testing.TB, lc fx.Lifecycle) (Component, error) {
 	}})
 
 	// install the logger into pkg/util/log
-	log.ChangeLogLevel(iface, "off")
+	pkglog.ChangeLogLevel(iface, "off")
 
 	return &logger{}, nil
 }
 
-func newTraceMockLogger(t testing.TB, lc fx.Lifecycle, params Params, cfg config.Component) (Component, error) {
+func newTraceMockLogger(t testing.TB, lc fx.Lifecycle, params Params, cfg config.Component) (log.Component, error) {
 	// Make sure we are setting a default value on purpose.
 	logFilePath := params.logFileFn(cfg)
 	if logFilePath != os.Getenv("DDTEST_DEFAULT_LOG_FILE_PATH") {
