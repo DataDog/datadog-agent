@@ -250,10 +250,14 @@ func TestSourceFileReadConfig(t *testing.T) {
 foo: bar
 `)
 
-	os.WriteFile("test.yaml", yamlExample, 0644)
-	config.SetConfigFile("test.yaml")
+	tempfile, err := os.CreateTemp("/tmp", "test-*.yaml")
+	assert.NoError(t, err, "failed to create temporary file")
+	tempfile.Write(yamlExample)
+	defer os.Remove(tempfile.Name())
+
+	fmt.Println(tempfile.Name())
+	config.SetConfigFile(tempfile.Name())
 	config.ReadInConfig()
-	os.Remove("test.yaml")
 
 	assert.Equal(t, "bar", config.Get("foo"))
 	assert.Equal(t, SourceFile, config.GetSource("foo"))
