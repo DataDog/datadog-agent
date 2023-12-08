@@ -883,7 +883,7 @@ func attachCmd() error {
 			return fmt.Errorf("unsupport resource type %q", resourceType)
 		}
 
-		device, localSnapshotARN, cleanupVolume, err := shareAndAttachSnapshot(ctx, scan, snapshotARN)
+		device, localSnapshotARN, cleanupVolume, err := attachSnapshotWithVolume(ctx, scan, snapshotARN)
 		cleanups = append(cleanups, cleanupVolume)
 		if err != nil {
 			return err
@@ -1747,7 +1747,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	var cleanupAttach func(context.Context)
 	switch globalParams.attachMode {
 	case volumeAttach:
-		device, localSnapshotARN, cleanupAttach, err = shareAndAttachSnapshot(ctx, scan, snapshotARN)
+		device, localSnapshotARN, cleanupAttach, err = attachSnapshotWithVolume(ctx, scan, snapshotARN)
 		defer func() {
 			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
 			defer cancel()
@@ -2034,7 +2034,7 @@ func extractZip(ctx context.Context, zipPath, destinationPath string) error {
 	return nil
 }
 
-func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (device string, localSnapshotARN arn.ARN, cleanupVolume func(context.Context), err error) {
+func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN arn.ARN) (device string, localSnapshotARN arn.ARN, cleanupVolume func(context.Context), err error) {
 	var cleanups []func(context.Context)
 	pushCleanup := func(cleanup func(context.Context)) {
 		cleanups = append(cleanups, cleanup)
@@ -2195,39 +2195,47 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 	return
 }
 
-func mountDevice(ctx context.Context, snapshotARN arn.ARN, device string) (mountPoints []string, cleanupMount func(context.Context), err error) {
-	var cleanups []func(context.Context)
-	pushCleanup := func(cleanup func(context.Context)) {
-		cleanups = append(cleanups, cleanup)
-	}
-	cleanupMount = func(ctx context.Context) {
-		for i := len(cleanups) - 1; i >= 0; i-- {
-			cleanups[i](ctx)
-		}
-	}
+type devicePartition struct {
+	devicePath string
+	fsType     string
+}
 
-	type devicePartition struct {
-		devicePath string
-		fsType     string
-	}
-
+func listDevicePartitions(ctx context.Context, device string, volumeARN arn.ARN) {
 	log.Debugf("detecting mounted snapshot %q partitions from device %q", snapshotARN, device)
+
+	_, volumeID, _ := getARNResource(volumeARN)
+	serialNumber := strings.Replace(volumeID, "-", "", 1) // vol-XXX => volXXX
+
 	var partitions []devicePartition
 	for i := 0; i < 120; i++ {
 		if !sleepCtx(ctx, 500*time.Millisecond) {
 			break
 		}
-		devicePath, err := filepath.EvalSymlinks(device)
+		lsblkJSON, err := exec.CommandContext(ctx, "lsblk", device, "--json", "--bytes", "--output", "NAME,SERIAL,PATH,TYPE,FSTYPE").Output()
 		if err != nil {
 			continue
 		}
-		devs, _ := filepath.Glob(devicePath + "*")
-		for _, partitionDevPath := range devs {
-			cmd := exec.CommandContext(ctx, "blkid", "-p", partitionDevPath, "-s", "TYPE", "-o", "value")
-			fsTypeBuf, err := cmd.CombinedOutput()
-			if err != nil {
-				continue
-			}
+		log.Debugf("lsblk %q %q: %s", volumeARN, device, string(lsblkJSON))
+		var blockDevices struct {
+			BlockDevices []struct {
+				Name     string `json:"name"`
+				Serial   string `json:"serial"`
+				Path     string `json:"path"`
+				Type     string `json:"type"`
+				FsType   string `json:"fstype"`
+				Children []struct {
+					Name   string `json:"name"`
+					Path   string `json:"path"`
+					Type   string `json:"type"`
+					FsType string `json:"fstype"`
+				} `json:"children"`
+			} `json:"blockdevices"`
+		}
+		if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
+			log.Warnf("lsblk parsing error: %v", err)
+			continue
+		}
+		for _, bd := range blockDevices.BlockDevices {
 			fsType := string(bytes.TrimSpace(fsTypeBuf))
 			if fsType == "ext2" || fsType == "ext3" || fsType == "ext4" || fsType == "xfs" {
 				partitions = append(partitions, devicePartition{
@@ -2242,6 +2250,19 @@ func mountDevice(ctx context.Context, snapshotARN arn.ARN, device string) (mount
 	if len(partitions) == 0 {
 		err = fmt.Errorf("could not find any ext4 or xfs devicePartition in the snapshot %q", snapshotARN)
 		return
+	}
+
+}
+
+func mountDevice(ctx context.Context, snapshotARN arn.ARN, device string) (mountPoints []string, cleanupMount func(context.Context), err error) {
+	var cleanups []func(context.Context)
+	pushCleanup := func(cleanup func(context.Context)) {
+		cleanups = append(cleanups, cleanup)
+	}
+	cleanupMount = func(ctx context.Context) {
+		for i := len(cleanups) - 1; i >= 0; i-- {
+			cleanups[i](ctx)
+		}
 	}
 
 	_, snapshotID, _ := getARNResource(snapshotARN)
