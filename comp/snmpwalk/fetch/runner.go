@@ -130,6 +130,7 @@ func (rc *SnmpwalkRunner) Callback() {
 			// TODO: Also skip if the device is currently being walked
 			if time.Since(prevTime) < interval {
 				log.Debugf("[SNMP RUNNER] Skip Device, interval not reached: %s", deviceID)
+				rc.prevSnmpwalkTimeMu.Unlock()
 				continue
 			}
 		}
@@ -139,6 +140,7 @@ func (rc *SnmpwalkRunner) Callback() {
 		rc.isRunningMu.Lock()
 		if rc.isRunning[deviceID] {
 			log.Debugf("[SNMP RUNNER] Skip Device, already running: %s", deviceID)
+			rc.isRunningMu.Unlock()
 			continue
 		}
 		rc.isRunning[deviceID] = true

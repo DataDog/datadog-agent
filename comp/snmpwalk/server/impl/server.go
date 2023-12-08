@@ -70,9 +70,11 @@ func newServer(lc fx.Lifecycle, deps dependencies) (server.Component, error) {
 		for {
 			select {
 			case <-ticker.C:
-				server.logger.Debugf("[SNMPWALK] Ticker")
+				server.logger.Debugf("[SNMPWALK] Ticker tick")
 				runner.Callback()
+				server.logger.Debugf("[SNMPWALK] Ticker end")
 			case <-quit:
+				server.logger.Debugf("[SNMPWALK] Ticket quit")
 				ticker.Stop()
 				return
 			}
