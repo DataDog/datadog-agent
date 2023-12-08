@@ -109,10 +109,15 @@ func (rc *SnmpwalkRunner) Callback() {
 	}
 	namespace := "default"
 
-	interval := pkgconfig.Datadog.GetDuration("network_devices.snmpwalk.interval")
+	var interval time.Duration = pkgconfig.Datadog.GetDuration("network_devices.snmpwalk.interval")
 	if interval == 0 {
 		interval = 60 * time.Second
 	}
+	var throttlerMinIntervalPerOid time.Duration = pkgconfig.Datadog.GetDuration("network_devices.snmpwalk.throttler_min_interval_per_oid")
+
+	rc.sender.Gauge("datadog.snmpwalk.interval", float64(interval.Seconds()), "", commonTags)
+	rc.sender.Gauge("datadog.snmpwalk.workers", float64(pkgconfig.Datadog.GetDuration("network_devices.snmpwalk.workers")), "", commonTags)
+	rc.sender.Gauge("datadog.snmpwalk.throttler_min_interval_per_oid", float64(throttlerMinIntervalPerOid.Seconds()), "", commonTags)
 
 	for _, config := range snmpConfigList {
 		if config.IPAddress == "" {
