@@ -56,21 +56,21 @@ func validatePathSize(size uint8) error {
 // - If the given pathSize is larger than the buffer size.
 // - If the Huffman decoding fails.
 // - If the decoded path doesn't start with a '/'.
-func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) ([]byte, error) {
+func decodeHTTP2Path(buf [maxHTTP2Path]byte, pathSize uint8) (string, error) {
 	if err := validatePathSize(pathSize); err != nil {
-		return nil, err
+		return "", err
 	}
 
 	str, err := hpack.HuffmanDecodeToString(buf[:pathSize])
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if err = validatePath(str); err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return []byte(str), nil
+	return str, nil
 }
 
 // Path returns the URL from the request fragment captured in eBPF.
@@ -78,13 +78,14 @@ func (tx *EbpfTx) Path(buffer []byte) ([]byte, bool) {
 	var res []byte
 	var err error
 	if tx.Stream.Is_huffman_encoded {
-		res, err = decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
+		decodedPath, err := decodeHTTP2Path(tx.Stream.Request_path, tx.Stream.Path_size)
 		if err != nil {
 			if oversizedLogLimit.ShouldLog() {
 				log.Errorf("unable to decode HTTP2 path (%#v) due to: %s", tx.Stream.Request_path[:tx.Stream.Path_size], err)
 			}
 			return nil, false
 		}
+		res = []byte(decodedPath)
 	} else {
 		if err = validatePathSize(tx.Stream.Path_size); err != nil {
 			if oversizedLogLimit.ShouldLog() {
