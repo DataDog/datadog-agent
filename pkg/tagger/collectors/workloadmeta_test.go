@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/tagger/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -60,7 +60,7 @@ func TestHandleKubePod(t *testing.T) {
 	}
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		log.MockModule,
+		logimpl.MockModule,
 		config.MockModule,
 		fx.Supply(workloadmeta.NewParams()),
 		fx.Supply(context.Background()),
@@ -469,7 +469,7 @@ func TestHandleECSTask(t *testing.T) {
 	taggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		log.MockModule,
+		logimpl.MockModule,
 		config.MockModule,
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule,
@@ -1166,7 +1166,7 @@ func TestHandleDelete(t *testing.T) {
 	containerTaggerEntityID := fmt.Sprintf("container_id://%s", containerID)
 
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		log.MockModule,
+		logimpl.MockModule,
 		config.MockModule,
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModule,
@@ -1246,7 +1246,7 @@ func TestHandlePodWithDeletedContainer(t *testing.T) {
 
 	collector := &WorkloadMetaCollector{
 		store: fxutil.Test[workloadmeta.Mock](t, fx.Options(
-			log.MockModule,
+			logimpl.MockModule,
 			config.MockModule,
 			fx.Supply(workloadmeta.NewParams()),
 			workloadmeta.MockModule,
