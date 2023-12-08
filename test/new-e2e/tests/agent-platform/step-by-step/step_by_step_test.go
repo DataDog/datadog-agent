@@ -25,7 +25,7 @@ var osVersion = flag.String("osversion", "", "os version to test")
 var platform = flag.String("platform", "", "platform to test")
 var cwsSupportedOsVersion = flag.String("cws-supported-osversion", "", "list of os where CWS is supported")
 var architecture = flag.String("arch", "", "architecture to test (x86_64, arm64))")
-var packageName = flag.String("packagename", "datadog-agent", "name of the package")
+var flavorName = flag.String("flavor", "datadog-agent", "package flavor to install")
 var majorVersion = flag.String("major-version", "7", "major version to test (6, 7)")
 
 type stepByStepSuite struct {
@@ -103,23 +103,23 @@ func TestStepByStepScript(t *testing.T) {
 
 func (is *stepByStepSuite) TestStepByStep() {
 	if *platform == "debian" || *platform == "ubuntu" {
-		StepByStepDebianTest(is)
+		is.StepByStepDebianTest()
 	} else if *platform == "centos" || *platform == "amazonlinux" || *platform == "fedora" || *platform == "redhat" {
-		StepByStepRhelTest(is)
+		is.StepByStepRhelTest()
 	} else if *platform == "suse" {
-		StepByStepSuseTest(is)
+		is.StepByStepSuseTest()
 	}
 
 }
 
-func CheckStepByStepAgentInstallation(is *stepByStepSuite, agentClient client.Agent, fileManager *filemanager.Unix, unixHelper *helpers.Unix) {
+func (is *stepByStepSuite) CheckStepByStepAgentInstallation(agentClient client.Agent, fileManager *filemanager.Unix, unixHelper *helpers.Unix) {
 	VMclient := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
 	common.CheckInstallation(is.T(), VMclient)
 	common.CheckAgentBehaviour(is.T(), VMclient)
-	common.CheckUninstallation(is.T(), VMclient, "datadog-agent")
+	common.CheckUninstallation(is.T(), VMclient, *flavorName)
 }
 
-func StepByStepDebianTest(is *stepByStepSuite) {
+func (is *stepByStepSuite) StepByStepDebianTest() {
 	var aptTrustedDKeyring = "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
 	var aptUsrShareKeyring = "/usr/share/keyrings/datadog-archive-keyring.gpg"
 	var aptrepo = "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
@@ -151,13 +151,13 @@ func StepByStepDebianTest(is *stepByStepSuite) {
 
 	is.T().Run("install debian", func(t *testing.T) {
 		ExecuteWithoutError(t, VMclient, "sudo apt-get update")
-		ExecuteWithoutError(is.T(), VMclient, "sudo apt-get install %s -y -q", *packageName)
+		ExecuteWithoutError(is.T(), VMclient, "sudo apt-get install %s -y -q", *flavorName)
 	})
 
-	CheckStepByStepAgentInstallation(is, agentClient, fileManager, unixHelper)
+	is.CheckStepByStepAgentInstallation(agentClient, fileManager, unixHelper)
 }
 
-func StepByStepRhelTest(is *stepByStepSuite) {
+func (is *stepByStepSuite) StepByStepRhelTest() {
 	var arch string
 	if *architecture == "arm64" {
 		arch = "aarch64"
@@ -204,13 +204,13 @@ func StepByStepRhelTest(is *stepByStepSuite) {
 
 	is.T().Run("install rhel", func(t *testing.T) {
 		ExecuteWithoutError(t, VMclient, "sudo yum makecache -y")
-		ExecuteWithoutError(t, VMclient, "sudo yum install -y %s", *packageName)
+		ExecuteWithoutError(t, VMclient, "sudo yum install -y %s", *flavorName)
 	})
 
-	CheckStepByStepAgentInstallation(is, agentClient, fileManager, unixHelper)
+	is.CheckStepByStepAgentInstallation(agentClient, fileManager, unixHelper)
 }
 
-func StepByStepSuseTest(is *stepByStepSuite) {
+func (is *stepByStepSuite) StepByStepSuseTest() {
 	var arch string
 	if *architecture == "arm64" {
 		arch = "aarch64"
@@ -248,8 +248,8 @@ func StepByStepSuseTest(is *stepByStepSuite) {
 		ExecuteWithoutError(t, VMclient, "sudo curl -o /tmp/DATADOG_RPM_KEY_E09422B3.public https://keys.datadoghq.com/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo rpm --import /tmp/DATADOG_RPM_KEY_E09422B3.public")
 		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-gpg-checks refresh datadog")
-		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive install %s", *packageName)
+		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive install %s", *flavorName)
 	})
 
-	CheckStepByStepAgentInstallation(is, agentClient, fileManager, unixHelper)
+	is.CheckStepByStepAgentInstallation(agentClient, fileManager, unixHelper)
 }
