@@ -102,34 +102,47 @@ func TestStepByStepScript(t *testing.T) {
 }
 
 func (is *stepByStepSuite) TestStepByStep() {
-	if *platform == "debian" || *platform == "ubuntu" {
-		is.StepByStepDebianTest()
-	} else if *platform == "centos" || *platform == "amazonlinux" || *platform == "fedora" || *platform == "redhat" {
-		is.StepByStepRhelTest()
-	} else if *platform == "suse" {
-		is.StepByStepSuseTest()
-	}
-
-}
-
-func (is *stepByStepSuite) CheckStepByStepAgentInstallation(agentClient client.Agent, fileManager *filemanager.Unix, unixHelper *helpers.Unix) {
-	VMclient := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
-	common.CheckInstallation(is.T(), VMclient)
-	common.CheckAgentBehaviour(is.T(), VMclient)
-	common.CheckUninstallation(is.T(), VMclient, *flavorName)
-}
-
-func (is *stepByStepSuite) StepByStepDebianTest() {
-	var aptTrustedDKeyring = "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
-	var aptUsrShareKeyring = "/usr/share/keyrings/datadog-archive-keyring.gpg"
-	var aptrepo = "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
-	var aptrepoDist = fmt.Sprintf("pipeline-%s-a%d-%s", os.Getenv("CI_PIPELINE_ID"), is.agentMajorVersion, *architecture)
 	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
 	unixHelper := helpers.NewUnixHelper()
 	vm := is.Env().VM.(*client.PulumiStackVM)
 	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
 	require.NoError(is.T(), err)
 	VMclient := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
+
+	if *platform == "debian" || *platform == "ubuntu" {
+		is.StepByStepDebianTest(VMclient)
+	} else if *platform == "centos" || *platform == "amazonlinux" || *platform == "fedora" || *platform == "redhat" {
+		is.StepByStepRhelTest(VMclient)
+	} else {
+		require.Equal(is.T(), *platform, "suse", "NonSupportedPlatformError : %s isn't supported !", *platform)
+		is.StepByStepSuseTest(VMclient)
+	}
+	is.ConfigureAndRunAgentService(VMclient)
+	is.CheckStepByStepAgentInstallation(VMclient)
+
+}
+
+func (is *stepByStepSuite) ConfigureAndRunAgentService(VMclient *common.TestClient) {
+	is.T().Run("add config file", func(t *testing.T) {
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"sed 's/api_key:.*/api_key: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/' /etc/datadog-agent/datadog.yaml.example > /etc/datadog-agent/datadog.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo sh -c \"chown dd-agent:dd-agent /etc/datadog-agent/datadog.yaml && chmod 640 /etc/datadog-agent/datadog.yaml\"")
+		ExecuteWithoutError(t, VMclient, "sudo systemctl restart datadog-agent.service")
+	})
+}
+
+func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.TestClient) {
+	common.CheckInstallation(is.T(), VMclient)
+	common.CheckAgentBehaviour(is.T(), VMclient)
+	common.CheckUninstallation(is.T(), VMclient, *flavorName)
+}
+
+func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
+	var aptTrustedDKeyring = "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
+	var aptUsrShareKeyring = "/usr/share/keyrings/datadog-archive-keyring.gpg"
+	var aptrepo = "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
+	var aptrepoDist = fmt.Sprintf("pipeline-%s-a%d-%s", os.Getenv("CI_PIPELINE_ID"), is.agentMajorVersion, *architecture)
+	fileManager := VMclient.FileManager
+	var err error
 
 	is.T().Run("create /usr/share keyring and source list", func(t *testing.T) {
 		ExecuteWithoutError(t, VMclient, "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
@@ -153,11 +166,9 @@ func (is *stepByStepSuite) StepByStepDebianTest() {
 		ExecuteWithoutError(t, VMclient, "sudo apt-get update")
 		ExecuteWithoutError(is.T(), VMclient, "sudo apt-get install %s -y -q", *flavorName)
 	})
-
-	is.CheckStepByStepAgentInstallation(agentClient, fileManager, unixHelper)
 }
 
-func (is *stepByStepSuite) StepByStepRhelTest() {
+func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 	var arch string
 	if *architecture == "arm64" {
 		arch = "aarch64"
@@ -166,13 +177,8 @@ func (is *stepByStepSuite) StepByStepRhelTest() {
 	}
 	var yumrepo = fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%d/%d/%s/",
 		os.Getenv("CI_PIPELINE_ID"), is.agentMajorVersion, is.agentMajorVersion, arch)
-
-	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
-	unixHelper := helpers.NewUnixHelper()
-	vm := is.Env().VM.(*client.PulumiStackVM)
-	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
-	require.NoError(is.T(), err)
-	VMclient := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
+	fileManager := VMclient.FileManager
+	var err error
 
 	if *platform == "centos" && is.cwsSupported {
 		is.T().Run("set SElinux to permissive mode to be able to start system-probe", func(t *testing.T) {
@@ -206,11 +212,9 @@ func (is *stepByStepSuite) StepByStepRhelTest() {
 		ExecuteWithoutError(t, VMclient, "sudo yum makecache -y")
 		ExecuteWithoutError(t, VMclient, "sudo yum install -y %s", *flavorName)
 	})
-
-	is.CheckStepByStepAgentInstallation(agentClient, fileManager, unixHelper)
 }
 
-func (is *stepByStepSuite) StepByStepSuseTest() {
+func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 	var arch string
 	if *architecture == "arm64" {
 		arch = "aarch64"
@@ -220,12 +224,8 @@ func (is *stepByStepSuite) StepByStepSuseTest() {
 
 	var suseRepo = fmt.Sprintf("http://yumtesting.datad0g.com/suse/testing/pipeline-%s-a%d/%d/%s/",
 		os.Getenv("CI_PIPELINE_ID"), is.agentMajorVersion, is.agentMajorVersion, arch)
-	fileManager := filemanager.NewUnixFileManager(is.Env().VM)
-	unixHelper := helpers.NewUnixHelper()
-	vm := is.Env().VM.(*client.PulumiStackVM)
-	agentClient, err := client.NewAgentClient(is.T(), vm, vm.GetOS(), false)
-	require.NoError(is.T(), err)
-	VMclient := common.NewTestClient(is.Env().VM, agentClient, fileManager, unixHelper)
+	fileManager := VMclient.FileManager
+	var err error
 
 	fileContent := fmt.Sprintf("[datadog]\n"+
 		"name = Datadog, Inc.\n"+
@@ -250,6 +250,4 @@ func (is *stepByStepSuite) StepByStepSuseTest() {
 		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive --no-gpg-checks refresh datadog")
 		ExecuteWithoutError(t, VMclient, "sudo zypper --non-interactive install %s", *flavorName)
 	})
-
-	is.CheckStepByStepAgentInstallation(agentClient, fileManager, unixHelper)
 }
