@@ -1,0 +1,6 @@
+logs:
+  - type: file
+    path: '/var/log/hello-world-utf.log'
+    service: utfservice
+    source: custom_log
+    encoding: utf-16-le
