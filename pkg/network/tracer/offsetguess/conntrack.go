@@ -357,12 +357,11 @@ func (e *conntrackEventGenerator) Generate(status GuessWhat, expected *fieldValu
 		var err error
 		err = kernel.WithNS(e.ns, func() error {
 			// we use a dialer instance to override the local
-			// address to use with the udp connection to
-			// 127.0.0.3. this is because on kernel 4.4,
-			// using the default loopback (127.0.0.1) address
-			// sometimes results an incorrect match for
-			// the source address, resulting in an incorrect
-			// offset for ct_origin
+			// address to use with the udp connection. this is
+			// because on kernel 4.4 using the default loopback
+			// (127.0.0.1) address sometimes results in an
+			// incorrect match for the source address, resulting
+			// in an incorrect offset for ct_origin
 			d := net.Dialer{
 				Timeout:   500 * time.Millisecond,
 				LocalAddr: &net.UDPAddr{IP: localIPv4},
