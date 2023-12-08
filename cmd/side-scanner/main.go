@@ -457,7 +457,7 @@ func runCmd(pidfilePath string, poolSize int, allowedScanTypes []string) error {
 	if err != nil {
 		return fmt.Errorf("could not initialize side-scanner: %w", err)
 	}
-	if err := scanner.acceptRemoteConfig(ctx); err != nil {
+	if err := scanner.subscribeRemoteConfig(ctx); err != nil {
 		return fmt.Errorf("could not accept configs from Remote Config: %w", err)
 	}
 	scanner.start(ctx)
@@ -931,27 +931,26 @@ func nbdMountCmd(snapshotARN arn.ARN) error {
 
 	partitions, err := listDevicePartitions(ctx, device, nil)
 	if err != nil {
-		return err
-	}
-
-	mountPoints, cleanupMount, err := mountDevice(ctx, snapshotARN, partitions)
-	defer cleanupMount(context.TODO())
-	if err != nil {
-		log.Errorf("error could not mount (device is still available on %q): %v", device, err)
+		log.Errorf("error could list paritions (device is still available on %q): %v", device, err)
 	} else {
-		fmt.Println(mountPoints)
+		mountPoints, cleanupMount, err := mountDevice(ctx, snapshotARN, partitions)
+		defer func() {
+			cleanupctx, cancel := context.WithTimeout(context.Background(), cleanupMaxDuration)
+			defer cancel()
+			cleanupMount(cleanupctx)
+		}()
+		if err != nil {
+			log.Errorf("error could not mount (device is still available on %q): %v", device, err)
+		} else {
+			fmt.Println(mountPoints)
+		}
 	}
 
-	select {
-	case <-time.After(60 * time.Minute):
-	case <-ctx.Done():
-	}
+	<-ctx.Done()
 	return nil
 }
 
 func newScanTask(t string, resourceARN, hostname string, actions []string, roles rolesMapping) (*scanTask, error) {
-	// TODO(jinroh): proper input sanitization here where we validate more
-	// precisely the ARN resource type/id
 	var scan scanTask
 	var err error
 	scan.ARN, err = parseARN(resourceARN)
@@ -1118,7 +1117,7 @@ func newSideScanner(hostname string, limits *awsLimits, poolSize int, allowedSca
 	}, nil
 }
 
-func (s *sideScanner) acceptRemoteConfig(ctx context.Context) error {
+func (s *sideScanner) subscribeRemoteConfig(ctx context.Context) error {
 	log.Infof("subscribing to remote-config")
 	s.rcClient.Subscribe(state.ProductCSMSideScanning, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
 		log.Debugf("received %d remote config config updates", len(update))
@@ -1407,7 +1406,7 @@ func createSnapshot(ctx context.Context, scan *scanTask, ec2client *ec2.Client, 
 			}); err != nil {
 				log.Warnf("could not delete snapshot %s: %v", *createSnapshotOutput.SnapshotId, err)
 			} else {
-				log.Warnf("snapshot deleted %s", *createSnapshotOutput.SnapshotId)
+				log.Debugf("snapshot deleted %s", *createSnapshotOutput.SnapshotId)
 			}
 		}
 	}
@@ -1605,6 +1604,8 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	tags := []string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
+		fmt.Sprintf("region:%s", rt.region),
+		fmt.Sprintf("account_id:%s", rt.accountID),
 		fmt.Sprintf("aws_service:%s", service),
 		fmt.Sprintf("aws_throttled_100:%t", throttled100),
 		fmt.Sprintf("aws_throttled_1000:%t", throttled1000),
@@ -1618,8 +1619,10 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 	duration := float64(time.Since(startTime).Milliseconds())
 	if resp != nil {
 		tags = append(tags, fmt.Sprintf("aws_statuscode:%d", resp.StatusCode))
+	} else if err == context.Canceled {
+		tags = append(tags, "aws_statuscode:ctx_canceled")
 	} else {
-		tags = append(tags, "aws_statuscode:0")
+		tags = append(tags, "aws_statuscode:unknown_error")
 	}
 	if resp != nil && resp.StatusCode >= 400 && service == "ec2" && resp.Header.Get("Content-Type") == "text/xml;charset=UTF-8" {
 		defer resp.Body.Close()
@@ -1855,22 +1858,22 @@ func attachSnapshotWithNBD(ctx context.Context, scan *scanTask, snapshotARN arn.
 
 // reference: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/device_naming.html
 var deviceName struct {
-	mu     sync.Mutex
-	letter byte
+	mu   sync.Mutex
+	name string
 }
 
 func nextDeviceName() string {
 	deviceName.mu.Lock()
 	defer deviceName.mu.Unlock()
-	if deviceName.letter == 0 || deviceName.letter == 'p' {
-		deviceName.letter = 'f'
+	// loops from "aa" to "zz"
+	if deviceName.name == "" || deviceName.name == "zz" {
+		deviceName.name = "aa"
+	} else if strings.HasSuffix(deviceName.name, "z") {
+		deviceName.name = fmt.Sprintf("%ca", deviceName.name[0]+1)
 	} else {
-		deviceName.letter++
+		deviceName.name = fmt.Sprintf("%c%c", deviceName.name[0], deviceName.name[1]+1)
 	}
-	// TODO: more robust (use /dev/xvd?). Depending on the kernel block device
-	// modules, the devices attached may change. We need to handle these
-	// cases. See reference.
-	return fmt.Sprintf("/dev/sd%c", deviceName.letter)
+	return fmt.Sprintf("/dev/xvd%s", deviceName.name)
 }
 
 var nbdDeviceName struct {
@@ -1959,9 +1962,11 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 		return "", err
 	}
 
+	if lambdaFunc.Code.ImageUri != nil {
+		return "", fmt.Errorf("lambda: OCI images are not supported")
+	}
 	if lambdaFunc.Code.Location == nil {
-		err = fmt.Errorf("lambdaFunc.Code.Location is nil")
-		return "", err
+		return "", fmt.Errorf("lambda: no code location")
 	}
 
 	archivePath := filepath.Join(tempDir, "code.zip")
@@ -1983,8 +1988,7 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		err = fmt.Errorf("bad status: %s", resp.Status)
-		return "", err
+		return "", fmt.Errorf("lambda: bad status: %s", resp.Status)
 	}
 
 	_, err = io.Copy(archiveFile, resp.Body)
@@ -2164,7 +2168,7 @@ func attachSnapshotWithVolume(ctx context.Context, scan *scanTask, snapshotARN a
 			Force:    aws.Bool(true),
 			VolumeId: volume.VolumeId,
 		}); err != nil {
-			log.Warnf("could not detach volume %s", *volume.VolumeId)
+			log.Warnf("could not detach volume %s: %v", *volume.VolumeId, err)
 		}
 		var errd error
 		for i := 0; i < 50; i++ {
