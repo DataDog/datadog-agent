@@ -3,16 +3,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !linux_bpf && !windows
+//go:build !linux
 
 package module
 
 import "github.com/DataDog/datadog-agent/cmd/system-probe/config"
 
-func preRegister(_ *config.Config, _ []Factory) error {
-	return nil
-}
-
-func postRegister(_ *config.Config, _ []Factory) error {
-	return nil
+// Factory encapsulates the initialization of a Module
+type Factory struct {
+	Name             config.ModuleName
+	ConfigNamespaces []string
+	Fn               func(cfg *config.Config) (Module, error)
 }

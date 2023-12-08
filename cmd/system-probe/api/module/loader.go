@@ -65,20 +65,15 @@ func withModule(name config.ModuleName, fn func()) {
 // * Register the gRPC server;
 func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, factories []Factory) error {
 	var enabledModulesFactories []Factory
-	isEBPFRequired := false
-
 	for _, factory := range factories {
 		if !cfg.ModuleIsEnabled(factory.Name) {
 			log.Infof("module %s disabled", factory.Name)
 			continue
 		}
 		enabledModulesFactories = append(enabledModulesFactories, factory)
-		if factory.NeedsEBPF() {
-			isEBPFRequired = true
-		}
 	}
 
-	if err := preRegister(cfg, isEBPFRequired); err != nil {
+	if err := preRegister(cfg, enabledModulesFactories); err != nil {
 		return fmt.Errorf("error in pre-register hook: %w", err)
 	}
 
@@ -124,7 +119,7 @@ func Register(cfg *config.Config, httpMux *mux.Router, grpcServer *grpc.Server, 
 		log.Infof("module %s started", factory.Name)
 	}
 
-	if err := postRegister(cfg, isEBPFRequired); err != nil {
+	if err := postRegister(cfg, enabledModulesFactories); err != nil {
 		return fmt.Errorf("error in post-register hook: %w", err)
 	}
 
