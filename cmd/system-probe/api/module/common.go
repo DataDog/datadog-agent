@@ -23,6 +23,7 @@ type Factory struct {
 	Name             config.ModuleName
 	ConfigNamespaces []string
 	Fn               func(cfg *config.Config) (Module, error)
+	NeedsEBPF        func() bool
 }
 
 // Module defines the common API implemented by every System Probe Module

@@ -33,6 +33,9 @@ var WinCrashProbe = module.Factory{
 			WinCrashProbe: cp,
 		}, nil
 	},
+	NeedsEBPF: func() bool {
+		return false
+	}
 }
 
 var _ module.Module = &winCrashDetectModule{}

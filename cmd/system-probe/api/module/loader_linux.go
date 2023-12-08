@@ -12,17 +12,16 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 )
 
-func preRegister(cfg *config.Config) error {
-	if !cfg.RequiresEBPF() {
-		return nil
+func preRegister(_ *config.Config, isEBPFRequired bool) error {
+	if isEBPFRequired {
+		return ebpf.Setup(ebpf.NewConfig())
 	}
-	return ebpf.Setup(ebpf.NewConfig())
+	return nil
 }
 
-func postRegister(cfg *config.Config) error {
-	if !cfg.RequiresEBPF() {
-		return nil
+func postRegister(_ *config.Config, isEBPFRequired bool) error {
+	if isEBPFRequired {
+		ebpf.FlushBTF()
 	}
-	ebpf.FlushBTF()
 	return nil
 }

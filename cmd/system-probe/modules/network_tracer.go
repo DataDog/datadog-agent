@@ -72,6 +72,9 @@ var NetworkTracer = module.Factory{
 
 		return &networkTracer{tracer: t, done: done}, err
 	},
+	NeedsEBPF: func() bool {
+		return runtime.GOOS != "windows"
+	},
 }
 
 var _ module.Module = &networkTracer{}

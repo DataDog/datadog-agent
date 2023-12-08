@@ -8,8 +8,11 @@
 package modules
 
 import (
+	"runtime"
+
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/config"
+	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/eventmonitor"
 	emconfig "github.com/DataDog/datadog-agent/pkg/eventmonitor/config"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
@@ -76,5 +79,8 @@ var EventMonitor = module.Factory{
 		}
 
 		return evm, err
+	},
+	NeedsEBPF: func() bool {
+		return runtime.GOOS != "windows" && !coreconfig.SystemProbe.GetBool("runtime_security_config.ebpfless.enabled")
 	},
 }
