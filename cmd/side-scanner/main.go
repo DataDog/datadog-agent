@@ -2098,6 +2098,29 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 		err = fmt.Errorf("could not create volume from snapshot: %s", err)
 		return
 	}
+
+	device = nextDeviceName()
+	log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
+	var errAttach error
+	for i := 0; i < 10; i++ {
+		_, errAttach = locaEC2Client.AttachVolume(ctx, &ec2.AttachVolumeInput{
+			InstanceId: aws.String(self.InstanceID),
+			VolumeId:   volume.VolumeId,
+			Device:     aws.String(device),
+		})
+		if errAttach == nil {
+			log.Debugf("volume attached successfully %q device=%s", *volume.VolumeId, device)
+			break
+		}
+		log.Debugf("error attaching volume %q into device %q (retrying in 1 sec)", *volume.VolumeId, device)
+		if !sleepCtx(ctx, 1*time.Second) {
+			break
+		}
+	}
+	if errAttach != nil {
+		err = fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, errAttach)
+		return
+	}
 	pushCleanup(func(ctx context.Context) {
 		// do not use context here: we want to force deletion
 		log.Debugf("detaching volume %q", *volume.VolumeId)
@@ -2124,29 +2147,6 @@ func shareAndAttachSnapshot(ctx context.Context, scan *scanTask, snapshotARN arn
 			log.Warnf("could not delete volume %q: %v", *volume.VolumeId, errd)
 		}
 	})
-
-	device = nextDeviceName()
-	log.Debugf("attaching volume %q into device %q", *volume.VolumeId, device)
-	var errAttach error
-	for i := 0; i < 10; i++ {
-		_, errAttach = locaEC2Client.AttachVolume(ctx, &ec2.AttachVolumeInput{
-			InstanceId: aws.String(self.InstanceID),
-			VolumeId:   volume.VolumeId,
-			Device:     aws.String(device),
-		})
-		if errAttach == nil {
-			log.Debugf("volume attached successfully %q device=%s", *volume.VolumeId, device)
-			break
-		}
-		log.Debugf("error attaching volume %q into device %q (retrying in 1 sec)", *volume.VolumeId, device)
-		if !sleepCtx(ctx, 1*time.Second) {
-			break
-		}
-	}
-	if errAttach != nil {
-		err = fmt.Errorf("could not attach volume %q into device %q: %w", *volume.VolumeId, device, errAttach)
-		return
-	}
 
 	return
 }
