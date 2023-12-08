@@ -121,6 +121,7 @@ func TestFillFlare(t *testing.T) {
 
 func TestCollectRecentLastCollect(t *testing.T) {
 	i := getTestInventoryPayload(t, nil)
+	i.LastCollect = time.Now()
 
 	interval := i.collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
