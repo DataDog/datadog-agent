@@ -11,12 +11,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/core/tagger"
 	taggerUtils "github.com/DataDog/datadog-agent/comp/core/tagger/utils"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/mock"
 )
 
 func TestProcessorRunFullStatsLinux(t *testing.T) {
+	tagger.SetupFakeTagger(t)
+	defer tagger.ResetTagger()
+
 	containersMeta := []*workloadmeta.Container{
 		// Container with full stats
 		CreateContainerMeta("docker", "cID100"),
@@ -85,6 +89,9 @@ func TestProcessorRunFullStatsLinux(t *testing.T) {
 }
 
 func TestProcessorRunPartialStats(t *testing.T) {
+	tagger.SetupFakeTagger(t)
+	defer tagger.ResetTagger()
+
 	containersMeta := []*workloadmeta.Container{
 		// Container without stats
 		CreateContainerMeta("containerd", "cID201"),

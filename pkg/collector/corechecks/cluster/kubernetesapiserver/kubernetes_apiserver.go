@@ -167,7 +167,7 @@ func (k *KubeASCheck) Configure(senderManager sender.SenderManager, integrationC
 	clusterName := clustername.GetRFC1123CompliantClusterName(context.TODO(), hostnameDetected)
 
 	if k.instance.UnbundleEvents {
-		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetDefaultTagger(), k.instance.CollectedEventTypes)
+		k.eventCollection.Transformer = newUnbundledTransformer(clusterName, tagger.GetTaggerInstance(), k.instance.CollectedEventTypes)
 	} else {
 		k.eventCollection.Filter = convertFilters(k.instance.FilteredEventTypes)
 		k.eventCollection.Transformer = newBundledTransformer(clusterName)

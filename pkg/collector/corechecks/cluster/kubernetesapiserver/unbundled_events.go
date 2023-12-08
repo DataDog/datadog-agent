@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-func newUnbundledTransformer(clusterName string, taggerInstance tagger.Tagger, types []collectedEventType) eventTransformer {
+func newUnbundledTransformer(clusterName string, taggerInstance tagger.Component, types []collectedEventType) eventTransformer {
 	collectedTypes := make([]collectedEventType, 0, len(types))
 	for _, f := range types {
 		if f.Kind == "" && f.Source == "" {
@@ -33,14 +33,14 @@ func newUnbundledTransformer(clusterName string, taggerInstance tagger.Tagger, t
 	return &unbundledTransformer{
 		clusterName:    clusterName,
 		collectedTypes: collectedTypes,
-		taggerInstance: tagger.GetDefaultTagger(),
+		taggerInstance: taggerInstance,
 	}
 }
 
 type unbundledTransformer struct {
 	clusterName    string
 	collectedTypes []collectedEventType
-	taggerInstance tagger.Tagger
+	taggerInstance tagger.Component
 }
 
 func (c *unbundledTransformer) Transform(events []*v1.Event) ([]event.Event, []error) {

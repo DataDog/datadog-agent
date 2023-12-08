@@ -8,19 +8,14 @@
 package docker
 
 import (
-	"context"
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/tagger"
-	"github.com/DataDog/datadog-agent/comp/core/tagger/local"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/util/docker"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/fx"
 )
 
 func TestUnbundledEventsTransform(t *testing.T) {
@@ -31,14 +26,8 @@ func TestUnbundledEventsTransform(t *testing.T) {
 	imageName := "foo:latest"
 	hostname := "test-host"
 
-	taggerClient := fxutil.Test[tagger.Component](t,
-		core.MockBundle,
-		fx.Supply(tagger.NewFakeTaggerParams()),
-		fx.Provide(func() context.Context { return context.TODO() }),
-		tagger.Module,
-	)
-	fakeTagger := tagger.GetDefaultTagger(taggerClient).(*local.FakeTagger)
-	defer tagger.ResetGlobalTaggerClient(nil)
+	fakeTagger := tagger.SetupFakeTagger(t)
+	defer tagger.ResetTagger()
 
 	fakeTagger.SetTags(
 		containers.BuildTaggerEntityName(containerID), "-",

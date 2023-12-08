@@ -43,5 +43,5 @@ func SetupFakeTagger(t *testing.T) *local.FakeTagger {
 }
 
 func ResetTagger() {
-	ResetGlobalTaggerClient(nil)
+	UnlockGlobalTaggerClient()
 }

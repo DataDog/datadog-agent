@@ -91,7 +91,7 @@ func startCMDServer(
 	pb.RegisterAgentServer(s, &server{})
 	pb.RegisterAgentSecureServer(s, &serverSecure{
 		configService: configService,
-		taggerServer:  taggerserver.NewServer(tagger.GetDefaultTagger()),
+		taggerServer:  taggerserver.NewServer(tagger.GetTaggerInstance()),
 		// TODO(components): decide if workloadmetaServer should be componentized itself
 		workloadmetaServer: workloadmetaServer.NewServer(wmeta),
 		dogstatsdServer:    dogstatsdServer,

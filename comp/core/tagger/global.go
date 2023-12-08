@@ -31,10 +31,9 @@ func SetGlobalTaggerClient(t *TaggerClient) {
 	})
 }
 
-// ResetGlobalTaggerClient resets the global taggerClient instance
-func ResetGlobalTaggerClient(t *TaggerClient) {
+// UnlockGlobalTaggerClient releases the initOnce lock on the global tagger. For testing only.
+func UnlockGlobalTaggerClient() {
 	initOnce = sync.Once{}
-	SetGlobalTaggerClient(t)
 }
 
 func GetEntity(entityID string) (*types.Entity, error) {
