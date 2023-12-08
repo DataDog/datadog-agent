@@ -99,7 +99,7 @@ var Spec = &protocols.ProtocolSpec{
 			Name: "http2_stream_heap",
 		},
 		{
-			Name: "http2_ctx_heap",
+			Name: "http2_stream_key_heap",
 		},
 	},
 	TailCalls: []manager.TailCallRoute{
