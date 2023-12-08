@@ -1544,6 +1544,7 @@ func (rt *awsClientStats) getAction(req *http.Request) (service, action string, 
 		// EC2 (ec2.(region.)?amazonaws.com): https://docs.aws.amazon.com/AWSEC2/latest/APIReference/Using_Endpoints.html
 		case strings.HasPrefix(host, "ec2."):
 			if req.Method == http.MethodPost && req.Body != nil {
+				defer req.Body.Close()
 				body, err := io.ReadAll(req.Body)
 				if err != nil {
 					return
