@@ -12,17 +12,15 @@ license_file "../LICENSE"
 
 homepage 'http://www.datadoghq.com'
 
-INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
-
 if ohai['platform'] == "windows"
   # Note: this is not the final install dir, not even the default one, just a convenient
   # spaceless dir in which the agent will be built.
   # Omnibus doesn't quote the Git commands it launches unfortunately, which makes it impossible
   # to put a space here...
-  install_dir "C:"+INSTALL_DIR
+  install_dir "C:/opt/datadog-agent/"
   maintainer 'Datadog Inc.' # Windows doesn't want our e-mail address :(
 else
-  install_dir INSTALL_DIR
+  install_dir '/opt/datadog-agent'
   maintainer 'Datadog Packages <package@datadoghq.com>'
 end
 
