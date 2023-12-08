@@ -645,16 +645,11 @@ func TestCaptureConfig(t *testing.T) {
 		assert.True(t, cfg.Capture.Enabled)
 		assert.Equal(t, "./capture_trace", cfg.Capture.Path)
 		assert.Equal(t, 10, cfg.Capture.Duration)
-
-		// Check bind env vars
-		assert.Equal(t, true, os.Getenv("DD_APM_CAPTURE_ENABLED"))
-		assert.Equal(t, "./capture_trace", os.Getenv("DD_APM_CAPTURE_PATH"))
-		assert.Equal(t, 10, os.Getenv("DD_APM_CAPTURE_DURATION"))
 	})
 
 	t.Run("fallback", func(t *testing.T) {
 		overrides := map[string]interface{}{
-			"capture.duration": "60", // default is 5 seconds, max is 30 seconds
+			"apm_config.capture.duration": "60", // default is 5 seconds, max is 30 seconds
 		}
 		config := fxutil.Test[Component](t, fx.Options(
 			corecomp.MockModule,
@@ -2265,6 +2260,57 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, int64(1699621675), coreconfig.Datadog.GetInt64("apm_config.install_time"))
 		assert.Equal(t, int64(1699621675), cfg.InstallSignature.InstallTime)
 		assert.True(t, cfg.InstallSignature.Found)
+	})
+
+	env = "DD_APM_CAPTURE_ENABLED"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `true`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+		assert.NotNil(t, cfg)
+		assert.True(t, cfg.Capture.Enabled)
+	})
+
+	env = "DD_APM_CAPTURE_PATH"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `./capture_trace`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "./capture_trace", cfg.Capture.Path)
+	})
+
+	env = "DD_APM_CAPTURE_DURATION"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, `10`)
+
+		c := fxutil.Test[Component](t, fx.Options(
+			corecomp.MockModule,
+			fx.Replace(corecomp.MockParams{
+				Params:      corecomp.Params{ConfFilePath: "./testdata/full.yaml"},
+				SetupConfig: true,
+			}),
+			MockModule,
+		))
+		cfg := c.Object()
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 10, cfg.Capture.Duration)
 	})
 }
 
