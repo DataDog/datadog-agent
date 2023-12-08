@@ -381,6 +381,7 @@ def get_version(
     major_version='7',
     include_pipeline_id=False,
     pipeline_id=None,
+    include_pre=True,
 ):
     version = ""
     if pipeline_id is None:
@@ -405,7 +406,7 @@ def get_version(
             # Dev's versions behave the same as nightly
             is_nightly = cache_data["nightly"] or cache_data["dev"]
 
-            if pre:
+            if pre and include_pre:
                 version = f"{version}-{pre}"
     except (IOError, json.JSONDecodeError, IndexError) as e:
         # If a cache file is found but corrupted we ignore it.
@@ -423,7 +424,7 @@ def get_version(
         # Dev's versions behave the same as nightly
         bucket_branch = os.getenv("BUCKET_BRANCH")
         is_nightly = is_allowed_repo_nightly_branch(bucket_branch) or bucket_branch == "dev"
-        if pre:
+        if pre and include_pre:
             version = f"{version}-{pre}"
 
     if not commits_since_version and is_nightly and include_git:
