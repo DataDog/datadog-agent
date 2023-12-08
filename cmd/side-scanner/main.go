@@ -1138,6 +1138,24 @@ func (s *sideScanner) subscribeRemoteConfig(ctx context.Context) error {
 	return nil
 }
 
+func (s *sideScanner) healthServer(ctx context.Context) error {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	addr := "127.0.0.1:6253"
+	srv := &http.Server{Addr: "127.0.0.1:6253"}
+	srv.Handler = mux
+
+	go func() {
+		<-ctx.Done()
+		srv.Shutdown(context.TODO())
+	}()
+
+	log.Infof("Starting health-check server for side-scanner on address %q", addr)
+	return srv.ListenAndServe()
+}
+
 func (s *sideScanner) start(ctx context.Context) {
 	log.Infof("starting side-scanner main loop with %d scan workers", s.poolSize)
 	defer log.Infof("stopped side-scanner main loop")
@@ -1147,6 +1165,8 @@ func (s *sideScanner) start(ctx context.Context) {
 
 	s.rcClient.Start()
 	defer s.rcClient.Close()
+
+	go s.healthServer(ctx)
 
 	done := make(chan struct{})
 	go func() {
