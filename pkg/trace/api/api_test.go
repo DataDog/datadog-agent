@@ -867,13 +867,20 @@ func TestCaptureTrace(t *testing.T) {
 	c.Capture.Path = "./capture_trace"
 	c.Capture.Duration = 10
 
+	testTrace := testutil.RandomTrace(10, 20)
+	msgpBts, err := testTrace.MarshalMsg(nil)
+	assert.NoError(t, err)
+
 	s := NewDebugServer(c)
 	s.Start()
 	defer s.Stop()
 
-	resp, err := http.Get("http://127.0.0.1:5012/debug/capture")
+	req, err := http.NewRequest("POST", "http://127.0.0.1:5012/debug/capture", bytes.NewReader(msgpBts))
 	assert.NoError(t, err)
+	req.Header.Set(header.Lang, "lang")
 
+	resp, err := http.DefaultClient.Do(req)
+	assert.NoError(t, err)
 	assert.EqualValues(t, resp.StatusCode, http.StatusOK)
 	slurp, err := io.ReadAll(resp.Body)
 	if err != nil {

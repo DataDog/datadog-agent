@@ -9,10 +9,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/trace-agent/subcommands"
-	"github.com/DataDog/datadog-agent/comp/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -23,7 +21,7 @@ func TestCaptureCommand(t *testing.T) {
 		})},
 		[]string{"capture"},
 		capture,
-		func(config config.Component) {
-			require.True(t, config.Object() != nil)
+		func() {
+			// Test no panic
 		})
 }

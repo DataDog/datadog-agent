@@ -629,7 +629,6 @@ func TestDisableLoggingConfig(t *testing.T) {
 }
 
 func TestCaptureConfig(t *testing.T) {
-
 	t.Run("config", func(t *testing.T) {
 		config := fxutil.Test[Component](t, fx.Options(
 			corecomp.MockModule,
@@ -646,6 +645,11 @@ func TestCaptureConfig(t *testing.T) {
 		assert.True(t, cfg.Capture.Enabled)
 		assert.Equal(t, "./capture_trace", cfg.Capture.Path)
 		assert.Equal(t, 10, cfg.Capture.Duration)
+
+		// Check bind env vars
+		assert.Equal(t, true, os.Getenv("DD_APM_CAPTURE_ENABLED"))
+		assert.Equal(t, "./capture_trace", os.Getenv("DD_APM_CAPTURE_PATH"))
+		assert.Equal(t, 10, os.Getenv("DD_APM_CAPTURE_DURATION"))
 	})
 
 	t.Run("fallback", func(t *testing.T) {
@@ -669,7 +673,6 @@ func TestCaptureConfig(t *testing.T) {
 		assert.Equal(t, "./capture_trace", cfg.Capture.Path)
 		assert.Equal(t, 5, cfg.Capture.Duration) // Fallback to default value 5 seconds
 	})
-
 }
 
 func TestFullYamlConfig(t *testing.T) {
