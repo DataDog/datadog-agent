@@ -1577,24 +1577,27 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	limiter := rt.limits.getLimiter(rt.accountID, rt.region, service, action)
-	throttled := false
-	throttledBig := false
+	throttled100 := false
+	throttled1000 := false
+	throttled5000 := false
 	if limiter != nil {
 		r := limiter.Reserve()
 		if !r.OK() {
 			panic("unexpected limiter with a zero burst")
 		}
 		if delay := r.Delay(); delay > 0 {
-			throttled = true
-			throttledBig = delay > 500*time.Millisecond
+			throttled100 = delay > 100*time.Millisecond
+			throttled1000 = delay > 1000*time.Millisecond
+			throttled5000 = delay > 1000*time.Millisecond
 			sleepCtx(req.Context(), delay)
 		}
 	}
 	tags := []string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
 		fmt.Sprintf("aws_service:%s", service),
-		fmt.Sprintf("aws_throttled:%t", throttled),
-		fmt.Sprintf("aws_throttled_big:%t", throttledBig),
+		fmt.Sprintf("aws_throttled_100:%t", throttled100),
+		fmt.Sprintf("aws_throttled_1000:%t", throttled1000),
+		fmt.Sprintf("aws_throttled_5000:%t", throttled5000),
 		fmt.Sprintf("aws_action:%s_%s", service, action),
 	}
 	if err := statsd.Incr("datadog.sidescanner.aws.requests", tags, 1.0); err != nil {
