@@ -2167,6 +2167,7 @@ func mountDevice(ctx context.Context, snapshotARN arn.ARN, device string) (mount
 		fsType     string
 	}
 
+	log.Debugf("detecting mounted snapshot %q partitions from device %q", snapshotARN, device)
 	var partitions []devicePartition
 	for i := 0; i < 120; i++ {
 		if !sleepCtx(ctx, 500*time.Millisecond) {
@@ -2249,9 +2250,14 @@ func mountDevice(ctx context.Context, snapshotARN arn.ARN, device string) (mount
 		}
 		pushCleanup(func(ctx context.Context) {
 			log.Debugf("un-mounting %s", mountPoint)
-			umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountPoint).CombinedOutput()
-			if err != nil {
-				log.Warnf("could not umount %s: %s:\n%s", mountPoint, err, string(umountOuput))
+			for i := 0; i < 10; i++ {
+				umountOuput, err := exec.CommandContext(ctx, "umount", "-f", mountPoint).CombinedOutput()
+				if err != nil {
+					log.Warnf("could not umount %s: %s:\n%s", mountPoint, err, string(umountOuput))
+				}
+				if !sleepCtx(ctx, 3*time.Second) {
+					break
+				}
 			}
 		})
 		mountPoints = append(mountPoints, mountPoint)
