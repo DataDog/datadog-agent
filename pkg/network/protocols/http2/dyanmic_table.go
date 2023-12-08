@@ -19,7 +19,9 @@ import (
 	manager "github.com/DataDog/ebpf-manager"
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/events"
 	"github.com/DataDog/datadog-agent/pkg/util/intern"
 )
 
@@ -48,6 +50,14 @@ type DynamicTable struct {
 	kernelMap *ebpf.Map
 	// perfHandler is the perf handler used to receive new paths from the kernel
 	perfHandler *ddebpf.PerfHandler
+	// terminatedConnectionsEventsConsumer is the consumer used to receive terminated connections events from the kernel.
+	terminatedConnectionsEventsConsumer *events.Consumer[netebpf.ConnTuple]
+	// terminatedConnections is the list of terminated connections received from the kernel.
+	terminatedConnections []netebpf.ConnTuple
+	// terminatedConnectionMux is used to protect the terminated connections list from concurrent access.
+	terminatedConnectionMux sync.Mutex
+	// mapCleaner is the map cleaner used to clear entries of terminated connections from the kernel map.
+	mapCleaner *ddebpf.MapCleaner[http2DynamicTableIndex, bool]
 }
 
 // NewDynamicTable creates a new dynamic table.
@@ -79,6 +89,30 @@ func (dt *DynamicTable) AddPath(key http2DynamicTableIndex, path []byte) {
 
 	value := true
 	_ = dt.kernelMap.Update(unsafe.Pointer(&key), unsafe.Pointer(&value), 0)
+}
+
+func (dt *DynamicTable) Start(mgr *manager.Manager, cfg *config.Config) (err error) {
+	dt.terminatedConnectionsEventsConsumer, err = events.NewConsumer[netebpf.ConnTuple](
+		terminatedConnectionsEventStream,
+		mgr,
+		dt.processTerminatedConnections,
+	)
+	if err != nil {
+		return
+	}
+
+	dt.terminatedConnectionsEventsConsumer.Start()
+
+	if err := dt.StartProcessingPerfHandler(mgr); err != nil {
+		return err
+	}
+	return dt.setupDynamicTableMapCleaner(cfg)
+}
+
+func (dt *DynamicTable) processTerminatedConnections(events []netebpf.ConnTuple) {
+	dt.terminatedConnectionMux.Lock()
+	defer dt.terminatedConnectionMux.Unlock()
+	dt.terminatedConnections = append(dt.terminatedConnections, events...)
 }
 
 // StartProcessingPerfHandler starts the perf handler used to receive new paths from the kernel.
@@ -134,8 +168,44 @@ func (dt *DynamicTable) StartProcessingPerfHandler(mgr *manager.Manager) error {
 	return nil
 }
 
-// StopProcessingPerfHandler stops the perf handler.
-func (dt *DynamicTable) StopProcessingPerfHandler() {
+func (dt *DynamicTable) setupDynamicTableMapCleaner(cfg *config.Config) error {
+	mapCleaner, err := ddebpf.NewMapCleaner[http2DynamicTableIndex, bool](dt.kernelMap, 1024)
+	if err != nil {
+		return fmt.Errorf("error creating a map cleaner for http2 dynamic table: %w", err)
+	}
+
+	terminatedConnectionsMap := make(map[netebpf.ConnTuple]struct{})
+	mapCleaner.Clean(cfg.HTTP2DynamicTableMapCleanerInterval,
+		func() bool {
+			dt.terminatedConnectionsEventsConsumer.Sync()
+			dt.terminatedConnectionMux.Lock()
+			for _, conn := range dt.terminatedConnections {
+				terminatedConnectionsMap[conn] = struct{}{}
+			}
+			dt.terminatedConnections = dt.terminatedConnections[:0]
+			dt.terminatedConnectionMux.Unlock()
+
+			return len(terminatedConnectionsMap) > 0
+		},
+		func() {
+			terminatedConnectionsMap = make(map[netebpf.ConnTuple]struct{})
+		},
+		func(_ int64, key http2DynamicTableIndex, _ bool) bool {
+			_, ok := terminatedConnectionsMap[key.Tup]
+			return ok
+		})
+	dt.mapCleaner = mapCleaner
+	return nil
+}
+
+// Stop stops the perf handler.
+func (dt *DynamicTable) Stop() {
 	close(dt.stopChannel)
 	dt.wg.Wait()
+
+	dt.mapCleaner.Stop()
+
+	if dt.terminatedConnectionsEventsConsumer != nil {
+		dt.terminatedConnectionsEventsConsumer.Stop()
+	}
 }
