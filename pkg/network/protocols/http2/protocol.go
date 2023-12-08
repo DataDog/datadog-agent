@@ -334,7 +334,9 @@ func (p *Protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 
 func (p *Protocol) processHTTP2(events []EbpfTx) {
 	for i := range events {
-		tx := &events[i]
+		tx := &ebpfTXWrapper{
+			EbpfTx: &events[i],
+		}
 		// TODO: Here we need to resolve the path index to the actual path
 		p.telemetry.Count(tx)
 		p.statkeeper.Process(tx)
