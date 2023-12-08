@@ -90,34 +90,92 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Effect: Allow
+          - Sid: SideScanningVolumeSnapshotCreation
+            Effect: Allow
+            Action: ec2:CreateSnapshot
+            Resource: arn:aws:ec2:*:*:volume/*
+          - Sid: SideScanningSnapshotCreation
+            Effect: Allow
+            Action: ec2:CreateSnapshot
+            Resource: arn:aws:ec2:*:*:snapshot/*
+            Condition:
+              ForAllValues:StringLike:
+                aws:TagKeys: SideScanner*
+              StringEquals:
+                aws:RequestTag/SideScanner: 'true'
+          - Sid: SideScanningVolumeCreation
+            Effect: Allow
+            Action: ec2:CreateVolume
+            Resource: arn:aws:ec2:*:*:volume/*
+            Condition:
+              ForAllValues:StringLike:
+                aws:TagKeys: SideScanner*
+              StringEquals:
+                aws:RequestTag/SideScanner: 'true'
+          - Sid: SideScanningResourceTagging
+            Effect: Allow
+            Action: ec2:CreateTags
+            Resource:
+            - arn:aws:ec2:*:*:volume/*
+            - arn:aws:ec2:*:*:snapshot/*
+            Condition:
+              StringEquals:
+                ec2:CreateAction:
+                - CreateSnapshot
+                - CreateVolume
+          - Sid: SideScanningSnapshotAttachVolume
+            Effect: Allow
             Action:
-              - ebs:GetSnapshotBlock
-              - ebs:ListChangedBlocks
-              - ebs:ListSnapshotBlocks
-
-              - ec2:CreateTags
-              - ec2:CopySnapshot
-              - ec2:CreateSnapshot
-              - ec2:DeleteSnapshot
-
-              - ec2:AttachVolume
-              - ec2:CreateVolume
-              - ec2:DeleteVolume
-              - ec2:DetachVolume
-              - ec2:DescribeVolumes
-
-              - ec2:DescribeImportSnapshotTask
-              - ec2:DescribeSnapshotAttribute
-              - ec2:DescribeSnapshots
-              - ec2:DescribeSnapshotTierStatus
-              - ec2:ImportSnapshot
-
-              - lambda:GetFunction
-
-              # offline mode
-              - ec2:DescribeRegions
-              - ec2:DescribeInstances
+            - ec2:DetachVolume
+            - ec2:AttachVolume
+            Resource:
+            - arn:aws:ec2:*:*:volume/*
+            Condition:
+              StringEquals:
+                aws:ResourceTag/SideScanner: 'true'
+          - Sid: SideScanningSnapshotAttachInstance
+            Effect: Allow
+            Action:
+            - ec2:DetachVolume
+            - ec2:AttachVolume
+            Resource:
+            - arn:aws:ec2:*:*:instance/*
+            Condition:
+              StringEquals:
+                aws:ResourceTag/SideScanner: 'true'
+          - Sid: SideScanningSnapshotAccessAndCleanup
+            Effect: Allow
+            Action:
+            - ec2:ModifySnapshotAttribute
+            - ec2:DetachVolume
+            - ec2:DescribeSnapshotAttribute
+            - ec2:DeleteVolume
+            - ec2:DeleteSnapshot
+            - ec2:AttachVolume
+            - ebs:ListSnapshotBlocks
+            - ebs:ListChangedBlocks
+            - ebs:GetSnapshotBlock
+            Resource:
+            - arn:aws:ec2:*:*:volume/*
+            - arn:aws:ec2:*:*:snapshot/*
+            Condition:
+              StringEquals:
+                aws:ResourceTag/SideScanner: 'true'
+          - Sid: SideScanningDescribeSnapshots
+            Effect: Allow
+            Action:
+            - ec2:DescribeSnapshots
+            Resource:
+            - '*'
+          - Sid: GetLambdaDetails
+            Effect: Allow
+            Action: lambda:GetFunction
+            Resource: arn:aws:lambda:*:*:function:*
+          - Sid: OfflineMode
+            Effect: Allow
+            Action:
+            - ec2:DescribeRegions
+            - ec2:DescribeInstances
             Resource: '*'
 
   DatalogSideScannerInstanceProfile:
