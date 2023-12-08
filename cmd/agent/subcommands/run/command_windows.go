@@ -10,7 +10,10 @@ package run
 
 import (
 	"context"
-	_ "expvar"         // Blank import used because this isn't directly used in this file
+	_ "expvar" // Blank import used because this isn't directly used in this file
+	apmetwtracer "github.com/DataDog/datadog-agent/comp/apm/etwtracer"
+	apmetwtracerimpl "github.com/DataDog/datadog-agent/comp/apm/etwtracer/impl"
+	etwimpl "github.com/DataDog/datadog-agent/comp/etw/impl"
 	_ "net/http/pprof" // Blank import used because this isn't directly used in this file
 
 	"github.com/DataDog/datadog-agent/comp/checks/winregistry"
@@ -172,13 +175,16 @@ func StartAgentWithDefaults(ctxChan <-chan context.Context) (<-chan error, error
 func getPlatformModules() fx.Option {
 	return fx.Options(
 		agentcrashdetectimpl.Module,
+		apmetwtracerimpl.Module,
 		winregistryimpl.Module,
+		etwimpl.Module,
 		comptraceconfig.Module,
 		fx.Replace(comptraceconfig.Params{
 			FailIfAPIKeyMissing: false,
 		}),
 		// Force the instantiation of the components
 		fx.Invoke(func(_ agentcrashdetect.Component) {}),
+		fx.Invoke(func(_ apmetwtracer.Component) {}),
 		fx.Invoke(func(_ winregistry.Component) {}),
 	)
 }
