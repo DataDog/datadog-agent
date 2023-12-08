@@ -80,7 +80,7 @@ const (
 
 	defaultAWSRate = 20.0
 	defaultEC2Rate = 20.0
-	defaultEBSRAte = 60.0
+	defaultEBSRAte = 300.0
 )
 
 var statsd *ddgostatsd.Client
@@ -1577,21 +1577,24 @@ func (rt *awsClientStats) RoundTrip(req *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	limiter := rt.limits.getLimiter(rt.accountID, rt.region, service, action)
-	rateLimited := false
+	throttled := false
+	throttledBig := false
 	if limiter != nil {
 		r := limiter.Reserve()
 		if !r.OK() {
 			panic("unexpected limiter with a zero burst")
 		}
 		if delay := r.Delay(); delay > 0 {
-			rateLimited = true
+			throttled = true
+			throttledBig = delay > 500*time.Millisecond
 			sleepCtx(req.Context(), delay)
 		}
 	}
 	tags := []string{
 		fmt.Sprintf("agent_version:%s", version.AgentVersion),
 		fmt.Sprintf("aws_service:%s", service),
-		fmt.Sprintf("aws_ratelimited:%t", rateLimited),
+		fmt.Sprintf("aws_throttled:%t", throttled),
+		fmt.Sprintf("aws_throttled_big:%t", throttledBig),
 		fmt.Sprintf("aws_action:%s_%s", service, action),
 	}
 	if err := statsd.Incr("datadog.sidescanner.aws.requests", tags, 1.0); err != nil {
