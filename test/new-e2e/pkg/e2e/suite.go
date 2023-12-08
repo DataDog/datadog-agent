@@ -4,199 +4,43 @@
 // Copyright 2016-present Datadog, Inc.
 
 // Package e2e provides the API to manage environments and organize E2E tests.
+// Three major concepts are used to write E2E tests:
+//  - [e2e.Provisioner]: A provisioner is a component that provide compute resources (usually Cloud resources). Most common is Pulumi through `test-infra-definitions`.
+//  - [e2e.BaseSuite]: A TestSuite is a collection of tests that share the ~same environment.
+//  - Environment: An environment is a collection of resources (virtual machine, agent, etc). An environment is filled by provisioners.
 //
-// Here is a small example of E2E tests.
-// E2E tests use [testify Suite] and it is strongly recommended to read the documentation of
-// [testify Suite] if you are not familiar with it.
+// See usage examples in the [examples] package.
 //
-//	import (
-//		"testing"
+// # Provisioners
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-//	)
+// Three provisioners are available:
+//  - [e2e.PulumiProvisioner]: A provisioner that uses Pulumi to create resources.
+// Pulumi Provisioner can be typed or untyped:
+//  - Typed provisioners are provisioners that are typed with the environment they provision and the `Run` function must be defined in `datadog-agent` inline.
+//  - Untyped provisioners are provisioners that are not typed with the environment they provision and the `Run` function can come from anywhere.
 //
-//	type vmSuite struct {
-//		e2e.Suite[e2e.VMEnv]
-//	}
+//  - [e2e.StaticProvisioner]: A provisioner that uses static resources from a JSON file. The static provisioner is Untyped.
 //
-//	func TestVMSuite(t *testing.T) {
-//		e2e.Run[e2e.VMEnv](t, &vmSuite{}, e2e.EC2VMStackDef())
-//	}
+// # Impact of Typed vs Untyped provisioners
+// Typed provisioners are more convenient to use as they are typed with the environment they provision, however they do require a close mapping between the RunFunc and the environment.
+// With a Typed provisioner, the `component.Export()` function is used to match an Environment field with a Pulumi resource.
 //
-//	func (v *vmSuite) TestBasicVM() {
-//		v.Env().VM.MustExecute("ls")
-//	}
+// An Untyped provisioner is more flexible as it does not require a close mapping between the RunFunc and the environment. It allows to get resources from anywhere in the same environment.
+// However it means that the environment needs to be annotated with the `import` tag to match the resource key. See for instance the [examples/suite_serial_kube_test.go] file.
 //
-// To write an E2E test:
+// # Out-of-the-box environments and provisioners
 //
-// 1. Define your own [suite] type with the embedded [e2e.Suite] struct.
+// Check the [environments] package for a list of out-of-the-box environments, for instance [environments.VM].
+// Check the `environments/<cloud>` for a list of out-of-the-box provisioners, for instance [environments/aws/vm].
 //
-//	type vmSuite struct {
-//		e2e.Suite[e2e.VMEnv]
-//	}
+// # The BaseSuite test suite
 //
-// [e2e.VMEnv] defines the components available in your stack. See "Using existing stack definition" section for more information.
+// The [e2e.BaseSuite] test suite is a [testify Suite] that wraps environment and provisioners.
+// It allows to easily write tests that share the same environment without having to re-implement boilerplate code.
+// Check all the [e2e.SuiteOption] to customize the behavior of the BaseSuite.
 //
-// 2. Write a regular Go test function that runs the test suite using [e2e.Run].
-//
-//	func TestVMSuite(t *testing.T) {
-//		e2e.Run[e2e.VMEnv](t, &vmSuite{}, e2e.EC2VMStackDef())
-//	}
-//
-// The first argument of [e2e.Run] is an instance of type [*testing.T].
-//
-// The second argument is a pointer to an empty instance of the previous defined structure (&vmSuite{} in our example)
-//
-// The third parameter defines the environment. See "Using existing stack definition" section for more information about a environment definition.
-//
-// 3. Write a test function
-//
-//	func (v *vmSuite) TestBasicVM() {
-//		v.Env().VM.MustExecute("ls")
-//	}
-//
-// [e2e.Suite.Env] gives access to the components in your environment.
-//
-// Depending on your stack definition, [e2e.Suite.Env] can provide the following objects:
-//   - [client.VM]: A virtual machine where you can execute commands.
-//   - [client.Agent]: A struct that provides methods to run datadog agent commands.
-//   - [client.Fakeintake]: A struct that provides methods to run queries to a fake instance of Datadog intake.
-//
-// # Using an existing stack definition
-//
-// The stack definition defines the components available in your environment.
-//
-//	import (
-//		"testing"
-//
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-//	)
-//
-//	type vmSuite struct {
-//		e2e.Suite[e2e.VMEnv]
-//	}
-//
-//	func TestVMSuite(t *testing.T) {
-//		e2e.Run[e2e.VMEnv](t, &vmSuite{}, e2e.EC2VMStackDef())
-//	}
-//
-// In this example, the components available are defined by the struct [e2e.VMEnv] which contains a virtual machine.
-// The generic type of [e2e.Suite] must match the type of the stack definition.
-// In our example, [e2e.EC2VMStackDef] returns an instance of [*e2e.StackDefinition][[e2e.VMEnv]].
-//
-// # e2e.EC2VMStackDef
-//
-// [e2e.EC2VMStackDef] creates an environment with a virtual machine.
-// The available options are located in the [ec2params] package.
-//
-//	import (
-//		"testing"
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-//		"github.com/DataDog/test-infra-definitions/components/os"
-//		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-//		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
-//	)
-//
-//	type vmSuite struct {
-//		e2e.Suite[e2e.VMEnv]
-//	}
-//
-//	func TestVMSuite(t *testing.T) {
-//		e2e.Run[e2e.VMEnv](t, &vmSuite{}, e2e.EC2VMStackDef(
-//			ec2params.WithImageName("ami-0a0c8eebcdd6dcbd0", os.ARM64Arch, ec2os.UbuntuOS),
-//			ec2params.WithName("My-instance"),
-//		))
-//	}
-//
-//	func (v *vmSuite) TestBasicVM() {
-//		v.Env().VM.MustExecute("ls")
-//	}
-//
-// # e2e.AgentStackDef
-//
-// [e2e.AgentStackDef] creates an environment with an Agent installed on a virtual machine.
-// The available options are located in the [agentparams] package.
-//
-//	import (
-//		"testing"
-//
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-//		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-//		"github.com/DataDog/test-infra-definitions/components/os"
-//		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2os"
-//		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2params"
-//		"github.com/stretchr/testify/require"
-//	)
-//
-//	type agentSuite struct {
-//		e2e.Suite[e2e.AgentEnv]
-//	}
-//
-//	func TestVMSuite(t *testing.T) {
-//		e2e.Run[e2e.AgentEnv](t, &agentSuite{}, e2e.AgentStackDef(
-//			[]ec2params.Option{
-//				ec2params.WithImageName("ami-0a0c8eebcdd6dcbd0", os.ARM64Arch, ec2os.UbuntuOS),
-//				ec2params.WithName("My-instance"),
-//			},
-//			agentparams.WithAgentConfig("log_level: debug"),
-//			agentparams.WithTelemetry(),
-//		))
-//	}
-//
-//	func (v *agentSuite) TestBasicAgent() {
-//		config := v.Env().Agent.Config()
-//		require.Contains(v.T(), config, "log_level: debug")
-//	}
-//
-// # Defining your stack definition
-//
-// In some special cases, you have to define a custom environment.
-// Here is an example of an environment with Docker installed on a virtual machine.
-//
-//	import (
-//		"testing"
-//
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
-//		"github.com/DataDog/test-infra-definitions/components/datadog/agent/docker"
-//		"github.com/DataDog/test-infra-definitions/scenarios/aws/vm/ec2vm"
-//		"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
-//	)
-//
-//	type dockerSuite struct {
-//		e2e.Suite[e2e.VMEnv]
-//	}
-//
-//	func TestDockerSuite(t *testing.T) {
-//		e2e.Run[e2e.VMEnv](t, &dockerSuite{}, e2e.EnvFactoryStackDef(dockerEnvFactory))
-//	}
-//
-//	func dockerEnvFactory(ctx *pulumi.Context) (*e2e.VMEnv, error) {
-//		vm, err := ec2vm.NewUnixEc2VM(ctx)
-//		if err != nil {
-//			return nil, err
-//		}
-//
-//		_, err = docker.NewAgentDockerInstaller(vm.UnixVM, docker.WithAgent(docker.WithAgentImageTag("7.42.0")))
-//
-//		if err != nil {
-//			return nil, err
-//		}
-//
-//		return &e2e.VMEnv{
-//			VM: client.NewVM(vm),
-//		}, nil
-//	}
-//
-//	func (docker *dockerSuite) TestDocker() {
-//		docker.Env().VM.MustExecute("docker container ls")
-//	}
-//
-// [e2e.EnvFactoryStackDef] is used to define a custom environment.
-// Here is a non exhaustive list of components that can be used to create a custom environment:
-//   - [EC2 VM]: Provide methods to create a virtual machine on EC2.
-//   - [Agent]: Provide methods to install the Agent on a virtual machine
-//   - [File Manager]: Provide methods to manipulate files and folders
+// Note: By default, the BaseSuite test suite will delete the environment when the test suite finishes (whether it's succesful or not).
+// During developement, it's highly recommended to use the [params.WithDevMode] option to prevent the environment from being deleted.
 //
 // # Organizing your tests
 //
@@ -210,15 +54,16 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
 //	)
 //
 //	type singleEnvSuite struct {
-//		e2e.Suite[e2e.AgentEnv]
+//		e2e.BaseSuite[environments.VM]
 //	}
 //
 //	func TestSingleEnvSuite(t *testing.T) {
-//		e2e.Run[e2e.AgentEnv](t, &singleEnvSuite{}, e2e.AgentStackDef())
+//		e2e.Run(t, &singleEnvSuite{}, e2e.WithProvisioner(awsvm.Provisioner()))
 //	}
 //
 //	func (suite *singleEnvSuite) Test1() {
@@ -236,38 +81,40 @@
 // # Having different environments
 //
 // In this scenario, the environment is different for each test (or for most of them).
-// [e2e.Suite.UpdateEnv] is used to update the environment.
-// Keep in mind that using [e2e.Suite.UpdateEnv] to update virtual machine settings can destroy
-// the current virtual machine and create a new one when updating the operating system for example.
+// [e2e.BaseSuite.UpdateEnv] is used to update the environment.
+// You could technically use a completely different environment (for instance, switching from a Linux to a Windows VM, or changing Kubernetes cluster implementation).
+// In some cases it makes sense to do so, but in most cases we want to regroup tests that pertain to the same environment.
 //
 // Note: Calling twice [e2e.Suite.UpdateEnv] with the same argument does nothing.
 //
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+//		awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
 //		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
-//		"github.com/stretchr/testify/require"
-//	)
 //
-//	type multipleEnvSuite struct {
-//		e2e.Suite[e2e.AgentEnv]
+//		"github.com/stretchr/testify/assert"
+//)
+//
+//	type agentSuiteEx4 struct {
+//		e2e.BaseSuite[environments.VM]
 //	}
 //
-//	func TestMultipleEnvSuite(t *testing.T) {
-//		e2e.Run[e2e.AgentEnv](t, &multipleEnvSuite{}, e2e.AgentStackDef())
+//	func TestVMSuiteEx4(t *testing.T) {
+//		e2e.Run(t, &agentSuiteEx4{}, e2e.WithProvisioner(awsvm.Provisioner(
+//			awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")),
+//		)))
 //	}
 //
-//	func (suite *multipleEnvSuite) TestLogDebug() {
-//		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: debug"))))
-//		config := suite.Env().Agent.Config()
-//		require.Contains(suite.T(), config, "log_level: debug")
+//	func (v *agentSuiteEx4) TestLogDebug() {
+//		assert.Contains(v.T(), v.Env().Agent.Client.Config(), "log_level: debug")
 //	}
 //
-//	func (suite *multipleEnvSuite) TestLogInfo() {
-//		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: info"))))
-//		config := suite.Env().Agent.Config()
-//		require.Contains(suite.T(), config, "log_level: info")
+//	func (v *agentSuiteEx4) TestLogInfo() {
+//		v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
+//		assert.Contains(v.T(), v.Env().Agent.Client.Config(), "log_level: info")
 //	}
 //
 // # Having few environments
@@ -279,20 +126,22 @@
 //	import (
 //		"testing"
 //
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/e2e"
+//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments"
+//		awsvm "github.com/DataDog/datadog-agent/test/new-e2e/pkg/environments/aws/vm"
 //		"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 //	)
 //
 //	type subTestSuite struct {
-//		e2e.Suite[e2e.AgentEnv]
+//		e2e.Suite[environments.VM]
 //	}
 //
 //	func TestSubTestSuite(t *testing.T) {
-//		e2e.Run[e2e.AgentEnv](t, &subTestSuite{}, e2e.AgentStackDef())
+//		e2e.Run(t, &singleEnvSuite{}, e2e.WithProvisioner(awsvm.Provisioner()))
 //	}
 //
 //	func (suite *subTestSuite) TestLogDebug() {
-//		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: debug"))))
+//		v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug"))))
 //		suite.T().Run("MySubTest1", func(t *testing.T) {
 //			// Sub test 1
 //		})
@@ -302,7 +151,7 @@
 //	}
 //
 //	func (suite *subTestSuite) TestLogInfo() {
-//		suite.UpdateEnv(e2e.AgentStackDef(e2e.WithAgentParams(agentparams.WithAgentConfig("log_level: info"))))
+//		v.UpdateEnv(awsvm.Provisioner(awsvm.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
 //		suite.T().Run("MySubTest1", func(t *testing.T) {
 //			// Sub test 1
 //		})
@@ -311,40 +160,8 @@
 //		})
 //	}
 //
-// # WithDevMode
-//
-// When writing a new e2e test, it is important to iterate quickly until your test succeeds.
-// You can use [params.WithDevMode] to not destroy the environment when the test finishes.
-// For example it allows you to not create a new virtual machine each time you run a test.
-// Note: [params.WithDevMode] is ignored when the test runs on the CI but it should be removed when you finish the writing of the test.
-//
-//	import (
-//		"testing"
-//
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-//		"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
-//	)
-//
-//	type vmSuite struct {
-//		e2e.Suite[e2e.VMEnv]
-//	}
-//
-//	func TestVMSuite(t *testing.T) {
-//		e2e.Run[e2e.VMEnv](t, &vmSuite{}, e2e.EC2VMStackDef(), params.WithDevMode())
-//	}
-//
-//	func (v *vmSuite) TestBasicVM() {
-//		v.Env().VM.MustExecute("ls")
-//	}
-//
 // [Subtests]: https://go.dev/blog/subtests
-// [suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
 // [testify Suite]: https://pkg.go.dev/github.com/stretchr/testify/suite
-// [File Manager]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/command#FileManager
-// [EC2 VM]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2VM
-// [Agent]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agent#Installer
-// [ec2params]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/scenarios/aws/vm/ec2params
-// [agentparams]: https://pkg.go.dev/github.com/DataDog/test-infra-definitions@main/components/datadog/agentparams
 
 package e2e
 

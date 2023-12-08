@@ -20,6 +20,7 @@ const (
 	defaultVMName     = "dockervm"
 )
 
+// ProvisionerParams contains all the parameters needed to create the environment
 type ProvisionerParams struct {
 	name string
 
@@ -40,8 +41,10 @@ func newProvisionerParams() *ProvisionerParams {
 	}
 }
 
+// ProvisionerOption is a function that modifies the ProvisionerParams
 type ProvisionerOption func(*ProvisionerParams) error
 
+// WithName sets the name of the provisioner
 func WithName(name string) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.name = name
@@ -49,6 +52,7 @@ func WithName(name string) ProvisionerOption {
 	}
 }
 
+// WithEC2VMOptions sets the options for the EC2 VM
 func WithEC2VMOptions(opts ...ec2.VMOption) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.vmOptions = append(params.vmOptions, opts...)
@@ -56,6 +60,7 @@ func WithEC2VMOptions(opts ...ec2.VMOption) ProvisionerOption {
 	}
 }
 
+// WithAgentOptions sets the options for the Docker Agent
 func WithAgentOptions(opts ...agent.DockerOption) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = append(params.agentOptions, opts...)
@@ -63,6 +68,7 @@ func WithAgentOptions(opts ...agent.DockerOption) ProvisionerOption {
 	}
 }
 
+// WithFakeIntakeOptions sets the options for the FakeIntake
 func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.fakeintakeOptions = append(params.fakeintakeOptions, opts...)
@@ -70,6 +76,7 @@ func WithFakeIntakeOptions(opts ...fakeintake.Option) ProvisionerOption {
 	}
 }
 
+// WithExtraConfigParams sets the extra config params for the environment
 func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.extraConfigParams = configMap
@@ -77,6 +84,7 @@ func WithExtraConfigParams(configMap runner.ConfigMap) ProvisionerOption {
 	}
 }
 
+// WithoutFakeIntake deactivates the creation of the FakeIntake
 func WithoutFakeIntake() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.fakeintakeOptions = nil
@@ -84,6 +92,7 @@ func WithoutFakeIntake() ProvisionerOption {
 	}
 }
 
+// WithoutAgent deactivates the creation of the Docker Agent
 func WithoutAgent() ProvisionerOption {
 	return func(params *ProvisionerParams) error {
 		params.agentOptions = nil
@@ -92,6 +101,8 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
+// Provisioner creates a VM environment with an EC2 VM with Docker, an ECS Fargate FakeIntake and a Docker Agent configured to talk to each other.
+// FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.DockerVM] {
 	params := newProvisionerParams()
 	err := optional.ApplyOptions(params, opts)

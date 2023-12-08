@@ -92,6 +92,8 @@ func WithoutAgent() ProvisionerOption {
 	}
 }
 
+// Provisioner creates a VM environment with an EC2 VM, an ECS Fargate FakeIntake and a Host Agent configured to talk to each other.
+// FakeIntake and Agent creation can be deactivated by using [WithoutFakeIntake] and [WithoutAgent] options.
 func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.VM] {
 	params := newProvisionerParams()
 	err := optional.ApplyOptions(params, opts)
@@ -123,7 +125,9 @@ func Provisioner(opts ...ProvisionerOption) e2e.TypedProvisioner[environments.VM
 
 			// Normally if FakeIntake is enabled, Agent is enabled, but just in case
 			if params.agentOptions != nil {
-				params.agentOptions = append(params.agentOptions, agentparams.WithFakeintake(fakeIntake))
+				// Prepend in case it's overriden by the user
+				newOpts := []agentparams.Option{agentparams.WithFakeintake(fakeIntake)}
+				params.agentOptions = append(newOpts, params.agentOptions...)
 			}
 		} else {
 			// Suite inits all fields by default, so we need to explicitly set it to nil

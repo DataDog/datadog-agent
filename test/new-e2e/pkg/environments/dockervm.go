@@ -6,6 +6,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 )
 
+// DockerVM is an environment that contains a Docker VM, FakeIntake and Agent configured to talk to each other.
 type DockerVM struct {
 	// Components
 	Host       *components.Host
@@ -18,6 +19,7 @@ type DockerVM struct {
 
 var _ e2e.Initializable = &DockerVM{}
 
+// Init initializes the environment
 func (e *DockerVM) Init(ctx e2e.Context) error {
 	var err error
 	e.Docker, err = client.NewDocker(ctx.T(), e.Host.HostOutput)
