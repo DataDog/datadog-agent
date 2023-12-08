@@ -7,10 +7,6 @@ kitchen_tests_upload_common:
     - !reference [.except_mergequeue]
     - when: always
   dependencies:
-    - kitchen_centos_fips_install_script_agent-a6
-    - kitchen_centos_fips_install_script_agent-a7
-    - kitchen_centos_fips_install_script_dogstatsd-a7
-    - kitchen_centos_fips_install_script_iot_agent-a7
     - kitchen_centos_fips_upgrade6_agent-a6
     - kitchen_centos_fips_upgrade6_agent-a7
     - kitchen_centos_fips_upgrade7_agent-a7
