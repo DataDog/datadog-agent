@@ -145,7 +145,7 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 		APIKey:                  logsConfig.getLogsAPIKey(),
 		ProxyAddress:            proxyAddress,
 		ConnectionResetInterval: logsConfig.connectionResetInterval(),
-		UseSSL:                  pointer.Ptr(true),
+		UseSSL:                  pointer.Ptr(logsConfig.logsNoSSL()),
 	}
 
 	if logsDDURL, defined := logsConfig.logsDDURL(); defined {
@@ -177,7 +177,9 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 
 	additionals := logsConfig.getAdditionalEndpoints()
 	for i := 0; i < len(additionals); i++ {
-		additionals[i].UseSSL = main.UseSSL
+		if additionals[i].UseSSL == nil {
+			additionals[i].UseSSL = main.UseSSL
+		}
 		additionals[i].ProxyAddress = proxyAddress
 		additionals[i].APIKey = utils.SanitizeAPIKey(additionals[i].APIKey)
 	}
@@ -246,7 +248,7 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 
 		main.Host = host
 		main.Port = port
-		main.UseSSL = pointer.Ptr(useSSL)
+		*main.UseSSL = useSSL
 	}
 
 	additionals := logsConfig.getAdditionalEndpoints()
