@@ -21,13 +21,21 @@
     E2E_OVERRIDE_INSTANCE_TYPE: "t2.medium" # CentOS 6 does not support ENA, so we cannot use t3 instances
   needs: ["deploy_rpm_testing-a7_x64"]
 
-.new-e2e_centos-fips_x86_64:
+.new-e2e_centos-fips_a7_x86_64:
   variables:
     E2E_ARCH: x86_64
     E2E_OSVERS: "rhel-86-fips"
     E2E_CWS_SUPPORTED_OSVERS: "rhel-86-fips"
     E2E_BRANCH_OSVERS: "rhel-86-fips"
-  needs: ["deploy_rpm_testing-fips_x64"]
+  needs: ["deploy_rpm_testing-a7_x64"]
+
+.new-e2e_centos-fips_a6_x86_64:
+  variables:
+    E2E_ARCH: x86_64
+    E2E_OSVERS: "rhel-86-fips"
+    E2E_CWS_SUPPORTED_OSVERS: "rhel-86-fips"
+    E2E_BRANCH_OSVERS: "rhel-86-fips"
+  needs: ["deploy_rpm_testing-a7_x64"]
 
 new-e2e-agent-platform-install-script-centos-a6-x86_64:
   stage: kitchen_testing
@@ -83,7 +91,7 @@ new-e2e-agent-platform-install-script-centos-fips-a6-x86_64:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_centos
-    - .new-e2e_centos-fips_x86_64
+    - .new-e2e_centos-fips_a6_x86_64
     - .new-e2e_agent_a6
   variables:
     FLAVOR: datadog-agent
@@ -94,7 +102,7 @@ new-e2e-agent-platform-install-script-centos-fips-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_centos
-    - .new-e2e_centos-fips_x86_64
+    - .new-e2e_centos-fips_a7_x86_64
     - .new-e2e_agent_a7
   rules:
     !reference [.on_default_new-e2e_tests_a7]
@@ -107,7 +115,7 @@ new-e2e-agent-platform-install-script-centos-fips-iot-agent-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_centos
-    - .new-e2e_centos-fips_x86_64
+    - .new-e2e_centos-fips_a7_x86_64
     - .new-e2e_agent_a7
   rules:
     !reference [.on_default_new-e2e_tests_a7]
@@ -120,7 +128,7 @@ new-e2e-agent-platform-install-script-centos-fips-dogstatsd-a7-x86_64:
     - .new_e2e_template
     - .new-e2e_install_script
     - .new-e2e_os_centos
-    - .new-e2e_centos-fips_x86_64
+    - .new-e2e_centos-fips_a7_x86_64
     - .new-e2e_agent_a7
   variables:
     FLAVOR: datadog-dogstatsd
