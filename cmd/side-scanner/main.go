@@ -1172,7 +1172,7 @@ func (s *sideScanner) start(ctx context.Context) {
 	go func() {
 		for result := range s.resultsCh {
 			if result.err != nil {
-				if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(result.scan), 1.0); err != nil {
+				if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(result.scan, result.err), 1.0); err != nil {
 					log.Warnf("failed to send metric: %v", err)
 				}
 			} else {
@@ -1267,7 +1267,7 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 	}
 	defer func() {
 		if err != nil {
-			if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(scan), 1.0); err != nil {
+			if err := statsd.Count("datadog.sidescanner.scans.finished", 1.0, tagFailure(scan, err), 1.0); err != nil {
 				log.Warnf("failed to send metric: %v", err)
 			}
 		}
@@ -1475,7 +1475,7 @@ retry:
 		if isVolumeNotFoundError {
 			tags = tagNotFound(scan)
 		} else {
-			tags = tagFailure(scan)
+			tags = tagFailure(scan, err)
 		}
 		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tags, 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
@@ -1501,7 +1501,7 @@ retry:
 			log.Warnf("failed to send metric: %v", err)
 		}
 	} else {
-		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(scan), 1.0); err != nil {
+		if err := statsd.Count("datadog.sidescanner.snapshots.finished", 1.0, tagFailure(scan, err), 1.0); err != nil {
 			log.Warnf("failed to send metric: %v", err)
 		}
 	}
@@ -1529,7 +1529,10 @@ func tagNotFound(scan *scanTask) []string {
 	return append(tagScan(scan), "status:notfound")
 }
 
-func tagFailure(scan *scanTask) []string {
+func tagFailure(scan *scanTask, err error) []string {
+	if err == context.Canceled {
+		return append(tagScan(scan), "status:canceled")
+	}
 	return append(tagScan(scan), "status:failure")
 }
 
@@ -1950,7 +1953,7 @@ func downloadLambda(ctx context.Context, scan *scanTask, tempDir string) (codePa
 			if isResourceNotFoundError {
 				tags = tagNotFound(scan)
 			} else {
-				tags = tagFailure(scan)
+				tags = tagFailure(scan, err)
 			}
 			if err := statsd.Count("datadog.sidescanner.functions.finished", 1.0, tags, 1.0); err != nil {
 				log.Warnf("failed to send metric: %v", err)
