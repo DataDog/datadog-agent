@@ -79,7 +79,6 @@ type Probe struct {
 
 	// internals
 	scrubber *procutil.DataScrubber
-	event    *model.Event
 
 	// Events section
 	fullAccessEventHandlers [model.MaxAllEventType][]FullAccessEventHandler
@@ -241,12 +240,6 @@ func (p *Probe) DispatchCustomEvent(rule *rules.Rule, event *events.CustomEvent)
 	for _, handler := range p.customEventHandlers[event.GetEventType()] {
 		handler.HandleCustomEvent(rule, event)
 	}
-}
-
-func (p *Probe) zeroEvent() *model.Event {
-	p.event.Zero()
-	p.event.FieldHandlers = p.PlatformProbe.GetFieldHandlers()
-	return p.event
 }
 
 // StatsPollingInterval returns the stats polling interval

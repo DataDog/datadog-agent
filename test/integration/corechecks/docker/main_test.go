@@ -17,7 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	compcfg "github.com/DataDog/datadog-agent/comp/core/config"
-	complog "github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -117,8 +117,8 @@ func setup() error {
 		fx.Supply(compcfg.NewAgentParams(
 			"", compcfg.WithConfigMissingOK(true))),
 		compcfg.Module(),
-		fx.Supply(complog.ForOneShot("TEST", "info", false)),
-		complog.Module(),
+		fx.Supply(logimpl.ForOneShot("TEST", "info", false)),
+		logimpl.Module(),
 		fx.Supply(workloadmeta.NewParams()),
 		collectors.GetCatalog(),
 		workloadmeta.Module(),

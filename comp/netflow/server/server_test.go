@@ -22,7 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	"github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/forwarderimpl"
 
@@ -67,7 +67,7 @@ var testOptions = fx.Options(
 	nfconfig.MockModule(),
 	forwarderimpl.MockModule(),
 	hostnameimpl.MockModule(),
-	log.MockModule(),
+	logimpl.MockModule(),
 	demultiplexer.MockModule(),
 	defaultforwarder.MockModule(),
 	config.MockModule(),

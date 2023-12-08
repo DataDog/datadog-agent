@@ -133,6 +133,7 @@ class GoModule:
         return f"{self.import_path}@{self.__version(agent_version)}"
 
 
+# Default Modules on which will run tests / linters. When `condition=lambda: False` is defined for a module, it will be skipped.
 DEFAULT_MODULES = {
     ".": GoModule(
         ".",

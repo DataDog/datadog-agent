@@ -10,7 +10,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
@@ -69,8 +69,8 @@ func TestMockBundleDependencies(t *testing.T) {
 }
 
 var traceMockBundle = core.MakeMockBundle(
-	fx.Provide(func() log.Params {
-		return log.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
+	fx.Provide(func() logimpl.Params {
+		return logimpl.ForDaemon("TRACE", "apm_config.log_file", config.DefaultLogFilePath)
 	}),
-	log.TraceMockModule(),
+	logimpl.TraceMockModule(),
 )

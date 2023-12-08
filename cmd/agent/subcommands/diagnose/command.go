@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/api/util"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	pkgdiagnose "github.com/DataDog/datadog-agent/pkg/diagnose"
@@ -78,7 +79,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath),
-					LogParams:    log.ForOneShot("CORE", "off", true)}),
+					LogParams:    logimpl.ForOneShot("CORE", "off", true)}),
 				core.Bundle(),
 				diagnosesendermanagerimpl.Module(),
 			)

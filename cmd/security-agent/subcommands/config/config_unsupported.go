@@ -5,7 +5,7 @@
 
 //go:build !kubeapiserver
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Package config holds config related files
 package config
 
 import (
@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Commands returns the config commands
 func Commands(*command.GlobalParams) []*cobra.Command {
 	return nil
 }

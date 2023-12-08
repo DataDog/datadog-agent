@@ -68,6 +68,11 @@ type StatsByKeyByNameByType map[Key]map[Hostname]map[QueryType]Stats
 type ReverseDNS interface {
 	Resolve(map[util.Address]struct{}) map[util.Address][]Hostname
 	GetDNSStats() StatsByKeyByNameByType
+
+	// WaitForDomain is used in tests to ensure a domain has been
+	// seen by the ReverseDNS.
+	WaitForDomain(domain string) error
+
 	Start() error
 	Close()
 }

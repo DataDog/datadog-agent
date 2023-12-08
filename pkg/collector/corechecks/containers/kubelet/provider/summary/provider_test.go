@@ -18,7 +18,7 @@ import (
 	"go.uber.org/fx"
 
 	configcomp "github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/autodiscovery/common/types"
@@ -323,7 +323,7 @@ func TestProvider_Provide(t *testing.T) {
 
 func creatFakeStore(t *testing.T) workloadmeta.Mock {
 	store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		log.MockModule(),
+		logimpl.MockModule(),
 		configcomp.MockModule(),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),

@@ -46,7 +46,7 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, perfHandlerTCP *
 			return fmt.Errorf("invalid probe configuration: %v", err)
 		}
 
-		initManager(m, perfHandlerTCP)
+		initManager(m, perfHandlerTCP, config)
 
 		file, err := os.Stat("/proc/self/ns/pid")
 

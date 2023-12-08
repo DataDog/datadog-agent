@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/languagedetection/languagemodels"
@@ -49,7 +49,7 @@ func newTestClient(t *testing.T) (*client, chan *pbgo.ParentLanguageAnnotationRe
 			"language_detection.client_period": "50ms",
 		}}),
 		telemetry.MockModule(),
-		log.MockModule(),
+		logimpl.MockModule(),
 		fx.Supply(workloadmeta.NewParams()),
 		workloadmeta.MockModuleV2(),
 		fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {
@@ -86,7 +86,7 @@ func TestClientEnabled(t *testing.T) {
 					"cluster_agent.enabled":      testCase.clusterAgentEnabled,
 				}}),
 				telemetry.MockModule(),
-				log.MockModule(),
+				logimpl.MockModule(),
 				fx.Supply(workloadmeta.NewParams()),
 				workloadmeta.MockModuleV2(),
 				fx.Provide(func(m workloadmeta.Mock) workloadmeta.Component {

@@ -21,7 +21,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -40,7 +40,7 @@ func TestConfDisabled(t *testing.T) {
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule(),
+			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -64,7 +64,7 @@ func TestConfInterval(t *testing.T) {
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule(),
+			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -95,7 +95,7 @@ func TestCollect(t *testing.T) {
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule(),
+			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 		),
@@ -119,7 +119,7 @@ func TestCollectError(t *testing.T) {
 	ret := newResourcesProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule(),
+			logimpl.MockModule(),
 			config.MockModule(),
 			fx.Provide(func() serializer.MetricSerializer { return s }),
 		),

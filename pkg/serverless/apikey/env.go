@@ -20,13 +20,10 @@ type decryptFunc func(string) (string, error)
 func getSecretEnvVars(envVars []string, kmsFunc decryptFunc, smFunc decryptFunc) map[string]string {
 	decryptedEnvVars := make(map[string]string)
 	for _, envVar := range envVars {
-		// TODO: Replace with strings.Cut in Go 1.18
-		tokens := strings.SplitN(envVar, "=", 2)
-		if len(tokens) != 2 {
+		envKey, envVal, ok := strings.Cut(envVar, "=")
+		if !ok {
 			continue
 		}
-		envKey := tokens[0]
-		envVal := tokens[1]
 		if strings.HasSuffix(envKey, kmsKeySuffix) {
 			log.Debugf("Decrypting %v", envVar)
 			secretVal, err := kmsFunc(envVal)
