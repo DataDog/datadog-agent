@@ -40,6 +40,8 @@ func TestDockerCheckGenericPart(t *testing.T) {
 		// Should never been called as we are in the Docker check
 		generic.CreateContainerMeta("containerd", "cID101"),
 	}
+	tagger.SetupFakeTagger(t)
+	defer tagger.ResetTagger()
 
 	containersStats := map[string]mock.ContainerEntry{
 		"cID100": mock.GetFullSampleContainerEntry(),

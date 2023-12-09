@@ -37,6 +37,8 @@ func TestBundleDependencies(t *testing.T) {
 		statsd.Module(),
 		fx.Provide(func(cfg config.Component) telemetry.TelemetryCollector { return telemetry.NewCollector(cfg.Object()) }),
 		secretsimpl.MockModule(),
+		fx.Supply(tagger.NewFakeTaggerParams()),
+		tagger.Module(),
 		fx.Supply(&agent.Params{}),
 	)
 }

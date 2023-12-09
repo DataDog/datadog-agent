@@ -123,7 +123,7 @@ func StartServer(w workloadmeta.Component, senderManager sender.DiagnoseSenderMa
 
 	grpcSrv := grpc.NewServer(opts...)
 	pb.RegisterAgentSecureServer(grpcSrv, &serverSecure{
-		taggerServer: taggerserver.NewServer(tagger.GetDefaultTagger()),
+		taggerServer: taggerserver.NewServer(tagger.GetTaggerInstance()),
 	})
 
 	timeout := config.Datadog.GetDuration("cluster_agent.server.idle_timeout_seconds") * time.Second
