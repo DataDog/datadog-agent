@@ -89,7 +89,7 @@ var statsd *ddgostatsd.Client
 var (
 	globalParams struct {
 		configFilePath string
-		attachMode     string
+		diskMode       diskMode
 	}
 
 	defaultHTTPClient = &http.Client{
@@ -117,10 +117,14 @@ type scanAction string
 const (
 	malware scanAction = "malware"
 	vulns   scanAction = "vulns"
+)
 
-	volumeAttach string = "volume-attach"
-	nbdAttach    string = "nbd-attach"
-	noAttach     string = "no-attach"
+type diskMode string
+
+const (
+	volumeAttach diskMode = "volume-attach"
+	nbdAttach             = "nbd-attach"
+	noAttach              = "no-attach"
 )
 
 type resourceType string
@@ -208,14 +212,21 @@ func main() {
 }
 
 func rootCommand() *cobra.Command {
+	var diskModeStr string
+
 	sideScannerCmd := &cobra.Command{
 		Use:          "side-scanner [command]",
 		Short:        "Datadog Side Scanner at your service.",
 		Long:         `Datadog Side Scanner scans your cloud environment for vulnerabilities, compliance and security issues.`,
 		SilenceUsage: true,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			switch globalParams.attachMode {
-			case volumeAttach, nbdAttach, noAttach:
+			switch diskModeStr {
+			case string(volumeAttach):
+				globalParams.diskMode = volumeAttach
+			case string(nbdAttach):
+				globalParams.diskMode = nbdAttach
+			case string(noAttach), "":
+				globalParams.diskMode = noAttach
 			default:
 				return fmt.Errorf("invalid flag \"disk-mode\": expecting either %s, %s or %s", volumeAttach, nbdAttach, noAttach)
 			}
@@ -226,7 +237,7 @@ func rootCommand() *cobra.Command {
 
 	pflags := sideScannerCmd.PersistentFlags()
 	pflags.StringVarP(&globalParams.configFilePath, "config-path", "c", path.Join(commonpath.DefaultConfPath, "datadog.yaml"), "specify the path to side-scanner configuration yaml file")
-	pflags.StringVar(&globalParams.attachMode, "disk-mode", "no-attach", fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", volumeAttach, nbdAttach, noAttach))
+	pflags.StringVar(&diskModeStr, "disk-mode", "no-attach", fmt.Sprintf("disk mode used for scanning EBS volumes: %s, %s or %s", volumeAttach, nbdAttach, noAttach))
 	sideScannerCmd.AddCommand(runCommand())
 	sideScannerCmd.AddCommand(scanCommand())
 	sideScannerCmd.AddCommand(offlineCommand())
@@ -383,7 +394,7 @@ func mountCommand() *cobra.Command {
 					if err != nil {
 						return err
 					}
-					globalParams.attachMode = nbdAttach
+					globalParams.diskMode = nbdAttach
 					return nbdMountCmd(snapshotARN)
 				},
 				fx.Supply(compconfig.NewAgentParamsWithSecrets(globalParams.configFilePath)),
@@ -1098,7 +1109,7 @@ func newSideScanner(hostname string, limits *awsLimits, poolSize int, allowedSca
 	if err != nil {
 		return nil, err
 	}
-	rcClient, err := remote.NewUnverifiedGRPCClient("sidescanner", version.AgentVersion, nil, 100*time.Millisecond)
+	rcClient, err := remote.NewUnverifiedGRPCClient("sidescanner", version.AgentVersion, nil, 5*time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("could not init Remote Config client: %w", err)
 	}
@@ -1276,7 +1287,7 @@ func (s *sideScanner) launchScan(ctx context.Context, scan *scanTask) (err error
 	ctx = withAWSLimits(ctx, s.limits)
 	switch scan.Type {
 	case ebsScanType:
-		return scanEBS(ctx, scan, s.resultsCh)
+		return scanEBS(ctx, scan, globalParams.diskMode, s.resultsCh)
 	case lambdaScanType:
 		return scanLambda(ctx, scan, s.resultsCh)
 	default:
@@ -1530,7 +1541,7 @@ func tagNotFound(scan *scanTask) []string {
 }
 
 func tagFailure(scan *scanTask, err error) []string {
-	if err == context.Canceled {
+	if errors.Is(err, context.Canceled) {
 		return append(tagScan(scan), "status:canceled")
 	}
 	return append(tagScan(scan), "status:failure")
@@ -1729,7 +1740,7 @@ func getSelfEC2InstanceIndentity(ctx context.Context) (*imds.GetInstanceIdentity
 	return imdsclient.GetInstanceIdentityDocument(ctx, &imds.GetInstanceIdentityDocumentInput{})
 }
 
-func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) error {
+func scanEBS(ctx context.Context, scan *scanTask, diskMode diskMode, resultsCh chan scanResult) error {
 	resourceType, _, err := getARNResource(scan.ARN)
 	if err != nil {
 		return err
@@ -1781,7 +1792,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	var localSnapshotARN arn.ARN
 	var scanStartedAt time.Time
 	var cleanupAttach func(context.Context)
-	switch globalParams.attachMode {
+	switch diskMode {
 	case volumeAttach:
 		var volumeARN arn.ARN
 		device, volumeARN, localSnapshotARN, cleanupAttach, err = attachSnapshotWithVolume(ctx, scan, snapshotARN)
@@ -1820,7 +1831,7 @@ func scanEBS(ctx context.Context, scan *scanTask, resultsCh chan scanResult) err
 	}
 
 	// TODO: remove this check once we definitely move to nbd mounting
-	if device != "" || attachedVolumeARN != nil {
+	if diskMode == volumeAttach || diskMode == nbdAttach {
 		partitions, err := listDevicePartitions(ctx, device, attachedVolumeARN)
 		if err != nil {
 			return err
@@ -2300,6 +2311,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 				}
 			} else if bd.Path == device {
 				foundBlockDevice = &bd
+				break
 			}
 		}
 
@@ -2318,6 +2330,7 @@ func listDevicePartitions(ctx context.Context, device string, volumeARN *arn.ARN
 		if err != nil {
 			return nil, err
 		}
+		log.Tracef("lsblkd %q: %s", foundBlockDevice.Path, lsblkJSON)
 		if err := json.Unmarshal(lsblkJSON, &blockDevices); err != nil {
 			log.Warnf("lsblk parsing error: %v", err)
 			continue
