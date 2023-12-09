@@ -390,6 +390,8 @@ func expvarStats(stats map[string]interface{}, invAgent inventoryagent.Component
 		stats["netflowStats"] = netflowServer.GetStatus()
 	}
 
+	// TODO: Implement Status for snmpwalk
+
 	complianceVar := expvar.Get("compliance")
 	if complianceVar != nil {
 		complianceStatusJSON := []byte(complianceVar.String())

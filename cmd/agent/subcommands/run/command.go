@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
+	snmpwalkServer "github.com/DataDog/datadog-agent/comp/snmpwalk/server"
 
 	// checks implemented as components
 
@@ -57,6 +58,7 @@ import (
 	dogstatsddebug "github.com/DataDog/datadog-agent/comp/dogstatsd/serverDebug"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	"github.com/DataDog/datadog-agent/comp/snmpwalk"
 	//nolint:revive // TODO(ASC) Fix revive linter
 	pkgforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
 	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
@@ -216,6 +218,7 @@ func run(log log.Component,
 	secretResolver secrets.Component,
 	invChecks inventorychecks.Component,
 	_ netflowServer.Component,
+	_ snmpwalkServer.Component,
 	_ langDetectionCl.Component,
 	agentAPI internalAPI.Component,
 ) error {
@@ -369,6 +372,7 @@ func getSharedFxOption() fx.Option {
 		}),
 		ndmtmp.Bundle,
 		netflow.Bundle,
+		snmpwalk.Bundle,
 		fx.Provide(func(demultiplexer demultiplexer.Component) optional.Option[collector.Collector] {
 			return optional.NewOption(common.LoadCollector(demultiplexer))
 		}),

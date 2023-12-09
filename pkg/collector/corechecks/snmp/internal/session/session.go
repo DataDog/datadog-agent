@@ -34,11 +34,15 @@ type Session interface {
 	GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error)
 	GetNext(oids []string) (result *gosnmp.SnmpPacket, err error)
 	GetVersion() gosnmp.SnmpVersion
+	GetBulkRequestCount() int64
+	GetNextRequestCount() int64
 }
 
 // GosnmpSession is used to connect to a snmp device
 type GosnmpSession struct {
-	gosnmpInst gosnmp.GoSNMP
+	gosnmpInst       gosnmp.GoSNMP
+	bulkRequestCount int64
+	nextRequestCount int64
 }
 
 // Connect is used to create a new connection
@@ -58,17 +62,29 @@ func (s *GosnmpSession) Get(oids []string) (result *gosnmp.SnmpPacket, err error
 
 // GetBulk will send a SNMP BULKGET command
 func (s *GosnmpSession) GetBulk(oids []string, bulkMaxRepetitions uint32) (result *gosnmp.SnmpPacket, err error) {
+	s.bulkRequestCount++
 	return s.gosnmpInst.GetBulk(oids, 0, bulkMaxRepetitions)
 }
 
 // GetNext will send a SNMP GETNEXT command
 func (s *GosnmpSession) GetNext(oids []string) (result *gosnmp.SnmpPacket, err error) {
+	s.nextRequestCount++
 	return s.gosnmpInst.GetNext(oids)
 }
 
 // GetVersion returns the snmp version used
 func (s *GosnmpSession) GetVersion() gosnmp.SnmpVersion {
 	return s.gosnmpInst.Version
+}
+
+// GetBulkRequestCount TODO
+func (s *GosnmpSession) GetBulkRequestCount() int64 {
+	return s.bulkRequestCount
+}
+
+// GetNextRequestCount TODO
+func (s *GosnmpSession) GetNextRequestCount() int64 {
+	return s.nextRequestCount
 }
 
 // NewGosnmpSession creates a new session

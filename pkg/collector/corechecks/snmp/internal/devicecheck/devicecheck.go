@@ -174,7 +174,7 @@ func (d *DeviceCheck) Run(collectionTime time.Time) error {
 		d.sender.ReportNetworkDeviceMetadata(d.config, values, deviceMetadataTags, collectionTime, deviceStatus, deviceDiagnosis)
 	}
 
-	d.submitTelemetryMetrics(startTime, tags)
+	d.submitTelemetryMetrics(startTime, tags, values)
 	d.setDeviceHostExternalTags()
 	d.interfaceBandwidthState.RemoveExpiredBandwidthUsageRates(startTime.UnixNano())
 
@@ -352,7 +352,7 @@ func (d *DeviceCheck) detectAvailableMetrics() ([]profiledefinition.MetricsConfi
 	return metricConfigs, metricTagConfigs
 }
 
-func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string) {
+func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string, values *valuestore.ResultValueStore) {
 	newTags := append(common.CopyStrings(tags), snmpLoaderTag, common.GetAgentVersionTag())
 
 	d.sender.Gauge("snmp.devices_monitored", float64(1), newTags)
@@ -361,6 +361,19 @@ func (d *DeviceCheck) submitTelemetryMetrics(startTime time.Time, tags []string)
 	d.sender.MonotonicCount("datadog.snmp.check_interval", time.Duration(startTime.UnixNano()).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.check_duration", time.Since(startTime).Seconds(), newTags)
 	d.sender.Gauge("datadog.snmp.submitted_metrics", float64(d.sender.GetSubmittedMetrics()), newTags)
+
+	d.sender.MonotonicCount("datadog.snmp.requests", float64(d.session.GetNextRequestCount()), append(common.CopyStrings(newTags), "request_type:get_next"))
+	d.sender.MonotonicCount("datadog.snmp.requests", float64(d.session.GetBulkRequestCount()), append(common.CopyStrings(newTags), "request_type:get_bulk"))
+
+	if values != nil {
+		d.sender.Gauge("datadog.snmp.fetched_oids", float64(len(values.ScalarValues)), append(common.CopyStrings(newTags), "oid_type:scalar"))
+		columnOids := 0
+		for _, colValues := range values.ColumnValues {
+			columnOids += len(colValues)
+		}
+		d.sender.Gauge("datadog.snmp.fetched_oids", float64(columnOids), append(common.CopyStrings(newTags), "oid_type:column"))
+
+	}
 }
 
 // GetDiagnoses collects diagnoses for diagnose CLI
