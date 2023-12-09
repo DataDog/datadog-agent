@@ -241,7 +241,6 @@ func (b *ebsBackend) ReadAt(p []byte, off int64) (n int, err error) {
 		if copyEnd > ebsBlockSize {
 			copyEnd = ebsBlockSize
 		}
-		log.Tracef("copy block=%d start=%d len=%d\n", blockIndex, copyStart, copyMax)
 		copied := copy(p, block[copyStart:copyEnd])
 		off += int64(copied)
 		p = p[copied:]
