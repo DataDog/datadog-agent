@@ -39,11 +39,11 @@ func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, 
 	}
 
 	wlm := fxutil.Test[workloadmeta.Mock](t, fx.Options(
-		core.MockBundle,
+		core.MockBundle(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 		fx.Supply(context.Background()),
 		fx.Supply(workloadmeta.NewParams()),
-		workloadmeta.MockModuleV2,
+		workloadmeta.MockModuleV2(),
 	))
 	ctx := context.TODO()
 	wlm.Start(ctx)

@@ -10,10 +10,13 @@ package ec2
 import "context"
 
 // GetTags grabs the host tags from the EC2 api
+//
+//nolint:revive // TODO(ASC) Fix revive linter
 func GetTags(ctx context.Context) ([]string, error) {
 	return []string{}, nil
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func fetchTagsFromCache(ctx context.Context) ([]string, error) {
 	return []string{}, nil
 }

@@ -49,6 +49,8 @@ type readerImpl interface {
 type ReaderFilter func(path, name string) (string, error)
 
 // DefaultFilter matches all cgroup folders and use folder name as identifier
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func DefaultFilter(path, name string) (string, error) {
 	return path, nil
 }
@@ -59,6 +61,8 @@ func DefaultFilter(path, name string) (string, error) {
 var ContainerRegexp = regexp.MustCompile(ContainerRegexpStr)
 
 // ContainerFilter returns a filter that will match cgroup folders containing a container id
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func ContainerFilter(path, name string) (string, error) {
 	match := ContainerRegexp.FindString(name)
 

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/pkg/flare"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -46,9 +47,9 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
-					LogParams:    log.ForOneShot("CLUSTER", "off", true),
+					LogParams:    logimpl.ForOneShot("CLUSTER", "off", true),
 				}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 	}
@@ -58,6 +59,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func run(log log.Component, config config.Component, cliParams *cliParams) error {
 	return flare.GetClusterAgentConfigCheck(color.Output, cliParams.verbose)
 }

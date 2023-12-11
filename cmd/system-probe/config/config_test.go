@@ -32,6 +32,7 @@ func TestEventMonitor(t *testing.T) {
 	newConfig(t)
 
 	for i, tc := range []struct {
+		//nolint:revive // TODO(EBPF) Fix revive linter
 		cws, fim, process_events, network_events bool
 		enabled                                  bool
 	}{

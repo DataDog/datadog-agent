@@ -230,6 +230,7 @@ func (e *ebpfProgram) Close() error {
 		return nil
 	}
 	e.executePerProtocol(e.enabledProtocols, "stop", stopProtocolWrapper, nil)
+	ddebpf.UnregisterTelemetry(e.Manager.Manager)
 	return e.Stop(manager.CleanAll)
 }
 
@@ -367,6 +368,12 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	for _, p := range supported {
 		p.Instance.ConfigureOptions(e.Manager.Manager, &options)
 	}
+	if e.cfg.InternalTelemetryEnabled {
+		for _, pm := range e.PerfMaps {
+			pm.TelemetryEnabled = true
+			ddebpf.ReportPerfMapTelemetry(pm)
+		}
+	}
 
 	// Add excluded functions from disabled protocols
 	for _, p := range notSupported {
@@ -387,15 +394,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 		for _, tc := range p.TailCalls {
 			options.ExcludedFunctions = append(options.ExcludedFunctions, tc.ProbeIdentificationPair.EBPFFuncName)
 		}
-	}
-
-	var undefinedProbes []manager.ProbeIdentificationPair
-	for _, tc := range e.tailCallRouter {
-		undefinedProbes = append(undefinedProbes, tc.ProbeIdentificationPair)
-	}
-
-	e.InstructionPatcher = func(m *manager.Manager) error {
-		return errtelemetry.PatchEBPFTelemetry(m, true, undefinedProbes)
 	}
 
 	err := e.InitWithOptions(buf, options)

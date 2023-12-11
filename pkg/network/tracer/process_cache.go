@@ -88,6 +88,7 @@ func newProcessCache(maxProcs int, filteredEnvs []string) (*processCache, error)
 
 	var err error
 	pc.cache, err = lru.NewWithEvict(maxProcs, func(_ processCacheKey, p *events.Process) {
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		pl, _ := pc.cacheByPid[p.Pid]
 		if pl = pl.remove(p); len(pl) == 0 {
 			delete(pc.cacheByPid, p.Pid)
@@ -210,6 +211,7 @@ func (pc *processCache) add(p *events.Process) {
 	if evicted := pc.cache.Add(processCacheKey{pid: p.Pid, startTime: p.StartTime}, p); evicted {
 		processCacheTelemetry.cacheEvicts.Inc()
 	}
+	//nolint:gosimple // TODO(NET) Fix gosimple linter
 	pl, _ := pc.cacheByPid[p.Pid]
 	pc.cacheByPid[p.Pid] = pl.update(p)
 }
@@ -222,6 +224,7 @@ func (pc *processCache) Get(pid uint32, ts int64) (*events.Process, bool) {
 	pc.Lock()
 	defer pc.Unlock()
 
+	//nolint:gosimple // TODO(NET) Fix gosimple linter
 	pl, _ := pc.cacheByPid[pid]
 	if closest := pl.closest(ts); closest != nil {
 		closest.Expiry = time.Now().Add(defaultExpiry).Unix()

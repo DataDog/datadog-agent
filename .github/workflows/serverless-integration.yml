@@ -15,7 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         architecture: [amd64, arm64]
-        suite: [metric, log, trace, appsec]
+        suite: [metric, log, trace, appsec, proxy]
     name: ${{ matrix.suite }} on ${{ matrix.architecture }}
     steps:
       - name: Checkout datadog-agent repository

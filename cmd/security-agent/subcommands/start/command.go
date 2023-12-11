@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+// Package start implements start related subcommands
 package start
 
 import (
@@ -30,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -40,6 +42,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/statsd"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -62,6 +65,7 @@ type cliParams struct {
 	pidfilePath string
 }
 
+// Commands returns the start commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	params := &cliParams{
 		GlobalParams: globalParams,
@@ -83,22 +87,24 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					SecretParams:         secrets.NewEnabledParams(),
-					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+					LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 				}),
-				core.Bundle,
+				core.Bundle(),
 				dogstatsd.ClientBundle,
-				forwarder.Bundle,
+				forwarder.Bundle(),
 				fx.Provide(defaultforwarder.NewParamsWithResolvers),
-				demultiplexer.Module,
+				demultiplexer.Module(),
+				orchestratorForwarderImpl.Module(),
+				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 				fx.Provide(func() demultiplexer.Params {
 					opts := aggregator.DefaultAgentDemultiplexerOptions()
 					opts.UseEventPlatformForwarder = false
-					opts.UseOrchestratorForwarder = false
+
 					return demultiplexer.Params{Options: opts}
 				}),
 				// workloadmeta setup
 				collectors.GetCatalog(),
-				workloadmeta.Module,
+				workloadmeta.Module(),
 				fx.Provide(func(config config.Component) workloadmeta.Params {
 
 					catalog := workloadmeta.NodeAgent
@@ -301,7 +307,7 @@ func RunAgent(ctx context.Context, log log.Component, config config.Component, s
 }
 
 func initRuntimeSettings() error {
-	return settings.RegisterRuntimeSetting(settings.NewLogLevelRuntimeSetting())
+	return settings.RegisterRuntimeSetting(settings.NewLogLevelRuntimeSetting(nil))
 }
 
 // StopAgent stops the API server and clean up resources

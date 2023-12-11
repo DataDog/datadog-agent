@@ -11,7 +11,6 @@ import (
 
 	"go.uber.org/fx"
 
-	apiPackage "github.com/DataDog/datadog-agent/cmd/agent/api"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
 	"github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
@@ -23,6 +22,7 @@ import (
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent"
 	"github.com/DataDog/datadog-agent/comp/metadata/host"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventorychecks"
 	"github.com/DataDog/datadog-agent/comp/metadata/inventoryhost"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	remoteconfig "github.com/DataDog/datadog-agent/pkg/config/remote/service"
@@ -31,9 +31,10 @@ import (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newAPIServer),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newAPIServer))
+}
 
 type apiServer struct {
 }
@@ -59,8 +60,9 @@ func (server *apiServer) StartServer(
 	demux demultiplexer.Component,
 	invHost inventoryhost.Component,
 	secretResolver secrets.Component,
+	invChecks inventorychecks.Component,
 ) error {
-	return apiPackage.StartServer(configService,
+	return StartServers(configService,
 		flare,
 		dogstatsdServer,
 		capture,
@@ -73,16 +75,17 @@ func (server *apiServer) StartServer(
 		demux,
 		invHost,
 		secretResolver,
+		invChecks,
 	)
 }
 
 // StopServer closes the connection and the server
 // stops listening to new commands.
 func (server *apiServer) StopServer() {
-	apiPackage.StopServer()
+	StopServers()
 }
 
 // ServerAddress returns the server address.
 func (server *apiServer) ServerAddress() *net.TCPAddr {
-	return apiPackage.ServerAddress()
+	return ServerAddress()
 }
