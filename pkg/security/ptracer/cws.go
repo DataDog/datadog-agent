@@ -271,7 +271,8 @@ func retrieveECSMetadata(ctx *ebpfless.ContainerContext) error {
 		return err
 	}
 
-	if data.DockerID != "" {
+	if data.DockerID != "" && ctx.ID == "" {
+		// only set the container ID if we previously failed to retrieve it from proc
 		ctx.ID = data.DockerID
 	}
 	if data.DockerName != "" {
@@ -355,6 +356,9 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 	}
 
 	var containerCtx ebpfless.ContainerContext
+	if err := retrieveContainerIDFromProc(&containerCtx); err != nil {
+		logErrorf("Retrieve container ID from proc failed: %v\n", err)
+	}
 	if err := retrieveECSMetadata(&containerCtx); err != nil {
 		return err
 	}
@@ -370,6 +374,7 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 		return err
 	}
 
+	nsid := getNSID()
 	msgChan := make(chan *ebpfless.SyscallMsg, 10000)
 	traceChan := make(chan bool)
 
@@ -385,6 +390,7 @@ func StartCWSPtracer(args []string, probeAddr string, verbose bool) error {
 
 		for msg := range msgChan {
 			msg.SeqNum = seq
+			msg.NSID = nsid
 
 			logDebugf("sending message: %s", msg)
 

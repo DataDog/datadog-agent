@@ -209,7 +209,7 @@ def _clean_stacks(ctx: Context):
 
 def _get_existing_stacks(ctx: Context) -> List[str]:
     e2e_stacks: List[str] = []
-    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all --project e2elocal --json", pty=True)
+    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi stack ls --all --project e2elocal --json", hide=True)
     if output is None or not output:
         return []
     stacks_data = json.loads(output.stdout)
@@ -232,22 +232,23 @@ def _destroy_stack(ctx: Context, stack: str):
             f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack} --yes --remove --skip-preview",
             pty=True,
             warn=True,
+            hide=True,
         )
         if ret is not None and ret.exited != 0:
             # run with refresh on first destroy attempt failure
             ctx.run(
                 f"PULUMI_SKIP_UPDATE_CHECK=true pulumi destroy --stack {stack} -r --yes --remove --skip-preview",
-                pty=True,
                 warn=True,
+                hide=True,
             )
 
 
 def _remove_stack(ctx: Context, stack: str):
-    ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack}", pty=True)
+    ctx.run(f"PULUMI_SKIP_UPDATE_CHECK=true pulumi stack rm --force --yes --stack {stack}", hide=True)
 
 
 def _get_pulumi_about(ctx: Context) -> dict:
-    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi about --json", pty=True, hide=True)
+    output = ctx.run("PULUMI_SKIP_UPDATE_CHECK=true pulumi about --json", hide=True)
     if output is None or not output:
         return ""
     return json.loads(output.stdout)

@@ -67,7 +67,9 @@ func (m *complianceModule) Register(router *module.Router) error {
 
 func (m *complianceModule) handleError(writer http.ResponseWriter, request *http.Request, status int, err error) {
 	_ = log.Errorf("module compliance: failed to properly handle %s request: %s", request.URL.Path, err)
+	writer.Header().Set("Content-Type", "text/plain")
 	writer.WriteHeader(status)
+	writer.Write([]byte(err.Error()))
 }
 
 func (m *complianceModule) handleScanDBConfig(writer http.ResponseWriter, request *http.Request) {
@@ -78,7 +80,7 @@ func (m *complianceModule) handleScanDBConfig(writer http.ResponseWriter, reques
 	qs := request.URL.Query()
 	pid, err := strconv.ParseInt(qs.Get("pid"), 10, 32)
 	if err != nil {
-		m.handleError(writer, request, http.StatusBadRequest, fmt.Errorf("pid query paramater is not an integer: %w", err))
+		m.handleError(writer, request, http.StatusBadRequest, fmt.Errorf("pid query parameter is not an integer: %w", err))
 		return
 	}
 
