@@ -5,8 +5,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-// Package rules holds rules related files
-package rules
+// Package monitor holds rules related files
+package monitor
 
 import (
 	"context"
@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/constants"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -41,13 +42,16 @@ type Policy struct {
 	Version string
 }
 
+// RuleStatus defines status of rules
+type RuleStatus = map[eval.RuleID]string
+
 // PolicyMonitor defines a policy monitor
 type PolicyMonitor struct {
 	sync.RWMutex
 
 	statsdClient         statsd.ClientInterface
 	policies             map[string]Policy
-	rules                map[string]string
+	rules                RuleStatus
 	perRuleMetricEnabled bool
 }
 
@@ -148,8 +152,8 @@ type RuleSetLoadedReport struct {
 }
 
 // ReportRuleSetLoaded reports to Datadog that new ruleset was loaded
-func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientInterface, ruleSets map[string]*rules.RuleSet, err *multierror.Error) {
-	rule, event := NewRuleSetLoadedEvent(ruleSets, err)
+func ReportRuleSetLoaded(sender events.EventSender, statsdClient statsd.ClientInterface, policies []*PolicyState) {
+	rule, event := NewRuleSetLoadedEvent(policies)
 
 	if err := statsdClient.Count(metrics.MetricRuleSetLoaded, 1, []string{}, 1.0); err != nil {
 		log.Error(fmt.Errorf("failed to send ruleset_loaded metric: %w", err))
@@ -223,8 +227,8 @@ func RuleStateFromDefinition(def *rules.RuleDefinition, status string, message s
 	}
 }
 
-// NewRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
-func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.Error) (*rules.Rule, *events.CustomEvent) {
+// NewPoliciesState returns the states of policies and rules
+func NewPoliciesState(ruleSets map[string]*rules.RuleSet, err *multierror.Error) []*PolicyState {
 	mp := make(map[string]*PolicyState)
 
 	var policyState *PolicyState
@@ -265,6 +269,11 @@ func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.E
 		policies = append(policies, policy)
 	}
 
+	return policies
+}
+
+// NewRuleSetLoadedEvent returns the rule (e.g. ruleset_loaded) and a populated custom event for a new_rules_loaded event
+func NewRuleSetLoadedEvent(policies []*PolicyState) (*rules.Rule, *events.CustomEvent) {
 	evt := RulesetLoadedEvent{
 		Policies: policies,
 	}
@@ -276,7 +285,6 @@ func NewRuleSetLoadedEvent(ruleSets map[string]*rules.RuleSet, err *multierror.E
 
 // NewHeartbeatEvents returns the rule (e.g. heartbeat) and a populated custom event for a heartbeat event
 func NewHeartbeatEvents(policies map[string]Policy) (*rules.Rule, []*events.CustomEvent) {
-
 	var evts []*events.CustomEvent
 
 	for _, policy := range policies {

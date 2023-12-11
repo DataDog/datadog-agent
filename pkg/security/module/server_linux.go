@@ -156,6 +156,8 @@ func (a *APIServer) GetStatus(_ context.Context, _ *api.GetStatusParams) (*api.S
 		apiStatus.SelfTests = a.selfTester.GetStatus()
 	}
 
+	apiStatus.PoliciesStatus = a.policiesStatus
+
 	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
 	if ok {
 		status, err := p.GetConstantFetcherStatus()

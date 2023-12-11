@@ -231,6 +231,7 @@ func (rsa *RuntimeSecurityAgent) GetStatus() map[string]interface{} {
 				}
 				base["selfTests"] = selfTests
 			}
+			base["policiesStatus"] = cfStatus.PoliciesStatus
 		}
 	}
 
