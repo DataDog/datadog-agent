@@ -57,7 +57,7 @@ host_aliases:
 	assert.Contains(v.T(), output, "File mode: 100700")
 	assert.Contains(v.T(), output, "Owner: dd-agent")
 	assert.Contains(v.T(), output, "Group: dd-agent")
-	assert.Contains(v.T(), output, "Number of secrets decrypted: 1")
+	assert.Contains(v.T(), output, "Number of secrets resolved: 1")
 	assert.Contains(v.T(), output, "- 'alias_secret':\n\tused in 'datadog.yaml' configuration in entry 'host_aliases'")
 	// assert we don't output the decrypted secret
 	assert.NotContains(v.T(), output, "a_super_secret_string")

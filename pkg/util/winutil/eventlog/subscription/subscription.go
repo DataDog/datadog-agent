@@ -15,6 +15,7 @@ import (
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/api"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/bookmark"
+	"github.com/DataDog/datadog-agent/pkg/util/winutil/eventlog/session"
 	"golang.org/x/sys/windows"
 )
 
@@ -82,6 +83,7 @@ type pullSubscription struct {
 	subscribeOriginFlag uint
 	subscribeFlags      uint
 	bookmark            evtbookmark.Bookmark
+	session             evtsession.Session
 }
 
 // PullSubscriptionOption type for option pattern for NewPullSubscription constructor
@@ -188,6 +190,15 @@ func WithSubscribeFlags(flags uint) PullSubscriptionOption {
 	}
 }
 
+// WithSession sets the session option for the subscription to enable collecting
+// event logs from remote hosts.
+// https://learn.microsoft.com/en-us/windows/win32/wes/accessing-remote-computers
+func WithSession(session evtsession.Session) PullSubscriptionOption {
+	return func(q *pullSubscription) {
+		q.session = session
+	}
+}
+
 func (q *pullSubscription) Error() error {
 	return q.err
 }
@@ -207,12 +218,15 @@ func (q *pullSubscription) Start() error {
 		return fmt.Errorf("Query subscription is already started")
 	}
 
-	// reset subscription error state
-	q.err = nil
-
 	var bookmarkHandle evtapi.EventBookmarkHandle
 	if q.bookmark != nil {
 		bookmarkHandle = q.bookmark.Handle()
+	}
+
+	// Get session handle, if one was provided
+	sessionHandle := evtapi.EventSessionHandle(0)
+	if q.session != nil {
+		sessionHandle = q.session.Handle()
 	}
 
 	// create subscription
@@ -221,6 +235,7 @@ func (q *pullSubscription) Start() error {
 		return err
 	}
 	hSub, err := q.eventLogAPI.EvtSubscribe(
+		sessionHandle,
 		hSubWait,
 		q.channelPath,
 		q.query,
@@ -248,6 +263,11 @@ func (q *pullSubscription) Start() error {
 	q.eventsChannel = make(chan []*evtapi.EventRecord)
 
 	q.notifyStop = make(chan struct{})
+
+	// after sub is ready, reset subscription error state
+	// doing this later lets callers reference the error
+	// until the sub actually starts again.
+	q.err = nil
 
 	// start goroutine to query events for channel
 	q.getEventsLoopWaiter.Add(1)

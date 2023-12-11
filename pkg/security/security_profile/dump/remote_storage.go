@@ -22,6 +22,7 @@ import (
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -48,7 +49,7 @@ func NewActivityDumpRemoteStorage() (ActivityDumpStorage, error) {
 	storage := &ActivityDumpRemoteStorage{
 		tooLargeEntities: make(map[tooLargeEntityStatsEntry]*atomic.Uint64),
 		client: &http.Client{
-			Transport: ddhttputil.CreateHTTPTransport(),
+			Transport: ddhttputil.CreateHTTPTransport(pkgconfig.Datadog),
 		},
 	}
 

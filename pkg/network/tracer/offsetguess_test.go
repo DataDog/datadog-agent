@@ -61,7 +61,6 @@ const (
 	offsetSkBuffHead
 	offsetCtOrigin
 	offsetCtReply
-	offsetCtStatus
 	offsetCtNetns
 	offsetCtIno
 	offsetMax
@@ -117,8 +116,6 @@ func (o offsetT) String() string {
 		return "offset_ct_origin"
 	case offsetCtReply:
 		return "offset_ct_reply"
-	case offsetCtStatus:
-		return "offset_ct_status"
 	case offsetCtNetns:
 		return "offset_ct_netns"
 	case offsetCtIno:
@@ -153,8 +150,8 @@ func testOffsetGuess(t *testing.T) {
 	cts, err := offsetguess.RunOffsetGuessing(cfg, offsetBuf, func() (offsetguess.OffsetGuesser, error) {
 		return offsetguess.NewConntrackOffsetGuesser(cfg)
 	})
-	require.NoError(t, err)
 	_consts = append(_consts, cts...)
+	require.NoError(t, err, "guessed offsets: %+v", _consts)
 
 	consts := map[offsetT]uint64{}
 	for _, c := range _consts {
@@ -208,8 +205,6 @@ func testOffsetGuess(t *testing.T) {
 			consts[offsetCtOrigin] = value
 		case "offset_ct_reply":
 			consts[offsetCtReply] = value
-		case "offset_ct_status":
-			consts[offsetCtStatus] = value
 		case "offset_ct_netns":
 			consts[offsetCtNetns] = value
 		case "offset_ct_ino":
@@ -261,6 +256,7 @@ func testOffsetGuess(t *testing.T) {
 	var c net.Conn
 	require.Eventually(t, func() bool {
 		c, err = net.Dial("tcp4", server.address)
+		//nolint:gosimple // TODO(NET) Fix gosimple linter
 		if err == nil {
 			return true
 		}
@@ -296,6 +292,7 @@ func testOffsetGuess(t *testing.T) {
 		}
 
 		var offset uint64
+		//nolint:revive // TODO(NET) Fix revive linter
 		var name offsetT = o
 		require.NoError(t, mp.Lookup(unsafe.Pointer(&name), unsafe.Pointer(&offset)))
 		assert.Equal(t, offset, consts[o], "unexpected offset for %s", o)
@@ -315,12 +312,22 @@ func TestOffsetGuessPortIPv6Overlap(t *testing.T) {
 
 		// add IPv6 link-local addresses with 0x35 (53) bytes to each interface
 		for i, addr := range addrs {
-			_, err := nettestutil.RunCommand(fmt.Sprintf("ip -6 addr add %s%d/64 dev %s scope link", portMatchingPrefix, i+1, addr.Zone))
+			// so we capture i and addr.Zone correctly in the closure below
+			z := addr.Zone
+			ii := i + 1
+			_, err := nettestutil.RunCommand(fmt.Sprintf("ip -6 addr add %s%d/64 dev %s scope link nodad", portMatchingPrefix, ii, z))
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, _ = nettestutil.RunCommand(fmt.Sprintf("ip -6 addr del %s%d/64 dev %s scope link", portMatchingPrefix, i+1, addr.Zone))
+				_, err = nettestutil.RunCommand(fmt.Sprintf("ip -6 addr del %s%d/64 dev %s scope link", portMatchingPrefix, ii, z))
+				if err != nil {
+					t.Logf("remove link-local error: %s\n", err)
+				}
 			})
 		}
+
+		showout, err := nettestutil.RunCommand("ip -6 addr show")
+		require.NoError(t, err)
+		t.Log(showout)
 
 		testOffsetGuess(t)
 	})

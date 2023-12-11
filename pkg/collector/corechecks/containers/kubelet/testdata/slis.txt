@@ -1,0 +1,10 @@
+# HELP kubernetes_healthcheck [ALPHA] This metric records the result of a single healthcheck.
+# TYPE kubernetes_healthcheck gauge
+kubernetes_healthcheck{name="log",type="healthz"} 1
+kubernetes_healthcheck{name="ping",type="healthz"} 1
+kubernetes_healthcheck{name="syncloop",type="healthz"} 1
+# HELP kubernetes_healthchecks_total [ALPHA] This metric records the results of all healthcheck.
+# TYPE kubernetes_healthchecks_total gauge
+kubernetes_healthchecks_total{name="log",status="success",type="healthz"} 14319
+kubernetes_healthchecks_total{name="ping",status="success",type="healthz"} 14321
+kubernetes_healthchecks_total{name="syncloop",status="success",type="healthz"} 14319

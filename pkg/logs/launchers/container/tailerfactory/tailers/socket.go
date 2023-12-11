@@ -5,6 +5,7 @@
 
 //go:build docker
 
+//nolint:revive // TODO(AML) Fix revive linter
 package tailers
 
 import (
@@ -153,6 +154,7 @@ func (t *DockerSocketTailer) run(
 				// is unbuffered, any pending writes to this channel could cause a deadlock as the tailers stop
 				// condition is managed in the same goroutine in dockerTailerPkg.
 				go func() {
+					//nolint:revive // TODO(AML) Fix revive linter
 					for range erroredContainerID {
 					}
 				}()

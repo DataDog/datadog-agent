@@ -40,7 +40,11 @@ type Endpoint struct {
 const TelemetryEndpointPrefix = "https://instrumentation-telemetry-intake."
 
 // App Services env vars
+//
+//nolint:revive // TODO(APM) Fix revive linter
 const RunZip = "APPSVC_RUN_ZIP"
+
+//nolint:revive // TODO(APM) Fix revive linter
 const AppLogsTrace = "WEBSITE_APPSERVICEAPPLOGS_TRACE_ENABLED"
 
 // OTLP holds the configuration for the OpenTelemetry receiver.
@@ -231,6 +235,15 @@ type EVPProxy struct {
 	MaxPayloadSize int64
 }
 
+// InstallSignatureConfig contains the information on how the agent was installed
+// and a unique identifier that distinguishes this agent from others.
+type InstallSignatureConfig struct {
+	Found       bool   `json:"-"`
+	InstallID   string `json:"install_id"`
+	InstallType string `json:"install_type"`
+	InstallTime int64  `json:"install_time"`
+}
+
 // DebuggerProxyConfig ...
 type DebuggerProxyConfig struct {
 	// DDURL ...
@@ -281,9 +294,10 @@ type AgentConfig struct {
 	// Concentrator
 	BucketInterval         time.Duration // the size of our pre-aggregation per bucket
 	ExtraAggregators       []string      // DEPRECATED
-	PeerServiceAggregation bool          // enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
+	PeerServiceAggregation bool          // TO BE DEPRECATED - enables/disables stats aggregation for peer.service, used by Concentrator and ClientStatsAggregator
+	PeerTagsAggregation    bool          // enables/disables stats aggregation for peer entity tags, used by Concentrator and ClientStatsAggregator
 	ComputeStatsBySpanKind bool          // enables/disables the computing of stats based on a span's `span.kind` field
-	PeerTags               []string      // additional tags to use for peer.service-related stats aggregation
+	PeerTags               []string      // additional tags to use for peer entity stats aggregation
 
 	// Sampler configuration
 	ExtraSampleRate float64
@@ -426,6 +440,9 @@ type AgentConfig struct {
 
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
+
+	// Install Signature
+	InstallSignature InstallSignatureConfig
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -560,11 +577,13 @@ func (c *AgentConfig) NewHTTPTransport() *http.Transport {
 	return transport
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (c *AgentConfig) HasFeature(feat string) bool {
 	_, ok := c.Features[feat]
 	return ok
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func (c *AgentConfig) AllFeatures() []string {
 	feats := []string{}
 	for feat := range c.Features {
@@ -573,6 +592,7 @@ func (c *AgentConfig) AllFeatures() []string {
 	return feats
 }
 
+//nolint:revive // TODO(APM) Fix revive linter
 func InAzureAppServices() bool {
 	_, existsLinux := os.LookupEnv(RunZip)
 	_, existsWin := os.LookupEnv(AppLogsTrace)

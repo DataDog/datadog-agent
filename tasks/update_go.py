@@ -23,6 +23,7 @@ def go_version(_):
         "image_tag": "Tag from buildimages with format v<build_id>_<commit_id>",
         "test_version": "Whether the image is a test image or not",
         "warn": "Don't exit in case of matching error, just warn.",
+        "release_note": "Whether to create a release note or not. The default behaviour is to create a release note",
     }
 )
 def update_go(
@@ -31,6 +32,7 @@ def update_go(
     image_tag: str,
     test_version: Optional[bool] = False,
     warn: Optional[bool] = False,
+    release_note: Optional[bool] = True,
 ):
     """
     Updates the version of Go and build images.
@@ -64,10 +66,14 @@ def update_go(
         else:
             raise
 
-    _update_readme(warn, new_major)
+    _update_root_readme(warn, new_major)
+    _update_fakeintake_readme(warn, new_major)
     _update_go_mods(warn, new_major)
+    _update_process_agent_readme(warn, new_major)
+    _update_windowsevent_readme(warn, new_major)
     _update_go_version_file(warn, version)
     _update_gdb_dockerfile(warn, version)
+    _update_fakeintake_dockerfile(warn, version)
     _update_install_devenv(warn, version)
     _update_agent_devenv(warn, version)
     _update_task_go(warn, version)
@@ -79,15 +85,16 @@ def update_go(
     else:
         print(
             color_message(
-                "WARNING: did not run `inv tidy-all` as the version of your `go` binary doesn't match the request version",
+                "WARNING: did not run `inv tidy-all` as the version of your `go` binary doesn't match the requested version",
                 "orange",
             )
         )
 
-    releasenote_path = _create_releasenote(ctx, version)
-    print(
-        f"A default release note was created at {releasenote_path}, edit it if necessary, for example to list CVEs it fixes."
-    )
+    if release_note:
+        releasenote_path = _create_releasenote(ctx, version)
+        print(
+            f"A default release note was created at {releasenote_path}, edit it if necessary, for example to list CVEs it fixes."
+        )
     if major_update:
         # Examples of major updates with long descriptions:
         # releasenotes/notes/go1.16.7-4ec8477608022a26.yaml
@@ -149,6 +156,13 @@ def _update_gdb_dockerfile(warn: bool, version: str):
     _update_file(warn, path, pattern, replace)
 
 
+def _update_fakeintake_dockerfile(warn: bool, version: str):
+    path = "./test/fakeintake/Dockerfile"
+    pattern = r'(FROM golang:)[.0-9]+(-alpine)'
+    replace = rf'\g<1>{version}\g<2>'
+    _update_file(warn, path, pattern, replace)
+
+
 def _update_install_devenv(warn: bool, version: str):
     path = "./devenv/scripts/Install-DevEnv.ps1"
     _update_file(warn, path, '("Installing go )[.0-9]+"', rf'\g<1>{version}"')
@@ -175,9 +189,30 @@ def _update_task_go(warn: bool, version: str):
     _update_file(warn, path, pattern, replace)
 
 
-def _update_readme(warn: bool, major: str):
+def _update_root_readme(warn: bool, major: str):
     path = "./README.md"
     pattern = r'(\[Go\]\(https://golang\.org/doc/install\) )[.0-9]+( or later)'
+    replace = rf'\g<1>{major}\g<2>'
+    _update_file(warn, path, pattern, replace)
+
+
+def _update_fakeintake_readme(warn: bool, major: str):
+    path = "./test/fakeintake/docs/README.md"
+    pattern = r'(\[Golang )[.0-9]+(\])'
+    replace = rf'\g<1>{major}\g<2>'
+    _update_file(warn, path, pattern, replace)
+
+
+def _update_process_agent_readme(warn: bool, major: str):
+    path = "./cmd/process-agent/README.md"
+    pattern = r'(`go >= )[.0-9]+(`)'
+    replace = rf'\g<1>{major}\g<2>'
+    _update_file(warn, path, pattern, replace)
+
+
+def _update_windowsevent_readme(warn: bool, major: str):
+    path = "./pkg/logs/launchers/windowsevent/README.md"
+    pattern = r'(install go )[.0-9]+(\+,)'
     replace = rf'\g<1>{major}\g<2>'
     _update_file(warn, path, pattern, replace)
 

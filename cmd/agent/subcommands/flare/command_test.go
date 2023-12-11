@@ -12,11 +12,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	//nolint:revive // TODO(ASC) Fix revive linter
 	assert "github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/flare"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -48,13 +50,13 @@ func TestReadProfileData(t *testing.T) {
 	port := u.Port()
 
 	mockConfig := config.Mock(t)
-	mockConfig.Set("expvar_port", port)
-	mockConfig.Set("apm_config.enabled", true)
-	mockConfig.Set("apm_config.debug.port", port)
-	mockConfig.Set("apm_config.receiver_timeout", "10")
-	mockConfig.Set("process_config.expvar_port", port)
-	mockConfig.Set("security_agent.expvar_port", port)
-	mockConfig.Set("system_probe_config.debug_port", port)
+	mockConfig.SetWithoutSource("expvar_port", port)
+	mockConfig.SetWithoutSource("apm_config.enabled", true)
+	mockConfig.SetWithoutSource("apm_config.debug.port", port)
+	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
+	mockConfig.SetWithoutSource("process_config.expvar_port", port)
+	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
+	mockConfig.SetWithoutSource("system_probe_config.debug_port", port)
 
 	data, err := readProfileData(10)
 	require.NoError(t, err)
@@ -103,12 +105,12 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 
 	// We're not setting "apm_config.debug.port" on purpose
 	mockConfig := config.Mock(t)
-	mockConfig.Set("expvar_port", port)
-	mockConfig.Set("apm_config.enabled", true)
-	mockConfig.Set("apm_config.receiver_timeout", "10")
-	mockConfig.Set("process_config.expvar_port", port)
-	mockConfig.Set("security_agent.expvar_port", port)
-	mockConfig.Set("system_probe_config.debug_port", port)
+	mockConfig.SetWithoutSource("expvar_port", port)
+	mockConfig.SetWithoutSource("apm_config.enabled", true)
+	mockConfig.SetWithoutSource("apm_config.receiver_timeout", "10")
+	mockConfig.SetWithoutSource("process_config.expvar_port", port)
+	mockConfig.SetWithoutSource("security_agent.expvar_port", port)
+	mockConfig.SetWithoutSource("system_probe_config.debug_port", port)
 
 	data, err := readProfileData(10)
 	require.Error(t, err)
@@ -146,7 +148,7 @@ func TestReadProfileDataNoTraceAgent(t *testing.T) {
 func TestReadProfileDataErrors(t *testing.T) {
 	// We're not setting "apm_config.debug.port" on purpose
 	mockConfig := config.Mock(t)
-	mockConfig.Set("apm_config.enabled", true)
+	mockConfig.SetWithoutSource("apm_config.enabled", true)
 
 	data, err := readProfileData(10)
 	require.Error(t, err)
@@ -159,8 +161,8 @@ func TestCommand(t *testing.T) {
 		Commands(&command.GlobalParams{}),
 		[]string{"flare", "1234"},
 		makeFlare,
-		func(cliParams *cliParams, coreParams core.BundleParams) {
+		func(cliParams *cliParams, coreParams core.BundleParams, secretParams secrets.Params) {
 			require.Equal(t, []string{"1234"}, cliParams.args)
-			require.Equal(t, true, coreParams.ConfigLoadSecrets())
+			require.Equal(t, true, secretParams.Enabled)
 		})
 }

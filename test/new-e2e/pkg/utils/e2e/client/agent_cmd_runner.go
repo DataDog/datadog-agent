@@ -7,7 +7,6 @@ package client
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -76,6 +75,11 @@ func (agent *agentCommandRunner) Config(commandArgs ...AgentArgsOption) string {
 func (agent *agentCommandRunner) ConfigWithError(commandArgs ...AgentArgsOption) (string, error) {
 	arguments := append([]string{"config"}, newAgentArgs(commandArgs...).Args...)
 	return agent.executeAgentCmdWithError(arguments)
+}
+
+// Diagnose runs diagnose command and returns its output
+func (agent *agentCommandRunner) Diagnose(commandArgs ...AgentArgsOption) string {
+	return agent.executeCommand("diagnose", commandArgs...)
 }
 
 // Flare runs flare command and returns the output. You should use the FakeIntake client to fetch the flare archive
@@ -151,24 +155,5 @@ func (agent *agentCommandRunner) waitForReadyTimeout(timeout time.Duration) erro
 		}
 		return nil
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(interval), uint64(maxRetries)))
-	return err
-}
-
-// WaitAgentLogs waits for the agent log corresponding to the pattern
-// agent-name can be: datadog-agent, system-probe, security-agent
-// pattern: is the log that we are looking for
-// Retries every 500 ms up to timeout.
-// Returns error on failure.
-func (agent *agentCommandRunner) WaitAgentLogs(agentName string, pattern string) error {
-	err := backoff.Retry(func() error {
-		output, err := agent.executeAgentCmdWithError([]string{fmt.Sprintf("cat /var/log/datadog/%s.log", agentName)})
-		if err != nil {
-			return err
-		}
-		if strings.Contains(output, pattern) {
-			return nil
-		}
-		return errors.New("no log found")
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(500*time.Millisecond), 60))
 	return err
 }

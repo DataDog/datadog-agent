@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package aggregator
 
 import (
@@ -14,31 +15,32 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/serializer/split"
+	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagger/collectors"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/telemetry"
-	"github.com/DataDog/datadog-agent/pkg/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	"github.com/DataDog/datadog-agent/pkg/version"
-
-	"github.com/DataDog/datadog-agent/pkg/config"
-	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/status/health"
 )
 
-// DefaultFlushInterval aggregator default flush interval
-const DefaultFlushInterval = 15 * time.Second // flush interval
-const bucketSize = 10                         // fixed for now
-// MetricSamplePoolBatchSize is the batch size of the metric sample pool.
-const MetricSamplePoolBatchSize = 32
+const (
+	// DefaultFlushInterval aggregator default flush interval
+	DefaultFlushInterval = 15 * time.Second // flush interval
+	bucketSize           = 10               // fixed for now
+	// MetricSamplePoolBatchSize is the batch size of the metric sample pool.
+	MetricSamplePoolBatchSize = 32
+)
 
 // tagsetTlm handles telemetry for large tagsets.
 var tagsetTlm *tagsetTelemetry
@@ -399,7 +401,7 @@ func (agg *BufferedAggregator) handleSenderSample(ss senderMetricSample) {
 		if ss.commit {
 			checkSampler.commit(timeNowNano())
 		} else {
-			ss.metricSample.Tags = util.SortUniqInPlace(ss.metricSample.Tags)
+			ss.metricSample.Tags = sort.UniqInPlace(ss.metricSample.Tags)
 			checkSampler.addSample(ss.metricSample)
 		}
 	} else {
@@ -415,7 +417,7 @@ func (agg *BufferedAggregator) handleSenderBucket(checkBucket senderHistogramBuc
 	tlmProcessed.Inc("", "histogram_bucket")
 
 	if checkSampler, ok := agg.checkSamplers[checkBucket.id]; ok {
-		checkBucket.bucket.Tags = util.SortUniqInPlace(checkBucket.bucket.Tags)
+		checkBucket.bucket.Tags = sort.UniqInPlace(checkBucket.bucket.Tags)
 		checkSampler.addBucket(checkBucket.bucket)
 	} else {
 		log.Debugf("CheckSampler with ID '%s' doesn't exist, can't handle histogram bucket", checkBucket.id)
@@ -475,10 +477,12 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 func (agg *BufferedAggregator) getSeriesAndSketches(
 	before time.Time,
 	seriesSink metrics.SerieSink,
-	sketchesSink metrics.SketchesSink) {
+	sketchesSink metrics.SketchesSink,
+) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
+	//nolint:revive // TODO(AML) Fix revive linter
 	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
 		for _, s := range checkSeries {

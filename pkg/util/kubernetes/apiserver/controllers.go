@@ -116,6 +116,8 @@ func StartControllers(ctx ControllerContext) errors.Aggregate {
 
 // startMetadataController starts the informers needed for metadata collection.
 // The synchronization of the informers is handled by the controller.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func startMetadataController(ctx ControllerContext, c chan error) {
 	metaController := NewMetadataController(
 		ctx.InformerFactory.Core().V1().Nodes(),
@@ -155,11 +157,15 @@ func startAutoscalersController(ctx ControllerContext, c chan error) {
 }
 
 // registerServicesInformer registers the services informer.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func registerServicesInformer(ctx ControllerContext, c chan error) {
 	ctx.informers[ServicesInformer] = ctx.InformerFactory.Core().V1().Services().Informer()
 }
 
 // registerEndpointsInformer registers the endpoints informer.
+//
+//nolint:revive // TODO(CAPP) Fix revive linter
 func registerEndpointsInformer(ctx ControllerContext, c chan error) {
 	ctx.informers[endpointsInformer] = ctx.InformerFactory.Core().V1().Endpoints().Informer()
 }

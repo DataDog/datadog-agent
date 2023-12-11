@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
 	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/client"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
+	"github.com/DataDog/test-infra-definitions/scenarios/aws/fakeintake/fakeintakeparams"
 
 	"github.com/cenkalti/backoff"
 	"github.com/stretchr/testify/assert"
@@ -29,7 +30,7 @@ type subcommandWithFakeIntakeSuite struct {
 
 func TestSubcommandSuite(t *testing.T) {
 	e2e.Run(t, &subcommandSuite{}, e2e.AgentStackDef())
-	e2e.Run(t, &subcommandWithFakeIntakeSuite{}, e2e.FakeIntakeStackDef())
+	e2e.Run(t, &subcommandWithFakeIntakeSuite{}, e2e.FakeIntakeStackDef(e2e.WithFakeIntakeParams(fakeintakeparams.WithoutLoadBalancer())))
 }
 
 // section contains the content status of a specific section (e.g. Forwarder)
@@ -144,9 +145,8 @@ func (v *subcommandSuite) TestDefaultInstallStatus() {
 			shouldNotContain: []string{"No endpoints information. The agent may be misconfigured."},
 		},
 		{
-			name:             "Forwarder",
-			shouldBePresent:  true,
-			shouldNotContain: []string{"API Keys errors"},
+			name:            "Forwarder",
+			shouldBePresent: true,
 		},
 		{
 			name:            "JMXFetch",

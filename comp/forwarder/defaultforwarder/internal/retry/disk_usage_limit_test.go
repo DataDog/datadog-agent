@@ -17,6 +17,7 @@ type diskUsageRetrieverMock struct {
 	diskUsage *filesystem.DiskUsage
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func (m diskUsageRetrieverMock) GetUsage(path string) (*filesystem.DiskUsage, error) {
 	return m.diskUsage, nil
 }

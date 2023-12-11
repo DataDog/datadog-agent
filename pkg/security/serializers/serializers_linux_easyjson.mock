@@ -46,3 +46,11 @@ func (v NetworkDeviceSerializer) MarshalEasyJSON(w *jwriter.Writer) {
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *NetworkDeviceSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
 }
+
+// UnmarshalEasyJSON supports easyjson.Unmarshaler interface
+func (v *UserSessionContextSerializer) UnmarshalEasyJSON(l *jlexer.Lexer) {
+}
+
+// MarshalEasyJSON supports easyjson.Marshaler interface
+func (v UserSessionContextSerializer) MarshalEasyJSON(w *jwriter.Writer) {
+}

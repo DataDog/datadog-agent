@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(AML) Fix revive linter
 package http
 
 import (
@@ -19,6 +20,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	pkgconfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/client"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/metrics"
@@ -49,6 +51,8 @@ var (
 )
 
 // emptyJsonPayload is an empty payload used to check HTTP connectivity without sending logs.
+//
+//nolint:revive // TODO(AML) Fix revive linter
 var emptyJsonPayload = message.Payload{Messages: []*message.Message{}, Encoded: []byte("{}")}
 
 // Destination sends a payload over HTTP.
@@ -330,7 +334,7 @@ func (d *Destination) updateRetryState(err error, isRetrying chan bool) bool {
 		d.lastRetryError = err
 
 		return true
-	} else {
+	} else { //nolint:revive // TODO(AML) Fix revive linter
 		d.nbErrors = d.backoff.DecError(d.nbErrors)
 		if isRetrying != nil && d.lastRetryError != nil {
 			isRetrying <- false
@@ -346,7 +350,7 @@ func httpClientFactory(timeout time.Duration) func() *http.Client {
 		return &http.Client{
 			Timeout: timeout,
 			// reusing core agent HTTP transport to benefit from proxy settings.
-			Transport: httputils.CreateHTTPTransport(),
+			Transport: httputils.CreateHTTPTransport(pkgconfig.Datadog),
 		}
 	}
 }
@@ -404,6 +408,7 @@ func CheckConnectivity(endpoint config.Endpoint) config.HTTPConnectivity {
 	return err == nil
 }
 
+//nolint:revive // TODO(AML) Fix revive linter
 func CheckConnectivityDiagnose(endpoint config.Endpoint) (url string, err error) {
 	ctx, destination := prepareCheckConnectivity(endpoint)
 	return destination.url, completeCheckConnectivity(ctx, destination)

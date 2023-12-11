@@ -9,6 +9,7 @@ package common
 import (
 	"bytes"
 	"encoding/binary"
+	flowmessage "github.com/netsampler/goflow2/pb"
 	"hash/fnv"
 )
 
@@ -66,7 +67,65 @@ type Flow struct {
 	Tos uint32 // FLOW KEY
 
 	NextHop []byte // FLOW KEY
+
+	// Configured fields
+	AdditionalFields AdditionalFields
 }
+
+// AdditionalFields holds additional fields collected
+type AdditionalFields = map[string]any
+
+// FlowMessageWithAdditionalFields contains a goflow flowmessage and additional fields
+type FlowMessageWithAdditionalFields struct {
+	*flowmessage.FlowMessage
+	AdditionalFields AdditionalFields
+}
+
+// EndianType is used to configure additional fields endianness
+type EndianType string
+
+var (
+	// BigEndian is used to configure a big endian additional field
+	BigEndian EndianType = "big"
+	// LittleEndian is used to configure a little endian additional field
+	LittleEndian EndianType = "little"
+)
+
+// FieldType is used to configure additional fields data type
+type FieldType string
+
+var (
+	// String type is used to configure a textual additional field
+	String FieldType = "string"
+	// Integer type is used to configure an integer additional field
+	Integer FieldType = "integer"
+	// Hex type is used to configure a hex additional field
+	Hex FieldType = "hex"
+	// DefaultFieldTypes contains types for default payload fields
+	DefaultFieldTypes = map[string]FieldType{
+		"direction":         Integer,
+		"start":             Integer,
+		"end":               Integer,
+		"bytes":             Integer,
+		"packets":           Integer,
+		"ether_type":        Integer,
+		"ip_protocol":       Integer,
+		"exporter.ip":       Hex,
+		"source.ip":         Hex,
+		"source.port":       Integer,
+		"source.mac":        Integer,
+		"source.mask":       Integer,
+		"destination.ip":    Hex,
+		"destination.port":  Integer,
+		"destination.mac":   Integer,
+		"destination.mask":  Integer,
+		"ingress.interface": Integer,
+		"egress.interface":  Integer,
+		"tcp_flags":         Integer,
+		"next_hop.ip":       Hex,
+		"tos":               Integer,
+	}
+)
 
 // AggregationHash return a hash used as aggregation key
 func (f *Flow) AggregationHash() uint64 {

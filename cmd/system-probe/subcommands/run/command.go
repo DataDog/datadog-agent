@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 package run
 
 import (
@@ -10,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	//nolint:revive // TODO(EBPF) Fix revive linter
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -29,11 +31,14 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient"
+	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	ddconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/settings"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/pidfile"
@@ -68,16 +73,16 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
-				fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
+				fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath))),
-				fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+				fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 				config.Module,
 				telemetry.Module,
 				sysprobeconfigimpl.Module,
 				rcclient.Module,
 				// use system-probe config instead of agent config for logging
-				fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-					return log.NewLogger(lc, params, sysprobeconfig)
+				fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+					return logimpl.NewLogger(lc, params, sysprobeconfig)
 				}),
 			)
 		},
@@ -88,7 +93,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 // run starts the main loop.
-func run(log log.Component, config config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams) error {
+func run(log log.Component, _ config.Component, telemetry telemetry.Component, sysprobeconfig sysprobeconfig.Component, rcclient rcclient.Component, cliParams *cliParams) error {
 	defer func() {
 		stopSystemProbe(cliParams)
 	}()
@@ -124,6 +129,7 @@ func run(log log.Component, config config.Component, telemetry telemetry.Compone
 	sigpipeCh := make(chan os.Signal, 1)
 	signal.Notify(sigpipeCh, syscall.SIGPIPE)
 	go func() {
+		//nolint:revive // TODO(EBPF) Fix revive linter
 		for range sigpipeCh {
 			// do nothing
 		}
@@ -181,16 +187,16 @@ func StartSystemProbeWithDefaults(ctxChan <-chan context.Context) (<-chan error,
 				return nil
 			},
 			// no config file path specification in this situation
-			fx.Supply(config.NewAgentParamsWithoutSecrets("", config.WithConfigMissingOK(true))),
+			fx.Supply(config.NewAgentParams("", config.WithConfigMissingOK(true))),
 			fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(""))),
-			fx.Supply(log.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
+			fx.Supply(logimpl.ForDaemon("SYS-PROBE", "log_file", common.DefaultLogFile)),
 			rcclient.Module,
 			config.Module,
 			telemetry.Module,
 			sysprobeconfigimpl.Module,
 			// use system-probe config instead of agent config for logging
-			fx.Provide(func(lc fx.Lifecycle, params log.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
-				return log.NewLogger(lc, params, sysprobeconfig)
+			fx.Provide(func(lc fx.Lifecycle, params logimpl.Params, sysprobeconfig sysprobeconfig.Component) (log.Component, error) {
+				return logimpl.NewLogger(lc, params, sysprobeconfig)
 			}),
 		)
 		// notify caller that fx.OneShot is done
@@ -280,6 +286,9 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 		if cfg.TelemetryEnabled {
 			http.Handle("/telemetry", telemetry.Handler())
 			telemetry.RegisterCollector(ebpf.NewDebugFsStatCollector())
+			if pc := ebpf.NewPerfUsageCollector(); pc != nil {
+				telemetry.RegisterCollector(pc)
+			}
 		}
 		go func() {
 			common.ExpvarServer = &http.Server{
@@ -290,6 +299,16 @@ func startSystemProbe(cliParams *cliParams, log log.Component, telemetry telemet
 				log.Errorf("error creating expvar server on %v: %v", common.ExpvarServer.Addr, err)
 			}
 		}()
+	}
+
+	// Setup healthcheck port
+	healthPort := cfg.HealthPort
+	if healthPort > 0 {
+		err := healthprobe.Serve(ctx, healthPort)
+		if err != nil {
+			return log.Errorf("error starting health check server, exiting: %s", err)
+		}
+		log.Infof("health check server listening on port %d", healthPort)
 	}
 
 	if err = api.StartServer(cfg, telemetry); err != nil {
@@ -320,19 +339,19 @@ func stopSystemProbe(cliParams *cliParams) {
 // setupInternalProfiling is a common helper to configure runtime settings for internal profiling.
 func setupInternalProfiling(cfg ddconfig.Reader, configPrefix string, log log.Component) {
 	if v := cfg.GetInt(configPrefix + "internal_profiling.block_profile_rate"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, settings.SourceConfig); err != nil {
+		if err := settings.SetRuntimeSetting("runtime_block_profile_rate", v, model.SourceAgentRuntime); err != nil {
 			log.Errorf("Error setting block profile rate: %v", err)
 		}
 	}
 
 	if v := cfg.GetInt(configPrefix + "internal_profiling.mutex_profile_fraction"); v > 0 {
-		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v, settings.SourceConfig); err != nil {
+		if err := settings.SetRuntimeSetting("runtime_mutex_profile_fraction", v, model.SourceAgentRuntime); err != nil {
 			log.Errorf("Error mutex profile fraction: %v", err)
 		}
 	}
 
 	if cfg.GetBool(configPrefix + "internal_profiling.enabled") {
-		err := settings.SetRuntimeSetting("internal_profiling", true, settings.SourceConfig)
+		err := settings.SetRuntimeSetting("internal_profiling", true, model.SourceAgentRuntime)
 		if err != nil {
 			log.Errorf("Error starting profiler: %v", err)
 		}

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(SERV) Fix revive linter
 package metric
 
 import (
@@ -14,11 +15,15 @@ import (
 )
 
 // AddColdStartMetric adds the coldstart metric to the demultiplexer
+//
+//nolint:revive // TODO(SERV) Fix revive linter
 func AddColdStartMetric(metricPrefix string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
 	add(fmt.Sprintf("%v.enhanced.cold_start", metricPrefix), tags, time.Now(), demux)
 }
 
 // AddShutdownMetric adds the shutdown metric to the demultiplexer
+//
+//nolint:revive // TODO(SERV) Fix revive linter
 func AddShutdownMetric(metricPrefix string, tags []string, timestamp time.Time, demux aggregator.Demultiplexer) {
 	add(fmt.Sprintf("%v.enhanced.shutdown", metricPrefix), tags, time.Now(), demux)
 }

@@ -211,6 +211,7 @@ def run(
     deploy=False,
     all_builds=True,
     kitchen_tests=True,
+    rc_k8s_deployments=False,
 ):
     """
     Run a pipeline on the given git ref (--git-ref <git ref>), or on the current branch if --here is given.
@@ -311,6 +312,7 @@ def run(
             deploy=deploy,
             all_builds=all_builds,
             kitchen_tests=kitchen_tests,
+            rc_k8s_deployments=rc_k8s_deployments,
         )
     except FilteredOutException:
         print(color_message(f"ERROR: pipeline does not match any workflow rule. Rules:\n{workflow_rules()}", "red"))
@@ -467,7 +469,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 def parse(commit_str):
     lines = commit_str.split("\n")
     title = lines[0]
-    url = "NO_URL"
+    url = ""
     pr_id_match = re.search(r".*\(#(\d+)\)", title)
     if pr_id_match is not None:
         url = f"https://github.com/DataDog/datadog-agent/pull/{pr_id_match.group(1)}"
@@ -520,7 +522,7 @@ def changelog(ctx, new_commit_sha):
         title, author, author_email, files, url = parse(commit_str)
         if not is_system_probe(owners, files):
             continue
-        message_link = f"• <{url}|{title}>"
+        message_link = f"• <{url}|{title}>" if url else f"• {title}"
         if "dependabot" in author_email or "github-actions" in author_email:
             messages.append(f"{message_link}")
             continue
@@ -891,7 +893,7 @@ def update_circleci_config(file_path, image_tag, test_version):
     """
     Override variables in .gitlab-ci.yml file
     """
-    image_name = "datadog/agent-buildimages-circleci-runner"
+    image_name = "gcr.io/datadoghq/agent-circleci-runner"
     with open(file_path, "r") as circle:
         circle_ci = circle.read()
     match = re.search(rf"({image_name}(_test_only)?):([a-zA-Z0-9_-]+)\n", circle_ci)

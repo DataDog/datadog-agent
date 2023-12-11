@@ -62,7 +62,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 
 	expectedFormats := []string{"json", "protobuf"}
 	testActivityDumpTracedEventTypes := []string{"exec", "open", "syscalls", "dns", "bind"}
-	test, err := newTestModule(t, nil, rules, testOpts{
+	test, err := newTestModule(t, nil, rules, withStaticOpts(testOpts{
 		enableActivityDump:                  true,
 		activityDumpRateLimiter:             testActivityDumpRateLimiter,
 		activityDumpTracedCgroupsCount:      testActivityDumpTracedCgroupsCount,
@@ -72,7 +72,7 @@ func TestActivityDumpsThreatScore(t *testing.T) {
 		activityDumpLocalStorageFormats:     expectedFormats,
 		activityDumpTracedEventTypes:        testActivityDumpTracedEventTypes,
 		activityDumpTagRules:                true,
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

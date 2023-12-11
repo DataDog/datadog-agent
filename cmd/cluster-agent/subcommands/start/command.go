@@ -29,9 +29,14 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
+	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/telemetry"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -78,8 +83,9 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			return fxutil.OneShot(start,
 				fx.Supply(globalParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath, config.WithConfigLoadSecrets(true)),
-					LogParams:    log.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
+					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
+					SecretParams: secrets.NewEnabledParams(),
+					LogParams:    logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
 				core.Bundle,
 				forwarder.Bundle,
@@ -89,11 +95,21 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					return params
 				}),
 				demultiplexer.Module,
+				orchestratorForwarderImpl.Module,
+				fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
 				fx.Provide(func() demultiplexer.Params {
 					opts := aggregator.DefaultAgentDemultiplexerOptions()
 					opts.UseEventPlatformForwarder = false
 					return demultiplexer.Params{Options: opts}
 				}),
+				// setup workloadmeta
+				collectors.GetCatalog(),
+				fx.Supply(workloadmeta.Params{
+					InitHelper: common.GetWorkloadmetaInit(),
+					AgentType:  workloadmeta.ClusterAgent,
+				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
+				fx.Supply(context.Background()),
+				workloadmeta.Module,
 			)
 		},
 	}
@@ -101,7 +117,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{startCmd}
 }
 
-func start(log log.Component, config config.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component) error {
+func start(log log.Component, config config.Component, telemetry telemetry.Component, demultiplexer demultiplexer.Component, wmeta workloadmeta.Component, secretResolver secrets.Component) error {
 	stopCh := make(chan struct{})
 
 	mainCtx, mainCtxCancel := context.WithCancel(context.Background())
@@ -169,7 +185,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	}
 
 	// Starting server early to ease investigations
-	if err := api.StartServer(demultiplexer); err != nil {
+	if err := api.StartServer(wmeta, demultiplexer); err != nil {
 		return fmt.Errorf("Error while starting agent API, exiting: %v", err)
 	}
 
@@ -232,6 +248,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	// this must be a UUID, and ideally be stable for the lifetime of a cluster,
 	// so we store it in a configmap that we try and read before generating a new one.
 	coreClient := apiCl.Cl.CoreV1().(*corev1.CoreV1Client)
+	//nolint:revive // TODO(CINT) Fix revive linter
 	clusterId, err := apicommon.GetOrCreateClusterID(coreClient)
 	if err != nil {
 		pkglog.Errorf("Failed to generate or retrieve the cluster ID")
@@ -245,7 +262,9 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 	// don't import cmd/agent
 
 	// create and setup the Autoconfig instance
-	common.LoadComponents(mainCtx, demultiplexer, pkgconfig.Datadog.GetString("confd_path"))
+	// The Autoconfig instance setup happens in the workloadmeta start hook
+	// create and setup the Collector and others.
+	common.LoadComponents(demultiplexer, secretResolver, pkgconfig.Datadog.GetString("confd_path"))
 
 	// Set up check collector
 	common.AC.AddScheduler("check", collector.InitCheckScheduler(common.Coll, demultiplexer), true)
@@ -330,9 +349,18 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 			// Webhook and secret controllers are started successfully
 			// Setup the k8s admission webhook server
 			server := admissioncmd.NewServer()
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl)
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl)
-			server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), mutate.InjectAutoInstrumentation, apiCl.DynamicCl)
+			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_config.endpoint"), mutate.InjectConfig, apiCl.DynamicCl, apiCl.Cl)
+			server.Register(pkgconfig.Datadog.GetString("admission_controller.inject_tags.endpoint"), mutate.InjectTags, apiCl.DynamicCl, apiCl.Cl)
+			server.Register(pkgconfig.Datadog.GetString("admission_controller.auto_instrumentation.endpoint"), mutate.InjectAutoInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+
+			// CWS Instrumentation webhooks
+			cwsInstrumentation, err := mutate.NewCWSInstrumentation()
+			if err != nil {
+				pkglog.Errorf("failed to register CWS Instrumentation webhook: %v", err)
+			} else {
+				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.pod_endpoint"), cwsInstrumentation.InjectCWSPodInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+				server.Register(pkgconfig.Datadog.GetString("admission_controller.cws_instrumentation.command_endpoint"), cwsInstrumentation.InjectCWSCommandInstrumentation, apiCl.DynamicCl, apiCl.Cl)
+			}
 
 			// Start the k8s admission webhook server
 			wg.Add(1)
@@ -385,7 +413,7 @@ func start(log log.Component, config config.Component, telemetry telemetry.Compo
 
 // initRuntimeSettings builds the map of runtime Cluster Agent settings configurable at runtime.
 func initRuntimeSettings() error {
-	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting()); err != nil {
+	if err := commonsettings.RegisterRuntimeSetting(commonsettings.NewLogLevelRuntimeSetting(nil)); err != nil {
 		return err
 	}
 
@@ -421,9 +449,7 @@ func initializeRemoteConfig(ctx context.Context) (*remote.Client, error) {
 		return nil, fmt.Errorf("unable to create remote-config service: %w", err)
 	}
 
-	if err := configService.Start(ctx); err != nil {
-		return nil, fmt.Errorf("unable to start remote-config service: %w", err)
-	}
+	configService.Start(ctx)
 
 	rcClient, err := remote.NewClient("cluster-agent", configService, version.AgentVersion, []data.Product{data.ProductAPMTracing}, time.Second*5)
 	if err != nil {

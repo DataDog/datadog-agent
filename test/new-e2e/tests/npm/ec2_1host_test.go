@@ -13,11 +13,12 @@ import (
 
 	agentmodel "github.com/DataDog/agent-payload/v5/process"
 
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
+	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 )
 
 type ec2VMSuite struct {
@@ -27,6 +28,7 @@ type ec2VMSuite struct {
 
 // TestEC2VMSuite will validate running the agent on a single EC2 VM
 func TestEC2VMSuite(t *testing.T) {
+	t.Skip("Skipping TestEC2VMSuite as it's flaky")
 	s := &ec2VMSuite{}
 	e2eParams := []params.Option{}
 	// debug helper

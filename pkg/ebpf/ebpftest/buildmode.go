@@ -24,6 +24,7 @@ func init() {
 	Fentry = fentry{}
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 type BuildMode interface {
 	fmt.Stringer
 	Env() map[string]string

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(ASC) Fix revive linter
 package flare
 
 import (
@@ -21,19 +22,18 @@ import (
 	"time"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/metadata/inventoryagent"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	apiutil "github.com/DataDog/datadog-agent/pkg/api/util"
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/diagnose"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/diagnosis"
-	"github.com/DataDog/datadog-agent/pkg/metadata/inventories"
-	"github.com/DataDog/datadog-agent/pkg/secrets"
 	"github.com/DataDog/datadog-agent/pkg/status"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	"gopkg.in/yaml.v2"
 )
@@ -48,7 +48,7 @@ type searchPaths map[string]string
 
 // CompleteFlare packages up the files with an already created builder. This is aimed to be used by the flare
 // component while we migrate to a component architecture.
-func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSenderManager) error {
+func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSenderManager, invAgent inventoryagent.Component) error {
 	/** WARNING
 	 *
 	 * When adding data to flares, carefully analyze what is being added and ensure that it contains no credentials
@@ -60,7 +60,7 @@ func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSend
 		fb.AddFile("status.log", []byte("unable to get the status of the agent, is it running?"))
 		fb.AddFile("config-check.log", []byte("unable to get loaded checks config, is the agent running?"))
 	} else {
-		fb.AddFileFromFunc("status.log", status.GetAndFormatStatus)
+		fb.AddFileFromFunc("status.log", func() ([]byte, error) { return status.GetAndFormatStatus(invAgent) })
 		fb.AddFileFromFunc("config-check.log", getConfigCheck)
 		fb.AddFileFromFunc("tagger-list.json", getAgentTaggerList)
 		fb.AddFileFromFunc("workload-list.log", getAgentWorkloadList)
@@ -88,9 +88,7 @@ func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSend
 	fb.AddFileFromFunc("runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.Datadog.AllSettings()) })
 	fb.AddFileFromFunc("system_probe_runtime_config_dump.yaml", func() ([]byte, error) { return yaml.Marshal(config.SystemProbe.AllSettings()) })
 	fb.AddFileFromFunc("diagnose.log", getDiagnoses(fb.IsLocal(), senderManager))
-	fb.AddFileFromFunc("secrets.log", getSecrets)
 	fb.AddFileFromFunc("envvars.log", getEnvVars)
-	fb.AddFileFromFunc("metadata_inventories.json", inventories.GetLastPayload)
 	fb.AddFileFromFunc("health.yaml", getHealth)
 	fb.AddFileFromFunc("go-routine-dump.log", func() ([]byte, error) { return getHTTPCallContent(pprofURL) })
 	fb.AddFileFromFunc("docker_inspect.log", getDockerSelfInspect)
@@ -104,11 +102,8 @@ func CompleteFlare(fb flaretypes.FlareBuilder, senderManager sender.DiagnoseSend
 	getExpVar(fb) //nolint:errcheck
 	getWindowsData(fb)
 
-	if config.Datadog.GetBool("telemetry.enabled") {
-		telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry",
-			config.Datadog.GetString("expvar_port"))
-		fb.AddFileFromFunc("telemetry.log", func() ([]byte, error) { return getHTTPCallContent(telemetryURL) })
-	}
+	telemetryURL := fmt.Sprintf("http://127.0.0.1:%s/telemetry", config.Datadog.GetString("expvar_port"))
+	fb.AddFileFromFunc("telemetry.log", func() ([]byte, error) { return getHTTPCallContent(telemetryURL) })
 
 	if config.IsRemoteConfigEnabled(config.Datadog) {
 		if err := exportRemoteConfig(fb); err != nil {
@@ -239,15 +234,6 @@ func getConfigFiles(fb flaretypes.FlareBuilder, confSearchPaths map[string]strin
 		// use best effort to include security-agent.yaml to the flare
 		fb.CopyFileTo(filepath.Join(confDir, "security-agent.yaml"), filepath.Join("etc", "security-agent.yaml"))
 	}
-}
-
-func getSecrets() ([]byte, error) {
-	fct := func(writer io.Writer) error {
-		secrets.GetDebugInfo(writer)
-		return nil
-	}
-
-	return functionOutputToBytes(fct), nil
 }
 
 func getProcessChecks(fb flaretypes.FlareBuilder, getAddressPort func() (url string, err error)) {

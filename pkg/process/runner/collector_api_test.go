@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package runner
 
 import (
@@ -35,39 +36,39 @@ func setProcessEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) 
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
-			config.Set("api_key", ep.APIKey)
-			config.Set("process_config.process_dd_url", ep.Endpoint)
+			config.SetWithoutSource("api_key", ep.APIKey)
+			config.SetWithoutSource("process_config.process_dd_url", ep.Endpoint)
 		} else {
 			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
 		}
 	}
-	config.Set("process_config.additional_endpoints", additionalEps)
+	config.SetWithoutSource("process_config.additional_endpoints", additionalEps)
 }
 
 func setProcessEventsEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
-			config.Set("api_key", ep.APIKey)
-			config.Set("process_config.events_dd_url", ep.Endpoint)
+			config.SetWithoutSource("api_key", ep.APIKey)
+			config.SetWithoutSource("process_config.events_dd_url", ep.Endpoint)
 		} else {
 			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
 		}
 	}
-	config.Set("process_config.events_additional_endpoints", additionalEps)
+	config.SetWithoutSource("process_config.events_additional_endpoints", additionalEps)
 }
 
 func setOrchestratorEndpointsForTest(config ddconfig.Config, eps ...apicfg.Endpoint) {
 	additionalEps := make(map[string][]string)
 	for i, ep := range eps {
 		if i == 0 {
-			config.Set("api_key", ep.APIKey)
-			config.Set("orchestrator_explorer.orchestrator_dd_url", ep.Endpoint)
+			config.SetWithoutSource("api_key", ep.APIKey)
+			config.SetWithoutSource("orchestrator_explorer.orchestrator_dd_url", ep.Endpoint)
 		} else {
 			additionalEps[ep.Endpoint.String()] = append(additionalEps[ep.Endpoint.String()], ep.APIKey)
 		}
 	}
-	config.Set("orchestrator_explorer.orchestrator_additional_endpoints", additionalEps)
+	config.SetWithoutSource("orchestrator_explorer.orchestrator_additional_endpoints", additionalEps)
 }
 
 func TestSendConnectionsMessage(t *testing.T) {
@@ -361,8 +362,8 @@ func TestSendPodMessageSendManifestPayload(t *testing.T) {
 	ddconfig.SetFeatures(t, ddconfig.Kubernetes)
 
 	ddcfg := ddconfig.Mock(t)
-	ddcfg.Set("orchestrator_explorer.enabled", true)
-	ddcfg.Set("orchestrator_explorer.manifest_collection.enabled", true)
+	ddcfg.SetWithoutSource("orchestrator_explorer.enabled", true)
+	ddcfg.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", true)
 
 	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
 		testPodMessageMetadata(t, clusterID, c, ep)
@@ -376,8 +377,8 @@ func TestSendPodMessageNotSendManifestPayload(t *testing.T) {
 	ddconfig.SetFeatures(t, ddconfig.Kubernetes)
 
 	ddcfg := ddconfig.Mock(t)
-	ddcfg.Set("orchestrator_explorer.enabled", true)
-	ddcfg.Set("orchestrator_explorer.manifest_collection.enabled", false)
+	ddcfg.SetWithoutSource("orchestrator_explorer.enabled", true)
+	ddcfg.SetWithoutSource("orchestrator_explorer.manifest_collection.enabled", false)
 
 	runCollectorTest(t, check, &endpointConfig{}, ddconfig.Mock(t), func(c *CheckRunner, ep *mockEndpoint) {
 		testPodMessageMetadata(t, clusterID, c, ep)
@@ -463,7 +464,7 @@ func TestQueueSpaceNotAvailable(t *testing.T) {
 	}
 
 	mockConfig := ddconfig.Mock(t)
-	mockConfig.Set("process_config.process_queue_bytes", 1)
+	mockConfig.SetWithoutSource("process_config.process_queue_bytes", 1)
 
 	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, mockConfig, func(_ *CheckRunner, ep *mockEndpoint) {
 		select {
@@ -493,7 +494,7 @@ func TestQueueSpaceReleased(t *testing.T) {
 	}
 
 	mockConfig := ddconfig.Mock(t)
-	mockConfig.Set("process_config.process_queue_bytes", 50) // This should be enough for one message, but not both if the space isn't released
+	mockConfig.SetWithoutSource("process_config.process_queue_bytes", 50) // This should be enough for one message, but not both if the space isn't released
 
 	runCollectorTest(t, check, &endpointConfig{ErrorCount: 1}, ddconfig.Mock(t), func(_ *CheckRunner, ep *mockEndpoint) {
 		req := <-ep.Requests
@@ -570,7 +571,7 @@ func runCollectorTestWithAPIKeys(t *testing.T, check checks.Check, epConfig *end
 		HostName: testHostName,
 	}
 	c, err := NewRunnerWithChecks(mockConfig, []checks.Check{check}, true, nil)
-	check.Init(nil, hostInfo)
+	check.Init(nil, hostInfo, true)
 	assert.NoError(t, err)
 	deps := newSubmitterDepsWithConfig(t, mockConfig)
 	c.Submitter, err = NewSubmitter(mockConfig, deps.Log, deps.Forwarders, hostInfo.HostName)
@@ -592,7 +593,7 @@ type testCheck struct {
 	data [][]process.MessageBody
 }
 
-func (t *testCheck) Init(_ *checks.SysProbeConfig, _ *checks.HostInfo) error {
+func (t *testCheck) Init(_ *checks.SysProbeConfig, _ *checks.HostInfo, _ bool) error {
 	return nil
 }
 

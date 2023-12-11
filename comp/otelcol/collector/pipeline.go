@@ -19,7 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
-	"github.com/DataDog/datadog-agent/pkg/util"
+	"github.com/DataDog/datadog-agent/pkg/util/optional"
 )
 
 const (
@@ -46,7 +46,7 @@ type dependencies struct {
 	Serializer serializer.MetricSerializer
 
 	// LogsAgent specifies a logs agent
-	LogsAgent util.Optional[logsagent.Component]
+	LogsAgent optional.Option[logsagent.Component]
 
 	// InventoryAgent require the inventory metadata payload, allowing otelcol to add data to it.
 	InventoryAgent inventoryagent.Component

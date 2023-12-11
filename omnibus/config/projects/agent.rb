@@ -27,7 +27,7 @@ if windows_target?
   PYTHON_2_EMBEDDED_DIR = format('%s/embedded2', INSTALL_DIR)
   PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
 else
-  INSTALL_DIR = '/opt/datadog-agent'
+  INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
 end
 
 install_dir INSTALL_DIR
@@ -152,128 +152,11 @@ package :zip do
       "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files",
       "#{Omnibus::Config.source_dir()}\\cf-root"
     ]
-
-    # Always sign everything for binaries zip
-    # noinspection RubyLiteralArrayInspection
-    additional_sign_files [
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe",
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe",
-      "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-three.dll"
-    ]
-    if with_python_runtime? "2"
-      additional_sign_files << "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\libdatadog-agent-two.dll"
-    end
-    if ENV['SIGN_PFX']
-      signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
-    end
-    if ENV['SIGN_WINDOWS_DD_WCS']
-      dd_wcssign true
-    end
-
   end
 end
 
 package :msi do
-
-  # For a consistent package management, please NEVER change this code
-  arch = "x64"
-  if windows_arch_i386?
-    upgrade_code '2497f989-f07e-4e8c-9e05-841ad3d4405f'
-    arch = "x86"
-  else
-    upgrade_code '0c50421b-aefb-4f15-a809-7af256d608a5'
-  end
-  wix_candle_extension 'WixUtilExtension'
-  wix_light_extension 'WixUtilExtension'
-  extra_package_dir "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent\\extra_package_files"
-
-  # noinspection RubyLiteralArrayInspection
-  additional_sign_files_list = [
-    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe",
-    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe",
-    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe",
-    "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-three.dll",
-    "#{install_dir}\\bin\\agent\\ddtray.exe",
-    "#{install_dir}\\embedded3\\python.exe",
-    "#{install_dir}\\embedded3\\\\python3.dll",
-    "#{install_dir}\\embedded3\\\\python39.dll",
-    "#{install_dir}\\embedded3\\\\pythonw.exe"
-  ]
-  if with_python_runtime? '2'
-    # noinspection RubyLiteralArrayInspection
-    additional_sign_files_list.concat [
-      "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\libdatadog-agent-two.dll",
-      "#{install_dir}\\embedded2\\python.exe",
-      "#{install_dir}\\embedded2\\python27.dll",
-      "#{install_dir}\\embedded2\\pythonw.exe"
-    ]
-  end
-  #if ENV['SIGN_WINDOWS']
-  #  signing_identity "ECCDAE36FDCB654D2CBAB3E8975AA55469F96E4C", machine_store: true, algorithm: "SHA256"
-  #end
-  if ENV['SIGN_PFX']
-    signing_identity_file "#{ENV['SIGN_PFX']}", password: "#{ENV['SIGN_PFX_PW']}", algorithm: "SHA256"
-  end
-  if ENV['SIGN_WINDOWS_DD_WCS']
-    dd_wcssign true
-  end
-
-  include_sysprobe = "false"
-  if not windows_arch_i386? and ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
-    include_sysprobe = "true"
-    additional_sign_files_list << "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe"
-  end
-
-  include_apminject = "false"
-  if not windows_arch_i386? and ENV['WINDOWS_APMINJECT_MODULE'] and not ENV['WINDOWS_APMINJECT_MODULE'].empty?
-    include_apminject = "true"
-  end
-
-  include_procmon = "false"
-  if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-    include_procmon = "true"
-    additional_sign_files_list << "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe"
-  end
-
-  additional_sign_files additional_sign_files_list
-  parameters({
-    'InstallDir' => install_dir,
-    'InstallFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/dd-agent/packaging/datadog-agent/win32/install_files",
-    'BinFiles' => "#{Omnibus::Config.source_dir()}/datadog-agent/src/github.com/DataDog/datadog-agent/bin/agent",
-    'EtcFiles' => "#{Omnibus::Config.source_dir()}\\etc\\datadog-agent",
-    'IncludePython2' => "#{with_python_runtime? '2'}",
-    'IncludePython3' => "#{with_python_runtime? '3'}",
-    'Platform' => "#{arch}",
-    'IncludeSysprobe' => "#{include_sysprobe}",
-    'IncludeAPMInject' => "#{include_apminject}",
-    'IncludeProcmon' => "#{include_procmon}"
-  })
-  # This block runs before harvesting with heat.exe
-  # It runs in the scope of the packager, so all variables access are from the point-of-view of the packager.
-  # Therefore, `install_dir` does not refer to the `install_dir` of the Project but that of the Packager.
-  pre_heat do
-    def generate_embedded_archive(version)
-      safe_embedded_path = windows_safe_path(install_dir, "embedded#{version}")
-      safe_embedded_archive_path = windows_safe_path(install_dir, "embedded#{version}.7z")
-
-      shellout!(
-        <<-EOH.strip
-          7z a -mx=5 -ms=on #{safe_embedded_archive_path} #{safe_embedded_path}
-      EOH
-      )
-      FileUtils.rm_rf "#{safe_embedded_path}"
-    end
-
-    # Create the embedded zips and delete their folders
-    if File.exist?(windows_safe_path(install_dir, "embedded3"))
-      generate_embedded_archive(3)
-    end
-
-    if File.exist?(windows_safe_path(install_dir, "embedded2"))
-      generate_embedded_archive(2)
-    end
-  end
+  skip_packager true
 end
 
 # ------------------------------------
@@ -313,15 +196,6 @@ end
 # Include traps db file in snmp.d/traps_db/
 dependency 'snmp-traps'
 
-# this dependency puts few files out of the omnibus install dir and move them
-# in the final destination. This way such files will be listed in the packages
-# manifest and owned by the package manager. This is the only point in the build
-# process where we operate outside the omnibus install dir, thus the need of
-# the `extra_package_file` directive.
-# This must be the last dependency in the project.
-dependency 'datadog-agent-finalize'
-dependency 'datadog-cf-finalize'
-
 # Additional software
 if windows_target?
   if ENV['WINDOWS_DDNPM_DRIVER'] and not ENV['WINDOWS_DDNPM_DRIVER'].empty?
@@ -332,8 +206,19 @@ if windows_target?
   end
   if ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
     dependency 'datadog-windows-procmon-driver'
+    ## this is a duplicate of the above dependency in linux
+    dependency 'datadog-security-agent-policies'
   end
 end
+
+# this dependency puts few files out of the omnibus install dir and move them
+# in the final destination. This way such files will be listed in the packages
+# manifest and owned by the package manager. This is the only point in the build
+# process where we operate outside the omnibus install dir, thus the need of
+# the `extra_package_file` directive.
+# This must be the last dependency in the project.
+dependency 'datadog-agent-finalize'
+dependency 'datadog-cf-finalize'
 
 if linux_target?
   extra_package_file '/etc/init/datadog-agent.conf'
@@ -390,24 +275,41 @@ if windows_target?
     end
   }
 
-  # Check the exported symbols from the binary
-  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe", &raise_if_forbidden_symbol_found)
-  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe", &raise_if_forbidden_symbol_found)
-  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe", &raise_if_forbidden_symbol_found)
-  inspect_binary("#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe", &raise_if_forbidden_symbol_found)
-
-  #
-  # For Windows build, files need to be stripped must be specified here.
-  #
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\process-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent\\trace-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\cf-root\\bin\\agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\process-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\trace-agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\agent.exe"
-  windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\system-probe.exe"
+  GO_BINARIES = [
+    "#{install_dir}\\bin\\agent\\agent.exe",
+    "#{install_dir}\\bin\\agent\\trace-agent.exe",
+    "#{install_dir}\\bin\\agent\\process-agent.exe",
+    "#{install_dir}\\bin\\agent\\system-probe.exe"
+  ]
   if not windows_arch_i386? and ENV['WINDOWS_DDPROCMON_DRIVER'] and not ENV['WINDOWS_DDPROCMON_DRIVER'].empty?
-    windows_symbol_stripping_file "#{Omnibus::Config.source_dir()}\\datadog-agent\\src\\github.com\\DataDog\\datadog-agent\\bin\\agent\\security-agent.exe"
+    GO_BINARIES << "#{install_dir}\\bin\\agent\\security-agent.exe"
+  end
+
+  GO_BINARIES.each do |bin|
+    # Check the exported symbols from the binary
+    inspect_binary(bin, &raise_if_forbidden_symbol_found)
+
+    # strip the binary of debug symbols
+    windows_symbol_stripping_file bin
+  end
+
+  if ENV['SIGN_WINDOWS_DD_WCS']
+    BINARIES_TO_SIGN = GO_BINARIES + [
+      "#{install_dir}\\bin\\agent\\ddtray.exe",
+      "#{install_dir}\\bin\\agent\\libdatadog-agent-three.dll"
+    ]
+    if with_python_runtime? "2"
+      BINARIES_TO_SIGN.concat([
+        "#{install_dir}\\bin\\agent\\libdatadog-agent-two.dll",
+        "#{install_dir}\\embedded2\\python.exe",
+        "#{install_dir}\\embedded2\\python27.dll",
+        "#{install_dir}\\embedded2\\pythonw.exe"
+      ])
+    end
+
+    BINARIES_TO_SIGN.each do |bin|
+      sign_file bin
+    end
   end
 
 end

@@ -31,6 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch"
 
 	"github.com/avast/retry-go/v4"
@@ -56,7 +57,7 @@ func TestProcess(t *testing.T) {
 		Expression: fmt.Sprintf(`process.user != "" && process.file.name == "%s" && open.file.path == "{{.Root}}/test-process"`, path.Base(executable)),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func TestProcessContext(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -964,7 +965,7 @@ func TestProcessEnvsWithValue(t *testing.T) {
 		envsWithValue: []string{"LD_PRELOAD"},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, opts)
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -995,7 +996,7 @@ func TestProcessExecCTime(t *testing.T) {
 		Expression: "exec.file.change_time < 30s",
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1023,7 +1024,7 @@ func TestProcessPIDVariable(t *testing.T) {
 		Expression: `open.file.path =~ "/proc/*/maps" && open.file.path != "/proc/${process.pid}/maps"`,
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1107,7 +1108,7 @@ func TestProcessScopedVariable(t *testing.T) {
 			`&& open.file.path == "${var5}-3"`,
 	}}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1165,7 +1166,7 @@ func TestTimestampVariable(t *testing.T) {
 		Expression: `open.file.path == "{{.Root}}/test-open-2" && ${process.timestamp1} > 0s && ${process.timestamp1} < 3s`,
 	}}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1204,7 +1205,7 @@ func TestProcessExec(t *testing.T) {
 		Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.args == "/dev/null"`, executable),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{ruleDef})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1250,7 +1251,7 @@ func TestProcessMetadata(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1317,11 +1318,16 @@ func TestProcessExecExit(t *testing.T) {
 		Expression: fmt.Sprintf(`exec.file.path == "%s" && exec.args in [~"*01010101*"]`, executable),
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
 
 	var execPid uint32
 
@@ -1367,8 +1373,7 @@ func TestProcessExecExit(t *testing.T) {
 
 	// make sure that the process cache entry of the process was properly deleted from the cache
 	err = retry.Do(func() error {
-		resolvers := test.probe.GetResolvers()
-		entry := resolvers.ProcessResolver.Get(execPid)
+		entry := p.Resolvers.ProcessResolver.Get(execPid)
 		if entry != nil {
 			return errors.New("the process cache entry was not deleted from the user space cache")
 		}
@@ -1413,7 +1418,7 @@ func TestProcessCredentialsUpdate(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1568,7 +1573,7 @@ func TestProcessIsThread(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1646,7 +1651,7 @@ func TestProcessExit(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1784,7 +1789,7 @@ func TestProcessBusybox(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1986,11 +1991,16 @@ chmod 755 pyscript.py
 		ruleList = append(ruleList, test.rule)
 	}
 
-	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
+	testModule, err := newTestModule(t, nil, ruleList)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer testModule.Close()
+
+	p, ok := testModule.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
 
 	for _, test := range tests {
 		testModule.Run(t, test.name, func(t *testing.T, kind wrapperType, cmdFunc func(cmd string, args []string, envs []string) *exec.Cmd) {
@@ -2009,7 +2019,7 @@ chmod 755 pyscript.py
 				}
 				t.Logf(string(output))
 
-				offsets, _ := testModule.probe.GetOffsetConstants()
+				offsets, _ := p.GetOffsetConstants()
 				t.Logf("%s: %+v\n", constantfetch.OffsetNameLinuxBinprmStructFile, offsets[constantfetch.OffsetNameLinuxBinprmStructFile])
 
 				return nil
@@ -2029,11 +2039,16 @@ func TestProcessResolution(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
 
 	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
 	if err != nil {
@@ -2087,7 +2102,7 @@ func TestProcessResolution(t *testing.T) {
 		}
 		inode := uint64(value.(int))
 
-		resolvers := test.probe.GetResolvers()
+		resolver := p.Resolvers.ProcessResolver
 
 		// compare only few fields as the hierarchy fields(pointers, etc) are modified by the resolution function calls
 		equals := func(t *testing.T, entry1, entry2 *model.ProcessCacheEntry) {
@@ -2105,12 +2120,12 @@ func TestProcessResolution(t *testing.T) {
 			assert.Greater(t, time.Second, entry1.ForkTime.Sub(entry2.ForkTime).Abs())
 		}
 
-		cacheEntry := resolvers.ProcessResolver.ResolveFromCache(pid, pid, inode)
+		cacheEntry := resolver.ResolveFromCache(pid, pid, inode)
 		if cacheEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}
 
-		mapsEntry := resolvers.ProcessResolver.ResolveFromKernelMaps(pid, pid, inode)
+		mapsEntry := resolver.ResolveFromKernelMaps(pid, pid, inode)
 		if mapsEntry == nil {
 			t.Errorf("not able to resolve the entry")
 		}
@@ -2119,7 +2134,7 @@ func TestProcessResolution(t *testing.T) {
 
 		// This makes use of the cache and do not parse /proc
 		// it still checks the ResolveFromProcfs returns the correct entry
-		procEntry := resolvers.ProcessResolver.ResolveFromProcfs(pid)
+		procEntry := resolver.ResolveFromProcfs(pid)
 		if procEntry == nil {
 			t.Fatalf("not able to resolve the entry")
 		}
@@ -2189,7 +2204,7 @@ func TestProcessFilelessExecution(t *testing.T) {
 		}
 	}
 
-	testModule, err := newTestModule(t, nil, ruleList, testOpts{})
+	testModule, err := newTestModule(t, nil, ruleList)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2256,7 +2271,7 @@ func TestKillAction(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule}, testOpts{disableDiscarders: true, eventsCountThreshold: 1000})
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{rule})
 	if err != nil {
 		t.Fatal(err)
 	}

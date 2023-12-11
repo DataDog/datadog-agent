@@ -95,13 +95,13 @@ func (fc *FakeEventConsumer) Copy(incomingEvent *model.Event) any {
 
 func TestEventMonitor(t *testing.T) {
 	var fc *FakeEventConsumer
-	test, err := newTestModule(t, nil, nil, testOpts{
+	test, err := newTestModule(t, nil, nil, withStaticOpts(testOpts{
 		disableRuntimeSecurity: true,
 		preStartCallback: func(test *testModule) {
 			fc = NewFakeEventConsumer(test.eventMonitor)
 			test.eventMonitor.RegisterEventConsumer(fc)
 		},
-	})
+	}))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config"
 )
 
+//nolint:revive // TODO(PROC) Fix revive linter
 func testGroupId(groupID int32) func() int32 {
 	return func() int32 {
 		return groupID
@@ -38,6 +39,7 @@ func TestProcessDiscoveryCheck(t *testing.T) {
 				TotalMemory: 0,
 			},
 		},
+		true,
 	)
 
 	// Test check runs without error

@@ -43,14 +43,17 @@ type KubeServiceListener struct {
 	delService        chan<- Service
 	targetAllServices bool
 	m                 sync.RWMutex
+	containerFilters  *containerFilters
 }
 
 // KubeServiceService represents a Kubernetes Service
 type KubeServiceService struct {
-	entity string
-	tags   []string
-	hosts  map[string]string
-	ports  []ContainerPort
+	entity          string
+	tags            []string
+	hosts           map[string]string
+	ports           []ContainerPort
+	metricsExcluded bool
+	globalExcluded  bool
 }
 
 // Make sure KubeServiceService implements the Service interface
@@ -92,11 +95,17 @@ func NewKubeServiceListener(conf Config) (ServiceListener, error) {
 		return nil, fmt.Errorf("cannot get service informer: %s", err)
 	}
 
+	containerFilters, err := newContainerFilters()
+	if err != nil {
+		return nil, err
+	}
+
 	return &KubeServiceListener{
 		services:          make(map[k8stypes.UID]Service),
 		informer:          servicesInformer,
 		promInclAnnot:     getPrometheusIncludeAnnotations(),
 		targetAllServices: conf.IsProviderEnabled(names.KubeServicesFileRegisterName),
+		containerFilters:  containerFilters,
 	}, nil
 }
 
@@ -234,6 +243,22 @@ func (l *KubeServiceListener) createService(ksvc *v1.Service) {
 
 	svc := processService(ksvc)
 
+	svc.metricsExcluded = l.containerFilters.IsExcluded(
+		containers.MetricsFilter,
+		ksvc.GetAnnotations(),
+		ksvc.Name,
+		"",
+		ksvc.Namespace,
+	)
+
+	svc.globalExcluded = l.containerFilters.IsExcluded(
+		containers.GlobalFilter,
+		ksvc.GetAnnotations(),
+		ksvc.Name,
+		"",
+		ksvc.Namespace,
+	)
+
 	l.m.Lock()
 	l.services[ksvc.UID] = svc
 	l.m.Unlock()
@@ -348,13 +373,22 @@ func (s *KubeServiceService) GetCheckNames(context.Context) []string {
 	return nil
 }
 
-// HasFilter always return false
-// KubeServiceService doesn't implement this method
+// HasFilter returns whether the kube service should not collect certain metrics
+// due to filtering applied.
 func (s *KubeServiceService) HasFilter(filter containers.FilterType) bool {
-	return false
+	switch filter {
+	case containers.MetricsFilter:
+		return s.metricsExcluded
+	case containers.GlobalFilter:
+		return s.globalExcluded
+	default:
+		return false
+	}
 }
 
 // GetExtraConfig isn't supported
+//
+//nolint:revive // TODO(CINT) Fix revive linter
 func (s *KubeServiceService) GetExtraConfig(key string) (string, error) {
 	return "", ErrNotSupported
 }

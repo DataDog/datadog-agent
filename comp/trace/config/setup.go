@@ -23,9 +23,11 @@ import (
 	corecompcfg "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp"
 	coreconfig "github.com/DataDog/datadog-agent/pkg/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	//nolint:revive // TODO(APM) Fix revive linter
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
@@ -54,6 +56,7 @@ const (
 	rcClientPollInterval = time.Second * 1
 )
 
+//nolint:revive // TODO(APM) Fix revive linter
 func setupConfigCommon(deps dependencies, apikey string) (*config.AgentConfig, error) {
 	confFilePath := deps.Config.ConfigFileUsed()
 
@@ -92,6 +95,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	// TODO: do not interface directly with pkg/config anywhere
 	coreConfigObject := c.Object()
 	if coreConfigObject == nil {
+		//nolint:revive // TODO(APM) Fix revive linter
 		return nil, fmt.Errorf("No core config found! Bailing out.")
 	}
 
@@ -102,7 +106,7 @@ func prepareConfig(c corecompcfg.Component) (*config.AgentConfig, error) {
 	orch := fargate.GetOrchestrator() // Needs to be after loading config, because it relies on feature auto-detection
 	cfg.FargateOrchestrator = config.FargateOrchestratorName(orch)
 	if p := coreconfig.Datadog.GetProxies(); p != nil {
-		cfg.Proxy = httputils.GetProxyTransportFunc(p)
+		cfg.Proxy = httputils.GetProxyTransportFunc(p, c)
 	}
 	if coreconfig.IsRemoteConfigEnabled(coreConfigObject) && coreConfigObject.GetBool("remote_configuration.apm_sampling.enabled") {
 		client, err := remote.NewGRPCClient(
@@ -222,6 +226,10 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
 	}
 	c.PeerServiceAggregation = core.GetBool("apm_config.peer_service_aggregation")
+	if c.PeerServiceAggregation {
+		log.Warn("`apm_config.peer_service_aggregation` is deprecated, please use `apm_config.peer_tags_aggregation` instead")
+	}
+	c.PeerTagsAggregation = core.GetBool("apm_config.peer_tags_aggregation")
 	c.ComputeStatsBySpanKind = core.GetBool("apm_config.compute_stats_by_span_kind")
 	if core.IsSet("apm_config.peer_tags") {
 		c.PeerTags = core.GetStringSlice("apm_config.peer_tags")
@@ -335,6 +343,20 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		SpanNameAsResourceName: core.GetBool("otlp_config.traces.span_name_as_resource_name"),
 		ProbabilisticSampling:  core.GetFloat64("otlp_config.traces.probabilistic_sampler.sampling_percentage"),
 	}
+
+	if core.IsSet("apm_config.install_id") {
+		c.InstallSignature.Found = true
+		c.InstallSignature.InstallID = core.GetString("apm_config.install_id")
+	}
+	if core.IsSet("apm_config.install_time") {
+		c.InstallSignature.Found = true
+		c.InstallSignature.InstallTime = core.GetInt64("apm_config.install_time")
+	}
+	if core.IsSet("apm_config.install_type") {
+		c.InstallSignature.Found = true
+		c.InstallSignature.InstallType = core.GetString("apm_config.install_type")
+	}
+	applyOrCreateInstallSignature(c)
 
 	if core.GetBool("apm_config.telemetry.enabled") {
 		c.TelemetryConfig.Enabled = true
@@ -647,6 +669,9 @@ func compileReplaceRules(rules []*config.ReplaceRule) error {
 		if r.Name == "" {
 			return errors.New(`all rules must have a "name" property (use "*" to target all)`)
 		}
+		if r.Name == "env" {
+			log.Error("Replace tags should not be used to change the env in the Agent, as it could have negative side effects. THIS WILL BE DISALLOWED IN FUTURE AGENT VERSIONS. See https://docs.datadoghq.com/getting_started/tracing/#environment-name for instructions on setting the env, and https://github.com/DataDog/datadog-agent/issues/21253 for more details about this issue.")
+		}
 		if r.Pattern == "" {
 			return errors.New(`all rules must have a "pattern"`)
 		}
@@ -845,7 +870,7 @@ func SetHandler() http.Handler {
 					httpError(w, http.StatusInternalServerError, err)
 					return
 				}
-				coreconfig.Datadog.Set("log_level", lvl)
+				coreconfig.Datadog.Set("log_level", lvl, model.SourceAgentRuntime)
 				log.Infof("Switched log level to %s", lvl)
 			default:
 				log.Infof("Unsupported config change requested (key: %q).", key)

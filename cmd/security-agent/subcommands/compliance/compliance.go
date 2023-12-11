@@ -6,7 +6,10 @@
 package compliance
 
 import (
+	"context"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"time"
 
@@ -24,7 +27,7 @@ import (
 
 // StartCompliance runs the compliance sub-agent running compliance benchmarks
 // and checks.
-func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient *ddgostatsd.Client, senderManager sender.SenderManager) (*compliance.Agent, error) { //nolint:revive // TODO fix revive unused-parameter
+func StartCompliance(log log.Component, config config.Component, sysprobeconfig sysprobeconfig.Component, hostname string, stopper startstop.Stopper, statsdClient ddgostatsd.ClientInterface, senderManager sender.SenderManager) (*compliance.Agent, error) {
 	enabled := config.GetBool("compliance_config.enabled")
 	runPath := config.GetString("compliance_config.run_path")
 	configDir := config.GetString("compliance_config.dir")
@@ -41,7 +44,7 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 	}
 	stopper.Add(context)
 
-	reporter, err := compliance.NewLogReporter(stopper, "compliance-agent", "compliance", runPath, endpoints, context)
+	reporter, err := compliance.NewLogReporter(hostname, stopper, "compliance-agent", "compliance", runPath, endpoints, context)
 	if err != nil {
 		return nil, err
 	}
@@ -57,17 +60,28 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 		resolverOptions.StatsdClient = statsdClient
 	}
 
+	var sysProbeClient *http.Client
+	if config := sysprobeconfig.SysProbeObject(); config != nil && config.SocketAddress != "" {
+		sysProbeClient = newSysProbeClient(config.SocketAddress)
+	}
+
+	enabledConfigurationsExporters := []compliance.ConfigurationExporter{
+		compliance.AptExporter,
+		compliance.KubernetesExporter,
+	}
+	if config.GetBool("compliance_config.database_benchmarks.enabled") {
+		enabledConfigurationsExporters = append(enabledConfigurationsExporters, compliance.DBExporter)
+	}
+
 	runner := runner.NewRunner(senderManager)
 	stopper.Add(runner)
 	agent := compliance.NewAgent(senderManager, compliance.AgentOptions{
-		ResolverOptions: resolverOptions,
-		ConfigDir:       configDir,
-		Reporter:        reporter,
-		CheckInterval:   checkInterval,
-		EnabledConfigurationExporters: []compliance.ConfigurationExporter{
-			compliance.AptExporter,
-			compliance.KubernetesExporter,
-		},
+		ResolverOptions:               resolverOptions,
+		ConfigDir:                     configDir,
+		Reporter:                      reporter,
+		CheckInterval:                 checkInterval,
+		EnabledConfigurationExporters: enabledConfigurationsExporters,
+		SysProbeClient:                sysProbeClient,
 	})
 	err = agent.Start()
 	if err != nil {
@@ -84,7 +98,7 @@ func StartCompliance(log log.Component, config config.Component, sysprobeconfig 
 }
 
 // sendRunningMetrics exports a metric to distinguish between security-agent modules that are activated
-func sendRunningMetrics(statsdClient *ddgostatsd.Client, moduleName string) *time.Ticker {
+func sendRunningMetrics(statsdClient ddgostatsd.ClientInterface, moduleName string) *time.Ticker {
 	// Retrieve the agent version using a dedicated package
 	tags := []string{fmt.Sprintf("version:%s", version.AgentVersion)}
 
@@ -97,4 +111,20 @@ func sendRunningMetrics(statsdClient *ddgostatsd.Client, moduleName string) *tim
 	}()
 
 	return heartbeat
+}
+
+func newSysProbeClient(address string) *http.Client {
+	return &http.Client{
+		Timeout: 10 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:    2,
+			IdleConnTimeout: 30 * time.Second,
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", address)
+			},
+			TLSHandshakeTimeout:   1 * time.Second,
+			ResponseHeaderTimeout: 5 * time.Second,
+			ExpectContinueTimeout: 50 * time.Millisecond,
+		},
+	}
 }

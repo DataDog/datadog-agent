@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(APM) Fix revive linter
 package stats
 
 import (
@@ -17,10 +18,9 @@ import (
 )
 
 const (
-	tagStatusCode  = "http.status_code"
-	tagSynthetics  = "synthetics"
-	tagPeerService = "peer.service"
-	tagSpanKind    = "span.kind"
+	tagStatusCode = "http.status_code"
+	tagSynthetics = "synthetics"
+	tagSpanKind   = "span.kind"
 )
 
 // Aggregation contains all the dimension on which we aggregate statistics.
@@ -33,7 +33,6 @@ type Aggregation struct {
 type BucketsAggregationKey struct {
 	Service      string
 	Name         string
-	PeerService  string
 	Resource     string
 	Type         string
 	SpanKind     string
@@ -74,7 +73,7 @@ func clientOrProducer(spanKind string) bool {
 }
 
 // NewAggregationFromSpan creates a new aggregation from the provided span and env
-func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerSvcAgg bool, peerTagKeys []string) (Aggregation, []string) {
+func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregationKey, enablePeerTagsAgg bool, peerTagKeys []string) (Aggregation, []string) {
 	synthetics := strings.HasPrefix(origin, tagSynthetics)
 	agg := Aggregation{
 		PayloadAggregationKey: aggKey,
@@ -89,10 +88,7 @@ func NewAggregationFromSpan(s *pb.Span, origin string, aggKey PayloadAggregation
 		},
 	}
 	var peerTags []string
-	if clientOrProducer(agg.SpanKind) {
-		if enablePeerSvcAgg {
-			agg.PeerService = s.Meta[tagPeerService]
-		}
+	if clientOrProducer(agg.SpanKind) && enablePeerTagsAgg {
 		peerTags = matchingPeerTags(s, peerTagKeys)
 		agg.PeerTagsHash = peerTagsHash(peerTags)
 	}
@@ -105,7 +101,7 @@ func matchingPeerTags(s *pb.Span, peerTagKeys []string) []string {
 	}
 	var pt []string
 	for _, t := range peerTagKeys {
-		if v, ok := s.Meta[t]; ok {
+		if v, ok := s.Meta[t]; ok && v != "" {
 			pt = append(pt, t+":"+v)
 		}
 	}
@@ -135,7 +131,6 @@ func NewAggregationFromGroup(g *pb.ClientGroupedStats) Aggregation {
 		BucketsAggregationKey: BucketsAggregationKey{
 			Resource:     g.Resource,
 			Service:      g.Service,
-			PeerService:  g.PeerService,
 			Name:         g.Name,
 			SpanKind:     g.SpanKind,
 			StatusCode:   g.HTTPStatusCode,
