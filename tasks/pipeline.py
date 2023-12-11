@@ -440,7 +440,10 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
     for v in variables.split(','):
         data['variables'][v] = os.environ[v]
 
-    print(f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}", flush=True)
+    print(
+        f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}",
+        flush=True,
+    )
 
     res = gitlab.trigger_pipeline(data)
 
