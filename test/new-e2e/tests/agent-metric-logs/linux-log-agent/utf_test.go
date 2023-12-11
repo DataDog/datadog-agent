@@ -97,8 +97,8 @@ func (s *UtfSuite) UtfLittleEndianCollection() {
 	// check that intake has utf-16-le encoded log
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		logs, err := intake.FilterLogs(service, fi.WithMessageMatching(content))
-		intakeLogs := logsToString(logs)
 		assert.NoErrorf(c, err, "Error found: %s", err)
+		intakeLogs := logsToString(logs)
 		assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', but received %s logs.", content, intakeLogs)
 		t.Logf(intakeLogs)
 	}, 2*time.Minute, 10*time.Second)
