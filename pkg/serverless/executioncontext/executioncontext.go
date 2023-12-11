@@ -218,6 +218,7 @@ func (ec *ExecutionContext) RestoreCurrentStateFromFile() error {
 	ec.lastLogRequestID = restoredExecutionContextState.LastLogRequestID
 	ec.lastOOMRequestID = restoredExecutionContextState.LastOOMRequestID
 	ec.coldstartRequestID = restoredExecutionContextState.ColdstartRequestID
+	ec.wasColdStart = restoredExecutionContextState.WasColdStart
 	ec.startTime = restoredExecutionContextState.StartTime
 	ec.endTime = restoredExecutionContextState.EndTime
 	return nil
