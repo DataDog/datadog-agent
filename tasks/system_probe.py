@@ -681,20 +681,17 @@ def test_debug(
     bundle_ebpf=False,
     runtime_compiled=False,
     co_re=False,
-    skip_linters=False,
     skip_object_files=False,
     run=None,
     windows=is_windows,
     failfast=False,
     kernel_release=None,
-    timeout=None,
 ):
     """
     Run delve on a specific system-probe test.
     """
     if not run:
-        raise Exit(
-            code=1, message="test name must be specified with the --run option")
+        raise Exit(code=1, message="test name must be specified with the --run option")
 
     if os.getenv("GOPATH") is None:
         raise Exit(
@@ -702,10 +699,6 @@ def test_debug(
             message="GOPATH is not set, if you are running tests with sudo, you may need to use the -E option to "
             "preserve your environment",
         )
-
-    if not skip_linters and not windows:
-        clang_format(ctx)
-        clang_tidy(ctx)
 
     if not skip_object_files:
         build_object_files(
@@ -741,9 +734,7 @@ def test_debug(
         env["DD_ALLOW_PRECOMPILED_FALLBACK"] = "false"
 
     args["dir"] = package
-    testto = timeout if timeout else get_test_timeout(package)
-    args["timeout"] = f"-timeout {testto}" if testto else ""
-    cmd = '{sudo}{dlv} test {dir} --build-flags="-mod=mod -v {failfast} {timeout} -tags={build_tags}" -- -test.run {run}'
+    cmd = '{sudo}{dlv} test {dir} --build-flags="-mod=mod -v {failfast} -tags={build_tags}" -- -test.run {run}'
     ctx.run(cmd.format(**args), env=env, pty=True, warn=True)
 
 
