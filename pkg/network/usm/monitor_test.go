@@ -666,9 +666,9 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 
 func getExpectedOutcomeForPathWithRepeatedChars() map[http.Key]captureRange {
 	expected := make(map[http.Key]captureRange)
-	// The path `/a` is not being encoded with Huffman, and that's an edge case for our http2 monitoring for the moment,
-	// thus we're starting with `/aa` and above.
-	for i := 2; i < 100; i++ {
+	// The path `/a` and `/aa` are not being encoded with Huffman, and that's an edge case for our http2 monitoring for the moment,
+	// thus we're starting with `/aaa` and above.
+	for i := 3; i < 100; i++ {
 		expected[http.Key{
 			Path: http.Path{
 				Content: http.Interner.GetString(fmt.Sprintf("/%s", strings.Repeat("a", i))),
