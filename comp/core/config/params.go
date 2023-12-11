@@ -94,6 +94,14 @@ func NewClusterAgentParams(configFilePath string, options ...func(*Params)) Para
 	return params
 }
 
+// NewUpdaterParams returns a new Params struct for the updater
+func NewUpdaterParams(configFilePath string, options ...func(*Params)) Params {
+	params := NewParams(DefaultConfPath, options...)
+	params.ConfFilePath = configFilePath
+	params.configName = "datadog-updater"
+	return params
+}
+
 // WithConfigName returns an option which sets the config name
 func WithConfigName(name string) func(*Params) {
 	return func(b *Params) {
