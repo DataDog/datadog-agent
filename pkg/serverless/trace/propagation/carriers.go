@@ -34,12 +34,25 @@ const (
 
 var rootRegex = regexp.MustCompile("Root=1-[0-9a-fA-F]{8}-00000000[0-9a-fA-F]{16}")
 
+var (
+	errorAWSTraceHeaderMismatch = errors.New("AWSTraceHeader does not match expected regex")
+	errorAWSTraceHeaderEmpty    = errors.New("AWSTraceHeader does not contain trace ID and parent ID")
+	errorStringNotFound         = errors.New("String value not found in _datadog payload")
+	errorUnsupportedDataType    = errors.New("Unsupported DataType in _datadog payload")
+	errorNoDDContextFound       = errors.New("No Datadog trace context found")
+	errorUnsupportedPayloadType = errors.New("Unsupported type for _datadog payload")
+	errorUnsupportedTypeType    = errors.New("Unsupported type in _datadog payload")
+	errorUnsupportedValueType   = errors.New("Unsupported value type in _datadog payload")
+	errorUnsupportedTypeValue   = errors.New("Unsupported Type in _datadog payload")
+	errorCouldNotUnmarshal      = errors.New("Could not unmarshal the invocation event payload")
+)
+
 // extractTraceContextfromAWSTraceHeader extracts trace context from the
 // AWSTraceHeader directly. Unlike the other carriers in this file, it should
 // not be passed to the tracer.Propagator, instead extracting context directly.
 func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) {
 	if !rootRegex.MatchString(value) {
-		return nil, errors.New("AWSTraceHeader does not match expected regex")
+		return nil, errorAWSTraceHeaderMismatch
 	}
 	var (
 		startPart int
@@ -86,7 +99,7 @@ func extractTraceContextfromAWSTraceHeader(value string) (*TraceContext, error) 
 		tc.SamplingPriority = sampler.PriorityAutoKeep
 	}
 	if tc.TraceID == 0 || tc.ParentID == 0 {
-		return nil, errors.New("AWSTraceHeader does not contain trace ID and parent ID")
+		return nil, errorAWSTraceHeaderEmpty
 	}
 	return tc, nil
 }
@@ -108,7 +121,7 @@ func sqsMessageAttrCarrier(attr events.SQSMessageAttribute) (tracer.TextMapReade
 	switch attr.DataType {
 	case "String":
 		if attr.StringValue == nil {
-			return nil, errors.New("String value not found in _datadog payload")
+			return nil, errorStringNotFound
 		}
 		bytes = []byte(*attr.StringValue)
 	case "Binary":
@@ -116,7 +129,7 @@ func sqsMessageAttrCarrier(attr events.SQSMessageAttribute) (tracer.TextMapReade
 		// MESSAGE DELIVERY option
 		bytes = attr.BinaryValue // No need to decode base64 because already decoded
 	default:
-		return nil, errors.New("Unsupported DataType in _datadog payload")
+		return nil, errorUnsupportedDataType
 	}
 
 	var carrier tracer.TextMapCarrier
@@ -140,20 +153,20 @@ func snsSqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error)
 func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
 	msgAttrs, ok := event.MessageAttributes[datadogSQSHeader]
 	if !ok {
-		return nil, errors.New("No Datadog trace context found")
+		return nil, errorNoDDContextFound
 	}
 	mapAttrs, ok := msgAttrs.(map[string]interface{})
 	if !ok {
-		return nil, errors.New("Unsupported type for _datadog payload")
+		return nil, errorUnsupportedPayloadType
 	}
 
 	typ, ok := mapAttrs["Type"].(string)
 	if !ok {
-		return nil, errors.New("Unsupported type in _datadog payload")
+		return nil, errorUnsupportedTypeType
 	}
 	val, ok := mapAttrs["Value"].(string)
 	if !ok {
-		return nil, errors.New("Unsupported value type in _datadog payload")
+		return nil, errorUnsupportedValueType
 	}
 
 	var bytes []byte
@@ -167,7 +180,7 @@ func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
 	case "String":
 		bytes = []byte(val)
 	default:
-		return nil, errors.New("Unsupported Type in _datadog payload")
+		return nil, errorUnsupportedTypeValue
 	}
 
 	var carrier tracer.TextMapCarrier
@@ -186,7 +199,7 @@ type invocationPayload struct {
 func rawPayloadCarrier(rawPayload []byte) (tracer.TextMapReader, error) {
 	var payload invocationPayload
 	if err := json.Unmarshal(rawPayload, &payload); err != nil {
-		return nil, errors.New("Could not unmarshal the invocation event payload")
+		return nil, errorCouldNotUnmarshal
 	}
 	return payload.Headers, nil
 }
