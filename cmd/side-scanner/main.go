@@ -125,8 +125,8 @@ type diskMode string
 
 const (
 	volumeAttach diskMode = "volume-attach"
-	nbdAttach             = "nbd-attach"
-	noAttach              = "no-attach"
+	nbdAttach    diskMode = "nbd-attach"
+	noAttach     diskMode = "no-attach"
 )
 
 type resourceType string
@@ -1162,7 +1162,10 @@ func (s *sideScanner) healthServer(ctx context.Context) error {
 
 	go func() {
 		<-ctx.Done()
-		srv.Shutdown(context.TODO())
+		err := srv.Shutdown(context.TODO())
+		if err != nil {
+			log.Debugf("error shutting down: %v", err)
+		}
 	}()
 
 	log.Infof("Starting health-check server for side-scanner on address %q", addr)
@@ -1179,7 +1182,12 @@ func (s *sideScanner) start(ctx context.Context) {
 	s.rcClient.Start()
 	defer s.rcClient.Close()
 
-	go s.healthServer(ctx)
+	go func() {
+		err := s.healthServer(ctx)
+		if err != nil {
+			log.Debugf("healthServer: %v", err)
+		}
+	}()
 
 	done := make(chan struct{})
 	go func() {
