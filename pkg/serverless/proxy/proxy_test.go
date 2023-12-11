@@ -45,7 +45,7 @@ func (tp *testProcessorResponseValid) OnInvokeEnd(endDetails *invocationlifecycl
 }
 
 func (tp *testProcessorResponseValid) OnTimeoutInvokeEnd(timeoutContext *invocationlifecycle.TimeoutExecutionInfo) {
-	if len(timeoutContext.RequestId) == 0 {
+	if len(timeoutContext.RequestID) == 0 {
 		panic("requestId")
 	}
 }
@@ -72,7 +72,7 @@ func (tp *testProcessorResponseError) GetExecutionInfo() *invocationlifecycle.Ex
 }
 
 func (tp *testProcessorResponseError) OnTimeoutInvokeEnd(timeoutContext *invocationlifecycle.TimeoutExecutionInfo) {
-	if len(timeoutContext.RequestId) == 0 {
+	if len(timeoutContext.RequestID) == 0 {
 		panic("requestId")
 	}
 }

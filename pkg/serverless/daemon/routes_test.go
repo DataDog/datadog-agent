@@ -157,7 +157,7 @@ func TestTimeoutInvocation(t *testing.T) {
 
 	d.InvocationProcessor.OnTimeoutInvokeEnd(
 		&invocationlifecycle.TimeoutExecutionInfo{
-			RequestId:       "123abc",
+			RequestID:       "123abc",
 			Runtime:         "custom",
 			IsColdStart:     true,
 			IsProactiveInit: true,

@@ -43,7 +43,7 @@ type ExecutionStartInfo struct {
 
 // TimeoutExecutionInfo is the information needed to complete an execution span during a timeout
 type TimeoutExecutionInfo struct {
-	RequestId       string
+	RequestID       string
 	Runtime         string
 	IsColdStart     bool
 	IsProactiveInit bool
@@ -126,13 +126,13 @@ func (lp *LifecycleProcessor) endExecutionSpanOnTimeout(timeoutCtx *TimeoutExecu
 	duration := time.Now().UnixNano() - start
 
 	// In a timeout we do not receive the trace and span IDs from the tracer so we must do it here
-	traceId := executionContext.TraceID
-	if traceId == 0 {
-		traceId = random.Random.Uint64()
+	traceID := executionContext.TraceID
+	if traceID == 0 {
+		traceID = random.Random.Uint64()
 	}
-	spanId := executionContext.SpanID
-	if spanId == 0 {
-		spanId = random.Random.Uint64()
+	spanID := executionContext.SpanID
+	if spanID == 0 {
+		spanID = random.Random.Uint64()
 	}
 
 	executionSpan := &pb.Span{
@@ -140,15 +140,15 @@ func (lp *LifecycleProcessor) endExecutionSpanOnTimeout(timeoutCtx *TimeoutExecu
 		Name:     "aws.lambda",
 		Resource: os.Getenv(functionNameEnvVar),
 		Type:     "serverless",
-		TraceID:  traceId,
-		SpanID:   spanId,
+		TraceID:  traceID,
+		SpanID:   spanID,
 		ParentID: executionContext.parentID,
 		Start:    start,
 		Duration: duration,
 		Meta:     lp.requestHandler.triggerTags,
 		Metrics:  lp.requestHandler.triggerMetrics,
 	}
-	setExecutionSpanTags(executionSpan, timeoutCtx.RequestId, timeoutCtx.IsColdStart, timeoutCtx.IsProactiveInit, timeoutCtx.Runtime)
+	setExecutionSpanTags(executionSpan, timeoutCtx.RequestID, timeoutCtx.IsColdStart, timeoutCtx.IsProactiveInit, timeoutCtx.Runtime)
 	// In a timeout the tracer is unable to send the response payload so it must be excluded
 	captureLambdaPayload(executionContext, executionSpan, []byte{})
 

@@ -144,7 +144,7 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 				ecs := daemon.ExecutionContext.GetCurrentState()
 				log.Debug("No hit on serverless.EndInvocation route. Attempting to finish Lambda execution span.")
 				timeoutContext := &invocationlifecycle.TimeoutExecutionInfo{
-					RequestId:       ecs.LastRequestID,
+					RequestID:       ecs.LastRequestID,
 					Runtime:         ecs.Runtime,
 					IsColdStart:     coldStartTags.IsColdStart,
 					IsProactiveInit: coldStartTags.IsProactiveInit,

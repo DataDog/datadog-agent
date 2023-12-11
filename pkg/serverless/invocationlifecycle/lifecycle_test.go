@@ -417,7 +417,7 @@ func TestTimeoutExecutionSpan(t *testing.T) {
 	testProcessor.OnInvokeStart(&startDetails)
 
 	timeoutCtx := &TimeoutExecutionInfo{
-		RequestId:       "test-request-id",
+		RequestID:       "test-request-id",
 		Runtime:         "java11",
 		IsColdStart:     false,
 		IsProactiveInit: false,
@@ -470,7 +470,7 @@ func TestTimeoutExecutionSpanWithTraceContext(t *testing.T) {
 	testProcessor.OnInvokeStart(&startDetails)
 
 	timeoutCtx := &TimeoutExecutionInfo{
-		RequestId:       "test-request-id",
+		RequestID:       "test-request-id",
 		Runtime:         "java11",
 		IsColdStart:     false,
 		IsProactiveInit: false,
