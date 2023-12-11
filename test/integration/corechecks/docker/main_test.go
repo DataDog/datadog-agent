@@ -111,8 +111,7 @@ func setup() (workloadmeta.Component, error) {
 	config.SetFeaturesNoCleanup(config.Docker)
 
 	// Note: workloadmeta will be started by fx with the App
-	var store workloadmeta.Component
-	fxApp, store, err = fxutil.TestApp[workloadmeta.Component](fx.Options(
+	fxApp, _, err = fxutil.TestApp[tagger.Component](fx.Options(
 		fx.Supply(compcfg.NewAgentParams(
 			"", compcfg.WithConfigMissingOK(true))),
 		compcfg.Module(),
@@ -123,8 +122,9 @@ func setup() (workloadmeta.Component, error) {
 		workloadmeta.Module(),
 		tagger.Module(),
 		fx.Supply(tagger.NewTaggerParams()),
+		fx.Provide(func() context.Context { return context.TODO() }),
+		tagger.Module(),
 	))
-	workloadmeta.SetGlobalStore(store)
 
 	// Start compose recipes
 	for projectName, file := range defaultCatalog.composeFilesByProjects {
