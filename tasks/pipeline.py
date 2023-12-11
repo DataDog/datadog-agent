@@ -440,7 +440,10 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
     for v in variables.split(','):
         data['variables'][v] = os.environ[v]
 
-    print(f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}")
+    print(
+        f"Creating child pipeline in repo {project_name}, on git ref {git_ref} with params: {data['variables']}",
+        flush=True,
+    )
 
     res = gitlab.trigger_pipeline(data)
 
@@ -449,10 +452,10 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
 
     pipeline_id = res['id']
     pipeline_url = res['web_url']
-    print(f"Created a child pipeline with id={pipeline_id}, url={pipeline_url}")
+    print(f"Created a child pipeline with id={pipeline_id}, url={pipeline_url}", flush=True)
 
     if follow:
-        print("Waiting for child pipeline to finish...")
+        print("Waiting for child pipeline to finish...", flush=True)
 
         wait_for_pipeline(gitlab, pipeline_id)
 
@@ -463,7 +466,7 @@ def trigger_child_pipeline(_, git_ref, project_name, variables="", follow=True):
         if pipestatus != "success":
             raise Exit(f"Error: child pipeline status {pipestatus.title()}", code=1)
 
-        print("Child pipeline finished successfully")
+        print("Child pipeline finished successfully", flush=True)
 
 
 def parse(commit_str):
