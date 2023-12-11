@@ -176,8 +176,8 @@ func scanLambdaSbomEntity(trivyReport *types.Report, scan *scanTask, duration ti
 		Id:     scan.ARN.String(),
 		InUse:  true,
 		DdTags: []string{
-			"git.repository_url:" + scan.ARN.String(),
-			"git.branch:TODO", // XXX
+			"runtime_id:" + scan.ARN.String(),
+			"service_version:TODO", // XXX
 		},
 		GeneratedAt:        timestamppb.New(time.Now()),
 		GenerationDuration: convertDuration(duration),
