@@ -52,7 +52,6 @@ def check_component(file, content):
         "comp/aggregator/demultiplexer/component.go",
         "comp/core/config/component.go",
         "comp/core/flare/component.go",
-        "comp/core/log/component.go",
         "comp/core/telemetry/component.go",
         "comp/dogstatsd/replay/component.go",
         "comp/dogstatsd/server/component.go",
@@ -66,6 +65,7 @@ def check_component(file, content):
         "comp/trace/agent/component.go",
         "comp/trace/config/component.go",
         "comp/process/apiserver/component.go",
+        "comp/core/workloadmeta/component.go",  # // TODO: (components) fix it in later PR
     ]
 
     if file in components_to_migrate:
@@ -73,8 +73,8 @@ def check_component(file, content):
 
     for not_allow_definition in [
         "type Mock interface",
-        "var Module = fxutil.Component",
-        "var MockModule = fxutil.Component",
+        "func Module() fxutil.Module",
+        "func MockModule() fxutil.Module",
     ]:
         if any(l.startswith(not_allow_definition) for l in content):
             return f"** {file} define '{not_allow_definition}' which is not allow in {file}. See docs/components/defining-components.md; skipping"

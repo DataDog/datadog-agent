@@ -18,19 +18,19 @@ import (
 )
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle,
-		demultiplexer.Module,
-		orchestratorForwarderImpl.MockModule,
-		defaultforwarder.Module,
+	fxutil.TestBundle(t, Bundle(),
+		demultiplexer.Module(),
+		orchestratorForwarderImpl.MockModule(),
+		defaultforwarder.Module(),
 		fx.Supply(demultiplexer.Params{}),
 		fx.Supply(defaultforwarder.Params{}),
-		core.MockBundle,
+		core.MockBundle(),
 	)
 }
 
 func TestMockBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, MockBundle,
-		core.MockBundle,
+	fxutil.TestBundle(t, MockBundle(),
+		core.MockBundle(),
 		fx.Provide(func() *ddagg.AgentDemultiplexer {
 			return &ddagg.AgentDemultiplexer{}
 		}),

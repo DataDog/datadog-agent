@@ -27,11 +27,11 @@ func TestRunnerLifecycle(t *testing.T) {
 	_ = fxutil.Test[runner.Component](t, fx.Options(
 		fx.Supply(core.BundleParams{}),
 
-		Module,
-		submitterimpl.MockModule,
-		processcheckimpl.Module,
-		hostinfoimpl.MockModule,
-		core.MockBundle,
+		Module(),
+		submitterimpl.MockModule(),
+		processcheckimpl.Module(),
+		hostinfoimpl.MockModule(),
+		core.MockBundle(),
 	))
 }
 
@@ -51,11 +51,11 @@ func TestRunnerRealtime(t *testing.T) {
 				"process_config.disable_realtime_checks": false,
 			}}),
 
-			Module,
-			submitterimpl.MockModule,
-			processcheckimpl.Module,
-			hostinfoimpl.MockModule,
-			core.MockBundle,
+			Module(),
+			submitterimpl.MockModule(),
+			processcheckimpl.Module(),
+			hostinfoimpl.MockModule(),
+			core.MockBundle(),
 		))
 		rtChan <- types.RTResponse{
 			{
@@ -84,11 +84,11 @@ func TestRunnerRealtime(t *testing.T) {
 				func() <-chan types.RTResponse { return rtChan },
 			),
 
-			Module,
-			submitterimpl.MockModule,
-			processcheckimpl.Module,
-			hostinfoimpl.MockModule,
-			core.MockBundle,
+			Module(),
+			submitterimpl.MockModule(),
+			processcheckimpl.Module(),
+			hostinfoimpl.MockModule(),
+			core.MockBundle(),
 		))
 
 		rtChan <- types.RTResponse{
@@ -109,15 +109,15 @@ func TestProvidedChecks(t *testing.T) {
 			core.BundleParams{},
 		),
 
-		Module,
-		submitterimpl.MockModule,
-		hostinfoimpl.MockModule,
+		Module(),
+		submitterimpl.MockModule(),
+		hostinfoimpl.MockModule(),
 
 		// Checks
-		processcheckimpl.MockModule,
-		containercheckimpl.MockModule,
+		processcheckimpl.MockModule(),
+		containercheckimpl.MockModule(),
 
-		core.MockBundle,
+		core.MockBundle(),
 	))
 	providedChecks := r.GetProvidedChecks()
 

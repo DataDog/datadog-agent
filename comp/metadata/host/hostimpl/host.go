@@ -45,9 +45,11 @@ type host struct {
 }
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newHostProvider),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newHostProvider),
+	)
+}
 
 type dependencies struct {
 	fx.In

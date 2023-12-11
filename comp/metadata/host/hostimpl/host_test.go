@@ -13,7 +13,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
-	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources"
 	"github.com/DataDog/datadog-agent/comp/metadata/resources/resourcesimpl"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -25,9 +25,9 @@ func TestNewHostProviderDefaultInterval(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule,
-			config.MockModule,
-			resourcesimpl.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
+			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
 		),
@@ -49,9 +49,9 @@ func TestNewHostProviderCustomInterval(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule,
-			config.MockModule,
-			resourcesimpl.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
+			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),
@@ -74,9 +74,9 @@ func TestNewHostProviderInvalidCustomInterval(t *testing.T) {
 	ret := newHostProvider(
 		fxutil.Test[dependencies](
 			t,
-			log.MockModule,
-			config.MockModule,
-			resourcesimpl.MockModule,
+			logimpl.MockModule(),
+			config.MockModule(),
+			resourcesimpl.MockModule(),
 			fx.Replace(resources.MockParams{Data: nil}),
 			fx.Replace(config.MockParams{Overrides: overrides}),
 			fx.Provide(func() serializer.MetricSerializer { return nil }),

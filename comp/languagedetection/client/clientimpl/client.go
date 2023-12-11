@@ -42,9 +42,10 @@ const (
 )
 
 // Module defines the fx options for this component.
-var Module = fxutil.Component(
-	fx.Provide(newClient),
-)
+func Module() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newClient))
+}
 
 type dependencies struct {
 	fx.In

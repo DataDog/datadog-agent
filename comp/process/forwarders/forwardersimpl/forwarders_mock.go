@@ -15,9 +15,11 @@ import (
 )
 
 // MockModule is the mock module for process forwarders
-var MockModule = fxutil.Component(
-	fx.Provide(newMockForwarders),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMockForwarders),
+	)
+}
 
 func newMockForwarders(deps dependencies) (forwarders.Component, error) {
 	return newForwarders(deps)

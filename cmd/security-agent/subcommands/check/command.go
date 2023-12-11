@@ -28,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
@@ -65,7 +66,7 @@ func SecurityAgentCommands(globalParams *command.GlobalParams) []*cobra.Command 
 			ConfigParams:         config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 			SecretParams:         secrets.NewEnabledParams(),
 			SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
-			LogParams:            log.ForOneShot(command.LoggerName, "info", true),
+			LogParams:            logimpl.ForOneShot(command.LoggerName, "info", true),
 		}
 	})
 }
@@ -89,13 +90,13 @@ func commandsWrapped(bundleParamsFactory func() core.BundleParams) []*cobra.Comm
 
 			bundleParams := bundleParamsFactory()
 			if checkArgs.verbose {
-				bundleParams.LogParams = log.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
+				bundleParams.LogParams = logimpl.ForOneShot(bundleParams.LogParams.LoggerName(), "trace", true)
 			}
 
 			return fxutil.OneShot(RunCheck,
 				fx.Supply(checkArgs),
 				fx.Supply(bundleParams),
-				core.Bundle,
+				core.Bundle(),
 				dogstatsd.ClientBundle,
 			)
 		},
@@ -285,8 +286,7 @@ func newFakeResolver(regoInputPath string) compliance.Resolver {
 	return &fakeResolver{regoInputPath}
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
-func (r *fakeResolver) ResolveInputs(ctx context.Context, rule *compliance.Rule) (compliance.ResolvedInputs, error) {
+func (r *fakeResolver) ResolveInputs(_ context.Context, rule *compliance.Rule) (compliance.ResolvedInputs, error) {
 	var fixtures map[string]map[string]interface{}
 	data, err := os.ReadFile(r.regoInputPath)
 	if err != nil {

@@ -25,7 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	networkconfig "github.com/DataDog/datadog-agent/pkg/network/config"
-	"github.com/DataDog/datadog-agent/pkg/network/encoding"
+	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	httpdebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/http/debugging"
 	kafkadebugging "github.com/DataDog/datadog-agent/pkg/network/protocols/kafka/debugging"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/telemetry"
@@ -106,7 +106,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 			return
 		}
 		contentType := req.Header.Get("Accept")
-		marshaler := encoding.GetMarshaler(contentType)
+		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 
 		if nt.restartTimer != nil {
@@ -137,7 +137,7 @@ func (nt *networkTracer) Register(httpMux *module.Router) error {
 		}
 
 		contentType := req.Header.Get("Accept")
-		marshaler := encoding.GetMarshaler(contentType)
+		marshaler := marshal.GetMarshaler(contentType)
 		writeConnections(w, marshaler, cs)
 	})
 
@@ -293,12 +293,12 @@ func getClientID(req *http.Request) string {
 	return clientID
 }
 
-func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *network.Connections) {
+func writeConnections(w http.ResponseWriter, marshaler marshal.Marshaler, cs *network.Connections) {
 	defer network.Reclaim(cs)
 
 	w.Header().Set("Content-type", marshaler.ContentType())
 
-	connectionsModeler := encoding.NewConnectionsModeler(cs)
+	connectionsModeler := marshal.NewConnectionsModeler(cs)
 	defer connectionsModeler.Close()
 
 	err := marshaler.Marshal(cs, w, connectionsModeler)
@@ -311,8 +311,7 @@ func writeConnections(w http.ResponseWriter, marshaler encoding.Marshaler, cs *n
 	log.Tracef("/connections: %d connections", len(cs.Conns))
 }
 
-//nolint:revive // TODO(NET) Fix revive linter
-func startTelemetryReporter(cfg *config.Config, done <-chan struct{}) {
+func startTelemetryReporter(_ *config.Config, done <-chan struct{}) {
 	telemetry.SetStatsdClient(statsd.Client)
 	ticker := time.NewTicker(30 * time.Second)
 	go func() {

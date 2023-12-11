@@ -658,8 +658,8 @@ func (s *USMHTTP2Suite) TestHTTP2ManyDifferentPaths() {
 	}, time.Second*10, time.Millisecond*100, "%v != %v", &matches, expectedNumberOfRequests)
 
 	for i := 0; i < numberOfRequests; i++ {
-		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != numberOfRequests {
-			t.Logf("path: /test-%d should have %d occurrences but instead has %d", i+1, numberOfRequests, v)
+		if v, ok := seenRequests[fmt.Sprintf("/test-%d", i+1)]; !ok || v != repetitionsPerRequest {
+			t.Logf("path: /test-%d should have %d occurrences but instead has %d", i+1, repetitionsPerRequest, v)
 		}
 	}
 }

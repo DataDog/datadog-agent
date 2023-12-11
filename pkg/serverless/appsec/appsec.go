@@ -12,6 +12,7 @@ import (
 	"math/rand"
 	"time"
 
+	appsecLog "github.com/DataDog/appsec-internal-go/log"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/config"
 	"github.com/DataDog/datadog-agent/pkg/serverless/appsec/httpsec"
 	"github.com/DataDog/datadog-agent/pkg/serverless/proxy"
@@ -160,4 +161,14 @@ func wafHealth() error {
 // and that sampling rate allows schema extraction for a specific monitoring instance
 func (a *AppSec) canExtractSchemas() bool {
 	return a.cfg.APISec.Enabled && a.cfg.APISec.SampleRate >= rand.Float64()
+}
+
+func init() {
+	appsecLog.SetBackend(appsecLog.Backend{
+		Trace:     log.Tracef,
+		Debug:     log.Debugf,
+		Info:      log.Infof,
+		Errorf:    log.Errorf,
+		Criticalf: log.Criticalf,
+	})
 }

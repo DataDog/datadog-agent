@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Package compliance implements compliance related subcommands
 package compliance
 
 import (
@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/pkg/compliance"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
@@ -28,7 +29,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
 )
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Commands returns the compliance commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	complianceCmd := &cobra.Command{
 		Use:   "compliance",
@@ -64,9 +65,9 @@ func complianceEventCommand(globalParams *command.GlobalParams) *cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewSecurityAgentParams(globalParams.ConfigFilePaths),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForOneShot(command.LoggerName, "info", true),
+					LogParams:    logimpl.ForOneShot(command.LoggerName, "info", true),
 				}),
-				core.Bundle,
+				core.Bundle(),
 			)
 		},
 		Hidden: true,

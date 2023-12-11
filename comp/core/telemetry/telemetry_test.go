@@ -16,7 +16,7 @@ import (
 
 func TestCounterInitializer(t *testing.T) {
 
-	telemetry := fxutil.Test[Mock](t, MockModule)
+	telemetry := fxutil.Test[Mock](t, MockModule())
 
 	counter := telemetry.NewCounter("subsystem", "test", []string{"check_name", "state"}, "help docs")
 
@@ -66,7 +66,7 @@ func TestCounterInitializer(t *testing.T) {
 }
 
 func TestGetCounterValue(t *testing.T) {
-	telemetry := fxutil.Test[Mock](t, MockModule)
+	telemetry := fxutil.Test[Mock](t, MockModule())
 
 	counter := telemetry.NewCounter("subsystem", "test", []string{"state"}, "help docs")
 	assert.Equal(t, counter.WithValues("ok").Get(), 0.0)
@@ -81,7 +81,7 @@ func TestGetCounterValue(t *testing.T) {
 }
 
 func TestGetGaugeValue(t *testing.T) {
-	telemetry := fxutil.Test[Mock](t, MockModule)
+	telemetry := fxutil.Test[Mock](t, MockModule())
 
 	gauge := telemetry.NewGauge("subsystem", "test", []string{"state"}, "help docs")
 	assert.Equal(t, gauge.WithValues("ok").Get(), 0.0)
@@ -96,7 +96,7 @@ func TestGetGaugeValue(t *testing.T) {
 }
 
 func TestGetSimpleHistogramValue(t *testing.T) {
-	telemetry := fxutil.Test[Mock](t, MockModule)
+	telemetry := fxutil.Test[Mock](t, MockModule())
 
 	hist := telemetry.NewSimpleHistogram("subsystem", "test", "help docs", []float64{1, 2, 3, 4})
 
@@ -119,7 +119,7 @@ func TestGetSimpleHistogramValue(t *testing.T) {
 }
 
 func TestGetHistogramValue(t *testing.T) {
-	telemetry := fxutil.Test[Mock](t, MockModule)
+	telemetry := fxutil.Test[Mock](t, MockModule())
 
 	hist := telemetry.NewHistogram("subsystem", "test", []string{"state"}, "help docs", []float64{1, 2, 3, 4})
 
@@ -140,7 +140,7 @@ func TestGetHistogramValue(t *testing.T) {
 
 func TestMeterProvider(t *testing.T) {
 
-	telemetry := fxutil.Test[Mock](t, MockModule)
+	telemetry := fxutil.Test[Mock](t, MockModule())
 
 	counter, _ := telemetry.Meter("foo").Int64Counter("bar")
 	counter.Add(context.TODO(), 123)

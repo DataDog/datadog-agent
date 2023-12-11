@@ -42,9 +42,9 @@ type Protocol struct {
 	statkeeper              *http.StatKeeper
 	http2InFlightMapCleaner *ddebpf.MapCleaner[http2StreamKey, EbpfTx]
 	dynamicTableMapCleaner  *ddebpf.MapCleaner[http2DynamicTableIndex, http2DynamicTableEntry]
-	eventsConsumer          *events.Consumer
+	eventsConsumer          *events.Consumer[EbpfTx]
 
-	terminatedConnectionsEventsConsumer *events.Consumer
+	terminatedConnectionsEventsConsumer *events.Consumer[netebpf.ConnTuple]
 	terminatedConnections               []netebpf.ConnTuple
 	terminatedConnectionMux             sync.Mutex
 
@@ -312,17 +312,18 @@ func (p *Protocol) DumpMaps(output *strings.Builder, mapName string, currentMap 
 	}
 }
 
-func (p *Protocol) processHTTP2(data []byte) {
-	tx := (*EbpfTx)(unsafe.Pointer(&data[0]))
-	p.telemetry.Count(tx)
-	p.statkeeper.Process(tx)
+func (p *Protocol) processHTTP2(events []EbpfTx) {
+	for i := range events {
+		tx := &events[i]
+		p.telemetry.Count(tx)
+		p.statkeeper.Process(tx)
+	}
 }
 
-func (p *Protocol) processTerminatedConnections(data []byte) {
-	conn := (*netebpf.ConnTuple)(unsafe.Pointer(&data[0]))
+func (p *Protocol) processTerminatedConnections(events []netebpf.ConnTuple) {
 	p.terminatedConnectionMux.Lock()
 	defer p.terminatedConnectionMux.Unlock()
-	p.terminatedConnections = append(p.terminatedConnections, *conn)
+	p.terminatedConnections = append(p.terminatedConnections, events...)
 }
 
 func (p *Protocol) setupHTTP2InFlightMapCleaner(mgr *manager.Manager) {
