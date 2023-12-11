@@ -51,32 +51,32 @@ type apiServer struct {
 type dependencies struct {
 	fx.In
 
-	flare           flare.Component
-	dogstatsdServer dogstatsdServer.Component
-	capture         replay.Component
-	serverDebug     dogstatsddebug.Component
-	hostMetadata    host.Component
-	invAgent        inventoryagent.Component
-	demux           demultiplexer.Component
-	invHost         inventoryhost.Component
-	secretResolver  secrets.Component
-	invChecks       inventorychecks.Component
+	Flare           flare.Component
+	DogstatsdServer dogstatsdServer.Component
+	Capture         replay.Component
+	ServerDebug     dogstatsddebug.Component
+	HostMetadata    host.Component
+	InvAgent        inventoryagent.Component
+	Demux           demultiplexer.Component
+	InvHost         inventoryhost.Component
+	SecretResolver  secrets.Component
+	InvChecks       inventorychecks.Component
 }
 
 var _ api.Component = (*apiServer)(nil)
 
 func newAPIServer(deps dependencies) api.Component {
 	return &apiServer{
-		flare:           deps.flare,
-		dogstatsdServer: deps.dogstatsdServer,
-		capture:         deps.capture,
-		serverDebug:     deps.serverDebug,
-		hostMetadata:    deps.hostMetadata,
-		invAgent:        deps.invAgent,
-		demux:           deps.demux,
-		invHost:         deps.invHost,
-		secretResolver:  deps.secretResolver,
-		invChecks:       deps.invChecks,
+		flare:           deps.Flare,
+		dogstatsdServer: deps.DogstatsdServer,
+		capture:         deps.Capture,
+		serverDebug:     deps.ServerDebug,
+		hostMetadata:    deps.HostMetadata,
+		invAgent:        deps.InvAgent,
+		demux:           deps.Demux,
+		invHost:         deps.InvHost,
+		secretResolver:  deps.SecretResolver,
+		invChecks:       deps.InvChecks,
 	}
 }
 
