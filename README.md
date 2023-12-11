@@ -37,7 +37,7 @@ To build the Agent you need:
       any other platform. We recommend you use the version pinned in the requirements
       file for a smooth development/build experience.
 
-**Note:** You can enable auto completion for invoke tasks, to do this you can simply add the following line to your `.zshrc` file with 
+**Note:** You can enable auto completion for invoke tasks. Use the command below to add the appropriate line to your `.zshrc` file.
       `echo "source <(inv --print-completion-script zsh)" >> ~/.zshrc`
 
 Builds and tests are orchestrated with `invoke`, type `invoke --list` on a shell
