@@ -36,7 +36,6 @@ import (
 
 type DockerListenerTestSuite struct {
 	suite.Suite
-	store      workloadmeta.Component
 	compose    utils.ComposeConf
 	listener   listeners.ServiceListener
 	dockerutil *docker.DockerUtil
@@ -65,7 +64,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 	}
 
 	var err error
-	suite.store = fxutil.Test[workloadmeta.Component](suite.T(), fx.Options(
+	_ = fxutil.Test[tagger.Component](suite.T(), fx.Options(
 		core.MockBundle(),
 		fx.Replace(compcfg.MockParams{
 			Overrides: overrides,
@@ -75,6 +74,7 @@ func (suite *DockerListenerTestSuite) SetupSuite() {
 		collectors.GetCatalog(),
 		workloadmeta.Module(),
 		tagger.Module(),
+		fx.Provide(func() context.Context { return context.TODO() }),
 		fx.Supply(tagger.NewTaggerParams()),
 	))
 
