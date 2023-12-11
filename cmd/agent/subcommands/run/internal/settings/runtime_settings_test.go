@@ -10,6 +10,7 @@ import (
 
 	global "github.com/DataDog/datadog-agent/cmd/agent/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd"
 	"github.com/DataDog/datadog-agent/comp/dogstatsd/server"
@@ -45,7 +46,7 @@ func TestDogstatsdMetricsStats(t *testing.T) {
 		}),
 		dogstatsd.Bundle(),
 		defaultforwarder.MockModule(),
-		demultiplexer.MockModule(),
+		demultiplexerimpl.MockModule(),
 	))
 
 	demux := deps.Demultiplexer

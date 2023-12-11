@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/agent/common/path"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	internalAPI "github.com/DataDog/datadog-agent/comp/api/api"
 	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -148,15 +149,15 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				}),
 				fx.Provide(func() serializer.MetricSerializer { return nil }),
 				fx.Supply(defaultforwarder.Params{UseNoopForwarder: true}),
-				demultiplexer.Module(),
+				demultiplexerimpl.Module(),
 				orchestratorForwarderImpl.Module(),
 				fx.Supply(orchestratorForwarderImpl.NewNoopParams()),
-				fx.Provide(func() demultiplexer.Params {
+				fx.Provide(func() demultiplexerimpl.Params {
 					// Initializing the aggregator with a flush interval of 0 (to disable the flush goroutines)
 					opts := aggregator.DefaultAgentDemultiplexerOptions()
 					opts.FlushInterval = 0
 					opts.UseNoopEventPlatformForwarder = true
-					return demultiplexer.Params{Options: opts}
+					return demultiplexerimpl.Params{Options: opts}
 				}),
 			)
 		},

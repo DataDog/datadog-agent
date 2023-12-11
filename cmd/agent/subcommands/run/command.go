@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/clcrunnerapi"
 	"github.com/DataDog/datadog-agent/cmd/manager"
 	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer"
+	"github.com/DataDog/datadog-agent/comp/aggregator/demultiplexer/demultiplexerimpl"
 	netflowServer "github.com/DataDog/datadog-agent/comp/netflow/server"
 
 	// checks implemented as components
@@ -355,12 +356,12 @@ func getSharedFxOption() fx.Option {
 		metadata.Bundle(),
 		// injecting the aggregator demultiplexer to FX until we migrate it to a proper component. This allows
 		// other already migrated components to request it.
-		fx.Provide(func(config config.Component) demultiplexer.Params {
+		fx.Provide(func(config config.Component) demultiplexerimpl.Params {
 			opts := aggregator.DefaultAgentDemultiplexerOptions()
 			opts.EnableNoAggregationPipeline = config.GetBool("dogstatsd_no_aggregation_pipeline")
-			return demultiplexer.Params{Options: opts}
+			return demultiplexerimpl.Params{Options: opts}
 		}),
-		demultiplexer.Module(),
+		demultiplexerimpl.Module(),
 		orchestratorForwarderImpl.Module(),
 		fx.Supply(orchestratorForwarderImpl.NewDefaultParams()),
 		// injecting the shared Serializer to FX until we migrate it to a prpoper component. This allows other
