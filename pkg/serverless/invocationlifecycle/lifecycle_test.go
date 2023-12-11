@@ -393,7 +393,7 @@ func TestTimeoutExecutionSpan(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
@@ -445,7 +445,7 @@ func TestTimeoutExecutionSpanWithTraceContext(t *testing.T) {
 	extraTags := &logs.Tags{
 		Tags: []string{"functionname:test-function"},
 	}
-	log := fxutil.Test[log.Component](t, logimpl.MockModule)
+	log := fxutil.Test[log.Component](t, logimpl.MockModule())
 	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
 	mockDetectLambdaLibrary := func() bool { return false }
 
