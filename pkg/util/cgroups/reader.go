@@ -208,12 +208,12 @@ func (r *Reader) RefreshCgroups(cacheValidity time.Duration) error {
 		return nil
 	}
 
-	r.cgroupByInode = make(map[uint64]Cgroup)
-
 	newCgroups, err := r.impl.parseCgroups()
 	if err != nil {
 		return err
 	}
+
+	r.cgroupByInode = make(map[uint64]Cgroup, len(newCgroups))
 
 	for _, cg := range newCgroups {
 		if inode := cg.Inode(); inode != unknownInode {
