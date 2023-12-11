@@ -256,7 +256,6 @@ func (mr *Resolver) lookupByMountID(mountID uint32) *model.Mount {
 	return mr.mounts[mountID]
 }
 
-/*
 func (mr *Resolver) lookupByDevice(device uint32) *model.Mount {
 	var result *model.Mount
 
@@ -272,18 +271,16 @@ func (mr *Resolver) lookupByDevice(device uint32) *model.Mount {
 
 	return result
 }
-*/
 
-func (mr *Resolver) lookupMount(mountID uint32, _ uint32, allowFallbacks bool) *model.Mount {
+func (mr *Resolver) lookupMount(mountID uint32, device uint32, allowFallbacks bool) *model.Mount {
 	if m := mr.lookupByMountID(mountID); m != nil {
 		return m
 	}
 
 	if allowFallbacks {
-		// TODO(safchain) reintroduce using a namespace aware approach
-		/*if m := mr.lookupByDevice(device); m != nil {
+		if m := mr.lookupByDevice(device); m != nil {
 			return m
-		}*/
+		}
 
 		if m := mr.getFromRedemption(mountID); m != nil {
 			return m
