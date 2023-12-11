@@ -14,7 +14,6 @@ import (
 
 	fi "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	e2e "github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e"
-	"github.com/DataDog/datadog-agent/test/new-e2e/pkg/utils/e2e/params"
 	"github.com/DataDog/test-infra-definitions/components/datadog/agentparams"
 	"github.com/stretchr/testify/assert"
 )
@@ -37,7 +36,7 @@ type UtfSuite struct {
 func TestUtfSuite(t *testing.T) {
 	s := &UtfSuite{}
 	_, s.DevMode = os.LookupEnv("TESTS_E2E_DEVMODE")
-	e2e.Run(t, s, e2e.FakeIntakeStackDef(), params.WithDevMode())
+	e2e.Run(t, s, e2e.FakeIntakeStackDef())
 }
 
 func (s *UtfSuite) generateUtfLog(endianness, content string) error {
