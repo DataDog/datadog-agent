@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Package start implements start related subcommands
 package start
 
 import (
@@ -31,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig"
 	"github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/sysprobeconfigimpl"
@@ -64,7 +65,7 @@ type cliParams struct {
 	pidfilePath string
 }
 
-//nolint:revive // TODO(SEC) Fix revive linter
+// Commands returns the start commands
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	params := &cliParams{
 		GlobalParams: globalParams,
@@ -86,7 +87,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 					ConfigParams:         config.NewSecurityAgentParams(params.ConfigFilePaths),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath)),
 					SecretParams:         secrets.NewEnabledParams(),
-					LogParams:            log.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
+					LogParams:            logimpl.ForDaemon(command.LoggerName, "security_agent.log_file", pkgconfig.DefaultSecurityAgentLogFile),
 				}),
 				core.Bundle,
 				dogstatsd.ClientBundle,

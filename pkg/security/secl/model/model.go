@@ -169,6 +169,7 @@ type BaseEvent struct {
 	TimestampRaw uint64         `field:"event.timestamp,handler:ResolveEventTimestamp" event:"*"` // SECLDoc[event.timestamp] Definition:`Timestamp of the event`
 	Timestamp    time.Time      `field:"timestamp,opts:getters_only,handler:ResolveEventTime"`
 	Rules        []*MatchedRule `field:"-"`
+	Origin       string         `field:"-"`
 
 	// context shared with all events
 	ProcessContext         *ProcessContext        `field:"process" event:"*"`

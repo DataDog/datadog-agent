@@ -16,6 +16,7 @@ from . import (
     dogstatsd,
     emacs,
     epforwarder,
+    fakeintake,
     github_tasks,
     kmt,
     modules,
@@ -147,6 +148,7 @@ ns.add_collection(security_agent)
 ns.add_collection(cws_instrumentation)
 ns.add_collection(vscode)
 ns.add_collection(new_e2e_tests)
+ns.add_collection(fakeintake)
 ns.add_collection(kmt)
 ns.add_collection(diff)
 ns.configure(
