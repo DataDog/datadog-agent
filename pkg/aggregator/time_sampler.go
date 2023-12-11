@@ -50,16 +50,17 @@ func NewTimeSampler(id TimeSamplerID, interval int64, cache *tags.Store, hostnam
 		interval = bucketSize
 	}
 
-	log.Infof("Creating TimeSampler #%d", id)
+	idString := strconv.Itoa(int(id))
+	log.Infof("Creating TimeSampler #%s", idString)
 
 	s := &TimeSampler{
 		interval:                    interval,
-		contextResolver:             newTimestampContextResolver(cache),
+		contextResolver:             newTimestampContextResolver(cache, idString),
 		metricsByTimestamp:          map[int64]metrics.ContextMetrics{},
 		counterLastSampledByContext: map[ckey.ContextKey]float64{},
 		sketchMap:                   make(sketchMap),
 		id:                          id,
-		idString:                    strconv.Itoa(int(id)),
+		idString:                    idString,
 		hostname:                    hostname,
 	}
 

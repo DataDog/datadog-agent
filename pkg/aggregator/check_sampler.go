@@ -38,7 +38,7 @@ func newCheckSampler(expirationCount int, expireMetrics bool, contextResolverMet
 		id:                     id,
 		series:                 make([]*metrics.Serie, 0),
 		sketches:               make(metrics.SketchSeriesList, 0),
-		contextResolver:        newCountBasedContextResolver(expirationCount, cache),
+		contextResolver:        newCountBasedContextResolver(expirationCount, cache, string(id)),
 		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		sketchMap:              make(sketchMap),
 		lastBucketValue:        make(map[ckey.ContextKey]int64),

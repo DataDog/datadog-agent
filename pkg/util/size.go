@@ -6,15 +6,14 @@
 package util
 
 import (
-	"reflect"
 	"strconv"
 	"unsafe"
 )
 
 // HasSizeInBytes is an interface that can be implemented by any object that has a size in bytes
 type HasSizeInBytes interface {
-	// SiteInByte Return the size of the object in bytes (not including the size of its content)
-	SiteInByte() int
+	// SizeInBytes Return the size of the object in bytes (not including the size of its content)
+	SizeInBytes() int
 
 	// DataSizeInBytes Return the size of content of the object in bytes
 	DataSizeInBytes() int
@@ -29,14 +28,9 @@ const (
 	StringSliceSize = unsafe.Sizeof([]string{})
 )
 
-// SizeOfString returns the size of a string structure in bytes.
-func SizeOfString() int {
-	return int(StringSize)
-}
-
 // SizeOfStringSlice returns the size of the string slice in bytes (not counting the size of the strings themselves).
 func SizeOfStringSlice(s []string) int {
-	return int(StringSliceSize) + len(s)*SizeOfString()
+	return int(StringSliceSize) + len(s)*int(StringSize)
 }
 
 // DataSizeOfStringSlice returns the size of the content of the string slice in bytes.
@@ -46,9 +40,4 @@ func DataSizeOfStringSlice(v []string) int {
 		size += len(s)
 	}
 	return size
-}
-
-// SizeOf returns the size of 'v' in bytes (not including its content).
-func SizeOf(v interface{}) int {
-	return int(reflect.Indirect(reflect.ValueOf(v)).Type().Size())
 }

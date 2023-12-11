@@ -56,7 +56,7 @@ func (pb *Buffer) Append(packet *Packet) {
 	defer pb.m.Unlock()
 
 	packet.ListenerID = pb.listenerID
-	tlmBufferSizeBytes.Add(float64(packet.SizeInBytes()), pb.listenerID)
+	tlmBufferSizeBytes.Add(float64(packet.SizeInBytes()+packet.DataSizeInBytes()), pb.listenerID)
 
 	pb.packets = append(pb.packets, packet)
 
@@ -73,7 +73,7 @@ func (pb *Buffer) flush() {
 		t1 := time.Now()
 
 		TelemetryTrackPackets(pb.packets, pb.listenerID)
-		tlmBufferSizeBytes.Add(-float64(pb.packets.SizeInBytes()), pb.listenerID)
+		tlmBufferSizeBytes.Add(-float64(pb.packets.SizeInBytes()+pb.packets.DataSizeInBytes()), pb.listenerID)
 
 		pb.outputChannel <- pb.packets
 		t2 := time.Now()

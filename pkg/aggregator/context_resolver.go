@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagger"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
+	"github.com/DataDog/datadog-agent/pkg/util"
 )
 
 // Context holds the elements that form a context, and can be serialized into a context key
@@ -54,9 +55,12 @@ func (c *Context) DataSizeInBytes() int {
 	return len(c.Name) + len(c.Host) + c.taggerTags.DataSizeInBytes() + c.metricTags.DataSizeInBytes()
 }
 
+// Make sure we implement the interface
+var _ util.HasSizeInBytes = &Context{}
+
 // contextResolver allows tracking and expiring contexts
-// TODO: we should try to separate contextResolvers per origin/listener to get better accounting.
 type contextResolver struct {
+	id            string
 	contextsByKey map[ckey.ContextKey]*Context
 	countsByMtype []uint64
 	bytesByMtype  []uint64
@@ -66,10 +70,13 @@ type contextResolver struct {
 	metricBuffer  *tagset.HashingTagsAccumulator
 }
 
+// SizeInBytes returns the size of the contextResolver in bytes
 func (cr *contextResolver) SizeInBytes() int {
+	// Note that we don't count the overhead of the map here.
 	return ContextSizeInBytes*len(cr.contextsByKey) + int(unsafe.Sizeof(*cr))
 }
 
+// DataSizeInBytes returns the size of the context data in bytes
 func (cr *contextResolver) DataSizeInBytes() int {
 	size := 0
 	for _, cx := range cr.contextsByKey {
@@ -78,13 +85,17 @@ func (cr *contextResolver) DataSizeInBytes() int {
 	return size
 }
 
+// Make sure we implement the interface
+var _ util.HasSizeInBytes = &contextResolver{}
+
 // generateContextKey generates the contextKey associated with the context of the metricSample
 func (cr *contextResolver) generateContextKey(metricSampleContext metrics.MetricSampleContext) (ckey.ContextKey, ckey.TagsKey, ckey.TagsKey) {
 	return cr.keyGenerator.GenerateWithTags2(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.taggerBuffer, cr.metricBuffer)
 }
 
-func newContextResolver(cache *tags.Store) *contextResolver {
+func newContextResolver(cache *tags.Store, id string) *contextResolver {
 	return &contextResolver{
+		id:            id,
 		contextsByKey: make(map[ckey.ContextKey]*Context),
 		countsByMtype: make([]uint64, metrics.NumMetricTypes),
 		bytesByMtype:  make([]uint64, metrics.NumMetricTypes),
@@ -118,6 +129,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		cr.countsByMtype[mtype]++
 		cr.bytesByMtype[mtype] += uint64(context.SizeInBytes())
 	}
+	tlmContextResolverBytes.Set(float64(cr.SizeInBytes()), cr.id)
 
 	return contextKey
 }
@@ -140,6 +152,7 @@ func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 		cr.bytesByMtype[context.mtype] -= uint64(context.SizeInBytes())
 		context.release()
 	}
+	tlmContextResolverBytes.Set(float64(cr.SizeInBytes()), cr.id)
 }
 
 func (cr *contextResolver) release() {
@@ -185,9 +198,9 @@ type timestampContextResolver struct {
 	lastSeenByKey map[ckey.ContextKey]float64
 }
 
-func newTimestampContextResolver(cache *tags.Store) *timestampContextResolver {
+func newTimestampContextResolver(cache *tags.Store, id string) *timestampContextResolver {
 	return &timestampContextResolver{
-		resolver:      newContextResolver(cache),
+		resolver:      newContextResolver(cache, id),
 		lastSeenByKey: make(map[ckey.ContextKey]float64),
 	}
 }
@@ -255,9 +268,9 @@ type countBasedContextResolver struct {
 	expireCountInterval int64
 }
 
-func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store) *countBasedContextResolver {
+func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, id string) *countBasedContextResolver {
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(cache),
+		resolver:            newContextResolver(cache, id),
 		expireCountByKey:    make(map[ckey.ContextKey]int64),
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),

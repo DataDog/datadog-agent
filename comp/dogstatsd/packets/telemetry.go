@@ -15,10 +15,10 @@ var (
 	// though all buffers currently share a single channel it's still worth
 	// tagging it with listener_id in case this changes later.
 	tlmChannelSize = telemetry.NewGauge("dogstatsd", "packets_channel_size",
-		[]string{}, "Number of packets in the packets channel")
-	tlmChannelSizePackets = telemetry.NewGauge("dogstatsd", "packets_channel_size_packets",
+		[]string{}, "Size of the packets channel (batch of packets)")
+	tlmChannelSizePackets = telemetry.NewGauge("dogstatsd", "packets_channel_packets_count",
 		[]string{"listener_id"}, "Number of packets in the packets channel")
-	tlmChannelSizePacketsBytes = telemetry.NewGauge("dogstatsd", "packets_channel_size_packets_bytes",
+	tlmChannelSizePacketsBytes = telemetry.NewGauge("dogstatsd", "packets_channel_packets_bytes",
 		[]string{"listener_id"}, "Number of bytes in the packets channel")
 
 	tlmListenerChannel    = telemetry.NewHistogramNoOp()
@@ -62,13 +62,13 @@ func InitTelemetry(buckets []float64) {
 // TelemetryTrackPackets tracks the number of packets in the channel and the number of bytes
 func TelemetryTrackPackets(packets Packets, listenerID string) {
 	tlmChannelSizePackets.Add(float64(len(packets)), listenerID)
-	tlmChannelSizePacketsBytes.Add(float64(packets.SizeInBytes()), listenerID)
+	tlmChannelSizePacketsBytes.Add(float64(packets.SizeInBytes()+packets.DataSizeInBytes()), listenerID)
 }
 
 // TelemetryUntrackPackets untracks the number of packets in the channel and the number of bytes
 func TelemetryUntrackPackets(packets Packets) {
 	for _, packet := range packets {
 		tlmChannelSizePackets.Add(-1, packet.ListenerID)
-		tlmChannelSizePacketsBytes.Add(-float64(packet.SizeInBytes()), packet.ListenerID)
+		tlmChannelSizePacketsBytes.Add(-float64(packet.SizeInBytes()+packet.DataSizeInBytes()), packet.ListenerID)
 	}
 }

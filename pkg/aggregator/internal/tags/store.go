@@ -46,6 +46,8 @@ func (t tagSet) DataSizeInBytes() int {
 	return util.DataSizeOfStringSlice(t)
 }
 
+var _ util.HasSizeInBytes = (*tagSet)(nil)
+
 // SizeInBytes returns the size of the Entry in bytes.
 func (e Entry) SizeInBytes() int {
 	return e.tags.SizeInBytes() + 8
@@ -55,6 +57,8 @@ func (e Entry) SizeInBytes() int {
 func (e Entry) DataSizeInBytes() int {
 	return e.tags.DataSizeInBytes()
 }
+
+var _ util.HasSizeInBytes = (*Entry)(nil)
 
 // Tags returns the strings stored in the Entry. The slice may be
 // shared with other users and should not be modified. Users can keep
