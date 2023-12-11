@@ -67,25 +67,26 @@ func getTraceFlareBody(multipartBoundary string) io.ReadCloser {
 
 }
 
-func mockGetServerlessFlareEndpoint(url *url.URL, _ string) {
+func mockGetServerlessFlareEndpoint(url *url.URL, _ string) *url.URL {
 	url.Path = "/api/ui/support/serverless/flare"
+
+	return url
 }
 
 func TestGetServerlessFlareEndpoint(t *testing.T) {
 	agentVersion := "7.50.0-devel+git.488.be5861b"
-	t.Run("url with subdomain, not matching regex", func(t *testing.T) {
-		subdomainURL := "https://us3.datadoghq.com/test"
-		testURL, err := url.Parse(subdomainURL)
-		assert.Nil(t, err)
+	t.Run("url without subdomain", func(t *testing.T) {
+		site := "datadoghq.com"
+		testURL, err := url.Parse(site)
 
 		getServerlessFlareEndpoint(testURL, agentVersion)
 		assert.Nil(t, err)
-		assert.Equal(t, "https://app.us3.datadoghq.com/api/ui/support/serverless/flare", testURL.String())
+		assert.Equal(t, "https://7-50-0-flare.datadoghq.com/api/ui/support/serverless/flare", testURL.String())
 	})
 
-	t.Run("url with subdomain, matching regex", func(t *testing.T) {
-		subdomainURL := "https://app.datadoghq.com/test"
-		testURL, err := url.Parse(subdomainURL)
+	t.Run("url with subdomain", func(t *testing.T) {
+		site := "https://app.datadoghq.com/test"
+		testURL, err := url.Parse(site)
 		assert.Nil(t, err)
 
 		getServerlessFlareEndpoint(testURL, agentVersion)
@@ -93,14 +94,26 @@ func TestGetServerlessFlareEndpoint(t *testing.T) {
 		assert.Equal(t, "https://7-50-0-flare.datadoghq.com/api/ui/support/serverless/flare", testURL.String())
 	})
 
-	t.Run("url without subdomain", func(t *testing.T) {
-		noSubdomainURL := "https://datadoghq.com/test"
-		testURL, err := url.Parse(noSubdomainURL)
+	t.Run("url with subdomain, custom dd domain", func(t *testing.T) {
+		site := "https://us3.datadoghq.com/test"
+		testURL, err := url.Parse(site)
 		assert.Nil(t, err)
 
 		getServerlessFlareEndpoint(testURL, agentVersion)
 		assert.Nil(t, err)
-		assert.Equal(t, "https://app.datadoghq.com/api/ui/support/serverless/flare", testURL.String())
+		// Don't change custom domain
+		assert.Equal(t, "https://us3.datadoghq.com/api/ui/support/serverless/flare", testURL.String())
+	})
+
+	t.Run("url with subdomain, custom domain", func(t *testing.T) {
+		site := "https://datadog.random.com/test"
+		testURL, err := url.Parse(site)
+		assert.Nil(t, err)
+
+		getServerlessFlareEndpoint(testURL, agentVersion)
+		assert.Nil(t, err)
+		// Don't change custom domain
+		assert.Equal(t, "https://datadog.random.com/api/ui/support/serverless/flare", testURL.String())
 	})
 }
 
@@ -139,11 +152,14 @@ func TestTracerFlareProxyHandler(t *testing.T) {
 		req.ContentLength = -1
 
 		rec := httptest.NewRecorder()
-		receiver := newTestReceiverFromConfig(newTestReceiverConfig())
+		cfg := newTestReceiverConfig()
+		cfg.Site = srv.URL
+		receiver := newTestReceiverFromConfig(cfg)
 		handler := receiver.tracerFlareHandler()
 		handler.(*httputil.ReverseProxy).Transport.(*tracerFlareTransport).getEndpoint = mockGetServerlessFlareEndpoint
 		handler.(*httputil.ReverseProxy).Transport.(*tracerFlareTransport).agentVersion = "1.1.1"
 
+		req.URL.Scheme = "http"
 		handler.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusOK, rec.Code)
 	})
@@ -161,7 +177,9 @@ func TestTracerFlareProxyHandler(t *testing.T) {
 		req.ContentLength = -1
 
 		rec := httptest.NewRecorder()
-		receiver := newTestReceiverFromConfig(newTestReceiverConfig())
+		cfg := newTestReceiverConfig()
+		cfg.Site = srv.URL
+		receiver := newTestReceiverFromConfig(cfg)
 		receiver.tracerFlareHandler().ServeHTTP(rec, req)
 		require.Equal(t, http.StatusBadGateway, rec.Code)
 	})

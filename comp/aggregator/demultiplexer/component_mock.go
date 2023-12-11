@@ -21,6 +21,7 @@ type Mock interface {
 }
 
 // MockModule defines the fx options for this component.
-var MockModule = fxutil.Component(
-	fx.Provide(newMock),
-)
+func MockModule() fxutil.Module {
+	return fxutil.Component(
+		fx.Provide(newMock))
+}

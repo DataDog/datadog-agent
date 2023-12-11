@@ -65,45 +65,6 @@
 # Kitchen: final test matrix (tests * scenarios)
 # ----------------------------------------------
 
-kitchen_ubuntu_install_script_agent-a6_x64:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_ubuntu_a6_x64
-    - .kitchen_test_install_script_agent
-
-kitchen_ubuntu_install_script_agent-a6_arm64:
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_ubuntu_a6_arm64
-    - .kitchen_test_install_script_agent
-
-kitchen_ubuntu_install_script_agent-a7_x64:
-  # Run install script test on branches, on a reduced number of platforms
-  rules:
-    !reference [.on_default_kitchen_tests_a7]
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_ubuntu_a7_x64
-    - .kitchen_test_install_script_agent
-
-kitchen_ubuntu_install_script_agent-a7_arm64:
-  rules:
-    !reference [.on_all_kitchen_builds_a7]
-  extends:
-    - .kitchen_os_with_cws
-    - .kitchen_scenario_ubuntu_a7_arm64
-    - .kitchen_test_install_script_agent
-
-kitchen_ubuntu_install_script_iot_agent-a7:
-  extends:
-    - .kitchen_scenario_ubuntu_a7_x64
-    - .kitchen_test_install_script_iot_agent
-
-kitchen_ubuntu_install_script_dogstatsd-a7:
-  extends:
-    - .kitchen_scenario_ubuntu_a7_x64
-    - .kitchen_test_install_script_dogstatsd
-
 # We only want to run step-by-step tests on deploy pipelines,
 # which is why they have a different rule (if_deploy_6/7)
 

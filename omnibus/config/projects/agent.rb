@@ -27,7 +27,7 @@ if windows_target?
   PYTHON_2_EMBEDDED_DIR = format('%s/embedded2', INSTALL_DIR)
   PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
 else
-  INSTALL_DIR = '/opt/datadog-agent'
+  INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
 end
 
 install_dir INSTALL_DIR
@@ -182,12 +182,12 @@ end
 
 if with_python_runtime? "2"
   dependency 'pylint2'
+  dependency 'datadog-agent-integrations-py2'
 end
 
-if with_python_runtime? "3" or with_python_runtime? "2"
-  dependency 'datadog-agent-integrations'
+if with_python_runtime? "3"
+  dependency 'datadog-agent-integrations-py3'
 end
-
 
 if linux_target?
   dependency 'datadog-security-agent-policies'

@@ -5,6 +5,7 @@
 
 //go:build !windows && clusterchecks
 
+//nolint:revive // TODO(PLINT) Fix revive linter
 package run
 
 import (
@@ -28,11 +29,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/log"
+	"github.com/DataDog/datadog-agent/comp/core/log/logimpl"
 	"github.com/DataDog/datadog-agent/comp/core/secrets"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/comp/forwarder"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder"
+	orchestratorForwarderImpl "github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorimpl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
 	"github.com/DataDog/datadog-agent/pkg/api/healthprobe"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent"
@@ -61,16 +64,17 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
 					SecretParams: secrets.NewEnabledParams(),
-					LogParams:    log.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
+					LogParams:    logimpl.ForDaemon(command.LoggerName, "log_file", path.DefaultDCALogFile),
 				}),
-				core.Bundle,
-				forwarder.Bundle,
+				core.Bundle(),
+				forwarder.Bundle(),
 				fx.Provide(defaultforwarder.NewParamsWithResolvers),
-				demultiplexer.Module,
+				demultiplexer.Module(),
+				orchestratorForwarderImpl.Module(),
+				fx.Supply(orchestratorForwarderImpl.NewDisabledParams()),
 				fx.Provide(func() demultiplexer.Params {
 					opts := aggregator.DefaultAgentDemultiplexerOptions()
 					opts.UseEventPlatformForwarder = false
-					opts.UseOrchestratorForwarder = false
 					return demultiplexer.Params{Options: opts}
 				}),
 				// setup workloadmeta
@@ -78,7 +82,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 				fx.Supply(workloadmeta.Params{
 					InitHelper: common.GetWorkloadmetaInit(),
 				}), // TODO(components): check what this must be for cluster-agent-cloudfoundry
-				workloadmeta.Module,
+				workloadmeta.Module(),
 			)
 		},
 	}

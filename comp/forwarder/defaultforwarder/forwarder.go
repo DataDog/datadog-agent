@@ -22,6 +22,7 @@ func newForwarder(dep dependencies) Component {
 	return NewForwarder(dep.Config, dep.Log, dep.Params)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func NewForwarder(config config.Component, log log.Component, params Params) Component {
 	if params.UseNoopForwarder {
 		return NoopForwarder{}

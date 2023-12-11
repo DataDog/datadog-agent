@@ -39,6 +39,7 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	if err != nil {
 		return fmt.Errorf("Couldn't get auth token: %v", err)
 	}
+	//nolint:revive // TODO(ASC) Fix revive linter
 	ctx, close := context.WithCancel(context.Background())
 	defer close()
 	md := metadata.MD{
@@ -46,7 +47,12 @@ func exportRemoteConfig(fb flaretypes.FlareBuilder) error {
 	}
 	ctx = metadata.NewOutgoingContext(ctx, md)
 
-	cli, err := agentgrpc.GetDDAgentSecureClient(ctx)
+	ipcAddress, err := config.GetIPCAddress()
+	if err != nil {
+		return err
+	}
+
+	cli, err := agentgrpc.GetDDAgentSecureClient(ctx, ipcAddress, config.GetIPCPort())
 	if err != nil {
 		return err
 	}

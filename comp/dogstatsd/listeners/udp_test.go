@@ -24,7 +24,7 @@ import (
 
 func fulfillDepsWithConfig(t testing.TB, overrides map[string]interface{}) config.Component {
 	return fxutil.Test[config.Component](t, fx.Options(
-		config.MockModule,
+		config.MockModule(),
 		fx.Replace(config.MockParams{Overrides: overrides}),
 	))
 }
@@ -56,7 +56,7 @@ func TestStartStopUDPListener(t *testing.T) {
 
 	assert.Nil(t, err)
 
-	go s.Listen()
+	s.Listen()
 	// Local port should be unavailable
 	address, _ := net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	_, err = net.ListenUDP("udp", address)
@@ -89,7 +89,7 @@ func TestUDPNonLocal(t *testing.T) {
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
-	go s.Listen()
+	s.Listen()
 	defer s.Stop()
 
 	// Local port should be unavailable
@@ -116,7 +116,7 @@ func TestUDPLocalOnly(t *testing.T) {
 	assert.Nil(t, err)
 	require.NotNil(t, s)
 
-	go s.Listen()
+	s.Listen()
 	defer s.Stop()
 
 	// Local port should be unavailable
@@ -147,7 +147,7 @@ func TestUDPReceive(t *testing.T) {
 	require.NotNil(t, s)
 	assert.Nil(t, err)
 
-	go s.Listen()
+	s.Listen()
 	defer s.Stop()
 	conn, err := net.Dial("udp", fmt.Sprintf("127.0.0.1:%d", port))
 	require.NotNil(t, conn)

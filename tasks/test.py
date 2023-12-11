@@ -173,10 +173,9 @@ def test_core(
         if not skip_module_class:
             module_result = module_class(path=module.full_path())
         if not headless_mode:
-            print(f"----- Module '{module.full_path()}'")
+            skipped_header = "[Skipped]" if not module.condition() else ""
+            print(f"----- {skipped_header} Module '{module.full_path()}'")
         if not module.condition():
-            if not headless_mode:
-                print("----- Skipped")
             continue
 
         command(modules_results, module, module_result)
@@ -609,7 +608,6 @@ def test(
         python_home_3=python_home_3,
         major_version=major_version,
         python_runtimes=python_runtimes,
-        race=race,
     )
 
     # Use stdout if no profile is set
@@ -1137,6 +1135,15 @@ def get_modified_packages(ctx) -> List[GoModule]:
                     match_precision = len(module_path)
                     best_module_path = module_path
 
+        # Check if the package is in the target list of the module we want to test
+        targeted = False
+        for target in DEFAULT_MODULES[best_module_path].targets:
+            if os.path.normpath(os.path.join(best_module_path, target)) in modified_file:
+                targeted = True
+                break
+        if not targeted:
+            continue
+
         # If go mod was modified in the module we run the test for the whole module so we do not need to add modified packages to targets
         if best_module_path in go_mod_modified_modules:
             continue
@@ -1281,12 +1288,15 @@ def parse_test_log(log_file):
     with open(log_file, "r") as f:
         for line in f:
             json_line = json.loads(line)
-            if json_line["Action"] == "fail" and "Test" in json_line:
+            if (
+                json_line["Action"] == "fail"
+                and "Test" in json_line
+                and f'{json_line["Package"]}/{json_line["Test"]}' not in failed_tests
+            ):
                 n_test_executed += 1
                 failed_tests.append(f'{json_line["Package"]}/{json_line["Test"]}')
             if json_line["Action"] == "pass" and "Test" in json_line:
                 n_test_executed += 1
                 if f'{json_line["Package"]}/{json_line["Test"]}' in failed_tests:
                     failed_tests.remove(f'{json_line["Package"]}/{json_line["Test"]}')
-
     return failed_tests, n_test_executed

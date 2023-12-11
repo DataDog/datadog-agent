@@ -28,6 +28,7 @@ type telemetryJoiner struct {
 	agedRequest      *libtelemetry.Counter
 }
 
+// Telemetry is used to collect telemetry for HTTP and HTTPS traffic.
 type Telemetry struct {
 	protocol string
 
@@ -36,11 +37,7 @@ type Telemetry struct {
 
 	hits1XX, hits2XX, hits3XX, hits4XX, hits5XX *libtelemetry.Counter
 
-	totalHitsPlain                                                   *libtelemetry.Counter
-	totalHitsGnuTLS                                                  *libtelemetry.Counter
-	totalHitsOpenSLL                                                 *libtelemetry.Counter
-	totalHitsJavaTLS                                                 *libtelemetry.Counter
-	totalHitsGoTLS                                                   *libtelemetry.Counter
+	totalHits                                                        *TLSCounter
 	dropped                                                          *libtelemetry.Counter // this happens when statKeeper reaches capacity
 	rejected                                                         *libtelemetry.Counter // this happens when an user-defined reject-filter matches a request
 	emptyPath, unknownMethod, invalidLatency, nonPrintableCharacters *libtelemetry.Counter // this happens when the request doesn't have the expected format
@@ -49,6 +46,7 @@ type Telemetry struct {
 	joiner telemetryJoiner
 }
 
+// NewTelemetry returns a new Telemetry.
 func NewTelemetry(protocol string) *Telemetry {
 	metricGroup := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s", protocol))
 	metricGroupJoiner := libtelemetry.NewMetricGroup(fmt.Sprintf("usm.%s.joiner", protocol))
@@ -65,11 +63,7 @@ func NewTelemetry(protocol string) *Telemetry {
 		aggregations: metricGroup.NewCounter("aggregations", libtelemetry.OptPrometheus),
 
 		// these metrics are also exported as statsd metrics
-		totalHitsPlain:         metricGroup.NewCounter("total_hits", "encrypted:false", libtelemetry.OptStatsd),
-		totalHitsGnuTLS:        metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:gnutls", libtelemetry.OptStatsd),
-		totalHitsOpenSLL:       metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:openssl", libtelemetry.OptStatsd),
-		totalHitsJavaTLS:       metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:java", libtelemetry.OptStatsd),
-		totalHitsGoTLS:         metricGroup.NewCounter("total_hits", "encrypted:true", "tls_library:go", libtelemetry.OptStatsd),
+		totalHits:              NewTLSCounter(metricGroup, "total_hits", libtelemetry.OptStatsd),
 		dropped:                metricGroup.NewCounter("dropped", libtelemetry.OptStatsd),
 		rejected:               metricGroup.NewCounter("rejected", libtelemetry.OptStatsd),
 		emptyPath:              metricGroup.NewCounter("malformed", "type:empty-path", libtelemetry.OptStatsd),
@@ -87,6 +81,7 @@ func NewTelemetry(protocol string) *Telemetry {
 	}
 }
 
+// Count counts a transaction.
 func (t *Telemetry) Count(tx Transaction) {
 	statusClass := (tx.StatusCode() / 100) * 100
 	switch statusClass {
@@ -102,9 +97,10 @@ func (t *Telemetry) Count(tx Transaction) {
 		t.hits5XX.Add(1)
 	}
 
-	t.countOSSpecific(tx)
+	t.totalHits.Add(tx)
 }
 
+// Log logs the telemetry.
 func (t *Telemetry) Log() {
 	log.Debugf("%s stats summary: %s", t.protocol, t.metricGroup.Summary())
 }

@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(PROC) Fix revive linter
 package types
 
 import (
@@ -31,10 +32,12 @@ type ProvidesCheck struct {
 	CheckComponent CheckComponent `group:"check"`
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type MockCheckParams[T checks.Check] struct {
 	fx.In
 
 	OrchestrateMock func(mock *checkMocks.Check) `optional:"true"`
 }
 
+//nolint:revive // TODO(PROC) Fix revive linter
 type RTResponse []*model.CollectorStatus

@@ -195,6 +195,8 @@ type Event struct {
 	NetDevice        NetDeviceEvent        `field:"-" json:"-"`
 	VethPair         VethPairEvent         `field:"-" json:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-" json:"-"`
+	// used for ebpfless
+	NSID uint64 `field:"-" json:"-"`
 }
 
 // SetPathResolutionError sets the Event.pathResolutionError
@@ -918,7 +920,7 @@ func (pl *PathLeaf) MarshalBinary() ([]byte, error) {
 type ExtraFieldHandlers interface {
 	BaseExtraFieldHandlers
 	ResolveHashes(eventType EventType, process *Process, file *FileEvent) []string
-	ResolveK8SExtra(ev *Event, ctx *UserSessionContext) map[string][]string
+	ResolveUserSessionContext(evtCtx *UserSessionContext)
 }
 
 // ResolveHashes resolves the hash of the provided file
@@ -926,7 +928,5 @@ func (dfh *DefaultFieldHandlers) ResolveHashes(_ EventType, _ *Process, _ *FileE
 	return nil
 }
 
-// ResolveK8SExtra resolves the K8S user session extra field
-func (dfh *DefaultFieldHandlers) ResolveK8SExtra(_ *Event, _ *UserSessionContext) map[string][]string {
-	return nil
-}
+// ResolveUserSessionContext resolves and updates the provided user session context
+func (dfh *DefaultFieldHandlers) ResolveUserSessionContext(_ *UserSessionContext) {}

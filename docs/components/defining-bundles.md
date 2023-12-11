@@ -57,10 +57,10 @@ type BundleParams struct {
 var Bundle = fxutil.Bundle(
     // You must tell to fx how to get foo.Params from BundleParams.
 	  fx.Provide(func(params BundleParams) foo.Params { return params.Foo }),
-    foo.Module,
+    foo.Module(),
     // You must tell to fx how to get bar.Params from BundleParams.
 	  fx.Provide(func(params BundleParams) bar.Params { return params.Bar }),
-    bar.Module,
+    bar.Module(),
 )
 ```
 
