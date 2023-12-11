@@ -129,29 +129,49 @@ func sqsMessageAttrCarrier(attr events.SQSMessageAttribute) (tracer.TextMapReade
 // snsSqsMessageCarrier returns the tracer.TextMapReader used to extract trace
 // context from the body of an events.SQSMessage type.
 func snsSqsMessageCarrier(event events.SQSMessage) (tracer.TextMapReader, error) {
-	var body struct {
-		MessageAttributes map[string]struct {
-			Type  string
-			Value string
-		}
-	}
+	var body events.SNSEntity
 	err := json.Unmarshal([]byte(event.Body), &body)
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshaling message body: %w", err)
 	}
-	msgAttrs, ok := body.MessageAttributes[datadogSQSHeader]
+	return snsEntityCarrier(body)
+}
+
+func snsEntityCarrier(event events.SNSEntity) (tracer.TextMapReader, error) {
+	msgAttrs, ok := event.MessageAttributes[datadogSQSHeader]
 	if !ok {
 		return nil, errors.New("No Datadog trace context found")
 	}
-	if msgAttrs.Type != "Binary" {
-		return nil, errors.New("Unsupported DataType in _datadog payload")
+	mapAttrs, ok := msgAttrs.(map[string]interface{})
+	if !ok {
+		return nil, errors.New("Unsupported type for _datadog payload")
 	}
-	attr, err := base64.StdEncoding.DecodeString(string(msgAttrs.Value))
-	if err != nil {
-		return nil, fmt.Errorf("Error decoding binary: %w", err)
+
+	typ, ok := mapAttrs["Type"].(string)
+	if !ok {
+		return nil, errors.New("Unsupported type in _datadog payload")
 	}
+	val, ok := mapAttrs["Value"].(string)
+	if !ok {
+		return nil, errors.New("Unsupported value type in _datadog payload")
+	}
+
+	var bytes []byte
+	var err error
+	switch typ {
+	case "Binary":
+		bytes, err = base64.StdEncoding.DecodeString(val)
+		if err != nil {
+			return nil, fmt.Errorf("Error decoding binary: %w", err)
+		}
+	case "String":
+		bytes = []byte(val)
+	default:
+		return nil, errors.New("Unsupported Type in _datadog payload")
+	}
+
 	var carrier tracer.TextMapCarrier
-	if err = json.Unmarshal(attr, &carrier); err != nil {
+	if err = json.Unmarshal(bytes, &carrier); err != nil {
 		return nil, fmt.Errorf("Error unmarshaling the decoded binary: %w", err)
 	}
 	return carrier, nil
