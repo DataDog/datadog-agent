@@ -991,8 +991,6 @@ github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 h1:BQSFePA1RWJOl
 github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99/go.mod h1:1lJo3i6rXxKeerYnT8Nvf0QmHCRC1n8sfWVwXF2Frvo=
 github.com/jessevdk/go-flags v1.4.0/go.mod h1:4FA24M0QyGHXBuZZK/XkWh8h0e1EYbRYJSGM75WSRxI=
 github.com/jessevdk/go-flags v1.5.0/go.mod h1:Fw0T6WPc1dYxT4mKEZRfG5kJhaTDP9pj1c2EWnYs/m4=
-github.com/jinroh/go-ext4-filesystem v0.0.0-20231116085146-cc5645ea002b h1:6WwI+/0672LcGkwF3sVfGl+vjJrAI/R6zNSLifntpT4=
-github.com/jinroh/go-ext4-filesystem v0.0.0-20231116085146-cc5645ea002b/go.mod h1:3XMMY1M486mWGTD13WPItg6FsgflQR72ZMAkd+gsyoQ=
 github.com/jinroh/go-nbd v0.0.0-20231130123830-c38d5f5140c8 h1:mKPd4HbpaOxS2Gf86v/GLBmSX3vj/MwGYCUoJL5ILgw=
 github.com/jinroh/go-nbd v0.0.0-20231130123830-c38d5f5140c8/go.mod h1:ZPwNjACqcOEjyFGAwW3drJHQhtTode1IVGiQPcuuFOI=
 github.com/jinzhu/inflection v1.0.0 h1:K317FqzuhWc8YvSVlFMCCUb36O/S9MCKRDI7QkRKD/E=
@@ -1126,6 +1124,8 @@ github.com/masahiro331/go-disk v0.0.0-20220919035250-c8da316f91ac h1:QyRucnGOLHJ
 github.com/masahiro331/go-disk v0.0.0-20220919035250-c8da316f91ac/go.mod h1:J7Vb0sf0JzOhT0uHTeCqO6dqP/ELVcQvQ6yQ/56ZRGw=
 github.com/masahiro331/go-ebs-file v0.0.0-20221225061409-5ef263bb2cc3 h1:CCX8exCYIPHrMKba1KDhM37PxC3/amBUZXH8yoJOAMQ=
 github.com/masahiro331/go-ebs-file v0.0.0-20221225061409-5ef263bb2cc3/go.mod h1:5NOkqebMwu8UiOTSjwqam1Ykdr7fci52TVE2xDQnIiM=
+github.com/masahiro331/go-ext4-filesystem v0.0.0-20231208112839-4339555a0cd4 h1:uHO44vOunB0oEtk+r8ifBbFOD0mr6+fmoyFNCgLE66k=
+github.com/masahiro331/go-ext4-filesystem v0.0.0-20231208112839-4339555a0cd4/go.mod h1:3XMMY1M486mWGTD13WPItg6FsgflQR72ZMAkd+gsyoQ=
 github.com/masahiro331/go-mvn-version v0.0.0-20210429150710-d3157d602a08 h1:AevUBW4cc99rAF8q8vmddIP8qd/0J5s/UyltGbp66dg=
 github.com/masahiro331/go-mvn-version v0.0.0-20210429150710-d3157d602a08/go.mod h1:JOkBRrE1HvgTyjk6diFtNGgr8XJMtIfiBzkL5krqzVk=
 github.com/masahiro331/go-vmdk-parser v0.0.0-20221225061455-612096e4bbbd h1:Y30EzvuoVp97b0unb/GOFXzBUKRXZXUN2e0wYmvC+ic=
