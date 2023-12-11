@@ -1,3 +1,7 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
 package stepbystep
 
 import (
@@ -30,9 +34,8 @@ var majorVersion = flag.String("major-version", "7", "major version to test (6, 
 
 type stepByStepSuite struct {
 	e2e.Suite[e2e.VMEnv]
-	agentMajorVersion int
-	osVersion         float64
-	cwsSupported      bool
+	osVersion    float64
+	cwsSupported bool
 }
 
 func ExecuteWithoutError(t *testing.T, client *common.TestClient, cmd string, args ...any) {
@@ -95,8 +98,7 @@ func TestStepByStepScript(t *testing.T) {
 			} else {
 				version = 0
 			}
-			majVersion, _ := strconv.Atoi(*majorVersion)
-			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version, agentMajorVersion: majVersion}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture)))
+			e2e.Run(tt, &stepByStepSuite{cwsSupported: cwsSupported, osVersion: version}, e2e.EC2VMStackDef(ec2params.WithImageName(platformJSON[*platform][*architecture][osVers], archMapping[*architecture], osMapping[*platform])), params.WithStackName(fmt.Sprintf("step-by-step-test-%v-%v-%s", os.Getenv("CI_PIPELINE_ID"), osVers, *architecture)))
 		})
 	}
 }
@@ -133,6 +135,18 @@ func (is *stepByStepSuite) ConfigureAndRunAgentService(VMclient *common.TestClie
 func (is *stepByStepSuite) CheckStepByStepAgentInstallation(VMclient *common.TestClient) {
 	common.CheckInstallation(is.T(), VMclient)
 	common.CheckAgentBehaviour(is.T(), VMclient)
+	common.CheckAgentStops(is.T(), VMclient)
+	common.CheckAgentRestarts(is.T(), VMclient)
+	common.CheckIntegrationInstall(is.T(), VMclient)
+	common.CheckAgentPython(is.T(), VMclient, "3")
+	if *majorVersion == "6" {
+		common.CheckAgentPython(is.T(), VMclient, "2")
+	}
+	common.CheckApmEnabled(is.T(), VMclient)
+	common.CheckApmDisabled(is.T(), VMclient)
+	if *flavorName == "datadog-agent" && is.cwsSupported {
+		common.CheckCWSBehaviour(is.T(), VMclient)
+	}
 	common.CheckUninstallation(is.T(), VMclient, *flavorName)
 }
 
@@ -140,13 +154,13 @@ func (is *stepByStepSuite) StepByStepDebianTest(VMclient *common.TestClient) {
 	var aptTrustedDKeyring = "/etc/apt/trusted.gpg.d/datadog-archive-keyring.gpg"
 	var aptUsrShareKeyring = "/usr/share/keyrings/datadog-archive-keyring.gpg"
 	var aptrepo = "[signed-by=/usr/share/keyrings/datadog-archive-keyring.gpg] http://apttesting.datad0g.com/"
-	var aptrepoDist = fmt.Sprintf("pipeline-%s-a%d-%s", os.Getenv("CI_PIPELINE_ID"), is.agentMajorVersion, *architecture)
+	var aptrepoDist = fmt.Sprintf("pipeline-%s-a%s-%s", os.Getenv("CI_PIPELINE_ID"), *majorVersion, *architecture)
 	fileManager := VMclient.FileManager
 	var err error
 
 	is.T().Run("create /usr/share keyring and source list", func(t *testing.T) {
 		ExecuteWithoutError(t, VMclient, "sudo apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y apt-transport-https curl gnupg")
-		tmpFileContent := fmt.Sprintf("deb %s %s %v", aptrepo, aptrepoDist, is.agentMajorVersion)
+		tmpFileContent := fmt.Sprintf("deb %s %s %s", aptrepo, aptrepoDist, *majorVersion)
 		_, err = fileManager.WriteFile("/etc/apt/sources.list.d/datadog.list", tmpFileContent)
 		require.NoError(t, err)
 		ExecuteWithoutError(t, VMclient, "sudo touch %s && sudo chmod a+r %s", aptUsrShareKeyring, aptUsrShareKeyring)
@@ -175,8 +189,8 @@ func (is *stepByStepSuite) StepByStepRhelTest(VMclient *common.TestClient) {
 	} else {
 		arch = *architecture
 	}
-	var yumrepo = fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%d/%d/%s/",
-		os.Getenv("CI_PIPELINE_ID"), is.agentMajorVersion, is.agentMajorVersion, arch)
+	var yumrepo = fmt.Sprintf("http://yumtesting.datad0g.com/testing/pipeline-%s-a%s/%s/%s/",
+		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error
 
@@ -222,8 +236,8 @@ func (is *stepByStepSuite) StepByStepSuseTest(VMclient *common.TestClient) {
 		arch = *architecture
 	}
 
-	var suseRepo = fmt.Sprintf("http://yumtesting.datad0g.com/suse/testing/pipeline-%s-a%d/%d/%s/",
-		os.Getenv("CI_PIPELINE_ID"), is.agentMajorVersion, is.agentMajorVersion, arch)
+	var suseRepo = fmt.Sprintf("http://yumtesting.datad0g.com/suse/testing/pipeline-%s-a%s/%s/%s/",
+		os.Getenv("CI_PIPELINE_ID"), *majorVersion, *majorVersion, arch)
 	fileManager := VMclient.FileManager
 	var err error
 
