@@ -385,6 +385,109 @@ func TestCompleteInferredSpanWithOutStartTime(t *testing.T) {
 	completedInferredSpan := tracePayload.TracerPayload.Chunks[0].Spans[0]
 	assert.Equal(t, startInvocationTime.UnixNano(), completedInferredSpan.Start)
 }
+
+func TestTimeoutExecutionSpan(t *testing.T) {
+	t.Setenv(functionNameEnvVar, "my-function")
+	t.Setenv("DD_SERVICE", "mock-lambda-service")
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	log := fxutil.Test[log.Component](t, logimpl.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:            extraTags,
+		ProcessTrace:         mockProcessTrace,
+		DetectLambdaLibrary:  mockDetectLambdaLibrary,
+		Demux:                demux,
+		InferredSpansEnabled: true,
+	}
+	startDetails := InvocationStartDetails{
+		StartTime:             time.Now(),
+		InvokeEventRawPayload: []byte(`{}`),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+	testProcessor.OnInvokeStart(&startDetails)
+
+	timeoutCtx := &TimeoutExecutionInfo{
+		RequestId:       "test-request-id",
+		Runtime:         "java11",
+		IsColdStart:     false,
+		IsProactiveInit: false,
+	}
+	testProcessor.OnTimeoutInvokeEnd(timeoutCtx)
+
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 1, len(spans))
+	// No trace context passed
+	assert.Equal(t, uint64(0), testProcessor.GetExecutionInfo().TraceID)
+	assert.Equal(t, uint64(0), testProcessor.GetExecutionInfo().SpanID)
+	assert.Equal(t, tracePayload.TracerPayload.Chunks[0].Priority, int32(-128))
+	// New trace ID and span ID has been created
+	assert.NotEqual(t, uint64(0), spans[0].TraceID)
+	assert.NotEqual(t, uint64(0), spans[0].SpanID)
+	assert.Equal(t, spans[0].Error, int32(1))
+	assert.Equal(t, spans[0].GetMeta()["request_id"], "test-request-id")
+	assert.Equal(t, spans[0].GetMeta()["language"], "java")
+}
+
+func TestTimeoutExecutionSpanWithTraceContext(t *testing.T) {
+	t.Setenv(functionNameEnvVar, "my-function")
+	t.Setenv("DD_SERVICE", "mock-lambda-service")
+
+	extraTags := &logs.Tags{
+		Tags: []string{"functionname:test-function"},
+	}
+	log := fxutil.Test[log.Component](t, logimpl.MockModule)
+	demux := aggregator.InitTestAgentDemultiplexerWithFlushInterval(log, time.Hour)
+	mockDetectLambdaLibrary := func() bool { return false }
+
+	var tracePayload *api.Payload
+	mockProcessTrace := func(payload *api.Payload) {
+		tracePayload = payload
+	}
+
+	testProcessor := LifecycleProcessor{
+		ExtraTags:            extraTags,
+		ProcessTrace:         mockProcessTrace,
+		DetectLambdaLibrary:  mockDetectLambdaLibrary,
+		Demux:                demux,
+		InferredSpansEnabled: true,
+	}
+	eventPayload := `a5a{"resource":"/users/create","path":"/users/create","httpMethod":"GET","headers":{"Accept":"*/*","Accept-Encoding":"gzip","x-datadog-parent-id":"1480558859903409531","x-datadog-sampling-priority":"1","x-datadog-trace-id":"5736943178450432258"}}0`
+	startDetails := InvocationStartDetails{
+		StartTime:             time.Now(),
+		InvokeEventRawPayload: []byte(eventPayload),
+		InvokedFunctionARN:    "arn:aws:lambda:us-east-1:123456789012:function:my-function",
+	}
+	testProcessor.OnInvokeStart(&startDetails)
+
+	timeoutCtx := &TimeoutExecutionInfo{
+		RequestId:       "test-request-id",
+		Runtime:         "java11",
+		IsColdStart:     false,
+		IsProactiveInit: false,
+	}
+	testProcessor.OnTimeoutInvokeEnd(timeoutCtx)
+
+	spans := tracePayload.TracerPayload.Chunks[0].Spans
+	assert.Equal(t, 1, len(spans))
+	// Trace context received
+	assert.Equal(t, spans[0].GetTraceID(), testProcessor.GetExecutionInfo().TraceID)
+	assert.Equal(t, spans[0].GetParentID(), testProcessor.GetExecutionInfo().parentID)
+	assert.Equal(t, tracePayload.TracerPayload.Chunks[0].Priority, int32(testProcessor.GetExecutionInfo().SamplingPriority))
+	assert.Equal(t, spans[0].Error, int32(1))
+	assert.Equal(t, spans[0].GetMeta()["request_id"], "test-request-id")
+	assert.Equal(t, spans[0].GetMeta()["language"], "java")
+}
+
 func TestTriggerTypesLifecycleEventForAPIGatewayRest(t *testing.T) {
 	startDetails := &InvocationStartDetails{
 		InvokeEventRawPayload: getEventFromFile("api-gateway.json"),

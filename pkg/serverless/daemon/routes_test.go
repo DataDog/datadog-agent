@@ -48,6 +48,12 @@ func (m *mockLifecycleProcessor) OnInvokeEnd(endDetails *invocationlifecycle.Inv
 	m.lastEndDetails = endDetails
 }
 
+func (m *mockLifecycleProcessor) OnTimeoutInvokeEnd(timeoutCtx *invocationlifecycle.TimeoutExecutionInfo) {
+	m.OnInvokeEndCalled = false
+	m.isError = true
+	m.lastEndDetails = nil
+}
+
 func TestStartInvocation(t *testing.T) {
 	assert := assert.New(t)
 	port := testutil.FreeTCPPort(t)
@@ -125,6 +131,44 @@ func TestEndInvocationWithError(t *testing.T) {
 	}
 	assert.True(m.OnInvokeEndCalled)
 	assert.True(m.isError)
+}
+
+func TestTimeoutInvocation(t *testing.T) {
+	assert := assert.New(t)
+	port := testutil.FreeTCPPort(t)
+	d := StartDaemon(fmt.Sprintf("127.0.0.1:%d", port))
+	time.Sleep(100 * time.Millisecond)
+	defer d.Stop()
+
+	m := &mockLifecycleProcessor{}
+	d.InvocationProcessor = m
+	client := &http.Client{Timeout: 1 * time.Second}
+	startURL := fmt.Sprintf("http://127.0.0.1:%d/lambda/start-invocation", port)
+
+	body := bytes.NewBuffer([]byte(`{}`))
+	startReq, err := http.NewRequest(http.MethodPost, startURL, body)
+	assert.Nil(err)
+	res, err := client.Do(startReq)
+	assert.Nil(err)
+	if res != nil {
+		assert.Equal(res.StatusCode, 200)
+		res.Body.Close()
+	}
+
+	d.InvocationProcessor.OnTimeoutInvokeEnd(
+		&invocationlifecycle.TimeoutExecutionInfo{
+			RequestId:       "123abc",
+			Runtime:         "custom",
+			IsColdStart:     true,
+			IsProactiveInit: true,
+		})
+
+	assert.True(m.OnInvokeStartCalled)
+	assert.True(d.hitOnStart)
+	assert.False(m.OnInvokeEndCalled)
+	assert.False(d.hitOnEnd)
+	assert.True(m.isError)
+	assert.Nil(m.lastEndDetails)
 }
 
 func TestTraceContext(t *testing.T) {

@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/serverless/daemon"
 	"github.com/DataDog/datadog-agent/pkg/serverless/flush"
+	"github.com/DataDog/datadog-agent/pkg/serverless/invocationlifecycle"
 	"github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serverless/registration"
 	"github.com/DataDog/datadog-agent/pkg/serverless/tags"
@@ -138,6 +139,18 @@ func WaitForNextInvocation(stopCh chan struct{}, daemon *daemon.Daemon, id regis
 			metricTags = tags.AddInitTypeTag(metricTags)
 			metrics.SendTimeoutEnhancedMetric(metricTags, daemon.MetricAgent.Demux)
 			metrics.SendErrorsEnhancedMetric(metricTags, time.Now(), daemon.MetricAgent.Demux)
+
+			if ok := daemon.IsExecutionSpanComplete(); !ok {
+				ecs := daemon.ExecutionContext.GetCurrentState()
+				log.Debug("No hit on serverless.EndInvocation route. Attempting to finish Lambda execution span.")
+				timeoutContext := &invocationlifecycle.TimeoutExecutionInfo{
+					RequestId:       ecs.LastRequestID,
+					Runtime:         ecs.Runtime,
+					IsColdStart:     coldStartTags.IsColdStart,
+					IsProactiveInit: coldStartTags.IsProactiveInit,
+				}
+				daemon.InvocationProcessor.OnTimeoutInvokeEnd(timeoutContext)
+			}
 		}
 		err := daemon.ExecutionContext.SaveCurrentExecutionContext()
 		if err != nil {

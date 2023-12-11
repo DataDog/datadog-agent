@@ -281,27 +281,7 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 		spans = append(spans, span)
 
 		if lp.InferredSpansEnabled {
-			log.Debug("[lifecycle] Attempting to complete the inferred span")
-			log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
-			if lp.GetInferredSpan().Span.Start != 0 {
-				span0, span1 := lp.requestHandler.inferredSpans[0], lp.requestHandler.inferredSpans[1]
-				if span1 != nil {
-					log.Debug("[lifecycle] Completing a secondary inferred span")
-					lp.setParentIDForMultipleInferredSpans()
-					span1.AddTagToInferredSpan("http.status_code", statusCode)
-					span1.AddTagToInferredSpan("peer.service", lp.GetServiceName())
-					span := lp.completeInferredSpan(span1, lp.getInferredSpanStart(), endDetails.IsError)
-					spans = append(spans, span)
-					log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
-				}
-				span0.AddTagToInferredSpan("http.status_code", statusCode)
-				span0.AddTagToInferredSpan("peer.service", lp.GetServiceName())
-				span := lp.completeInferredSpan(span0, endDetails.EndTime, endDetails.IsError)
-				spans = append(spans, span)
-				log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
-			} else {
-				log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
-			}
+			spans = lp.endInferredSpan(spans, statusCode, endDetails.EndTime, endDetails.IsError)
 		}
 		lp.processTrace(spans)
 	}
@@ -311,6 +291,19 @@ func (lp *LifecycleProcessor) OnInvokeEnd(endDetails *InvocationEndDetails) {
 			lp.ExtraTags.Tags, endDetails.EndTime, lp.Demux,
 		)
 	}
+}
+
+// OnTimeoutInvokeEnd completes an unfinished execution span during a timeout
+func (lp *LifecycleProcessor) OnTimeoutInvokeEnd(timeoutContext *TimeoutExecutionInfo) {
+	spans := make([]*pb.Span, 0, 3)
+	span := lp.endExecutionSpanOnTimeout(timeoutContext)
+	spans = append(spans, span)
+
+	if lp.InferredSpansEnabled {
+		// No response status code can be retrieved in a timeout so we pass an empty string
+		spans = lp.endInferredSpan(spans, "", time.Now(), true)
+	}
+	lp.processTrace(spans)
 }
 
 // GetTags returns the tagset of the currently executing lambda function
@@ -384,4 +377,30 @@ func (lp *LifecycleProcessor) addTag(key string, value string) {
 func (lp *LifecycleProcessor) setParentIDForMultipleInferredSpans() {
 	lp.requestHandler.inferredSpans[1].Span.ParentID = lp.requestHandler.inferredSpans[0].Span.ParentID
 	lp.requestHandler.inferredSpans[0].Span.ParentID = lp.requestHandler.inferredSpans[1].Span.SpanID
+}
+
+// endInferredSpan attempts to complete any inferred spans and send them to intake
+func (lp *LifecycleProcessor) endInferredSpan(spans []*pb.Span, statusCode string, endTime time.Time, isError bool) []*pb.Span {
+	log.Debug("[lifecycle] Attempting to complete the inferred span")
+	log.Debugf("[lifecycle] Inferred span context: %+v", lp.GetInferredSpan().Span)
+	if lp.GetInferredSpan().Span.Start != 0 {
+		span0, span1 := lp.requestHandler.inferredSpans[0], lp.requestHandler.inferredSpans[1]
+		if span1 != nil {
+			log.Debug("[lifecycle] Completing a secondary inferred span")
+			lp.setParentIDForMultipleInferredSpans()
+			span1.AddTagToInferredSpan("http.status_code", statusCode)
+			span1.AddTagToInferredSpan("peer.service", lp.GetServiceName())
+			span := lp.completeInferredSpan(span1, lp.getInferredSpanStart(), isError)
+			spans = append(spans, span)
+			log.Debug("[lifecycle] The secondary inferred span attributes are %v", lp.requestHandler.inferredSpans[1])
+		}
+		span0.AddTagToInferredSpan("http.status_code", statusCode)
+		span0.AddTagToInferredSpan("peer.service", lp.GetServiceName())
+		span := lp.completeInferredSpan(span0, endTime, isError)
+		spans = append(spans, span)
+		log.Debugf("[lifecycle] The inferred span attributes are: %v", lp.GetInferredSpan())
+	} else {
+		log.Debug("[lifecyle] Failed to complete inferred span due to a missing start time. Please check that the event payload was received with the appropriate data")
+	}
+	return spans
 }
