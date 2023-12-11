@@ -34,7 +34,7 @@ func randToken(n int) (string, error) {
 func inodeForPath(path string) uint64 {
 	stat, err := os.Stat(path)
 	if err != nil {
-		log.Debugf("unable to retrieve the inode for path %s: %s", path, err)
+		log.Debugf("unable to retrieve the inode for path %s: %v", path, err)
 		return unknownInode
 	}
 	inode := stat.Sys().(*syscall.Stat_t).Ino
