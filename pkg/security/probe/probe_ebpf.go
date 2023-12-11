@@ -768,6 +768,9 @@ func (p *EBPFProbe) handleEvent(CPU int, data []byte) {
 		// The pid_cache kernel map has the exit_time but it's only accessed if there's a local miss
 		event.ProcessCacheEntry.Process.ExitTime = p.fieldHandlers.ResolveEventTime(event, &event.BaseEvent)
 		event.Exit.Process = &event.ProcessCacheEntry.Process
+
+		// update mount pid mapping
+		p.Resolvers.MountResolver.DelPid(event.Exit.Pid)
 	case model.SetuidEventType:
 		// the process context may be incorrect, do not modify it
 		if event.Error != nil {
@@ -1342,7 +1345,7 @@ func (p *EBPFProbe) handleNewMount(ev *model.Event, m *model.Mount) error {
 	}
 
 	// Insert new mount point in cache, passing it a copy of the mount that we got from the event
-	if err := p.Resolvers.MountResolver.Insert(*m); err != nil {
+	if err := p.Resolvers.MountResolver.Insert(*m, 0); err != nil {
 		seclog.Errorf("failed to insert mount event: %v", err)
 		return err
 	}
