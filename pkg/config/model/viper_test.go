@@ -255,7 +255,6 @@ foo: bar
 	tempfile.Write(yamlExample)
 	defer os.Remove(tempfile.Name())
 
-	fmt.Println(tempfile.Name())
 	config.SetConfigFile(tempfile.Name())
 	config.ReadInConfig()
 
