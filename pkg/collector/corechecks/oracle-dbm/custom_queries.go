@@ -166,6 +166,13 @@ func (c *Check) CustomQueries() error {
 							errInQuery = true
 							break
 						}
+					} else if vFloat64, ok := v.(float64); ok {
+						metricRow.value = vFloat64
+						if err != nil {
+							allErrors = concatenateTypeError(allErrors, metricPrefix, "float64", metricRow.name, v, q.Query, err)
+							errInQuery = true
+							break
+						}
 					} else {
 						allErrors = concatenateTypeError(allErrors, metricPrefix, "UNKNOWN", metricRow.name, v, q.Query, err)
 						errInQuery = true
