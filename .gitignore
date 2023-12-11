@@ -11,6 +11,7 @@ __pycache__
 venv/
 venv27/
 venv3[78]/
+venv4/
 
 **/*.tmp
 **/debug.test
