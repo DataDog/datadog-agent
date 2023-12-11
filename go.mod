@@ -443,7 +443,7 @@ require (
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/masahiro331/go-disk v0.0.0-20220919035250-c8da316f91ac // indirect
 	github.com/masahiro331/go-ebs-file v0.0.0-20221225061409-5ef263bb2cc3 // indirect
-	github.com/masahiro331/go-ext4-filesystem v0.0.0-20221225060520-c150f5eacfe1 // indirect
+	github.com/masahiro331/go-ext4-filesystem v0.0.0-20231208112839-4339555a0cd4 // indirect
 	github.com/masahiro331/go-mvn-version v0.0.0-20210429150710-d3157d602a08 // indirect
 	github.com/masahiro331/go-vmdk-parser v0.0.0-20221225061455-612096e4bbbd // indirect
 	github.com/masahiro331/go-xfs-filesystem v0.0.0-20230608043311-a335f4599b70 // indirect
@@ -737,6 +737,3 @@ exclude (
 // be removed and the version of listed above dd-trace-go.v1 bumped to the
 // newer version.
 replace gopkg.in/DataDog/dd-trace-go.v1 => github.com/DataDog/dd-trace-go v0.0.0-20231030162158-1e7a3e0de599
-
-// Fixes bad ext4 support for side-scanner
-replace github.com/masahiro331/go-ext4-filesystem => github.com/jinroh/go-ext4-filesystem v0.0.0-20231116085146-cc5645ea002b
