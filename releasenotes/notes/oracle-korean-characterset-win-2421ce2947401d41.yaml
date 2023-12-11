@@ -1,4 +1,3 @@
----
 fixes:
   - |
     Fixing the issue with Koreak character set for Windows.
