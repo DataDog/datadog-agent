@@ -102,6 +102,7 @@ var targets = map[string]TargetSetup{
 	},
 }
 
+//nolint:revive // TODO(EBPF) Fix revive linter
 func setup(target types.Target, repos []string, dname string) error {
 	// Make source-list.d
 	sources := fmt.Sprintf(reposSourceDir, dname)

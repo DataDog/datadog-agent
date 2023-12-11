@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
 
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
@@ -44,7 +45,7 @@ func TestMount(t *testing.T) {
 	}
 	defer testDrive.Close()
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -160,7 +161,7 @@ func TestMountPropagated(t *testing.T) {
 		Expression: fmt.Sprintf(`chmod.file.path == "{{.Root}}/dir1-bind-mounted/test-drive/test-file"`),
 	}}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{})
+	test, err := newTestModule(t, nil, ruleDefs)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,6 +171,7 @@ func TestMountPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer os.RemoveAll(dir1Path)
 
 	testDrivePath := path.Join(dir1Path, "test-drive")
 	if err := os.MkdirAll(testDrivePath, 0755); err != nil {
@@ -181,7 +183,16 @@ func TestMountPropagated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer testDrive.Close()
+	defer func() {
+		if testEnvironment == DockerEnvironment {
+			testDrive.Close()
+			return
+		}
+
+		if err := testDrive.DetachDevice(); err != nil {
+			fmt.Printf("failed to detach device: %v", err)
+		}
+	}()
 
 	dir1BindMntPath, _, err := test.Path("dir1-bind-mounted")
 	if err != nil {
@@ -225,7 +236,6 @@ func TestMountPropagated(t *testing.T) {
 		test.WaitSignal(t, func() error {
 			return os.Chmod(file, 0700)
 		}, func(event *model.Event, rule *rules.Rule) {
-			t.Log(event.Open.File.PathnameStr)
 			assert.Equal(t, "chmod", event.GetType(), "wrong event type")
 			assert.Equal(t, file, event.Chmod.File.PathnameStr, "wrong path")
 		})
@@ -309,11 +319,16 @@ func TestMountSnapshot(t *testing.T) {
 	defer tmpfsMountA.unmount(0)
 	defer bindMountA.unmount(0)
 
-	test, err := newTestModule(t, nil, nil, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, nil, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer test.Close()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Skip("not supported")
+	}
 
 	tmpfsMountB, bindMountB, err := createHierarchy(rootB)
 	if err != nil {
@@ -322,7 +337,7 @@ func TestMountSnapshot(t *testing.T) {
 	defer tmpfsMountB.unmount(0)
 	defer bindMountB.unmount(0)
 
-	mountResolver := test.probe.GetResolvers().MountResolver
+	mountResolver := p.Resolvers.MountResolver
 	pid := utils.Getpid()
 
 	mounts, err := kernel.ParseMountInfoFile(int32(pid))
@@ -403,7 +418,7 @@ func TestMountEvent(t *testing.T) {
 		},
 	}
 
-	test, err := newTestModule(t, nil, ruleDefs, testOpts{testDir: testDrive.Root()})
+	test, err := newTestModule(t, nil, ruleDefs, withDynamicOpts(dynamicTestOpts{testDir: testDrive.Root()}))
 	if err != nil {
 		t.Fatal(err)
 	}

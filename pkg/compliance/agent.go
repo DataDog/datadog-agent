@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/compliance/aptconfig"
 	"github.com/DataDog/datadog-agent/pkg/compliance/dbconfig"
@@ -33,7 +34,6 @@ import (
 	secl "github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 )
 
 const containersCountMetricName = "datadog.security_agent.compliance.containers_running"
@@ -448,7 +448,7 @@ func (a *Agent) runDBConfigurationsExport(ctx context.Context) {
 			} else {
 				err := a.reportDBConfigurationFromSystemProbe(ctx, pid)
 				if err != nil {
-					log.Errorf("error evaluating cross-container benchmark from system-probe: %v", err)
+					log.Infof("error evaluating cross-container benchmark from system-probe: %v", err)
 				}
 			}
 		}
@@ -463,12 +463,12 @@ func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, pid in
 		return fmt.Errorf("system-probe socket client was not created")
 	}
 
-	qs := new(url.Values)
+	qs := make(url.Values)
 	qs.Add("pid", strconv.FormatInt(int64(pid), 10))
 	sysProbeComplianceModuleURL := &url.URL{
 		Scheme:   "http",
 		Host:     "unix",
-		Path:     "/dbconfig",
+		Path:     "/compliance/dbconfig",
 		RawQuery: qs.Encode(),
 	}
 
@@ -495,7 +495,13 @@ func (a *Agent) reportDBConfigurationFromSystemProbe(ctx context.Context, pid in
 		return err
 	}
 	if resource != nil {
-		a.reportResourceLog(defaultCheckIntervalLowPriority, NewResourceLog(a.opts.Hostname, resource.Type, resource.Config))
+		dbResourceLog := NewResourceLog(a.opts.Hostname, resource.Type, resource.Config)
+		if cID := resource.ContainerID; cID != "" {
+			dbResourceLog.Container = &CheckContainerMeta{
+				ContainerID: cID,
+			}
+		}
+		a.reportResourceLog(defaultCheckIntervalLowPriority, dbResourceLog)
 	}
 	return nil
 }

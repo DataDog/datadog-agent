@@ -268,24 +268,23 @@
           </span>
         {{- end}}
       {{- end -}}
-      {{/* The subsection `On-disk storage` is not inside `{{- with .forwarderStats -}}` as it need to access `.config` */}}
-      <span class="stat_subtitle">On-disk storage</span>
-      <span class="stat_subdata">
-      {{- if .config.forwarder_storage_max_size_in_bytes }}
-        {{- if .forwarderStats.FileStorage.CurrentSizeInBytes }}
-        Disk usage in bytes: {{ .forwarderStats.FileStorage.CurrentSizeInBytes }}<br>
-        Number of files: {{ .forwarderStats.FileStorage.FilesCount }}<br>
-        Number of files dropped: {{ .forwarderStats.FileStorage.FilesRemovedCount }}<br>
-        Deserialization errors count: {{ .forwarderStats.FileStorage.DeserializeErrorsCount }}<br>
-        Outdated files removed at startup: {{ .forwarderStats.RemovalPolicy.OutdatedFilesCount }}<br>
-        {{- else }}
-        Enabled, not in-use.<br>
-        {{- end}}
-      {{- else }}
-        On-disk storage is disabled. Configure `forwarder_storage_max_size_in_bytes` to enable it.<br>
-      {{- end}}
-      </span>
       {{- with .forwarderStats -}}
+        <span class="stat_subtitle">On-disk storage</span>
+        <span class="stat_subdata">
+        {{- if .forwarder_storage_max_size_in_bytes }}
+          {{- if .FileStorage.CurrentSizeInBytes }}
+          Disk usage in bytes: {{ .FileStorage.CurrentSizeInBytes }}<br>
+          Number of files: {{ .FileStorage.FilesCount }}<br>
+          Number of files dropped: {{ .FileStorage.FilesRemovedCount }}<br>
+          Deserialization errors count: {{ .FileStorage.DeserializeErrorsCount }}<br>
+          Outdated files removed at startup: {{ .RemovalPolicy.OutdatedFilesCount }}<br>
+          {{- else }}
+          Enabled, not in-use.<br>
+          {{- end}}
+        {{- else }}
+          On-disk storage is disabled. Configure `forwarder_storage_max_size_in_bytes` to enable it.<br>
+        {{- end}}
+        </span>
         {{- if .APIKeyStatus}}
           <span class="stat_subtitle">API Keys Status</span>
           <span class="stat_subdata">
@@ -479,9 +478,61 @@
     </span>
   </div>
 
-  <div class="stat" id="apmStats">
+  <div class="stat">
     <span class="stat_title">APM</span>
-    <span class="stat_data">Loading...</span>
+    <span class="stat_data">
+      {{- with .apmStats -}}
+        {{- if .error }}
+          Not running or unreachable on localhost:{{.port}}<br>
+          Error: {{.error}}<br>
+        {{- else}}
+          Status: Running<br>
+          Pid: {{.pid}}<br>
+          Uptime: {{.uptime}} seconds<br>
+          Mem alloc: {{humanize .memstats.Alloc}} bytes<br>
+          Hostname: {{.config.Hostname}}<br>
+          Receiver: {{.config.ReceiverHost}}:{{.config.ReceiverPort}}<br>
+          Endpoints:
+          <span class="stat_subdata">
+            {{- range $i, $e := .config.Endpoints}}
+              {{ $e.Host }}<br />
+            {{- end }}
+          </span>
+          <span class="stat_subtitle">Receiver (previous minute)</span>
+          <span class="stat_subdata">
+            {{- if eq (len .receiver) 0}}
+              No traces received in the previous minute.<br>
+            {{ else }}
+              {{ range $i, $ts := .receiver }}
+                From {{if $ts.Lang}}{{ $ts.Lang }} {{ $ts.LangVersion }} ({{ $ts.Interpreter }}), client {{ $ts.TracerVersion }}{{else}}unknown clients{{end}}
+                <span class="stat_subdata">
+                  Traces received: {{ $ts.TracesReceived }} ({{ humanize $ts.TracesBytes }} bytes)<br>
+                  Spans received: {{ $ts.SpansReceived }}
+                  {{ with $ts.WarnString }}
+                    <br>WARNING: {{ . }}</br>
+                  {{ end }}
+                </span>
+              {{ end }}
+            {{ end }}
+
+            {{range $key, $value := .ratebyservice_filtered -}}
+              {{- if eq $key "service:,env:" -}}
+                Default priority sampling rate: {{percent $value}}%
+              {{- else}}
+                Priority sampling rate for '{{ $key }}': {{percent $value}}%
+              {{- end}}
+            {{- end }}
+          </span>
+          <span class="stat_subtitle">Writer (previous minute)</span>
+          <span class="stat_subdata">
+            Traces: {{.trace_writer.Payloads}} payloads, {{.trace_writer.Traces}} traces, {{.trace_writer.Events}} events, {{humanize .trace_writer.Bytes}} bytes<br>
+            {{- if gt .trace_writer.Errors 0.0}}WARNING: Traces API errors (1 min): {{.trace_writer.Errors}}{{end}}
+            Stats: {{.stats_writer.Payloads}} payloads, {{.stats_writer.StatsBuckets}} stats buckets, {{humanize .stats_writer.Bytes}} bytes<br>
+            {{- if gt .stats_writer.Errors 0.0}}WARNING: Stats API errors (1 min): {{.stats_writer.Errors}}{{end}}
+          </span>
+        {{- end }}
+      {{ end }}
+    </span>
   </div>
 
   <div class="stat">
@@ -533,7 +584,8 @@
         {{- end }}
         {{ end }}
     </span>
-</div>
+   </div>
+
 
 
   <div class="stat">

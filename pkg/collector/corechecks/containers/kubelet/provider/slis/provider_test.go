@@ -9,17 +9,24 @@ package slis
 
 import (
 	"errors"
+	"os"
+	"reflect"
+	"regexp"
+	"testing"
+
+	"github.com/DataDog/datadog-agent/comp/core"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
 	"github.com/DataDog/datadog-agent/pkg/util/containers"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet/mock"
+
 	"github.com/stretchr/testify/assert"
-	"os"
-	"reflect"
-	"regexp"
-	"testing"
+	"go.uber.org/fx"
 )
 
 func TestProvider_Provide(t *testing.T) {
@@ -154,6 +161,13 @@ func TestProvider_Provide(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
 
+			store := fxutil.Test[workloadmeta.Mock](t, fx.Options(
+				core.MockBundle,
+				collectors.GetCatalog(),
+				fx.Supply(workloadmeta.NewParams()),
+				workloadmeta.MockModuleV2,
+			))
+
 			mockSender := mocksender.NewMockSender(checkid.ID(t.Name()))
 			mockSender.SetupAcceptAll()
 
@@ -163,7 +177,7 @@ func TestProvider_Provide(t *testing.T) {
 			}
 			tagger.SetDefaultTagger(fakeTagger)*/
 
-			store, err := commontesting.StorePopulatedFromFile(tt.podsFile, common.NewPodUtils())
+			err = commontesting.StorePopulatedFromFile(store, tt.podsFile, common.NewPodUtils())
 			if err != nil {
 				t.Errorf("unable to populate store from file at: %s, err: %v", tt.podsFile, err)
 			}

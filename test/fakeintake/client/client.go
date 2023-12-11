@@ -39,6 +39,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -69,6 +70,7 @@ const (
 // ErrNoFlareAvailable is returned when no flare is available
 var ErrNoFlareAvailable = errors.New("no flare available")
 
+//nolint:revive // TODO(APL) Fix revive linter
 type Client struct {
 	fakeIntakeURL string
 
@@ -194,6 +196,28 @@ func (c *Client) GetServerHealth() error {
 	return nil
 }
 
+// ConfigureOverride sets a response override on the fakeintake server
+func (c *Client) ConfigureOverride(override api.ResponseOverride) error {
+	route := fmt.Sprintf("%s/fakeintake/configure/override", c.fakeIntakeURL)
+
+	buf := new(bytes.Buffer)
+	err := json.NewEncoder(buf).Encode(override)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.Post(route, "application/json", buf)
+	if err != nil {
+		return err
+	}
+
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("error code %v", resp.StatusCode)
+	}
+	return nil
+}
+
 func (c *Client) getMetric(name string) ([]*aggregator.MetricSeries, error) {
 	err := c.getMetrics()
 	if err != nil {
@@ -279,6 +303,8 @@ func WithMetricValueLowerThan(maxValue float64) MatchOpt[*aggregator.MetricSerie
 }
 
 // WithMetricValueLowerThan filters metrics with values higher than `minValue`
+//
+//nolint:revive // TODO(APL) Fix revive linter
 func WithMetricValueHigherThan(minValue float64) MatchOpt[*aggregator.MetricSeries] {
 	return func(metric *aggregator.MetricSeries) (bool, error) {
 		for _, point := range metric.Points {
@@ -301,6 +327,8 @@ func (c *Client) getLog(service string) ([]*aggregator.Log, error) {
 
 // GetLogNames fetches fakeintake on `/api/v2/logs` endpoint and returns
 // all received log service names
+//
+//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetLogServiceNames() ([]string, error) {
 	err := c.getLogs()
 	if err != nil {
@@ -375,6 +403,8 @@ func (c *Client) GetCheckRunNames() ([]string, error) {
 
 // FilterLogs fetches fakeintake on `/api/v1/check_run` endpoint, unpackage payloads and returns
 // checks matching `name`
+//
+//nolint:revive // TODO(APL) Fix revive linter
 func (c *Client) GetCheckRun(name string) ([]*aggregator.CheckRun, error) {
 	err := c.getCheckRuns()
 	if err != nil {

@@ -32,9 +32,13 @@ var (
 )
 
 const (
-	HELM_CHART_RELEASE_NAME       = "CHART_RELEASE_NAME"
-	HELM_CHART_RELEASE_NAMESPACE  = "DD_KUBE_RESOURCES_NAMESPACE"
-	HELM_AGENT_DAEMONSET          = "AGENT_DAEMONSET"
+	//nolint:revive // TODO(ASC) Fix revive linter
+	HELM_CHART_RELEASE_NAME = "CHART_RELEASE_NAME"
+	//nolint:revive // TODO(ASC) Fix revive linter
+	HELM_CHART_RELEASE_NAMESPACE = "DD_KUBE_RESOURCES_NAMESPACE"
+	//nolint:revive // TODO(ASC) Fix revive linter
+	HELM_AGENT_DAEMONSET = "AGENT_DAEMONSET"
+	//nolint:revive // TODO(ASC) Fix revive linter
 	HELM_CLUSTER_AGENT_DEPLOYMENT = "CLUSTER_AGENT_DEPLOYMENT"
 )
 
@@ -46,6 +50,7 @@ type chartUserValues struct {
 
 // convertToYAMLBytes is a helper function to turn an object returned from `k8s.io/api/core/v1` into a readable YAML manifest
 func convertToYAMLBytes(input any) ([]byte, error) {
+	//nolint:revive // TODO(ASC) Fix revive linter
 	objJson, err := json.Marshal(input)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to Marshal the object manifest: %w", err)

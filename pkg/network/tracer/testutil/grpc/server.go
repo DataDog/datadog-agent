@@ -226,10 +226,17 @@ func NewServer(addr string) (*Server, error) {
 		return nil, err
 	}
 
+	server := NewServerWithoutBind()
+	server.lis = lis
+	server.Address = lis.Addr().String()
+
+	return server, nil
+}
+
+// NewServerWithoutBind returns a new instance of the gRPC server.
+func NewServerWithoutBind() *Server {
 	server := &Server{
-		Address:    lis.Addr().String(),
 		grpcSrv:    grpc.NewServer(grpc.MaxRecvMsgSize(100*1024*1024), grpc.MaxSendMsgSize(100*1024*1024)),
-		lis:        lis,
 		routeNotes: make(map[string][]*routeguide.RouteNote),
 	}
 
@@ -238,13 +245,20 @@ func NewServer(addr string) (*Server, error) {
 	routeguide.RegisterRouteGuideServer(server.grpcSrv, server)
 	pbStream.RegisterMathServer(server.grpcSrv, server)
 
-	return server, nil
+	return server
 }
 
+// GetGRPCServer returns the gRPC server.
+func (s *Server) GetGRPCServer() *grpc.Server {
+	return s.grpcSrv
+}
+
+// Stop stops the gRPC server.
 func (s *Server) Stop() {
 	s.grpcSrv.Stop()
 }
 
+// Run starts the gRPC server.
 func (s *Server) Run() {
 	go func() {
 		if err := s.grpcSrv.Serve(s.lis); err != nil {

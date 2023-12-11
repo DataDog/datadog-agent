@@ -59,7 +59,8 @@ func (suite *k8sSuite) TearDownSuite() {
 	c := color.New(color.Bold).SprintfFunc()
 	suite.T().Log(c("The data produced and asserted by these tests can be viewed on this dashboard:"))
 	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
-	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/qcp-brm-ysc/e2e-tests-containers-k8s?refresh_mode=paused&tpl_var_kube_cluster_name%%5B0%%5D=%s&from_ts=%d&to_ts=%d&live=false",
+	suite.T().Log(c("https://dddev.datadoghq.com/dashboard/qcp-brm-ysc/e2e-tests-containers-k8s?refresh_mode=paused&tpl_var_kube_cluster_name%%5B0%%5D=%s&tpl_var_fake_intake_task_family%%5B0%%5D=%s-fakeintake-ecs&from_ts=%d&to_ts=%d&live=false",
+		suite.KubeClusterName,
 		suite.KubeClusterName,
 		suite.startTime.UnixMilli(),
 		suite.endTime.UnixMilli(),
@@ -78,9 +79,26 @@ func (suite *k8sSuite) TearDownSuite() {
 // and to have the following tests with a smaller timeout.
 //
 // Inside a testify test suite, tests are executed in alphabetical order.
-// The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready
+// The 00 in Test00UpAndRunning is here to guarantee that this test, waiting for the agent pods to be ready,
 // is run first.
 func (suite *k8sSuite) Test00UpAndRunning() {
+	suite.testUpAndRunning(5 * time.Minute)
+}
+
+// An agent restart (because of a health probe failure or because of a OOM kill for ex.)
+// can cause a completely random failure on a completely random test.
+// A metric can be fully missing if the agent is restarted when the metric is checked.
+// Only a subset of tags can be missing if the agent has just restarted, but not all the
+// collectors have finished to feed workload meta and the tagger.
+// So, checking if any agent has restarted during the tests can be valuable for investigations.
+//
+// Inside a testify test suite, tests are executed in alphabetical order.
+// The ZZ in TestZZUpAndRunning is here to guarantee that this test, is run last.
+func (suite *k8sSuite) TestZZUpAndRunning() {
+	suite.testUpAndRunning(1 * time.Minute)
+}
+
+func (suite *k8sSuite) testUpAndRunning(waitFor time.Duration) {
 	ctx := context.Background()
 
 	suite.Run("agent pods are ready and not restarting", func() {
@@ -156,9 +174,12 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 					}
 				}
 			}
-		}, 5*time.Minute, 10*time.Second, "Not all agents eventually became ready in time.")
+		}, waitFor, 10*time.Second, "Not all agents eventually became ready in time.")
 	})
+}
 
+func (suite *k8sSuite) TestVersion() {
+	ctx := context.Background()
 	versionExtractor := regexp.MustCompile(`Commit: ([[:xdigit:]]+)`)
 
 	for _, tt := range []struct {
@@ -198,10 +219,15 @@ func (suite *k8sSuite) Test00UpAndRunning() {
 					suite.Emptyf(stderr, "Standard error of `agent version` should be empty,")
 					match := versionExtractor.FindStringSubmatch(stdout)
 					if suite.Equalf(2, len(match), "'Commit' not found in the output of `agent version`.") {
-						if len(GitCommit) == 10 && len(match[1]) == 7 {
-							suite.Equalf(GitCommit[:7], match[1], "Agent isn’t running the expected version")
-						} else {
-							suite.Equalf(GitCommit, match[1], "Agent isn’t running the expected version")
+						if suite.Greaterf(len(GitCommit), 6, "Couldn’t guess the expected version of the agent.") &&
+							suite.Greaterf(len(match[1]), 6, "Couldn’t find the version of the agent.") {
+
+							size2compare := len(GitCommit)
+							if len(match[1]) < size2compare {
+								size2compare = len(match[1])
+							}
+
+							suite.Equalf(GitCommit[:size2compare], match[1][:size2compare], "Agent isn’t running the expected version")
 						}
 					}
 				}
@@ -223,7 +249,7 @@ func (suite *k8sSuite) TestNginx() {
 				`^container_name:nginx$`,
 				`^display_container_name:nginx`,
 				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source   docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
 				`^image_id:ghcr\.io/datadog/apps-nginx-server@sha256:`,
 				`^image_name:ghcr\.io/datadog/apps-nginx-server$`,
 				`^image_tag:main$`,
@@ -279,6 +305,39 @@ func (suite *k8sSuite) TestNginx() {
 				Max: 5,
 				Min: 1,
 			},
+		},
+	})
+
+	// Test Nginx logs
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "apps-nginx-server",
+		},
+		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:nginx$`,
+				`^dirname:/var/log/pods/workload-nginx_nginx-`,
+				`^display_container_name:nginx`,
+				`^filename:[[:digit:]]+.log$`,
+				`^git\.commit\.sha:`, // org.opencontainers.image.revision docker image label
+				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`, // org.opencontainers.image.source docker image label
+				`^image_id:ghcr.io/datadog/apps-nginx-server@sha256:`,
+				`^image_name:ghcr.io/datadog/apps-nginx-server$`,
+				`^image_tag:main$`,
+				`^kube_container_name:nginx$`,
+				`^kube_deployment:nginx$`,
+				`^kube_namespace:workload-nginx$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:nginx-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:nginx-[[:alnum:]]+$`,
+				`^kube_service:nginx$`,
+				`^pod_name:nginx-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:apps-nginx-server$`,
+			},
+			Message: `GET / HTTP/1\.1`,
 		},
 	})
 
@@ -339,6 +398,37 @@ func (suite *k8sSuite) TestRedis() {
 				Max: 5,
 				Min: 1,
 			},
+		},
+	})
+
+	// Test Redis logs
+	suite.testLog(&testLogArgs{
+		Filter: testLogFilterArgs{
+			Service: "redis",
+		},
+		Expect: testLogExpectArgs{
+			Tags: &[]string{
+				`^container_id:`,
+				`^container_name:redis$`,
+				`^dirname:/var/log/pods/workload-redis_redis-`,
+				`^display_container_name:redis`,
+				`^filename:[[:digit:]]+.log$`,
+				`^image_id:docker.io/library/redis@sha256:`,
+				`^image_name:redis$`,
+				`^image_tag:latest$`,
+				`^kube_container_name:redis$`,
+				`^kube_deployment:redis$`,
+				`^kube_namespace:workload-redis$`,
+				`^kube_ownerref_kind:replicaset$`,
+				`^kube_ownerref_name:redis-[[:alnum:]]+$`,
+				`^kube_qos:Burstable$`,
+				`^kube_replica_set:redis-[[:alnum:]]+$`,
+				`^kube_service:redis$`,
+				`^pod_name:redis-[[:alnum:]]+-[[:alnum:]]+$`,
+				`^pod_phase:running$`,
+				`^short_image:redis$`,
+			},
+			Message: `Accepted`,
 		},
 	})
 
@@ -602,7 +692,7 @@ func (suite *k8sSuite) TestPrometheus() {
 }
 
 func (suite *k8sSuite) testHPA(namespace, deployment string) {
-	suite.Run(fmt.Sprintf("kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func() {
+	suite.Run(fmt.Sprintf("hpa   kubernetes_state.deployment.replicas_available{kube_namespace:%s,kube_deployment:%s}", namespace, deployment), func() {
 		sendEvent := func(alertType, text string, time *int) {
 			if _, err := suite.datadogClient.PostEvent(&datadog.Event{
 				Title: pointer.Ptr(fmt.Sprintf("testHPA %s/%s", namespace, deployment)),

@@ -4,6 +4,8 @@
 // Copyright 2016-present Datadog, Inc.
 
 // package header defines HTTP headers known convention used by the Trace Agent and Datadog's APM intake.
+//
+//nolint:revive // TODO(APM) Fix revive linter
 package header
 
 const (
@@ -55,6 +57,7 @@ const (
 	// If both agent and client have the same version, the agent won't return rates in API response.
 	RatesPayloadVersion = "Datadog-Rates-Payload-Version"
 
+	//nolint:revive // TODO(APM) Fix revive linter
 	// SendTrueHTTPStatus can be sent by the client to signal to the agent that
 	// it wants to receive the "real" status in the response. By default, the agent
 	// will send a 200 OK response for every payload, even those dropped due to

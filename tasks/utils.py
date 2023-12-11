@@ -122,7 +122,6 @@ def get_build_flags(
     major_version='7',
     python_runtimes='3',
     headless_mode=False,
-    race=False,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -216,12 +215,6 @@ def get_build_flags(
 
     if extldflags:
         ldflags += f"'-extldflags={extldflags}' "
-
-    # Needed to fix an issue when using -race + gcc 10.x on Windows
-    # https://github.com/bazelbuild/rules_go/issues/2614
-    if race:
-        if sys.platform == 'win32':
-            ldflags += " -linkmode=external"
 
     return ldflags, gcflags, env
 
@@ -420,7 +413,9 @@ def get_version(
         version = ""
     # If we didn't load the cache
     if not version:
-        print("[WARN] Agent version cache file hasn't been loaded !", file=sys.stderr)
+        if pipeline_id:
+            # only log this warning in CI
+            print("[WARN] Agent version cache file hasn't been loaded !", file=sys.stderr)
         # we only need the git info for the non omnibus builds, omnibus includes all this information by default
         version, pre, commits_since_version, git_sha, pipeline_id = query_version(
             ctx, git_sha_length, prefix, major_version_hint=major_version

@@ -52,7 +52,6 @@ def check_component(file, content):
         "comp/aggregator/demultiplexer/component.go",
         "comp/core/config/component.go",
         "comp/core/flare/component.go",
-        "comp/core/log/component.go",
         "comp/core/telemetry/component.go",
         "comp/dogstatsd/replay/component.go",
         "comp/dogstatsd/server/component.go",
@@ -138,7 +137,7 @@ def get_components_and_bundles(ctx):
 
 
 def make_components_md(bundles):
-    pkg_root = 'github.com/DataDog/dd-agent-comp-experiments/'
+    pkg_root = 'github.com/DataDog/datadog-agent/'
     yield '# Agent Components'
     yield '<!-- NOTE: this file is auto-generated; do not edit -->'
     yield ''

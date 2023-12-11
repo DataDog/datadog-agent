@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
+//nolint:revive // TODO(ASC) Fix revive linter
 package hostname
 
 import (
@@ -82,6 +83,7 @@ func fromGCE(ctx context.Context, _ string) (string, error) {
 	return gceGetHostname(ctx)
 }
 
+//nolint:revive // TODO(ASC) Fix revive linter
 func fromAzure(ctx context.Context, currentHostname string) (string, error) {
 	return azureGetHostname(ctx)
 }

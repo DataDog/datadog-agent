@@ -14,8 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/config"
+	//nolint:revive // TODO(CINT) Fix revive linter
 	ddConfig "github.com/DataDog/datadog-agent/pkg/config"
 	"github.com/DataDog/datadog-agent/pkg/epforwarder"
 	"github.com/DataDog/datadog-agent/pkg/sbom"
@@ -26,7 +28,6 @@ import (
 	queue "github.com/DataDog/datadog-agent/pkg/util/aggregatingqueue"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/workloadmeta"
 
 	model "github.com/DataDog/agent-payload/v5/sbom"
 
@@ -41,7 +42,7 @@ var /* const */ (
 
 type processor struct {
 	queue                 chan *model.SBOMEntity
-	workloadmetaStore     workloadmeta.Store
+	workloadmetaStore     workloadmeta.Component
 	imageRepoDigests      map[string]string              // Map where keys are image repo digest and values are image ID
 	imageUsers            map[string]map[string]struct{} // Map where keys are image repo digest and values are set of container IDs
 	sbomScanner           *sbomscanner.Scanner
@@ -53,7 +54,7 @@ type processor struct {
 	hostHeartbeatValidity time.Duration
 }
 
-func newProcessor(workloadmetaStore workloadmeta.Store, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
+func newProcessor(workloadmetaStore workloadmeta.Component, sender sender.Sender, maxNbItem int, maxRetentionTime time.Duration, hostSBOM bool, hostHeartbeatValidity time.Duration) (*processor, error) {
 	hostScanOpts := sbom.ScanOptionsFromConfig(ddConfig.Datadog, false)
 	hostScanOpts.NoCache = true
 	sbomScanner := sbomscanner.GetGlobalScanner()
@@ -207,7 +208,6 @@ func (p *processor) processHostRefresh() {
 			InUse:              true,
 			GeneratedAt:        timestamppb.New(result.CreatedAt),
 			GenerationDuration: convertDuration(result.Duration),
-			Hash:               result.Report.ID(),
 		}
 
 		if result.Error != nil {
@@ -234,6 +234,7 @@ func (p *processor) processHostRefresh() {
 					}
 				}
 
+				sbom.Hash = result.Report.ID()
 				p.hostCache = result.Report.ID()
 				p.hostLastFullSBOM = result.CreatedAt
 			}

@@ -5,6 +5,7 @@
 
 //go:build windows
 
+//nolint:revive // TODO(WINA) Fix revive linter
 package winevtapi
 
 //revive:disable:var-naming These names are intended to match the Windows API names
