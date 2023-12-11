@@ -18,7 +18,7 @@ import (
 )
 
 // appendLog appen log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
-func appendLog(s *LinuxVMFakeintakeSuite, content string, recurrence int) {
+func appendLog(s *LinuxFakeintakeSuite, content string, recurrence int) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
 	t := s.T()
@@ -46,12 +46,12 @@ func appendLog(s *LinuxVMFakeintakeSuite, content string, recurrence int) {
 		// Generate the log content
 		output, err := s.Env().VM.ExecuteWithError(cmd)
 		if err != nil {
-			assert.FailNowf(t, "Having issue generating %s log with error: %s", os, output)
+			assert.FailNowf(c, "Having issue generating %s log with error: %s", os, output)
 		}
 		// Verify the log content locally
 		output, err = s.Env().VM.ExecuteWithError(checkCmd)
 		if err != nil {
-			assert.FailNowf(t, "Log content %s not found, instead received:: %s", content, output)
+			assert.FailNowf(c, "Log content %s not found, instead received:: %s", content, output)
 		}
 		if strings.Contains(output, content) {
 			t.Logf("Finished generating %s log with content: '%s' \n", os, content)
@@ -60,7 +60,7 @@ func appendLog(s *LinuxVMFakeintakeSuite, content string, recurrence int) {
 }
 
 // checkLogFile verifies the presence or absence of a log file path
-func checkLogFilePresence(s *LinuxVMFakeintakeSuite, logPath string) {
+func checkLogFilePresence(s *LinuxFakeintakeSuite, logPath string) {
 	t := s.T()
 	osType := s.Env().VM.GetOSType()
 
@@ -81,7 +81,7 @@ func checkLogFilePresence(s *LinuxVMFakeintakeSuite, logPath string) {
 }
 
 // checkLogs verifies the presence or absence of logs in the intake based on the expectLogs flag.
-func checkLogs(s *LinuxVMFakeintakeSuite, service, content string, expectLogs bool) {
+func checkLogs(s *LinuxFakeintakeSuite, service, content string, expectLogs bool) {
 	client := s.Env().Fakeintake
 	t := s.T()
 	t.Helper()
@@ -105,18 +105,18 @@ func checkLogs(s *LinuxVMFakeintakeSuite, service, content string, expectLogs bo
 			assert.NoErrorf(c, err, "Error found: %s", err)
 
 			if expectLogs {
-				t.Logf("Logs with content: '%s' service: %s found", content, names)
-				assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', but received %s logs.", content, intakeLogs)
+				t.Logf("Logs from service: '%s' with content: '%s' collected", names, content)
+				assert.NotEmpty(c, logs, "Expected at least 1 log with content: '%s', from service: %s but received %s logs.", content, names, intakeLogs)
 			} else {
-				t.Logf("No logs with content: '%s' service: %s found as expected", content, names)
-				assert.Empty(c, logs, "No logs with content: '%s' is expected to be found from service instead found: %s", content, intakeLogs)
+				t.Logf("No logs from service: '%s' with content: '%s' collected as expected", names, content)
+				assert.Empty(c, logs, "No logs with content: '%s' is expected to be found from service: %s instead found: %s", content, names, intakeLogs)
 			}
 		}
 	}, 2*time.Minute, 10*time.Second)
 }
 
 // cleanUp cleans up any existing log files (only useful when running dev mode/local runs).
-func (s *LinuxVMFakeintakeSuite) cleanUp() {
+func (s *LinuxFakeintakeSuite) cleanUp() {
 	t := s.T()
 	var checkCmd string
 
@@ -144,7 +144,7 @@ func (s *LinuxVMFakeintakeSuite) cleanUp() {
 
 	s.EventuallyWithT(func(c *assert.CollectT) {
 		err := s.Env().Fakeintake.FlushServerAndResetAggregators()
-		if assert.NoErrorf(t, err, "Having issue flushing server and resetting aggregators, retrying...") {
+		if assert.NoErrorf(c, err, "Having issue flushing server and resetting aggregators, retrying...") {
 			t.Log("Successfully flushed server and reset aggregators.")
 		}
 	}, 1*time.Minute, 10*time.Second)
