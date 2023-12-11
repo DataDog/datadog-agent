@@ -17,7 +17,6 @@ import (
 	"github.com/DataDog/viper"
 	"github.com/spf13/afero"
 	"github.com/spf13/pflag"
-	"golang.org/x/exp/maps"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -648,7 +647,11 @@ func (c *safeConfig) BindPFlag(key string, flag *pflag.Flag) error {
 func (c *safeConfig) GetEnvVars() []string {
 	c.RLock()
 	defer c.RUnlock()
-	return maps.Keys(c.configEnvVars)
+	vars := make([]string, 0, len(c.configEnvVars))
+	for v := range c.configEnvVars {
+		vars = append(vars, v)
+	}
+	return vars
 }
 
 // BindEnvAndSetDefault implements the Config interface
