@@ -179,6 +179,8 @@ func buildTCPEndpoints(coreConfig pkgConfig.Reader, logsConfig *LogsConfigKeys) 
 	for i := 0; i < len(additionals); i++ {
 		if additionals[i].UseSSL == nil {
 			additionals[i].UseSSL = main.UseSSL
+		} else {
+			*additionals[i].UseSSL = !*additionals[i].UseSSL
 		}
 		additionals[i].ProxyAddress = proxyAddress
 		additionals[i].APIKey = utils.SanitizeAPIKey(additionals[i].APIKey)
@@ -255,6 +257,8 @@ func BuildHTTPEndpointsWithConfig(coreConfig pkgConfig.Reader, logsConfig *LogsC
 	for i := 0; i < len(additionals); i++ {
 		if additionals[i].UseSSL == nil {
 			additionals[i].UseSSL = main.UseSSL
+		} else {
+			*additionals[i].UseSSL = !*additionals[i].UseSSL
 		}
 		additionals[i].APIKey = utils.SanitizeAPIKey(additionals[i].APIKey)
 		additionals[i].UseCompression = main.UseCompression
