@@ -69,21 +69,26 @@ func (s *LinuxVMFakeintakeSuite) TearDownSuite() {
 }
 
 func (s *LinuxVMFakeintakeSuite) TestLinuxLogTailing() {
-	// Run test cases
+	// Run test cases:
 
-	// Test log file collection with permissions granted before and after log generation
+	// Given the agent configured to collect logs and a log files that is inaccessible.
+	// When the log permission on the targeted log file becomes accessible to the Agent, a log line is generated.
+	// Then the agent correctly collects this log line.
 	s.Run("LogCollection", s.LogCollection)
 
-	// Test log file collection with permission revoked and granted before log generation
+	// Given the agent configured to collect logs and a log file with or without reading permissions,
+	// When permissions are granted or revoked to the log file, a new log line is generated,
+	// Then the agent fail or sucessfully collects the log line depends on the permission
 	s.Run("LogPermission", s.LogPermission)
 
-	// Test log file collection with log file delete and recreate rotation
+	// Given the agent configured to collect logs a new log file that is created from log rotation
+	// When the new log file is created, it is granted new permission and a new log line is generated,
+	// Then the agent successfully collects the log line
 	s.Run("LogRecreateRotation", s.LogRecreateRotation)
 }
 
 func (s *LinuxVMFakeintakeSuite) LogCollection() {
 	t := s.T()
-	// fakeintake := s.Env().Fakeintake
 
 	// Create a new log file with permissionn inaccessible to the agent
 	s.Env().VM.Execute("sudo touch /var/log/hello-world.log")
@@ -97,33 +102,11 @@ func (s *LinuxVMFakeintakeSuite) LogCollection() {
 
 	t.Logf("Permissions granted for new log file.")
 	// Generate log
-	generateLog(s, "hello-before-permission-world", 1)
+	appendLog(s, "hello-before-permission-world", 1)
 
 	// Check intake for new logs
 	checkLogs(s, "hello", "hello-before-permission-world", true)
 
-	//  Adjust permissions of new log file after log generation
-
-	// Restore permissions to default and generate log
-	output, err = s.Env().VM.ExecuteWithError("sudo chmod 644 /var/log/hello-world.log && echo true")
-
-	assert.NoErrorf(t, err, "Unable to adjust back to default permissions, err: %s.", err)
-
-	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust back to default permissions for the log file '/var/log/hello-world.log'.")
-
-	t.Logf("Permissions reset to default.")
-	generateLog(s, "hello-after-permission-world", 1)
-
-	// Grant log file permission and check intake for new logs
-	output, err = s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
-
-	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-
-	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-
-	t.Logf("Permissions granted for log file.")
-
-	checkLogs(s, "hello", "hello-after-permission-world", true)
 }
 
 func (s *LinuxVMFakeintakeSuite) LogPermission() {
@@ -131,42 +114,55 @@ func (s *LinuxVMFakeintakeSuite) LogPermission() {
 	logPath := "/var/log/hello-world.log"
 	checkLogFilePresence(s, logPath)
 
-	// Allow on only write permission to the log file so the agent cannot tail it
-	output, err := s.Env().VM.ExecuteWithError("sudo chmod -r /var/log/hello-world.log && echo true")
+	// Reset log file permissions to default before testing
+	output, err := s.Env().VM.ExecuteWithError("sudo chmod 644 /var/log/hello-world.log && echo true")
+	assert.NoErrorf(t, err, "Unable to adjust back to default permissions, err: %s.", err)
+	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust back to default permissions for the log file '/var/log/hello-world.log'.")
+	t.Logf("Permissions reset to default.")
 
+	// Testing case 1: agent can collect log with permissions granted after log generation
+	// Generate logs then grant log file permission and check intake for new logs
+	appendLog(s, "hello-after-permission-world", 1)
+	output, err = s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
 	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-
 	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	t.Logf("Permissions granted for log file.")
+	checkLogs(s, "hello", "hello-after-permission-world", true)
 
+	// Testing case 2: agent can not collect logs due to no permission
+	// Allow on only write permission to the log file so the agent cannot tail it
+	output, err = s.Env().VM.ExecuteWithError("sudo chmod -r /var/log/hello-world.log && echo true")
+	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
+	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
 	t.Logf("Read permissions revoked")
 
 	// In Linux, file permissions are checked at the time of file opening, not during subsequent read or write operations
 	// => If the agent has already successfully opened a file for reading, it can continue to read from that file even if the read permissions are later removed
 	// => Restart the agent to force it to reopen the file
-
 	s.Env().VM.Execute("sudo service datadog-agent restart")
 
-	generateLog(s, "access-denied", 1)
+	// Generate logs and check the intake for no new logs because of revoked permissions
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		agentReady := s.Env().Agent.IsReady()
+		if assert.Equal(t, true, agentReady, "Agent is not ready after restart") {
+			appendLog(s, "access-denied", 1)
+			checkLogs(s, "hello", "access-denied", false)
+		}
+	}, 2*time.Minute, 1*time.Second)
 
-	// Check intake to see if new logs are not present
-	checkLogs(s, "hello", "access-denied", false)
-
-	// Restore permissions
+	// Testing case 3: agent can collect log with permissions granted before log generation
+	// Grant read permission
 	output, err = s.Env().VM.ExecuteWithError("sudo chmod +r /var/log/hello-world.log && echo true")
-
 	assert.NoError(t, err, "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-
 	assert.Equal(t, "true", strings.TrimSpace(output), "Unable to adjust permissions for the log file '/var/log/hello-world.log'.")
-
 	// Generate new logs and check the intake for new logs
 	t.Logf("Permissions restored.")
 
 	// Wait for the agent to tail the log file since there is a delay between permissions being granted and the agent tailing the log file
 	time.Sleep(1000 * time.Millisecond)
 
-	generateLog(s, "access-granted", 1)
-
-	// Check intake to see if new logs are present
+	// Generate logs and check the intake for new logs after the permission is granted
+	appendLog(s, "access-granted", 1)
 	checkLogs(s, "hello", "access-granted", true)
 
 }
@@ -178,7 +174,6 @@ func (s *LinuxVMFakeintakeSuite) LogRecreateRotation() {
 
 	// Rotate the log file and check if the agent is tailing the new log file.
 	// Delete and Recreate file rotation
-
 	output, err := s.Env().VM.ExecuteWithError("umask 022 && echo true")
 	assert.NoError(t, err, "Failed to set umask")
 
@@ -193,7 +188,7 @@ func (s *LinuxVMFakeintakeSuite) LogRecreateRotation() {
 	t.Logf("Permissions granted for new log file.")
 
 	// Generate new logs
-	generateLog(s, "hello-world-new-content", 1)
+	appendLog(s, "hello-world-new-content", 1)
 
 	// Check intake for new logs
 	checkLogs(s, "hello", "hello-world-new-content", true)

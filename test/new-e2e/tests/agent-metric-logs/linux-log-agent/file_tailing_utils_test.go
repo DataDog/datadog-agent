@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// generateLog generates x content with y reccurrence and verifies log contents.
-func generateLog(s *LinuxVMFakeintakeSuite, content string, recurrence int) {
+// appendLog appen log with 'content', which is then repeated 'reccurrence' times and verifies log contents.
+func appendLog(s *LinuxVMFakeintakeSuite, content string, recurrence int) {
 	// Determine the OS and set the appropriate log path and command.
 	var logPath, cmd, checkCmd string
 	t := s.T()
